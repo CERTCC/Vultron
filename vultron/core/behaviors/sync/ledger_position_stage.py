@@ -107,7 +107,9 @@ def create_ledger_position_stage(
     it would be without it.  The re-run of an activity a run left in
     holding, whose first delivery may already have been answered, is not
     answered again; the classifier reads that from the message's record
-    (ADR-0154).  A resend never reaches this stage: the door answered it.
+    (ADR-0154), and the replay of one this CASE_MANAGER already judged in
+    order, whose record was released, from the sender's order record
+    (SYNC-21-018).  A resend never reaches this stage: the door answered it.
     """
     replay_a_lag = py_trees.composites.Selector(
         name="ReplayIfLagging",

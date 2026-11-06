@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import py_trees
 
+from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.errors import VultronBTInternalError
@@ -51,6 +52,14 @@ def create_commit_log_entry_tree(
     ``CommitCaseLedgerEntryNode`` carries it to the outer bridge, so a received
     handler raises rather than reporting a refusal (ADR-0095).
 
+    The mint sequence is one
+    :class:`~vultron.core.behaviors.act_transaction.ActTransaction`, so the
+    entry is stored only together with the announcements its fan-out queues:
+    a fan-out that fails or raises takes the entry back.  That is what lets
+    ``FanOutLogEntryNode`` skip an entry this commit found already recorded
+    (SYNC-09-002, OX-06-002, #5047).  Inside an act's transaction it is a
+    savepoint in that transaction (ADR-0146).
+
     *check_freshness* ``False`` drops
     :class:`~vultron.core.behaviors.sync.nodes.conditions.CheckLedgerFreshnessNode`,
     which fails on a gapped local prefix by design (SYNC-10-001/002).  Only
@@ -71,9 +80,12 @@ def create_commit_log_entry_tree(
         memory=False,
         children=[
             DeclineForeignLedgerCommitNode(name="DeclineForeignLedgerCommit"),
-            py_trees.composites.Sequence(
+            # One transaction (ADR-0146): an entry is recorded only with its
+            # announcements queued, so a commit that finds it recorded has
+            # nothing left to announce (FanOutLogEntryNode, #5047).  Inside
+            # an act's transaction this is a savepoint in it.
+            ActTransaction(
                 name="MintAndFanOutLogEntry",
-                memory=False,
                 children=[
                     # Refuse before anything is written: a committed entry
                     # that cannot be announced is a silent fork (#4113).

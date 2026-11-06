@@ -269,8 +269,8 @@ already-declined answer, closed-case decline, admission decision, accept flow.
 - The `Accept`'s `result` always names the case the proposal produced or reused, so
   the requester correlates it without a second `Create`, which is not sent again.
   `CheckCaseAlreadyAnnouncedNode` skips the `Create` step, and
-  `CommitNativeLedgerEntriesNode` skips entries already recorded; without that skip
-  the reused entries fan out again.
+  `CommitNativeLedgerEntriesNode` skips entries already recorded, so it rebuilds
+  nothing; the commit tree would reuse each one and announce none again.
 - **Every native-initialization node must be a no-op on a case that already has what it
   creates**, embargo included, whatever its EM state. A node that names the proposer
   as owner also skips a proposer that is not the case's `attributed_to`: a former

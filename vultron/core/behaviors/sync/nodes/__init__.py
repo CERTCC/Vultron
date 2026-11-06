@@ -110,6 +110,7 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
     FanOutLogEntryNode,
+    LogEntryCommittedBeforeNode,
     SendLogEntryToEachNode,
 )
 from vultron.core.behaviors.sync.nodes.genesis_announce import (
@@ -287,6 +288,7 @@ __all__ = [
     "ReplayMissingEntriesNode",
     "CollectLogEntryRecipientsNode",
     "SendLogEntryToEachNode",
+    "LogEntryCommittedBeforeNode",
     "FanOutLogEntryNode",
     # embargo_backfill
     "BackfillAdmittedParticipantsNode",
