@@ -33,6 +33,8 @@ import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from test.support.ledger import ledger_entries
+from test.support.ledger_rebuild import run_use_case
 from test.support.received import (
     delivered_body,
     extract_stamped,
@@ -77,8 +79,11 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity_ids import derived_activity_id
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.fault import RefusalNoticeReceivedEvent
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
     record_pending_assertion,
@@ -93,7 +98,10 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.core.use_cases.received._bt_verdict import find_node
 from vultron.core.use_cases.received.fault import RefusalNoticeReceivedUseCase
 from vultron.errors import VultronWiringError
-from vultron.wire.as2.factories import em_accept_embargo_activity
+from vultron.wire.as2.factories import (
+    add_status_to_participant_activity,
+    em_accept_embargo_activity,
+)
 from vultron.wire.as2.parser import parse_activity
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
@@ -297,18 +305,87 @@ def test_a_skipped_repeat_answer_under_a_new_id_queues_no_notice():
 @pytest.mark.spec("OX-06-002")
 def test_a_rerun_whose_stub_was_never_written_queues_no_second_notice():
     """The receipt stub's write is best-effort: when it is lost, the record
-    stays in holding and a resend runs the tree again.  The notice's id is
-    derived from the CASE_MANAGER and the refused activity, so the second run
-    queues the same sealed notice once, never a second one (ID-04-004)."""
+    stays in holding and a resend runs the tree again.  The seen-before door
+    tells the re-run, so the refusal effects are skipped and the first
+    notice is the one answer (ID-04-004)."""
     net, _, invite_id = _network("rerun")
     event = _accept_event(net, invite_id)
     _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
     first = _notices(net, MANAGER, BYSTANDER)
     assert len(first) == 1
+    tree = _tree(net.case_id, BYSTANDER)
 
-    _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
+    result = _run(net, MANAGER, tree, event)
 
+    assert result.status == Status.FAILURE
+    stage = find_node(tree, PreconditionGuardStage)
+    assert stage is not None and stage.skipped_as_redelivery
     assert _notices(net, MANAGER, BYSTANDER) == first
+
+
+@pytest.mark.spec("CLP-10-044")
+@pytest.mark.spec("RSH-06-004")
+def test_a_rerun_of_a_refused_rm_regression_records_no_second_note():
+    """The RSH-06-004 note is a refusal effect whose id is minted, so only
+    the skip on a re-run keeps a lost receipt stub from committing a second
+    note and announcing it (CLP-10-044, CLP-10-048)."""
+    from vultron.core.states.em import EM
+    from vultron.core.states.rm import RM
+
+    from .test_case_manager_note_replay import _notes, _set_rm
+
+    net = LedgerNetwork(
+        "https://example.org/cases/refusal-notice-rm-regression-rerun",
+        em_state=EM.NONE,
+    )
+    _set_rm(net, BYSTANDER, RM.ACCEPTED)
+    manager_dl = net.stores[MANAGER]
+    participant = manager_dl.read(
+        net.case(MANAGER).actor_participant_index[BYSTANDER]
+    )
+    assert isinstance(participant, CaseParticipant)
+    body = net.stamp(
+        json.loads(
+            dump_outbound_body(
+                add_status_to_participant_activity(
+                    ParticipantStatus(
+                        context=net.case_id,
+                        attributed_to=BYSTANDER,
+                        rm=RmDimension(state=RM.VALID),
+                    ),
+                    target=participant,
+                    actor=BYSTANDER,
+                    to=[MANAGER],
+                )
+            )
+        ),
+        receiver=MANAGER,
+    )
+
+    def _deliver_unsettled():
+        # Run as the inbox runs it, but with the receipt stub's write lost.
+        return run_use_case(
+            manager_dl,
+            received_event(
+                parse_activity(body),
+                as_sent=True,
+                receiving_actor_id=MANAGER,
+            ),
+        )
+
+    first = _deliver_unsettled()
+    assert first.disposition is HandlerDisposition.REFUSED
+    notes = [n.id_ for n in _notes(net, MANAGER)]
+    assert len(notes) == 1
+    entries = len(ledger_entries(manager_dl, net.case_id))
+    queued = list(manager_dl.outbox_list())
+
+    again = _deliver_unsettled()
+
+    assert again.disposition is HandlerDisposition.REFUSED
+    assert [n.id_ for n in _notes(net, MANAGER)] == notes
+    assert len(ledger_entries(manager_dl, net.case_id)) == entries
+    assert list(manager_dl.outbox_list()) == queued
 
 
 @pytest.mark.spec("CLP-05-006")

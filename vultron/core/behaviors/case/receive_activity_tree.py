@@ -606,6 +606,7 @@ def create_receive_activity_tree(
             case_id or manager_case_id,
             post_close_exemption,
             post_close_reply or [],
+            seen_door,
         )
     )
     if closed_sender is not None:
@@ -681,6 +682,7 @@ def create_receive_activity_tree(
                 guards,
                 effects,
                 case_id,
+                seen_door=seen_door,
             )
         )
     else:

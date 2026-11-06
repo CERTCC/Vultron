@@ -2964,7 +2964,11 @@ groups:
       `test/core/use_cases/received/test_refusal_notice.py` asserts the seen-before door
       refuses a redelivery from its receipt stub before any refusal effect runs, and
       `test/adapters/driving/fastapi/test_seen_before_door.py` that a resend of a
-      refused message sends nothing (ADR-0154).
+      refused message sends nothing (ADR-0154). For the re-run of a record a run left
+      in holding, `test_a_rerun_from_holding_skips_the_refusal_effects` in
+      `test/core/behaviors/case/nodes/test_refusal_stage.py` asserts the stage skips the
+      effects, and `test_a_rerun_of_a_refused_rm_regression_records_no_second_note` in
+      `test_refusal_notice.py` that no second RSH-06-004 note is committed or sent.
     relationships:
     - rel_type: extends
       spec_id: CLP-10-022

@@ -100,6 +100,7 @@ def post_close_stage(
     guard_case_id: str | None,
     exemption: PostCloseExemption | None,
     reply: list[py_trees.behaviour.Behaviour],
+    seen_door: ActivityNotSeenBeforeNode,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The post-close write-boundary guard, with its optional reply.
 
@@ -133,6 +134,7 @@ def post_close_stage(
             [guard],
             reply,
             guard_case_id,
+            seen_door=seen_door,
             stage_name="PostCloseStage",
             guards_name="PostCloseGuard",
             gate_suffix="PostCloseReplyIfCaseManager",

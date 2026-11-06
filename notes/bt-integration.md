@@ -538,8 +538,11 @@ nothing is written before the last one admits the message (ADR-0154).
    gate (a resend never reaches it: the seen-before door answered it), and
    skips them on a failed guard whose
    `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
-   reports `SKIPPED`), and on a delivery a `Diversion` among the guards took,
-   which its diversion already answered (CLP-10-026). A guard that turns a
+   reports `SKIPPED`), on a delivery a `Diversion` among the guards took,
+   which its diversion already answered (CLP-10-026), and on the re-run of a
+   record a run left in holding, which the seen-before door tells (CLP-10-044):
+   the first run may have answered, and the RSH-06-004 note's id is minted. A
+   guard that turns a
    `VultronError` into a refusal re-raises `INTERNAL_FAULTS` first
    (`vultron/errors.py`): an internal failure is never answered with a
    notice. The stage then fails with the guard's reason, so nothing

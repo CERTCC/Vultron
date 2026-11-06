@@ -68,6 +68,9 @@ from vultron.core.behaviors.case.nodes.refusal_notice import (
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
 )
+from vultron.core.behaviors.case.nodes.seen_before import (
+    ActivityNotSeenBeforeNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
     received_stages,
@@ -461,6 +464,7 @@ def _hand_built(
                 for i in range(notices)
             ],
         ),
+        seen_door=ActivityNotSeenBeforeNode(label=name),
     )
     return ReceivedActivityTree(
         name=name,
