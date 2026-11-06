@@ -564,6 +564,27 @@ def test_a_malformed_public_key_is_refused_at_verification():
         signing.verify(_signed_note(), "not-a-key")
 
 
+def test_a_published_multikey_lists_the_keys_id_and_public_half():
+    actor_id = "https://example.org/actors/vendorco"
+    key = signing.seeded_signing_key(actor_id)
+
+    published = signing.published_multikey(key, actor_id)
+
+    assert published.model_dump(mode="json", by_alias=True) == {
+        "id": f"{actor_id}#main-key",
+        "type": "Multikey",
+        "controller": actor_id,
+        "publicKeyMultibase": key.public_key_multibase,
+    }
+
+
+def test_a_key_outside_its_controllers_document_is_not_published():
+    key = signing.seeded_signing_key("https://example.org/actors/vendorco")
+
+    with pytest.raises(ValueError, match="fragment of its controller"):
+        signing.published_multikey(key, "https://example.org/actors/other")
+
+
 # --- Strict JSON ------------------------------------------------------------------
 
 

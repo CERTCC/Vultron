@@ -13,8 +13,7 @@
 """An actor profile publishes the key that verifies its proofs (ADR-0164).
 
 Each test serves one actor's store with a real app and fetches its profile
-with a plain GET.  No profile carries a key yet, so each test is a strict
-``xfail`` naming the Task that turns it green (#5381).
+with a plain GET (SIG-02-002).
 """
 
 from pathlib import Path
@@ -25,20 +24,27 @@ import pytest
 from test.adapters.driving.fastapi._redelivery import served_store
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.db_record import object_to_record
+from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.multikey import Multikey
+from vultron.wire.as2 import signing
 
-_NO_KEY = "actor profiles do not publish a key yet. Tracked by #5381."
 
-
-def _profile(store: Path, segment: str) -> dict[str, Any]:
-    """The profile a fresh store at *store* serves for the actor at *segment*."""
+def _get(store: Path, segment: str, path: str) -> dict[str, Any]:
+    """What a fresh store at *store* serves at *path* for the actor at *segment*."""
     actor_id = canonical_actor_uri(segment)
     # A file per store: two in-memory stores for one actor id share their
     # rows, so the second would find the first one's actor record.
     dl = SqliteDataLayer(f"sqlite:///{store}", actor_id=actor_id)
     with served_store(dl, actor_id, segment) as (client, _emitter):
-        response = client.get(f"/api/v2/actors/{segment}/profile")
+        response = client.get(path)
     assert response.status_code == 200, response.text
     return cast(dict[str, Any], response.json())
+
+
+def _profile(store: Path, segment: str) -> dict[str, Any]:
+    """The profile a fresh store at *store* serves for the actor at *segment*."""
+    return _get(store, segment, f"/api/v2/actors/{segment}/profile")
 
 
 def _multikeys(profile: dict[str, Any]) -> list[dict[str, Any]]:
@@ -51,7 +57,6 @@ def _multikeys(profile: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-@pytest.mark.xfail(strict=True, reason=f"ENC-01-002, SIG-02-002: {_NO_KEY}")
 @pytest.mark.spec("ENC-01-002")
 @pytest.mark.spec("SIG-02-002")
 def test_an_unsigned_get_returns_the_profile_with_its_key(tmp_path: Path):
@@ -67,10 +72,6 @@ def test_an_unsigned_get_returns_the_profile_with_its_key(tmp_path: Path):
     assert str(key.get("publicKeyMultibase", "")).startswith("z")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"SIG-05-001: {_NO_KEY}",
-)
 @pytest.mark.spec("SIG-05-001")
 def test_an_actors_key_is_the_same_in_every_store(tmp_path: Path):
     first = _multikeys(_profile(tmp_path / "first.db", "profile-key-finder"))
@@ -82,3 +83,87 @@ def test_an_actors_key_is_the_same_in_every_store(tmp_path: Path):
     assert first and other
     assert first == again
     assert first[0]["publicKeyMultibase"] != other[0]["publicKeyMultibase"]
+
+
+@pytest.mark.spec("ENC-01-002")
+def test_the_published_key_verifies_the_actors_proofs(tmp_path: Path):
+    """The key a profile lists is the one the actor's proofs name and verify by."""
+    actor_id = canonical_actor_uri("profile-key-signer")
+    owner_key = signing.seeded_signing_key(actor_id)
+    signed = signing.sign(
+        {"id": f"{actor_id}/activities/1", "type": "Create"}, owner_key
+    )
+
+    [key] = _multikeys(_profile(tmp_path / "signer.db", "profile-key-signer"))
+
+    assert key["id"] == signing.proof_verification_method(signed)
+    signing.verify(signed, key["publicKeyMultibase"])
+
+
+@pytest.mark.spec("SIG-02-001")
+def test_the_actor_id_dereferences_to_the_profile_with_its_key(
+    tmp_path: Path,
+):
+    """A GET of the document a key id names finds the key there."""
+    segment = "profile-key-deref"
+    store = tmp_path / "deref.db"
+
+    by_id = _multikeys(_get(store, segment, f"/api/v2/actors/{segment}"))
+    by_profile = _multikeys(_profile(tmp_path / "again.db", segment))
+
+    assert by_id
+    assert by_id == by_profile
+
+
+def test_a_stored_key_is_replaced_by_the_key_the_actor_signs_with(
+    tmp_path: Path,
+):
+    """A hosted actor publishes the key its proofs verify by, not a stored one."""
+    segment = "profile-key-stale"
+    actor_id = canonical_actor_uri(segment)
+    other_key = signing.seeded_signing_key(canonical_actor_uri("someone-else"))
+    stored = VultronOrganization(
+        id_=actor_id,
+        name=segment,
+        assertion_method=[
+            Multikey(
+                id_=f"{actor_id}#old-key",
+                controller=actor_id,
+                public_key_multibase=other_key.public_key_multibase,
+            )
+        ],
+    )
+    dl = SqliteDataLayer(
+        f"sqlite:///{tmp_path / 'stale.db'}", actor_id=actor_id
+    )
+
+    with served_store(dl, actor_id, segment, stored) as (client, _emitter):
+        response = client.get(f"/api/v2/actors/{segment}/profile")
+
+    assert response.status_code == 200, response.text
+    own = signing.seeded_signing_key(actor_id)
+    assert [
+        (key["id"], key["publicKeyMultibase"])
+        for key in _multikeys(response.json())
+    ] == [(own.key_id, own.public_key_multibase)]
+
+
+def test_a_held_peer_profile_keeps_its_key_through_the_store(tmp_path: Path):
+    """A peer's profile copy is read back with the key it published."""
+    holder_id = canonical_actor_uri("profile-key-holder")
+    peer_id = "https://peer.example/actors/vendorco"
+    peer_key = signing.published_multikey(
+        signing.seeded_signing_key(peer_id), peer_id
+    )
+    dl = SqliteDataLayer(
+        f"sqlite:///{tmp_path / 'holder.db'}", actor_id=holder_id
+    )
+    peer = VultronOrganization(
+        id_=peer_id, name="VendorCo", assertion_method=[peer_key]
+    )
+
+    dl.create(object_to_record(peer))
+    held = dl.read(peer_id)
+
+    assert isinstance(held, VultronOrganization)
+    assert held.assertion_method == [peer_key]

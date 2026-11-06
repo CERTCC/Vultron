@@ -38,6 +38,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
 )
 from vultron.adapters.utils import full_object_id, strip_id_prefix
 from vultron.core.models.actor import (
+    CoreActor,
     endpoint_uri,
     hosted_endpoints,
 )
@@ -49,6 +50,7 @@ from vultron.core.use_cases.query.action_rules import (
     GetActionRulesUseCase,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.wire.as2 import signing
 
 router = APIRouter(prefix="/actors", tags=["Actors"])
 
@@ -71,11 +73,28 @@ def get_actor_profile(
 ):
     """Returns an actor's discovery profile.
 
-    Includes actor metadata (name, type), inbox URL, outbox URL, and any
-    other ActivityStreams profile fields present on the actor.  Intended
-    for use by remote systems discovering how to interact with this actor.
-    The `inbox` and `outbox` fields are returned as URL strings, not
-    embedded collection objects.
+    Includes actor metadata (name, type), inbox URL, outbox URL, the
+    ``Multikey`` that verifies the actor's proofs under ``assertionMethod``
+    (ENC-01-002), and any other ActivityStreams profile fields present on
+    the actor.  Intended for use by remote systems discovering how to
+    interact with this actor, so it needs no proof or signature
+    (SIG-02-002).  The `inbox` and `outbox` fields are returned as URL
+    strings, not embedded collection objects.
+    """
+    return AS2JSONResponse(_published_profile(datalayer, actor_id))
+
+
+def _published_profile(datalayer: DataLayer, actor_id: str) -> dict[str, Any]:
+    """The profile the actor *actor_id* names publishes from its own store.
+
+    :func:`_find_actor_record` returns only the actor the request addresses,
+    from that actor's own store, never a peer's record (ADR-0073), so the
+    actor served is the one this node hosts.  It publishes what only it
+    knows: the endpoints this node routes for it, which a record created
+    before it stated them may lack (ISSUE-3616), and the key it signs with.
+
+    Raises:
+        HTTPException: 404 when the store holds no such actor (AR-10-002).
     """
     actor_record = _find_actor_record(datalayer, actor_id)
     if not actor_record:
@@ -84,21 +103,37 @@ def get_actor_profile(
         )
 
     actor_cls = _actor_class_for_record(actor_record)
-    as_actor = cast(
-        Any, actor_cls.model_validate(actor_record.get("data_", {}))
+    as_actor = _with_own_key(
+        cast(Any, actor_cls.model_validate(actor_record.get("data_", {})))
     )
-    profile = as_actor.model_dump(
+    profile: dict[str, Any] = as_actor.model_dump(
         mode="json", by_alias=True, exclude_none=True
     )
-    # The actor this node hosts publishes the endpoints this node routes for
-    # it, which a record created before it stated them may lack (ISSUE-3616).
     own = hosted_endpoints(as_actor.id_)
     for field_name in ("inbox", "outbox"):
         profile[field_name] = (
             endpoint_uri(getattr(as_actor, field_name, None))
             or own[field_name]
         )
-    return AS2JSONResponse(profile)
+    return profile
+
+
+def _with_own_key(actor: CoreActor) -> CoreActor:
+    """*actor*, the actor this node hosts, listing the key it signs with.
+
+    The published key is always the one the actor's proofs are made with,
+    so a key a stored record happens to state is replaced rather than
+    served: a profile naming any other key would make every proof the
+    actor sends fail to verify.  Only the key's owner computes its seeded
+    key (SIG-05-001, SIG-05-002), and only the public half is published
+    (ENC-01-007).
+    """
+    key = signing.seeded_signing_key(actor.id_)
+    published = actor.model_copy()
+    # Assignment, not ``model_copy(update=...)``: it re-runs the actor's
+    # validators, which refuse a key another actor controls (CM-27-001).
+    published.assertion_method = [signing.published_multikey(key, actor.id_)]
+    return published
 
 
 @router.get(
@@ -171,18 +206,9 @@ def get_action_rules(
 def get_actor(actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)):
     """Returns an Actor by actor_id.
 
-    Accepts either a canonical actor ID or the actor's surrogate key.
+    Accepts either a canonical actor ID or the actor's surrogate key.  The
+    actor's id dereferences to the same profile ``/profile`` serves, so a
+    verifier that fetches the document a proof's key id names finds the key
+    there (SIG-02-001).
     """
-    actor = _find_actor_record(datalayer, actor_id)
-    if not actor:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
-        )
-
-    cls = _actor_class_for_record(actor)
-    data = actor.get("data_", {})
-    return AS2JSONResponse(
-        cls.model_validate(data).model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        )
-    )
+    return AS2JSONResponse(_published_profile(datalayer, actor_id))
