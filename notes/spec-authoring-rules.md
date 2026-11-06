@@ -367,7 +367,7 @@ Every rule an implementer must obey needs a test, whether Vultron defines it or
 inherits it (SR-05-004/005, ADR-0134). The PR-only guard
 `test_no_pr_adds_an_uncovered_implementer_spec`
 (`test/architecture/test_spec_coverage_ratchet.py`) fails on each `protocol` or
-`foundation` ID the branch adds to the uncovered set: a new spec with no marker,
+`foundation` ID the branch adds to the untested set: a new spec with no marker,
 removal of an ID's last `@pytest.mark.spec`, or a relabel into either kind
 without one. It skips, with the reason shown, when no base ref resolves; CI
 fetches full history so it always runs there. No count is committed;
@@ -395,6 +395,12 @@ a marker. Write a test asserting the behavior and mark it:
 Do not add a stub class; use an existing node or assertion that fails for the
 right reason. The strict xfail fails loudly once the feature lands, prompting
 its removal, and `reason=` links the implementation issue.
+
+The marker satisfies the guard but does not count as verified: `spec-coverage`
+reports a requirement whose every marked test is a strict xfail as xfail-only,
+outside the coverage figure, and `--json` writes the `#N` its reason cites for
+the known-gaps page (SR-05-017, SR-05-018). Keep the reason a literal or an
+f-string of module string constants, which the reader resolves.
 
 ---
 

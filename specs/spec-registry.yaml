@@ -959,7 +959,7 @@ groups:
       Markers record coverage per item, so the check compares the uncovered set at the
       base with the set at the head, and commits no number. A one-sided ceiling collects
       silent slack, and a two-sided pin races every concurrent PR
-      (`notes/testing-pitfalls.md`). `spec-coverage` prints the live uncovered total.
+      (`notes/testing-pitfalls.md`). `spec-coverage` prints the live untested total.
     verification: >-
       `test/metadata/specs/test_growth_guard.py::test_coverage_committed_change_is_compared_from_merge_base`
       asserts that the check compares the head with the merge base.
@@ -968,6 +968,51 @@ groups:
       spec_id: SR-05-005
     adr:
     - ADR-0134
+  - id: SR-05-017
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-coverage` MUST put each `protocol` and `foundation` requirement in one of
+      three states and report the count of each. A requirement is verified when no
+      strict `xfail` holds at least one of its marked tests. It is xfail-only when a
+      strict `xfail` holds each of its marked tests. It is untested when no
+      `@pytest.mark.spec` marker names it. The coverage figure counts verified
+      requirements only.
+    rationale: >-
+      A strict `xfail` states a requirement that `main` does not meet yet. If the
+      report counts it as covered, the coverage figure claims behavior that no passing
+      test shows, and a reader cannot find the gaps. The growth guard of SR-05-005
+      still reads the untested set only, because an xfail-only requirement has the
+      marker that SR-05-004 asks for.
+    verification: >-
+      `test/metadata/specs/test_coverage.py::TestCoverageStates` asserts each state
+      for a strict `xfail` given directly, through a module or class `pytestmark` and
+      through a `pytest.param` mark, and that a requirement with both a passing and an
+      xfail-marked test is verified. `test/metadata/specs/test_marked_tests.py`
+      asserts how the marks of each place combine.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-05-004
+  - id: SR-05-018
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-coverage --json <PATH>` MUST write the ID, kind, statement and state of
+      each `protocol` and `foundation` requirement. For each strict `xfail` on a test
+      marked for the requirement, it MUST also write the test, the reason and the
+      issue numbers that the reason cites.
+    rationale: >-
+      The known-gaps page of the Protocol Specification lists each requirement that
+      no passing test checks, with its statement and the issue that tracks it. A
+      generator that reads this output needs no second scan of the tests, and the
+      page cannot disagree with the coverage report.
+    verification: >-
+      `test/metadata/specs/test_coverage.py::TestJsonOutput` runs the command with
+      `--json` and asserts each field of an xfail-only, a verified and an untested
+      requirement.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-05-017
   - id: SR-05-006
     priority: MUST
     kind: project
