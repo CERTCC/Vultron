@@ -522,6 +522,7 @@ class TestEmitCreateVulnerabilityCaseNode:
 
     @pytest.mark.spec("CBT-01-010")
     @pytest.mark.spec("CM-22-006")
+    @pytest.mark.spec("CM-14-011")
     def test_case_manager_create_is_addressed_to_the_owner_only(self) -> None:
         """The CASE_MANAGER's Create goes to the report receiver alone.
 
@@ -4207,8 +4208,8 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
     replays the whole ledger — while ``Create(VulnerabilityCase)`` waits at
     the back of the queue.  That queue position is what timed out the rv and
     rcv-reject replica gates (#3033) and congested the CaseActor outbox in
-    rcvcv (#2898).  CM-14-011's rationale states the rule: the reporter's
-    system must hold the case object before any fan-out that references it.
+    rcvcv (#2898).  CM-14-011's rationale states the rule: each recipient
+    must hold the case object before any fan-out that references it.
     """
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,

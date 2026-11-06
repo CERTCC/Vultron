@@ -2899,9 +2899,9 @@ groups:
     rationale: >-
       Step CM-14-009 precedes CM-14-010 so that the embargo is always created by a
       participant (the Case Owner). The Create(VulnerabilityCase) notification in
-      CM-14-011 is flushed before the reporter is added in CM-14-012 so the reporter's
-      system receives the case object before any subsequent Announce(CaseLedgerEntry)
-      fan-out that references it.
+      CM-14-011 is flushed before the reporter is added in CM-14-012 so each recipient
+      of that `Create` holds the case object before any subsequent
+      Announce(CaseLedgerEntry) fan-out that references it.
     verification: Integration tests in `test/demo/` confirm that the case initialization
       sequence completes exactly 6 ordered steps (CM-14-008 through CM-14-013) and that no step
       is skipped or reordered.
@@ -3128,9 +3128,10 @@ groups:
       `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts that a
       CASE_MANAGER that did not receive the report addresses the `Create` to the
       report receiver only, and `test_accept_and_create_are_queued_before_any_ledger_fanout`
-      asserts it is queued before any ledger fan-out. The prototype has no path on
-      which the report receiver is its own CASE_MANAGER, so the reporter branch is
-      not exercised.
+      asserts it is queued before any ledger fan-out. No test covers the reporter
+      branch: on the received `Create(CaseProposal)` path the report receiver is
+      never its own CASE_MANAGER, and the create-case trigger, whose creator holds
+      both roles, addresses its `Create` to the recipients its caller names.
     stories:
     - story_2022_012
     - story_2022_038
@@ -3142,8 +3143,9 @@ groups:
       `CaseParticipant` with `RM.ACCEPTED` and the `REPORTER` role, and seed them as a
       signatory on any active embargo.
     rationale: The reporter is added after the Create(VulnerabilityCase) notification is
-      flushed (CM-14-011) so that the case object exists on the reporter's system
-      before the fan-out of the ledger entry that records their participation.
+      flushed (CM-14-011) so that the case object is on its way to the reporter,
+      directly or through the report receiver's introduction, before the fan-out of
+      the ledger entry that records their participation.
     verification: Integration tests in `test/demo/` confirm that step 5 adds the reporter as a
       `CaseParticipant` with `RM.ACCEPTED` and seeds them as a signatory (an `AGREED` row)
       on any active embargo.
