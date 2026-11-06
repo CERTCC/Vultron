@@ -29,7 +29,7 @@ from test.support.received import (
     archive_received,
     delivered_body,
 )
-from test.support.signing import signed_body
+from test.support.signing import resigned, signed_body
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
@@ -634,10 +634,10 @@ class TestAnswerCaseParticipantOffer:
         offer = offer_case_participant_activity(
             recommended=vendor, target=_CASE_ID, actor=_ACTOR, to=[_ACTOR]
         )
-        body = {
-            **delivered_body(offer),
-            "x-vendorExtension": {"priority": 3},
-        }
+        body = resigned(
+            delivered_body(offer),
+            alter=lambda b: b.update({"x-vendorExtension": {"priority": 3}}),
+        )
         archive_delivered(dl, body)
 
         _, activity_dict = getattr(adapter, method)(

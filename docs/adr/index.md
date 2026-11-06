@@ -269,6 +269,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0175 Before 1.0, Vultron Supports One Protocol and Storage Version, So a Former Field Name Is an Unknown Key](0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md) *(provisional)* — partially supersedes 0078-retire-finder-role.md, 0099-one-object-model-as2-is-a-serialization.md, 0122-per-embargo-participant-consent.md
 - [ADR-0177 A Requirement a Statement Cites With No Relationship Is Listed in `see_also`, With a Reason](0177-a-cited-requirement-with-no-relationship-is-listed-in-see-also.md) *(provisional)*
 - [ADR-0180 The Case Owner Adds an Embargo to the Case, and Each Owner Decision Points at the Proposal It Answers](0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md) *(revision 2)* *(provisional)* — partially supersedes 0122-per-embargo-participant-consent.md
+- [ADR-0181 Wire Artifacts Publish Under the Versioned Namespace, and Type Schemas Are Informative](0181-wire-artifacts-publish-under-the-versioned-namespace-and-type-schemas-are-informative.md) *(provisional)*
 
 ## Proposed ADRs
 

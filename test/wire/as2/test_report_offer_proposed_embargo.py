@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 
+from test.support.signing import resigned, signed_body
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
@@ -83,10 +84,15 @@ def _offer(report: as_VulnerabilityReport | None = None) -> as_Offer:
 
 
 def _wire(activity) -> dict[str, Any]:
+    """The body *activity*'s sender delivers: dumped, then signed by its author.
+
+    Every activity an actor sends carries its author's proof (SIG-01-001); a
+    test that changes the body rebuilds it with ``resigned``.
+    """
     body: dict[str, Any] = json.loads(
         activity.model_dump_json(by_alias=True, serialize_as_any=True)
     )
-    return body
+    return signed_body(body)
 
 
 # ---------------------------------------------------------------------------
@@ -173,8 +179,10 @@ def test_a_proposal_named_by_reference_is_read_as_absent(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A sender inlines what it introduces (ADR-0107); a bare id is not terms."""
-    body = _wire(_offer())
-    body["proposedEmbargo"] = "https://example.org/embargoes/somewhere-else"
+    body = resigned(
+        _wire(_offer()),
+        proposedEmbargo="https://example.org/embargoes/somewhere-else",
+    )
     with caplog.at_level(logging.WARNING):
         event = extract_event(parse_activity(body))
     assert isinstance(event, SubmitReportReceivedEvent)
@@ -294,13 +302,15 @@ def test_a_generic_event_shaped_proposal_is_projected_to_embargo_terms() -> (
     same way an ``Invite(EmbargoEvent)``'s object is: end and context become an
     ``EmbargoEvent``."""
     report = _report()
-    body = _wire(_offer(report))
-    body["proposedEmbargo"] = {
-        "type": "Event",
-        "id": f"{report.id_}/embargo_proposals/generic",
-        "context": report.id_,
-        "endTime": _END.isoformat(),
-    }
+    body = resigned(
+        _wire(_offer(report)),
+        proposedEmbargo={
+            "type": "Event",
+            "id": f"{report.id_}/embargo_proposals/generic",
+            "context": report.id_,
+            "endTime": _END.isoformat(),
+        },
+    )
     event = extract_event(parse_activity(body))
     assert isinstance(event, SubmitReportReceivedEvent)
     terms = event.proposed_embargo

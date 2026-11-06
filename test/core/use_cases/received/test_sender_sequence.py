@@ -753,7 +753,7 @@ def test_a_replay_of_a_ledgered_activity_is_not_answered_as_late() -> None:
     manager_dl = net.stores[MANAGER]
     first = _numbered(_note_body(net, "first"), 1)
     event = received_event(
-        parse_activity(net.stamp(first, receiver=MANAGER)),
+        parse_activity(net.delivered_body(first, receiver=MANAGER)),
         as_sent=True,
         receiving_actor_id=MANAGER,
     )

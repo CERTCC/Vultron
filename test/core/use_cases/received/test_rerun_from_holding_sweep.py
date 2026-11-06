@@ -345,7 +345,7 @@ def test_a_replay_after_a_held_rerun_answers_a_lagging_position_once() -> None:
     net.replay_ledger(BYSTANDER)
     net.receive(MANAGER, _note_body(net, "second"))
     net.lose(MANAGER, to=BYSTANDER, type_="Announce")
-    body = net.stamp(
+    body = net.delivered_body(
         _note_body(net, "lagging", actor=BYSTANDER), receiver=MANAGER
     )
     assert body["ledgerPosition"]["logIndex"] == 0, body["ledgerPosition"]

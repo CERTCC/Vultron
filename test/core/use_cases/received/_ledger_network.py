@@ -21,6 +21,7 @@ CASE_MANAGER's state, from the ``Announce(CaseLedgerEntry)`` broadcast alone
 (RSH-08-004, ADR-0108).
 """
 
+import json
 from typing import Any, cast
 
 from test.support.embargo_register import (
@@ -107,6 +108,11 @@ REPLICAS = (OWNER, BYSTANDER)
 #: Every network built in the current test, for the rebuild check
 #: (``conftest._every_network_rebuilds_from_its_ledger``).
 NETWORKS: list["LedgerNetwork"] = []
+
+
+def _as_json(body: dict[str, Any]) -> str:
+    """*body* as key-sorted JSON text, so two bodies compare as sent."""
+    return json.dumps(body, sort_keys=True)
 
 
 class LedgerNetwork:
@@ -297,11 +303,17 @@ class LedgerNetwork:
         return body if self._sealed_as_sent(body) else resigned(body)
 
     def _sealed_as_sent(self, body: dict[str, Any]) -> bool:
-        """Whether *body* is the body its sender's outbox sealed, unchanged."""
+        """Whether *body* is the body its sender's outbox sealed, unchanged.
+
+        Compared as JSON text, not as Python values: ``True == 1`` in
+        Python, so a body a test changed from ``1`` to ``true`` would
+        otherwise pass for the sealed one and be delivered unsigned.
+        """
         sender = self.stores.get(author_of(body))
         if sender is None or not isinstance(body.get("id"), str):
             return False
-        return read_sealed_body_dict(sender, body["id"]) == body
+        sealed = read_sealed_body_dict(sender, body["id"])
+        return sealed is not None and _as_json(sealed) == _as_json(body)
 
     def stamp(
         self, body: dict[str, Any], *, receiver: str | None = None
