@@ -3192,21 +3192,26 @@ groups:
         statement: >-
           `pr-verify` MUST withhold `READY-TO-MERGE` when GitHub reports a Pull
           Request `BLOCKED` and the required `CI gate` check on its head commit
-          is red, pending, absent or unreadable. It judges by the newest run of
-          that check, the run GitHub's own evaluation judges by.
+          is red, pending, absent or unreadable. An unfinished run makes it
+          pending; only when every run has finished does the newest one decide.
         rationale: >-
           A required check with no bypass actor means GitHub refuses the merge,
           so a pipeline that calls the Pull Request ready sends the agent to a
-          merge that cannot succeed. The newest run is the deciding one because
-          a cancelled or superseded earlier run stays on the head commit beside
-          it.
+          merge that cannot succeed. A cancelled or superseded run stays on the
+          head commit beside the live one, and an unfinished run carries no
+          usable start time, so ranking the runs before ruling out the pending
+          ones would answer with an older green one.
         verification: >-
-          Test: `test/metadata/test_verify_gate_scripts.py` checks that
+          Inspection: `pr-verify`'s overall-verdict rules list
+          `CI-GATE-NOT-GREEN` among the flags that withhold `READY-TO-MERGE`,
+          and its Phase 2 reads that flag from `verify-merge-gate.sh` rather
+          than judging the checks itself. Test:
+          `test/metadata/test_verify_gate_scripts.py` checks that
           `verify-merge-gate.sh` answers `blocks-ready` with the
-          `CI-GATE-NOT-GREEN` flag for a `BLOCKED` Pull Request whose newest
-          `CI gate` run is red, pending, absent or unreadable, answers `clear`
-          only when that run passed, and reads the newest run when several are
-          present.
+          `CI-GATE-NOT-GREEN` flag for a `BLOCKED` Pull Request whose `CI gate`
+          is red, pending, absent or unreadable, answers `clear` only when it
+          passed, and treats an unfinished run as pending even when an older
+          run on the same commit passed.
         relationships:
         - rel_type: uses_definition
           spec_id: PAD-18-031

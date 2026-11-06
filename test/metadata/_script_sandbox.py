@@ -91,24 +91,41 @@ def pr_view(
     }
 
 
-def status_rollup(*runs: tuple[str, str, str | None]) -> dict:
+ZERO_TIME = "0001-01-01T00:00:00Z"
+"""Go's zero ``time.Time``, which is how ``gh`` renders an unset timestamp."""
+
+
+def status_rollup(*runs: tuple[str, str, str], context: bool = False) -> dict:
     """A rule answering ``gh pr view --json statusCheckRollup``.
 
     Each run is ``(name, status, conclusion)``, **oldest first**: that order
     sets ``startedAt``. The rule then lists them newest-first, the opposite
-    order, so a caller that reads the array's last entry rather than sorting by
-    ``startedAt`` reads the wrong run and fails.
+    order, so a caller that trusts the array's order reads the wrong run.
+
+    The entries mirror how ``gh`` serializes a rollup, because the differences
+    are what a naive reading trips on. A run that has not finished carries
+    ``conclusion: ""`` — not ``null``, so jq's ``//`` default never fires — and
+    a ``startedAt`` of :data:`ZERO_TIME`, which sorts *below* every real
+    timestamp rather than above it. Pass ``context=True`` for a commit status
+    rather than a check run: it carries a ``context`` field instead of
+    ``name``, so a filter on ``name`` never matches one — which is correct,
+    since no commit status can satisfy a rule pinned to an app.
     """
-    entries = [
-        {
-            "__typename": "CheckRun",
-            "name": name,
+    entries: list[dict[str, object]] = []
+    for index, (name, status, conclusion) in enumerate(runs):
+        finished = status == "COMPLETED"
+        entry: dict[str, object] = {
             "status": status,
-            "conclusion": conclusion,
-            "startedAt": f"2026-11-06T15:{index:02d}:00Z",
+            "conclusion": conclusion if finished else "",
+            "startedAt": (
+                f"2026-11-06T15:{index:02d}:00Z" if finished else ZERO_TIME
+            ),
         }
-        for index, (name, status, conclusion) in enumerate(runs)
-    ]
+        if context:
+            entry |= {"__typename": "StatusContext", "context": name}
+        else:
+            entry |= {"__typename": "CheckRun", "name": name}
+        entries.append(entry)
     return {
         "match": ["pr view", "statusCheckRollup"],
         "stdout": json.dumps({"statusCheckRollup": list(reversed(entries))}),

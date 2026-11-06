@@ -114,11 +114,14 @@ cannot be ready to merge no matter what those checks find.
      `CI gate` check on `main` and lists no bypass actor, so a gate that is
      red, pending or absent refuses the merge for every account, the admin
      role included (#5945). Read `ci_gate=`: `FAILURE` means open the gate's
-     log, which names each red check; `PENDING` means wait and re-run
-     `/pr-verify`; `CANCELLED` or `TIMED_OUT` means re-run the `CI gate` job
-     itself, as any re-run of another check also requires. A green gate beside
-     a red sibling check is not this flag's business — the gate judges the
-     siblings.
+     log, which names each red check; `PENDING` means a run on the head commit
+     is unfinished, so wait and re-run `/pr-verify`; `CANCELLED` or `TIMED_OUT`
+     means re-run the `CI gate` job itself, as any re-run of another check also
+     requires; `absent` means no gate run reached the head commit at all; and
+     `unknown` means the rollup could not be read, which blocks rather than
+     clears because a merge gate never passes on missing evidence. A green gate
+     beside a red sibling check is not this flag's business — the gate judges
+     the siblings.
    - `BRANCH-BEHIND` — GitHub reports `BEHIND` only when a ruleset requires
      up-to-date branches, which this repository does not set (ADR-0126).
      `pr-execute` updates the branch on GitHub when it sees `BEHIND`

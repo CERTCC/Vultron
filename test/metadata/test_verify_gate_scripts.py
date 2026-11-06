@@ -97,15 +97,15 @@ def test_merge_gate_maps_each_row(
         ("COMPLETED", "CANCELLED", "CANCELLED"),
         ("COMPLETED", "TIMED_OUT", "TIMED_OUT"),
         # Still running: no conclusion yet, and the merge waits on it.
-        ("IN_PROGRESS", None, "PENDING"),
-        ("QUEUED", None, "PENDING"),
+        ("IN_PROGRESS", "", "PENDING"),
+        ("QUEUED", "", "PENDING"),
     ],
 )
 def test_a_blocked_pr_splits_on_the_ci_gate(
     tmp_path: Path,
     repo: Path,
     check_status: str,
-    conclusion: str | None,
+    conclusion: str,
     reported: str,
 ) -> None:
     """Only a green gate leaves BLOCKED survivable (#5945).
@@ -179,6 +179,73 @@ def test_the_newest_ci_gate_run_is_the_one_that_counts(
     ]
     out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
     assert out["ci_gate"] == [reported]
+
+
+def test_an_unfinished_gate_run_outranks_an_older_green_one(
+    tmp_path: Path, repo: Path
+) -> None:
+    """The false green a newest-first reading produces (#5945 pre-push review).
+
+    An unstarted run has no usable `startedAt`, and both of `gh`'s renderings
+    of one sort *below* every real timestamp. So asking which run is newest
+    before ruling out the pending ones picks the older green run and clears a
+    PR that GitHub is blocking on the pending required check.
+    """
+    rules = [
+        status_rollup(
+            ("CI gate", "COMPLETED", "SUCCESS"), ("CI gate", "QUEUED", "")
+        ),
+        pr_view(status="BLOCKED"),
+    ]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["ci_gate"] == ["PENDING"]
+    assert out["verdict"] == ["blocks-ready"]
+    assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+
+
+def test_a_blocked_pr_whose_rollup_reads_empty_blocks(
+    tmp_path: Path, repo: Path
+) -> None:
+    """`gh` succeeding with nothing to say is still no answer."""
+    rules = [
+        {"match": ["pr view", "statusCheckRollup"], "stdout": ""},
+        pr_view(status="BLOCKED"),
+    ]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["ci_gate"] == ["unknown"]
+    assert out["verdict"] == ["blocks-ready"]
+    assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+
+
+def test_a_commit_status_named_ci_gate_is_not_read_as_the_check(
+    tmp_path: Path, repo: Path
+) -> None:
+    """A status context carries `context`, not `name`, so it never matches.
+
+    `main-3` pins the check to `integration_id` 15368, and no commit status can
+    satisfy it. One that borrows the name must not answer for it — here that
+    leaves no check run at all, which blocks.
+    """
+    rules = [
+        status_rollup(("CI gate", "COMPLETED", "SUCCESS"), context=True),
+        pr_view(status="BLOCKED"),
+    ]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["ci_gate"] == ["absent"]
+    assert out["verdict"] == ["blocks-ready"]
+    assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+
+
+def test_a_mergeable_pr_never_asks_about_the_ci_gate(
+    tmp_path: Path, repo: Path
+) -> None:
+    """Not printing the field is weaker than not fetching it: pin the call."""
+    rules = [green_gate(), pr_view(status="CLEAN")]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["verdict"] == ["clear"]
+    assert "ci_gate" not in out
+    calls = (tmp_path / "gh-log.jsonl").read_text()
+    assert "statusCheckRollup" not in calls
 
 
 def test_a_red_check_beside_a_green_ci_gate_is_the_gates_business(

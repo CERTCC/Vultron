@@ -31,8 +31,11 @@
 #   flag=<FLAG>  one per flag raised
 #   mergeable=  merge_state_status=  merge_state_exit=  base_ref=
 #   needs_rebase=<true|false|unknown>  (PR-IS-DRAFT only; unknown on a gh error)
-#   ci_gate=<conclusion|PENDING|absent|unknown>  (status BLOCKED only; `unknown`
-#                               on a gh error, which raises the flag rather than
+#   ci_gate=<conclusion|PENDING|absent|unknown>  (status BLOCKED only. PENDING
+#                               if any run on the head commit is unfinished,
+#                               `absent` if none ran, `unknown` on a gh error or
+#                               a finished run with no readable conclusion. Each
+#                               non-SUCCESS value raises the flag, rather than
 #                               letting a merge gate clear on missing evidence)
 #   note=blocked                (status BLOCKED with a green `CI gate`)
 #   conflict=<merge-tree CONFLICT line>  evidence, MERGE-CONFLICT only
@@ -75,19 +78,37 @@ fi
 [ "${status}" = DRAFT ] && flags+=(PR-IS-DRAFT)
 
 # BLOCKED's non-bypassable cause: the `CI gate` required by `main-3` (#5945).
-# Read the newest `CI gate` run on the head commit, which is the one GitHub's
-# required-check evaluation reads and the one the gate itself judges by: a
-# cancelled or superseded earlier run sits beside it in the rollup. Match on
-# `.name` alone, never a status `.context`, because the rule pins the check to
-# `integration_id` 15368, so only a GitHub Actions check run can satisfy it.
+# A cancelled or superseded earlier run sits on the head commit beside the live
+# one, so the reading has to pick among several. Any run still going makes the
+# answer PENDING, whatever the others concluded: the verdict is not settled, and
+# GitHub blocks the merge until it is. Only when every run has finished does the
+# newest one decide, which is the run GitHub's own evaluation decides by.
+#
+# Never ask which run is newest *before* ruling out the pending ones. An
+# unstarted run carries no usable `startedAt` — `gh` renders it as Go's zero
+# time, and a missing field as `null` — and either sorts *below* every real
+# timestamp, so picking the latest would skip the pending run and answer with an
+# older green one. That is a false green on a PR GitHub is blocking.
+#
+# `.name` is the check-run field, so a commit status named `CI gate` never
+# matches: a status carries `.context` instead, and the rule pins the check to
+# `integration_id` 15368, which no status can satisfy. Reading one as the check
+# would be the error, and leaving it unmatched blocks.
+#
+# `.name` cannot, though, prove the matched run came from that app: the rollup
+# says nothing about which app produced an entry. A false green would take
+# another app posting a *successful* check run named exactly `CI gate`, so the
+# residue errs toward blocking, which a human can resolve.
 ci_gate=""
 if [ "${status}" = BLOCKED ]; then
   if ! ci_gate="$(gh pr view "${pr}" --json statusCheckRollup --jq '
         [ .statusCheckRollup[]? | select(.name == "CI gate") ]
-        | sort_by(.startedAt // "") | last
-        | if . == null then "absent"
-          elif (.status // "") != "COMPLETED" then "PENDING"
-          else (.conclusion // "PENDING") end' 2>/dev/null)" || [ -z "${ci_gate}" ]; then
+        | if length == 0 then "absent"
+          elif any(.[]; (.status // "") != "COMPLETED") then "PENDING"
+          else (max_by(.startedAt).conclusion // "") end' 2>/dev/null)" \
+     || [ -z "${ci_gate}" ]; then
+    # A gh failure, or a finished run with no conclusion to read. Both leave the
+    # question unanswered, and an unanswered merge gate blocks.
     ci_gate=unknown
   fi
   [ "${ci_gate}" = SUCCESS ] || flags+=(CI-GATE-NOT-GREEN)
