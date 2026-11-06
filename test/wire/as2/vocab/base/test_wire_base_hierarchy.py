@@ -28,7 +28,11 @@ from pydantic import BaseModel, Field
 
 from vultron.core.models._helpers import URN_UUID_PREFIX
 from vultron.core.models.base import CoreObject, CoreRecord
-from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI, as_Base
+from vultron.wire.as2.vocab.base.base import (
+    ACTIVITY_STREAMS_NS,
+    VULTRON_CONTEXT_URI,
+    as_Base,
+)
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 
@@ -71,14 +75,23 @@ def test_as_base_id_uses_wire_default():
     assert obj.id_.startswith(URN_UUID_PREFIX)
 
 
-def test_as_base_context_is_the_vultron_context():
-    """Wire branch: context_ defaults to the Vultron context (VM-10-001).
+@pytest.mark.spec("VM-10-002")
+def test_as_base_context_is_the_default_list():
+    """Wire branch: context_ defaults to AS2 then Vultron (VM-10-001).
 
-    The Vultron context imports AS2, so an activity citing it lets a receiver
-    expand Vultron terms from the activity's own context (#5168).
+    AS2 first, so a receiver that does not process JSON-LD still finds it;
+    then the Vultron context, so Vultron terms expand (#5168, #6006).
     """
     obj = as_Base()
-    assert obj.context_ == VULTRON_CONTEXT_URI
+    assert obj.context_ == [ACTIVITY_STREAMS_NS, VULTRON_CONTEXT_URI]
+
+
+def test_as_base_default_context_is_a_fresh_list():
+    """Each object gets its own default list, so mutating one leaves others."""
+    first, second = as_Base(), as_Base()
+    assert isinstance(first.context_, list)
+    first.context_.append("urn:x:extra")
+    assert second.context_ == [ACTIVITY_STREAMS_NS, VULTRON_CONTEXT_URI]
 
 
 def test_as_base_type_set_from_class_name():

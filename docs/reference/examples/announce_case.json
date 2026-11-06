@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Announce",
   "id": "urn:uuid:6a39650d-c253-4913-9ea4-10a5522d0e8e",
   "name": "https://vultron.example/organizations/vendorco Announce VendorCo Case #20260601",
@@ -36,13 +39,11 @@
             "caseEngagement": true,
             "cvdRole": [
               "REPORTER"
-            ],
-            "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+            ]
           }
         ],
         "embargoConsents": [],
-        "joined": true,
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        "joined": true
       },
       {
         "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/vendorco",
@@ -69,13 +70,11 @@
             "caseEngagement": true,
             "cvdRole": [
               "OBSERVER"
-            ],
-            "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+            ]
           }
         ],
         "embargoConsents": [],
-        "joined": true,
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        "joined": true
       }
     ],
     "actorParticipantIndex": {
@@ -90,8 +89,7 @@
         "published": "2026-06-01T19:12:00.000000+00:00",
         "updated": "2026-06-01T19:12:00.000000+00:00",
         "content": "I found a vulnerability!",
-        "attributedTo": "https://vultron.example/users/finndervul",
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        "attributedTo": "https://vultron.example/users/finndervul"
       }
     ],
     "caseStatuses": [
@@ -103,8 +101,7 @@
         "published": "2026-06-01T19:12:00.000000+00:00",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "emState": "NONE",
-        "pxaState": "pxa",
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        "pxaState": "pxa"
       }
     ],
     "notes": [],
@@ -122,7 +119,6 @@
     "activeParticipants": [
       "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/finndervul",
       "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/vendorco"
-    ],
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ]
   }
 }

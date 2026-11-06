@@ -469,7 +469,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | TB — Testability | [TB-03-001](../specs/project.md#tb-03-001) |
 | TRIG — Triggerable Behaviors | [TRIG-07-001](../specs/project.md#trig-07-001) |
 | VAM — Vultron Semantic–AS2 Mapping | [VAM-07-002](../vultron-spec/requirements/messages.md#vam-07-002) |
-| VM — Vocabulary Model | [VM-10-001](../vultron-spec/requirements/messages.md#vm-10-001), [VM-10-002](../specs/project.md#vm-10-002), [VM-10-003](../vultron-spec/requirements/messages.md#vm-10-003) |
+| VM — Vocabulary Model | [VM-10-001](../vultron-spec/requirements/messages.md#vm-10-001), [VM-10-002](../specs/project.md#vm-10-002), [VM-10-003](../vultron-spec/requirements/messages.md#vm-10-003), [VM-10-004](../vultron-spec/requirements/messages.md#vm-10-004) |
 | VP — Vultron Protocol | [VP-03-012](../vultron-spec/requirements/vultron-protocol.md#vp-03-012) |
 
 ## [story_2022_040](story_2022_040.md)

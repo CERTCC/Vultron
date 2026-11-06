@@ -1,16 +1,17 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Organization",
   "id": "https://vultron.example/organizations/vendorco",
   "name": "VendorCo",
   "inbox": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "OrderedCollection",
     "id": "https://vultron.example/organizations/vendorco/inbox",
     "items": []
   },
   "outbox": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "OrderedCollection",
     "id": "https://vultron.example/organizations/vendorco/outbox",
     "items": []

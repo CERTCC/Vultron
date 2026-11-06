@@ -140,6 +140,9 @@ def test_an_actor_given_by_uri_travels_as_an_actor_reference(
 def test_a_held_actor_profile_travels_as_held(name: str) -> None:
     held = as_Organization(id_=_PEER, name="Vendor Co")
     expected = held.model_dump(mode="json", by_alias=True, exclude_none=True)
+    # Carried inside an activity, it does not restate the activity's
+    # ``@context`` (VM-10-004).
+    del expected["@context"]
     assert _carried_actor(name, held) == expected
 
 
@@ -171,6 +174,7 @@ def test_a_held_peer_record_travels_with_nothing_added(name: str) -> None:
     expected = _HELD_PEER.model_dump(
         mode="json", by_alias=True, exclude_none=True
     )
+    del expected["@context"]  # nested: VM-10-004
     assert carried == expected
     assert [key for key in _INVENTED if key in carried] == []
 

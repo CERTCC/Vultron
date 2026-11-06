@@ -117,7 +117,10 @@ STORED_REPORT_RESPONSE: dict[str, dict[str, Any]] = {
         # into the core class (ARCH-25-003, ADR-0099), which reduces it to the
         # scalar it stores, so the listing shows the scalar too.
         "attributedTo": FINDER_ID,
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+        "@context": [
+            "https://www.w3.org/ns/activitystreams",
+            "https://certcc.github.io/Vultron/ns/context.jsonld",
+        ],
     }
 }
 

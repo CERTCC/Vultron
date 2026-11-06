@@ -124,10 +124,9 @@ groups:
       and used to annotate the provenance of each vocabulary class'
     rationale: >-
       The namespace tag tells which vocabulary a class belongs to: ActivityStreams or
-      Vultron. VM-10-002 states the default `@context` of a class in terms of the tag,
-      and the generator of the JSON-LD context document reads the tag to choose the
-      classes it lists. One enum in one module gives those readers one value to compare,
-      instead of a string that each reader can spell differently.
+      Vultron. The generator of the JSON-LD context document reads the tag to choose
+      the classes it lists. One enum in one module gives its readers one value to
+      compare, instead of a string that each reader can spell differently.
   - id: VM-01-007
     priority: MUST
     kind: project
@@ -1135,24 +1134,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Outbound Vultron wire messages MUST declare the Vultron JSON-LD context by setting
-      `@context` to `"https://certcc.github.io/Vultron/ns/context.jsonld"`. Using only
-      the ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`) is not
-      sufficient: Vultron-specific types (`VulnerabilityCase`, `EmbargoEvent`, etc.) are
-      not defined in that namespace and cannot be resolved by receivers without the
-      Vultron context declaration.
+      Outbound Vultron wire messages MUST set the top-level `@context` to the list
+      `["https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"]`, with the ActivityStreams
+      namespace first.
     rationale: >-
-      Derived from ADR-0069 (docs/adr/0069-vultron-namespace-uri.md). The Vultron vocabulary
-      extends ActivityStreams with CVD-specific types; those types must be declared in a
-      dereferenceable JSON-LD context so that external implementations can resolve them.
-      The context document at the Vultron namespace URI imports the AS2 namespace, so
-      implementations need only cite the Vultron context URI.
+      Derived from ADR-0069 (docs/adr/0069-vultron-namespace-uri.md). AS2 Core §2.1 asks
+      every producer to reference the ActivityStreams namespace in `@context`, and an
+      AS2 receiver that does not process JSON-LD, as most ActivityPub software does
+      not, recognizes a message by finding that exact string. The Vultron context
+      declares the CVD-specific types (`VulnerabilityCase`, `EmbargoEvent`, etc.) that
+      the ActivityStreams namespace does not. The Vultron context document also imports
+      AS2, but a receiver need not dereference it (VM-10-003), so citing the Vultron
+      URI alone hides the AS2 reference from a plain-JSON receiver.
     verification: >-
       Tests marked `VM-10-001` in `test/adapters/test_outbound_vultron_context.py`
       render one sealed outbound body per activity verb that a `SEMANTIC_REGISTRY`
-      pattern matches and assert its top-level `@context` is the Vultron context URI,
-      and that any nested object's `@context` restates that same value. The default
-      lives on `as_Base`, so activities carry it, not only Vultron objects (#5168).
+      pattern matches and assert its top-level `@context` is the two-entry list, and
+      that a core or wire object dumped on its own carries the list.
     adr:
     - ADR-0069
     stories:
@@ -1161,18 +1160,20 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Wire-layer classes whose `_vocab_ns` is `VocabNamespace.VULTRON` MUST default
-      `context_` to the Vultron context URI (`https://certcc.github.io/Vultron/ns/context.jsonld`)
-      rather than the ActivityStreams namespace URI.
+      The wire root `as_Base` and the core root `CoreObject` MUST default `@context` to
+      the VM-10-001 list, taken from the one constant `DEFAULT_JSONLD_CONTEXT` in
+      `vultron/core/models/base/context.py`.
     rationale: >-
-      `as_VultronObject` is the base class for all Vultron-specific wire types. It
-      inherits `context_` from `as_Base`, whose default is the Vultron context URI, so
-      every Vultron object serializes with the correct `@context` without call-site
-      changes.
+      Both roots serialize objects onto the wire, and an activity and the objects it
+      carries may come from either. One constant in core gives both layers the same
+      value without a wire import in core (ARCH-01-001). A default on the root covers
+      activities as well as Vultron objects, which a default on `as_VultronObject`
+      alone did not (#5168).
     verification: >-
       Tests marked `VM-10-002` in `test/wire/as2/vocab/base/test_vultron_context_uri.py`
-      assert that `as_VultronObject` and its concrete subclasses default `context_` to
-      the Vultron context URI and serialize it as `@context`.
+      assert that `as_Base`, `as_VultronObject` and its concrete subclasses default
+      `context_` to the list and serialize it as `@context`, and that the default reads
+      back as no override.
     adr:
     - ADR-0069
     relationships:
@@ -1206,3 +1207,49 @@ groups:
       spec_id: VM-10-001
     stories:
     - story_2022_039
+  - id: VM-10-004
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: >-
+      An object nested inside an outbound Vultron message SHOULD NOT restate the
+      message's `@context` (VM-10-001).
+    rationale: >-
+      JSON-LD applies a document's context to every object nested in it, so a restated
+      context adds bytes and changes nothing about how a nested term expands. Leaving
+      it out also keeps a reader from taking a restated context for a different one.
+    note: >-
+      A document received from a peer and embedded as received, such as the refused
+      activity a refusal carries, keeps the `@context` it arrived with: the sender did
+      not build it and does not rewrite it (VM-08).
+    verification: >-
+      Tests marked `VM-10-004` in `test/adapters/test_outbound_vultron_context.py`
+      assert that no nested object in any example outbound activity carries
+      `@context`, and that an embedded received document keeps its own.
+    adr:
+    - ADR-0069
+    relationships:
+    - rel_type: refines
+      spec_id: VM-10-001
+    stories:
+    - story_2022_039
+  - id: VM-10-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The AS2 (`by_alias`) serializer of `as_Base` and of `CoreObject` MUST omit the
+      default `@context` from every object nested inside the document it dumps.
+    rationale: >-
+      One rule on the two roots places the context for every object without call-site
+      changes, so a new object type cannot start restating it. A nested object whose
+      own `@context` is not the default, such as one parsed from a peer's message,
+      keeps it, because dropping it could change how its terms expand.
+    note: >-
+      A subclass that declares its own `model_serializer` replaces the root's, so it
+      delegates to `as_Base._as2_document` to keep the rule (`as_Activity` does).
+    verification: >-
+      Tests marked `VM-10-005` in `test/adapters/test_outbound_vultron_context.py`
+      assert that no object nested in an example outbound activity carries the default
+      `@context`, and that a received nested object with its own `@context` keeps it.
+    relationships:
+    - rel_type: implements
+      spec_id: VM-10-004

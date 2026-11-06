@@ -55,15 +55,16 @@ A property's term is its name in the wire message.
 
 ## Usage in wire messages
 
-Vultron wire messages MUST declare the Vultron JSON-LD context to allow
-receivers to resolve Vultron type names to their full URIs. The context
-document at this URI imports the ActivityStreams 2.0 namespace, so
-implementations cite only the Vultron context URI.
-A receiver processes a message without fetching the context document (VM-10-003):
+A Vultron wire message lists two contexts in its top-level `@context`: the ActivityStreams 2.0 namespace first, then the Vultron JSON-LD context (VM-10-001).
+The AS2 entry lets any AS2 receiver recognize the message, and the Vultron entry lets a receiver resolve Vultron type names to their full URIs.
+The context document at this URI also imports AS2, but a receiver processes a message without fetching it (VM-10-003), so a message does not rely on that import:
 
 ```json
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "VulnerabilityCase",
   ...
 }
