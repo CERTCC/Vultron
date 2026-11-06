@@ -35,7 +35,7 @@ from vultron.adapters.driven.sender_sequence_stamp import with_outbound_stamps
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
 )
-from vultron.adapters.driving.fastapi.errors import domain_error_translation
+from vultron.adapters.driving.fastapi.errors import unsignable_http_exception
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
@@ -49,6 +49,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
 )
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.core.ports.datalayer import DataLayer
+from vultron.wire.as2.errors import VultronUnsignableJsonError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger("uvicorn.error")
@@ -210,18 +211,21 @@ def post_actor_outbox(
     actor_dl = cast(Any, dl)
     # Sealing signs the body (SIG-01-001); one the signer refuses is answered
     # 422 and, the transaction rolled back, leaves nothing stored or queued.
-    with domain_error_translation(), actor_dl.transaction():
-        # A case activity states this actor's ledger tail and, sent to the
-        # CASE_MANAGER, its next sender sequence, as one its own adapter
-        # builds does (SYNC-18-001, SYNC-21-001); one that states them keeps
-        # them.  One transaction, so the number is used exactly when the
-        # body carrying it is sealed and queued (SYNC-21-003).
-        activity = with_outbound_stamps(actor_dl, activity)
-        actor_dl.create(object_to_record(activity))
-        # Seal what was posted: the outbox delivers this body, not a re-read
-        # of the record (VM-08-003).
-        seal_outbound_body(actor_dl, activity)
-        actor_dl.outbox_append(activity.id_)
+    try:
+        with actor_dl.transaction():
+            # A case activity states this actor's ledger tail and, sent to the
+            # CASE_MANAGER, its next sender sequence, as one its own adapter
+            # builds does (SYNC-18-001, SYNC-21-001); one that states them keeps
+            # them.  One transaction, so the number is used exactly when the
+            # body carrying it is sealed and queued (SYNC-21-003).
+            activity = with_outbound_stamps(actor_dl, activity)
+            actor_dl.create(object_to_record(activity))
+            # Seal what was posted: the outbox delivers this body, not a re-read
+            # of the record (VM-08-003).
+            seal_outbound_body(actor_dl, activity)
+            actor_dl.outbox_append(activity.id_)
+    except VultronUnsignableJsonError as error:
+        raise unsignable_http_exception(str(error)) from error
 
     emitter = getattr(request.app.state, "emitter", None)
     # Keyword, not positional: `outbox_handler`'s third parameter used to be a

@@ -11,7 +11,6 @@ from vultron.errors import (
     VultronProofVerificationError,
     VultronValidationError,
 )
-from vultron.wire.as2.errors import VultronUnsignableJsonError
 
 
 @contextmanager
@@ -59,6 +58,18 @@ def conflict_http_exception(
     )
 
 
+def unsignable_http_exception(message: str) -> HTTPException:
+    """A 422 for a body the outbox's signer refuses (EH-05-001).
+
+    For the outbox POST only: the client must change the content, and the
+    server is not at fault.  Ingress answers an uncanonicalizable body as
+    #5386 decides, so :func:`translate_domain_errors` does not map it.
+    """
+    return _error_http_exception(
+        status.HTTP_422_UNPROCESSABLE_CONTENT, "ValidationError", message
+    )
+
+
 def translate_domain_errors(exc: Exception) -> HTTPException:
     """Convert a domain exception to an appropriate HTTPException."""
     if isinstance(exc, VultronNotFoundError):
@@ -77,15 +88,6 @@ def translate_domain_errors(exc: Exception) -> HTTPException:
         return _error_http_exception(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "ProofVerificationError",
-            str(exc),
-        )
-    if isinstance(exc, VultronUnsignableJsonError):
-        # A body the signer refuses (an integer outside ±(2^53 - 1), a
-        # non-finite number) is content the client must change, not a
-        # server fault (EH-05-001).
-        return _error_http_exception(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "ValidationError",
             str(exc),
         )
     if isinstance(exc, (VultronValidationError, PydanticValidationError)):
