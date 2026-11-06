@@ -87,8 +87,8 @@ The model adds a short statement of each question in terms of the six events.
 Each statement shows which data a CVD practice must collect to answer the question.
 
 The same question applies to the extended desiderata on [Desiderata from the Process Models](process_model_desiderata.md).
-The baselines for the extended desiderata need a random walk over the combined report, embargo, consent, and case state space.
-Idea [#5072](https://github.com/CERTCC/Vultron/issues/5072){:target="_blank"} records this calculation.
+[ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) takes each baseline from the smallest model that holds the desideratum's events, not from a walk over the whole case.
+Task [#6067](https://github.com/CERTCC/Vultron/issues/6067){:target="_blank"} computes these baselines.
 
 ---
 

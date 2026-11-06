@@ -283,7 +283,7 @@ In past cases, this action has protected critical infrastructure before the fix 
 
 The protocol does not require a case to invite a deployer, and the case does not record which fix a deployer deployed.
 Thus a measure sees only the deployers that join, and a case that invites no deployers cannot fail an order about deployers.
-How to measure deployers in a multi-party case is a question for the measurement of multi-party cases as a whole, which Idea [#5143](https://github.com/CERTCC/Vultron/issues/5143){:target="_blank"} records.
+[ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) scores a multi-party case per vendor, and leaves a participant with no vendor path, such as a deployer, out of scope until it has measures of its own.
 
 ---
 
@@ -368,7 +368,7 @@ A stronger desideratum holds less often by chance than a weaker desideratum that
 Thus the stronger desideratum adds more to the score, and the weaker desideratum adds less.
 The score handles the dependence of the twelve original desiderata in this way, and the same method can apply to the new desiderata.
 
-Whether the method is sufficient for the new desiderata depends on their baselines, which Idea [#5072](https://github.com/CERTCC/Vultron/issues/5072){:target="_blank"} records.
+Whether the method is sufficient for the new desiderata depends on their baselines, which Task [#6067](https://github.com/CERTCC/Vultron/issues/6067){:target="_blank"} computes ([ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md)).
 If a new desideratum and a desideratum that it implies have nearly the same baseline, the score counts nearly the same skill two times.
 
 ### The new events are easier to observe than the original events
