@@ -70,6 +70,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     seen_before_verdict,
     verdict_from_bt,
 )
+from vultron.errors import VultronWiringError
 
 SENDER = "https://example.org/actors/reporter"
 RECEIVER = "https://example.org/actors/vendor"
@@ -256,6 +257,7 @@ def test_a_delivery_never_seen_runs_and_is_recorded(scenario):
     )
 
 
+@pytest.mark.spec("CLP-10-081")
 @pytest.mark.spec("CLP-10-010")
 @pytest.mark.spec("CM-23-002")
 def test_a_nested_received_tree_runs_past_its_enclosing_trees_record(
@@ -293,6 +295,28 @@ def test_a_nested_received_tree_runs_past_its_enclosing_trees_record(
     assert [d.status for d in doors] == [Status.SUCCESS]
     record = _record(scenario.dl)
     assert record is not None and record.stage is ReceivedStage.HELD
+
+
+@pytest.mark.spec("CLP-10-010")
+@pytest.mark.parametrize(
+    "missing", ["addressee_exemption", "post_close_exemption"]
+)
+def test_a_nested_tree_without_its_door_exemptions_is_refused(missing):
+    """A nested tree runs after the enclosing intake, so its own post-close
+    stage would read a first run as a re-run (ADR-0154)."""
+    exemptions = {
+        "addressee_exemption": ENCLOSING_TREE_ADDRESSEE_CHECK,
+        "post_close_exemption": PostCloseExemption.ENCLOSING_TREE_GUARDS,
+    }
+    exemptions[missing] = None
+    with pytest.raises(VultronWiringError, match=missing):
+        create_receive_activity_tree(
+            name="InnerBT",
+            case_id=None,
+            precondition_guards=[_Ran()],
+            nested=True,
+            **exemptions,
+        )
 
 
 @pytest.mark.spec("ARCH-15-001")

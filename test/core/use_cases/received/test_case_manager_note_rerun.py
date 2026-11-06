@@ -52,6 +52,7 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.errors import VultronWiringError
 from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
     recommend_actor_activity,
@@ -255,3 +256,32 @@ def _subclasses(
         found.append(sub)
         found.extend(_subclasses(sub))
     return found
+
+
+class _KindlessNote(_CommitCaseManagerNoteBase):
+    """A note class that names no kind, as a new one might."""
+
+    def _compose(self) -> None:
+        return None
+
+
+@pytest.mark.spec("ID-04-004")
+def test_a_note_with_no_kind_answering_a_received_activity_raises() -> None:
+    """Its id would be minted, so a re-run would record it twice."""
+    net = LedgerNetwork(
+        "https://example.org/cases/note-rerun-no-kind", em_state=EM.NONE
+    )
+    node = _KindlessNote(case_id=net.case_id)
+    node._answers = _regression_event(net)
+
+    with pytest.raises(VultronWiringError, match="names no _NOTE_KIND"):
+        node._derived_note_id(MANAGER)
+
+
+@pytest.mark.spec("ID-04-004")
+def test_a_note_answering_no_received_activity_gets_a_minted_id() -> None:
+    """The add-note trigger answers nothing received: no derived id."""
+    node = _KindlessNote(case_id="https://example.org/cases/c")
+    node._answers = None
+
+    assert node._derived_note_id(MANAGER) is None

@@ -8,12 +8,14 @@ starts :func:`replay_hosted_inbox_queues` once at startup
 (:func:`start_startup_inbox_replay`), as a task beside
 the server, so a slow replay or outbox drain never holds back readiness.  It
 re-runs what is queued, with the bounded retry and dead letter of a replay
-after a delivery (IE-06-004); it repairs nothing.
+after a delivery (IE-06-004).
 
 Before the queue, it runs again every message a run left in holding with no
 verdict (:func:`rerun_left_in_holding`): a process stop mid-run leaves the
-message's record in holding, and at startup no run is in progress, so each
-such record is a run to finish (ADR-0154, CLP-10-074).  The held body is
+message's record in holding, so each such record is a run to finish
+(ADR-0154, CLP-10-074).  The records are listed outside the actor's lock, so
+a delivery may settle one first; its seen-before door then answers the
+re-run, which does nothing.  The held body is
 routed as a resend of itself, so the seen-before door lets it through, its
 intake marks the record ``HANDLED`` and every stage that answers a delivery
 once reads the run as a re-run.
@@ -69,9 +71,14 @@ async def rerun_left_in_holding(
     outcome stage archives or stubs it (ADR-0154, CLP-10-074).  A record a
     delivery settled meanwhile is answered by its seen-before door.
 
-    Returns the number of records run again.
+    A record whose re-run raises is logged at ERROR and stays in holding for
+    the next start; the records after it are still run, and so is the
+    actor's queue replay after this returns.
+
+    Returns the number of records run again without raising.
     """
     records = records_left_in_holding(cast(CasePersistence, actor_dl))
+    finished = 0
     for record in records:
         logger.info(
             "Running again activity '%s' for actor_id=%s, left in holding"
@@ -79,14 +86,26 @@ async def rerun_left_in_holding(
             record.activity_id,
             actor_id,
         )
-        await run_inbox_pipeline(
-            json.loads(sealed_body_of(record)),
-            actor_dl,
-            actor_id,
-            dispatcher,
-            emitter,
-        )
-    return len(records)
+        try:
+            await run_inbox_pipeline(
+                json.loads(sealed_body_of(record)),
+                actor_dl,
+                actor_id,
+                dispatcher,
+                emitter,
+            )
+        except Exception:
+            # One record's failure must not keep the others, or the queue,
+            # from running; the record stays in holding (CLP-10-074).
+            logger.exception(
+                "Re-run of activity '%s' for actor_id=%s raised; it stays in"
+                " holding for the next start (CLP-10-074).",
+                record.activity_id,
+                actor_id,
+            )
+            continue
+        finished += 1
+    return finished
 
 
 async def replay_hosted_inbox_queues(

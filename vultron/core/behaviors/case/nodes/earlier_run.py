@@ -35,6 +35,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.received_activity import began_in_an_earlier_run
+from vultron.errors import VultronWiringError
 
 __all__ = ["FirstRunOfMessageNode"]
 
@@ -48,8 +49,14 @@ class FirstRunOfMessageNode(DataLayerConditionWithPorts):
     Returns:
         SUCCESS when this run is the first to handle the message.
 
-        FAILURE when an earlier run began handling it, and when no received
-        event is on the blackboard, which is a wiring fault (ARCH-15-001).
+        FAILURE when an earlier run began handling it, and only then: a
+        refusal stage reads FAILURE as "skip the refusal effects", so a
+        wiring fault must not look like it.
+
+    Raises:
+        VultronWiringError: no DataLayer, or no received event on the
+            blackboard (ARCH-15-001).  A refusal arm fails toward admit, so
+            a fault is raised rather than answered as a re-run.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -71,17 +78,17 @@ class FirstRunOfMessageNode(DataLayerConditionWithPorts):
         self._activity = self._try_get_input("activity")
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
         event = self._activity
-        if not isinstance(event, VultronEvent):
-            self.feedback_message = ACTIVITY_UNAVAILABLE
-            self.logger.error(
-                "%s: expected a VultronEvent on the blackboard, got %s",
-                self.name,
-                type(event).__name__,
+        if self.datalayer is None or not isinstance(event, VultronEvent):
+            self.feedback_message = (
+                ACTIVITY_UNAVAILABLE
+                if self.datalayer is not None
+                else "no DataLayer to read the record from"
             )
-            return Status.FAILURE
+            raise VultronWiringError(
+                f"{self.name}: {self.feedback_message} (got"
+                f" {type(event).__name__}; ARCH-15-001)"
+            )
         dl = cast(CasePersistence, self.datalayer)
         if began_in_an_earlier_run(
             dl, event.activity_id, intake_ran=self.intake_ran

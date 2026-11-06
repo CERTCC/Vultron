@@ -129,6 +129,7 @@ from vultron.core.behaviors.case.receive_stages.decisions import (
 from vultron.core.behaviors.case.receive_stages.doors import (
     addressee_stage,
     case_resolution_stage,
+    check_nested,
     closed_sender_stage,
     path_stage_case_id,
     post_close_stage,
@@ -592,6 +593,12 @@ def create_receive_activity_tree(
     children: list[py_trees.behaviour.Behaviour] = list(
         addressee_stage(name, addressee_exemption)
     )
+    if nested:
+        check_nested(
+            name,
+            addressee_exemption=addressee_exemption,
+            post_close_exemption=post_close_exemption,
+        )
     children.extend(seen_before_stage(name, nested=nested))
     stage_case_id = path_stage_case_id(
         case_id, manager_case_id, sender_context

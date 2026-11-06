@@ -76,9 +76,22 @@ def _enclosing_intake_ran_first(tree: ReceivedActivityTree) -> bool:
     return False
 
 
+def _inside_a_received_tree(tree: ReceivedActivityTree) -> bool:
+    parent = tree.parent
+    while parent is not None:
+        if isinstance(parent, ReceivedActivityTree):
+            return True
+        parent = parent.parent
+    return False
+
+
 def _misplaced(tree: ReceivedActivityTree) -> list[str]:
     """What is out of the staged order in *tree*'s own children."""
     problems: list[str] = []
+    if not tree.nested and _inside_a_received_tree(tree):
+        # Its intake would meet the enclosing tree's record and read the
+        # first run as a re-run (ADR-0154).
+        return ["received tree inside another, not built nested"]
     seen = _index(tree, ActivityNotSeenBeforeNode)
     intake = _index(tree, IntakeReceivedActivityNode)
     addressee = _index(tree, ActivityAddressedToReceiverNode)
@@ -101,6 +114,7 @@ def _misplaced(tree: ReceivedActivityTree) -> list[str]:
     return problems
 
 
+@pytest.mark.spec("CLP-10-081")
 @pytest.mark.spec("CLP-10-010")
 @pytest.mark.spec("CLP-10-017")
 def test_every_received_tree_runs_its_doors_before_intake() -> None:
@@ -124,6 +138,27 @@ def test_the_check_reports_a_tree_built_out_of_order() -> None:
         name="Control", children=[intake, door], door_guards=[door]
     )
     assert _misplaced(tree) == ["intake at [0], not right after 1 doors"]
+
+
+@pytest.mark.spec("CLP-10-081")
+@pytest.mark.spec("CLP-10-010")
+def test_the_check_reports_a_tree_nested_without_the_flag() -> None:
+    """A control: an inner tree that forgot ``nested=True`` is reported."""
+    inner_door = ActivityNotSeenBeforeNode(label="Inner")
+    inner = ReceivedActivityTree(
+        name="Inner",
+        children=[inner_door, IntakeReceivedActivityNode()],
+        door_guards=[inner_door],
+    )
+    door = ActivityNotSeenBeforeNode(label="Outer")
+    ReceivedActivityTree(
+        name="Outer",
+        children=[door, IntakeReceivedActivityNode(), inner],
+        door_guards=[door],
+    )
+    assert _misplaced(inner) == [
+        "received tree inside another, not built nested"
+    ]
 
 
 @pytest.mark.spec("CLP-10-010")

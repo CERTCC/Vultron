@@ -24,8 +24,9 @@ reaches it.  The drain replays that held ``Announce`` through the inbox
 (SYNC-14-009), so what is applied is what the CASE_MANAGER sent.
 
 This hold is the one that lands on a record intake already wrote: the
-``Announce`` passed its doors and intake recorded it, ``HELD``, before the
-handler found the gap.  It stays ``HELD`` with its body, not archived, until
+``Announce`` passed its doors and intake recorded it, ``HELD`` (``HANDLED`` on
+a re-run), before the handler found the gap.  The hold makes it ``HELD`` with
+its body, not archived, until
 its replay applies it (ADR-0154): releasing it hands the body to the replay,
 which records it again as a delivery of its own, and discarding it (the
 bound, SYNC-14-013, or a fork's replacement) drops the message, body and all
@@ -116,7 +117,7 @@ def _received_body(dl: CasePersistence, activity_id: str) -> str:
     """The body intake recorded for *activity_id* (CLP-10-017).
 
     Raises:
-        VultronWiringError: When intake recorded no ``HELD`` body.  Intake
+        VultronWiringError: When intake recorded no body in holding.  Intake
             records every received activity its doors admit, ahead of the
             handling tree, so a hold that finds none runs in a miswired
             tree, and holding nothing would lose the ``Announce``.

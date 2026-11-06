@@ -275,6 +275,7 @@ def test_inlined_case_does_not_become_a_replica(scenario):
     assert _archived(scenario.dl, activity.id_)
 
 
+@pytest.mark.spec("CLP-10-080")
 @pytest.mark.spec("CLP-10-036")
 def test_second_intake_of_the_same_activity_marks_the_record_handled(
     scenario,

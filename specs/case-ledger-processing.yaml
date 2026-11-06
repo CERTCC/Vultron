@@ -3829,6 +3829,70 @@ groups:
       spec_id: CLP-10-073
     adr:
     - ADR-0154
+  - id: CLP-10-080
+    priority: MUST
+    kind: project
+    statement: >-
+      When intake finds a `HELD` record that owes no replay, it MUST move the record
+      to `HANDLED` and keep its body.
+    rationale: >-
+      A run that ended with no verdict, or a process stop, leaves the record in
+      holding, and the next run handles the message again (CLP-10-074). The first
+      run may already have answered the ledger position, judged the sender's number
+      or answered a refusal. Intake is the one stage that can tell the two runs
+      apart: no earlier write marks a first run, and a later write would leave a
+      crash window in which a re-run reads as a first run (ADR-0154).
+    verification: >-
+      `test/core/behaviors/case/nodes/test_intake.py` asserts that a second intake
+      moves the record to `HANDLED` with its body unchanged.
+      `test/core/behaviors/case/nodes/test_earlier_run.py` asserts the answer for
+      each record on each side of intake.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-074
+    adr:
+    - ADR-0154
+  - id: CLP-10-082
+    priority: MUST
+    kind: project
+    statement: >-
+      A stage after intake that answers a delivery only once MUST read whether its
+      run is a re-run from the record's stage, not from in-memory state that an
+      earlier stage wrote.
+    rationale: >-
+      Memory does not survive a restart, and a door that keeps its answer in memory
+      ties the stages that read it to one run of one process (ADR-0154). The record
+      carries the answer (CLP-10-080).
+    verification: >-
+      `test/architecture/test_received_stages_read_the_record.py` fails when a
+      handling-tree node holds a door node or reads a key that a door wrote, with
+      one read pinned under #6003, and is proved by planted reads.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CLP-10-080
+    adr:
+    - ADR-0154
+  - id: CLP-10-081
+    priority: MUST
+    kind: project
+    statement: >-
+      A received tree that runs inside another received tree for the same delivery
+      MUST run no seen-before door and no intake of its own.
+    rationale: >-
+      The enclosing tree's door answered the delivery, and its intake recorded it. A
+      second intake would find that record and read a first run as a re-run
+      (CLP-10-080).
+    verification: >-
+      `test/architecture/test_received_tree_staged_doors.py` asserts that every
+      received tree inside another one is built nested, that a nested tree has no
+      door or intake, and that it runs after its enclosing tree's intake.
+      `test/core/behaviors/case/nodes/test_seen_before.py` asserts that a nested
+      tree's first run leaves the record `HELD`.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-017
+    adr:
+    - ADR-0154
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair

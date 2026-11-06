@@ -85,8 +85,9 @@ def hold_for_replay(
 
     The **body** of a record already owing a replay is left as it is, so a
     redelivery of a held activity is not held again (IE-10-001) and the body
-    first held is the body replayed.  A ``HELD`` record intake recorded
-    takes the replay flag with the body it already holds.  With no record,
+    first held is the body replayed.  A record intake recorded, ``HELD`` or
+    ``HANDLED``, becomes ``HELD`` and takes the replay flag with the body it
+    already holds.  With no record,
     one ``HELD`` record is created.
 
     A record that is already at its outcome is not held: an ``ARCHIVED``
@@ -252,9 +253,9 @@ def discard_holding(dl: CasePersistence, activity_id: str) -> None:
 
     For a wait that ends without routing the message: a bounded holding area
     evicting its farthest-ahead entry (SYNC-14-013), or a queue whose window
-    expired (CBT-03-003).  The message is dropped, so its ``HELD`` record
-    goes entirely.  A record already at its outcome (an archive, a receipt
-    stub) is not a wait and is left as it is.
+    expired (CBT-03-003).  The message is dropped, so its record in holding
+    (``HELD`` or ``HANDLED``) goes entirely.  A record already at its
+    outcome (an archive, a receipt stub) is not a wait and is left as it is.
     """
     record = held_received_record(dl, activity_id)
     if record is None or record.stage not in HOLDING_STAGES:

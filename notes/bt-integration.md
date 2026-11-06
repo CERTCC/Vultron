@@ -261,10 +261,11 @@ nothing is written before the last one admits the message (ADR-0154).
    The seen-before door answers a resend from the message's one record, by
    its stage, and the run ends there: a receipt stub is `REFUSED` with the
    stub's reason, an archive is `SKIPPED`, a record owed a replay is
-   `SKIPPED`. A `HELD` record owing nothing passes, because runs are
-   serialized per actor and such a record was left by a run with no verdict
-   (CLP-10-074), or is the enclosing tree's record a nested tree meets. It
-   compares no bodies; ingress does (IE-10-002).
+   `SKIPPED`. A `HELD` or `HANDLED` record owing nothing passes, because runs
+   are serialized per actor and such a record was left by a run with no
+   verdict (CLP-10-074). A nested tree has no seen-before door of its own
+   (`nested=True`, CLP-10-081). It compares no bodies; ingress does
+   (IE-10-002).
 
    `CaseOpenToExternalWritesNode` (`case/nodes/post_close.py`) is the
    CM-23-013 write boundary, beside the sender guard, because whether a

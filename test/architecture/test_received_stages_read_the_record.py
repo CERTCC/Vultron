@@ -37,10 +37,18 @@ keyed on the shape, never on a class name:
    tick order, is a door node.  A ``CaseIdScope`` seeds ``/case_id`` for its
    own subtree, so a read inside one is the scope's.
 
-The one reference the rule admits is pinned with its ground
+The one reference pinned is the path answer, with its ground and its owner
 (:data:`PATH_ANSWER_READS`), held to equality, so a new one is a decision.
+
+Two boundaries outside the handling tree are not asked here, because their
+reads are their sanctioned inputs: a door reads the delivery itself (the
+event on ``/activity``), which arrival hands over, not state a stage wrote;
+and the outcome stage reads only the handler's result, which CLP-10-073 names
+as its input and ``test_received_outcome_stage.py`` pins.
 """
 
+import functools
+import logging
 import types
 from collections.abc import Iterator
 
@@ -56,13 +64,25 @@ from vultron.core.behaviors.case_id_scope import CaseIdScope
 _Finding = tuple[str, str, str]
 """(handling node class, what it reads through, door node class)."""
 
+#: Objects whose fields are no node's state: classes, modules, functions
+#: (a closure is walked by its cells) and loggers.
+_NOT_PLAIN = (type, types.ModuleType, types.FunctionType, logging.Logger)
+
 #: Attributes that are the tree's own structure, not a node's state.
 _STRUCTURE = frozenset(
     {"parent", "children", "decorated", "current_child", "_current_child"}
 )
 
-# permanent: HP-01-036 (the role is asked once per message, in the path
-# stage, and each path branch reads that answer; ADR-0153)
+# owner: #6003 (whether ADR-0154's rule admits this read)
+#: The one door-to-handling read pinned, and why it differs from the retired
+#: ``rerun`` flag.  ``rerun`` recorded history ("this run is a re-run") that
+#: only memory knew and a restart lost.  The path answer is derived: the path
+#: stage computes it again from the store on every run, so a restart loses
+#: nothing.  The read is load-bearing too: the path is decided once, at the
+#: door, before the act's own writes, and an act that changes who the
+#: CASE_MANAGER is would make a branch that asked again diverge from the door
+#: (HP-01-036, ADR-0153).  #6003 puts the conflict with ADR-0154 to the
+#: maintainer.
 PATH_ANSWER_READS: frozenset[_Finding] = frozenset(
     {("CheckReceivedPathNode", "stage", "ReceivedPathNode")}
 )
@@ -80,19 +100,24 @@ def _nodes_in(value: object, depth: int = 0) -> Iterator[object]:
 
 
 def _held_by(value: object) -> list[object]:
-    """What *value* holds: its items, its bound ``self``, its closure cells."""
+    """What *value* holds: its items, its bound ``self``, a partial's
+    function and arguments, its closure cells and a plain object's fields."""
     if isinstance(value, (list, tuple, set, frozenset)):
         return list(value)
     if isinstance(value, dict):
         return list(value.values())
     if isinstance(value, types.MethodType):
         return [value.__self__]
+    if isinstance(value, functools.partial):
+        return [value.func, *value.args, *value.keywords.values()]
     held: list[object] = []
     for cell in getattr(value, "__closure__", None) or ():
         try:
             held.append(cell.cell_contents)
         except ValueError:  # an empty cell
             continue
+    if not isinstance(value, _NOT_PLAIN) and hasattr(value, "__dict__"):
+        held.extend(vars(value).values())
     return held
 
 
@@ -184,6 +209,7 @@ def set_up_trees() -> dict[tuple[str, str], py_trees.behaviour.Behaviour]:
     return trees
 
 
+@pytest.mark.spec("CLP-10-082")
 @pytest.mark.spec("CLP-10-073")
 @pytest.mark.spec("CLP-10-074")
 def test_no_handling_node_holds_a_door_node(set_up_trees) -> None:
@@ -201,6 +227,7 @@ def test_no_handling_node_holds_a_door_node(set_up_trees) -> None:
     )
 
 
+@pytest.mark.spec("CLP-10-082")
 @pytest.mark.spec("CLP-10-073")
 @pytest.mark.spec("CLP-10-074")
 def test_no_handling_node_reads_a_key_a_door_wrote(set_up_trees) -> None:
@@ -283,6 +310,17 @@ def test_a_key_a_door_wrote_is_found() -> None:
     tree = _planted(door, _KeyReader())
 
     assert key_findings(tree) == {("_KeyReader", "/door_answer", "_Door")}
+
+
+def test_a_door_in_a_partial_or_a_plain_object_is_found() -> None:
+    door = _Door()
+    tree = _planted(
+        door,
+        _Reader(is_rerun=functools.partial(getattr, door, "rerun")),
+        _Reader(is_rerun=types.SimpleNamespace(answer=door)),
+    )
+
+    assert reference_findings(tree) == {("_Reader", "is_rerun", "_Door")}
 
 
 def test_a_node_reading_the_store_is_not_found() -> None:

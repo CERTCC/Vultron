@@ -84,6 +84,39 @@ def addressee_stage(
     return []
 
 
+def check_nested(
+    name: str,
+    *,
+    addressee_exemption: AddresseeExemption | None,
+    post_close_exemption: PostCloseExemption | None,
+) -> None:
+    """Refuse a nested tree that would run a door its enclosing tree ran.
+
+    A nested tree runs after its enclosing tree's intake, so the record is
+    already in holding: a post-close stage there would read the first run as
+    a re-run (``began_in_an_earlier_run`` before intake) and skip its reply,
+    and an addressee check would ask again what the enclosing door answered.
+    So a nested tree names both exemptions (ADR-0154).
+
+    Raises:
+        VultronWiringError: either exemption is missing.
+    """
+    missing = [
+        argument
+        for argument, value in (
+            ("addressee_exemption", addressee_exemption),
+            ("post_close_exemption", post_close_exemption),
+        )
+        if value is None
+    ]
+    if missing:
+        raise VultronWiringError(
+            f"create_receive_activity_tree({name}): a nested tree runs on its"
+            f" enclosing tree's doors, so it needs {', '.join(missing)}"
+            " (ADR-0154)"
+        )
+
+
 def seen_before_stage(
     name: str, *, nested: bool = False
 ) -> list[py_trees.behaviour.Behaviour]:

@@ -17,9 +17,9 @@ A received message rests in one record while it is judged
 (``received_holding.py`` owns the waiting), and leaves it only on its final
 outcome.  This module owns the two outcomes that change what is kept:
 
-- **applied** or **skipped** -- :func:`archive_applied` moves the ``HELD``
-  record intake wrote to ``ARCHIVED``: the sealed body it holds becomes the
-  archive (CLP-10-017, CLP-10-073).  The body is not rewritten.
+- **applied** or **skipped** -- :func:`archive_applied` moves the record
+  intake wrote, ``HELD`` or, on a re-run, ``HANDLED``, to ``ARCHIVED``: the
+  sealed body it holds becomes the archive (CLP-10-017, CLP-10-073).  The body is not rewritten.
 - **refused** -- the body is given up for a :func:`write_receipt_stub`:
   who sent it, which message, when it arrived, why it was refused, and the
   digest of the body (CLP-10-018).  A delivery a door refused before intake
@@ -28,7 +28,7 @@ outcome.  This module owns the two outcomes that change what is kept:
 - **deferred** -- the message is still waiting, so ``received_holding.py``
   keeps it; nothing here is called.
 - an **internal error** -- not an outcome at all.  The record is left exactly
-  as it is, ``HELD`` with its sealed body, so a resend or a re-run can run
+  as it is, in holding with its sealed body, so a resend or a re-run can run
   the act again from it (ADR-0151, ADR-0154).
 
 Why the stub is written here and not by the handler: a refusal that dropped
@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 
 def archive_applied(dl: CasePersistence, activity_id: str) -> None:
-    """Archive the ``HELD`` record of an applied or skipped *activity_id*.
+    """Archive the record in holding of an applied or skipped *activity_id*.
 
     The record keeps the sealed body it holds and moves to ``ARCHIVED``, so
     the archive holds only applied messages and a resend of one is skipped

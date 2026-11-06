@@ -112,6 +112,7 @@ def _interrupt_after_the_commit(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return stopped
 
 
+@pytest.mark.spec("IE-06-014")
 @pytest.mark.spec("CLP-10-074")
 @pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("ID-04-004")
@@ -187,22 +188,29 @@ def test_an_interrupted_run_is_finished_on_restart_with_nothing_twice(
     assert effects(dl) == finished
 
 
+@pytest.mark.spec("IE-06-014")
 @pytest.mark.spec("CLP-10-074")
-def test_the_startup_replay_finishes_what_a_run_left(monkeypatch):
-    """The production startup runs the held records before the queue."""
+@pytest.mark.spec("IE-06-006")
+def test_the_startup_runs_the_held_records_then_the_queue(monkeypatch):
+    """The production startup finishes what a run left, then replays the queue."""
     calls: list[str] = []
 
     async def _rerun(actor_dl, actor_id, dispatcher, emitter) -> int:
-        calls.append(actor_id)
+        calls.append("rerun")
         return 0
 
+    async def _replay(actor_dl, actor_id, dispatcher, emitter) -> None:
+        calls.append("queue")
+
+    net = LedgerNetwork(f"{CASE_ID}-startup")
+    net.stores[MANAGER].inbox_append(f"{CASE_ID}/activities/queued")
     monkeypatch.setattr(inbox_startup_replay, "rerun_left_in_holding", _rerun)
+    monkeypatch.setattr(inbox_startup_replay, "replay_inbox_queue", _replay)
     monkeypatch.setattr(
         inbox_startup_replay.actor_hosts,
         "hosted_actor_ids",
         lambda: [MANAGER],
     )
-    net = LedgerNetwork(f"{CASE_ID}-startup")
     monkeypatch.setattr(
         inbox_startup_replay,
         "get_datalayer",
@@ -211,4 +219,44 @@ def test_the_startup_replay_finishes_what_a_run_left(monkeypatch):
 
     asyncio.run(inbox_startup_replay.replay_hosted_inbox_queues())
 
-    assert calls == [MANAGER]
+    assert calls == ["rerun", "queue"]
+
+
+@pytest.mark.spec("IE-06-014")
+@pytest.mark.spec("CLP-10-074")
+def test_one_failing_rerun_keeps_neither_the_others_nor_the_queue_back(
+    monkeypatch, caplog: pytest.LogCaptureFixture
+):
+    """A re-run that raises is logged; the next record still runs."""
+    net = LedgerNetwork(f"{CASE_ID}-failing")
+    dl = net.stores[MANAGER]
+    first, second = (
+        ReceivedActivityRecord(
+            activity_id=f"{CASE_ID}/activities/{name}",
+            received_body=json.dumps({"id": name, "type": "Add"}),
+            stage=ReceivedStage.HELD,
+        )
+        for name in ("first", "second")
+    )
+    dl.create(first)
+    dl.create(second.model_copy(update={"received_at": first.received_at}))
+    ran: list[str] = []
+
+    async def _pipeline(payload, *args, **kwargs) -> None:
+        ran.append(payload["id"])
+        if payload["id"] == "first":
+            raise RuntimeError("store fault")
+
+    monkeypatch.setattr(inbox_startup_replay, "run_inbox_pipeline", _pipeline)
+
+    with caplog.at_level(logging.ERROR):
+        finished = asyncio.run(
+            inbox_startup_replay.rerun_left_in_holding(dl, MANAGER, None, None)
+        )
+
+    assert sorted(ran) == ["first", "second"]
+    assert finished == 1
+    assert any(
+        first.activity_id in r.getMessage() and r.levelno == logging.ERROR
+        for r in caplog.records
+    )

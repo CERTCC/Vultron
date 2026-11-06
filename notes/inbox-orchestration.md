@@ -154,7 +154,8 @@ body is still owed to a replay, because that replay would route a body the stub 
 dropped; and a second refusal, which leaves the first reason standing.
 
 **No verdict is not an outcome** (CLP-10-074). A dispatch that raised and one that
-returned no `HandlerResult` leave the record exactly as it is, `HELD` with its body:
+returned no `HandlerResult` leave the record exactly as it is, in holding (`HELD` or
+`HANDLED`) with its body:
 the act rolled back keeping nothing (ADR-0151), so the resend or re-run must be able to
 run it again from that body. The outcome stage tells them apart by the disposition
 `DispatchNode` publishes, which is written only when a verdict came back. A semantic
@@ -187,9 +188,10 @@ list are retired into it. The record carries two facts, and both values of the f
 are reachable in holding, so neither can be read off the other:
 
 - `stage` — `HELD` for a message in holding (waiting, being handled, or left by a run
-  with no verdict), `ARCHIVED` once the outcome stage archived an applied message
-  (CLP-10-073), `REFUSED` for a receipt stub, which keeps no body at all
-  (CLP-10-018);
+  with no verdict), `HANDLED` for one a later run's intake found left in holding and
+  is handling again (CLP-10-080), `ARCHIVED` once the outcome stage archived an
+  applied message (CLP-10-073), `REFUSED` for a receipt stub, which keeps no body at
+  all (CLP-10-018);
 - `replay_owed` — whether a replay is still owed from the held body, because the
   delivery that carried it ended without routing it. It waits on its case
   (`awaiting_case_id`), on a ledger gap (SYNC-14-001), on an object fetch
@@ -276,7 +278,7 @@ raises `VultronWiringError` (ARCH-15-001) rather than guess a match
 (`test_ingress_received_evidence.py`).
 
 **A failed act stays in holding, not in the archive.** A received act that failed kept
-no entry and no verdict, so its record stays `HELD` and its redelivery runs again,
+no entry and no verdict, so its record stays in holding and its redelivery runs again,
 committing the held body; an applied act's redelivery is `SKIPPED` at the seen-before
 door. `CommitCaseLedgerEntryNode` keeps the first entry when the ledger already
 records the activity as the same semantic, which covers a tree whose own repeat

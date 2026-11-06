@@ -5,7 +5,8 @@
 every path the dispatch can take — applied, skipped, deferred, refused, and a
 dispatch that raised — and maps that one verdict onto what the receiver keeps:
 
-- **applied** or **skipped** -- the ``HELD`` record intake wrote is archived
+- **applied** or **skipped** -- the record intake wrote (``HELD``, or
+  ``HANDLED`` on a re-run) is archived
   with the sealed body it holds (CLP-10-017, CLP-10-073).
 - **refused** -- the body is given up for a receipt stub: the sender, the
   activity id, the time of receipt, the reason and the body's digest
@@ -17,7 +18,7 @@ dispatch that raised — and maps that one verdict onto what the receiver keeps:
   as it is (IO-03-009).
 - **no verdict** (the dispatch raised, or returned something that is not a
   ``HandlerResult``) -- not an outcome.  The record is left untouched,
-  ``HELD`` with its sealed body, so a resend or a re-run runs the act again
+  in holding with its sealed body, so a resend or a re-run runs the act again
   from it (ADR-0151, CLP-10-074).
 
 It is a decorator, not a sibling, because the inbox pipeline is a ``Sequence``

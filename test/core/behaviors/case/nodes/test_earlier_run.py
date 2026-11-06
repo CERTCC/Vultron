@@ -42,6 +42,7 @@ from vultron.core.models.received_activity_record import (
     ReceivedStage,
 )
 from vultron.core.services.received_activity import began_in_an_earlier_run
+from vultron.errors import VultronWiringError
 
 
 @pytest.fixture
@@ -81,6 +82,7 @@ _CASES = {
 }
 
 
+@pytest.mark.spec("CLP-10-080")
 @pytest.mark.spec("CLP-10-074")
 @pytest.mark.spec("CLP-10-044")
 @pytest.mark.parametrize(
@@ -120,10 +122,28 @@ def test_the_condition_fails_on_a_rerun_and_passes_a_first_run(
 
 
 @pytest.mark.spec("ARCH-15-001")
-def test_the_condition_fails_closed_without_a_received_event(scenario):
+def test_a_missing_received_event_raises_rather_than_reading_as_a_rerun(
+    scenario,
+):
+    """FAILURE means "re-run" to a refusal stage, so a fault raises instead.
+
+    A refusal arm fails toward admit: a fault read as a re-run would skip
+    the refusal effects of a first run.
+    """
     node = FirstRunOfMessageNode(intake_ran=True)
+    node.datalayer = scenario.dl
+    node._activity = "not-an-event"
 
-    result = scenario.run(node, activity="not-an-event")
-
-    assert result.status == Status.FAILURE
+    with pytest.raises(VultronWiringError):
+        node.update()
     assert node.feedback_message == ACTIVITY_UNAVAILABLE
+
+
+@pytest.mark.spec("ARCH-15-001")
+def test_a_missing_datalayer_raises(scenario):
+    node = FirstRunOfMessageNode(intake_ran=True)
+    node.datalayer = None
+    node._activity = _event()
+
+    with pytest.raises(VultronWiringError):
+        node.update()
