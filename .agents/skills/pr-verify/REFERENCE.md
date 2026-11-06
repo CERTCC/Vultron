@@ -73,7 +73,8 @@ this PR. Please decide whether to fold them in before merge:
 | 📝 PR-IS-DRAFT | PR is still a draft (check for a lingering `needs-rebase` label) |
 | 📄 STALE-DOCS-LINE | PR body's `Docs:` line is missing, still the placeholder, does not cover a fix commit that changed described behavior, or names a page the diff does not change (Phase 3b) |
 | 📑 MISSING-SPEC-AMENDED | `spec-amendments.sh` lists an amended `statement:`/`priority:` and the PR body lacks a `## Spec amended` section naming it, or that section still holds a `<TODO>` (Phase 3c) |
-| 🔒 BLOCKED-BY-POLICY | `mergeStateStatus: BLOCKED` — missing required review/check; reported, not verdict-blocking |
+| 🔒 BLOCKED-BY-POLICY | `mergeStateStatus: BLOCKED` with a green `CI gate` — a missing required review, bypassable by the admin role; reported, not verdict-blocking |
+| 🚦 CI-GATE-NOT-GREEN | `mergeStateStatus: BLOCKED` and the head commit's newest `CI gate` run is red, pending or absent (`ci_gate=`) — ruleset `main-3 Require CI gate` has no bypass actor, so no account can merge past it (#5945) |
 
 ### Overall Verdict Rules
 
@@ -85,7 +86,7 @@ Evaluated top to bottom; first match wins.
 | 2 | `GAPS-FOUND` | Any FAIL finding UNRESOLVED or MISSING-COMMIT; or INCOMPLETE-EXECUTE; or any UNVERIFIED-CI-FAILING; or STALE-DOCS-LINE; or MISSING-SPEC-AMENDED |
 | 3 | `PENDING-MERGE-CHECK` | MERGE-STATE-UNKNOWN flagged |
 | 4 | `PENDING-CI` | All findings CONFIRMED but CI not yet complete (still running/pending) |
-| 5 | `READY-TO-MERGE` | All FAIL findings CONFIRMED; CI green; live `mergeable == MERGEABLE`; no INCOMPLETE-EXECUTE, UNVERIFIED-CI-FAILING, STALE-DOCS-LINE, MISSING-SPEC-AMENDED, UNSYNCED-EXECUTE, BRANCH-BEHIND, or PR-IS-DRAFT |
+| 5 | `READY-TO-MERGE` | All FAIL findings CONFIRMED; CI green; live `mergeable == MERGEABLE`; no INCOMPLETE-EXECUTE, UNVERIFIED-CI-FAILING, STALE-DOCS-LINE, MISSING-SPEC-AMENDED, UNSYNCED-EXECUTE, BRANCH-BEHIND, CI-GATE-NOT-GREEN, or PR-IS-DRAFT |
 | 6 | `GAPS-FOUND` | Anything else — name the blocking flag in the comment |
 
 Conflicts outrank finding gaps (row 1 above row 2) because they are the coarser

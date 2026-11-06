@@ -3186,6 +3186,30 @@ groups:
           an active ruleset on `main` (`gh api repos/CERTCC/Vultron/rulesets`)
           lists that check as a required status check, with no bypass actors,
           such as `main-3 Require CI gate` (#5945).
+      - id: PAD-18-032
+        priority: MUST
+        kind: process
+        statement: >-
+          `pr-verify` MUST withhold `READY-TO-MERGE` when GitHub reports a Pull
+          Request `BLOCKED` and the required `CI gate` check on its head commit
+          is red, pending, absent or unreadable. It judges by the newest run of
+          that check, the run GitHub's own evaluation judges by.
+        rationale: >-
+          A required check with no bypass actor means GitHub refuses the merge,
+          so a pipeline that calls the Pull Request ready sends the agent to a
+          merge that cannot succeed. The newest run is the deciding one because
+          a cancelled or superseded earlier run stays on the head commit beside
+          it.
+        verification: >-
+          Test: `test/metadata/test_verify_gate_scripts.py` checks that
+          `verify-merge-gate.sh` answers `blocks-ready` with the
+          `CI-GATE-NOT-GREEN` flag for a `BLOCKED` Pull Request whose newest
+          `CI gate` run is red, pending, absent or unreadable, answers `clear`
+          only when that run passed, and reads the newest run when several are
+          present.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-18-031
 
   - id: PAD-19
     title: Epic Claim for an Epic Run

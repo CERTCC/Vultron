@@ -328,6 +328,12 @@ Also emit findings for these `merge_state_status` values even when
   PAD-18-014). This repository sets no such ruleset today (ADR-0126), so say
   in the description that the premise changed; `pr-verify` still blocks on a
   live `BEHIND` (PAD-18-005).
+- `BLOCKED` — **IMPROVE**. Name the cause rather than the state: read the head
+  commit's newest `CI gate` run, which ruleset `main-3 Require CI gate`
+  requires with no bypass actor, so nobody merges past it (#5945). A red gate
+  is `fix-now` (fix the red check the gate's log names, then re-run the `CI gate`
+  job too, or the gate keeps its old verdict); a pending one needs only a
+  re-check; a missing required review is not execute's to fix.
 - `DIRTY` — treat exactly like `CONFLICTING` above, even if `mergeable`
   disagrees; the two fields are computed separately and `DIRTY` is the stronger
   signal

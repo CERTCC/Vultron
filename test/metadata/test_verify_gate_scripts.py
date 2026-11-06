@@ -19,8 +19,10 @@ from test.metadata._script_sandbox import (
     commit,
     fields,
     git,
+    green_gate,
     pr_view,
     run_script,
+    status_rollup,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -63,6 +65,7 @@ def _labels(*names: str) -> dict:
         ("MERGEABLE", "DIRTY", "conflicts-found", ["MERGE-CONFLICT"]),
         ("UNKNOWN", "UNKNOWN", "pending-merge-check", ["MERGE-STATE-UNKNOWN"]),
         ("MERGEABLE", "BEHIND", "blocks-ready", ["BRANCH-BEHIND"]),
+        # BLOCKED with a green gate is the bypassable kind: a note, no flag.
         ("MERGEABLE", "BLOCKED", "clear", []),
     ],
 )
@@ -74,15 +77,125 @@ def test_merge_gate_maps_each_row(
     verdict: str,
     flags: list[str],
 ) -> None:
-    result = run_script(
-        tmp_path, MERGE, "7", cwd=repo, rules=[pr_view(mergeable, status)]
-    )
+    rules = [green_gate(), pr_view(mergeable, status)]
+    result = run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules)
     out = fields(result)
     assert result.returncode == 0, result.stderr
     assert out["verdict"] == [verdict]
     assert out.get("flag", []) == flags
     assert out["merge_state_status"] == [status]
     assert ("note" in out) == (status == "BLOCKED")
+    # Only BLOCKED asks about the gate, so only BLOCKED reports it.
+    assert ("ci_gate" in out) == (status == "BLOCKED")
+
+
+@pytest.mark.parametrize(
+    ("check_status", "conclusion", "reported"),
+    [
+        ("COMPLETED", "SUCCESS", "SUCCESS"),
+        ("COMPLETED", "FAILURE", "FAILURE"),
+        ("COMPLETED", "CANCELLED", "CANCELLED"),
+        ("COMPLETED", "TIMED_OUT", "TIMED_OUT"),
+        # Still running: no conclusion yet, and the merge waits on it.
+        ("IN_PROGRESS", None, "PENDING"),
+        ("QUEUED", None, "PENDING"),
+    ],
+)
+def test_a_blocked_pr_splits_on_the_ci_gate(
+    tmp_path: Path,
+    repo: Path,
+    check_status: str,
+    conclusion: str | None,
+    reported: str,
+) -> None:
+    """Only a green gate leaves BLOCKED survivable (#5945).
+
+    `main-3 Require CI gate` lists no bypass actor, so any other gate reading
+    refuses the merge for every account — pr-verify must not call it clear.
+    """
+    rules = [
+        status_rollup(("CI gate", check_status, conclusion)),
+        pr_view(status="BLOCKED"),
+    ]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["ci_gate"] == [reported]
+    if reported == "SUCCESS":
+        assert out["verdict"] == ["clear"]
+        assert "flag" not in out
+        assert out["note"] == ["blocked"]
+    else:
+        assert out["verdict"] == ["blocks-ready"]
+        assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+        # The note marks the survivable kind, so this one must not carry it.
+        assert "note" not in out
+
+
+def test_a_blocked_pr_with_no_ci_gate_run_blocks(
+    tmp_path: Path, repo: Path
+) -> None:
+    """The case a ruleset hangs on forever: the check never ran (#5942)."""
+    rules = [
+        status_rollup(("Tests (pytest)", "COMPLETED", "SUCCESS")),
+        pr_view(status="BLOCKED"),
+    ]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["ci_gate"] == ["absent"]
+    assert out["verdict"] == ["blocks-ready"]
+    assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+
+
+def test_a_blocked_pr_whose_rollup_cannot_be_read_blocks(
+    tmp_path: Path, repo: Path
+) -> None:
+    """A merge gate never clears on missing evidence."""
+    rules = [
+        {"match": ["pr view", "statusCheckRollup"], "exit": 1},
+        pr_view(status="BLOCKED"),
+    ]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["ci_gate"] == ["unknown"]
+    assert out["verdict"] == ["blocks-ready"]
+    assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+
+
+@pytest.mark.parametrize(
+    ("older", "newer", "reported"),
+    [("SUCCESS", "FAILURE", "FAILURE"), ("CANCELLED", "SUCCESS", "SUCCESS")],
+)
+def test_the_newest_ci_gate_run_is_the_one_that_counts(
+    tmp_path: Path, repo: Path, older: str, newer: str, reported: str
+) -> None:
+    """A superseded run sits beside the live one in the rollup.
+
+    An `edited` event cancels the in-flight gate and starts a fresh one, so the
+    head commit carries several `CI gate` runs; GitHub's required-check
+    evaluation reads the newest, and so must this (#5971).
+    """
+    rules = [
+        status_rollup(
+            ("CI gate", "COMPLETED", older), ("CI gate", "COMPLETED", newer)
+        ),
+        pr_view(status="BLOCKED"),
+    ]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["ci_gate"] == [reported]
+
+
+def test_a_red_check_beside_a_green_ci_gate_is_the_gates_business(
+    tmp_path: Path, repo: Path
+) -> None:
+    """The gate judges the other checks, so pr-verify reads only the gate."""
+    rules = [
+        status_rollup(
+            ("Tests (pytest)", "COMPLETED", "FAILURE"),
+            ("CI gate", "COMPLETED", "SUCCESS"),
+        ),
+        pr_view(status="BLOCKED"),
+    ]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["ci_gate"] == ["SUCCESS"]
+    assert out["verdict"] == ["clear"]
+    assert "flag" not in out
 
 
 def test_a_branch_behind_its_base_that_github_calls_clean_is_clear(

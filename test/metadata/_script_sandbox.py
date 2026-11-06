@@ -91,6 +91,35 @@ def pr_view(
     }
 
 
+def status_rollup(*runs: tuple[str, str, str | None]) -> dict:
+    """A rule answering ``gh pr view --json statusCheckRollup``.
+
+    Each run is ``(name, status, conclusion)``, **oldest first**: that order
+    sets ``startedAt``. The rule then lists them newest-first, the opposite
+    order, so a caller that reads the array's last entry rather than sorting by
+    ``startedAt`` reads the wrong run and fails.
+    """
+    entries = [
+        {
+            "__typename": "CheckRun",
+            "name": name,
+            "status": status,
+            "conclusion": conclusion,
+            "startedAt": f"2026-11-06T15:{index:02d}:00Z",
+        }
+        for index, (name, status, conclusion) in enumerate(runs)
+    ]
+    return {
+        "match": ["pr view", "statusCheckRollup"],
+        "stdout": json.dumps({"statusCheckRollup": list(reversed(entries))}),
+    }
+
+
+def green_gate() -> dict:
+    """The rollup of a head commit whose one `CI gate` run passed."""
+    return status_rollup(("CI gate", "COMPLETED", "SUCCESS"))
+
+
 def run_script(
     tmp: Path,
     script: str,

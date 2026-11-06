@@ -96,8 +96,10 @@ cannot be ready to merge no matter what those checks find.
    header. `CONFLICTING`, `DIRTY` or a surviving `<<<<<<<`/`>>>>>>>` marker
    raises `MERGE-CONFLICT`, even if `mergeable` says `MERGEABLE`. `UNKNOWN`
    raises `MERGE-STATE-UNKNOWN`, `BEHIND` raises `BRANCH-BEHIND`, and `DRAFT`
-   raises `PR-IS-DRAFT`. `BLOCKED` is a note only. It prints one `verdict=`
-   line, one `flag=` line per flag, and the supporting fields.
+   raises `PR-IS-DRAFT`. `BLOCKED` splits on the head commit's newest `CI gate`
+   run, reported as `ci_gate=`: green leaves it a note, as it always was, and
+   anything else raises `CI-GATE-NOT-GREEN`. It prints one `verdict=` line, one
+   `flag=` line per flag, and the supporting fields.
 
 2. Act on the verdict:
 
@@ -105,9 +107,18 @@ cannot be ready to merge no matter what those checks find.
    |---|---|---|
    | `conflicts-found` | `MERGE-CONFLICT` | Forces `CONFLICTS-FOUND` |
    | `pending-merge-check` | `MERGE-STATE-UNKNOWN` | Forces `PENDING-MERGE-CHECK` |
-   | `blocks-ready` | `BRANCH-BEHIND`, `PR-IS-DRAFT` | Blocks `READY-TO-MERGE` |
+   | `blocks-ready` | `BRANCH-BEHIND`, `PR-IS-DRAFT`, `CI-GATE-NOT-GREEN` | Blocks `READY-TO-MERGE` |
    | `clear` | none | No block from this phase |
 
+   - `CI-GATE-NOT-GREEN` — ruleset `main-3 Require CI gate` requires the
+     `CI gate` check on `main` and lists no bypass actor, so a gate that is
+     red, pending or absent refuses the merge for every account, the admin
+     role included (#5945). Read `ci_gate=`: `FAILURE` means open the gate's
+     log, which names each red check; `PENDING` means wait and re-run
+     `/pr-verify`; `CANCELLED` or `TIMED_OUT` means re-run the `CI gate` job
+     itself, as any re-run of another check also requires. A green gate beside
+     a red sibling check is not this flag's business — the gate judges the
+     siblings.
    - `BRANCH-BEHIND` — GitHub reports `BEHIND` only when a ruleset requires
      up-to-date branches, which this repository does not set (ADR-0126).
      `pr-execute` updates the branch on GitHub when it sees `BEHIND`
