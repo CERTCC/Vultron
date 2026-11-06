@@ -3941,9 +3941,10 @@ groups:
 - id: EMB-19
   title: Embargo Teardown Announcement
   description: >-
-    Who authors the `Announce(EmbargoEvent)` that follows an embargo teardown, and
-    who receives it. Added by ISSUE-2238 after the recipients were found to be
-    unspecified, which is how they came to disagree with the tree's role gate.
+    Who authors the activity that tells the other participants of an embargo
+    teardown, and who receives it. Added by ISSUE-2238 after the recipients were
+    found to be unspecified, which is how they came to disagree with the tree's
+    role gate.
   specs:
   - id: EMB-19-001
     lint_suppress:
@@ -3952,7 +3953,9 @@ groups:
     kind: protocol
     statement: >-
       The actor that holds the `CASE_MANAGER` role for the case MUST author the
-      `Announce(EmbargoEvent)` emitted after an embargo teardown.
+      activity that tells the other participants of an embargo teardown. That
+      activity is an `Announce(EmbargoEvent)` after a received `Remove(EmbargoEvent)`,
+      and the CASE_MANAGER's own `Remove(EmbargoEvent)` for a teardown it starts.
     rationale: >-
       The teardown changes canonical case state, so the actor that holds the
       CASE_MANAGER role announces it, and the participants are its audience. The tree
@@ -3966,11 +3969,22 @@ groups:
       `manager_effects`, which the factory gates on `CVDRole.CASE_MANAGER` after the guarded commit
       (CLP-10-013, BT-17-008); a participant replica tears down its own copy and announces nothing. The
       ledger entry therefore already exists when the announce is queued, and a self-addressed copy would
-      loop an activity back to the actor that just emitted it for no additional record.
+      loop an activity back to the actor that just emitted it for no additional
+      record. A teardown the CASE_MANAGER starts (its own decision, the end time,
+      or a P/X/A cascade) runs `terminate_embargo_bt`, whose
+      `CommitAndApplyEmbargoTerminationNode` commits the CASE_MANAGER's own
+      `Remove(EmbargoEvent)` addressed to every other participant, and no announce
+      follows.
     verification: >-
-      `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce
-      is authored by the CASE_MANAGER, and, with each actor in its own store, that a participant
-      replica receiving the same `Remove(EmbargoEvent)` queues nothing.
+      `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the
+      announce is authored by the CASE_MANAGER, and, with each actor in its own
+      store, that a participant replica receiving the same `Remove(EmbargoEvent)`
+      queues nothing. `test/core/behaviors/embargo/nodes/test_lifecycle.py`
+      (`test_manager_teardown_is_addressed_to_the_others_only`) and
+      `test/core/use_cases/triggers/embargo/test_terminate.py`
+      (`test_manager_terminate_queues_nothing_addressed_to_itself`) assert that a
+      teardown the CASE_MANAGER starts sends its own `Remove(EmbargoEvent)` to the
+      other participants.
     adr:
     - ADR-0109
     - ADR-0114
