@@ -34,16 +34,16 @@ import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from typing import cast
 
 from vultron.adapters.driven.http_object_fetch import (
-    HttpObjectFetcher,
     ObjectFetcher,
     ObjectFetchResult,
+    default_object_fetcher,
+    parse_fetched_object,
 )
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
 from vultron.adapters.inbox_staging import InlineObjectStaging
-from vultron.config import get_config
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.events import VultronEvent
@@ -61,58 +61,13 @@ from vultron.errors import (
     VultronError,
     VultronValidationError,
 )
-from vultron.primitives import same_actor_id
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 logger = logging.getLogger(__name__)
 
 #: The record type every fetch is stored under.
 FETCH_RECORD_TYPE = "PendingObjectFetch"
-
-
-def parse_fetched_object(
-    document: dict[str, Any], object_id: str
-) -> CoreObject | as_Base:
-    """The object a fetch answered with, typed by its ``type``.
-
-    *document* is what the object's holder served, not a received body: the
-    receive path's parsed activity stays the authority for what arrived
-    (MV-11-005).
-
-    Raises:
-        VultronValidationError: When the body names no type the vocabulary
-            knows, does not validate as that type, or is not the object
-            *object_id* names.
-    """
-    type_name = document.get("type")
-    if not isinstance(type_name, str) or not type_name:
-        raise VultronValidationError(
-            f"the fetched body for {object_id!r} names no type"
-        )
-    try:
-        cls = find_in_vocabulary(type_name)
-        parsed = cls.model_validate(document)
-    except (KeyError, ValueError) as exc:
-        raise VultronValidationError(
-            f"the fetched body for {object_id!r} is not a valid"
-            f" {type_name!r}: {exc}"
-        ) from exc
-    if not isinstance(parsed, (CoreObject, as_Base)):
-        raise VultronValidationError(
-            f"the fetched body for {object_id!r} is a {type_name!r}, which"
-            " is not an object"
-        )
-    parsed_id = getattr(parsed, "id_", None)
-    if not isinstance(parsed_id, str) or not same_actor_id(
-        parsed_id, object_id
-    ):
-        raise VultronValidationError(
-            f"the fetched object {parsed_id!r} is not the {object_id!r}"
-            " that was asked for"
-        )
-    return parsed
 
 
 def _fetch_record(dl: DataLayer, object_id: str) -> PendingObjectFetch | None:
@@ -392,15 +347,6 @@ LockedRunner = Callable[[Callable[[], None]], Awaitable[None]]
 #: Rounds of fetching one run makes: a replay a fetch released may itself
 #: wait on another object, and this bounds how far one run chases them.
 MAX_FETCH_ROUNDS = 4
-
-
-def default_object_fetcher() -> HttpObjectFetcher:
-    """The HTTP fetcher, bounded by the configured attempts (AKM-05-008)."""
-    config = get_config()
-    return HttpObjectFetcher(
-        max_attempts=config.max_object_fetch_attempts,
-        timeout=config.object_fetch_timeout_seconds,
-    )
 
 
 async def _fetch(

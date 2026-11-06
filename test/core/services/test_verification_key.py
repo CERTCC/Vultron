@@ -14,16 +14,19 @@
 """The verification-key resolver reads a proof's key from its author's profile.
 
 The held copy is read first, and a profile is fetched when the held copy
-lists no key the proof names (SIG-02-001, MV-10-003); ids are compared
+lists no key the proof names (SIG-02-001, AKM-05-012); ids are compared
 normalised (OID-01-006).
 """
 
+import ast
 import asyncio
+import inspect
 
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.actor import CoreActor, VultronOrganization
+from vultron.core.models.base import CoreObject
 from vultron.core.models.multikey import Multikey
 from vultron.core.services import verification_key as vk
 from vultron.errors import (
@@ -92,7 +95,7 @@ def _resolve(
 
 
 @pytest.mark.spec("SIG-02-001")
-@pytest.mark.spec("MV-10-003")
+@pytest.mark.spec("AKM-05-012")
 def test_a_held_profile_listing_the_key_is_used_without_a_fetch():
     dl = _store()
     dl.save(_profile([AUTHOR_KEY]))
@@ -209,9 +212,13 @@ def test_a_key_of_another_actor_is_refused_without_a_read_or_fetch():
     bystander_key = signing.published_multikey(
         signing.seeded_signing_key(bystander), bystander
     )
-    dl = _store()
-    dl.save(_profile([bystander_key], bystander))
     fetcher = _FakeProfileFetch(_profile([bystander_key], bystander))
+
+    class _NoReads(SqliteDataLayer):
+        def read(self, object_id: str, raise_on_missing: bool = False):
+            raise AssertionError(f"read {object_id!r}")
+
+    dl = _NoReads("sqlite:///:memory:", actor_id=RECEIVER)
 
     with pytest.raises(VultronVerificationKeyError) as caught:
         _resolve(dl, fetcher, method)
@@ -245,9 +252,55 @@ def test_a_profile_of_another_actor_lists_no_key_for_the_author():
     assert vk.published_key(_profile([other_key], other_id), METHOD) is None
 
 
+@pytest.mark.spec("SIG-02-001")
+def test_a_key_appended_past_validation_for_another_controller_is_not_used():
+    """``append`` skips the profile's validators (CM-27-001)."""
+    profile = _profile()
+    other_id = "https://other.example/api/v2/actors/other"
+    profile.assertion_method.append(
+        Multikey.model_construct(
+            id_=METHOD,
+            type_="Multikey",
+            controller=other_id,
+            public_key_multibase=AUTHOR_KEY.public_key_multibase,
+        )
+    )
+
+    assert vk.published_key(profile, METHOD) is None
+
+
+@pytest.mark.spec("SIG-02-001")
+def test_a_key_appended_past_validation_with_a_foreign_id_is_not_used():
+    profile = _profile()
+    profile.assertion_method.append(
+        Multikey.model_construct(
+            id_=f"https://other.example/x#{signing.KEY_FRAGMENT}",
+            type_="Multikey",
+            controller=AUTHOR,
+            public_key_multibase=AUTHOR_KEY.public_key_multibase,
+        )
+    )
+
+    assert vk.published_key(profile, METHOD) is None
+
+
+@pytest.mark.spec("SIG-03-002")
+def test_a_fetcher_that_raises_refuses_the_proof():
+    class _Raises(_FakeProfileFetch):
+        async def fetch_profile(
+            self, actor_id: str, requester_id: str
+        ) -> CoreActor:
+            raise RuntimeError("the client refused the URL")
+
+    with pytest.raises(VultronVerificationKeyError) as caught:
+        _resolve(_store(), _Raises())
+
+    assert isinstance(caught.value.__cause__, RuntimeError)
+
+
 def test_an_object_that_is_not_an_actor_lists_no_key():
     assert vk.published_key(None, METHOD) is None
-    assert vk.published_key({"assertionMethod": []}, METHOD) is None
+    assert vk.published_key(CoreObject(id_=AUTHOR), METHOD) is None
 
 
 @pytest.mark.spec("SIG-01-002")
@@ -270,6 +323,38 @@ def test_a_method_naming_no_profile_key_is_refused_without_a_fetch(
 def test_the_key_owner_is_the_normalised_actor_id():
     assert vk.key_owner_id(f"{AUTHOR}/#main-key") == AUTHOR
     assert vk.key_owner_id(METHOD) == AUTHOR
+
+
+@pytest.mark.spec("SIG-05-002")
+@pytest.mark.parametrize(
+    "module",
+    [
+        vk,
+        pytest.importorskip(
+            "vultron.adapters.driven.http_actor_profile_fetch"
+        ),
+    ],
+    ids=["resolver", "fetch-adapter"],
+)
+def test_the_key_lookup_names_no_seed_function(module: object):
+    """No seed function is named, however it might be imported or called."""
+    tree = ast.parse(inspect.getsource(module))  # type: ignore[arg-type]
+    names = (
+        {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+        | {
+            node.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute)
+        }
+        | {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+            for alias in node.names
+        }
+    )
+
+    assert not names & {"seeded_signing_key", "_seed_for", "SigningKey"}
 
 
 @pytest.mark.spec("SIG-05-002")

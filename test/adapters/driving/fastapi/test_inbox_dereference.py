@@ -749,8 +749,10 @@ def test_the_default_fetcher_takes_its_limits_from_the_config(
 ):
     from types import SimpleNamespace
 
+    from vultron.adapters.driven import http_object_fetch
+
     monkeypatch.setattr(
-        deref,
+        http_object_fetch,
         "get_config",
         lambda: SimpleNamespace(
             max_object_fetch_attempts=7, object_fetch_timeout_seconds=1.5

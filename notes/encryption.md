@@ -20,6 +20,7 @@ related_specs:
   - specs/message-validation.yaml
   - specs/actor-knowledge-model.yaml
   - specs/error-handling.yaml
+  - specs/object-ids.yaml
 related_notes:
   - archived_notes/federation_ideas.md
   - notes/case-ledger-genesis-hardening.md
@@ -114,7 +115,7 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   (`vultron/core/services/verification_key.py`), never by hand. It takes the
   proof's `verificationMethod`, the document's author, the receiving actor's
   store and an `ActorProfileFetchPort` (`HttpActorProfileFetchAdapter` in
-  `vultron/adapters/driving/fastapi/actor_profile_fetch.py`), and returns the
+  `vultron/adapters/driven/http_actor_profile_fetch.py`), and returns the
   core `Multikey` whose `publicKeyMultibase` goes to `signing.verify`. It reads
   the held copy, else a plain GET of `{actor}/profile` with no proof
   (SIG-02-001, SIG-02-002). It refuses a key whose actor is not the author
@@ -126,6 +127,16 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   as it answers a failed proof (SIG-03-002). It reads the held copy with one
   synchronous `dl.read` before it awaits the fetch. A fetch failure is
   `VultronActorProfileFetchError`, chained as the refusal's cause.
+- **A held copy's keys are trusted as held.** A held key verifies, so a key
+  planted in a held copy would let its planter sign as that actor. The known
+  store paths write no peer `assertionMethod`: an inline profile carries none,
+  discovery records a bare id, and the resolver stores no fetch. A path that
+  starts storing peer keys must take them only from the actor's own profile;
+  what may replace a held key is #1184's rotation question.
+- **A key lookup runs before the sender is verified.** An unsigned or forged
+  delivery can make the receiver fetch the claimed author's profile, with the
+  fetch retries (AKM-05-008). #5386 bounds that cost at the ingress; a
+  production key cache is #1184.
 - **Actor ids are compared normalised** (OID-01-006): the key's actor, the
   profile id and the `controller`, each without a trailing slash. A held copy
   stored under a slashed id is missed by the read and found by the fetch.
@@ -137,9 +148,9 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   (SIG-05-002). `GET /actors/` lists each hosted actor the same way.
 - **An inline sender profile carries no key.** An activity carries the
   sender's own stored record as held (AKM-05-005), and that record lists no
-  key, while a receiver keeps a held copy over a fetched one (MV-10-003). So
-  the resolver fetches when its held copy lists no key the proof names, and
-  does not store what it fetched.
+  key, while a receiver keeps a held record over a fetched copy
+  (AKM-05-012). So the resolver fetches when its held copy lists no key the
+  proof names, and does not store what it fetched.
 - **A profile typed `"Actor"` loses its key at parse.** The wire `as_Actor`
   ignores unknown fields, so it drops `assertionMethod`, while the five
   concrete actor types keep it. The fetch adapter refuses a profile typed

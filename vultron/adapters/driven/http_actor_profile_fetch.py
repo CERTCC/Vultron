@@ -32,8 +32,8 @@ refusal saying the actor published no key would mislead.
 
 from __future__ import annotations
 
-from vultron.adapters.driven.http_object_fetch import ObjectFetcher
-from vultron.adapters.driving.fastapi.inbox_dereference import (
+from vultron.adapters.driven.http_object_fetch import (
+    ObjectFetcher,
     default_object_fetcher,
     parse_fetched_object,
 )

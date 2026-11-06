@@ -22,13 +22,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from test.adapters.driving.fastapi._redelivery import served_store
+from vultron.adapters.driven import http_actor_profile_fetch as apf
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_object_fetch import (
     ObjectFetchResult,
     fetch_url,
 )
-from vultron.adapters.driving.fastapi import actor_profile_fetch as apf
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.object_fetch import (
     ObjectFetchSource,

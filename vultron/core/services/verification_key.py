@@ -23,9 +23,9 @@ key that verifies the proof is read only from that actor's profile
 2. otherwise the profile fetched from the actor with a plain ``GET``
    (SIG-02-002), through :class:`ActorProfileFetchPort`.
 
-The held copy is tried first because a receiver keeps a held profile over a
-fetched one (MV-10-003).  It is not trusted to be complete: the copy an
-activity carries inline is the sender's own stored record, which lists no
+The held copy is tried first because a receiver keeps a record it holds
+over a fetched copy (AKM-05-012).  It is not trusted to be complete: the copy
+an activity carries inline is the sender's own stored record, which lists no
 key (AKM-05-005), so a held copy without the named key leads to a fetch, not
 a refusal.  The fetched profile is used for this lookup and not stored.
 
@@ -44,6 +44,7 @@ import logging
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.multikey import Multikey
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
@@ -55,20 +56,28 @@ from vultron.primitives import normalise_actor_id
 logger = logging.getLogger(__name__)
 
 
+def _key_id_parts(key_id: str) -> tuple[str, str] | None:
+    """*key_id* as its normalised actor id and fragment, or ``None``."""
+    actor_id, hash_sign, fragment = key_id.partition("#")
+    owner = normalise_actor_id(actor_id)
+    if not hash_sign or not owner or not fragment:
+        return None
+    return owner, fragment
+
+
 def _split_key_id(key_id: str) -> tuple[str, str]:
     """*key_id* as its normalised actor id and its fragment.
 
     Raises:
         VultronVerificationKeyError: *key_id* is not ``<actor id>#<fragment>``.
     """
-    actor_id, hash_sign, fragment = key_id.partition("#")
-    owner = normalise_actor_id(actor_id)
-    if not hash_sign or not owner or not fragment:
+    parts = _key_id_parts(key_id)
+    if parts is None:
         raise VultronVerificationKeyError(
             f"verificationMethod {key_id!r} does not name a key in an actor"
             " profile, <actor id>#<fragment> (SIG-01-002)"
         )
-    return owner, fragment
+    return parts
 
 
 def key_owner_id(verification_method: str) -> str:
@@ -85,14 +94,17 @@ def key_owner_id(verification_method: str) -> str:
 
 
 def published_key(
-    profile: object, verification_method: str
+    profile: PersistableModel | None, verification_method: str
 ) -> Multikey | None:
     """The key *profile* lists that *verification_method* names, if any.
 
     The key must be listed under ``assertionMethod`` of a profile whose id is
     the key's actor, and its ``controller`` must be that actor (SIG-02-001),
     each compared normalised (OID-01-006).  Anything other than a
-    :class:`CoreActor` lists no key.
+    :class:`CoreActor` lists no key.  The profile's validators already hold
+    each key to its own actor, but a list changed by assignment or ``append``
+    skips them (CM-27-001), so the key's id and ``controller`` are checked
+    here again.
 
     Raises:
         VultronVerificationKeyError: *verification_method* is not
@@ -106,7 +118,7 @@ def published_key(
     for key in profile.assertion_method:
         if normalise_actor_id(key.controller) != owner:
             continue
-        if key.id_[len(key.controller) + 1 :] == fragment:
+        if _key_id_parts(key.id_) == (owner, fragment):
             return key
     return None
 
@@ -131,7 +143,8 @@ async def resolve_verification_key(
     fetch.  The held copy is read first; when it lists no key the proof
     names, the profile is fetched through *fetcher* (SIG-02-001).  A held
     copy stored under an unnormalised id is not found by the read; the
-    fetch, made to the normalised id, still finds the key.
+    fetch, made to the normalised id, still finds the key.  A store fault
+    in the read is not a proof failure and propagates as it is.
 
     Raises:
         VultronVerificationKeyError: *verification_method* names no key in an
@@ -148,9 +161,10 @@ async def resolve_verification_key(
     held = published_key(dl.read(owner), verification_method)
     if held is not None:
         logger.debug(
-            "Resolved key %s from the held profile of actor_id=%s",
+            "Resolved key %s from the held profile of %s for actor_id=%s",
             verification_method,
             owner,
+            requester_id,
         )
         return held
     try:
@@ -161,6 +175,19 @@ async def resolve_verification_key(
             f" {owner!r} does not list it, and fetching the profile failed:"
             f" {exc}"
         ) from exc
+    except Exception as exc:
+        # A fetcher is not to raise anything else, but one that does leaves
+        # the key unread, and that refuses the proof (SIG-03-002).
+        logger.warning(
+            "The profile fetcher raised fetching %s for actor_id=%s: %r",
+            owner,
+            requester_id,
+            exc,
+        )
+        raise VultronVerificationKeyError(
+            f"cannot read key {verification_method!r}: fetching the profile"
+            f" of {owner!r} raised {exc!r}"
+        ) from exc
     key = published_key(fetched, verification_method)
     if key is None:
         raise VultronVerificationKeyError(
@@ -168,8 +195,7 @@ async def resolve_verification_key(
             f" {verification_method!r} under assertionMethod (SIG-02-001)"
         )
     logger.info(
-        "Resolved key %s from the fetched profile of actor_id=%s for"
-        " actor_id=%s",
+        "Resolved key %s from the fetched profile of %s for actor_id=%s",
         verification_method,
         owner,
         requester_id,
