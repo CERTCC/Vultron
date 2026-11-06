@@ -16,7 +16,7 @@
 """Tree factory for received Announce(VulnerabilityCase) activities.
 
 Composes ``SeedAnnouncedCaseNode`` through ``create_receive_activity_tree`` so
-intake archives the Announce first (CLP-10-017).
+intake records the Announce once its doors admit it (CLP-10-017).
 
 ``("Announce", "VulnerabilityCase")`` is a canonical signature, yet the tree
 carries no ``case_id`` and commits nothing — a documented exemption from
@@ -80,10 +80,12 @@ def create_announce_vulnerability_case_received_tree(
     Structure (the CLP-10-010 stages, ADR-0111)::
 
         AnnounceVulnerabilityCaseReceivedBT (Sequence)
-        ├── IntakeReceivedActivityNode        # intake
-        ├── CaseOpenToExternalWrites          # post-close boundary
+        ├── ActivityAddressedToReceiverNode   # addressee door
+        ├── ActivityNotSeenBeforeNode         # seen-before door
         ├── ReceivedPathNode                  # no case yet, replica or manager
+        ├── CaseOpenToExternalWrites          # post-close boundary
         ├── SenderIsCaseManagerNode           # sender guard (anchored)
+        ├── IntakeReceivedActivityNode        # intake
         ├── CaseCopyNotStaleNode              # guard (SYNC-16-006)
         ├── SeedAnnouncedCaseNode             # effect (seed or replace)
         ├── RequestCaseCopyBackfillNode       # effect (SYNC-16-007)

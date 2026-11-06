@@ -56,12 +56,18 @@ from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    FastAPIReceivedOutcomePort,
+)
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
 from vultron.adapters.received_archive import (
     load_received_view,
     read_received_as_received,
+)
+from vultron.core.behaviors.inbox.nodes.outcome_stage import (
+    record_received_outcome,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.base import CoreObject
@@ -473,13 +479,50 @@ def body_of(activity: Any) -> str:
 
 
 def archive_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
-    """Store *activity* in *dl* as intake archives a received activity.
+    """Store *activity* in *dl* as the archive of an applied message.
 
-    Intake archives the body that arrived (CLP-10-017, ADR-0149), so the
-    record holds the body a sender's delivery of *activity* carries.
+    The outcome stage archives the body an applied or skipped message
+    arrived with (CLP-10-073, ADR-0149), so the record holds the body a
+    sender's delivery of *activity* carries.  A resend of it is skipped at
+    the seen-before door (ADR-0154).
     """
     record = ReceivedActivityRecord(
         activity_id=activity.id_, received_body=body_of(activity)
+    )
+    dl.create(record)
+    return record
+
+
+def settle_as_the_inbox(dl: Any, event: Any, result: Any) -> None:
+    """Record *result*'s outcome on *event*'s record, as the inbox does.
+
+    For a test that runs a use case directly, without the inbox's outcome
+    stage around it, and then delivers the activity again: the stage's own
+    mapping (``record_received_outcome``) and the production port archive an
+    applied or skipped message and leave a receipt stub for a refused one
+    (CLP-10-073, CLP-10-018), and the seen-before door answers the resend
+    from that record (ADR-0154).
+    """
+    record_received_outcome(
+        FastAPIReceivedOutcomePort(dl),
+        event,
+        result.disposition,
+        result.reason,
+    )
+
+
+def intake_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
+    """Store *activity* in *dl* as intake records it, before its outcome.
+
+    Intake writes the body that arrived as a ``HELD`` record owing no
+    replay (CLP-10-017); the outcome stage then archives it or reduces it
+    to a receipt stub (CLP-10-073).
+    """
+    record = ReceivedActivityRecord(
+        activity_id=activity.id_,
+        received_body=body_of(activity),
+        stage=ReceivedStage.HELD,
+        replay_owed=False,
     )
     dl.create(record)
     return record
@@ -556,12 +599,22 @@ def received_activities(dl: CasePersistence) -> list[Any]:
         parse_received_body(sealed_body_of(record))
         for record in dl.list_objects(ReceivedActivityRecord.__name__)
         if isinstance(record, ReceivedActivityRecord)
-        # Archived only: one record holds a message at every stage
-        # (ADR-0154), so the table also holds a body the inbox is still
-        # holding for a replay, which has not been received into this
-        # actor's records yet.
-        and record.stage is ReceivedStage.ARCHIVED
+        and _received_into_records(record)
     ]
+
+
+def _received_into_records(record: ReceivedActivityRecord) -> bool:
+    """Whether *record* holds a message its doors admitted.
+
+    One record holds a message at every stage (ADR-0154), so the table also
+    holds a body the inbox is still holding for a replay, which has not been
+    received into this actor's records yet, and a receipt stub, which holds
+    no message.  An archive counts, and so does a record intake wrote that a
+    test read before any outcome stage ran (a use case run directly).
+    """
+    if record.stage is ReceivedStage.ARCHIVED:
+        return True
+    return record.stage is ReceivedStage.HELD and not record.replay_owed
 
 
 def received_of_type(dl: CasePersistence, activity_type: str) -> list[Any]:
@@ -588,16 +641,18 @@ def received_record(
 def assert_held_only_as_received(
     dl: CasePersistence, activity_id: str
 ) -> None:
-    """Assert *dl* holds *activity_id* as a received archive and nothing else.
+    """Assert *dl* holds *activity_id* as received and nothing else.
 
     A receiver keeps a received activity only under a key it derives, never
-    as a record readable by the id its sender chose (DL-06-006).
+    as a record readable by the id its sender chose (DL-06-006).  It is
+    archived, or recorded by intake and not yet at its outcome when the use
+    case ran with no inbox around it (CLP-10-017).
     """
     assert dl.read(activity_id) is None, (
         f"{activity_id!r} is held under the id its sender chose (DL-06-006)"
     )
     record = received_record(dl, activity_id)
     assert record is not None, f"{activity_id!r} has no ReceivedActivityRecord"
-    assert record.stage is ReceivedStage.ARCHIVED, (
-        f"{activity_id!r} is held but not archived: {record.stage}"
+    assert _received_into_records(record), (
+        f"{activity_id!r} is held but not received: {record.stage}"
     )

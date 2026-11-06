@@ -25,8 +25,10 @@ invitee to answer it (EP-09-010).  It still runs one tree,
 :func:`embargo_invite_fault_tree`::
 
     InviteToEmbargoOnCaseBT (Sequence)
-    ├─ IntakeReceivedActivityNode           # the Invite is archived (CLP-10-018)
+    ├─ [ActivityAddressedToReceiverNode]    # addressee door, unless misrouted
+    ├─ ActivityNotSeenBeforeNode            # seen-before door
     ├─ CaseOpenToExternalWrites             # after close nothing is answered
+    ├─ IntakeReceivedActivityNode           # the Invite is recorded (CLP-10-017)
     └─ EmitEmbargoInviteFaultNode           # Create(ProcessingFault), MSM-05-001
 
 No ledger entry is committed and no state changes: the handler reports the

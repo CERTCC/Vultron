@@ -43,9 +43,10 @@ HP-09-001, ADR-0109).
 
 :class:`ActivityAddressedToReceiverNode` is that check.
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
-places it in every received tree, between the post-close boundary and the
-sender guard, so intake has already archived the copy (CLP-10-018) and
-nothing after the guard runs (CLP-10-010).  No tree writes its own copy of
+places it in every received tree as its first door, ahead of the
+seen-before door and intake, so nothing of a copy it refuses is recorded and
+nothing after the guard runs; the outcome stage leaves its receipt stub
+(CLP-10-010, CLP-10-018).  No tree writes its own copy of
 the check (CS-22-001).  A tree opts out only by passing a registered
 :class:`AddresseeExemption` that says why: :data:`ADDRESSEE_EXEMPTIONS` is
 the whole list, and ``test/architecture/test_received_tree_addressee_guard.py``

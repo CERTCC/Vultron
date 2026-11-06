@@ -126,7 +126,7 @@ class _EmbargoMixin:
         """Create and persist an ``Accept(Invite)`` embargo-accept activity.
 
         The Invite is read as this actor holds it
-        (:func:`read_held_as_received`): parsed from the body intake archived
+        (:func:`read_held_as_received`): parsed from the body intake recorded
         when it was received, never re-read under the id its sender chose
         (DL-06-006), and embedded verbatim (DL-06-004).
 

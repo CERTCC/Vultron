@@ -34,6 +34,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.services.held_ledger_announces import (
     held_ledger_announces,
@@ -118,12 +119,18 @@ def deliver_replayed(
 
 
 def archive_event(dl: Any, event: AnnounceLogEntryReceivedEvent) -> None:
-    """Archive *event*'s ``Announce`` in *dl* as intake does (CLP-10-017)."""
+    """Record *event*'s ``Announce`` in *dl* as intake does (CLP-10-017).
+
+    Intake writes a ``HELD`` record owing nothing; the outcome stage then
+    archives it or reduces it to a receipt stub (CLP-10-073).
+    """
     assert event.received_evidence is not None
     dl.save(
         ReceivedActivityRecord(
             activity_id=event.activity_id,
             received_body=event.received_evidence,
+            stage=ReceivedStage.HELD,
+            replay_owed=False,
         )
     )
 
@@ -131,7 +138,7 @@ def archive_event(dl: Any, event: AnnounceLogEntryReceivedEvent) -> None:
 def hold_received(dl: Any, event: AnnounceLogEntryReceivedEvent) -> None:
     """Hold *event*'s ``Announce`` in *dl* as an earlier delivery would have.
 
-    Archives it as intake does, then holds it (SYNC-14-001).
+    Records it as intake does, then holds it (SYNC-14-001).
     """
     entry = event.log_entry
     assert entry is not None

@@ -151,9 +151,10 @@ def test_sender_cannot_occupy_a_receiver_derived_id(dl):
 #
 # One record carries two independent facts — how far the message got
 # (``stage``) and whether a replay is still owed from its body
-# (``replay_owed``) — because both combinations of them are reachable.  Three
-# of the four pairings are legitimate; the fourth is unreachable rubbish and
-# is refused at construction.
+# (``replay_owed``) — because both values of the flag are reachable in
+# holding.  Three of the four pairings are legitimate; the fourth, an archive
+# owing a replay, would apply an applied message again and is refused at
+# construction.
 # --------------------------------------------------------------------------
 
 
@@ -161,13 +162,14 @@ def test_sender_cannot_occupy_a_receiver_derived_id(dl):
 @pytest.mark.parametrize(
     ("stage", "replay_owed"),
     [
-        # Intake archived it and nothing is owed: the ordinary archive.
+        # Applied, and the outcome stage archived it: the ordinary archive.
         (ReceivedStage.ARCHIVED, False),
-        # Held for a replay, never archived: the inbox deferred it.
+        # Held for a replay: the inbox deferred it, or the handling tree held
+        # it for a ledger gap after intake recorded it.
         (ReceivedStage.HELD, True),
-        # Archived *and* owing a replay: a buffered Announce(CaseLedgerEntry)
-        # that intake archived before its handler found the ledger gap.
-        (ReceivedStage.ARCHIVED, True),
+        # In holding and owed nothing: intake recorded it and its run is in
+        # progress, or ended with no verdict (CLP-10-074).
+        (ReceivedStage.HELD, False),
     ],
 )
 def test_the_three_reachable_stage_and_replay_pairings_are_accepted(
@@ -183,17 +185,18 @@ def test_the_three_reachable_stage_and_replay_pairings_are_accepted(
     assert record.replay_owed is replay_owed
 
 
-@pytest.mark.spec("CLP-10-017")
-def test_a_held_record_owing_no_replay_is_refused():
-    """Nothing would ever read it again, so it is a wiring mistake."""
+@pytest.mark.spec("CLP-10-073")
+def test_an_archive_owing_a_replay_is_refused():
+    """The archive holds only applied messages, so a replay would apply one
+    again: a message still owed a replay stays HELD (ADR-0154)."""
     with pytest.raises(ValidationError) as caught:
         ReceivedActivityRecord(
             activity_id=ACTIVITY_ID,
             received_body=_body(),
-            stage=ReceivedStage.HELD,
-            replay_owed=False,
+            stage=ReceivedStage.ARCHIVED,
+            replay_owed=True,
         )
-    assert "HELD with no replay owed" in str(caught.value)
+    assert "ARCHIVED and owes a replay" in str(caught.value)
 
 
 @pytest.mark.spec("IO-03-009")
@@ -228,12 +231,12 @@ def test_the_invariant_survives_assignment(dl):
     """``validate_assignment`` applies it after construction too (ARCH-21-001)."""
     record = _record()
     with pytest.raises(ValidationError):
-        record.stage = ReceivedStage.HELD
+        record.replay_owed = True
 
 
 @pytest.mark.spec("IO-03-009")
 def test_the_default_record_is_an_archive_owing_nothing():
-    """Intake's write needs no stage arguments to mean "archived"."""
+    """A record needs no stage arguments to mean "archived"."""
     record = _record()
     assert record.stage is ReceivedStage.ARCHIVED
     assert record.replay_owed is False

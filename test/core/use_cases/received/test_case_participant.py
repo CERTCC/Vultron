@@ -130,7 +130,8 @@ class TestCaseParticipantUseCases:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
         assert "is not a participant" in result.reason
-        # A refused delivery is still archived (CLP-10-017, CLP-10-018).
+        # A refused delivery is still recorded by intake, for the outcome
+        # stage to stub (CLP-10-017, CLP-10-018).
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")
@@ -169,7 +170,10 @@ class TestCaseParticipantUseCases:
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
+        # The path stage, a door, refused the unknown case before intake.
+        assert (
+            dl.read(ReceivedActivityRecord.build_id(event.activity_id)) is None
+        )
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.parametrize(
@@ -208,9 +212,12 @@ class TestCaseParticipantUseCases:
         result = use_case(dl, event).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
-        # The refusal came before the real tree could be built, but the
-        # delivery is still archived (CLP-10-018).
-        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
+        # The refusal came before the real tree could be built, at a door of
+        # the tree that replaced it, so intake recorded nothing; the outcome
+        # stage leaves its receipt stub (CLP-10-018).
+        assert (
+            dl.read(ReceivedActivityRecord.build_id(event.activity_id)) is None
+        )
 
     @pytest.mark.spec("CM-19-002")
     def test_remove_case_participant_keeps_index(self, make_payload):

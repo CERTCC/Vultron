@@ -26,8 +26,11 @@ neither — it propagates.
 - A leadership skip (the tree never ran) → ``SKIPPED``.
 - ``internal_error``, or a node missing its DataLayer or a port → raise
   :class:`~vultron.errors.VultronBTInternalError`.
-- The post-close guard refused (CM-23-013) → ``REFUSED``, ahead of any other
-  reading of the failure.
+- A door guard ended the run (:func:`door_refusal`) → its own verdict, ahead
+  of any other reading of the failure: ``REFUSED`` for the addressee check,
+  the path stage or the post-close guard, and the seen-before door's answer
+  to a resend (``REFUSED`` from a receipt stub, ``SKIPPED`` for a message
+  applied or waiting, ADR-0154).
 - Any other ``FAILURE`` → ``REFUSED``, with the failing leaf's reason.
 
 :func:`applied_or_raise` is the variant for a tree that only stores or commits:
@@ -83,6 +86,7 @@ from vultron.core.use_cases.received._bt_verdict.door import (
     incomplete_activity_refusal,
     path_refusal,
     post_close_refusal,
+    seen_before_verdict,
 )
 from vultron.core.use_cases.received._bt_verdict.redelivery import (
     add_note_redelivery_verdict,
@@ -151,6 +155,7 @@ __all__ = [
     "rm_declaration_verdict",
     "role_offer_answer_verdict",
     "role_offer_verdict",
+    "seen_before_verdict",
     "stale_case_copy_verdict",
     "taken_diversion",
     "unheld_case_refusal",

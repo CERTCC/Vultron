@@ -64,20 +64,23 @@ This one record replaced two (``DeferredInboxActivity`` retired with it), so
 it carries the two facts those rows carried separately, and they are
 genuinely independent:
 
-- :attr:`stage` -- how far the message has got.  ``HELD`` is a message the
-  receiver has not archived; ``ARCHIVED`` is one intake archived
-  (CLP-10-017); ``REFUSED`` is a receipt stub, all that is left of a message
-  the receiver refused (CLP-10-018).
+- :attr:`stage` -- how far the message has got.  ``HELD`` is a message in
+  holding: waiting, being handled, or left by a run that ended with no
+  verdict (CLP-10-074); ``ARCHIVED`` is one the receiver applied, which the
+  outcome stage archives (CLP-10-073); ``REFUSED`` is a receipt stub, all
+  that is left of a message the receiver refused (CLP-10-018).
 - :attr:`replay_owed` -- whether a replay is still owed from this record's
   body, because the delivery that carried it ended without routing it: it
   waits on its case (IO-03-009), on a ledger gap (SYNC-14-001), on an object
   fetch (AKM-05-007), or on a retry.
 
-Both combinations of the two are reachable, which is why one enum cannot
-carry them.  ``ARCHIVED`` with a replay owed is a buffered
-``Announce(CaseLedgerEntry)``: intake archived it and the handler then held
-it for the gap to fill.  ``HELD`` always owes a replay -- a record the
-receiver neither archived nor will replay would be unreachable rubbish -- and
+Both values of :attr:`replay_owed` are reachable in holding, which is why
+one enum cannot carry them.  ``HELD`` with a replay owed is a message waiting
+(for its case, a ledger gap, a fetch, a retry); ``HELD`` with none is one the
+doors admitted and intake recorded, whose run is in progress or ended with no
+verdict, so a later delivery runs it again (ADR-0154, CLP-10-074).  An
+``ARCHIVED`` record never owes a replay: the archive holds only applied
+messages, and a message still owed one has not reached its outcome.
 :meth:`_stage_and_replay_agree` refuses one at construction.
 
 :attr:`replay_owed` is also what decides whether a routed copy carries
@@ -93,21 +96,15 @@ received evidence, which is why it is a field and not a lookup:
   the archived body **with** its evidence, because that body is the first
   delivery's, sealed at its parse (VM-08-009).
 
-Where this is going
--------------------
+What reads the stage
+--------------------
 
-Intake still archives every arrival, so ``ARCHIVED`` at intake means "intake
-kept it", not yet "the receiver applied it": the outcome stage is what makes
-it the applied outcome, by leaving the body for an applied or skipped
-message and replacing it with a receipt stub for a refused one
-(``vultron/core/behaviors/inbox/nodes/outcome_stage.py``).  The doors still
-run after intake, so a message the receiver will refuse is still archived
-first and stubbed a moment later, rather than never archived at all; moving
-the doors ahead of the archive is #5045's third part (#5046, #5047 follow
-this record).  Until that door lands, a resend of a refused message finds no
-body held, so intake archives it over the stub and the tree judges it again.
-Nothing outside this module reads the stage fields together, so each of
-those changes lands here.
+The seen-before door of every received tree answers a resend from this one
+record before intake runs (ADR-0154): a receipt stub is refused again with
+its reason, an archived message is skipped, and a message waiting for a
+replay is skipped with nothing re-run.  A ``HELD`` record that owes no replay
+lets the delivery through, because inbox runs are serialized per actor: a
+resend never meets a run in progress, only one that ended with no verdict.
 """
 
 import urllib.parse
@@ -131,11 +128,12 @@ from vultron.primitives import NormalisedActorId
 class ReceivedStage(StrEnum):
     """How far a received message has got (ADR-0154).
 
-    - ``HELD`` -- the receiver holds the body but has not archived it.  The
-      delivery that carried it ended without routing it, so a replay is
-      always owed for a record in this stage.
-    - ``ARCHIVED`` -- intake archived the body as received (CLP-10-017).  A
-      replay may still be owed from it, when a handler held it after intake.
+    - ``HELD`` -- the receiver holds the body in holding: waiting for a
+      replay (:attr:`ReceivedActivityRecord.replay_owed`), or recorded by
+      intake and not yet at its outcome (CLP-10-017).
+    - ``ARCHIVED`` -- the receiver applied the message, and the outcome stage
+      kept its sealed body as the archive (CLP-10-073).  It never owes a
+      replay.
     - ``REFUSED`` -- the receiver refused the message, so all that is left is
       a receipt stub: who sent it, which message, when it arrived, why it was
       refused and the digest of the body, which is not kept (CLP-10-018).
@@ -293,18 +291,18 @@ class ReceivedActivityRecord(CoreRecord):
     def _stage_and_replay_agree(self) -> Self:
         """Refuse a record whose stage and replay flag contradict each other.
 
-        A ``HELD`` record the receiver will never replay is unreachable: it
-        is neither the archive a reader loads nor a body any replay routes,
-        so nothing would ever read it again.  Likewise a record that names
-        the case it waits on owes the replay that waiting is for.  Both are
-        wiring mistakes, refused here rather than left to be discovered as a
-        lost message (ARCH-10-001).
+        An ``ARCHIVED`` record is an applied message, so a replay owed from
+        it would apply it again; a message still owed one has not reached
+        its outcome and stays ``HELD`` (ADR-0154).  Likewise a record that
+        names the case it waits on owes the replay that waiting is for.  Both
+        are wiring mistakes, refused here rather than left to be discovered
+        as a message applied twice or lost (ARCH-10-001).
         """
-        if self.stage is ReceivedStage.HELD and not self.replay_owed:
+        if self.stage is ReceivedStage.ARCHIVED and self.replay_owed:
             raise ValueError(
-                f"received activity '{self.activity_id}' is HELD with no"
-                " replay owed, so nothing would ever read it again: hold a"
-                " body only for a replay, or archive it (ADR-0154)"
+                f"received activity '{self.activity_id}' is ARCHIVED and owes"
+                " a replay, but the archive holds only applied messages:"
+                " keep a message owed a replay HELD (ADR-0154)"
             )
         if self.awaiting_case_id is not None and not self.replay_owed:
             raise ValueError(

@@ -1144,8 +1144,9 @@ groups:
     verification: >-
       `test/architecture/test_received_tree_state_writes_are_gated.py` confirms no
       received-side tree writes state outside a `CaseManagerGate`, and
-      `test/architecture/test_receive_side_intake_first.py` confirms every received-side
-      tree opens with the intake node that archives the received activity.
+      `test/architecture/test_receive_side_staged_order.py` confirms every received-side
+      tree is built by the shared factory, which runs the intake node that records the
+      received activity once its door guards admit it.
     adr:
     - ADR-0108
     see_also:

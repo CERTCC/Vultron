@@ -295,14 +295,13 @@ def test_unanchored_refusal_names_the_untrusted_sender(dl, make_payload):
     assert dl.read(_CASE_ID) is None
 
 
-def test_intake_archives_the_create_even_when_refused(dl, make_payload):
+def test_a_create_refused_at_a_door_records_nothing(dl, make_payload):
+    """A door refuses before intake, so no copy of the Create is held; the
+    outcome stage leaves its receipt stub after the tree (CLP-10-018)."""
     _, result, _, activity = _run(dl, make_payload, _IMPOSTER, _case())
 
     assert result.status == Status.FAILURE
-    assert isinstance(
-        dl.read(ReceivedActivityRecord.build_id(activity.id_)),
-        ReceivedActivityRecord,
-    )
+    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is None
 
 
 def test_bare_participant_refusal_leaves_the_link_unbound(dl, make_payload):

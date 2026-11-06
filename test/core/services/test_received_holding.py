@@ -70,8 +70,20 @@ def dl() -> SqliteDataLayer:
     return SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVER)
 
 
+def _record(dl, activity_id: str) -> ReceivedActivityRecord:
+    """Record *activity_id* as intake does: ``HELD``, owed nothing."""
+    record = ReceivedActivityRecord(
+        activity_id=activity_id,
+        received_body=_body(activity_id),
+        stage=ReceivedStage.HELD,
+        replay_owed=False,
+    )
+    dl.create(record)
+    return record
+
+
 def _archive(dl, activity_id: str) -> ReceivedActivityRecord:
-    """Archive *activity_id* as intake does."""
+    """Archive *activity_id* as the outcome stage does for an applied one."""
     record = ReceivedActivityRecord(
         activity_id=activity_id,
         received_body=_body(activity_id),
@@ -152,18 +164,17 @@ def test_discarding_a_never_archived_record_deletes_it(dl):
     assert _absent(dl, activity_id)
 
 
-@pytest.mark.spec("CLP-10-018")
+@pytest.mark.spec("CLP-10-077")
 @pytest.mark.spec("IO-03-009")
-def test_holding_over_a_receipt_stub_holds_the_body_again(dl):
-    """A resend of a refused message that waits before intake runs.
+def test_holding_over_a_receipt_stub_writes_nothing(dl):
+    """A refused message is not held again: the stub keeps its reason.
 
-    The stub has no body to replay, so the hold writes a whole ``HELD``
-    record over it, one the stage/body invariant accepts, and keeps the
-    stub's time of receipt.  A copy of the stub that only gained the replay
-    flag would owe a replay of a body that is not there.
+    The stub has no body to replay, and writing the resent body over it
+    would lose the first refusal's reason; the seen-before door answers the
+    resend from the stub instead (ADR-0154).
     """
     activity_id = _aid("refused-1")
-    _archive(dl, activity_id)
+    _record(dl, activity_id)
     stub = write_receipt_stub(
         dl, activity_id, sender_id=SENDER, reason="refused for this test"
     )
@@ -172,68 +183,90 @@ def test_holding_over_a_receipt_stub_holds_the_body_again(dl):
         hold_for_replay(
             dl, activity_id, _body(activity_id), awaiting_case_id=CASE_ID
         )
-        is True
+        is False
     )
 
-    record = _stored(dl, activity_id)
-    ReceivedActivityRecord.model_validate(record.model_dump())
-    assert record.stage is ReceivedStage.HELD
-    assert not record.is_receipt_stub
-    assert record.received_body == _body(activity_id)
-    assert record.replay_owed is True
-    assert record.awaiting_case_id == CASE_ID
-    assert record.received_at == stub.received_at
-    assert (record.sender_id, record.refusal_reason, record.body_hash) == (
-        None,
-        None,
-        None,
-    )
+    assert _stored(dl, activity_id) == stub
+
+
+@pytest.mark.spec("CLP-10-073")
+def test_holding_an_archived_activity_writes_nothing(dl):
+    """An applied message is not held for a replay that would apply it again."""
+    activity_id = _aid("applied-1")
+    archived = _archive(dl, activity_id)
+
+    assert hold_for_replay(dl, activity_id, _body(activity_id)) is False
+
+    assert _stored(dl, activity_id) == archived
 
 
 # --------------------------------------------------------------------------
-# The buffered Announce: archived *and* owing a replay
+# The buffered Announce: recorded by intake, then held for its gap
 # --------------------------------------------------------------------------
 
 
 @pytest.mark.spec("SYNC-14-001")
-def test_holding_an_archived_activity_keeps_the_archive(dl):
+def test_holding_an_intake_record_keeps_it_held_with_its_body(dl):
+    """Not archived early: it has not been applied (ADR-0154)."""
     activity_id = _aid("announce-1")
-    _archive(dl, activity_id)
+    _record(dl, activity_id)
 
     assert hold_for_replay(dl, activity_id, _body(activity_id)) is True
 
     record = _stored(dl, activity_id)
-    assert record.stage is ReceivedStage.ARCHIVED
+    assert record.stage is ReceivedStage.HELD
     assert record.replay_owed is True
-
-
-@pytest.mark.spec("CLP-10-018")
-def test_releasing_an_archived_hold_leaves_the_archive_standing(dl):
-    """The archive outlives the replay it owed (CLP-10-018, SYNC-14-009)."""
-    activity_id = _aid("announce-1")
-    _archive(dl, activity_id)
-    hold_for_replay(dl, activity_id, _body(activity_id))
-
-    release_from_holding(dl, activity_id)
-
-    record = _stored(dl, activity_id)
-    assert record.stage is ReceivedStage.ARCHIVED
-    assert record.replay_owed is False
     assert record.received_body == _body(activity_id)
 
 
-@pytest.mark.spec("CLP-10-018")
-def test_discarding_an_archived_hold_leaves_the_archive_standing(dl):
-    """A bound that evicts a held Announce keeps what intake archived."""
+@pytest.mark.spec("IO-03-009")
+@pytest.mark.spec("SYNC-14-009")
+def test_releasing_a_held_intake_record_hands_its_body_to_the_replay(dl):
+    """Never archived, so it goes with the release (IO-03-009)."""
     activity_id = _aid("announce-1")
-    _archive(dl, activity_id)
+    _record(dl, activity_id)
+    hold_for_replay(dl, activity_id, _body(activity_id))
+
+    released = release_from_holding(dl, activity_id)
+
+    assert released is not None
+    assert released.received_body == _body(activity_id)
+    assert _absent(dl, activity_id)
+
+
+@pytest.mark.spec("CLP-10-074")
+def test_releasing_a_record_owing_no_replay_leaves_it_in_holding(dl):
+    """A record intake wrote, or a run left with no verdict, is not a wait:
+    there is no replay to release it for, so it stays for its re-run."""
+    activity_id = _aid("in-holding-1")
+    recorded = _record(dl, activity_id)
+
+    assert release_from_holding(dl, activity_id) is None
+
+    assert _stored(dl, activity_id) == recorded
+
+
+@pytest.mark.spec("SYNC-14-013")
+def test_discarding_a_held_intake_record_drops_it_body_and_all(dl):
+    """An evicted Announce is dropped, body and all (SYNC-14-013)."""
+    activity_id = _aid("announce-1")
+    _record(dl, activity_id)
     hold_for_replay(dl, activity_id, _body(activity_id))
 
     discard_holding(dl, activity_id)
 
-    record = _stored(dl, activity_id)
-    assert record.replay_owed is False
-    assert record.received_body == _body(activity_id)
+    assert _absent(dl, activity_id)
+
+
+@pytest.mark.spec("CLP-10-073")
+def test_discarding_leaves_an_outcome_standing(dl):
+    """An archive or a stub is no wait, so a discard leaves it as it is."""
+    activity_id = _aid("applied-1")
+    archived = _archive(dl, activity_id)
+
+    discard_holding(dl, activity_id)
+
+    assert _stored(dl, activity_id) == archived
 
 
 # --------------------------------------------------------------------------

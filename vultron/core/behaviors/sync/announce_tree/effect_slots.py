@@ -319,7 +319,7 @@ def create_log_entry_event_effects() -> py_trees.composites.Sequence:
                 ApplyOwnershipTransferFromLedgerNode,
             ),
             # No OfferOwnershipTransfer slot: the transferee answers the
-            # CASE_MANAGER's Offer from its intake archive, the owner holds
+            # CASE_MANAGER's Offer from the body its intake recorded, the owner holds
             # its own proposal, and a bystander never answers, so the entry
             # has nothing to apply at a replica (ADR-0148, SYNC-12-001).
             # Accepting a delegated role grants it to the target participant

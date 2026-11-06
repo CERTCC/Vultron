@@ -29,7 +29,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
-from test.support.received import archive_received
+from test.support.received import archive_received, intake_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -403,7 +403,7 @@ def _refuse_and_stub(
     Returns the stub and the body exactly as it was sealed, which is what a
     same-body resend delivers.
     """
-    record = archive_received(dl, parse_activity(copy.deepcopy(body)))
+    record = intake_received(dl, parse_activity(copy.deepcopy(body)))
     sealed = json.loads(sealed_body_of(record))
     stub = write_receipt_stub(
         dl, body["id"], sender_id=ACTOR, reason="refused for this test"
@@ -430,12 +430,13 @@ def test_a_different_body_under_a_refused_id_is_refused(
 
 @pytest.mark.spec("IE-10-001")
 @pytest.mark.spec("CLP-10-018")
-def test_the_same_body_under_a_refused_id_is_judged_again(
+def test_the_same_body_under_a_refused_id_is_routed_on_its_own(
     dl: SqliteDataLayer,
 ):
     """A stub holds no copy to route, so the same body goes on, on its own.
 
-    Answering it from the stub instead is the seen-before door's.
+    The seen-before door of the tree it reaches answers it from the stub
+    (ADR-0154, ``test/adapters/driving/fastapi/test_seen_before_door.py``).
     """
     first = _offer_of_stored_report(dl)
     _, sealed = _refuse_and_stub(dl, first)
@@ -634,13 +635,15 @@ def test_a_resend_whose_held_copy_does_not_rebuild_is_a_wiring_fault(
 
 
 @pytest.mark.spec("VM-08-002")
-def test_an_archived_resend_deferred_again_is_held_with_the_archived_body(
+@pytest.mark.spec("CLP-10-074")
+def test_a_resend_deferred_again_is_held_with_the_body_left_in_holding(
     dl: SqliteDataLayer,
 ):
-    """A resend routed as the archived copy and then deferred is held with
-    the archived body, so its replay carries the first delivery's evidence."""
+    """A resend of a message a run left in holding with no verdict, routed
+    as that copy and then deferred, is held with the first body, so its
+    replay carries the first delivery's evidence (CLP-10-074)."""
     first = _offer_of_stored_report(dl)
-    record = archive_received(dl, parse_activity(copy.deepcopy(first)))
+    record = intake_received(dl, parse_activity(copy.deepcopy(first)))
     staging = InlineObjectStaging(dl)
     adapter = FastAPIIngressAdapter(dl=dl, staging=staging)
     artifact = adapter.parse(json.loads(sealed_body_of(record)))
@@ -651,10 +654,27 @@ def test_an_archived_resend_deferred_again_is_held_with_the_archived_body(
 
     held = dl.read(ReceivedActivityRecord.build_id(first["id"]))
     assert isinstance(held, ReceivedActivityRecord)
-    assert held.stage is ReceivedStage.ARCHIVED, "the archive is kept"
+    assert held.stage is ReceivedStage.HELD, "still not at its outcome"
     assert held.replay_owed
-    archived = json.loads(sealed_body_of(record))
-    assert json.loads(sealed_body_of(held)) == archived
+    first_body = json.loads(sealed_body_of(record))
+    assert json.loads(sealed_body_of(held)) == first_body
     replayed = StoredActivityIngressAdapter(dl=dl).parse(first["id"])
     assert replayed is not None
-    assert replayed.received_evidence == archived
+    assert replayed.received_evidence == first_body
+
+
+@pytest.mark.spec("CLP-10-073")
+def test_an_archived_resend_deferred_again_is_not_held(dl: SqliteDataLayer):
+    """An applied message is not held for a replay that would apply it
+    again: the archive stands, and the resend's seen-before door skips it."""
+    first = _offer_of_stored_report(dl)
+    record = archive_received(dl, parse_activity(copy.deepcopy(first)))
+    staging = InlineObjectStaging(dl)
+    adapter = FastAPIIngressAdapter(dl=dl, staging=staging)
+    artifact = adapter.parse(json.loads(sealed_body_of(record)))
+    assert artifact is not None
+    adapter.rehydrate(artifact)
+
+    assert staging.hold_for_replay(first["id"]) is False
+
+    assert dl.read(ReceivedActivityRecord.build_id(first["id"])) == record

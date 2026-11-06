@@ -17,8 +17,8 @@ guard, `RequireRecordedOfferAnswerNode`, looks up the recorded
 `RecordedOfferAnswerInputMixin`.
 
 - **Never resolve these ids in `execute()`.** A lookup there refuses before
-  intake archives the answer and before the addressee door runs (CLP-10-005,
-  CLP-10-018, HP-01-005; #4863).
+  the addressee door runs, outside the one tree (CLP-10-005, CLP-10-010,
+  HP-01-005; #4863).
 - **A new answer-path node mixes in `RecordedOfferAnswerInputMixin`.** Taking
   the ids at construction needs them before the tree runs.
 - **An override of `update()` reads the answer first.** The mixin's

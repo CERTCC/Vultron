@@ -113,11 +113,11 @@ def pxa_invite_refusal(
     """The P/X/A refusal of a received ``Invite(EmbargoEvent)`` (EMB-01-002).
 
     The terms the Invite carries are stored first; the ``Reject`` is built from
-    the body intake archived for the Invite (CLP-10-017, DL-06-006).  Storing the terms
+    the body intake recorded for the Invite (CLP-10-017, DL-06-006).  Storing the terms
     moves no EM or consent state (EP-09-003).  An Invite naming its terms by
     URI only is answered all the same: the ``Reject`` names the Invite by id
     (ADR-0123).  Only the invitee answers (EP-09-010); any other store keeps
-    the Invite's archive and sends nothing.
+    the Invite's record and sends nothing.
 
     Its host tree declares the manager and the participant-replica path, so
     the refusal may run at either; ``ReceiverIsInviteeNode`` ahead of the

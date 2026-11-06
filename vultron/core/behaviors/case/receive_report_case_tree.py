@@ -33,7 +33,9 @@ the CaseActor — see ``vultron/core/use_cases/received/case/create.py``.
 Structure (ADR-0041):
 
     ReceiveReportCaseBT (Sequence)
-    ├─ IntakeReceivedActivityNode             # Archive the Offer (CLP-10-017)
+    ├─ ActivityNotSeenBeforeNode              # seen-before door (no addressee door)
+    ├─ CaseOpenToExternalWrites               # post-close boundary
+    ├─ IntakeReceivedActivityNode             # Record the Offer (CLP-10-017)
     ├─ [received_effects]                     # Keep report/Offer/record, guard
     ├─ CheckAutoCaseCreationEnabledNode       # Gate on auto_create_case policy
     └─ ReceiveReportCaseSelector (Selector)
@@ -177,7 +179,7 @@ def create_offer_received_without_report_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the tree for an ``Offer`` that names no report.
 
-    There is no case to propose, so the receiver only archives the Offer
+    There is no case to propose, so the receiver only records the Offer
     (intake) and keeps what it carried (CM-15-001).
     """
     return create_receive_activity_tree(

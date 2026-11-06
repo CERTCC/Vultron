@@ -126,7 +126,7 @@ def create_accept_actor_recommendation_received_tree(
     precondition guard looks up the ``Offer(CaseParticipant)`` the Accept
     names and the recommendation behind it, and publishes them for every
     later node.  An Accept naming an Offer or recommendation this
-    CASE_MANAGER never recorded is refused there, after intake has archived
+    CASE_MANAGER never recorded is refused there, after intake has recorded
     it (CLP-10-018) and before the commit, so nothing is recorded and only
     the refusal notice is sent (CLP-10-005, CLP-10-010, CLP-05-001).
 
@@ -220,7 +220,7 @@ def create_reject_actor_recommendation_received_tree(
     own records, never from the Reject (CM-16-019): the precondition guard
     looks up the ``Offer(CaseParticipant)`` the Reject names and the
     recommendation behind it, and a Reject naming either unrecorded is
-    refused there, after intake has archived it (CLP-10-018) and before the
+    refused there, after intake has recorded it (CLP-10-018) and before the
     commit, so nothing is recorded and only the refusal notice is sent
     (CLP-10-005, CLP-10-010, CLP-05-001).
 

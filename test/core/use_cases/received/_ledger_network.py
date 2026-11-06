@@ -39,6 +39,7 @@ from test.support.ledger_rebuild import (
 from test.support.received import (
     in_step_sender_sequence,
     received_event,
+    settle_as_the_inbox,
     stamped,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -362,8 +363,15 @@ class LedgerNetwork:
         *,
         without: frozenset[str] = frozenset(),
     ):
-        """Run the use case for an already-extracted *event* at *receiver*."""
-        return run_use_case(self.stores[receiver], event, without=without)
+        """Run the use case for an already-extracted *event* at *receiver*.
+
+        The record is then settled as the inbox's outcome stage settles it,
+        so a second delivery of the same activity meets its seen-before door
+        (ADR-0154).
+        """
+        result = run_use_case(self.stores[receiver], event, without=without)
+        settle_as_the_inbox(self.stores[receiver], event, result)
+        return result
 
     def queued(self, sender: str, *, to: str, type_: str | None = None):
         """*sender*'s outbox items addressed to *to*, oldest first."""

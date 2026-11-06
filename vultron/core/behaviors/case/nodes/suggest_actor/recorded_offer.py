@@ -116,10 +116,10 @@ def recorded_invitee(
 
     Found by the id the answer names, never from the answer's own copy of
     the Offer: the sender may have altered that copy or sent a bare
-    reference (ISSUE-1745, CM-16-019).  Intake archives every inbound
-    activity, refused ones included, so a stored object is "recorded" only
-    when the case's CASE_MANAGER sent it about this case: an archived Offer
-    from any other actor is not a record (CM-16-019).
+    reference (ISSUE-1745, CM-16-019).  Intake records every inbound
+    activity its doors admit, from any sender, so a stored object is
+    "recorded" only when the case's CASE_MANAGER sent it about this case: an
+    archived Offer from any other actor is not a record (CM-16-019).
 
     Raises:
         UnrecordedOfferAnswerError: the answer names no Offer this

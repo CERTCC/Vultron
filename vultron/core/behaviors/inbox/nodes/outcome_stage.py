@@ -5,17 +5,20 @@
 every path the dispatch can take — applied, skipped, deferred, refused, and a
 dispatch that raised — and maps that one verdict onto what the receiver keeps:
 
-- **applied** or **skipped** -- the record keeps the sealed body it holds, and
-  that *is* the archive (CLP-10-017).  Nothing is written.
+- **applied** or **skipped** -- the ``HELD`` record intake wrote is archived
+  with the sealed body it holds (CLP-10-017, CLP-10-073).
 - **refused** -- the body is given up for a receipt stub: the sender, the
   activity id, the time of receipt, the reason and the body's digest
-  (CLP-10-018).
+  (CLP-10-018).  That includes a semantic type no use case handles: nothing
+  applies it, so the receiver keeps no copy of it (CLP-10-074).  A delivery
+  a door refused before intake ran has no record, so its stub is written
+  from the delivery's own sealed body.
 - **deferred** -- the message is still waiting, so the holding record stands
   as it is (IO-03-009).
 - **no verdict** (the dispatch raised, or returned something that is not a
-  ``HandlerResult``) -- not an outcome.  The record is left untouched, with
-  its sealed body, so a resend or a re-run runs the act again from it
-  (ADR-0151).
+  ``HandlerResult``) -- not an outcome.  The record is left untouched,
+  ``HELD`` with its sealed body, so a resend or a re-run runs the act again
+  from it (ADR-0151, CLP-10-074).
 
 It is a decorator, not a sibling, because the inbox pipeline is a ``Sequence``
 whose later children do not run once a step fails, and a refusal fails the
@@ -26,9 +29,7 @@ sender is answered with is still the dispatch's (as in
 
 The verdict reaches it on the blackboard, from ``DispatchNode``, which is the
 only node that reads the ``HandlerResult`` (UCORG-05-010): no stage reads
-in-memory state an earlier stage left behind, and in particular the final
-stage is never decided from intake's ``found_ids`` or ``stored_anything``
-(ADR-0154).
+in-memory state an earlier stage left behind (ADR-0154).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -58,22 +59,43 @@ from vultron.core.behaviors.inbox.nodes.pipeline import (
     KEY_EVENT,
     KEY_FAILURE_REASON,
     KEY_OUTCOME,
-    KEY_UNHANDLED,
 )
 from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.errors import VultronWiringError
 
-#: The dispositions whose final stage is the one the record already has: the
-#: sealed body it holds (applied, skipped) or the hold it is in (deferred).
-_KEEPS_WHAT_IT_HOLDS = frozenset(
-    {
-        HandlerDisposition.APPLIED,
-        HandlerDisposition.SKIPPED,
-        HandlerDisposition.DEFERRED,
-    }
-)
+#: The dispositions whose record is archived with the body it holds.
+_ARCHIVES = frozenset({HandlerDisposition.APPLIED, HandlerDisposition.SKIPPED})
+
+
+def record_received_outcome(
+    port: ReceivedOutcomePort,
+    event: VultronEvent,
+    disposition: HandlerDisposition,
+    reason: str | None,
+) -> None:
+    """Record *disposition* as *event*'s final stage through *port*.
+
+    The one mapping from a verdict to what the receiver keeps (CLP-10-073):
+    applied or skipped is archived; refused, an unhandled semantic type
+    included, leaves a receipt stub and no body (CLP-10-018, CLP-10-074);
+    deferred is still waiting, so nothing is written (IO-03-009).
+    :class:`SettleReceivedOutcome` calls it after every dispatch that came
+    back with a verdict; a test that runs a use case without the inbox calls
+    it to settle the record the same way.
+    """
+    if disposition is HandlerDisposition.DEFERRED:
+        return
+    if disposition in _ARCHIVES:
+        port.apply(event.activity_id)
+        return
+    port.refuse(
+        event.activity_id,
+        sender_id=event.actor_id,
+        reason=reason or "refused",
+        received_body=event.received_evidence,
+    )
 
 
 class SettleReceivedOutcome(py_trees.decorators.Decorator):
@@ -101,7 +123,6 @@ class SettleReceivedOutcome(py_trees.decorators.Decorator):
             KEY_EVENT,
             KEY_FAILURE_REASON,
             KEY_OUTCOME,
-            KEY_UNHANDLED,
         ):
             self._blackboard.register_key(
                 key, access=py_trees.common.Access.READ
@@ -140,58 +161,49 @@ class SettleReceivedOutcome(py_trees.decorators.Decorator):
                 self.name,
             )
             return
-        if disposition in _KEEPS_WHAT_IT_HOLDS:
+        if disposition is HandlerDisposition.DEFERRED:
             self.logger.debug(
-                "%s: %s — the received record keeps what it holds",
+                "%s: deferred — the received record stays in holding",
+                self.name,
+            )
+            return
+        event = self._read(KEY_EVENT)
+        if not isinstance(event, VultronEvent):
+            self.logger.error(
+                "%s: a %s delivery with no received event on the blackboard,"
+                " so no received record names it (ARCH-15-001)",
                 self.name,
                 disposition,
             )
             return
-        self._refuse()
+        port = self._port(event)
+        if port is None:
+            return
+        record_received_outcome(
+            port, event, disposition, self._read(KEY_FAILURE_REASON)
+        )
 
-    def _refuse(self) -> None:
-        """Give this delivery's body up for a receipt stub (CLP-10-018)."""
-        event = self._read(KEY_EVENT)
-        if not isinstance(event, VultronEvent):
-            self.logger.error(
-                "%s: a refused delivery with no received event on the"
-                " blackboard, so no receipt stub names it (ARCH-15-001)",
-                self.name,
-            )
-            return
-        if self._read(KEY_UNHANDLED):
-            # "No use case found" is not a verdict on the assertion
-            # (IO-01-005): nothing judged the message, so its body stays for
-            # the delivery a registered use case would answer.
-            self.logger.debug(
-                "%s: activity_id=%s is unhandled, not refused; its body stays",
-                self.name,
-                event.activity_id,
-            )
-            return
+    def _port(self, event: VultronEvent) -> ReceivedOutcomePort | None:
+        """The wired received-outcome port, or ``None`` when none is."""
         port = self._read(KEY_OUTCOME)
         if port is None:
             # The two production pipelines both wire the port
-            # (``_InboxRun``, the queue drain); a run without it keeps the
-            # body, which over-retains rather than losing anything.
+            # (``_InboxRun``, the queue drain); a run without it leaves the
+            # record as it is, which over-retains rather than losing anything.
             self.logger.debug(
-                "%s: no received-outcome port is wired, so the refused"
-                " activity_id=%s keeps its body",
+                "%s: no received-outcome port is wired, so activity_id=%s"
+                " keeps its record as it is",
                 self.name,
                 event.activity_id,
             )
-            return
+            return None
         if not isinstance(port, ReceivedOutcomePort):
             raise VultronWiringError(
                 f"{self.name}: {type(port).__name__} on"
-                f" '{KEY_OUTCOME}' is no ReceivedOutcomePort, so a refused"
-                " delivery's receipt stub cannot be written (ARCH-15-001)"
+                f" '{KEY_OUTCOME}' is no ReceivedOutcomePort, so the received"
+                " record's final stage cannot be written (ARCH-15-001)"
             )
-        port.refuse(
-            event.activity_id,
-            sender_id=event.actor_id,
-            reason=self._read(KEY_FAILURE_REASON) or "refused",
-        )
+        return port
 
 
-__all__ = ["SettleReceivedOutcome"]
+__all__ = ["SettleReceivedOutcome", "record_received_outcome"]

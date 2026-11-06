@@ -30,7 +30,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.broken_ledger_entry import tampered
 from test.support.embargo_register import activate
 from test.support.ledger_records import with_ledger_records
-from test.support.received import case_stub
+from test.support.received import case_stub, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -627,6 +627,7 @@ class TestInviteActorUseCases:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        settle_as_the_inbox(dl, event, first)
         anchor = dl.read(VultronPendingCaseInbox.build_id(case_id))
         second = InviteActorToCaseReceivedUseCase(
             dl,
@@ -811,6 +812,7 @@ class TestInviteActorUseCases:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        settle_as_the_inbox(dl, event, first)
         second = InviteActorToCaseReceivedUseCase(
             dl,
             event,
@@ -2269,6 +2271,7 @@ class TestInviteDispositions:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        settle_as_the_inbox(dl, event, first)
         second = InviteActorToCaseReceivedUseCase(
             dl,
             event,

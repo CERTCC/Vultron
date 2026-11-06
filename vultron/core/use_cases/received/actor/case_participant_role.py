@@ -130,7 +130,7 @@ class OfferCaseParticipantRoleReceivedUseCase:
             activity=request,
         )
         if case_id is None:
-            # Intake archived the Offer; there is no case to act on.  A door
+            # Intake recorded the Offer; there is no case to act on.  A door
             # guard's refusal (an unaddressed copy, HP-01-005) is its own.
             verdict = applied_or_raise(tree, result, label=_LABEL)
             if verdict.disposition is HandlerDisposition.REFUSED:

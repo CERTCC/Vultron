@@ -151,7 +151,8 @@ class FastAPIIngressAdapter:
     activity, which the receiver never holds under the id its sender chose
     (DL-06-006), and not the objects it carries inline, from which only the
     handler, after its guards, writes a record (CLP-10-017, #3763).  Intake
-    archives the activity under the receiver's key once it is routed.
+    records the activity under the receiver's key once it is routed and its
+    doors admit it.
 
     ``rehydrate`` rebuilds the parsed activity with it and its inline objects
     staged in a throwaway store (:mod:`.inbox_staging`).  A redelivery is
@@ -225,13 +226,15 @@ class FastAPIIngressAdapter:
           copy the receiver already holds (VM-08-009, VM-08-010, IE-10-001).  When the
           first delivery is still deferred, its held copy is routed without
           received evidence, and the record holding it is kept for the
-          replay, which carries it.  When intake already archived it, the
-          archived body is parsed and routed (ADR-0149) with that body as its
+          replay, which carries it.  When the receiver holds it owing no
+          replay (archived, or left in holding by a run with no verdict), the
+          held body is parsed and routed (ADR-0149) with that body as its
           received evidence: it is the first delivery's sealed body.  The
-          handlers' own idempotency guards answer the repeat (ID-04): a
-          committed act is ``SKIPPED``, and an act that never committed, such
-          as one that failed, runs as a first delivery and commits with the
-          archived body (ADR-0151).
+          tree's seen-before door answers the repeat from the record's stage
+          (ADR-0154): an applied message is ``SKIPPED``, one still waiting is
+          ``SKIPPED`` with nothing re-run, and one a run left in holding with
+          no verdict, such as an act that failed, runs again and commits
+          with the held body (ADR-0151, CLP-10-074).
 
         Production deliveries always carry a sealed body, and a held record
         always holds one, so meeting either side without one is a wiring
@@ -266,7 +269,9 @@ class FastAPIIngressAdapter:
         if isinstance(held, _HeldStub):
             # A refusal left only the digest.  A different body is a reused
             # id (IE-10-002); the same body has no held copy to route in
-            # its place, so it is judged again (CLP-10-018).
+            # its place, so it is routed as it came, and the seen-before
+            # door of its tree refuses it again with the stub's reason
+            # (ADR-0154).
             _refuse_a_different_body(activity, held.body_hash, "refused")
             held = None
         elif held is not None:
@@ -313,15 +318,21 @@ class FastAPIIngressAdapter:
 
         - a replay still owed means the held copy is not this delivery and
           will carry the evidence when it is replayed, so the copy routed
-          now carries none (VM-08-010).  This holds whether or not intake
-          already archived the body: a buffered ``Announce`` is archived and
-          still awaiting its gap, and the replay it owes is the one that
-          will route it (SYNC-14-009);
-        - with no replay owed, the archived body is the first delivery's,
-          sealed at its parse, so the copy routed carries it (VM-08-009);
+          now carries none (VM-08-010).  This holds whether the inbox held
+          the body before the doors or the handling tree held it after
+          intake: a buffered ``Announce`` is recorded and still awaiting its
+          gap, and the replay it owes is the one that will route it
+          (SYNC-14-009);
+        - with no replay owed, the held body -- archived, or left in holding
+          by a run with no verdict -- is the first delivery's, sealed at its
+          parse, so the copy routed carries it (VM-08-009);
         - a receipt stub holds no copy to route, only the digest of the body
           a refusal gave up, which the delivery is compared with
           (CLP-10-018, IE-10-002).
+
+        This is the one comparison of a delivery's body with what is held: the
+        seen-before door that answers a same-body resend reads only the
+        record's stage (ADR-0154).
         """
         record = held_received_record(
             cast(CasePersistence, self._dl), activity_id
@@ -331,10 +342,9 @@ class FastAPIIngressAdapter:
         if record.received_body is None:
             # A receipt stub: a refusal gave the body up (CLP-10-018), so
             # there is no held copy to route in this delivery's place, only
-            # the digest to compare it with.  A same-body delivery is
-            # answered on its own and the tree judges it again; answering it
-            # from the stub instead is the seen-before door's, #5045's third
-            # part.
+            # the digest to compare it with.  A same-body delivery is routed
+            # as it came, and the seen-before door answers it from the stub
+            # (ADR-0154).
             assert record.body_hash is not None  # the record's invariant
             return _HeldStub(record.body_hash)
         kind: Literal["awaiting_replay", "archived"] = (

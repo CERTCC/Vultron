@@ -38,6 +38,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
     assert_held_only_as_received,
     received_record,
+    settle_as_the_inbox,
 )
 from test.support.transferee import (
     INACTIVE_STANDINGS,
@@ -110,6 +111,7 @@ class TestOwnershipTransferUseCases:
 
         assert_held_only_as_received(dl, activity.id_)
         assert result.disposition == HandlerDisposition.APPLIED
+        settle_as_the_inbox(dl, event, result)
 
         # HP-01-014: a redelivered Offer stores nothing new.
         again = OfferCaseOwnershipTransferReceivedUseCase(

@@ -44,10 +44,10 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    a refusal or post-close reply, or the ledger-position answer, which itself
    commits nothing (CLP-10-006, CLP-10-010 stage 2a, SYNC-18-007).
 
-The intake-first ratchet — every receive-side factory returns the shared
+The staged-order ratchet — every receive-side factory returns the shared
 factory's result, with the bypassing and nesting factories as exact sets
-(CLP-10-017) — is ``test_receive_side_intake_first.py``, which imports its
-helpers from here.
+(CLP-10-010, CLP-10-017) — is ``test_receive_side_staged_order.py``, which
+imports its helpers from here.
 
 Each is a ratchet: a new violation fails immediately rather than silently
 accumulating debt.

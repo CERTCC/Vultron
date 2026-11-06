@@ -27,11 +27,13 @@ entry (``ApplyCaseParticipantRoleGrantFromLedgerNode``, CM-02-020).
 Structure::
 
     Accept/RejectCaseParticipantRoleReceivedBT (Sequence)
-    ├── IntakeReceivedActivityNode      # archives the answer (CLP-10-017)
-    ├── CaseOpenToExternalWrites
+    ├── ActivityAddressedToReceiverNode # addressee door
+    ├── ActivityNotSeenBeforeNode       # seen-before door
     ├── ReceivedPathNode                # the CASE_MANAGER alone (HP-01-038)
+    ├── CaseOpenToExternalWrites
     ├── SenderRuleGuard                 # the recorded Offer's target, at the
     │                                   # CASE_MANAGER only (CM-33-005)
+    ├── IntakeReceivedActivityNode      # records the answer (CLP-10-017)
     ├── RoleOfferOpenNode               # open, not a redelivery (CM-33-005)
     ├── GuardedCommit                   # CASE_MANAGER only (CM-33-006)
     └── GrantRoleIfCaseManager          # Accept only (CM-02-016)
@@ -130,7 +132,7 @@ def create_accept_case_participant_role_tree(
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
     if case_id is None:
-        # Intake archives the answer; there is no case to judge it
+        # Intake records the answer; there is no case to judge it
         # against (CLP-10-018).
         return create_incomplete_activity_received_tree(
             "AcceptCaseParticipantRoleReceivedBT",
@@ -221,7 +223,7 @@ def create_reject_case_participant_role_tree(
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
     if case_id is None:
-        # Intake archives the answer; there is no case to judge it
+        # Intake records the answer; there is no case to judge it
         # against (CLP-10-018).
         return create_incomplete_activity_received_tree(
             "RejectCaseParticipantRoleReceivedBT",

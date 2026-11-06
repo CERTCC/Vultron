@@ -13,7 +13,7 @@
 
 """Effect node: store a received object the receiver's tree has admitted.
 
-Intake archives the *activity* (CLP-10-017); this node writes the core record
+Intake records the *activity* (CLP-10-017); this node writes the core record
 from the copy the event carries.  Its users are pre-case intake (the report
 and the ``Offer`` of a submitted report) and the recorded ownership-transfer
 ``Offer``.  It is not for a case record a ``Create(X)`` introduces: a change to

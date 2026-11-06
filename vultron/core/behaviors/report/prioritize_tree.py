@@ -204,7 +204,7 @@ def create_engage_case_tree(
     """
     # The Join names the case and carries no copy of it (ADR-0165), so the
     # tree reads every detail from the case this store holds and stores
-    # nothing from the message but what intake archives (CLP-07-013).
+    # nothing from the message but what intake records (CLP-07-013).
     root = create_receive_activity_tree(
         name="EngageCaseBT",
         case_id=case_id,

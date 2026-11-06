@@ -16,8 +16,8 @@
 """Received-side BTs for ``CreateReport`` and ``AckReport``.
 
 ``CreateReport`` stores the VulnerabilityReport; ``AckReport`` checks the
-acknowledgement's sender.  Intake archives each received activity first
-(CLP-10-017).
+acknowledgement's sender.  Intake records each received activity once its
+doors admit it (CLP-10-010, CLP-10-017).
 """
 
 import logging
@@ -54,8 +54,8 @@ def create_report_received_tree(
     Handles receipt of a ``Create(VulnerabilityReport)`` activity.
 
     Steps (Sequence via :func:`create_receive_activity_tree`):
-    1. Intake archives the ``Create`` as received (CLP-10-036), so a refused
-       delivery still leaves its record (CLP-10-018).
+    1. Once the doors admit it, intake records the ``Create`` as received
+       (CLP-10-036); a refused delivery leaves a receipt stub (CLP-10-018).
     2. Store VulnerabilityReport idempotently.
 
     No ledger commit: the tree carries no case context (``case_id=None``).
@@ -105,11 +105,12 @@ def create_ack_report_received_tree(
 
     Steps (Sequence via :func:`create_receive_activity_tree`):
 
-    1. Intake archives the ``Read`` as received (CLP-10-036), so a refused
-       acknowledgement still leaves its record (CLP-10-018).
-    2. The sender guard the factory composes from *sender_rule* refuses a
+    1. The sender guard the factory composes from *sender_rule* refuses a
        sender that is not an addressee of the Offer this store recorded
-       (``SenderIsOfferAddresseeNode``; RMB-08-004, HP-01-006).
+       (``SenderIsOfferAddresseeNode``; RMB-08-004, HP-01-006).  It is a
+       door, so a refused acknowledgement is never recorded and leaves only
+       a receipt stub (CLP-10-018).
+    2. Intake records the admitted ``Read`` as received (CLP-10-036).
 
     An acknowledgement changes no state (RMB-08-001), so an admitted RK
     writes nothing past intake.

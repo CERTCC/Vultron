@@ -23,6 +23,7 @@ from test.support.case_manager import add_case_manager_participant
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import (
     RecordingInboxReplay,
+    archive_event,
     deliver_replayed,
     held_depth,
     hold_received,
@@ -464,7 +465,7 @@ class TestOutOfOrderAnnounceBuffering:
         self, dl, case_with_genesis
     ):
         """A forward-gap entry is held as the ``Announce`` that arrived, its
-        body as intake archived it, and no ledger entry is stored."""
+        body as intake recorded it, and no ledger entry is stored."""
         _, e1 = self._chain(case_with_genesis, 2)
         event = _announce_event(e1)
 
@@ -474,12 +475,13 @@ class TestOutOfOrderAnnounceBuffering:
 
         held = held_ledger_announces(dl, CASE_URI)
         assert [h.activity_id for h in held] == [event.activity_id]
-        # Intake archived the body; the hold marked the same record as
-        # owing a replay (ADR-0154).
+        # Intake recorded the body; the hold marked the same record as
+        # owing a replay, and it stays in holding, not archived, until the
+        # replay applies it (ADR-0154).
         body = received_record(dl, event.activity_id)
         assert body is not None
         assert body.received_body == event.received_evidence
-        assert body.stage is ReceivedStage.ARCHIVED
+        assert body.stage is ReceivedStage.HELD
         assert body.replay_owed is True
         assert self._present_indices(dl) == set()
 
@@ -736,12 +738,7 @@ class TestHeldAnnounceBound:
         hold_received(dl, near)
         hold_received(dl, far)
         middle = self._held_event(5)
-        dl.save(
-            ReceivedActivityRecord(
-                activity_id=middle.activity_id,
-                received_body=cast(str, middle.received_evidence),
-            )
-        )
+        archive_event(dl, middle)
         entry = middle.log_entry
         assert entry is not None
 
@@ -754,12 +751,10 @@ class TestHeldAnnounceBound:
             3,
             5,
         ]
-        # The dropped Announce's claim on its body goes with it; the archive
-        # intake wrote stays (CLP-10-018).
+        # The dropped Announce goes, body and all: it was never applied, so
+        # it leaves no archive (SYNC-14-013, ADR-0154).
         assert far.activity_id not in _replays_owed(dl)
-        dropped = received_record(dl, far.activity_id)
-        assert dropped is not None
-        assert dropped.received_body == far.received_evidence
+        assert received_record(dl, far.activity_id) is None
         assert "dropped the Announce" in caplog.text
 
     @pytest.mark.spec("SYNC-14-006")
@@ -769,12 +764,7 @@ class TestHeldAnnounceBound:
         for index in (3, 5):
             hold_received(dl, self._held_event(index))
         farther = self._held_event(9)
-        dl.save(
-            ReceivedActivityRecord(
-                activity_id=farther.activity_id,
-                received_body=cast(str, farther.received_evidence),
-            )
-        )
+        archive_event(dl, farther)
         entry = farther.log_entry
         assert entry is not None
 
@@ -826,13 +816,13 @@ class TestHeldAnnounceBound:
         assert _replays_owed(dl) == [forked.activity_id]
 
     @pytest.mark.spec("CLP-10-017")
-    def test_holding_an_unarchived_announce_is_a_wiring_error(self, dl):
-        """Intake archives every received activity first; holding one it did
-        not archive would hold nothing."""
+    def test_holding_an_unrecorded_announce_is_a_wiring_error(self, dl):
+        """Intake records every activity its doors admit; holding one it did
+        not record would hold nothing."""
         entry = _make_entry(CASE_URI, 4, "4" * 64)
         event = _announce_event(entry)
 
-        with pytest.raises(VultronWiringError, match="not archived"):
+        with pytest.raises(VultronWiringError, match="not in holding"):
             hold_ledger_announce(dl, entry, event.activity_id)
         assert held_depth(dl, CASE_URI) == 0
 

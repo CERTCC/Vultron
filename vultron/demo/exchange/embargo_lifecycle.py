@@ -133,7 +133,7 @@ def _answer_relayed_invite(
             invitee_id=answerer.actor.id_,
             timeout_seconds=INVITE_TIMEOUT_SECONDS,
         )
-        # Intake archives the Invite before the received tree indexes it, and
+        # Intake records the Invite before the received tree indexes it, and
         # the accept trigger finds the Invite through that index.
         wait_for_embargo_proposal_indexed(
             client=answerer.client,

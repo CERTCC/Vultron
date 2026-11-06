@@ -319,8 +319,8 @@ catch-up path.
   fetch fails (EMB-01-002, AKM-05-015).
 - **Skip an Invite already answered** (`pending_embargo_proposal_index` maps its
   embargo to it), so a later P/X/A never contradicts an earlier answer.
-  "Already archived" is not that signal: intake archives the Invite before
-  any guard runs (CLP-10-017).
+  "Already recorded" is not that signal: intake records the Invite once its
+  doors admit it, before any guard runs (CLP-10-017).
 - **The refusal `Reject` is its own record** (ADR-0123). Its id derives from the
   rejecting actor and the Invite, a tree node queues it (CLP-10-020), and the
   sealed `Reject` is written before the queue append (EMB-01-006), so a

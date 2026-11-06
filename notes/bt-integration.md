@@ -241,53 +241,49 @@ Two shapes look like a second tree and are not:
   through `InboxReplayPort`, passed to the bridge as the `inbox_replay` context
   key; the port only queues.
 
-### The Received-Side Stages (ADR-0111, ADR-0135)
+### The Received-Side Stages (ADR-0135, ADR-0154)
 
 A received-side tree composed via `create_receive_activity_tree`
 (`vultron/core/behaviors/case/receive_activity_tree.py`) runs its stages in a
-fixed order (CLP-10-006, CLP-10-010): intake, door guards, the ledger-position
-answer, clock decisions, guards, commit, effects.
+fixed order (CLP-10-006, CLP-10-010): door guards, intake, the ledger-position
+answer, clock decisions, guards, commit, effects. Each door can end the run, and
+nothing is written before the last one admits the message (ADR-0154).
 
-1. **Intake** — `IntakeReceivedActivityNode` (`case/nodes/intake.py`) archives
-   the received activity exactly as received, idempotently, as a
-   `ReceivedActivityRecord` whose id the *receiver* derives
-   (`build_id(sender_activity_id)`), carrying the sender's id for reverse
-   lookup. It stores the event's sealed `received_evidence` and nothing derived
-   from it (ADR-0149). Never store under the sender's id: one id-keyed table per
-   actor lets a sender squat an id we derive for our own records. Readers load
-   the archive (`read_received_activity`), never parse it themselves. Intake
-   decides nothing, ledgers nothing, and writes nothing else (CLP-10-038); it
-   runs first so the body is there for every stage that reads it, the refusal
-   notice included. What the receiver *keeps* is decided after the tree, by the
-   inbox's outcome stage: applied or skipped keeps the body, refused leaves a
-   bodiless receipt stub (CLP-10-018, CLP-10-073). An object
-   carried inline (case, note, status, embargo) is a message shaped like that
-   object; the record core keeps is written by an effect node after the guards,
-   because a stored case row *is* the replica (PCR-03-004, CBT-01-005).
-2. **Door guards** — in order: the post-close write boundary (CM-23-013), the
-   addressee check (HP-01-005), the path stage (HP-01-035), the closed-sender
-   door (CM-23-018) and the sender guard (HP-01-006).
+1. **Door guards** — in ADR-0154's order: the addressee check (HP-01-005),
+   the seen-before door (`case/nodes/seen_before.py`), the path stage
+   (HP-01-035), the post-close write boundary (CM-23-013), the closed-sender
+   door (CM-23-018) and the sender guard (HP-01-006). Every handler reads a
+   door's answer through `door_refusal` (`use_cases/received/_bt_verdict/`),
+   asked first by `verdict_from_bt` and `applied_or_raise`; never run a door
+   guard as a one-node tree ahead of the received tree, the chained shape
+   CLP-10-005 forbids (ADR-0135).
 
-   Directly after intake the factory places `CaseOpenToExternalWritesNode`
-   (`case/nodes/post_close.py`), the CM-23-013 write boundary: at the case's
-   CASE_MANAGER, once the ledger holds its own `RM.CLOSED` status entry
-   (`case_is_fully_closed`, `core/predicates/case_closure.py`), it fails the
-   tree so no commit, effect, or emit runs; on every other store it passes, so replicas
-   keep applying the closure fan-out. The handler verdict comes from
-   `door_refusal` (`use_cases/received/_bt_verdict/`), asked first by
-   `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
-   door guard as a one-node tree ahead of the received tree: that is the
-   chained shape CLP-10-005 forbids (ADR-0135). A tree opts out only with a
-   `PostCloseExemption`. `post_close_reply` takes emit-only nodes that answer
-   the refusal; only the close-case tree passes one (`Reject(Leave)` under
+   The seen-before door answers a resend from the message's one record, by
+   its stage, and the run ends there: a receipt stub is `REFUSED` with the
+   stub's reason, an archive is `SKIPPED`, a record owed a replay is
+   `SKIPPED`. A `HELD` record owing nothing passes, because runs are
+   serialized per actor and such a record was left by a run with no verdict
+   (CLP-10-074), or is the enclosing tree's record a nested tree meets. It
+   compares no bodies; ingress does (IE-10-002).
+
+   `CaseOpenToExternalWritesNode` (`case/nodes/post_close.py`) is the
+   CM-23-013 write boundary, beside the sender guard, because whether a
+   closed case takes the write is a question about the case once the message
+   is known to be the receiver's: at the case's CASE_MANAGER, once the ledger
+   holds its own `RM.CLOSED` status entry (`case_is_fully_closed`,
+   `core/predicates/case_closure.py`), it fails the tree so no commit, effect,
+   or emit runs; on every other store it passes, so replicas keep applying the
+   closure fan-out. A tree opts out only with a `PostCloseExemption`.
+   `post_close_reply` takes emit-only nodes that answer the refusal; only the
+   close-case tree passes one (`Reject(Leave)` under
    `ActorConfig.post_close_reply = reject`). Every other late activity is
-   dropped with no reply (ADR-0131, CM-23-045). The addressee check, the
-   closed-sender door and the sender guard follow.
+   dropped with no reply (ADR-0131, CM-23-045).
 
    The factory places the addressee check, `ActivityAddressedToReceiverNode`
    (`case/nodes/addressee.py`), in every received tree, labelled with the
-   tree's name: a copy not addressed to the receiver is `REFUSED`, archived,
-   and acts on nothing (HP-01-005). "Addressed" has one definition,
+   tree's name, as its first door: a copy not addressed to the receiver is
+   `REFUSED`, leaves only a receipt stub, and acts on nothing (HP-01-005).
+   "Addressed" has one definition,
    `addressed_to_receiver()`: the receiver sent it, is in `to`, or belongs to
    a `{case_id}/participants` collection `to` names; `cc` and an empty `to`
    address nobody. Never write a tree's own copy of the check or a Python
@@ -474,7 +470,27 @@ answer, clock decisions, guards, commit, effects.
    its case and carries no snapshot, so its tree stores nothing from it
    (ADR-0165).
 
-   After the door guards of every tree whose `SenderCheckContext` names a case,
+2. **Intake** — `IntakeReceivedActivityNode` (`case/nodes/intake.py`)
+   records the received activity exactly as received, as the message's one
+   `HELD` `ReceivedActivityRecord`, whose id the *receiver* derives
+   (`build_id(sender_activity_id)`), carrying the sender's id for reverse
+   lookup. It stores the event's sealed `received_evidence` and nothing
+   derived from it (ADR-0149), and keeps nothing in memory for a later stage:
+   whether a delivery is new is the seen-before door's answer (ADR-0154).
+   Never store under the sender's id: one id-keyed table per actor lets a
+   sender squat an id we derive for our own records. Readers load the record
+   (`read_received_activity`), never parse it themselves. Intake decides
+   nothing, ledgers nothing, and writes nothing else (CLP-10-038); it runs
+   after the doors and before the guards, so the body is there for every
+   stage that reads it, the refusal notice included. What the receiver
+   *keeps* is decided after the tree, by the inbox's outcome stage: applied or
+   skipped archives the body, refused leaves a bodiless receipt stub
+   (CLP-10-018, CLP-10-073). An object carried inline (case, note, status,
+   embargo) is a message shaped like that object; the record core keeps is
+   written by an effect node after the guards, because a stored case row *is*
+   the replica (PCR-03-004, CBT-01-005).
+
+   After intake, in every tree whose `SenderCheckContext` names a case,
    the factory places the CASE_MANAGER's answer to the sender's stamped
    `ledgerPosition` (`create_ledger_position_stage`, SYNC-18-004/005/007): it
    records a held position, replays a lag and re-seeds a split, and never
@@ -519,11 +535,14 @@ answer, clock decisions, guards, commit, effects.
    guards in a `PreconditionGuardStage` (`case/nodes/refusal_stage.py`) that
    runs the refusal effects, each best-effort on its own, only when a
    precondition guard (not the sender guard) fails, inside a CASE_MANAGER
-   gate, and skips them on a
-   redelivery whose intake was already archived and on a failed guard whose
+   gate (a resend never reaches it: the seen-before door answered it), and
+   skips them on a failed guard whose
    `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
-   reports `SKIPPED`), and on a delivery a `Diversion` among the guards took,
-   which its diversion already answered (CLP-10-026). A guard that turns a
+   reports `SKIPPED`), on a delivery a `Diversion` among the guards took,
+   which its diversion already answered (CLP-10-026), and on the re-run of a
+   record a run left in holding, which the seen-before door tells (CLP-10-044):
+   the first run may have answered, and the RSH-06-004 note's id is minted. A
+   guard that turns a
    `VultronError` into a refusal re-raises `INTERNAL_FAULTS` first
    (`vultron/errors.py`): an internal failure is never answered with a
    notice. The stage then fails with the guard's reason, so nothing
@@ -553,15 +572,16 @@ answer, clock decisions, guards, commit, effects.
 
 **Intake is the only path that stores the received activity** (CLP-10-019). Do
 not add a per-tree store node or handler-local store helper. A receive tree
-that does not compose through the factory runs no intake; the exceptions are an
-exact set, `KNOWN_FACTORIES_BYPASSING_INTAKE`, in
-`test/architecture/test_receive_side_intake_first.py`, each with its reason. The
-ratchet also checks that the factory *returns* the shared factory's result
-(`KNOWN_FACTORIES_NESTING_INTAKE`, empty): nesting it under a hand-built root
-runs something before intake. A tree that needs a branch ahead of the receipt
-commit uses an outer factory with `case_id=None` (intake, no commit) and an
-inner factory per arm that commits; the inner intake finds the archive and
-writes nothing. Intake archives nothing when the event carries no activity, so
+that does not compose through the factory runs no doors and no intake; the
+exceptions are an exact set, `KNOWN_FACTORIES_BYPASSING_THE_STAGES`, in
+`test/architecture/test_receive_side_staged_order.py`, each with its reason.
+The ratchet also checks that the factory *returns* the shared factory's result
+(`KNOWN_FACTORIES_NESTING_THE_STAGES`, empty): nesting it under a hand-built
+root runs something before the doors. A tree that needs a branch ahead of the
+receipt commit uses an outer factory with `case_id=None` (intake, no commit)
+and an inner factory per arm that commits; the inner seen-before door and
+intake find the outer intake's `HELD` record, pass, and write nothing. Intake
+records nothing when the event carries no activity, so
 a semantic-registry entry must set `include_activity=True`. An activity that
 lacks a value its tree needs to be built (a case id, a participant id) is
 refused inside the one tree: its factory returns

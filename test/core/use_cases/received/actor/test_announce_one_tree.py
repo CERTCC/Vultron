@@ -14,7 +14,9 @@
 
 A received delivery runs exactly one tree (CLP-10-005, ADR-0135): the
 Announce's turn-aways (an incomplete Announce, an untrusted sender) are guards
-in that tree, and the refused Announce is still archived (CLP-10-018).
+in that tree.  An untrusted sender is turned away at the sender guard, a door,
+so intake records nothing; the outcome stage leaves its receipt stub
+(CLP-10-018).
 """
 
 from typing import Any
@@ -134,7 +136,7 @@ def test_untrusted_sender_is_refused_by_the_tree_guard(dl, event, tree_runs):
         f" '{_CASE_ACTOR_ID}' — REFUSED (HP-01-006, PCR-03-004)"
     )
     assert len(tree_runs) == 1
-    assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
+    assert dl.read(ReceivedActivityRecord.build_id(event.activity_id)) is None
     assert dl.read(_CASE_ID) is None
 
 

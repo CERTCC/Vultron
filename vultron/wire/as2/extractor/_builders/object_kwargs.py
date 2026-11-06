@@ -80,7 +80,7 @@ def _build_activity_snapshot(
     receiver's own clock, so core read the receiver's clock as the sender's
     claim (CLP-15-004).
 
-    This summary is what core reads and intake archives, not what a received
+    This summary is what core reads and intake records, not what a received
     ledger entry records: the entry records the received body itself, which
     the event carries (``VultronEvent.received_evidence``, CLP-07-011).
     """

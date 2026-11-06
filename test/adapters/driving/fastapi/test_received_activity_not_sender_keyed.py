@@ -33,6 +33,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
     FastAPIIngressAdapter,
     FastAPIQueuePort,
+    FastAPIReceivedOutcomePort,
 )
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
@@ -110,6 +111,7 @@ def _deliver(dl: SqliteDataLayer, activity: as_Activity) -> InboxOutcome:
             dl=dl, actor_id=_RECEIVER_URI, dispatcher=make_dispatcher()
         ),
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
+        received_outcome_port=FastAPIReceivedOutcomePort(dl),
     )
 
 

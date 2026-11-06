@@ -23,15 +23,23 @@ numbers).
 
 The reads live in ``received_activity.py``, which stays read-only.
 
-Two stages, one record
-----------------------
+Holding, and leaving it
+-----------------------
 
-A record the receiver has not archived is ``HELD`` and is deleted when its
-replay releases it: nothing else would ever read it.  A record intake already
-archived stays archived and only loses its :attr:`replay_owed` flag, because
-the archive outlives the replay -- a buffered ``Announce(CaseLedgerEntry)``
-is archived *and* awaiting its gap, and releasing it must not take the
-archive with it (SYNC-14-009, CLP-10-018).
+Every wait holds a ``HELD`` record (ADR-0154): a delivery deferred before the
+doors, and one the handling tree held after intake recorded it (a buffered
+``Announce(CaseLedgerEntry)`` waiting for its gap, SYNC-14-001).  Neither has
+been archived, so releasing it for its replay deletes it and hands its body
+to the replay, which routes it as a delivery of its own: its doors find no
+record, and its intake records it again (IO-03-009).  Discarding a wait that
+ends without routing the message (an eviction, an expired queue) deletes it
+too: the message is dropped, body and all, as SYNC-14-013 and CBT-03-003
+decide.
+
+A message the receiver already answered is never held again: an archived
+message was applied, and a receipt stub gave its body up (CLP-10-018), so
+:func:`hold_for_replay` writes nothing for either and the seen-before door
+answers the delivery instead.
 """
 
 import logging
@@ -76,19 +84,14 @@ def hold_for_replay(
 
     The **body** of a record already owing a replay is left as it is, so a
     redelivery of a held activity is not held again (IE-10-001) and the body
-    first held is the body replayed.  A record intake archived takes the
-    replay flag without losing its archive.  With neither, one ``HELD``
-    record is created.
+    first held is the body replayed.  A ``HELD`` record intake recorded
+    takes the replay flag with the body it already holds.  With no record,
+    one ``HELD`` record is created.
 
-    A receipt stub, all an earlier refusal left (CLP-10-018), holds no body
-    to replay, so a delivery that brings the body again replaces the stub
-    with a ``HELD`` record for it, keeping the stub's time of receipt.  This
-    is the same overwrite intake makes over a stub, and it lasts only while
-    the doors follow intake: once the seen-before door runs first, a resend
-    of a refused message is answered from its stub and never reaches a hold
-    (#5045's third part).  The overwrite writes a whole new record rather
-    than copying the stub, so the record's stage/body invariant is checked
-    at construction.
+    A record that is already at its outcome is not held: an ``ARCHIVED``
+    message was applied, and a receipt stub holds no body to replay
+    (CLP-10-018).  Neither is written, so the stub keeps the first refusal's
+    reason (CLP-10-077), and ``False`` is returned.
 
     *awaiting_case_id* is recorded even on a record that already owed a
     replay, because the wait and the body are different facts: a body held
@@ -122,24 +125,14 @@ def hold_for_replay(
             )
         )
         return True
-    if existing.is_receipt_stub:
-        dl.save(
-            ReceivedActivityRecord(
-                activity_id=activity_id,
-                received_body=received_body,
-                stage=ReceivedStage.HELD,
-                replay_owed=True,
-                awaiting_case_id=awaiting_case_id,
-                replay_rows_json=replay_rows_json,
-                received_at=existing.received_at,
-            )
-        )
+    if existing.stage is not ReceivedStage.HELD:
         logger.info(
-            "Received activity %s was a receipt stub; its body is held again"
-            " for a replay (CLP-10-018, IO-03-009).",
+            "Received activity %s is already %s, so it is not held for a"
+            " replay; its seen-before door answers it (ADR-0154).",
             activity_id,
+            existing.stage,
         )
-        return True
+        return False
     if existing.replay_owed:
         logger.debug(
             "Received activity %s already owes a replay; keeping the held"
@@ -174,25 +167,26 @@ def hold_for_replay(
 
 
 def hold_unjudged_for_replay(dl: CasePersistence, activity_id: str) -> None:
-    """Hold an activity intake archived but the receiver has not judged yet.
+    """Hold an activity intake recorded but the receiver has not judged yet.
 
     The CASE_MANAGER holds an activity that arrives past a gap in its
     sender's ``senderSequence`` before it judges it (SYNC-21-010), so the
     delivery has not been received into its records yet: the record goes
     back to ``HELD``, owing the replay that judges it as a delivery of its
     own (IO-03-009, ADR-0154).  When that replay releases it, intake
-    archives it afresh, so the replay is judged as a first delivery, its
+    records it afresh, so the replay is judged as a first delivery, its
     refusal notice included (CLP-02-005).
 
     Raises:
-        VultronWiringError: Nothing is archived for *activity_id* (intake
-            runs before any guard, CLP-10-017), or it already owes a replay
+        VultronWiringError: Nothing is recorded for *activity_id* (intake
+            runs before any precondition guard, CLP-10-017), or it already
+            owes a replay
             for another wait, which would make one record two waits.
     """
     record = held_received_record(dl, activity_id)
     if record is None:
         raise VultronWiringError(
-            f"received activity '{activity_id}' is not archived, so there is"
+            f"received activity '{activity_id}' is not recorded, so there is"
             " no received body to hold for its replay (CLP-10-017,"
             " SYNC-21-010)"
         )
@@ -223,21 +217,15 @@ def release_from_holding(
     that queues the activity again holds it again from that copy
     (:func:`hold_for_replay`).
 
-    A record the receiver never archived is deleted: it existed only for this
-    replay.  An archived one keeps its archive and only stops owing a replay
-    (CLP-10-018).  ``None`` when nothing is held.
+    The record was never archived -- a message owed a replay has not reached
+    its outcome (ADR-0154) -- so it is deleted: it existed only for this
+    replay, which routes the body as a delivery of its own (IO-03-009).
+    ``None`` when no replay is owed.
     """
-    record = held_received_record(dl, activity_id)
+    record = held_for_replay(dl, activity_id)
     if record is None:
         return None
-    if record.stage is ReceivedStage.HELD:
-        dl.delete(record.type_, record.id_)
-        return record
-    dl.save(
-        record.model_copy(
-            update={"replay_owed": False, "awaiting_case_id": None}
-        )
-    )
+    dl.delete(record.type_, record.id_)
     return record
 
 
@@ -260,20 +248,14 @@ def discard_holding(dl: CasePersistence, activity_id: str) -> None:
 
     For a wait that ends without routing the message: a bounded holding area
     evicting its farthest-ahead entry (SYNC-14-013), or a queue whose window
-    expired (CBT-03-003).  An archived record keeps its archive
-    (CLP-10-018); one never archived goes entirely.
+    expired (CBT-03-003).  The message is dropped, so its ``HELD`` record
+    goes entirely.  A record already at its outcome (an archive, a receipt
+    stub) is not a wait and is left as it is.
     """
     record = held_received_record(dl, activity_id)
-    if record is None:
+    if record is None or record.stage is not ReceivedStage.HELD:
         return
-    if record.stage is ReceivedStage.HELD:
-        dl.delete(record.type_, record.id_)
-        return
-    dl.save(
-        record.model_copy(
-            update={"replay_owed": False, "awaiting_case_id": None}
-        )
-    )
+    dl.delete(record.type_, record.id_)
 
 
 def records_awaiting_case(

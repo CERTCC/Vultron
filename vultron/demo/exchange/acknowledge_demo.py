@@ -116,9 +116,9 @@ def _vendor_acknowledges_to_reporter(
     because the vendor is an addressee of the Offer the reporter recorded
     (RMB-08-004).
 
-    The check below confirms delivery only: intake stores a refused RK too,
-    and the inbox exposes no outcome to read (IE-02-003), so the admit and
-    refuse arms are covered by ``test_ack_report_routing.py`` instead.
+    The check below confirms delivery only: a refused RK leaves a receipt stub
+    too (CLP-10-018), and the inbox exposes no outcome to read (IE-02-003), so
+    the admit and refuse arms are covered by ``test_ack_report_routing.py`` instead.
     """
     result = ActorSession(client=client, actor=vendor).ack_report(
         offer_id=offer.id_, note=content

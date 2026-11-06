@@ -39,7 +39,10 @@ from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
-from vultron.core.services.received_outcome import write_receipt_stub
+from vultron.core.services.received_outcome import (
+    archive_applied,
+    write_receipt_stub,
+)
 
 
 class FastAPIDispatchAdapter:
@@ -156,11 +159,12 @@ class FastAPIQueuePort:
 class FastAPIReceivedOutcomePort:
     """Received-outcome port over the receiving actor's own store.
 
-    The one write a final outcome makes: a refused delivery's body is given
-    up for a receipt stub (:func:`~vultron.core.services.received_outcome
-    .write_receipt_stub`, CLP-10-018).  An applied, skipped or deferred
-    delivery keeps what its record holds, so the port is never called for
-    one.
+    The two writes a final outcome makes: an applied or skipped delivery's
+    record is archived (:func:`~vultron.core.services.received_outcome
+    .archive_applied`, CLP-10-073), and a refused delivery's body is given up
+    for a receipt stub (:func:`~vultron.core.services.received_outcome
+    .write_receipt_stub`, CLP-10-018).  A deferred delivery keeps what its
+    record holds, so the port is never called for one.
 
     Args:
         actor_dl: The receiving actor's DataLayer — the store that holds its
@@ -170,8 +174,23 @@ class FastAPIReceivedOutcomePort:
     def __init__(self, actor_dl: DataLayer) -> None:
         self._dl = cast(CasePersistence, actor_dl)
 
-    def refuse(self, activity_id: str, *, sender_id: str, reason: str) -> None:
+    def apply(self, activity_id: str) -> None:
+        """Archive the record holding *activity_id*'s applied body."""
+        archive_applied(self._dl, activity_id)
+
+    def refuse(
+        self,
+        activity_id: str,
+        *,
+        sender_id: str,
+        reason: str,
+        received_body: str | None,
+    ) -> None:
         """Replace what is held for *activity_id* with a receipt stub."""
         write_receipt_stub(
-            self._dl, activity_id, sender_id=sender_id, reason=reason
+            self._dl,
+            activity_id,
+            sender_id=sender_id,
+            reason=reason,
+            received_body=received_body,
         )

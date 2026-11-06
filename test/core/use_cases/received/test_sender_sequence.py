@@ -695,7 +695,7 @@ def test_a_resent_refused_number_is_refused_again_with_no_second_notice(
     """A repeat of an activity refused for its number changes nothing and is
     not answered again: its first refusal notice answered it (CLP-05-006,
     ID-04-004).  The resend meets the receipt stub the refusal left, so
-    intake finds it as one seen before (SYNC-21-018)."""
+    the seen-before door answers it (SYNC-21-018, ADR-0154)."""
     net = _network(f"resend-{refusal}")
     held = _numbered(_note_body(net, "held"), 2)
     refused = _note_body(net, refusal)

@@ -371,7 +371,14 @@ def test_a_redelivery_after_the_forward_was_sent_sends_nothing(make_payload):
 def test_an_offer_reusing_a_recorded_id_for_another_offer_is_refused(
     make_payload, changed
 ):
-    """Only the same role and target make it a redelivery."""
+    """Only the same role and target make it a redelivery.
+
+    Ingress refuses a reused id before routing it (IE-10-002); this drives
+    the handler directly, after a first delivery a run left in holding, so
+    the guard is what tells the other Offer from a redelivery.  It refuses
+    and commits nothing; the seen-before door tells this re-run, so the
+    refusal effects are skipped and nothing is sent (CLP-10-044).
+    """
     dl = _store(_CASE_MANAGER_ID)
     _deliver_offer(dl, make_payload, _offer())
     entries = _semantic_types(dl)

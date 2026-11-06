@@ -83,17 +83,18 @@ def _replay_is_owed(dl, activity_id: str) -> bool:
 
 
 @pytest.mark.spec("SYNC-14-001")
-def test_holds_the_archived_body_and_finds_it_by_predecessor(dl):
+def test_holds_the_received_body_and_finds_it_by_predecessor(dl):
     event = _event(_entry(2, "a" * 64))
     hold_received(dl, event)
 
     held = held_successor(dl, _CASE, "a" * 64)
     assert held is not None and held.activity_id == event.activity_id
-    # A buffered Announce is the one record archived *and* owing a replay.
+    # A buffered Announce stays in holding, owing a replay: it has not been
+    # applied, so it is not archived (ADR-0154).
     record = received_record(dl, event.activity_id)
     assert record is not None
     assert record.received_body == event.received_evidence
-    assert record.stage is ReceivedStage.ARCHIVED
+    assert record.stage is ReceivedStage.HELD
     assert record.replay_owed is True
     assert holds_held_body(dl, held)
     assert held_successor(dl, _CASE, "b" * 64) is None
@@ -122,9 +123,10 @@ def test_release_drops_the_index_row_and_keeps_the_body(dl):
 
 
 @pytest.mark.spec("SYNC-14-006")
-def test_discard_drops_the_index_row_and_the_replay_claim(dl):
-    """Discarding gives up the replay; the archive intake wrote stays
-    (CLP-10-018)."""
+@pytest.mark.spec("SYNC-14-013")
+def test_discard_drops_the_index_row_and_the_held_announce(dl):
+    """Discarding drops the never-applied Announce, body and all
+    (SYNC-14-013); it leaves no archive, because it was not applied."""
     event = _event(_entry(2, "a" * 64))
     hold_received(dl, event)
     held = held_successor(dl, _CASE, "a" * 64)
@@ -133,11 +135,7 @@ def test_discard_drops_the_index_row_and_the_replay_claim(dl):
     discard_held(dl, held)
 
     assert held_depth(dl, _CASE) == 0
-    assert _replay_is_owed(dl, event.activity_id) is False
-    archived = received_record(dl, event.activity_id)
-    assert archived is not None
-    assert archived.stage is ReceivedStage.ARCHIVED
-    assert archived.received_body == event.received_evidence
+    assert received_record(dl, event.activity_id) is None
 
 
 @pytest.mark.spec("SYNC-14-001")
@@ -196,13 +194,13 @@ def test_a_failed_eviction_keeps_the_farthest_hold(dl, monkeypatch):
 
 @pytest.mark.spec("SYNC-14-001")
 def test_a_redelivery_reholds_a_held_entry_that_owes_no_replay(dl):
-    """A held row that gave up its replay can never replay; another Announce
+    """A held row whose body was dropped can never replay; another Announce
     of the same entry takes its place, replay claim and all."""
     entry = _entry(4, "4" * 64)
     first, second = _event(entry), _event(entry)
     hold_received(dl, first)
     discard_holding(dl, first.activity_id)
-    assert _replay_is_owed(dl, first.activity_id) is False
+    assert received_record(dl, first.activity_id) is None
 
     hold_received(dl, second)
 

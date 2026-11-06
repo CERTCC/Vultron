@@ -268,9 +268,9 @@ class InlineObjectStaging:
         return self._rebuild_from(pending)[0]
 
     def rehydrate_archived(self, activity_id: str) -> as_Activity | None:
-        """Rebuild an archived received activity from the body intake kept.
+        """Rebuild an archived received activity from the body it holds.
 
-        For a redelivery of an activity intake already archived: the archived
+        For a redelivery of an activity the receiver already holds: the held
         body is parsed and routed in place of the redelivered one
         (IE-10-001, ADR-0149).  It carries that body as its received
         evidence: the body is the first delivery's, sealed at its parse, so
@@ -279,11 +279,12 @@ class InlineObjectStaging:
         body under the same id before any copy is rebuilt (IE-10-002).  Held
         for a replay, should the copy be deferred, it keeps the same body.
         Returns ``None`` when the receiver holds nothing under
-        *activity_id*.  It reads the one record whatever stage that record is
-        in, because the only caller reaches this branch when no replay is
-        owed, and a record owing none is archived (the ``HELD`` stage always
-        owes one, ADR-0154) -- so "holds nothing" and "archived nothing" are
-        the same answer here.
+        *activity_id*.  It reads the one body-bearing record whatever stage
+        that record is in, because the only caller reaches this branch when
+        no replay is owed: an archived record, or a ``HELD`` one a run left
+        with no verdict (CLP-10-074), whose body is the first delivery's
+        either way.  The seen-before door of the tree that copy reaches
+        answers it from that stage (ADR-0154).
         """
         record = held_received_record(self._store, activity_id)
         if record is None or record.is_receipt_stub:
@@ -301,10 +302,11 @@ class InlineObjectStaging:
         """Rebuild a held activity from its record, and release it.
 
         The held received body is parsed again, so the replay carries the
-        evidence the first delivery did (VM-08-008).  The record stops owing
-        a replay once read -- and goes entirely if the receiver never
-        archived it — so a replay the queue defers again holds it afresh
-        (:meth:`hold_for_replay`).
+        evidence the first delivery did (VM-08-008).  The record goes once
+        read, because a message owed a replay was never archived, so a
+        replay the queue defers again holds it afresh
+        (:meth:`hold_for_replay`), and the replay's seen-before door finds
+        no record and lets it through (ADR-0154).
 
         Returns ``None`` when no replay is owed for *activity_id*: the
         receiver keeps no other copy of a received activity (DL-06-006).

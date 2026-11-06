@@ -25,7 +25,11 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.received import assert_held_only_as_received, received_event
+from test.support.received import (
+    assert_held_only_as_received,
+    received_event,
+    received_record,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -527,7 +531,10 @@ def test_a_bare_uri_invite_with_pxa_set_gets_an_er_once_its_terms_are_fetched():
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert verdict.reason is not None and "EMB-01-002" in verdict.reason
-    assert again.disposition is HandlerDisposition.SKIPPED
+    # The resend is refused again from the receipt stub, for the first
+    # reason, and runs nothing (ADR-0154).
+    assert again.disposition is HandlerDisposition.REFUSED
+    assert again.reason == verdict.reason
     (reject,) = net.queued(OWNER, to=MANAGER, type_="Reject")
     sealed = read_sealed_body_dict(net.stores[OWNER], reject.id_)
     assert sealed is not None
@@ -591,7 +598,11 @@ def _pxa_invite_body(
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("TB-06-007")
 def test_a_redelivered_invite_with_pxa_set_is_refused_once():
-    """A re-delivery was answered on first arrival: no second Reject."""
+    """A re-delivery was answered on first arrival: no second Reject.
+
+    It is refused again from the receipt stub the first refusal left, for
+    the first reason, with nothing re-run (ADR-0154).
+    """
     net = _Network("https://example.org/cases/relay-replay-pxa-again")
     _propose(net, "public-again", 90)
     _set_pxa(net, OWNER)
@@ -603,7 +614,8 @@ def test_a_redelivered_invite_with_pxa_set_is_refused_once():
     again = net.receive(OWNER, body)
 
     assert first.disposition is HandlerDisposition.REFUSED
-    assert again.disposition is HandlerDisposition.SKIPPED
+    assert again.disposition is HandlerDisposition.REFUSED
+    assert again.reason == first.reason
     assert len(net.queued(OWNER, to=MANAGER, type_="Reject")) == 1
 
 
@@ -1029,7 +1041,11 @@ def test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault(
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("TB-06-007")
 def test_a_redelivered_accept_with_pxa_set_is_answered_once():
-    """The Accept-side refusal answers a repeated Accept once (EMB-02-004)."""
+    """The Accept-side refusal answers a repeated Accept once (EMB-02-004).
+
+    The repeat is refused again from the receipt stub, for the first reason,
+    with nothing re-run (ADR-0154).
+    """
     net = _Network("https://example.org/cases/relay-replay-pxa-accept-again")
     _propose(net, "public-accept-again", 90)
     net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
@@ -1042,7 +1058,8 @@ def test_a_redelivered_accept_with_pxa_set_is_answered_once():
     again = net.receive(MANAGER, body)
 
     assert first.disposition is HandlerDisposition.REFUSED
-    assert again.disposition is HandlerDisposition.SKIPPED
+    assert again.disposition is HandlerDisposition.REFUSED
+    assert again.reason == first.reason
     assert len(net.queued(MANAGER, to=BYSTANDER, type_="Reject")) == 1
 
 
@@ -1108,7 +1125,11 @@ def test_a_refusal_with_no_trigger_port_stands_without_its_er(caplog):
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert "trigger_activity unavailable" in caplog.text
     assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
-    assert_held_only_as_received(net.stores[OWNER], body["id"])
+    # A refusal keeps the receipt, not the message (CLP-10-018).
+    owner_dl = net.stores[OWNER]
+    assert owner_dl.read(body["id"]) is None
+    record = received_record(owner_dl, body["id"])
+    assert record is not None and record.is_receipt_stub
 
 
 @pytest.mark.spec("EP-09-010")

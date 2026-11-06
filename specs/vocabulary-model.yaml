@@ -978,7 +978,7 @@ groups:
       A replay of a deferred activity, or a load of an archived one, MUST be parsed again
       from the received body held for it. It carries that body as its evidence.
     rationale: >-
-      The deferred record and intake's archive keep the sealed body (IO-03-009,
+      The deferred record and intake's record keep the sealed body (IO-03-009,
       CLP-10-017), so a replay carries the first delivery's evidence and a load sees the
       body that arrived (ADR-0149).
     verification: >-

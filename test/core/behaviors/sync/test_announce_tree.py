@@ -192,34 +192,36 @@ def _make_event(
     return event
 
 
-def test_create_announce_log_entry_tree_is_intake_then_path_branches():
+def test_create_announce_log_entry_tree_is_doors_intake_then_path_branches():
     tree = create_announce_log_entry_tree(
         sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
     )
     assert tree.name == "AnnounceLogEntryReceivedBT"
-    # Intake first (CLP-10-017), the post-close guard (CM-23-013), the
-    # addressee door (HP-01-005), the path door stage that asks the one role
-    # question (HP-01-035, ADR-0153), the sender guard the factory composes
-    # (HP-01-008, #4696), then the two declared branches.
-    assert tree.children[0].name == "IntakeReceivedActivityNode"
-    assert tree.children[1].name == "CaseOpenToExternalWrites"
-    assert isinstance(tree.children[2], ActivityAddressedToReceiverNode)
-    assert isinstance(tree.children[3], ReceivedPathNode)
-    assert tree.children[3].declared == frozenset(
+    # The doors in ADR-0154's order: the addressee door (HP-01-005), the
+    # seen-before door, the path door stage that asks the one role question
+    # (HP-01-035, ADR-0153), the post-close guard (CM-23-013), the sender
+    # guard the factory composes (HP-01-008, #4696); then intake
+    # (CLP-10-017) and the two declared branches.
+    assert isinstance(tree.children[0], ActivityAddressedToReceiverNode)
+    assert tree.children[1].name == "ActivityNotSeenBeforeNode"
+    assert isinstance(tree.children[2], ReceivedPathNode)
+    assert tree.children[2].declared == frozenset(
         {
             ReceivedPath.CASE_MANAGER,
             ReceivedPath.PARTICIPANT_REPLICA,
             ReceivedPath.NO_CASE,
         }
     )
+    assert tree.children[3].name == "CaseOpenToExternalWrites"
     assert tree.children[4].name == "SenderIsCaseManagerNode"
-    assert [child.name for child in tree.children[5:]] == [
+    assert tree.children[5].name == "IntakeReceivedActivityNode"
+    assert [child.name for child in tree.children[6:]] == [
         AT_CASE_MANAGER,
         OFF_CASE_MANAGER,
     ]
     # Neither branch asks the role again: each reads the stage's answer
     # (HP-01-036).
-    manager, off_manager = tree.children[5], tree.children[6]
+    manager, off_manager = tree.children[6], tree.children[7]
     assert isinstance(manager, PathBranch)
     assert manager.paths == frozenset({ReceivedPath.CASE_MANAGER})
     assert isinstance(off_manager, PathBranch)

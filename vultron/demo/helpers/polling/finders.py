@@ -98,7 +98,7 @@ def find_case_invite_for_actor(
     (CM-17-007, ADR-0109); the invitee must then send Accept(Invite) to
     trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
     replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
-    for that Invite, archived by intake on arrival (PCR-06-005), so the demo
+    for that Invite, recorded by intake on arrival (PCR-06-005), so the demo
     can drive the accept step.
 
     Args:
@@ -313,7 +313,8 @@ def find_cp_offer_for_case(
     Owner's inbox (ADR-0026).  This helper polls the Case Owner's DataLayer for
     any received Offer whose ``target`` matches *case_id* and whose ``object``
     resembles a CaseParticipant, so the demo can drive the approve step.  It
-    reads intake's archive, the only record holding the participant inline.
+    reads the body intake recorded, the only record holding the participant
+    inline.
 
     Args:
         client: DataLayerClient connected to the Case Owner's container.
