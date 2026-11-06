@@ -58,6 +58,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.services.held_ledger_announces import held_ledger_announces
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
@@ -415,6 +416,47 @@ def test_an_invite_redelivered_after_a_changed_answer_sends_no_accept(
 
     assert again.disposition is HandlerDisposition.SKIPPED
     assert answers_in_outbox(dl, INVITEE) == ["Accept", "Reject"]
+    dl.close()
+
+
+@pytest.mark.spec("ID-04-004")
+@pytest.mark.spec("EMB-01-002")
+def test_an_invite_redelivered_after_its_pxa_refusal_is_refused_once(
+    make_payload,
+) -> None:
+    """P/X/A set: the Invite's automatic Reject is one activity, sent once.
+
+    The refusal's Reject keeps the id derived from (invitee, Invite), so the
+    redelivery finds it already sent (``requeue_embargo_refusal``) and the
+    answered-Invite guard sees it too (``answered_embargo_invite``).  A
+    fresh id would queue a second Reject for the same Invite.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
+    case, embargo = seed_invitee_case(
+        dl,
+        "https://example.org/cases/redelivered-after-pxa-refusal",
+        em_state=EM.NONE,
+        roles=[CVDRole.VENDOR],
+        proposal_days=10,
+        policy_days=30,
+    )
+    stored = dl.read_case(case.id_)
+    assert stored is not None
+    stored.append_case_status(pxa=CS_pxa.Pxa)
+    dl.save(stored)
+    invite = em_propose_embargo_activity(
+        embargo=embargo, context=case.id_, actor=COORD, to=[INVITEE]
+    )
+
+    first = _deliver(dl, invite, make_payload)
+    again = _deliver(dl, invite, make_payload)
+
+    assert first.disposition is HandlerDisposition.REFUSED, first.reason
+    assert again.disposition is HandlerDisposition.SKIPPED, again.reason
+    assert answers_in_outbox(dl, INVITEE) == ["Reject"]
+    assert TriggerActivityAdapter(dl).answered_embargo_invite(
+        INVITEE, invite.id_
+    )
     dl.close()
 
 

@@ -160,15 +160,34 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        derived_id: bool = False,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` embargo-reject activity.
 
-        The id is derived from the rejecting actor and the Invite, so an
-        actor's rejection of one Invite is one activity (ID-04-004) and
-        :meth:`requeue_embargo_refusal` can tell it was sent.  The Invite is
-        read as :meth:`accept_embargo` reads it.  The CASE_MANAGER abandoning
-        a proposal it received rejects it here; one it sent itself it
-        withdraws with :meth:`undo_embargo_invite` (ADR-0152).
+        With *derived_id* the id is derived from *actor* and the Invite, so
+        the automatic rejection of one received Invite is one activity
+        (ID-04-004) and :meth:`requeue_embargo_refusal` can tell it was sent.
+        A second build under that id returns the first one's sealed body
+        (:func:`_create_and_seal`).  Without it the factory mints an id: a
+        deliberate answer is a new activity, so a ``Reject`` after the
+        actor's own ``Accept`` (or a second ``Reject`` after a first one)
+        reaches the CASE_MANAGER as a changed answer rather than as a
+        redelivery of an earlier ``Reject`` (CM-18-003, IE-10-001).
+
+        The automatic answer
+        (:class:`~vultron.core.behaviors.embargo.nodes.invite_answer\
+.SendEmbargoInviteAnswerNode`) and the P/X/A refusal pass
+        ``derived_id=True``.  The deliberate trigger Reject
+        (:class:`~vultron.core.use_cases.triggers.embargo.reject\
+.SvcRejectEmbargoUseCase`) passes ``derived_id=False`` (or omits it).
+        The CASE_MANAGER abandon path passes ``derived_id=True`` because it
+        abandons the single received proposal, not a deliberate answer.
+
+        The Invite is read as :meth:`accept_embargo` reads it.  The
+        CASE_MANAGER abandoning a proposal it received rejects it here; one
+        it sent itself it withdraws with :meth:`undo_embargo_invite`
+        (ADR-0152).
         """
         proposal = cast(
             Any,
@@ -176,12 +195,15 @@ class _EmbargoMixin:
                 self._dl, proposal_id, "Invite(EmbargoEvent)"
             ),
         )
+        optional = (
+            {"id_": _reject_id(actor, proposal_id)} if derived_id else {}
+        )
         activity = em_reject_embargo_activity(
             proposal=proposal,
             context=case_id,
             actor=actor,
             to=to,
-            id_=_reject_id(actor, proposal_id),
+            **optional,
         )
         return _create_and_seal(self._dl, activity, "reject_embargo")
 
@@ -290,12 +312,17 @@ class _EmbargoMixin:
         return requeue_if_sealed(self._dl, _reject_id(actor, proposal_id))
 
     def answered_embargo_invite(self, actor: str, proposal_id: str) -> bool:
-        """Whether *actor* already answered the Invite *proposal_id*.
+        """Whether *actor* already sent its automatic answer to *proposal_id*.
 
         Read-only: true when this store holds the sealed body of *actor*'s
-        derived ``Accept`` or ``Reject`` of the Invite.  The received tree
-        seals and queues its answer in one act (ADR-0146), so a sealed answer
-        there is a queued one; nothing is requeued here.
+        derived ``Accept`` (``accept_embargo(..., derived_id=True)``) or
+        derived ``Reject`` (``reject_embargo(..., derived_id=True)``) of the
+        Invite.  Both use known derived ids, so the guard can check without
+        scanning the whole outbox.  A deliberate (fresh-id) answer is not
+        detected here; the idempotency guard is for the automatic path only
+        (ID-04-004).  The received tree seals and queues its answer in one
+        act (ADR-0146), so a sealed derived answer there is a queued one;
+        nothing is requeued here.
         """
         return is_sealed(self._dl, _accept_id(actor, proposal_id)) or (
             is_sealed(self._dl, _reject_id(actor, proposal_id))
