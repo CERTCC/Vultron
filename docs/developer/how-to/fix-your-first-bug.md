@@ -252,12 +252,14 @@ Run the **default unit test command**:
 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
-If you touched any files under `vultron/demo/` or `test/demo/`, run the
-full suite including integration tests:
+If you touched any files under `vultron/demo/` or `test/demo/`, you can run the integration tests too, with the marker enabled:
 
 ```bash
 uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
+
+That run is optional.
+CI runs the demo integration tests on your pull request, and the `CI gate` check that GitHub requires before a merge waits for them.
 
 Read the tail output. All tests should pass.
 
@@ -303,11 +305,14 @@ If a test still sees a stale key, the leak is inside one test: a node that write
 **Likely cause**: CI runs integration tests; your bug is in a demo or
 multi-layer scenario.
 
-**Solution**: Run the full suite locally before pushing:
+**Solution**: Read the failing CI job's log for the test that failed, then reproduce that test locally with the marker enabled:
 
 ```bash
 uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
+
+This is a diagnostic for a red CI run, not a step you take before pushing.
+CI is the authority for the whole suite, and GitHub's required `CI gate` check refuses the merge until it passes.
 
 If tests still pass locally, check for timing or environment differences
 (CI uses Python 3.13; your local may be 3.12).
