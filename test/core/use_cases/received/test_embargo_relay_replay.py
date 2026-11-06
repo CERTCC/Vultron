@@ -254,6 +254,84 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
     assert case.proposed_embargo_ids == [revision_id]
 
 
+@pytest.mark.spec("CM-18-003")
+@pytest.mark.spec("CM-13-005")
+@pytest.mark.spec("IE-10-001")
+@pytest.mark.spec("SYNC-21-001")
+def test_a_participants_reject_accept_reject_of_one_invite_records_final_reject():
+    """Three deliberate answers to one Invite land as three distinct activities.
+
+    A participant that changes its answer Reject → Accept → Reject sends
+    three separate activities, each with its own id.  The CASE_MANAGER
+    commits all three, and the consent row ends at ``DECLINED`` (CM-18-003,
+    CM-13-005).  On main without the fix, the second Reject reuses the first
+    one's derived id and is dropped as a redelivery (IE-10-001), leaving the
+    row at ``AGREED`` after the Accept.
+    """
+    net = _Network("https://example.org/cases/relay-reject-accept-reject")
+    revision_id = _propose(net, "change-of-mind", 90)
+
+    # Deliver the Invite to BYSTANDER: the BT builds a derived-id Accept.
+    # Withdraw it so our deliberate answers start at the expected number.
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
+    net.withdraw_unsent_numbers(BYSTANDER)
+
+    adapter = TriggerActivityAdapter(net.stores[BYSTANDER])
+
+    # First answer: deliberate Reject (fresh id, not derived).
+    _, sealed_reject1 = adapter.reject_embargo(
+        proposal_id=invite.id_,
+        case_id=net.case_id,
+        actor=BYSTANDER,
+        to=[MANAGER],
+    )
+    verdict1 = net.receive(MANAGER, json.loads(sealed_reject1))
+    assert verdict1.disposition is HandlerDisposition.APPLIED, verdict1.reason
+
+    # Second answer: deliberate Accept (fresh id).
+    _, sealed_accept = adapter.accept_embargo(
+        proposal_id=invite.id_,
+        case_id=net.case_id,
+        actor=BYSTANDER,
+        to=[MANAGER],
+    )
+    verdict2 = net.receive(MANAGER, json.loads(sealed_accept))
+    assert verdict2.disposition is HandlerDisposition.APPLIED, verdict2.reason
+
+    # Third answer: deliberate Reject again (fresh id, different from Reject #1).
+    _, sealed_reject2 = adapter.reject_embargo(
+        proposal_id=invite.id_,
+        case_id=net.case_id,
+        actor=BYSTANDER,
+        to=[MANAGER],
+    )
+    verdict3 = net.receive(MANAGER, json.loads(sealed_reject2))
+    assert verdict3.disposition is HandlerDisposition.APPLIED, verdict3.reason
+
+    # All three activity ids are distinct (none was treated as a redelivery).
+    body1 = json.loads(sealed_reject1)
+    body2 = json.loads(sealed_accept)
+    body3 = json.loads(sealed_reject2)
+    activity_ids = {body1["id"], body2["id"], body3["id"]}
+    assert len(activity_ids) == 3, (
+        "expected three distinct activity ids, got"
+        f" {len(activity_ids)}: {activity_ids}"
+    )
+    # Each fresh-id answer takes the sender's next number, so the
+    # CASE_MANAGER judges the three in send order (SYNC-21-001, ADR-0178).
+    numbers = [body["senderSequence"] for body in (body1, body2, body3)]
+    assert numbers == list(range(numbers[0], numbers[0] + 3)), numbers
+
+    # The CASE_MANAGER's consent row for BYSTANDER ends at DECLINED.
+    manager_case = net.case(MANAGER)
+    bystander_p = net.stores[MANAGER].read(
+        manager_case.actor_participant_index[BYSTANDER]
+    )
+    assert isinstance(bystander_p, CaseParticipant)
+    assert bystander_p.consent_for(revision_id) is EmbargoConsentState.DECLINED
+
+
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("EP-08-003")
 @pytest.mark.spec("TB-06-007")

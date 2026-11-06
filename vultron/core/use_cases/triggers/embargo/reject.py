@@ -96,11 +96,15 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
                     to=to,
                 )
             else:
+                # A participant's deliberate answer uses a fresh id so a
+                # second Reject after a changed-answer Accept reaches the
+                # CASE_MANAGER as a new activity (CM-18-003, IE-10-001).
                 reject_id, reject_blob = self._factory.reject_embargo(
                     proposal_id=self._proposal_id,
                     case_id=self._case.id_,
                     actor=self._actor_id,
                     to=to,
+                    derived_id=False,
                 )
             self._captured["activity"] = json.loads(reject_blob)
             return reject_id, reject_blob
