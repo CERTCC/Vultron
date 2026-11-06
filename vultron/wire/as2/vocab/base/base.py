@@ -117,7 +117,7 @@ class as_Base(BaseModel):
             WIRE_TYPE_MAP[wire_type_value(cls)] = cls
 
     # Every outbound document cites AS2 and then the Vultron context
-    # (VM-10-001): AS2 so a plain-JSON AS2 receiver recognises it, Vultron so
+    # (VM-10-001): AS2 so a plain-JSON AS2 receiver recognizes it, Vultron so
     # ``VulnerabilityCase`` or ``EmbargoEvent`` expand.  The serializer emits
     # the default on the top-level document only.  An inbound body citing a
     # single string, or any other list (every signed body's is one, FEP-8b32),

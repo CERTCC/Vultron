@@ -492,7 +492,7 @@ def test_response_round_trips_through_the_as2_parser(
     """A response's delivered body is AS2 that the inbound parser accepts."""
     body = delivered_body(factory(offer=sample_offer, actor=sample_actor))
 
-    # AS2 first, so a plain-JSON AS2 receiver recognises it (VM-10-001).
+    # AS2 first, so a plain-JSON AS2 receiver recognizes it (VM-10-001).
     assert body["@context"] == [ACTIVITY_STREAMS_NS, VULTRON_CONTEXT_URI]
     assert body["type"] == wire_type
     assert isinstance(parse_activity(body), cls)

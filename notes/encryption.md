@@ -21,6 +21,7 @@ related_specs:
   - specs/message-validation.yaml
   - specs/actor-knowledge-model.yaml
   - specs/error-handling.yaml
+  - specs/vocabulary-model.yaml
 related_notes:
   - archived_notes/federation_ideas.md
   - notes/case-ledger-genesis-hardening.md
