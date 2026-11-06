@@ -998,9 +998,9 @@ groups:
     kind: project
     statement: >-
       `spec-coverage --json <PATH>` MUST write the ID, kind, statement and state of
-      each `protocol` and `foundation` requirement. For each strict `xfail` on a test
-      marked for the requirement, it MUST also write the test, the reason and the
-      issue numbers that the reason cites.
+      each `protocol` and `foundation` requirement. Each entry also lists the test, the
+      reason and the cited issue numbers of every strict `xfail` on a test marked for
+      the requirement.
     rationale: >-
       The known-gaps page of the Protocol Specification lists each requirement that
       no passing test checks, with its statement and the issue that tracks it. A
