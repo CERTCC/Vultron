@@ -506,7 +506,8 @@ class TestEmitCreateVulnerabilityCaseNode:
 
         ``@context`` comes only from a by-alias dump of a ``CoreObject``, and the
         rendering is JSON-mode, so both mark the body as the port's.  It must
-        also revalidate to the activity that was queued.
+        also revalidate to the activity that was queued, once the outbox's
+        proof is set aside as the parser sets it aside (MV-11-003).
         """
         from vultron.core.models.activity import VultronCreateCaseActivity
 
@@ -516,7 +517,10 @@ class TestEmitCreateVulnerabilityCaseNode:
         body = _queued_create(dl)
         assert "@context" in body
         assert isinstance(body.get("published"), str)
-        activity = VultronCreateCaseActivity.model_validate(body)
+        assert "proof" in body
+        activity = VultronCreateCaseActivity.model_validate(
+            {key: value for key, value in body.items() if key != "proof"}
+        )
         assert activity.context == case_id
         assert activity.actor == _CASE_ACTOR_URI
 
