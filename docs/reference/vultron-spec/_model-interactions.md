@@ -170,16 +170,16 @@ This default is deliberate: without it, any admitted participant could force a c
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-07-006", "RSH-07-001"))
 ```
 
+A deployment where every admitted participant is trusted, and where the cost of Case Owner approval is too high, can configure a permissive policy instead.
+That configuration is an explicit operator choice, not a default.
+It is not a way to unblock a path that the gate is correctly blocking.
+
 !!! note "Not yet in `main`: asking the Case Owner"
     The reference implementation does not yet ask the Case Owner to authorize a non-owner's report.
     The request it would send is an authorization ask (ASK-01-001), which [Known Gaps](known-gaps.md) lists as not yet met, tracked by [#2885](https://github.com/CERTCC/Vultron/issues/2885).
     Meanwhile, the core default records a non-owner's report but does not adopt it, and asks no one.
-    The FastAPI server is configured with the permissive policy instead, so it adopts the report without asking.
-    A Case Owner's own report is adopted without asking, as the rule above says.
-
-A deployment where every admitted participant is trusted, and where the cost of Case Owner approval is too high, can configure a permissive policy instead.
-That configuration is an explicit operator choice, not a default.
-It is not a way to unblock a path that the gate is correctly blocking.
+    The FastAPI server makes that explicit choice: it is configured with the permissive policy, so it adopts the report without asking.
+    A Case Owner's own report is adopted without asking, as RSH-07-006 says.
 
 **What is adopted.**
 The CASE_MANAGER accepts a reported status as sent or refuses all of it, and the refusal names every refused value and why.
