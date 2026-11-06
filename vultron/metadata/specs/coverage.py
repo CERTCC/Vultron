@@ -177,7 +177,7 @@ def marked_ids_in(sources: Iterable[str]) -> frozenset[str]:
     Each item of *sources* is one file's text, read by
     :func:`~vultron.metadata.specs.marked_tests.marked_spec_ids`: every
     ``mark.spec`` call counts, wherever it is, and marker text inside a string
-    literal does not. A marker naming several IDs,
+    literal or a comment does not. A marker naming several IDs,
     ``@pytest.mark.spec("A", "B")``, covers each of them; a keyword argument
     is not an ID.
 
@@ -198,8 +198,23 @@ def _read_files(test_root: Path) -> Iterator[tuple[Path, str]]:
             continue
 
 
-def _read_sources(test_root: Path) -> Iterator[str]:
-    return (source for _, source in _read_files(test_root))
+def _marked_ids_under(test_root: Path) -> frozenset[str]:
+    """:func:`marked_ids_in` of the files under *test_root*, naming a bad file."""
+    return frozenset().union(
+        *(
+            marked_spec_ids(source, path.as_posix())
+            for path, source in _read_files(test_root)
+        )
+    )
+
+
+def _marked_ids(
+    repo_root: Path, test_sources: Iterable[str] | None
+) -> frozenset[str]:
+    """The marked IDs of *test_sources*, or of ``test/`` under *repo_root*."""
+    if test_sources is None:
+        return _marked_ids_under(repo_root / "test")
+    return marked_ids_in(test_sources)
 
 
 def collect_marked_ids(test_root: Path) -> frozenset[str]:
@@ -213,8 +228,12 @@ def collect_marked_ids(test_root: Path) -> frozenset[str]:
     Returns:
         Frozen set of all spec ID strings referenced by ``@pytest.mark.spec``
         markers found under *test_root*.
+
+    Raises:
+        SyntaxError: A file with ``mark.spec`` text does not parse; the error
+            names the file.
     """
-    return marked_ids_in(_read_sources(test_root))
+    return _marked_ids_under(test_root)
 
 
 def _implementer_specs(registry: SpecRegistry) -> dict[str, Spec]:
@@ -329,10 +348,8 @@ def uncovered_implementer_ids(
             reading ``test/`` — the architecture suite passes its shared
             ``test/architecture/_corpus.py`` sources here.
     """
-    if test_sources is None:
-        test_sources = _read_sources(repo_root / "test")
     implementer = _implementer_specs(load_registry(repo_root / "specs"))
-    return frozenset(implementer) - marked_ids_in(test_sources)
+    return frozenset(implementer) - _marked_ids(repo_root, test_sources)
 
 
 @dataclass(frozen=True)
@@ -353,9 +370,7 @@ def kinds_and_markers(
     :func:`vultron.metadata.specs.growth_guard.compare_with_base`. Arguments
     are as :func:`uncovered_implementer_ids` documents.
     """
-    if test_sources is None:
-        test_sources = _read_sources(repo_root / "test")
-    marked = marked_ids_in(test_sources)
+    marked = _marked_ids(repo_root, test_sources)
     registry = load_registry(repo_root / "specs")
     return {
         spec_id: KindAndMarker(spec.kind, spec_id in marked)

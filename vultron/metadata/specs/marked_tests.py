@@ -55,6 +55,7 @@ expression included.
 from __future__ import annotations
 
 import ast
+import bisect
 import functools
 import itertools
 import re
@@ -62,6 +63,9 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 
 _ISSUE_REF_RE = re.compile(r"#(\d+)")
+
+_MARK_SPEC_TEXT_RE = re.compile(r"mark\W*spec\b")
+"""``mark`` then ``spec`` text, which every ``mark.spec`` call's line holds."""
 
 
 @dataclass(frozen=True)
@@ -134,7 +138,9 @@ def dotted_name(node: ast.expr) -> str:
 
 
 def _is_mark(node: ast.expr, name: str) -> bool:
-    return dotted_name(node).endswith(f"mark.{name}")
+    """Whether *node* is ``mark.<name>`` or ``<anything>.mark.<name>``."""
+    dotted = dotted_name(node)
+    return dotted == f"mark.{name}" or dotted.endswith(f".mark.{name}")
 
 
 def spec_call_ids(node: ast.AST) -> frozenset[str]:
@@ -370,17 +376,55 @@ class MarkedFile:
 _NO_MARKERS = MarkedFile(frozenset(), ())
 
 
-def _spec_ids_in(tree: ast.AST) -> frozenset[str]:
+def _mark_spec_lines(source: str) -> list[int]:
+    """The sorted numbers of the lines of *source* with ``mark`` ... ``spec`` text."""
+    lines: list[int] = []
+    line, pos = 1, 0
+    for match in _MARK_SPEC_TEXT_RE.finditer(source):
+        line += source.count("\n", pos, match.start())
+        pos = match.start()
+        if not lines or lines[-1] != line:
+            lines.append(line)
+    return lines
+
+
+def _spans_a_line(node: ast.AST, lines: list[int]) -> bool:
+    """Whether *node*'s text, decorators included, spans one of *lines*."""
+    first: int | None = getattr(node, "lineno", None)
+    last: int | None = getattr(node, "end_lineno", None)
+    if first is None or last is None:
+        return True
+    for decorator in getattr(node, "decorator_list", ()):
+        first = min(first, decorator.lineno)
+    i = bisect.bisect_left(lines, first)
+    return i < len(lines) and lines[i] <= last
+
+
+def _spec_calls(tree: ast.AST, source: str) -> Iterator[ast.Call]:
+    """Every ``mark.spec`` call in *tree*, parsed from *source*.
+
+    Walks only the nodes whose text spans a line of *source* holding ``mark``
+    ... ``spec`` text: a call's text holds its own ``mark``, and every node
+    holding the call spans the call's lines once a decorated definition is
+    taken to start at its first decorator. The rest of a large test file is
+    never visited, which is most of the cost of the walk.
+    """
+    lines = _mark_spec_lines(source)
+    stack: list[ast.AST] = [tree]
+    while stack:
+        node = stack.pop()
+        if not _spans_a_line(node, lines):
+            continue
+        if isinstance(node, ast.Call) and _is_mark(node.func, "spec"):
+            yield node
+        stack.extend(ast.iter_child_nodes(node))
+
+
+def _spec_ids_in(tree: ast.AST, source: str) -> frozenset[str]:
     """The IDs of every ``mark.spec`` call anywhere in *tree*."""
-    ids: set[str] = set()
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "spec"
-        ):
-            ids |= spec_call_ids(node)
-    return frozenset(ids)
+    return frozenset().union(
+        *(spec_call_ids(call) for call in _spec_calls(tree, source))
+    )
 
 
 def read_marked_file(path: str, source: str) -> MarkedFile:
@@ -399,10 +443,10 @@ def read_marked_file(path: str, source: str) -> MarkedFile:
     constants = _module_constants(tree)
     module = _scope_from(_Scope(), None, _pytestmark(tree.body), constants)
     cases = list(dict.fromkeys(_cases_in(path, tree.body, module, constants)))
-    unplaced = _unplaced_spec_ids(tree)
+    unplaced = _unplaced_spec_ids(tree, source)
     if unplaced:
         cases.append(MarkedCase(path, unplaced, ()))
-    return MarkedFile(_spec_ids_in(tree), tuple(cases))
+    return MarkedFile(_spec_ids_in(tree, source), tuple(cases))
 
 
 def marked_cases_in(path: str, source: str) -> list[MarkedCase]:
@@ -424,21 +468,37 @@ def marked_cases_in(path: str, source: str) -> list[MarkedCase]:
     return list(read_marked_file(path, source).cases)
 
 
-@functools.lru_cache(maxsize=4096)
-def marked_spec_ids(source: str) -> frozenset[str]:
+def marked_spec_ids(source: str, path: str = "<unknown>") -> frozenset[str]:
     """Every ID a ``mark.spec`` call in *source* names (SR-05-005, SR-05-017).
 
     A decorator, a module or class ``pytestmark``, a ``pytest.param(marks=...)``
     entry and a marker built inside a function all count; marker text inside a
-    string literal does not. Cached by text: the growth guards read the head
-    tree and the merge-base tree, which share most files.
+    string literal or a comment does not.
+
+    Args:
+        source: The file's text.
+        path: The file's path, named by a :class:`SyntaxError`.
 
     Raises:
-        SyntaxError: *source* does not parse.
+        SyntaxError: *source* does not parse; the error names *path*.
     """
     if "mark.spec" not in source:
         return frozenset()
-    return _spec_ids_in(ast.parse(source))
+    try:
+        return _parsed_spec_ids(source)
+    except SyntaxError as error:
+        error.filename = path
+        raise
+
+
+@functools.lru_cache(maxsize=2048)
+def _parsed_spec_ids(source: str) -> frozenset[str]:
+    """:func:`marked_spec_ids` of a file with ``mark.spec`` text, cached by text.
+
+    The growth guards read the head tree and the merge-base tree, which share
+    most files, and three guards read them in one run.
+    """
+    return _spec_ids_in(ast.parse(source), source)
 
 
 def _mark_sites(body: Iterable[ast.stmt]) -> Iterator[ast.expr]:
@@ -455,7 +515,7 @@ def _mark_sites(body: Iterable[ast.stmt]) -> Iterator[ast.expr]:
             yield from _mark_sites(stmt.body)
 
 
-def _unplaced_spec_ids(tree: ast.Module) -> frozenset[str]:
+def _unplaced_spec_ids(tree: ast.Module, source: str) -> frozenset[str]:
     """IDs of ``mark.spec`` calls outside every place the reader reads.
 
     Such a marker (in a factory function, under an ``if``) still marks a
@@ -468,8 +528,8 @@ def _unplaced_spec_ids(tree: ast.Module) -> frozenset[str]:
     }
     return frozenset().union(
         *(
-            spec_call_ids(node)
-            for node in ast.walk(tree)
-            if id(node) not in placed
+            spec_call_ids(call)
+            for call in _spec_calls(tree, source)
+            if id(call) not in placed
         )
     )
