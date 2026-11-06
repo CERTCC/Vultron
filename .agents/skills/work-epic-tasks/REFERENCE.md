@@ -34,7 +34,10 @@ SKILL.md step 4 runs on the PR about to merge, never as a sweep of every open
 PR after a merge (PAD-18-009, PAD-18-020, ADR-0138). Only a conflict sends a PR back to
 `pr-ship`; `BEHIND` or overlapping files are cleared by `gh pr update-branch`
 and a green CI run, with no local merge and no local suite. Never merge on red
-or skip a hook.
+or skip a hook — and since ruleset `main-3 Require CI gate` carries no bypass
+actor, GitHub now refuses a merge whose `CI gate` is not green rather than
+leaving that to the agent, so a refused `gh pr merge` is the rule working
+(#5945). Treat it like any refused merge: back through `pr-ship`.
 
 ## Worktrees
 

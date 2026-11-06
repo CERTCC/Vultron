@@ -48,14 +48,15 @@ Record = Mapping[str, object]
 _MISSING = object()
 
 
-def _field(data: Record, camel: str, snake: str) -> object:
-    """*data*'s value for a field stored under its camelCase or snake name.
+def _field(data: Record, name: str) -> object:
+    """*data*'s value for the field the store serves as *name*.
 
-    Returns ``_MISSING`` when the record has neither.
+    The store serves every record by its AS2 (camelCase) name
+    (``AS2JSONResponse``), so a field is read under that name alone; a
+    snake_case key is not a wire term and is never read (VM-10, #6046).
+    Returns ``_MISSING`` when the record lacks it.
     """
-    if camel in data:
-        return data[camel]
-    return data.get(snake, _MISSING)
+    return data.get(name, _MISSING)
 
 
 def _ref_id(value: object) -> str | None:
@@ -72,7 +73,7 @@ def _author(report: object) -> str | None:
     """The author a report's JSON names, or ``None`` when it names none."""
     if not isinstance(report, Mapping):
         return None
-    author = _field(report, "attributedTo", "attributed_to")
+    author = _field(report, "attributedTo")
     return None if author is _MISSING else _ref_id(author)
 
 
@@ -115,7 +116,7 @@ def require_case_role(
         httpx.HTTPStatusError: When the CaseActor's store cannot be read.
     """
     case = _read(case_actor_client, case_id)
-    index = _field(case, "actorParticipantIndex", "actor_participant_index")
+    index = _field(case, "actorParticipantIndex")
     if not isinstance(index, Mapping):
         raise _unreadable(case_id, "has no participant index")
     participant_id = index.get(actor_id)
@@ -126,7 +127,7 @@ def require_case_role(
             "(DEMOCI-11-047)."
         )
     participant = _read(case_actor_client, dl_key(participant_id))
-    roles = _field(participant, "caseRoles", "case_roles")
+    roles = _field(participant, "caseRoles")
     if not isinstance(roles, list):
         raise _unreadable(participant_id, "has no list of case roles")
     if role.value not in roles:
@@ -162,7 +163,7 @@ def require_report_submitter(
         httpx.HTTPStatusError: When the CaseActor's store cannot be read.
     """
     case = _read(case_actor_client, case_id)
-    reports = _field(case, "vulnerabilityReports", "vulnerability_reports")
+    reports = _field(case, "vulnerabilityReports")
     if not isinstance(reports, list):
         raise _unreadable(case_id, "has no list of reports")
     authors: list[str | None] = []

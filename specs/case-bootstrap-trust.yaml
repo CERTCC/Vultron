@@ -664,18 +664,18 @@ groups:
     - story_2022_090
     - story_2022_092
   - id: CBT-04-003
-    priority: MUST
+    priority: MUST_NOT
     kind: protocol
     statement: >-
-      After the late joiner has accepted the stub Invite
-      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`), the CASE_MANAGER MAY send
-      `Announce(VulnerabilityCase)`
-      without a separate `Create(VulnerabilityCase)` bootstrap.
+      The CASE_MANAGER MUST NOT send a late joiner a `Create(VulnerabilityCase)`.
+      After the joiner accepts the stub Invite
+      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`), the CASE_MANAGER seeds
+      the joiner's replica with `Announce(VulnerabilityCase)`.
     rationale: >-
-      The accepted stub Invite already gives the joiner its Trust Anchor
-      (CBT-04-001). A further `Create(VulnerabilityCase)` adds a second trust step
-      with nothing new to check, and it uses `Create` for a case the joiner did not
-      see created.
+      A late joiner is told what the case already is, which is an `Announce`. It did
+      not witness the case's initialization, which is what a `Create` reports. The
+      accepted stub Invite already gives the joiner its Trust Anchor (CBT-04-001), so
+      a `Create` would also add a second trust step with nothing new to check.
     verification: >-
       `test_the_stub_invite_is_the_late_joiners_trust_anchor` in
       `test/demo/test_pcr_late_joiner.py` confirms that after a late

@@ -645,6 +645,35 @@ class TestCaseOnTheWireCarriesItsParticipants:
         [report] = wire_case["vulnerabilityReports"]
         assert report["id"] == report_id and report["content"] == "PoC"
 
+    @pytest.mark.spec("VM-10-005")
+    @pytest.mark.spec("AKM-02-004")
+    @pytest.mark.parametrize("verb", ["create", "announce"])
+    def test_the_carried_case_is_one_document(self, adapter, dl, verb):
+        """The case and the objects it carries render inside the activity:
+        no nested ``@context``, and the reports only under
+        ``vulnerabilityReports`` (#6046)."""
+        case, _, report_id = self._case_with_participant_ids(dl)
+        if verb == "create":
+            activity_id, _ = adapter.create_case(
+                case_id=case.id_, actor=_ACTOR, to=[_PEER]
+            )
+        else:
+            activity_id = adapter.announce_vulnerability_case(
+                case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+            )
+
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        assert "@context" in body, "the activity itself carries the context"
+        wire_case = body["object"]
+        assert "vulnerability_reports" not in wire_case
+        [report] = wire_case["vulnerabilityReports"]
+        assert report["id"] == report_id
+        carried = [wire_case, report, *wire_case["caseParticipants"]]
+        assert [obj["id"] for obj in carried if "@context" in obj] == []
+
     @pytest.mark.spec("CBT-01-007")
     def test_create_case_refuses_a_participant_the_sender_cannot_read(
         self, adapter, dl
