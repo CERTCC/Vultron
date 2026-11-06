@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Create",
   "id": "urn:uuid:fbfd8da0-40e0-4a2c-8794-b290cb971011",
   "name": "https://vultron.example/users/finndervul Create FDR-8675309",

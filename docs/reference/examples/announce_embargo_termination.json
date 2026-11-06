@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Announce",
   "id": "urn:uuid:1dbd4608-ec99-4fbc-9b55-caf8512cd9b8",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Announce Embargo for VendorCo Case #20260601",

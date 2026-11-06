@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Update",
   "id": "urn:uuid:4bc281de-9275-525f-b4e1-2671dcace1bb/update",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Update urn:uuid:4bc281de-9275-525f-b4e1-2671dcace1bb",

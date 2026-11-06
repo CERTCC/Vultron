@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Leave",
   "id": "urn:uuid:51c5ebbb-9095-47be-b49c-b854df2a2ec6",
   "name": "https://vultron.example/users/finndervul Leave Embargo for VendorCo Case #20260601",

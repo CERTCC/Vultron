@@ -1,12 +1,12 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Reject",
   "id": "urn:uuid:663cc1e5-45b1-4db4-a521-4bcfab4384fb",
   "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
   "content": "We're declining your offer to transfer ownership of case VendorCo Case #20260601 to us.",
   "actor": "https://vultron.example/organizations/coordinator",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Offer",
     "id": "urn:uuid:f40a28b0-42df-4530-8be5-4dd155a7f2b0",
     "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
@@ -19,7 +19,7 @@
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "actor": "https://vultron.example/case-actors/vendorco-case-actor",
     "target": {
-      "@context": "https://www.w3.org/ns/activitystreams",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Actor",
       "id": "https://vultron.example/organizations/coordinator"
     },

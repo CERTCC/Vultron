@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Remove",
   "id": "urn:uuid:6c3be136-e8db-4a8f-91e6-c8a97aa0b7b7",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Remove Embargo for VendorCo Case #20260601 from urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",

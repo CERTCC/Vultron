@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Add",
   "id": "urn:uuid:baf90f4a-0626-4f16-9171-0448af271ffc",
   "name": "https://vultron.example/organizations/vendorco Add Finn der Vul to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",

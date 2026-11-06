@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Create",
   "id": "urn:uuid:9344e364-f6a8-4649-879c-5bacaa564cfb",
   "name": "https://vultron.example/organizations/vendorco Create VendorCo Case #20260602",

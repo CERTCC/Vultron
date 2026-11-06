@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Join",
   "id": "urn:uuid:b7bdf598-2a01-4afb-8ac6-642c64da31d6",
   "name": "https://vultron.example/organizations/vendorco Join urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",

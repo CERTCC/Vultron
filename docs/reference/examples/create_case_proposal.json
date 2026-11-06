@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Create",
   "id": "urn:uuid:b7ea11b6-fc44-49eb-b4a5-871add599847",
   "name": "VendorCo Create urn:uuid:27de30c4-15bc-4ec2-aadc-83294c9f5388",

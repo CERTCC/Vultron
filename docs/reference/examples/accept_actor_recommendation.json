@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Accept",
   "id": "urn:uuid:36167b05-8850-41bc-93a2-7575ec936923",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Accept https://vultron.example/users/finndervul Offer Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -10,7 +10,7 @@
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Offer",
     "id": "urn:uuid:9e807826-2cf4-4c6e-9d92-01d797478051",
     "name": "https://vultron.example/users/finndervul Offer Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -22,20 +22,20 @@
     "actor": "https://vultron.example/users/finndervul",
     "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
     "object": {
-      "@context": "https://www.w3.org/ns/activitystreams",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Organization",
       "id": "https://vultron.example/organizations/coordinator",
       "name": "Coordinator LLC",
       "published": "2026-06-01T19:12:00.000000+00:00",
       "updated": "2026-06-01T19:12:00.000000+00:00",
       "inbox": {
-        "@context": "https://www.w3.org/ns/activitystreams",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
         "type": "OrderedCollection",
         "id": "https://vultron.example/organizations/coordinator/inbox",
         "items": []
       },
       "outbox": {
-        "@context": "https://www.w3.org/ns/activitystreams",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
         "type": "OrderedCollection",
         "id": "https://vultron.example/organizations/coordinator/outbox",
         "items": []

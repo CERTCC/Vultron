@@ -1,12 +1,12 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Accept",
   "id": "urn:uuid:f4740aec-67af-4680-b41a-2427e33edef3",
   "name": "https://vultron.example/organizations/vendorco Accept https://vultron.example/users/finndervul Offer FDR-8675309",
   "content": "We've validated the report. We'll be creating a case shortly.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Offer",
     "id": "urn:uuid:0ff0a347-3e73-4af8-b221-af087d20f7b7",
     "name": "https://vultron.example/users/finndervul Offer FDR-8675309",

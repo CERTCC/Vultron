@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Add",
   "id": "urn:uuid:5de88e01-e38d-4cb0-aa7c-547b7ba79384",
   "name": "https://vultron.example/organizations/vendorco Add VendorCo to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",

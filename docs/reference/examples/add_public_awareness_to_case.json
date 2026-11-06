@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Add",
   "id": "urn:uuid:752d9d3f-fbec-4525-a22a-a5f3fa93500a",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Add NONE Pxa to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",

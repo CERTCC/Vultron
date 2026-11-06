@@ -54,6 +54,9 @@ A message is therefore readable as ordinary JSON while remaining unambiguous abo
 An outbound message sets `@context` to the Vultron JSON-LD context document URI, `https://certcc.github.io/Vultron/ns/context.jsonld`.
 That context document imports the AS2 namespace and declares every Vultron type name.
 An implementation therefore cites only the Vultron URI and does not need to declare the AS2 namespace separately.
+An object nested in an activity can restate the same `@context`, and restating it changes nothing about how the object's terms are read.
+The reference implementation does this for the objects it builds, because each one carries the context it would carry if it were sent on its own.
+An object it received and embeds keeps the `@context` it arrived with.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-001"))
@@ -139,7 +142,7 @@ Once an actor's profile is known, its inbox is the endpoint the profile names.
 
 The exchanges below show occasions of [§4 Messages](layers.md#4-messages-n) as they appear on the wire.
 Each one is given first in Wire Activity notation and then as the JSON a sender delivers.
-The identifiers, timestamps and hashes are illustrative, and optional fields such as `name` and `updated` are left out.
+The identifiers, timestamps and hashes are illustrative, and optional fields such as `name` and `updated` are left out, as is a nested object's restatement of its activity's `@context` ([§5.2 Serialization](layers.md#52-serialization)).
 Every activity carries the `published` timestamp its sender stamps on it ([CLP-15-006](requirements/ledger-replication.md#clp-15-006)).
 
 #### Submitting a report

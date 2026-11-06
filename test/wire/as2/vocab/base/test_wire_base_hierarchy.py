@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 
 from vultron.core.models._helpers import URN_UUID_PREFIX
 from vultron.core.models.base import CoreObject, CoreRecord
-from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI, as_Base
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 
@@ -71,10 +71,14 @@ def test_as_base_id_uses_wire_default():
     assert obj.id_.startswith(URN_UUID_PREFIX)
 
 
-def test_as_base_context_is_as2_namespace():
-    """Wire branch: context_ defaults to the AS2 namespace, not None."""
+def test_as_base_context_is_the_vultron_context():
+    """Wire branch: context_ defaults to the Vultron context (VM-10-001).
+
+    The Vultron context imports AS2, so an activity citing it lets a receiver
+    expand Vultron terms from the activity's own context (#5168).
+    """
     obj = as_Base()
-    assert obj.context_ == "https://www.w3.org/ns/activitystreams"
+    assert obj.context_ == VULTRON_CONTEXT_URI
 
 
 def test_as_base_type_set_from_class_name():

@@ -1,12 +1,12 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Undo",
   "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1/invites/coordinator/undo",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Undo https://vultron.example/case-actors/vendorco-case-actor Invite Embargo for VendorCo Case #20260601",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Invite",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1/invites/coordinator",
     "name": "https://vultron.example/case-actors/vendorco-case-actor Invite Embargo for VendorCo Case #20260601",

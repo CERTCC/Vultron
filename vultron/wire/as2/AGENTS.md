@@ -186,8 +186,8 @@ for all AS2 pitfalls (pattern matching, Union serialization, wire format vs.
 domain model, `serialize_as_any=True`, rehydration, bootstrap activities, etc.).
 
 **Outbound `@context` MUST cite the Vultron namespace, not only AS2** —
-`as_VultronObject.context_` MUST default to the Vultron JSON-LD context URI
-(`https://certcc.github.io/Vultron/ns/context.jsonld`), not the bare
+`as_Base.context_`, and so every activity, MUST default to the Vultron JSON-LD
+context URI (`https://certcc.github.io/Vultron/ns/context.jsonld`), not the bare
 ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`). The AS2
 namespace does not declare Vultron-specific types (`VulnerabilityCase`,
 `EmbargoEvent`, etc.); using it alone means receivers cannot resolve those type
@@ -195,5 +195,6 @@ names. The Vultron context document imports AS2 internally, so citing only the
 Vultron URI is both correct and sufficient. Domain types are core
 `CoreObject`s (ARCH-25-003), not `as_VultronObject` subclasses: they get
 the same context from `CoreObject`'s `by_alias` serializer, not from delivery
-(#3490). See VM-10-001, ADR-0069.
+(#3490). Defaulting it only on Vultron objects left the outer activity on AS2
+(#5168). See VM-10-001, ADR-0069.
 *Source: CONCERN-2105*
