@@ -73,6 +73,21 @@ def datalayer():
 
 
 @pytest.fixture
+def case_actor(datalayer):
+    """The CASE_MANAGER the replay sends as: the store's own actor.
+
+    Shadows the package fixture, whose actor has a minted id.  A replay's
+    Announce is signed by its sender, and an outbox signs only its own
+    actor's activities (SIG-05-004), so the sender is the store's owner.
+    """
+    actor = VultronService(
+        id_=OWNER_ACTOR_ID, name="Case Actor", context=CASE_ID
+    )
+    datalayer.create(actor)
+    return actor
+
+
+@pytest.fixture
 def case_obj(datalayer):
     """A case that seats the replaying peer as a joined participant.
 

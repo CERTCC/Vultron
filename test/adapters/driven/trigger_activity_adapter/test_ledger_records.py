@@ -63,6 +63,8 @@ def _consent_row(state: EmbargoConsentState) -> EmbargoConsent:
 
 
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+#: The actor whose store the adapter writes to (SIG-05-004).
+STORE_OWNER = CASE_ACTOR_ID
 CASE_ID = "https://example.org/cases/urn:uuid:snapshot-test"
 REPORT_ID = "https://example.org/reports/urn:uuid:report-1"
 OFFER_ID = "https://example.org/activities/urn:uuid:offer-1"

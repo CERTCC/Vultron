@@ -56,6 +56,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
+#: The actor whose store the adapter writes to (SIG-05-004).
+STORE_OWNER = _ACTOR
 _PEER = "https://example.org/actors/vendor"
 _CONTEXT_ID = "https://example.org/contexts/ctx-001"
 
@@ -533,7 +535,7 @@ class TestAnnounceVulnerabilityCase:
         from vultron.adapters import outbox_sealed_body
         from vultron.wire.as2.errors import VultronUnsignableJsonError
 
-        def _refuse(_activity):
+        def _refuse(_activity, _owner_id):
             raise VultronUnsignableJsonError("value cannot be canonicalized")
 
         monkeypatch.setattr(

@@ -34,6 +34,8 @@ from vultron.wire.as2.vocab.examples.status import (
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
+#: The actor whose store the adapter writes to (SIG-05-004).
+STORE_OWNER = _ACTOR
 _SENDER = "https://example.org/actors/vendor"
 _FAILED_ACTIVITY = "https://example.org/activities/act-001"
 
@@ -47,7 +49,7 @@ class TestEmitProcessingFault:
         from vultron.adapters import outbox_sealed_body
         from vultron.wire.as2.errors import VultronUnsignableJsonError
 
-        def _refuse(_activity: Any) -> str:
+        def _refuse(_activity: Any, _owner_id: str) -> str:
             raise VultronUnsignableJsonError("value cannot be canonicalized")
 
         monkeypatch.setattr(

@@ -34,6 +34,7 @@ from vultron.adapters.outbox_sealed_body import (
 from vultron.errors import VultronValidationError
 from vultron.wire.as2 import signing
 from vultron.wire.as2.errors import (
+    VultronForeignAuthorError,
     VultronProofInvalidError,
     VultronUnsignableJsonError,
 )
@@ -54,14 +55,14 @@ def dl():
     _dl.close()
 
 
-def _invite():
+def _invite(actor: str = _ACTOR):
     case = as_VulnerabilityCase(
         name="CVE-2026-0001",
         stub_summary="RCE in widget for stub test",
         attributed_to=_ACTOR,
     )
     return rm_invite_to_case_activity(
-        invitee=_INVITEE, target=case, actor=_ACTOR, to=[_INVITEE]
+        invitee=_INVITEE, target=case, actor=actor, to=[_INVITEE]
     )
 
 
@@ -131,6 +132,62 @@ def test_seal_refuses_an_activity_naming_no_actor(dl):
     with pytest.raises(VultronUnsignableJsonError, match="names no actor"):
         seal_outbound_body(dl, invite)
     assert read_sealed_body(dl, invite.id_) is None
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_seal_refuses_an_activity_another_actor_wrote(dl, monkeypatch):
+    """An actor's store never signs or seals an activity naming another actor.
+
+    The refusal comes before the signer computes any key and before the
+    store is read or written.
+    """
+    foreign = _invite(actor=_INVITEE)
+    computed: list[str] = []
+    monkeypatch.setattr(signing, "seeded_signing_key", computed.append)
+
+    with pytest.raises(VultronForeignAuthorError, match="SIG-05-004"):
+        seal_outbound_body(dl, foreign)
+    assert computed == [], "no key was computed for the foreign author"
+    assert read_sealed_body(dl, foreign.id_) is None
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_seal_refuses_an_inline_actor_naming_another_actor(dl):
+    """An inline ``actor`` object is read by its id, and refused the same way."""
+    foreign = _invite().model_copy(update={"actor": {"id": _INVITEE}})
+
+    with pytest.raises(VultronForeignAuthorError):
+        seal_outbound_body(dl, foreign)
+    assert read_sealed_body(dl, foreign.id_) is None
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_seal_accepts_the_owner_spelled_with_a_trailing_slash(dl):
+    """``…/coordinator/`` is the store's own actor, signed with its own key."""
+    invite = _invite(actor=f"{_ACTOR}/")
+
+    body = json.loads(seal_outbound_body(dl, invite))
+
+    assert body["proof"]["verificationMethod"] == signing.key_id_for(_ACTOR)
+    signing.verify(body, _published_key(_ACTOR))
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_sign_as_author_refuses_a_foreign_author():
+    """The signer itself refuses a document its owner did not write."""
+    document = {"id": "urn:uuid:x", "actor": _INVITEE}
+
+    with pytest.raises(VultronForeignAuthorError):
+        signing.sign_as_author(document, owner_id=_ACTOR)
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_sign_as_author_refuses_an_empty_owner():
+    """No owner is no one to sign as, never every actor."""
+    with pytest.raises(VultronForeignAuthorError):
+        signing.sign_as_author(
+            {"id": "urn:uuid:x", "actor": _ACTOR}, owner_id=""
+        )
 
 
 @pytest.mark.spec("VM-08-003")

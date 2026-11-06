@@ -232,7 +232,10 @@ def test_a_signed_outbound_body_lists_every_context_and_parses():
 def _signed_example(example: str) -> dict[str, Any]:
     """The sealed (signed) body of the example built by *example*."""
     [build] = [b for b, _filename in EXAMPLES if b.__name__ == example]
-    signed: dict[str, Any] = json.loads(signed_outbound_body(build()))
+    activity = build()
+    # Signed as its own author's outbox signs it (SIG-05-004).
+    author = signing.author_of(json.loads(dump_outbound_body(activity)))
+    signed: dict[str, Any] = json.loads(signed_outbound_body(activity, author))
     return signed
 
 

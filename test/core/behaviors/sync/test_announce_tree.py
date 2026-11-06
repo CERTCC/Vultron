@@ -825,8 +825,13 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
             return updated.consent_for(_ENTRY_EMBARGO_ID)
 
         assert _state() is EmbargoConsentState.INVITED
+        # The CASE_MANAGER builds and signs the entry in its own store
+        # (SIG-05-004); the participant's replica only receives it.
+        manager_dl = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=case_actor.id_
+        )
         _, blob = TriggerActivityAdapter(
-            datalayer
+            manager_dl
         ).record_embargo_consent_updated(
             row=EmbargoConsent(
                 embargo_id=_ENTRY_EMBARGO_ID,

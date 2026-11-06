@@ -29,6 +29,8 @@ from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR = "https://example.org/actors/coordinator"
+#: The actor whose store the adapter writes to (SIG-05-004).
+STORE_OWNER = _ACTOR
 _PEER = "https://example.org/actors/vendor"
 _PROPOSER = "https://example.org/actors/proposer"
 _CASE_ID = "https://example.org/cases/case-001"
@@ -170,9 +172,10 @@ class TestProposeEmbargo:
         assert "endTime" not in json.loads(blob)
 
 
+@pytest.mark.parametrize("store_owner", [_PEER])
 class TestAcceptEmbargo:
     def test_returns_id_and_dict(self, adapter, dl):
-        proposal_id, _ = _make_proposal(adapter, dl)
+        proposal_id, _ = _received_proposal(dl)
 
         activity_id, activity_dict = adapter.accept_embargo(
             proposal_id=proposal_id,
@@ -184,7 +187,7 @@ class TestAcceptEmbargo:
         assert isinstance(activity_dict, str)
 
     def test_persists_accept_activity(self, adapter, dl):
-        proposal_id, _ = _make_proposal(adapter, dl)
+        proposal_id, _ = _received_proposal(dl)
 
         activity_id, _ = adapter.accept_embargo(
             proposal_id=proposal_id,
@@ -204,7 +207,7 @@ class TestAcceptEmbargo:
         it verbatim as ``object_`` of the Accept.  The serialised dict MUST
         contain the proposal id as ``object.id``, not a bare URI string.
         """
-        proposal_id, _ = _make_proposal(adapter, dl)
+        proposal_id, _ = _received_proposal(dl)
 
         _, activity_dict = adapter.accept_embargo(
             proposal_id=proposal_id,
@@ -240,6 +243,7 @@ _ANSWER_METHODS = [
 ]
 
 
+@pytest.mark.parametrize("store_owner", [_PEER])
 class TestAnswerReceivedEmbargoInvite:
     """The answer reads a received Invite from its archive (DL-06-006)."""
 
@@ -274,6 +278,7 @@ class TestAnswerReceivedEmbargoInvite:
             )
 
 
+@pytest.mark.parametrize("store_owner", [_PEER])
 class TestAutomaticAnswerId:
     """The automatic answer to one Invite is one activity (ID-04-004)."""
 
@@ -394,9 +399,10 @@ class TestAutomaticAnswerId:
         assert derived_id not in ids
 
 
+@pytest.mark.parametrize("store_owner", [_PEER])
 class TestRejectEmbargo:
     def test_returns_id_and_dict(self, adapter, dl):
-        proposal_id, _ = _make_proposal(adapter, dl)
+        proposal_id, _ = _received_proposal(dl)
 
         activity_id, activity_dict = adapter.reject_embargo(
             proposal_id=proposal_id,
@@ -408,7 +414,7 @@ class TestRejectEmbargo:
         assert isinstance(activity_dict, str)
 
     def test_persists_reject_activity(self, adapter, dl):
-        proposal_id, _ = _make_proposal(adapter, dl)
+        proposal_id, _ = _received_proposal(dl)
 
         activity_id, _ = adapter.reject_embargo(
             proposal_id=proposal_id,
@@ -428,7 +434,7 @@ class TestRejectEmbargo:
         it verbatim as ``object_`` of the Reject.  The serialised dict MUST
         contain the proposal id as ``object.id``, not a bare URI string.
         """
-        proposal_id, _ = _make_proposal(adapter, dl)
+        proposal_id, _ = _received_proposal(dl)
 
         _, activity_dict = adapter.reject_embargo(
             proposal_id=proposal_id,

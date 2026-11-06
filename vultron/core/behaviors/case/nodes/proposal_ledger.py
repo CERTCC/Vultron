@@ -55,7 +55,6 @@ from vultron.core.models.participant_semantic_types import (
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.sync_helpers.recorded_entries import (
     _find_equivalent_recorded_entry,
 )
@@ -67,8 +66,8 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     """Commit canonical ledger entries natively for a new case's initialization.
 
     The CASE_MANAGER runs it: the CaseActor on the proposal path, the
-    creating actor on the create-case trigger path, where *owner_uri* is that
-    same actor.
+    creating actor on the create-case trigger path.  Every entry's ``actor``
+    is the CASE_MANAGER, the actor that signs it (SIG-05-005).
 
     Commits entries in causal order per ADR-0041 AC-4:
 
@@ -80,10 +79,9 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
       4. per seated record, ``create_case_participant`` carrying it as
          created, then ``add_participant_status_to_participant`` for each
          later status (CLP-07-013, CM-23-007)  actor=CaseActor
-      5. ``add_case_status_to_case``         actor=owner (the receiver set the
-         genesis case status; the actor is provenance, since the validator
-         checks the signature, not who authored it, and the commit itself is
-         role-gated, CLP-09-001)
+      5. ``add_case_status_to_case``         actor=CaseActor (the receiver
+         set the genesis case status, so the status's ``attributed_to``
+         names it; the activity's ``actor`` is its signer, SIG-05-005)
 
     Every entry is required (CLP-07-013): the first entry that fails to
     commit stops the sequence, so no later entry is committed out of order,
@@ -108,14 +106,12 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
 
     def __init__(
         self,
-        owner_uri: str,
         report_id: str | None,
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._owner_uri = owner_uri
         self._report_id = report_id
         self._offer_id = offer_id
         self._offer_actor_id = offer_actor_id
@@ -380,15 +376,8 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     ) -> None:
         assert self.datalayer is not None
         port = self._require_trigger_activity_port()
-        # The owner as the case spells it, when it is this proposer: a case
-        # stored before #4772 may hold the sender's trailing-slash spelling,
-        # and the equivalence check compares the snapshot's actor verbatim.
-        stored_owner = case.attributed_to
-        actor = (
-            stored_owner
-            if same_actor_id(stored_owner, self._owner_uri)
-            else self._owner_uri
-        )
+        assert self.actor_id is not None
+        actor = self.actor_id
         for status_ref in case.case_statuses:
             if isinstance(status_ref, CaseStatus):
                 status = status_ref
@@ -465,9 +454,8 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             # 4. per record: create_case_participant, then its later
             #    statuses  (actor = CaseActor)
             self._commit_participant_records(case, case_id)
-            # 5. add_case_status  (actor = owner_uri — provenance, not a guard
-            #    constraint: the validator checks the signature, not its
-            #    author, and the commit is role-gated, CLP-09-001)
+            # 5. add_case_status  (actor = CaseActor, its signer; the
+            #    status's attributed_to names the owner, SIG-05-005)
             self._commit_case_statuses(case, case_id)
         except _EntryNotCommitted as exc:
             failed = str(exc)

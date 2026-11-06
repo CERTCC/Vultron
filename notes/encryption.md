@@ -74,6 +74,18 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   keys, storage and rotation are #1184 (ENC-01-001, ENC-01-004 to ENC-01-006).
   A `SigningKey` exports no private key and shows only its public half, so
   logging one discloses nothing (ENC-01-007).
+- **An outbox signs only its own actor's messages** (SIG-05-004). The seed
+  scheme is guessable by design, so any code could compute any actor's key;
+  the guarantee is that only the owning actor's outbox calls the signer for
+  that actor. `seal_outbound_body` passes its store's `actor_id` (DL-07-004)
+  to `sign_as_author`, which refuses an activity whose `actor` names anyone
+  else with `VultronForeignAuthorError` before signing or storing. Never
+  sign through a store that is not the author's, and never add a fallback.
+- **`actor` is the signer; `attributed_to` is the initiator** (SIG-05-005).
+  An actor that sends on another's behalf, such as the CASE_MANAGER recording
+  a status the case owner set, names itself as `actor` and carries the owner
+  in `attributed_to`. When the actor initiated it, leave `attributed_to` out:
+  it would only repeat the `actor`.
 - **One module signs and verifies** (SIG-05-003): `vultron/wire/as2/signing.py`,
   the way `vultron.wire.as2.factories` owns outbound construction. Tests sign
   through a shared test helper built on it, never by hand. A verifier passes it

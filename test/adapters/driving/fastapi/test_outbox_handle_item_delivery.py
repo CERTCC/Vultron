@@ -212,7 +212,7 @@ def test_handle_outbox_item_delivers_an_activitystreams_activity():
     sealed = SealedOutboundBody(
         id_=sealed_body_id(offer.id_),
         activity_id=offer.id_,
-        body=signed_outbound_body(offer),
+        body=signed_outbound_body(offer, SENDER),
     )
     mock_emitter = AsyncMock()
 

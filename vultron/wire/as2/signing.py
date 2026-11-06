@@ -25,7 +25,9 @@ canonical forms of the proof options and of the document.  Public keys are
 **Seeded keys make no security claim.**  :func:`seeded_signing_key` computes a
 prototype actor's key pair from a fixed seed tied to its actor id
 (SIG-05-001), so proofs repeat across runs.  Anyone who knows the scheme can
-compute any actor's private key: never deploy seeded keys.  Verification never
+compute any actor's private key: never deploy seeded keys.  So the code
+holds the line the keys cannot: an actor's outbox signs only that actor's own
+messages (:func:`sign_as_author`, SIG-05-004).  Verification never
 derives a key from a seed (SIG-05-002); it takes the published
 ``publicKeyMultibase`` from the author's profile.
 
@@ -57,7 +59,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 
 from vultron.core.models._helpers import format_timestamp, now_utc
 from vultron.core.models.multikey import MULTIKEY_TYPE, Multikey
+from vultron.primitives import normalise_actor_id
 from vultron.wire.as2.errors import (
+    VultronForeignAuthorError,
     VultronMultikeyError,
     VultronProofInvalidError,
     VultronUnsignableJsonError,
@@ -145,9 +149,13 @@ def seeded_signing_key(actor_id: str) -> SigningKey:
     """The prototype key pair for *actor_id*, computed from a fixed seed.
 
     The same actor id gives the same key in every process and store
-    (SIG-05-001).  This makes **no security claim**: anyone who knows the
-    scheme can compute the private key.  Only the key's owner calls this;
-    a verifier reads the published key instead (SIG-05-002).
+    (SIG-05-001).  This makes **no security claim**: the scheme is guessable
+    by design (ADR-0164 prototype; real per-actor secret keys are #1184), so
+    anyone who knows it can compute any actor's private key.  The guarantee
+    is in the code instead: only the owning actor's outbox signs for that
+    actor, through :func:`sign_as_author`, which refuses a document another
+    actor wrote (SIG-05-004).  A verifier reads the published key instead
+    (SIG-05-002).
     """
     if not actor_id:
         raise ValueError("a seeded key needs a non-empty actor id")
@@ -410,21 +418,52 @@ def author_of(document: Mapping[str, Any]) -> str:
 def sign_as_author(
     document: Mapping[str, Any],
     *,
+    owner_id: str,
     created: datetime | str | None = None,
 ) -> dict[str, Any]:
     """*document* signed with its author's own seeded key (:func:`sign`).
 
-    For the author's own outbox only: the owner is the one party that
-    computes its seeded key (SIG-05-001, SIG-05-002).  A verifier reads the
-    published key instead.
+    For the author's own outbox only.  *owner_id* is the actor whose store
+    and outbox are signing; the document's ``actor`` must name that same
+    actor, differing at most by a trailing slash, or nothing is signed
+    (SIG-05-004).  The proof is made with the owner's key and names the
+    owner's key id.
+
+    The seed scheme is guessable by design (ADR-0164; real per-actor secret
+    keys are #1184), so any code could compute any actor's key.  The
+    guarantee is in the code instead: only the owning actor's outbox calls
+    the signer, and only for that actor.  A verifier reads the published
+    key instead (SIG-05-002).
 
     Raises:
         VultronUnsignableJsonError: *document* names no actor
             (:func:`author_of`), or :func:`sign` refuses it.
+        VultronForeignAuthorError: *document*'s ``actor`` is not *owner_id*.
     """
-    return sign(
-        document, seeded_signing_key(author_of(document)), created=created
-    )
+    owner = require_own_document(document, owner_id)
+    return sign(document, seeded_signing_key(owner), created=created)
+
+
+def require_own_document(document: Mapping[str, Any], owner_id: str) -> str:
+    """Return *owner_id*, normalised, when *document* is that actor's own.
+
+    The ``actor`` of *document* (:func:`author_of`) and *owner_id* are
+    compared without a trailing slash (OID-01-006).
+
+    Raises:
+        VultronUnsignableJsonError: *document* names no actor.
+        VultronForeignAuthorError: *owner_id* is empty, or the document's
+            ``actor`` names another actor (SIG-05-004).
+    """
+    author = author_of(document)
+    owner = normalise_actor_id(owner_id) if owner_id else ""
+    if not owner or normalise_actor_id(author) != owner:
+        raise VultronForeignAuthorError(
+            f"{document.get('id', 'a document without an id')} is written by"
+            f" '{author}', not by '{owner_id}' whose outbox is sealing it; an"
+            " actor signs only its own messages (SIG-05-004)"
+        )
+    return owner
 
 
 def proof_verification_method(document: Mapping[str, Any]) -> str:
@@ -567,6 +606,7 @@ __all__ = [
     "load_json",
     "proof_verification_method",
     "published_multikey",
+    "require_own_document",
     "seeded_signing_key",
     "sign",
     "sign_as_author",
