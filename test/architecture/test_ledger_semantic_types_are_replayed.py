@@ -37,7 +37,7 @@ and each change the CASE_MANAGER makes there is now its own replayed entry
 
 The declared set is matched by no slot, so the change that adds a replay
 fails here until it moves the row to :data:`REPLAYED`.  The classification and
-the committed set are held to equality (TB-10-002): a new committed type, or a
+the committed set are held to equality (ARCH-18-001): a new committed type, or a
 row for a type no longer committed, fails the ratchet.
 
 :data:`AWAITING_COMMIT` lists types classified ahead of the commit that will
@@ -247,7 +247,7 @@ def test_the_derivation_finds_both_commit_paths():
 
 @pytest.mark.spec("RSH-08-004")
 def test_every_committed_semantic_type_is_classified_exactly_once():
-    """The classification equals the committed set (TB-10-002)."""
+    """The classification equals the committed set (ARCH-18-001)."""
     tables = {
         "REPLAYED": set(REPLAYED) - set(AWAITING_COMMIT),
         "NO_REPLICA_EFFECT": set(NO_REPLICA_EFFECT) - set(AWAITING_COMMIT),

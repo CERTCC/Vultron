@@ -220,8 +220,13 @@ groups:
       current case state and their role
     rationale: >-
       The CVD actions that a participant can take depend on the case state and on the
-      participant's role. Without an endpoint, each client must copy these rules and
-      keep its copy current. An answer from the server keeps the rules in one place.
+      participant's role, across several state machines, so a client finds them hard
+      to calculate correctly. Without an endpoint, each client must copy these rules
+      and keep its copy current. An answer from the server gives every client the same
+      answer and keeps the rules in one place.
+    stories:
+    - story_2022_031
+    - story_2026_044
   - id: AR-07-002
     priority: MUST
     kind: project

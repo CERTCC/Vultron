@@ -350,7 +350,7 @@ class GrantCaseParticipantRoleNode(DataLayerAction, StateWriteCapable):
     The grant is the CASE_MANAGER's committed ``accept_case_participant_role``
     entry, never the Offer's receipt (CM-33-009, CM-02-016), so no tree
     composes this node on the Offer; the target's Accept tree does, after the
-    CASE_MANAGER commits the Accept (CM-33-020,
+    CASE_MANAGER commits the Accept (CM-02-016,
     ``vultron.core.behaviors.case.role_offer_answer_tree``).  It runs as a
     ``manager_effects`` entry, so the factory's CASE_MANAGER gate (BT-17-008)
     fires it only at the CASE_MANAGER — the ledger holder, which excludes

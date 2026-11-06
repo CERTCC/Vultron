@@ -65,6 +65,9 @@ from vultron.core.models.pending_assertion import registry as pending_assertion
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.services.sender_sequence_order import (
+    queue_due_sender_sequence_replays,
+)
 from vultron.semantic_registry import use_case_map
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
@@ -98,7 +101,10 @@ def run_use_case(
     It is composed with the ports it accepts, as the inbox composes it, minus
     the ones named in *without*.  Then delivers each held ``Announce`` the
     run replayed through the receiver's own inbox (SYNC-14-009), oldest
-    first, as the inbox loop does after a delivery.  Returns the first delivery's own verdict.
+    first, as the inbox loop does after a delivery.  Each run first queues
+    the held activities it made due, as the inbox's dispatch does
+    (``queue_due_held_activities``, SYNC-21-008).  Returns the first
+    delivery's own verdict.
     """
     use_case = use_case_map()[event.semantic_type]
     offered: dict[str, Any] = {
@@ -112,16 +118,32 @@ def run_use_case(
         k: v for k, v in offered.items() if k in accepted and k not in without
     }
     verdict = use_case(dl, event, **ports).execute()
+    replay_inbox(dl, event.receiving_actor_id, without=without)
+    return verdict
+
+
+def replay_inbox(
+    dl: SqliteDataLayer,
+    receiving_actor_id: str | None,
+    *,
+    without: frozenset[str] = frozenset(),
+) -> None:
+    """Replay what *dl*'s inbox queue holds, oldest first, as the inbox does.
+
+    First queues the held activities now due for their replay, as the
+    inbox's dispatch does (``queue_due_held_activities``, SYNC-21-008); each
+    replay is run as a delivery of its own (:func:`run_use_case`).
+    """
+    queue_due_sender_sequence_replays(dl, InboxReplayAdapter(cast(Any, dl)))
     while (queued_id := dl.inbox_pop()) is not None:
         replayed = received_event(
             cast(
                 as_Activity,
                 InlineObjectStaging(dl).rehydrate_deferred(queued_id),
             ),
-            receiving_actor_id=event.receiving_actor_id,
+            receiving_actor_id=receiving_actor_id,
         )
         run_use_case(dl, replayed, without=without)
-    return verdict
 
 
 def receive_into(

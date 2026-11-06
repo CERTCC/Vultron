@@ -104,9 +104,15 @@ def _invited_only(
 
 
 def _reject(net: _Network, actor: str, index: int = 0) -> HandlerResult:
-    """*actor* rejects its *index*-th relayed Invite; the manager receives it."""
+    """*actor* rejects its *index*-th relayed Invite; the manager receives it.
+
+    The replica's own answer to the Invite stays in its outbox, so the
+    test's Reject stands in for it and takes its number
+    (``withdraw_unsent_numbers``, SYNC-21-002).
+    """
     net.deliver(MANAGER, to=actor, type_="Invite")
     invite = net.queued(MANAGER, to=actor, type_="Invite")[index]
+    net.withdraw_unsent_numbers(actor)
     _, sealed = TriggerActivityAdapter(net.stores[actor]).reject_embargo(
         proposal_id=invite.id_, case_id=net.case_id, actor=actor, to=[MANAGER]
     )

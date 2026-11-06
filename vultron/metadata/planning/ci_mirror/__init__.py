@@ -32,7 +32,9 @@ because what it checks must be what the push sends.
 
 Output contract (stable; pipeline skills parse it): one line per check,
 ``<STATUS> <id> (<seconds>s) <reason>``, then ``mirror exit: <code>``.
-Exit 0 when nothing blocks, 1 when any check is ``FAIL`` or ``UNAVAILABLE``
+Exit 0 when nothing blocks, 1 when any check is ``FAIL``, ``NO-VERDICT`` (its
+environment stopped it: a ``--timeout`` trip, a kill with no output, or no
+heavy-check slot; the reason names the remedy) or ``UNAVAILABLE``
 (its tool is not on ``PATH``), 2 on a setup error (not a repository, an
 unknown base, a dirty tree). ``--list`` prints ``PLAN`` for a check that would
 run, and exits 1 when its plan already holds a block. ``NOT-TRIGGERED``, ``N/A``
@@ -50,9 +52,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from types import FrameType
 
 from vultron.metadata.planning.ci_mirror._parity import (
     exclusion_key,
@@ -67,12 +71,14 @@ from vultron.metadata.planning.ci_mirror._registry import (
     MirrorCheck,
 )
 from vultron.metadata.planning.ci_mirror._run import (
+    DEFAULT_TIMEOUT,
     CheckResult,
     CheckStatus,
     PlannedCheck,
     log_tail,
     plan,
     run_checks,
+    stop_running,
 )
 from vultron.metadata.planning.ci_mirror._workflows import (
     pull_request_steps,
@@ -101,8 +107,27 @@ __all__ = [
 ]
 
 
+#: The exit status of a mirror stopped by SIGTERM (128 + 15).
+SIGTERM_EXIT = 143
+
+
+def _on_sigterm(_signum: int, _frame: FrameType | None) -> None:
+    """Stop every running check, then exit: none keeps its heavy-check slot."""
+    stop_running()
+    raise SystemExit(SIGTERM_EXIT)
+
+
 class MirrorSetupError(RuntimeError):
     """The mirror cannot decide what to check: no repository, base or clean tree."""
+
+
+def _seconds(text: str) -> int:
+    value = int(text)
+    if value <= 0:
+        raise argparse.ArgumentTypeError(
+            "must be a positive number of seconds"
+        )
+    return value
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -114,6 +139,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pr", default="", help="the PR number, once open")
     parser.add_argument("--skip", action="append", default=[], metavar="ID")
     parser.add_argument("--jobs", type=int, default=4)
+    parser.add_argument(
+        "--timeout",
+        type=_seconds,
+        default=DEFAULT_TIMEOUT,
+        metavar="SECONDS",
+        help=f"per-check ceiling (default {DEFAULT_TIMEOUT})",
+    )
     parser.add_argument("--no-fetch", action="store_true")
     parser.add_argument("--list", action="store_true", help="plan only")
     parser.add_argument("--json", action="store_true")
@@ -182,7 +214,7 @@ def print_report(rows: Sequence[CheckResult], as_json: bool) -> int:
         return code
     for row in rows:
         print(_line(row))
-        if row.status is CheckStatus.FAILED and row.log:
+        if row.status.blocks and row.log:
             print(f"  log: {row.log}")
             print("  " + log_tail(row.log).replace("\n", "\n  "))
     total = sum(r.seconds for r in rows)
@@ -219,6 +251,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     # PYTHONPATH empty, as every CI step sets it; GITHUB_BASE_REF so the
     # merge-base guards read this base, as they do in CI.
     env = {**os.environ, "PYTHONPATH": "", "GITHUB_BASE_REF": args.base}
-    return print_report(
-        run_checks(planned, root, jobs=args.jobs, env=env), args.json
-    )
+    previous = signal.signal(signal.SIGTERM, _on_sigterm)
+    try:
+        results = run_checks(
+            planned, root, jobs=args.jobs, timeout=args.timeout, env=env
+        )
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+    return print_report(results, args.json)

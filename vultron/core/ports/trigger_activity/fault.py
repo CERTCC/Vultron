@@ -58,6 +58,7 @@ class TriggerFaultPort(Protocol):
         refused_activity: dict[str, Any],
         asserter: str,
         reason: str,
+        expected_sender_sequence: int | None = None,
     ) -> tuple[str, str]:
         """Create and persist the CASE_MANAGER's refusal notice.
 
@@ -70,6 +71,9 @@ class TriggerFaultPort(Protocol):
         notice's ``context``.  ``actor`` is the CASE_MANAGER.  The id is
         derived from the CASE_MANAGER and the refused activity, so one
         refused activity is answered by one notice (ID-04-004).
+        ``expected_sender_sequence``, given for a refusal of the activity's
+        ``senderSequence``, is the number the CASE_MANAGER expects next from
+        the asserter, carried as ``expectedSenderSequence`` (SYNC-21-015).
         Returns ``(activity_id, activity_blob)``.
         """
         ...

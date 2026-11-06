@@ -221,6 +221,9 @@ def _participant_answers(
             verdict.reason
         )
     (invite,) = net.queued(MANAGER, to=actor, type_="Invite")
+    # The replica's own auto-answer stays undelivered; the test sends its
+    # answer in its place, numbered as that one was (SYNC-21-002).
+    net.withdraw_unsent_numbers(actor)
     adapter = TriggerActivityAdapter(net.stores[actor])
     build = adapter.accept_embargo if accept else adapter.reject_embargo
     _, sealed = build(

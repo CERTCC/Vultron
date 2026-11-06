@@ -390,7 +390,7 @@ Run the linters first, as their own command, and stop on a non-zero
 G=.agents/skills/shared/run-if-changed.sh
 uv run ruff check && uv run ruff format --check \
   && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
-  && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright; rc=$?; echo "lint exit: $rc"; (exit $rc)
+  && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright; rc=$?; echo "lint exit: $rc"; (exit $rc)
 ```
 
 mypy and pyright run through `run-if-changed.sh`, so the mirror below reuses
@@ -468,7 +468,7 @@ without merging the base into the branch (PAD-18-004 is unchanged):
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-timeout -k 30 1800 uv run merged-tree-tests --base <base_ref> > "$logs-merged-tree.txt" 2>&1; rc=$?; cat "$logs-merged-tree.txt"; echo "exit: $rc"; (exit $rc)
+uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run merged-tree-tests --base <base_ref> > "$logs-merged-tree.txt" 2>&1; rc=$?; cat "$logs-merged-tree.txt"; echo "exit: $rc"; (exit $rc)
 ```
 
 The command merges `origin/<base_ref>` into a scratch worktree and runs there
@@ -489,11 +489,13 @@ committed tree, with the PR number so the checks that read the PR run too:
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-timeout -k 30 1800 uv run prepush-ci-mirror --base <base_ref> --pr <number> > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
+timeout -k 30 5400 uv run prepush-ci-mirror --base <base_ref> --pr <number> > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
 ```
 
 Act on the `exit:` line exactly as `create-pr` Phase 3c describes. A `FAIL`
-is fixed, committed and rerun. An `UNAVAILABLE` check is run another way,
+is fixed, committed and rerun. A `NO-VERDICT` check is rerun as its reason
+says, or run alone and passed with `--skip <id>`, the command and result recorded
+in the summary comment. An `UNAVAILABLE` check is run another way,
 then passed with `--skip <id>` and the way recorded in the summary comment.
 Exit `2` is never a pass. The mirror is not a suite run and is not counted in
 `Suite runs:`. A fix made for the mirror is a fix commit: rerun this step's

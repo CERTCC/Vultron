@@ -23,15 +23,23 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from vultron.metadata.planning.size_calibration.measures import (
+    HEAVY_COMMITS,
+    HEAVY_FINDINGS,
+    HEAVY_OPEN,
     band_shares,
     diff_percentiles,
     estimate_accuracy,
+    fix_rates,
+    followed_up,
     lines_by_ac_count,
     median_lines_per_ac,
     paired_issues,
+    review_loads,
     target_shares,
 )
 from vultron.metadata.planning.size_calibration.model import (
+    BUG_FIX_PREFIXES,
+    FOLLOW_UP,
     BandScheme,
     CalibrationData,
 )
@@ -55,6 +63,11 @@ SectionBuilder = Callable[[CalibrationData, BandScheme], Section]
 
 def _percent(part: int, whole: int) -> str:
     return f"{100 * part / whole:5.1f}%" if whole else "    —"
+
+
+def _rate(value: float | None, width: int) -> str:
+    """A rate to two places, or a dash where it is undefined."""
+    return "—".rjust(width) if value is None else f"{value:{width}.2f}"
 
 
 def band_share_section(data: CalibrationData, scheme: BandScheme) -> Section:
@@ -143,11 +156,64 @@ def lines_per_ac_section(data: CalibrationData, scheme: BandScheme) -> Section:
     return Section(title, tuple(lines))
 
 
+def later_fix_section(data: CalibrationData, scheme: BandScheme) -> Section:
+    """Each band's later bug-fix PRs, per PR and per 1,000 diff lines."""
+    days = FOLLOW_UP.days
+    eligible = followed_up(data)
+    title = (
+        f"Later bug fixes within {days} days — {len(eligible)} PRs merged "
+        f"at least {days} days before the window ends"
+    )
+    branches = " and ".join(BUG_FIX_PREFIXES)
+    traced = (
+        f"{len(data.fix_traces)} bug-fix PRs ({branches} branches) traced: "
+        "the vultron/ lines each rewrites, blamed at its merge's first parent"
+    )
+    if not eligible:
+        return Section(
+            title,
+            (traced, f"no PR in the window has a full {days}-day follow-up"),
+        )
+    lines = [traced, "band       PRs   lines  fixes  per PR  per 1000 lines"]
+    lines.extend(
+        f"{row.label:<8} {row.prs:>5} {row.lines:>7} {row.fixes:>6} "
+        f"{_rate(row.per_pr, 7)} {_rate(row.per_kloc, 15)}"
+        for row in fix_rates(data, scheme)
+    )
+    return Section(title, tuple(lines))
+
+
+def heavy_review_section(data: CalibrationData, scheme: BandScheme) -> Section:
+    """Each band's share of PRs that needed heavy review."""
+    open_days = HEAVY_OPEN.days
+    title = (
+        f"Heavy review — {HEAVY_FINDINGS}+ triage findings, "
+        f"{HEAVY_COMMITS}+ commits, or open {open_days}+ day"
+    )
+    if not data.prs:
+        return Section(title, ("no PRs merged in the window",))
+    triaged = sum(pr.triage_findings is not None for pr in data.prs)
+    lines = [
+        f"{triaged} of {len(data.prs)} PRs carry a triage record; one with "
+        "none counts no findings",
+        "band       PRs  heavy   share  findings  commits  open",
+    ]
+    lines.extend(
+        f"{row.label:<8} {row.prs:>5} {row.heavy:>6} "
+        f"{_percent(row.heavy, row.prs):>7} {row.by_findings:>9} "
+        f"{row.by_commits:>8} {row.by_open:>5}"
+        for row in review_loads(data.prs, scheme)
+    )
+    return Section(title, tuple(lines))
+
+
 SECTIONS: tuple[SectionBuilder, ...] = (
     band_share_section,
     percentile_section,
     estimate_accuracy_section,
     lines_per_ac_section,
+    later_fix_section,
+    heavy_review_section,
 )
 """The report, in print order. Add a measure by appending its builder."""
 

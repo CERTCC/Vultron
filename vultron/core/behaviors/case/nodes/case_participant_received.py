@@ -64,7 +64,7 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
 
 #: Roles a removal may not take away (CM-31-004): the CASE_MANAGER role is
-#: never unfilled (CM-24-006), and ownership is transferred first (CM-21).
+#: never unfilled (CM-02-014), and ownership is transferred first (CM-21).
 PROTECTED_ROLES: frozenset[CVDRole] = frozenset(
     {CVDRole.CASE_MANAGER, CVDRole.CASE_OWNER}
 )
@@ -202,7 +202,7 @@ class MoveNamesCaseParticipantNode(ParticipantMoveGuardNode):
 class RemovalTargetIsRemovableNode(ParticipantMoveGuardNode):
     """Guard: the named participant holds neither ``CASE_MANAGER`` nor ``CASE_OWNER``.
 
-    The CASE_MANAGER role is never unfilled (CM-24-006) and ownership is
+    The CASE_MANAGER role is never unfilled (CM-02-014) and ownership is
     transferred before its holder can leave (CM-21), so a removal naming
     either is refused (CM-31-004).
     """

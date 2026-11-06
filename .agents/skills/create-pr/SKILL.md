@@ -241,7 +241,7 @@ Run the appropriate suite based on PR type:
 G=.agents/skills/shared/run-if-changed.sh
 uv run ruff check && uv run ruff format --check
 "$G" mypy    vultron/ test/ .mypy.ini          uv.lock -- uv run mypy
-"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright
+"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright
 ```
 
 If any linter fails, fix the failure, stage, and amend the relevant commit
@@ -253,10 +253,10 @@ before proceeding. Do not open a PR with lint failures.
 G=.agents/skills/shared/run-if-changed.sh
 uv run ruff check --fix && uv run ruff format
 uv run ruff check && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
-  && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright
+  && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-timeout -k 30 1800 uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)
-timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -5 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)
+uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)
+uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -5 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)
 ```
 
 Run the block as one shell command, so `logs` is set for each line. The
@@ -319,14 +319,27 @@ commit every fix from Phases 3 and 3b first.
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-timeout -k 30 1800 uv run prepush-ci-mirror --base main > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
+timeout -k 30 5400 uv run prepush-ci-mirror --base main > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
 ```
 
-Read the `exit:` line. `0` lets the push go. `1` means a `FAIL` or
-`UNAVAILABLE` line: fix each `FAIL` (its `log:` path holds the output), commit,
-and rerun. `UNAVAILABLE` means the check's tool is not installed, as with
-`actionlint` in the devcontainer. Run that check some other way, then pass
-`--skip <id>` and say in the PR body how it was satisfied. `2` is a setup error
+Do not wrap the mirror in `run-heavy.py`. Its heavy checks (pyright, the two
+pytest sets, the site build) each take a per-host heavy-check slot themselves:
+each waits up to 1200 s for a slot, then runs under its own `--timeout`
+(1200 s). The 5400-second ceiling is a backstop above that, for a mirror whose
+heavy checks all queue; a SIGTERM from it stops every running check, so none
+keeps its slot (#5947).
+
+Read the `exit:` line. `0` lets the push go. `1` means a `FAIL`, `NO-VERDICT`
+or `UNAVAILABLE` line: fix each `FAIL` (its `log:` path holds the output), commit,
+and rerun. `NO-VERDICT` is not a finding: the check's environment stopped it
+before it judged the diff (a `--timeout` trip, a kill with no output, or no
+heavy-check slot), and its reason names the remedy. Rerun it once as the reason
+says, with `--timeout <seconds>` for a trip (#5735). If it still has no verdict,
+run that check's command alone, then pass `--skip <id>` and give the command
+and its result in the PR body. `UNAVAILABLE` means the check's tool is not
+installed, as with `actionlint` in the devcontainer. Run that check some other
+way, then pass `--skip <id>` and say in the PR body how it was satisfied. `2` is
+a setup error
 (dirty tree, unknown base), never a pass. `NOT-TRIGGERED` and `N/A` lines are
 checks CI would not run on this diff, or that need the PR number.
 

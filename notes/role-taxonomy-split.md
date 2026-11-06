@@ -103,7 +103,7 @@ at the edge.
 reading of this one was wrong, and the constant's own comment — "Roles a
 removal may not take away" — is where the error came from. CM-31-004 refuses
 the *removal of a participant* that holds `CASE_MANAGER` or `CASE_OWNER`,
-because a case always has a CASE_MANAGER (CM-24-006) and ownership is
+because a case always has a CASE_MANAGER (CM-02-014) and ownership is
 transferred before its holder leaves (CM-21-001). A removal edits no roles at
 all; it sets `removed` on the record. So the check is a protocol rule, not a
 patch on the enum: point it at the new authority field and keep it. The split

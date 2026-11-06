@@ -9,6 +9,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+from vultron.metadata.git_runner import GitRunner
 from vultron.metadata.planning.targeted_tests.index import build_index
 from vultron.metadata.planning.targeted_tests.selection import (
     Selection,
@@ -19,7 +20,6 @@ from vultron.metadata.planning.targeted_tests.selection import (
 )
 from vultron.metadata.specs.backstop import (
     BackstopError,
-    GitRunner,
     changed_paths,
     changes_from_paths,
     collect_git_changes,

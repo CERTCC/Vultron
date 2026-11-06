@@ -20,6 +20,18 @@ This is the default local maintainer command.
 The worker count comes from the container's CPU and memory limits, not from `nproc`, so a worktree slot gets one worker per CPU it is capped at (`SLOT_CPUS`), memory permitting.
 Set `PYTEST_XDIST_AUTO_NUM_WORKERS` to choose a different count.
 
+Each slot container sizes its workers from its own limits and cannot see the other slots on the same host.
+When several slots run the suite at once, start it through the per-host heavy-check lock:
+
+```bash
+uv run python .agents/skills/shared/run-heavy.py uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+```
+
+The wrapper waits until one of the host's heavy-check slots is free, then runs the command and exits with its status.
+While it waits, it writes one line that names the runs holding the slots.
+`start-dev.sh` sets the number of slots from the Docker VM's CPUs, and `HEAVY_SLOTS` overrides it.
+Outside a slot container the wrapper says so and runs the command without a slot.
+
 If a worker process dies, for example when the container runs out of memory, the run stops at once and reports `worker 'gwN' crashed while running <test>`.
 The named test is the one the worker was running, which is not always the cause.
 A test that starts child processes of its own adds to the same memory pressure.

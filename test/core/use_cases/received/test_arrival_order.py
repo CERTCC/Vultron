@@ -16,13 +16,14 @@ The transport promises no order (ADR-0037), so a message the CASE_MANAGER
 sends outside the ledger can reach a participant before, between or after
 the ledger entries it relates to.  ``TestRevisionInvitePermutations``
 delivers one such scenario in every order and asserts one final case file.
-Each ``xfail(strict=True)`` test below reproduces an order dependency the
-arrival-order audit found; it passes, and so fails loudly, once its Bug is
-fixed.
+The other tests pin an order dependency the arrival-order audit found, each
+delivering its messages in either order; a dependency still open is a
+``xfail(strict=True)`` test that fails loudly once its Bug is fixed.
 """
 
 import itertools
 import json
+from collections.abc import Callable
 from typing import Any, cast
 
 import pytest
@@ -62,6 +63,10 @@ from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     TerminationReason,
 )
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
+from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.embargo import (
     InviteToEmbargoOnCaseReceivedUseCase,
 )
@@ -72,7 +77,9 @@ from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     remove_embargo_from_case_activity,
     rm_close_case_activity,
+    withdraw_from_embargo_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -470,22 +477,18 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
     assert outcomes[True] == outcomes[False]
 
 
-def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> str:
+def _record(net: LedgerNetwork, actor: str) -> CaseParticipant:
+    """*actor*'s participant record in the CASE_MANAGER's store."""
     case = net.case(MANAGER)
     participant = net.stores[MANAGER].read(case.actor_participant_index[actor])
     assert isinstance(participant, CaseParticipant)
-    return str(participant.consent_for(embargo_id))
+    return participant
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SYNC-19-001: a participant's Accept and Reject of one Invite, sent"
-        " back to back, are recorded in the order they arrive, so the last to"
-        " arrive decides its consent. ADR-0178 orders them by senderSequence"
-        " (SYNC-21-008). Tracked by #5202."
-    ),
-)
+def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> str:
+    return str(_record(net, actor).consent_for(embargo_id))
+
+
 @pytest.mark.spec("SYNC-19-001")
 def test_same_sender_answers_record_one_consent_in_either_order() -> None:
     """An Accept then a Reject of one Invite record one consent in any order."""
@@ -498,41 +501,54 @@ def test_same_sender_answers_record_one_consent_in_either_order() -> None:
             f"https://example.org/cases/two-answers-{send_order}"
         )
         embargo_id, invite_id = _invited(net, BYSTANDER, "two-answers")
-        accept = _answer_body(
-            net, BYSTANDER, invite_id, accept=True, tag=f"accept-{send_order}"
+        # Each answer is numbered as its sender sends it, the Accept first
+        # (SYNC-21-001), whatever order the network then delivers them in.
+        accept = net.stamp(
+            _answer_body(
+                net,
+                BYSTANDER,
+                invite_id,
+                accept=True,
+                tag=f"accept-{send_order}",
+            )
         )
-        reject = _answer_body(
-            net, BYSTANDER, invite_id, accept=False, tag=f"reject-{send_order}"
+        reject = net.stamp(
+            _answer_body(
+                net,
+                BYSTANDER,
+                invite_id,
+                accept=False,
+                tag=f"reject-{send_order}",
+            )
         )
         for body in (accept, reject) if send_order else (reject, accept):
             net.receive(MANAGER, body)
         consents[send_order] = _consent(net, BYSTANDER, embargo_id)
 
-    # ADR-0178 decides the answer sent last stands (DECLINED); the numbered
-    # version of this scenario is pinned by SYNC-21-008's test in
-    # test_sender_sequence.py.  This unnumbered one is reworked with the counter.
-    assert consents[True] == consents[False]
+    # The CASE_MANAGER judges them in their sender's order, so the answer
+    # sent last decides in either arrival order (SYNC-21-008, ADR-0178).
+    assert consents == {
+        True: str(EmbargoConsentState.DECLINED),
+        False: str(EmbargoConsentState.DECLINED),
+    }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SYNC-19-001: a note sent before its sender's Leave(VulnerabilityCase)"
-        " is refused, with no notice, when the Leave overtakes it. Tracked by"
-        " #5203; ADR-0178 orders them by senderSequence (SYNC-21-008)."
-    ),
-)
-@pytest.mark.spec("SYNC-19-001")
-def test_note_sent_before_leave_is_kept_in_either_order() -> None:
-    """``Add(Note)`` then ``Leave(VulnerabilityCase)`` keep the note in either order."""
-    kept = {}
-    # One case per order; the note's id carries its case, so neither order's
-    # note is a repeat of the other's, and each order checks its own note.
+def _note_then_leave(
+    name: str, leave_of: Callable[[LedgerNetwork], as_Activity]
+) -> dict[bool, LedgerNetwork]:
+    """A participant's note, then its *leave_of*, delivered in each order.
+
+    Each is numbered as its sender sends it, the note first (SYNC-21-001),
+    whatever order the network then delivers them in.  A Leave that arrives
+    first is past a gap, so it is held, not judged (SYNC-21-010), until the
+    note it was sent after arrives.  One case per order: the note's id
+    carries its case, so neither order's note is a repeat of the other's.
+    Returns each order's network, keyed on whether it delivered in send
+    order.
+    """
+    networks = {}
     for send_order in (True, False):
-        net = LedgerNetwork(
-            f"https://example.org/cases/note-leave-{send_order}"
-        )
-        case = net.case(BYSTANDER)
+        net = LedgerNetwork(f"https://example.org/cases/{name}-{send_order}")
         note = as_Note(
             id_=f"{net.case_id}/notes/before-leave",
             content="Sent before leaving",
@@ -540,15 +556,75 @@ def test_note_sent_before_leave_is_kept_in_either_order() -> None:
             attributed_to=BYSTANDER,
         )
         add = add_note_to_case_activity(
-            note, target=case, actor=BYSTANDER, to=[MANAGER]
+            note, target=net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER]
         )
-        leave = rm_close_case_activity(case, actor=BYSTANDER, to=[MANAGER])
-        for activity in (add, leave) if send_order else (leave, add):
-            body = json.loads(dump_outbound_body(activity))
-            net.receive(MANAGER, body)
-        notes = [str(n) for n in net.case(MANAGER).notes]
-        kept[send_order] = notes == [note.id_]
+        sent = [
+            net.stamp(json.loads(dump_outbound_body(activity)))
+            for activity in (add, leave_of(net))
+        ]
+        delivered = sent if send_order else sent[::-1]
+        results = [net.receive(MANAGER, body) for body in delivered]
+        # In send order each is judged as it arrives.  Out of order the Leave
+        # is held (DEFERRED), and the note that fills the gap is applied,
+        # which releases the Leave behind it.
+        applied, held = HandlerDisposition.APPLIED, HandlerDisposition.DEFERRED
+        assert [r.disposition for r in results] == (
+            [applied, applied] if send_order else [held, applied]
+        )
+        assert [str(n) for n in net.case(MANAGER).notes] == [note.id_]
+        networks[send_order] = net
+    return networks
 
-    # The note was sent while its sender was a participant, so it is kept.
-    assert kept[True]
-    assert kept[True] == kept[False]
+
+@pytest.mark.spec("SYNC-21-010")
+@pytest.mark.spec("SYNC-21-008")
+@pytest.mark.spec("SYNC-19-001")
+def test_note_sent_before_leave_is_kept_in_either_order() -> None:
+    """``Add(Note)`` then ``Leave(VulnerabilityCase)`` keep the note in either order."""
+    networks = _note_then_leave(
+        "note-leave",
+        lambda net: rm_close_case_activity(
+            net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER]
+        ),
+    )
+
+    # The note was sent while its sender was a participant, so it is kept,
+    # and the sender has left the case in either order (#5203).
+    for net in networks.values():
+        assert _record(net, BYSTANDER).participant_statuses[-1].rm.state is (
+            RM.CLOSED
+        )
+
+
+@pytest.mark.spec("SYNC-21-010")
+@pytest.mark.spec("SYNC-21-008")
+@pytest.mark.spec("SYNC-19-001")
+def test_note_sent_before_embargo_leave_is_kept_in_either_order() -> None:
+    """``Add(Note)`` then ``Leave(EmbargoEvent)`` keep the note in either order.
+
+    Under the embargo in force a signatory that withdraws is no longer
+    active (CM-10-004), so a note judged after its withdrawal would be
+    refused with no notice, as the note before a ``Leave(VulnerabilityCase)``
+    was (#5203).
+    """
+
+    def withdrawal(net: LedgerNetwork) -> as_Activity:
+        # The sender withdraws as a signatory of the embargo in force.
+        assert net.case(MANAGER).em_state is EM.ACTIVE
+        assert _consent(net, BYSTANDER, net.initial_embargo_id) == str(
+            EmbargoConsentState.AGREED
+        )
+        embargo = net.stores[BYSTANDER].read(net.initial_embargo_id)
+        assert isinstance(embargo, as_EmbargoEvent)
+        return withdraw_from_embargo_activity(
+            embargo, context=net.case_id, actor=BYSTANDER, to=[MANAGER]
+        )
+
+    networks = _note_then_leave("note-embargo-leave", withdrawal)
+
+    # The note was sent while its sender was a signatory, so it is kept,
+    # and the sender has withdrawn in either order (MSM-07-010).
+    for net in networks.values():
+        assert _consent(net, BYSTANDER, net.initial_embargo_id) == str(
+            EmbargoConsentState.DECLINED
+        )

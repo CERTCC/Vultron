@@ -123,6 +123,7 @@ from vultron.core.behaviors.case.receive_stages.decisions import (
     case_and_tree_decisions,
     clock_decision_stage,
     ledger_position_stage,
+    sender_sequence_stage,
 )
 from vultron.core.behaviors.case.receive_stages.doors import (
     addressee_stage,
@@ -161,6 +162,9 @@ from vultron.core.behaviors.sender_guard import (
 from vultron.core.behaviors.sync.nodes.ledger_position import (
     LedgerPositionExemption,
 )
+from vultron.core.behaviors.sync.nodes.sender_sequence import (
+    SenderSequenceExemption,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +198,7 @@ def create_receive_activity_tree(
     post_close_reply: list[py_trees.behaviour.Behaviour] | None = None,
     clock_decisions: list[py_trees.behaviour.Behaviour] | None = None,
     ledger_position_exemption: LedgerPositionExemption | None = None,
+    sender_sequence_exemption: SenderSequenceExemption | None = None,
 ) -> ReceivedActivityTree:
     """Compose a receive-side BT with the CLP-10-010 stages in order.
 
@@ -204,6 +209,7 @@ def create_receive_activity_tree(
             → [ReceivedPath] → [closed-sender check] → [*case_resolution]
             → [sender guard]
             → [CaseManagerGate[LedgerPositionAnswer]]
+            → [CaseManagerGate[SenderSequenceOrder]]
             → [CaseManagerGate[ClockDecisionStage[
                    *case_clock_decisions, *clock_decisions]]]
             → [*precondition_guards] → GuardedCommit
@@ -325,6 +331,16 @@ def create_receive_activity_tree(
     participant re-seeded; nothing it does changes the act's outcome.  A
     tree that answers the position itself names a registered
     ``ledger_position_exemption`` (``Read(CaseLedgerEntry)``, SYNC-17-005).
+
+    The same trees judge the ``senderSequence`` the activity's sender
+    numbers it with, next
+    (:func:`~vultron.core.behaviors.sync.sender_sequence_stage.create_sender_sequence_stage`,
+    SYNC-21-008): at the case's CASE_MANAGER an activity numbered past a gap
+    is held, and a late, reused or missing number refused with a notice,
+    before anything judges the act; every other activity goes on in its
+    sender's order.  A tree whose activity takes no number names a
+    registered ``sender_sequence_exemption`` (``Read(CaseLedgerEntry)``,
+    SYNC-21-001).
 
     ``CaseOpenToExternalWrites`` is the post-close write boundary
     (CM-23-013, ADR-0085, ADR-0131): at the case's CASE_MANAGER, once the
@@ -493,6 +509,10 @@ def create_receive_activity_tree(
         ledger_position_exemption: Why this tree runs no answer to the
             stamped ledger position; ``None`` (the default) places it in a
             tree whose sender guard names a case (SYNC-18-007).
+        sender_sequence_exemption: Why this tree judges no
+            ``senderSequence``; ``None`` (the default) places the sender
+            sequence stage in a tree whose sender guard names a case
+            (SYNC-21-008).
 
     Raises:
         VultronWiringError: ``manager_effects`` has no ``manager_case_id``, a
@@ -593,6 +613,11 @@ def create_receive_activity_tree(
         children.extend(
             ledger_position_stage(
                 name, intake, sender_context, ledger_position_exemption
+            )
+        )
+        children.extend(
+            sender_sequence_stage(
+                name, intake, sender_context, sender_sequence_exemption
             )
         )
     decisions = case_and_tree_decisions(

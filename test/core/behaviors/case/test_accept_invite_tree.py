@@ -30,6 +30,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.clock_decisions import clock_decision_node_ids
 from test.support.embargo_register import activate, register
 from test.support.refusal_effects import refusal_effect_node_ids
+from test.support.sender_sequence_stage import sender_sequence_node_ids
 from vultron.core.behaviors.case.nodes import (
     ActivateInviteeParticipantNode,
     InviteeHasParticipantRecordNode,
@@ -480,9 +481,14 @@ def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
 
     effect_prefixes = ("Activate", "Advance", "Emit", "Backfill")
     # The CASE_MANAGER's clock decisions run in their own gated stage before
-    # the guards, and the refusal notice answers only a refusal; neither is
-    # an effect of the Accept (CLP-10-025, CLP-10-022).
-    decisions = clock_decision_node_ids(tree) | refusal_effect_node_ids(tree)
+    # the guards, the sender-sequence stage orders the sender's activities
+    # before them, and the refusal notice answers only a refusal; none is an
+    # effect of the Accept (CLP-10-025, SYNC-21-023, CLP-10-022).
+    decisions = (
+        clock_decision_node_ids(tree)
+        | refusal_effect_node_ids(tree)
+        | sender_sequence_node_ids(tree)
+    )
     effects = [
         n
         for n in tree.iterate()

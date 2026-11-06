@@ -91,7 +91,7 @@ class ActorConfig(BaseModel):
             appended at participant-creation time (BTND-05-002).
         auto_create_case: When ``True``, create a ``VulnerabilityCase``
             immediately on ``Offer(VulnerabilityReport)`` receipt (CM-15-001, CM-12-001,
-            CM-22-001).  When ``False``, defer case creation so the receiver
+            CP-09-001).  When ``False``, defer case creation so the receiver
             can send a pre-case ACK (``Read(Offer(VulnerabilityReport))``, VAM-02-003)
             before deciding to accept or reject (CM-15-002, CM-15-003;
             ADR-0015).  Defaults to ``True``.

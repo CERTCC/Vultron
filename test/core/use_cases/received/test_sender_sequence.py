@@ -13,16 +13,9 @@
 """A participant numbers its case activities, and the CASE_MANAGER judges
 each sender's activities in that order (SYNC-21, ADR-0178).
 
-The sender's counter is built; the CASE_MANAGER's ordering is not, so every
-test of it is a strict ``xfail``: it asserts the decided behaviour, fails
-today, and fails loudly once the behaviour lands, when its marker is
-removed.  The sender's numbering tests pass, and so do two others:
-the ledger entry keeping the number (SYNC-21-005), which already holds because
-an entry keeps the body as received (CLP-07-011), and a closed sender's late
-number drawing no notice (SYNC-21-023), which holds because the closed-sender
-door refuses it before any sequence check exists.  The implementation may need to
-adjust a test's set-up to the API it builds (for example how a released hold
-is replayed); the asserted outcome is the requirement.
+A hold that ends on its wait is ended by the hold timer the app runs
+(``LedgerNetwork.end_expired_holds`` ticks it once), and a released activity
+is replayed as a delivery of its own, as the inbox replays it.
 
 A test that checks the sender's numbering builds its activities through the
 sender's own adapter, as its outbox sends them.  A test that checks the
@@ -37,7 +30,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import ledger_entries
-from test.support.ledger_rebuild import rebuild_from_ledger
+from test.support.ledger_rebuild import rebuild_from_ledger, replay_inbox
 from test.support.refusal_notice import (
     assert_no_refusal_notice,
     assert_refusal_notice,
@@ -48,13 +41,31 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.config.ledger import LedgerConfig
+from vultron.core.behaviors.case.nodes.delegation import (
+    GrantCaseParticipantRoleNode,
+)
+from vultron.core.behaviors.case.role_offer_answer_tree import (
+    create_accept_case_participant_role_tree,
+)
+from vultron.core.behaviors.sync.nodes.sender_sequence_drain import (
+    DrainSequenceHoldsNode,
+)
 from vultron.core.models._helpers import clock as helpers_clock, now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.sender_sequence import SenderSequenceOrder
+from vultron.core.services.sender_sequence_order import (
+    end_case_sender_sequence_holds,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.sync_helpers import ledger_tail_position
+from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
+    AcceptCaseParticipantRoleReceivedUseCase,
+)
 from vultron.demo.determinism import SteppingClock
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
@@ -63,18 +74,6 @@ from .test_embargo_answer_idempotency import _answer_body, _invited
 #: The default hold wait and per-sender cap (SYNC-21-021, ADR-0178).
 DEFAULT_WAIT = timedelta(seconds=120)
 DEFAULT_CAP = 16
-
-_NOT_BUILT = (
-    "SYNC-21: the CASE_MANAGER side of the sender sequence is not built yet"
-    " (ADR-0178)."
-)
-
-
-def _xfail(spec_id: str, what: str) -> pytest.MarkDecorator:
-    return pytest.mark.xfail(
-        strict=True,
-        reason=f"{spec_id}: {what}. {_NOT_BUILT} Tracked by #5202.",
-    )
 
 
 def _network(tag: str) -> LedgerNetwork:
@@ -126,35 +125,47 @@ def _committed_notes(net: LedgerNetwork) -> list[str]:
     return notes
 
 
-def _expire_holds(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Freeze the clock one second past the default hold wait."""
+def _wait_out_holds(
+    net: LedgerNetwork, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Move the clock past the default wait and tick the hold timer once.
+
+    Nothing else arrives: the timer alone ends the holds (SYNC-21-011).
+    """
     later = now_utc() + DEFAULT_WAIT + timedelta(seconds=1)
     monkeypatch.setattr(
         helpers_clock, "datetime", SteppingClock(later, step=timedelta(0))
     )
+    net.end_expired_holds(MANAGER)
 
 
 def _forget_sequence_state(net: LedgerNetwork, actor: str) -> None:
-    """Stand in for a handover: *actor* keeps the ledger but no sequence state.
+    """*actor* keeps the case ledger but none of its sequence state.
 
     A new CASE_MANAGER holds the case ledger it inherited and none of the old
-    one's next expected numbers or holds (ADR-0178).  No sequence state exists
-    before the counter is built, so this does nothing yet; the implementation
-    makes it delete the records it keeps (SYNC-21-020), so the test reaches
-    the ledger-derived start.
+    one's next expected numbers or holds (ADR-0178), so the test reaches the
+    ledger-derived start (SYNC-21-009).
     """
-    del net, actor
+    dl = net.stores[actor]
+    for order in dl.list_objects(SenderSequenceOrder.__name__):
+        assert isinstance(order, SenderSequenceOrder)
+        if order.case_id == net.case_id:
+            dl.delete(SenderSequenceOrder.__name__, order.id_)
 
 
 def _hand_over_case_manager(net: LedgerNetwork) -> None:
-    """Stand in for the CASE_MANAGER role passing to another actor.
+    """The outgoing CASE_MANAGER's drain as its role passes (SYNC-21-025).
 
-    The role passes when the CASE_MANAGER commits the acceptance of its
-    delegation (CM-02-016), which this network does not drive.  The
-    implementation replaces this with that commit, which drains the holds
-    first (SYNC-21-025); it does nothing yet.
+    The role passes when the CASE_MANAGER commits the acceptance of a
+    ``CASE_MANAGER`` role delegation (CM-02-016), and that tree drains the
+    holds first (``DrainSequenceHoldsNode``, pinned in
+    ``test_the_case_manager_role_grant_drains_first``).  This network drives
+    no delegation, so the helper runs the node's drain and the replay that
+    follows the delivery.
     """
-    del net
+    dl = net.stores[MANAGER]
+    end_case_sender_sequence_holds(dl, net.case_id)
+    replay_inbox(dl, MANAGER)
 
 
 def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> Any:
@@ -261,11 +272,6 @@ def test_a_sender_rebuilt_from_the_ledger_resumes_past_its_own_numbers() -> (
     assert body["senderSequence"] == 3
 
 
-@_xfail(
-    "SYNC-21-014",
-    "the CASE_MANAGER sends no sequence refusal notice yet; the participant's"
-    " resume on one is covered in test_sender_sequence_stamp.py",
-)
 @pytest.mark.spec("SYNC-21-019")
 @pytest.mark.spec("SYNC-21-007")
 def test_a_refused_sender_resumes_at_the_expected_number(
@@ -275,8 +281,7 @@ def test_a_refused_sender_resumes_at_the_expected_number(
     # The CASE_MANAGER is told number 10 first, so after the hold ends it
     # expects 11 while OWNER's own count is far behind.
     net.receive(MANAGER, _numbered(_note_body(net, "ahead"), 10))
-    _expire_holds(monkeypatch)
-    net.receive(MANAGER, _note_body(net, "bystander", actor=BYSTANDER))
+    _wait_out_holds(net, monkeypatch)
     behind = _note_body(net, "behind")
     net.receive(MANAGER, behind)
     notice = assert_refusal_notice(
@@ -302,7 +307,6 @@ def test_a_refused_sender_resumes_at_the_expected_number(
 # ---------------------------------------------------------------------------
 
 
-@_xfail("SYNC-21-010", "an activity past a gap is judged on arrival")
 @pytest.mark.spec("SYNC-21-016")
 @pytest.mark.spec("SYNC-21-010")
 @pytest.mark.spec("SYNC-21-009")
@@ -322,7 +326,6 @@ def test_an_activity_past_a_gap_is_held_until_the_gap_fills() -> None:
     assert _committed_notes(net) == [_note_of(first), _note_of(second)]
 
 
-@_xfail("SYNC-21-008", "the answer that arrives last decides the consent")
 @pytest.mark.spec("SYNC-21-008")
 def test_an_accept_then_a_reject_decide_as_sent_in_either_order() -> None:
     consents = {}
@@ -347,7 +350,6 @@ def test_an_accept_then_a_reject_decide_as_sent_in_either_order() -> None:
     }
 
 
-@_xfail("SYNC-21-008", "a note overtaken by its sender's Leave is lost")
 @pytest.mark.spec("SYNC-21-008")
 def test_a_note_numbered_before_leave_is_kept_in_either_order() -> None:
     kept = {}
@@ -367,7 +369,6 @@ def test_a_note_numbered_before_leave_is_kept_in_either_order() -> None:
     assert kept == {True: True, False: True}
 
 
-@_xfail("SYNC-21-011", "a held activity is not released when its wait ends")
 @pytest.mark.spec("SYNC-21-016")
 @pytest.mark.spec("SYNC-21-013")
 @pytest.mark.spec("SYNC-21-011")
@@ -381,19 +382,16 @@ def test_a_hold_ends_when_its_wait_passes(
         net.receive(MANAGER, body)
     assert _committed_notes(net) == []
 
-    _expire_holds(monkeypatch)
-    # OWNER sends nothing more; another sender's activity arrives.
-    net.receive(MANAGER, _note_body(net, "other", actor=BYSTANDER))
+    # OWNER sends nothing more, and nothing else arrives.
+    _wait_out_holds(net, monkeypatch)
 
-    owner_notes = [n for n in _committed_notes(net) if "/notes/other" not in n]
-    assert owner_notes == [_note_of(b) for b in held]
+    assert _committed_notes(net) == [_note_of(b) for b in held]
     for body in held:
         assert_no_refusal_notice(
             net.stores[MANAGER], manager=MANAGER, refused_id=body["id"]
         )
 
 
-@_xfail("SYNC-21-012", "a sender's held activities have no cap")
 @pytest.mark.spec("SYNC-21-013")
 @pytest.mark.spec("SYNC-21-012")
 def test_a_hold_ends_when_the_sender_reaches_the_cap() -> None:
@@ -413,7 +411,6 @@ def test_a_hold_ends_when_the_sender_reaches_the_cap() -> None:
     assert _committed_notes(net) == [_note_of(b) for b in held]
 
 
-@_xfail("SYNC-21-014", "a late or reused number is judged as any activity")
 @pytest.mark.spec("SYNC-21-015")
 @pytest.mark.spec("SYNC-21-014")
 @pytest.mark.spec("SYNC-21-009")
@@ -438,8 +435,7 @@ def test_a_late_or_reused_number_is_refused_with_a_notice(
     )
     assert reused_notice["expectedSenderSequence"] == 1
 
-    _expire_holds(monkeypatch)
-    net.receive(MANAGER, _note_body(net, "other", actor=BYSTANDER))
+    _wait_out_holds(net, monkeypatch)
     net.receive(MANAGER, late)
 
     late_notice = assert_refusal_notice(
@@ -451,11 +447,9 @@ def test_a_late_or_reused_number_is_refused_with_a_notice(
         case_id=net.case_id,
     )
     assert late_notice["expectedSenderSequence"] == 3
-    owner_notes = [n for n in _committed_notes(net) if "/notes/other" not in n]
-    assert owner_notes == [_note_of(held)]
+    assert _committed_notes(net) == [_note_of(held)]
 
 
-@_xfail("SYNC-21-017", "an unnumbered activity is judged on arrival")
 @pytest.mark.spec("SYNC-21-015")
 @pytest.mark.spec("SYNC-21-017")
 def test_an_unnumbered_activity_is_refused_with_a_notice() -> None:
@@ -480,6 +474,95 @@ def test_an_unnumbered_activity_is_refused_with_a_notice() -> None:
         assert notice["expectedSenderSequence"] == 1
 
 
+@pytest.mark.spec("SYNC-21-017")
+@pytest.mark.parametrize("value", [0, -1, True, 2.5, "1", None, [1]])
+def test_a_number_that_is_not_a_positive_integer_draws_a_notice(
+    value: object,
+) -> None:
+    """The parse edge sets a malformed number aside, so the CASE_MANAGER
+    refuses it after its guards, with the notice, and the entry it never
+    commits would have kept the value as it arrived (VM-08-002)."""
+    net = _network(f"malformed-{type(value).__name__}-{value}")
+    body = {**_note_body(net, "malformed"), "senderSequence": value}
+
+    net.receive(MANAGER, body)
+
+    assert _committed_notes(net) == []
+    notice = assert_refusal_notice(
+        net.stores[MANAGER],
+        manager=MANAGER,
+        refused_id=body["id"],
+        asserter=OWNER,
+        reason="SYNC-21-017",
+        case_id=net.case_id,
+    )
+    assert notice["expectedSenderSequence"] == 1
+    assert notice["object"]["senderSequence"] == value
+
+
+@pytest.mark.spec("SYNC-21-022")
+def test_each_skipped_number_is_logged_at_warning(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    net = _network("skip-log")
+    held = _numbered(_note_body(net, "held"), 3)
+    net.receive(MANAGER, held)
+
+    with caplog.at_level("WARNING"):
+        _wait_out_holds(net, monkeypatch)
+
+    skipped = [
+        r
+        for r in caplog.records
+        if r.levelname == "WARNING" and "skipped number" in r.getMessage()
+    ]
+    assert [r.args[0] for r in skipped] == [1, 2]  # type: ignore[index]
+    for record in skipped:
+        assert OWNER in record.getMessage()
+        assert net.case_id in record.getMessage()
+    assert _committed_notes(net) == [_note_of(held)]
+
+
+@pytest.mark.spec("SYNC-21-021")
+def test_the_hold_defaults_are_the_documented_ones() -> None:
+    ledger = LedgerConfig()
+    assert ledger.sender_sequence_hold == DEFAULT_WAIT
+    assert ledger.sender_sequence_hold_cap == DEFAULT_CAP
+
+
+@pytest.mark.spec("SYNC-21-025")
+def test_the_case_manager_role_grant_drains_first() -> None:
+    """The tree that commits a CASE_MANAGER delegation's acceptance ends the
+    holds before the grant (CM-02-016); any other role's grant does not."""
+
+    def _grant_steps(role: CVDRole) -> list[str]:
+        tree = create_accept_case_participant_role_tree(
+            "https://example.org/cases/drain",
+            "https://example.org/offers/1",
+            BYSTANDER,
+            "https://example.org/answers/1",
+            role,
+            BYSTANDER,
+            sender_rule=AcceptCaseParticipantRoleReceivedUseCase.sender_entitlement,
+        )
+        names = [
+            type(n).__name__
+            for n in tree.iterate()
+            if isinstance(
+                n, (DrainSequenceHoldsNode, GrantCaseParticipantRoleNode)
+            )
+        ]
+        return names
+
+    assert _grant_steps(CVDRole.CASE_MANAGER) == [
+        "DrainSequenceHoldsNode",
+        "GrantCaseParticipantRoleNode",
+    ]
+    assert _grant_steps(CVDRole.COORDINATOR) == [
+        "GrantCaseParticipantRoleNode"
+    ]
+
+
 @pytest.mark.spec("SYNC-21-023")
 def test_a_closed_senders_late_number_draws_no_notice() -> None:
     net = _network("closed-late")
@@ -500,7 +583,6 @@ def test_a_closed_senders_late_number_draws_no_notice() -> None:
     )
 
 
-@_xfail("SYNC-21-024", "a late answer is applied after the later one")
 @pytest.mark.spec("SYNC-21-024")
 @pytest.mark.spec("SYNC-21-015")
 @pytest.mark.spec("SYNC-21-014")
@@ -520,8 +602,7 @@ def test_a_late_answer_never_overrides_the_later_one(
 
     # The Accept (#2) is lost; the Reject (#3) waits, then the gap is skipped.
     net.receive(MANAGER, reject)
-    _expire_holds(monkeypatch)
-    net.receive(MANAGER, _note_body(net, "other"))
+    _wait_out_holds(net, monkeypatch)
     assert _consent(net, BYSTANDER, embargo_id) is EmbargoConsentState.DECLINED
     entries_before = len(ledger_entries(net.stores[MANAGER], net.case_id))
 
@@ -543,7 +624,6 @@ def test_a_late_answer_never_overrides_the_later_one(
     assert notice["expectedSenderSequence"] == 4
 
 
-@_xfail("SYNC-21-009", "a CASE_MANAGER keeps no next expected number")
 @pytest.mark.spec("SYNC-21-009")
 def test_a_new_case_manager_starts_from_the_ledger() -> None:
     net = _network("handover")
@@ -570,7 +650,6 @@ def test_a_new_case_manager_starts_from_the_ledger() -> None:
     assert notice["expectedSenderSequence"] == 4
 
 
-@_xfail("SYNC-21-025", "an outgoing CASE_MANAGER does not drain its holds")
 @pytest.mark.spec("SYNC-21-025")
 def test_an_outgoing_case_manager_drains_its_holds() -> None:
     net = _network("drain")
@@ -590,7 +669,6 @@ def test_an_outgoing_case_manager_drains_its_holds() -> None:
         )
 
 
-@_xfail("SYNC-21-018", "a held activity's repeat is judged on arrival")
 @pytest.mark.spec("SYNC-21-018")
 def test_a_repeat_is_found_by_id_before_its_number() -> None:
     net = _network("repeat")
@@ -607,7 +685,51 @@ def test_a_repeat_is_found_by_id_before_its_number() -> None:
         )
 
 
-@_xfail("SYNC-21-020", "the CASE_MANAGER stores no expected numbers")
+@pytest.mark.spec("SYNC-21-018")
+@pytest.mark.spec("SYNC-21-024")
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.parametrize("refusal", ["late", "reused", "missing"])
+def test_a_resent_refused_number_is_refused_again_with_no_second_notice(
+    refusal: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A repeat of an activity refused for its number changes nothing and is
+    not answered again: its first refusal notice answered it (CLP-05-006,
+    ID-04-004).  The resend meets the receipt stub the refusal left, so
+    intake finds it as one seen before (SYNC-21-018)."""
+    net = _network(f"resend-{refusal}")
+    held = _numbered(_note_body(net, "held"), 2)
+    refused = _note_body(net, refusal)
+    manager_dl = net.stores[MANAGER]
+    net.receive(MANAGER, held)
+    if refusal == "late":
+        refused = _numbered(refused, 1)
+        _wait_out_holds(net, monkeypatch)
+    elif refusal == "reused":
+        refused = _numbered(refused, 2)
+    else:
+        refused.pop("senderSequence", None)
+    net.receive(MANAGER, refused)
+    assert_refusal_notice(
+        manager_dl,
+        manager=MANAGER,
+        refused_id=refused["id"],
+        asserter=OWNER,
+        reason="",
+        case_id=net.case_id,
+    )
+    # The notice leaves the outbox, as a delivered one does.
+    net.lose(MANAGER, to=OWNER, type_="Reject")
+    entries_before = len(ledger_entries(manager_dl, net.case_id))
+
+    net.receive(MANAGER, refused)
+
+    assert_no_refusal_notice(
+        manager_dl, manager=MANAGER, refused_id=refused["id"]
+    )
+    assert len(ledger_entries(manager_dl, net.case_id)) == entries_before
+    assert _note_of(refused) not in _committed_notes(net)
+
+
 @pytest.mark.spec("SYNC-21-020")
 def test_sequence_state_lives_in_the_datalayer() -> None:
     net = _network("stored")

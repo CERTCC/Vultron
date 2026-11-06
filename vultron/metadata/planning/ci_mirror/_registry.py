@@ -22,10 +22,13 @@ local command cannot drift from CI's. A check with a ``command`` says in
 ``note`` why it differs. A check with ``paths`` runs on a narrower diff than
 its workflow's filter and says why in ``narrowed``.
 
-The :data:`GUARD_TESTS` are limit-enforcing pytest files that CI runs inside
-the full suite. They are the ones the #5580 audit found failing CI after a
-push the local gate let through: each sits outside the targeted set of some
-diff that breaks it, or runs on a docs-typed PR, which runs no pytest at all.
+The :data:`GUARD_TESTS` are pytest files that CI runs inside the full suite
+and the local targeted set reaches too late or not at all. Most are the
+limit-enforcing ones the #5580 audit found failing CI after a push the local
+gate let through: each sits outside the targeted set of some diff that breaks
+it, or runs on a docs-typed PR, which runs no pytest at all. The rest read
+only files that name no Python symbol, such as a workflow, so no diff over
+them selects the test that checks them.
 """
 
 from __future__ import annotations
@@ -76,6 +79,9 @@ class MirrorCheck:
     needs_pr: bool = False
     #: Runs after every other check, by itself: it writes into the tree others read.
     alone: bool = False
+    #: Starts many processes or uses much memory, so it takes one of the host's
+    #: heavy-check slots, shared with this mirror's other heavy checks (#5947).
+    heavy: bool = False
     #: Step env values naming a GitHub expression that run without it locally,
     #: each with why; parity refuses an expression neither here nor in ``env``.
     drops_env: Mapping[str, str] = field(default_factory=dict)
@@ -113,15 +119,24 @@ _SITE_NARROWED = (
     "audit did"
 )
 
-#: Limit-enforcing tests the #5580 audit traced CI failures to.
+#: Tests the targeted set reaches too late or not at all: the limit-enforcing
+#: ones the #5580 audit traced CI failures to, plus any whose only inputs are
+#: files no changed Python symbol selects — a workflow or config file.
 GUARD_TESTS = (
     "test/architecture/test_line_length_ratchet.py",
     "test/architecture/test_spec_statement_guard.py",
     "test/architecture/test_spec_kind_ratchet.py",
     "test/architecture/test_vocab_examples_current.py",
+    # Reads `.github/workflows/`, so a workflow-only diff names no Python
+    # symbol and the targeted set selects nothing that checks it (PAD-18-023).
+    "test/ci/test_python_app_test_parts.py",
     "test/core/behaviors/test_btnd07_structure.py",
     "test/metadata/test_agents_md_size_ratchet.py",
     "test/metadata/test_adr_back_edges.py",
+    # Reads the skills' Markdown, which no CI pytest path filter lists, so a
+    # skill-only PR that drops a gate's ceiling or heavy-check slot reaches
+    # CI's suite only on a later PR (#5947).
+    "test/metadata/test_gate_ceiling.py",
     "test/metadata/test_no_decision_record_part_citations.py",
     "test/metadata/test_msm_occasions.py",
     "test/metadata/docs/test_page_frontmatter.py",
@@ -145,10 +160,14 @@ def markdownlint_command(context: CheckContext) -> list[str] | None:
     return [*base, *files] if files else None
 
 
+#: The memo wrapper of :func:`_memoized`, relative to the repository root.
+RUN_IF_CHANGED = ".agents/skills/shared/run-if-changed.sh"
+
+
 def _memoized(tool: str, *inputs: str) -> tuple[str, ...]:
     return (
         "bash",
-        ".agents/skills/shared/run-if-changed.sh",
+        RUN_IF_CHANGED,
         tool,
         *inputs,
         "--",
@@ -181,6 +200,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             "pyright", "vultron/", "test/", "pyrightconfig.json", "uv.lock"
         ),
         note=_MEMOIZED_NOTE,
+        heavy=True,
     ),
     MirrorCheck(
         "package-build",
@@ -201,6 +221,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             *("uv", "run", "pytest", "-m", "", "-n", "auto", "--tb=short"),
             *GUARD_TESTS,
         ),
+        heavy=True,
         note=(
             "CI runs these inside the full suite, which the mirror leaves to "
             "create-pr and CI; the #5580 audit traced CI failures to each"
@@ -215,6 +236,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             "--tb=short",
         ),
         note="adds -n auto; the serial run is several times slower locally",
+        heavy=True,
     ),
     MirrorCheck(
         "story-page-shape",
@@ -308,6 +330,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             paths=SITE_PATHS,
             narrowed=_SITE_NARROWED,
             group="site",
+            heavy=check_id == "site-build",
         )
         for check_id, label in (
             ("site-build", _DOCS + "Build Site > Build Site"),
@@ -355,10 +378,10 @@ EXCLUSIONS: Mapping[str, str] = {
     "pr-size-label.yml": (
         "labels the PR from GitHub's diff statistics; nothing to fail locally"
     ),
-    f"{_PY}::test::Run full pytest suite": (
+    f"{_PY}::test::Run this part of the pytest suite": (
         "the full suite runs once before the first push in create-pr "
         "(PAD-18-001); later pushes run the targeted set (PAD-18-002) and "
-        "guard-tests, and CI runs the rest"
+        "guard-tests, and CI runs the rest, one part per matrix leg"
     ),
     "verification-debt-owners.yml::open-owners": (
         "the job runs only off pull_request (its if: excludes the event)"

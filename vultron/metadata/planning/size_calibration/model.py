@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import pairwise
 from typing import TYPE_CHECKING
 
@@ -38,6 +38,18 @@ One per band with a ceiling, smallest first. A table in calibration puts each
 ceiling near its percentile, so each band holds the share between consecutive
 percentiles (:func:`.measures.target_shares`).
 """
+
+
+FOLLOW_UP = timedelta(days=30)
+"""How long after a PR merges a bug fix still counts as a later fix of it.
+
+Only a PR merged at least this long before the window ends has had its whole
+follow-up observed, so only those PRs enter the later-fix rate
+(:func:`.measures.fix_rates`).
+"""
+
+BUG_FIX_PREFIXES: tuple[str, ...] = ("bug/", "fix/")
+"""The head-branch prefixes that mark a PR as a bug fix."""
 
 
 @dataclass(frozen=True)
@@ -93,12 +105,39 @@ class MergedPr:
 
     ``diff_lines`` is additions plus deletions, the number ``pr-size-label``
     measures (PAD-05-002). ``closes`` is the Issues it closes by keyword.
+
+    The rest feeds the quality measures. ``head_ref`` is the head branch name,
+    which marks a bug fix (:data:`BUG_FIX_PREFIXES`). ``open_for`` is the time
+    from opening to merge. ``commit_count`` is how many commits the PR has, and
+    ``commits`` the ids of those read, which may be fewer
+    (:attr:`commits_complete`); ``merge_commit`` is the commit its merge put on
+    the base branch (``None`` when unknown). A later fix's blame maps back to
+    the PR through either.
+    ``triage_findings`` is the review findings its triage records raise, and
+    ``None`` when it carries no triage record at all
+    (:func:`.measures.count_triage_findings`).
     """
 
     number: int
     merged_at: datetime
     diff_lines: int
     closes: tuple[int, ...] = ()
+    head_ref: str = ""
+    open_for: timedelta = timedelta(0)
+    commit_count: int = 0
+    commits: tuple[str, ...] = ()
+    merge_commit: str | None = None
+    triage_findings: int | None = None
+
+    @property
+    def is_bug_fix(self) -> bool:
+        """Whether the head branch marks this PR as a bug fix."""
+        return self.head_ref.startswith(BUG_FIX_PREFIXES)
+
+    @property
+    def commits_complete(self) -> bool:
+        """Whether ``commits`` holds the id of every commit on the PR."""
+        return len(self.commits) >= self.commit_count
 
 
 @dataclass(frozen=True)
@@ -123,13 +162,31 @@ class ClosedIssue:
 
 
 @dataclass(frozen=True)
+class FixTrace:
+    """The commits a bug-fix PR's changed lines were last written by.
+
+    ``blamed`` is every distinct commit that ``git blame`` names, at the first
+    parent of the fix's merge, for the ``vultron/`` lines the fix deletes or
+    rewrites.
+    """
+
+    fix: int
+    blamed: frozenset[str]
+
+
+@dataclass(frozen=True)
 class CalibrationData:
-    """One window of merged PRs and the Issues they close."""
+    """One window of merged PRs, the Issues they close, and the fix traces.
+
+    ``fix_traces`` holds one :class:`FixTrace` per bug-fix PR traced, so a
+    window read without tracing reports no later fixes rather than failing.
+    """
 
     since: datetime
     until: datetime
     prs: tuple[MergedPr, ...]
     issues: tuple[ClosedIssue, ...] = ()
+    fix_traces: tuple[FixTrace, ...] = ()
 
 
 @dataclass(frozen=True)

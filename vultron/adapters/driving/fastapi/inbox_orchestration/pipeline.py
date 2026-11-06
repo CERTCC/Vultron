@@ -176,6 +176,29 @@ async def run_serialised_actor_work(
     await _run_serialised(actor_dl, actor_id, emitter, work)
 
 
+async def run_actor_work_then_replay(
+    actor_dl: DataLayer,
+    actor_id: str,
+    dispatcher: ActivityDispatcher | None,
+    emitter: ActivityEmitter | None,
+    work: Callable[[], None],
+) -> None:
+    """Run *work*, then replay what it queued, as one serialised run.
+
+    For actor-initiated work that queues held activities for their replay,
+    such as the end of a sender-sequence hold whose wait has passed
+    (SYNC-21-011): the replay follows under the same lock, so no delivery
+    is judged between the hold's end and the activities it releases.
+    """
+    run = _InboxRun(actor_dl, actor_id, dispatcher)
+
+    def _work_then_replay() -> None:
+        work()
+        run.drain_queue()
+
+    await _run_serialised(actor_dl, actor_id, emitter, _work_then_replay)
+
+
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
     actor_dl: DataLayer,

@@ -163,6 +163,14 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             "vultron/core/behaviors/sync/ledger_position_stage.py",
             "create_ledger_position_stage",
         ),
+        # The sender sequence stage (SYNC-21-008, ADR-0178): the factory
+        # places it, gated, after the ledger-position answer; it holds or
+        # refuses an activity for its number before the act is judged, and
+        # commits nothing.
+        (
+            "vultron/core/behaviors/sync/sender_sequence_stage.py",
+            "create_sender_sequence_stage",
+        ),
         # The three ``case_manager_admits_*`` composites in
         # ``suggest_actor/conditions.py`` left this set in #5044: each of
         # their trees declares the CASE_MANAGER path alone, so the guards run

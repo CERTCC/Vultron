@@ -90,7 +90,7 @@ def _build_active_embargo_case(
 def _build_exited_case(
     dl: SqliteDataLayer, owner_id: str
 ) -> VulnerabilityCase:
-    """Case at ``EM.EXITED`` whose owner is its CASE_MANAGER (CM-24-006)."""
+    """Case at ``EM.EXITED`` whose owner is its CASE_MANAGER (CM-02-014)."""
     case = VulnerabilityCase(
         name="Exited embargo case",
         attributed_to=owner_id,

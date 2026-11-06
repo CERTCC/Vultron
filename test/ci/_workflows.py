@@ -74,6 +74,18 @@ def steps(wf_data: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def job_needs(job: dict[str, Any]) -> set[str]:
+    """Return the job ids *job* waits for, from the list or the scalar form.
+
+    ``needs: build`` is as valid as ``needs: [build]``, and a membership test
+    against the scalar form is a substring test instead of a set test:
+    ``"test" in "test-docs"`` is true. Normalizing here keeps every reader of
+    a ``needs:`` list out of that trap.
+    """
+    needs = job.get("needs", [])
+    return {needs} if isinstance(needs, str) else {str(n) for n in needs}
+
+
 def index_of(
     wf_steps: list[dict[str, Any]], needle: str, key: str
 ) -> int | None:

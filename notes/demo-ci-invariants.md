@@ -220,7 +220,7 @@ duplicate-commit check (`test_invariant_clp07_unique_payload_snapshot_ids`,
 CLP-07-002) cannot see, such as a second Invite with its own activity id. RCV
 pins `invite_actor_to_case` to exactly one: the Coordinator invites only the
 Vendor, because the CASE_MANAGER seats the Reporter at case creation
-(CM-22-002).
+(CP-09-002).
 
 ### Audit an invariant against the scenario before copying it
 

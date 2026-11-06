@@ -77,7 +77,7 @@ class SeeAlso(BaseModel):
 
 #: Keys a requirement once used to stay in place after it was superseded.
 #: The schema declares neither: a superseded requirement is removed and
-#: archived instead (MS-04-005, MS-09-001).
+#: archived instead (MS-09-001).
 _RETIRED_LIFECYCLE_KEYS: tuple[str, ...] = ("deprecated", "superseded_by")
 
 

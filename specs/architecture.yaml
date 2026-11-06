@@ -954,9 +954,12 @@ groups:
     statement: 'Architecture boundary tests that enforce a `KNOWN_VIOLATIONS` allowlist MUST use a bidirectional equality
       assertion: `assert actual_violations == KNOWN_VIOLATIONS`. One-directional subset assertions (`assert actual ⊆ KNOWN`)
       are prohibited because they allow the violation count to grow silently.'
-    rationale: A subset assertion says "we have at most these violations" but allows new ones to be added without failing
-      the test. Bidirectional equality says "we have exactly these violations" — any addition fails immediately, and any removal
-      must be reflected in the allowlist.
+    rationale: >-
+      A subset assertion says "we have at most these violations". A violation that is
+      fixed can then stay on the known list, and a later change can bring it back while
+      the test still passes. Bidirectional equality says "we have exactly these
+      violations": any addition fails immediately, and a fixed violation fails until its
+      entry is removed (ARCH-18-002).
   - id: ARCH-18-002
     priority: MUST
     kind: process

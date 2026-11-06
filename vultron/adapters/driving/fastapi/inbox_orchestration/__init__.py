@@ -42,6 +42,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration.ingress import (
 )
 from vultron.adapters.driving.fastapi.inbox_orchestration.pipeline import (
     replay_inbox_queue,
+    run_actor_work_then_replay,
     run_inbox_pipeline,
     run_serialised_actor_work,
 )
@@ -57,6 +58,7 @@ __all__ = [
     "FastAPIQueuePort",
     "FastAPIReceivedOutcomePort",
     "replay_inbox_queue",
+    "run_actor_work_then_replay",
     "run_inbox_pipeline",
     "run_serialised_actor_work",
 ]

@@ -21,7 +21,7 @@ Reporter, Coordinator (CASE_OWNER), Vendor, and CaseActor.
 Coordinator receives the Reporter's report and proposes the case to the
 CaseActor in the dedicated case-actor container, which creates it and holds
 CASE_MANAGER; the Coordinator holds CASE_OWNER.  The Reporter is
-seated as reporter when the case is created (CM-22-002), so it is never
+seated as reporter when the case is created (CP-09-002), so it is never
 invited; the Coordinator directly invites Vendor (``invite-actor-to-case``).
 Vendor accepts the report and embargo, advances through the fix lifecycle
 to fix ready (VFd; Vendor stops at VFd), and all three participants

@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The CASE_MANAGER role is never unfilled (CM-24-006).
+"""The CASE_MANAGER role is never unfilled (CM-02-014).
 
 Both creation paths register a holder at birth and delegation hands it on, so a
 roster with no ``CVDRole.CASE_MANAGER`` is corrupt, not a topology.  A trigger

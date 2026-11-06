@@ -339,11 +339,14 @@ addopts = "-ra -q -m 'not integration' --dist loadgroup --max-worker-restart=0"
 # cannot reach, such as a C call holding the GIL, is bounded by the CI job's
 # `timeout-minutes` and the local gate's `timeout` wrapper instead.
 #
-# Sized from measurement, not taste: the slowest unit test on an idle machine is
-# ~3.1s (`test_real_specs_load` setup), so this is ~10x headroom.  Contention on
-# a loaded dev box or CI runner inflates honest tests well beyond their idle
-# cost, and 5s and 20s both tripped on honest work under load.  A generous
-# ceiling costs nothing on a genuine hang: that test was never going to finish.
+# Sized from measurement, not taste: about ten times the idle cost of the
+# slowest test it governs.  Contention on a loaded dev box or CI runner inflates
+# honest tests well beyond their idle cost, and 5s and 20s both tripped on
+# honest work under load.  A generous ceiling costs nothing on a genuine hang:
+# that test was never going to finish.  A single test that outgrows the tier is
+# made faster rather than given room: it may carry its own
+# `@pytest.mark.timeout`, which wins over the tier, only as an interim measure
+# naming the issue that speeds it up (TB-14-003).
 #
 # Integration tests get a wider tier (120s, sized from measured demo cost
 # under load, #5188); see `INTEGRATION_TIMEOUT_SECONDS` in `test/conftest.py`.

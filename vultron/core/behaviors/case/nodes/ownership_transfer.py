@@ -110,7 +110,7 @@ class EmitProposeCaseOwnershipTransferNode(_EmitSingleActivityBase):
         # Regime 3 (ADR-0087): the case is read only to address the Offer to
         # its CASE_MANAGER, so the read is lenient here (conformance
         # allowlist).  The trigger refuses, before this tree runs, a case it
-        # does not hold or one with no CASE_MANAGER (PCR-08-011, CM-24-006),
+        # does not hold or one with no CASE_MANAGER (PCR-08-011, CM-02-014),
         # so a `to`-less Offer is not reached through it.
         case = self.datalayer.read_case(self.case_id)
         case_actor_id: list[str] | None = None

@@ -18,7 +18,7 @@
 Three actor containers plus a dedicated CaseActor, and no Coordinator:
 
 - Reporter: the report submitter, seated when the case is created
-  (CM-22-002);
+  (CP-09-002);
 - Vendor1 (cast slot 1, the first Vendor): CASE_OWNER throughout, which
   invites Vendor2 directly (DEMOMA-09-002);
 - Vendor2 (cast slot 3, a character actor): a second Vendor with a fix path

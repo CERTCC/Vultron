@@ -96,9 +96,16 @@ def case_actor_dl() -> Iterator[SqliteDataLayer]:
 
 @pytest.fixture
 def vendor_dl() -> Iterator[SqliteDataLayer]:
-    """The Case Owner's replica, from which the proposal is sent."""
+    """The Case Owner's replica, from which the proposal is sent.
+
+    The replica names the case's CASE_MANAGER, as every replica does from
+    the moment it is seeded (CP-09-004), so the vendor's adapter numbers the
+    proposal it sends there (SYNC-21-001).
+    """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_ID)
-    dl.create(_case())
+    case = _case()
+    seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
+    dl.create(case)
     yield dl
     dl.close()
 

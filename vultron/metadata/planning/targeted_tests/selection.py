@@ -6,6 +6,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
+from vultron.metadata.git_runner import GitRunner
+from vultron.metadata.planning.heavy_lock import under_heavy_lock
 from vultron.metadata.planning.targeted_tests.index import (
     _is_test_file,
     _no_history,
@@ -14,7 +16,6 @@ from vultron.metadata.planning.targeted_tests.index import (
 from vultron.metadata.specs.backstop import (
     TEST_PREFIX,
     FileChange,
-    GitRunner,
     TestFile,
     base_changed_paths,
     changed_paths,
@@ -55,9 +56,14 @@ _INERT_TEST_SUFFIXES = (".md",)
 GATE_CEILING = ("timeout", "-k", "30", "1800")
 
 
-PYTEST_BASE = (
-    *GATE_CEILING,
-    *("uv", "run", "pytest", "-n", "auto", "--tb=short", "-m", ""),
+#: The gate command: in one of the host's heavy-check slots, then under
+#: :data:`GATE_CEILING`, so time spent waiting for a slot is not charged
+#: to the run (#5947).
+PYTEST_BASE = under_heavy_lock(
+    (
+        *GATE_CEILING,
+        *("uv", "run", "pytest", "-n", "auto", "--tb=short", "-m", ""),
+    )
 )
 
 
@@ -187,7 +193,7 @@ def pytest_argv(selection: Selection) -> list[str]:
     ``-m ""`` replaces the ``-m 'not integration'`` in ``addopts``: pytest
     keeps the last ``-m``, so marker-bearing tests among the selected files
     are not deselected (PAD-18-011). The full suite is the same command with
-    no paths. It runs under :data:`GATE_CEILING`.
+    no paths. It runs in a heavy-check slot, then under :data:`GATE_CEILING`.
     """
     return list(PYTEST_BASE) + ([] if selection.full else selection.tests)
 

@@ -52,6 +52,10 @@ from vultron.adapters.driving.fastapi.outbox_monitor import (
     OutboxMonitor,
 )
 from vultron.adapters.driving.fastapi.routers import demo_triggers, router
+from vultron.adapters.driving.fastapi.sender_sequence_holds import (
+    finish_sender_sequence_hold_timer,
+    start_sender_sequence_hold_timer,
+)
 from vultron.config import RunMode, get_config
 from vultron.logging_setup import (
     restore_third_party_log_levels,
@@ -187,7 +191,8 @@ def _make_lifespan(*, configure_globals: bool = True):
             configures logging, starts the background ``OutboxMonitor``, and
             starts the startup replay of every hosted actor's inbox queue
             (IE-06-006) and each hosted participant's ledger position
-            statements (SYNC-17-007).
+            statements (SYNC-17-007), and the timer that ends each
+            sender-sequence hold once its wait has passed (SYNC-21-011).
             When ``False`` (used by :func:`create_app` for isolated test apps),
             these global side-effects are skipped, the startup replay
             included, so that multiple apps
@@ -247,10 +252,19 @@ def _make_lifespan(*, configure_globals: bool = True):
             else None
         )
 
+        # End each sender-sequence hold once its wait has passed, whether or
+        # not anything else arrives (SYNC-21-011).
+        hold_timer = (
+            start_sender_sequence_hold_timer(application.state.emitter)
+            if configure_globals
+            else None
+        )
+
         yield {SHUTDOWN_STATE_KEY: ledger_stream_shutdown}
 
         ledger_stream_shutdown.set()
         undo_shutdown_hook()
+        await finish_sender_sequence_hold_timer(hold_timer)
         await finish_ledger_position_statements(position_statements)
         await finish_startup_inbox_replay(startup_replay)
 
