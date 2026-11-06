@@ -93,7 +93,9 @@ class IndexedTestFile:
     def marked_ids(self) -> frozenset[str]:
         """The spec IDs the file's ``@pytest.mark.spec`` markers name.
 
-        Scanned once per file: one test file is named by many clauses.
+        Parsed once per file, and only for a file some clause names: one
+        test file is named by many clauses. Marker text inside a string
+        literal is not a marker.
         """
         return marked_ids_in((self.source,))
 

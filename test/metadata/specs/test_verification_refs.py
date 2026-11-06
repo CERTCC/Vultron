@@ -217,6 +217,18 @@ class TestNamedTestsLackMarker:
         spec = _spec(tmp_path, "`test/other/test_b.py` checks it.", "protocol")
         assert named_tests_lack_marker("TST-01-001", spec, index)
 
+    def test_a_marker_only_in_a_string_does_not_mark_the_file(self, tmp_path):
+        """Marker text in a string literal is not a marker (#6062)."""
+        _tree(tmp_path)
+        (tmp_path / "test" / "other" / "test_b.py").write_text(
+            "FIXTURE = '@pytest.mark.spec(\"TST-01-001\")'\n"
+            "def test_only_in_b():\n    pass\n",
+            encoding="utf-8",
+        )
+        index = SuiteIndex.build(tmp_path)
+        spec = _spec(tmp_path, "`test/other/test_b.py` checks it.", "protocol")
+        assert named_tests_lack_marker("TST-01-001", spec, index)
+
     def test_one_marked_file_among_several_is_enough(self, tmp_path):
         index = _tree(tmp_path)
         verification = "`test/other/test_b.py` and `test/pkg/test_a.py`"

@@ -35,6 +35,11 @@ errs toward listing a gap. Two things that stop a case running count like an
 ``mark.skip`` (its reason prefixed ``skip:``) and a ``parametrize`` whose
 literal argument list is empty.
 
+:func:`marked_spec_ids` answers the plainer question of which IDs any
+``mark.spec`` call names, which alone decides whether a requirement is
+untested. It reads calls, not text, so marker text inside a string literal
+(a fixture that writes a test file) names nothing.
+
 As pytest does, only the last ``pytestmark`` assignment of a module or class
 counts, and a ``parametrize`` inside it adds an axis like a decorator.
 
@@ -50,6 +55,7 @@ expression included.
 from __future__ import annotations
 
 import ast
+import functools
 import itertools
 import re
 from collections.abc import Iterable, Iterator, Mapping
@@ -345,6 +351,60 @@ def _cases_in(
                 )
 
 
+@dataclass(frozen=True)
+class MarkedFile:
+    """What one test file's ``spec`` markers say, read from one parse.
+
+    Attributes:
+        spec_ids: Every ID a ``mark.spec`` call in the file names, wherever
+            the call is. Marker text inside a string literal is not a call,
+            so it names nothing.
+        cases: The file's :class:`MarkedCase` entries, as
+            :func:`marked_cases_in` returns them.
+    """
+
+    spec_ids: frozenset[str]
+    cases: tuple[MarkedCase, ...]
+
+
+_NO_MARKERS = MarkedFile(frozenset(), ())
+
+
+def _spec_ids_in(tree: ast.AST) -> frozenset[str]:
+    """The IDs of every ``mark.spec`` call anywhere in *tree*."""
+    ids: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "spec"
+        ):
+            ids |= spec_call_ids(node)
+    return frozenset(ids)
+
+
+def read_marked_file(path: str, source: str) -> MarkedFile:
+    """The spec IDs and marked cases of one test file.
+
+    Args:
+        path: The file's path, as reported in :attr:`MarkedCase.test`.
+        source: The file's text.
+
+    Raises:
+        SyntaxError: *source* does not parse; the error names *path*.
+    """
+    if "mark.spec" not in source:
+        return _NO_MARKERS
+    tree = ast.parse(source, filename=path)
+    constants = _module_constants(tree)
+    module = _scope_from(_Scope(), None, _pytestmark(tree.body), constants)
+    cases = list(dict.fromkeys(_cases_in(path, tree.body, module, constants)))
+    unplaced = _unplaced_spec_ids(tree)
+    if unplaced:
+        cases.append(MarkedCase(path, unplaced, ()))
+    return MarkedFile(_spec_ids_in(tree), tuple(cases))
+
+
 def marked_cases_in(path: str, source: str) -> list[MarkedCase]:
     """Each distinct way a marked test in *source* runs.
 
@@ -361,16 +421,24 @@ def marked_cases_in(path: str, source: str) -> list[MarkedCase]:
     Raises:
         SyntaxError: *source* does not parse; the error names *path*.
     """
+    return list(read_marked_file(path, source).cases)
+
+
+@functools.lru_cache(maxsize=4096)
+def marked_spec_ids(source: str) -> frozenset[str]:
+    """Every ID a ``mark.spec`` call in *source* names (SR-05-005, SR-05-017).
+
+    A decorator, a module or class ``pytestmark``, a ``pytest.param(marks=...)``
+    entry and a marker built inside a function all count; marker text inside a
+    string literal does not. Cached by text: the growth guards read the head
+    tree and the merge-base tree, which share most files.
+
+    Raises:
+        SyntaxError: *source* does not parse.
+    """
     if "mark.spec" not in source:
-        return []
-    tree = ast.parse(source, filename=path)
-    constants = _module_constants(tree)
-    module = _scope_from(_Scope(), None, _pytestmark(tree.body), constants)
-    cases = list(dict.fromkeys(_cases_in(path, tree.body, module, constants)))
-    unplaced = _unplaced_spec_ids(tree)
-    if unplaced:
-        cases.append(MarkedCase(path, unplaced, ()))
-    return cases
+        return frozenset()
+    return _spec_ids_in(ast.parse(source))
 
 
 def _mark_sites(body: Iterable[ast.stmt]) -> Iterator[ast.expr]:
