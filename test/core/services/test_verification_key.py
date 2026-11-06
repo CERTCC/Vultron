@@ -124,11 +124,14 @@ def test_a_held_profile_without_the_key_leads_to_a_fetch():
 @pytest.mark.spec("SIG-02-001")
 def test_an_unheld_profile_is_fetched_from_the_author():
     fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
+    dl = _store()
 
-    key = _resolve(_store(), fetcher)
+    key = _resolve(dl, fetcher)
 
     assert key == AUTHOR_KEY
     assert fetcher.asked == [(AUTHOR, RECEIVER)]
+    # Nothing fetched becomes a held key: a held key is trusted as held.
+    assert dl.read(AUTHOR) is None
 
 
 @pytest.mark.spec("SIG-02-001")
