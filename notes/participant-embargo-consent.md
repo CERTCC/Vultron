@@ -173,6 +173,14 @@ Only the owner's decision changes the embargo on the case, through
 activation writes are the owner's own agreement and the carry-over
 (`_consent_at_activation`, `_carry_signatories_over`).
 
+**Participants answer invitations; the owner acts on embargoes** (ADR-0180).
+Activation becomes `Add(EmbargoEvent)[target=VulnerabilityCase]`, the pair of the
+`Remove` that ends an embargo; rejection keeps `Reject(EmbargoEvent)`; both name
+the proposal's `Invite(EmbargoEvent)` in `inReplyTo`. Reason: a case change and a
+consent then differ by verb, and no shape's meaning depends on its sender. Do not
+answer a proposal for the case with `Reject(Invite(EmbargoEvent))`: that is the
+owner's own decline, which leaves the proposal open. #6030 builds it.
+
 **Never write consent on propose, lapse, advance or exit.** A proposal only adds
 rows for the proposed embargo. Code that changes a participant's consent to the
 embargo *in force* inside a proposal path is a defect: coverage never breaks
