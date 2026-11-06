@@ -295,7 +295,9 @@ def _tree_at_the_case_manager(
     receiver = f"{_CASE_MANAGER}/{entry.semantics.name.lower()}"
     activity = activity.model_copy(update={"to": [receiver]})
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
-    case = example_case()
+    # A copy: the example case is a shared singleton, and seeding attaches
+    # the participants to the case it is given.
+    case = example_case().model_copy(deep=True)
     seed_case_manager_participant(dl, case, receiver)
     seed_case_participant(dl, case, str(_as_id(activity.actor)))
     dl.create(case)
