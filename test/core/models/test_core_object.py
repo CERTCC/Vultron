@@ -8,7 +8,7 @@ from datetime import UTC
 from typing import Literal
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 import vultron
 from test.support.core_vocab import restore_core_registries
@@ -18,6 +18,7 @@ from vultron.core.models import (
     find_in_core_vocabulary,
 )
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import VULTRON_CONTEXT_URI, CoreRecord
 from vultron.core.models.base.record import concrete_type_annotation
 from vultron.core.models.case import VulnerabilityCase
@@ -95,6 +96,46 @@ def test_core_object_context_is_emitted_on_the_as2_path_only():
     stored = obj.model_dump(exclude_none=True)
     assert "@context" not in stored
     assert "context_" not in stored
+
+
+_SIGNED_CONTEXT = [
+    VULTRON_CONTEXT_URI,
+    "https://w3id.org/security/data-integrity/v2",
+]
+
+
+@pytest.mark.spec("VM-10-001")
+def test_core_object_keeps_a_list_context_through_a_round_trip():
+    """A signed body's ``@context`` is a list (FEP-8b32), so a core object
+    parsed from one, such as a fetched actor profile, accepts it and dumps
+    it back unchanged on the AS2 path, and never stores it."""
+    actor = CoreActor.model_validate(
+        {
+            "@context": _SIGNED_CONTEXT,
+            "id": "https://example.org/actors/signed",
+            "type": "Person",
+            "name": "Signed",
+            "inbox": "https://example.org/actors/signed/inbox",
+            "outbox": "https://example.org/actors/signed/outbox",
+        }
+    )
+
+    assert actor.context_ == _SIGNED_CONTEXT
+    as2 = actor.model_dump(mode="json", by_alias=True, exclude_none=True)
+    assert as2["@context"] == _SIGNED_CONTEXT
+    assert CoreActor.model_validate(as2) == actor
+    assert "context_" not in actor.model_dump(exclude_none=True)
+
+
+@pytest.mark.spec("CS-08-002")
+@pytest.mark.parametrize(
+    "context",
+    [[], [""], [VULTRON_CONTEXT_URI, "  "], ""],
+    ids=["empty-list", "blank-entry", "one-blank-entry", "blank-string"],
+)
+def test_core_object_refuses_an_empty_or_blank_context(context: object):
+    with pytest.raises(ValidationError):
+        CoreObject.model_validate({"@context": context})
 
 
 def test_core_object_context_defaults_to_the_vultron_uri_on_the_wire():

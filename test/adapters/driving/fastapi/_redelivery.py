@@ -25,6 +25,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
+from test.support.signing import post_signed
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
@@ -56,8 +57,12 @@ def served_store(
 
 
 def post(client: TestClient, inbox: str, body: dict[str, Any]) -> None:
-    """Post *body* to *inbox*; the inbox accepts it for processing."""
-    response = client.post(inbox, json=body)
+    """Post *body*, signed by its actor, to *inbox*; the inbox accepts it.
+
+    Signing is deterministic (``test.support.signing``), so a second post of
+    the same body is the same bytes, and is routed as the archived copy.
+    """
+    response = post_signed(client, inbox, body)
     assert response.status_code == 202, response.text
 
 

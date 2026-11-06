@@ -30,6 +30,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.received import archive_received, intake_received
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -463,7 +464,7 @@ def test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place(
 ):
     """The same ``Announce(CaseLedgerEntry)`` body still takes the in-place
     path, so the SYNC-12-003 already-stored gate answers it (SYNC-13-004)."""
-    body = _announce_entry_body()
+    body = signed_body(_announce_entry_body())
     archive_received(dl, parse_activity(copy.deepcopy(body)))
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(copy.deepcopy(body))

@@ -15,7 +15,12 @@
 
 """The Vultron JSON-LD ``@context`` and the Vultron-property field marker."""
 
+from typing import Annotated
+
+from pydantic import Field
 from pydantic.config import JsonDict
+
+from vultron.primitives import NonEmptyString
 
 #: The Vultron JSON-LD ``@context``.  VM-10-001 (MUST) requires it on every
 #: Vultron-specific object on the wire; the ActivityStreams namespace alone "is
@@ -26,6 +31,17 @@ from pydantic.config import JsonDict
 #: core MUST NOT import wire (ARCH-01-001 — the one boundary rule ADR-0099 leaves
 #: fully in force).  Wire imports it from here, which ARCH-25-006 permits.
 VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
+
+#: The type of an object's JSON-LD ``@context``: one context IRI, or a
+#: non-empty list of them in order.  A signed body's context is a list: the
+#: signing module appends the data-integrity context to the activity's own
+#: (FEP-8b32, ``vultron.wire.as2.signing``), so a single context becomes
+#: two.  Each entry, and the list itself, is "if present, then non-empty"
+#: (CS-08-002).  An inline context object (a JSON-LD term map) is not
+#: accepted: nothing Vultron sends or reads defines terms inline.
+JsonLdContext = (
+    NonEmptyString | Annotated[list[NonEmptyString], Field(min_length=1)]
+)
 
 #: Key of the ``json_schema_extra`` marker that declares a wire field a
 #: Vultron-namespace property, such as a termination ``Remove``'s
