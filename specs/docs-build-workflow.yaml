@@ -865,8 +865,7 @@ groups:
         kind: project
         statement: >-
           A scheduled run MUST skip a candidate commit that already has a
-          `publish-*` tag that the publication workflow made: an annotated tag
-          whose tagger is `github-actions[bot]`.
+          `publish-*` tag that is a DOCBW-07-013 publish.
         rationale: >-
           The schedule then never publishes one commit twice, and never undoes a
           rollback by publishing again the commit it rolled back from. A manual
@@ -877,12 +876,15 @@ groups:
           `test/ci/test_publish_gate.py`, against real tags.
         adr:
           - ADR-0171
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DOCBW-07-013
       - id: DOCBW-06-014
         priority: MUST_NOT
         kind: project
         statement: >-
-          A `publish-*` tag whose tagger is not `github-actions[bot]`, or a
-          lightweight `publish-*` tag, MUST NOT trigger the DOCBW-06-013 skip.
+          A `publish-*` tag that is not a DOCBW-07-013 publish MUST NOT trigger
+          the DOCBW-06-013 skip.
         rationale: >-
           The tag ruleset restricts the update and deletion of a `publish-*`
           tag, not its creation (#5545), so any account that can push can create
@@ -899,6 +901,8 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-013
+          - rel_type: uses_definition
+            spec_id: DOCBW-07-013
       - id: DOCBW-06-015
         priority: MUST
         kind: project
@@ -1371,8 +1375,8 @@ groups:
           identity only through the shared helper `.github/scripts/release_tags.py`.
         rationale: >-
           One helper gives all four the same answer to "which commits were
-          published." A hand-pushed tag that the skip rule ignores (DOCBW-06-014)
-          must not pass as a publish to promote, to the release check or to the
+          published." A hand-pushed tag, which the scheduled skip ignores, must
+          not pass as a publish to promote, to the release check or to the
           staleness alarm either.
         verification: >-
           `test/ci/test_release_tags.py` covers each query, a hand-pushed tag
@@ -1391,10 +1395,10 @@ groups:
           The DOCBW-07-006 helper MUST count as a publish only an annotated
           `publish-YYYY-MM-DD.N` tag whose tagger is `github-actions[bot]`.
         rationale: >-
-          A hand-pushed tag that the skip rule ignores (DOCBW-06-014) must not
-          pass as a publish to promote, to the release check or to the staleness
-          alarm either. A name the publish workflow never makes is no publish,
-          whoever tagged it.
+          The tag ruleset does not restrict who creates a `publish-*` tag, so a
+          hand-pushed or lightweight tag must not pass as a publish to the skip,
+          to promote, to the release check or to the staleness alarm. A name the
+          publish workflow never makes is no publish, whoever tagged it.
         verification: >-
           `test_only_a_bot_made_well_named_tag_is_a_publish` in
           `test/ci/test_release_tags.py` and

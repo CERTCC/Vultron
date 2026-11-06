@@ -1,5 +1,5 @@
 """Tests for vultron.metadata.specs.lint.structure and the registry hard
-errors: duplicate IDs, dangling relationships, prefixes (MS-04-004), missing
+errors: duplicate IDs, dangling relationships, prefixes (SR-01-013), missing
 kind and scenario_start groups (MS-13-004).
 """
 
@@ -192,7 +192,7 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# Spec ID vs group prefix check (MS-04-004)
+# Spec ID vs group prefix check (SR-01-013)
 # ---------------------------------------------------------------------------
 
 

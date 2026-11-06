@@ -160,7 +160,7 @@ class TestEmbargoProposalLifecycle:
         )
         # Start from PROPOSED — the standard pre-condition for activation.
         propose(case, embargo.id_)
-        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
@@ -235,7 +235,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em3_warn/embargo_proposals/1",
         )
         # The register is empty (EM NONE): the proposal was never recorded.
-        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
@@ -303,7 +303,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em5/participants/coord",
             attributed_to=coordinator_id,
             context=case.id_,
-            # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+            # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005).
             case_roles=[CVDRole.CASE_MANAGER],
         )
         proposal = em_propose_embargo_activity(
@@ -572,7 +572,7 @@ def _make_pxa_case(
         to=to if to is not None else [coordinator_id],
     )
     # The case's CASE_MANAGER is the coordinator: the role is never unfilled
-    # (CM-24-006), and a participant's Reject goes to it (PCR-08-001).
+    # (CM-02-014), and a participant's Reject goes to it (PCR-08-001).
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
     )
@@ -755,7 +755,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
             id_=case_id, name="PXA clear", attributed_to=coordinator_id
         )
         dl.create(case)
-        # The CASE_MANAGER role is never unfilled (CM-24-006).
+        # The CASE_MANAGER role is never unfilled (CM-02-014).
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant as CP,
@@ -906,7 +906,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         case = VulnerabilityCase(
             id_=case_id, name="PXA clear Accept", attributed_to=coordinator_id
         )
-        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
@@ -1134,7 +1134,7 @@ class _AnsweredInvite:
             id_="https://example.org/cases/case_em_dup/embargo_proposals/1",
         )
         propose(case, embargo.id_)
-        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005); the
+        # The receiver is the CASE_MANAGER (CM-02-014, BT-17-005); the
         # sender joins after the proposal, so it holds the proposal's row.
         seed_store_owner_as_case_manager(self.dl, case)
         self._sender_id = seed_case_owner_participant(

@@ -105,7 +105,7 @@ def _setup_case_with_vendor(
     2. Vendor validates the report
     3. Vendor creates the case through the ``create-case`` trigger, which
        seats it as Vendor, Case Owner and CASE_MANAGER (CM-02-014,
-       CM-02-015): a case is never without a CASE_MANAGER (CM-24-006), and
+       CM-02-015): a case is never without a CASE_MANAGER (CM-02-014), and
        the removal and reinstatement in the accept path are the Case Owner's
        requests to it
     4. Report is linked to the case

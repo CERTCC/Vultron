@@ -216,7 +216,7 @@ def test_rcvv_embargo_invite_actor_to_case_exactly_twice(
     """``invite_actor_to_case`` appears exactly twice (Vendor1 and Vendor2).
 
     The Reporter is seated as a participant when the case is created
-    (CM-22-002), so only the two vendors are invited.
+    (CP-09-002), so only the two vendors are invited.
 
     Spec: DEMOMA-21-008 (phases 1 and 4).
     """

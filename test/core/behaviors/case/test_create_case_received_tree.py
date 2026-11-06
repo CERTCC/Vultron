@@ -329,7 +329,7 @@ def test_bare_participant_refusal_leaves_the_link_unbound(dl, make_payload):
 
 
 # ---------------------------------------------------------------------------
-# CBT-01-001 / CM-12-003: the report receiver introduces the CASE_MANAGER to
+# CBT-01-001: the report receiver introduces the CASE_MANAGER to
 # the reporter with its own Create(VulnerabilityCase) (ADR-0132).
 # ---------------------------------------------------------------------------
 
@@ -468,7 +468,6 @@ def _introductions(owner_dl: SqliteDataLayer) -> list[as_Create]:
 @pytest.mark.spec("CBT-01-002")
 @pytest.mark.spec("CBT-01-007")
 @pytest.mark.spec("AKM-02-004")
-@pytest.mark.spec("CM-12-003")
 @pytest.mark.spec("CBT-01-019")
 def test_report_receiver_introduces_the_case_manager_to_the_reporter():
     """The owner sends the reporter the whole case, naming the CASE_MANAGER."""
@@ -500,7 +499,7 @@ def test_report_receiver_introduces_the_case_manager_to_the_reporter():
 
 
 @pytest.mark.spec("CM-10-004")
-@pytest.mark.spec("CM-12-003")
+@pytest.mark.spec("CBT-01-001")
 def test_bootstrap_addressees_withhold_an_inert_finder():
     """Under an active embargo only a signatory reporter is introduced.
 

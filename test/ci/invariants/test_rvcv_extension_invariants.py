@@ -9,7 +9,7 @@ Actor set: ``reporter``, ``vendor``, ``coordinator``, ``vendor2``,
 
 RVCV-extension-specific invariants:
 - ``invite_actor_to_case`` appears at least twice (Coordinator, then Vendor2 via
-  CaseActor; the Reporter is seated at case creation, CM-22-002).
+  CaseActor; the Reporter is seated at case creation, CP-09-002).
 - ``offer_case_participant`` appears at least once (Coordinator suggests Vendor2).
 - ``accept_invite_actor_to_case`` appears at least once (Vendor2 accepts CaseActor invite).
 - Vendor2 is a late joiner — replica holds the complete log from genesis.

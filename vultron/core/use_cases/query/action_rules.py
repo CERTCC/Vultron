@@ -14,7 +14,7 @@
 
 """Use case for querying CVD action rules for an actor in a case.
 
-Implements CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
+Implements CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 """
 
 from typing import cast
@@ -93,7 +93,7 @@ class GetActionRulesUseCase:
     resulting combined case-state string together with the full state
     context.
 
-    Implements: CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
+    Implements: CM-07-002, CM-07-003, AR-07-001, AR-07-002.
     """
 
     def __init__(

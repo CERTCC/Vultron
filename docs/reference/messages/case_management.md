@@ -45,7 +45,7 @@ The 300-level introduction is [The CASE_MANAGER and the Case Ledger](../../topic
 
 {% include-markdown "./_occasions/sections/create-case.md" %}
 
-- **Recipients:** the CASE_MANAGER sends the completed case to the report receiver (the Case Owner) only ([CBT-01-010](../vultron-spec/requirements/ledger-replication.md#cbt-01-010), [CM-22-006](../vultron-spec/requirements/case-management.md#cm-22-006), [CM-22-002](../vultron-spec/requirements/case-management.md#cm-22-002)).
+- **Recipients:** the CASE_MANAGER sends the completed case to the report receiver (the Case Owner) only ([CBT-01-010](../vultron-spec/requirements/ledger-replication.md#cbt-01-010), [CM-22-006](../vultron-spec/requirements/case-management.md#cm-22-006), [CP-09-002](../vultron-spec/requirements/case-management.md#cp-09-002)).
   The report receiver then sends the report submitter a `Create(VulnerabilityCase)` as itself.
   That message names the CASE_MANAGER and is the trust bootstrap (spec [§10.3 Case Bootstrap and the Trust Root](../vultron-spec/interactions.md#103-case-bootstrap-and-the-trust-root); [CBT-01-001](../vultron-spec/requirements/ledger-replication.md#cbt-01-001), [ADR-0132](../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
 - **Who is named where:** the `actor` of the `Create` is the CASE_MANAGER that mints the case, and the case's `attributedTo` is the Case Owner ([CP-09-001](../vultron-spec/requirements/case-management.md#cp-09-001), [CP-09-011](../vultron-spec/requirements/case-management.md#cp-09-011), [CM-02-008](../vultron-spec/requirements/case-management.md#cm-02-008)).
@@ -100,7 +100,7 @@ This offer is distinct from `Offer(CaseParticipant)`, which forwards an actor re
   A redelivery of the `Accept` that closed the offer changes nothing ([CM-33-018](../vultron-spec/requirements/case-management.md#cm-33-018)).
 - **Effect:** the CASE_MANAGER records the `Accept` in the ledger as `accept_case_participant_role`, and grants the role on its own copy of the case.
   It announces the entry to every participant.
-  Each participant grants the role when it replays the entry ([CM-33-006](../vultron-spec/requirements/case-management.md#cm-33-006), [CM-33-019](../vultron-spec/requirements/case-management.md#cm-33-019), [CM-33-020](../vultron-spec/requirements/case-management.md#cm-33-020), [CM-02-020](../specs/project.md#cm-02-020)).
+  Each participant grants the role when it replays the entry ([CM-33-006](../vultron-spec/requirements/case-management.md#cm-33-006), [CM-33-019](../vultron-spec/requirements/case-management.md#cm-33-019), [CM-02-016](../specs/project.md#cm-02-016), [CM-02-020](../specs/project.md#cm-02-020)).
 - **Triggering transition:** none — roster action.
 - **Example artifact:** [accept_case_participant_role.json](../examples/accept_case_participant_role.json).
 

@@ -128,7 +128,7 @@ In that case, it sends you the [refusal notice](../../../reference/messages/faul
 If your answer is delivered again after the CASE_MANAGER recorded it, the CASE_MANAGER changes nothing ([CM-33-018](../../../reference/vultron-spec/requirements/case-management.md#cm-33-018)).
 
 When it admits your answer, the CASE_MANAGER records it in the case ledger and announces the entry to every participant in the case ([CM-33-006](../../../reference/vultron-spec/requirements/case-management.md#cm-33-006), [CM-33-019](../../../reference/vultron-spec/requirements/case-management.md#cm-33-019)).
-On an `Accept`, the CASE_MANAGER grants the role on its own copy of the case, and every other participant grants it when it replays the entry ([CM-33-020](../../../reference/vultron-spec/requirements/case-management.md#cm-33-020)).
+On an `Accept`, the CASE_MANAGER grants the role on its own copy of the case, and every other participant grants it when it replays the entry ([CM-02-016](../../../reference/specs/project.md#cm-02-016), [CM-02-020](../../../reference/specs/project.md#cm-02-020)).
 You hold the role once the CASE_MANAGER records your `Accept` in the case ledger ([CM-02-016](../../../reference/specs/project.md#cm-02-016)).
 Consider what the role obliges you to do before accepting.
 

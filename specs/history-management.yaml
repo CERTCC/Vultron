@@ -100,18 +100,6 @@ groups:
       spec_id: HM-01-002
     - rel_type: uses_definition
       spec_id: HM-01-009
-  - id: HM-01-003
-    priority: MUST
-    kind: process
-    verification_debt: '#2571'
-    statement: >-
-      After each `append-history` run, the tool MUST regenerate the local
-      `plan/history/YYMM/README.md` index from entry frontmatter (HM-03-006).
-    rationale: >-
-      The index gives a quick local view of the entries of a month. The tool derives the
-      index fully from entry frontmatter, so a local regeneration can rebuild it at any
-      time.
-    note: To view the history index, use `uv run show-history [--month YYMM | --all]`.
   - id: HM-01-011
     priority: MUST_NOT
     kind: process
@@ -361,12 +349,13 @@ groups:
       A table with the newest entries first gives a quick local view of the records for
       a month. The reader does not have to open each file. The tool scans only the
       known-type subdirectories, so unrelated files with different frontmatter cannot
-      break the regeneration.
-    note: The scan is restricted to known HistoryEntryType subdirectories to avoid parsing non-standard frontmatter in other
-      subdirs (e.g. report/). The gitignore constraint is specified in HM-01-003.
-    relationships:
-    - rel_type: implements
-      spec_id: HM-01-003
+      break the regeneration. The index is derived fully from entry frontmatter, so a
+      local regeneration can rebuild it at any time.
+    note: >-
+      The scan is restricted to known HistoryEntryType subdirectories to avoid parsing
+      non-standard frontmatter in other subdirs (e.g. report/). The gitignore
+      constraint is HM-01-011. To view the history index, use
+      `uv run show-history [--month YYMM | --all]`.
   - id: HM-03-007
     priority: MUST
     kind: project
@@ -472,12 +461,15 @@ groups:
     priority: MUST
     kind: process
     verification_debt: '#2571'
-    statement: The `build` skill MUST use `uv run append-history implementation` to write completion summaries.
+    statement: >-
+      The `build` and `bugfix` skills MUST write completion summaries only with
+      `uv run append-history implementation`.
     rationale: >-
       When the tool writes a completion summary, the summary gets validated frontmatter
-      and goes to the configured output mode (a file or an issue comment). A summary
-      written in a different way skips both, and readers cannot find it in the usual
-      way.
+      and goes to the configured output mode (a file or an issue comment), where
+      readers of the work item find it. A summary written in a different way skips
+      both and is lost, or it goes into the learnings queue, which is not its location
+      (BW-01-002).
   - id: HM-05-002
     priority: MUST
     kind: process

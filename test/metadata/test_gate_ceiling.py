@@ -32,6 +32,7 @@ from typing import Any
 import pytest
 
 from test.ci._workflows import WORKFLOWS_DIR, load_workflow, workflow_files
+from vultron.metadata.planning.heavy_lock import HEAVY_LOCK_SCRIPT
 from vultron.metadata.planning.targeted_tests import GATE_CEILING
 
 _REPO_ROOT = Path(__file__).parents[2]
@@ -52,9 +53,10 @@ _AGENT_GLOBS = (
 
 _EXCLUDED_PARTS = (".git", "plan", "node_modules", ".venv", "wip_notes")
 
-# The redirected gate form: ``uv run pytest ... > /tmp/x.log ...; (exit $rc)``.
+# The redirected gate form: ``uv run pytest ... > /tmp/x.log ...; (exit $rc)``,
+# the log named by path or by a variable (``> "$log"``, ``> "$logs-unit.log"``).
 _REDIRECTED_GATE = re.compile(
-    r"uv run pytest[^\n`]*>\s*/tmp/[^\n`]*\(exit \$rc\)"
+    r'uv run pytest[^\n`]*>\s*(?:/tmp/|"\$)[^\n`]*\(exit \$rc\)'
 )
 
 
@@ -104,6 +106,155 @@ def test_agent_gate_command_runs_under_the_ceiling(rel_path: str) -> None:
     assert not bare, (
         f"{rel_path} has redirected pytest gate(s) without `{_CEILING}` "
         f"(TB-14-005):\n" + "\n".join(f"  {cmd}" for cmd in bare)
+    )
+
+
+# --- The per-host heavy-check lock (#5947) ----------------------------------
+
+#: The wrapper as written in a command.
+_LOCK = "uv run python " + HEAVY_LOCK_SCRIPT
+
+#: What every parallel gate starts with: the lock, then the ceiling, so time
+#: spent waiting for a slot is not charged to the run.
+_LOCKED_PREFIX = f"{_LOCK} {_CEILING} "
+
+#: A heavy command on a line of a skill's code: one that starts many processes
+#: or uses much memory.
+_HEAVY_COMMAND = re.compile(
+    r"uv run pyright|mkdocs build|mkdocs-build-strict\.sh|merged-tree-tests"
+)
+
+
+def _unlocked_parallel_gates(text: str) -> list[str]:
+    return [
+        match.group(0)
+        for match in _REDIRECTED_GATE.finditer(text)
+        if "-n auto" in match.group(0)
+        and not text[: match.start()].endswith(_LOCKED_PREFIX)
+    ]
+
+
+def _code_lines(text: str) -> list[str]:
+    """The lines of *text* an agent runs: frontmatter ``commands:`` and fences."""
+    lines = text.splitlines()
+    code: list[str] = []
+    fenced = False
+    in_frontmatter = bool(lines) and lines[0] == "---"
+    in_commands = False
+    for index, line in enumerate(lines):
+        if in_frontmatter:
+            if index and line == "---":
+                in_frontmatter = False
+            elif not line.startswith(" "):
+                in_commands = line.startswith("commands:")
+            elif in_commands:
+                code.append(line)
+        elif line.lstrip().startswith("```"):
+            fenced = not fenced
+        elif fenced:
+            code.append(line)
+    return code
+
+
+def _unlocked_heavy_lines(text: str) -> list[str]:
+    unlocked = []
+    for line in _code_lines(text):
+        match = _HEAVY_COMMAND.search(line)
+        if match and _LOCK not in line[: match.start()]:
+            unlocked.append(line.strip())
+    return unlocked
+
+
+def test_detector_tells_a_locked_parallel_gate_from_a_bare_one() -> None:
+    gate = 'uv run pytest -n auto > "$log" 2>&1; rc=$?; echo "exit: $rc"; (exit $rc)'
+    serial = gate.replace(" -n auto", "")
+    assert _unlocked_parallel_gates(f"{_CEILING} {gate}") == [gate]
+    assert _unlocked_parallel_gates(f"{_LOCKED_PREFIX}{gate}") == []
+    assert _unlocked_parallel_gates(f"{_CEILING} {serial}") == []
+
+
+def test_the_parallel_gate_scan_sees_the_skill_gates() -> None:
+    # The gates log to "$log" and "$logs-*.log"; a scan that matched only a
+    # literal /tmp/ path would pass having checked none of them.
+    for skill in ("run-tests", "create-pr"):
+        text = (_REPO_ROOT / ".agents/skills" / skill / "SKILL.md").read_text()
+        assert len(list(_REDIRECTED_GATE.finditer(text))) >= 2, skill
+
+
+def test_detector_reads_only_the_code_an_agent_runs() -> None:
+    text = "\n".join(
+        [
+            "---",
+            'description: "Run mkdocs build with strict validation."',
+            'commands:\n  - "uv run mkdocs build --strict"',
+            "inputs:\n  - mkdocs build",
+            "---",
+            "Confirm `uv run mkdocs build --strict` passed.",
+            "```bash",
+            '"$G" pyright vultron/ -- uv run pyright',
+            f'"$G" pyright vultron/ -- {_LOCK} uv run pyright',
+            f"{_LOCK} timeout -k 30 1800 uv run merged-tree-tests",
+            "```",
+            "uv run pyright",
+        ]
+    )
+    assert _unlocked_heavy_lines(text) == [
+        '- "uv run mkdocs build --strict"',
+        '"$G" pyright vultron/ -- uv run pyright',
+    ]
+
+
+@pytest.mark.parametrize(
+    "rel_path",
+    [str(p.relative_to(_REPO_ROOT)) for p in _agent_files()],
+)
+def test_parallel_pytest_gate_queues_on_the_heavy_check_lock(
+    rel_path: str,
+) -> None:
+    text = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
+    unlocked = _unlocked_parallel_gates(text)
+    assert not unlocked, (
+        f"{rel_path} has `-n auto` pytest gate(s) not starting with "
+        f"`{_LOCKED_PREFIX}` (#5947):\n"
+        + "\n".join(f"  {cmd}" for cmd in unlocked)
+    )
+
+
+def _skill_files() -> list[Path]:
+    return sorted((_REPO_ROOT / ".agents" / "skills").glob("**/*.md"))
+
+
+def test_discovery_finds_the_skills_with_heavy_commands() -> None:
+    found = {str(p.relative_to(_REPO_ROOT)) for p in _skill_files()}
+    assert {
+        ".agents/skills/build-docs/SKILL.md",
+        ".agents/skills/run-linters/SKILL.md",
+        ".agents/skills/pr-execute/SKILL.md",
+    } <= found
+
+
+@pytest.mark.parametrize("skill", ["build-docs", "run-linters", "pr-execute"])
+def test_the_heavy_command_scan_sees_each_skills_heavy_commands(
+    skill: str,
+) -> None:
+    # A code form _code_lines missed would pass the scan having read nothing.
+    text = (_REPO_ROOT / ".agents/skills" / skill / "SKILL.md").read_text()
+    assert any(_HEAVY_COMMAND.search(line) for line in _code_lines(text))
+
+
+@pytest.mark.parametrize(
+    "rel_path",
+    [str(p.relative_to(_REPO_ROOT)) for p in _skill_files()],
+)
+def test_skill_heavy_command_queues_on_the_heavy_check_lock(
+    rel_path: str,
+) -> None:
+    unlocked = _unlocked_heavy_lines(
+        (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
+    )
+    assert not unlocked, (
+        f"{rel_path} runs heavy command(s) outside `{_LOCK}` "
+        "(#5947):\n" + "\n".join(f"  {line}" for line in unlocked)
     )
 
 

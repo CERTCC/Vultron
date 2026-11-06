@@ -151,7 +151,7 @@ class TestTriggerNonManagerArm:
     def test_a_case_with_no_role_holder_runs_the_replica_arm_only(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """CM-24-006 says a case always has a CASE_MANAGER; pin the gates anyway.
+        """CM-02-014 says a case always has a CASE_MANAGER; pin the gates anyway.
 
         With nobody holding the role, ``CheckIsCaseManagerNode`` fails, so the
         manager arm skips and the replica arm runs — never both skip, never

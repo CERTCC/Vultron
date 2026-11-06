@@ -274,7 +274,7 @@ related requirements across files.
 
 - **`idempotency.yaml`** - Duplicate detection and idempotent processing
 - **`testability.yaml`** - Test coverage requirements, test organization,
-  architecture boundary tests (TB-10, `PROD_ONLY`)
+  the `PROD_ONLY` marker
 
 ### Response Generation
 

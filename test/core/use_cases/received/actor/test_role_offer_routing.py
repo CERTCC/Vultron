@@ -795,7 +795,7 @@ class TestAdmittedAnswerIsLedgered:
 
     @pytest.mark.spec("CM-33-006")
     @pytest.mark.spec("CM-33-019")
-    @pytest.mark.spec("CM-33-020")
+    @pytest.mark.spec("CM-02-016")
     @pytest.mark.spec("CLP-02-016")
     def test_accept_is_committed_granted_and_announced(self, make_payload):
         dl = _store(_CASE_MANAGER_ID)

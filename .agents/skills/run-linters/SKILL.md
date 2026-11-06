@@ -9,7 +9,7 @@ tags:
   - dev-workflow
 shell: "zsh"
 commands:
-  - "G=.agents/skills/shared/run-if-changed.sh; uv run ruff check --fix && uv run ruff format && uv run ruff check && \"$G\" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy && \"$G\" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright"
+  - "G=.agents/skills/shared/run-if-changed.sh; uv run ruff check --fix && uv run ruff format && uv run ruff check && \"$G\" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy && \"$G\" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright"
 inputs:
   - name: repo_root
     description: "Repository root where the command will be executed"
@@ -33,7 +33,7 @@ uv run ruff format
 uv run ruff check
 G=.agents/skills/shared/run-if-changed.sh
 "$G" mypy    vultron/ test/ .mypy.ini          uv.lock -- uv run mypy
-"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright
+"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright
 ```
 
 ## Constraints

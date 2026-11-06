@@ -57,6 +57,55 @@ _vm_cpus="$(docker info --format '{{.NCPU}}' 2>/dev/null || echo 6)"
 SLOT_CPUS="${SLOT_CPUS:-$((_vm_cpus < 6 ? _vm_cpus : 6))}"
 SLOT_MEMORY="${SLOT_MEMORY:-12g}"
 
+# Heavy-check slots (#5947). The CPU cap above limits one slot, not how many
+# slots run a heavy check at once, so .agents/skills/shared/run-heavy.py caps
+# that: it lets HEAVY_SLOTS heavy checks run at once across every slot on this
+# host. The count goes in a file in the shared ${MAIN_NAME}-data volume, written
+# on every create and attach, because a running slot never sees a new
+# environment variable. The default is the VM's CPUs over the slot cap.
+_heavy_slots_invalid() {
+    echo "warning: HEAVY_SLOTS='$HEAVY_SLOTS' is not a positive whole number; using the default" >&2
+}
+
+_heavy_slots() {
+    local cpus="${SLOT_CPUS%%.*}"
+    case "${HEAVY_SLOTS:-}" in
+        '') ;;
+        *[!0-9]*) _heavy_slots_invalid ;;
+        *)
+            # 10# reads "08" as eight, not as a bad octal number.
+            if [ "$((10#$HEAVY_SLOTS))" -ge 1 ]; then
+                echo "$((10#$HEAVY_SLOTS))"
+                return
+            fi
+            _heavy_slots_invalid
+            ;;
+    esac
+    case "$cpus" in
+        '' | *[!0-9]*) cpus=1 ;;
+    esac
+    cpus=$((10#$cpus))
+    [ "$cpus" -ge 1 ] || cpus=1
+    case "$_vm_cpus" in
+        '' | *[!0-9]*) echo 1; return ;;
+    esac
+    local n=$((10#$_vm_cpus / cpus))
+    echo $((n < 1 ? 1 : n))
+}
+
+_write_heavy_slots() {
+    local n
+    n="$(_heavy_slots)"
+    # A temp file per writer: slots on one host share the directory, and two
+    # attaches at once must not publish each other's half-written file.
+    docker exec -u vscode "$CONTAINER_NAME" sh -c '
+        dir=/home/vscode/.data/locks
+        mkdir -p "$dir" && tmp="$(mktemp "$dir/slots.XXXXXX")" &&
+        printf "%s\n" "$1" > "$tmp" && mv "$tmp" "$dir/slots"
+    ' sh "$n" ||
+        echo "warning: could not write the heavy-check slot count to '$CONTAINER_NAME'" >&2
+}
+
 # First-run: collect credentials
 if [ ! -f "$ENV_FILE" ]; then
     bash "$SCRIPT_DIR/.devcontainer/setup.sh"
@@ -156,6 +205,7 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     docker update --cpus "$SLOT_CPUS" --memory "$SLOT_MEMORY" \
         --memory-swap "$SLOT_MEMORY" "$CONTAINER_NAME" >/dev/null ||
         echo "warning: could not apply slot limits to '$CONTAINER_NAME'" >&2
+    _write_heavy_slots
     echo "Attaching to container '$CONTAINER_NAME'..."
     _exec_shell
     exit 0
@@ -234,6 +284,7 @@ fi
 
 docker run -d "${DOCKER_ARGS[@]}" "$IMAGE_NAME" sleep infinity
 trap _cleanup EXIT
+_write_heavy_slots
 
 echo ""
 echo "Running post-create setup (first time only)..."

@@ -78,7 +78,7 @@ def _by_key(settings: list[ConfigSetting]) -> dict[str, ConfigSetting]:
         (
             "actor.auto_create_case",
             "When `true`, create a `VulnerabilityCase` immediately on"
-            " `Offer(VulnerabilityReport)` receipt (CM-15-001, CM-12-001, CM-22-001)."
+            " `Offer(VulnerabilityReport)` receipt (CM-15-001, CM-12-001, CP-09-001)."
             " When `false`, defer case creation so the receiver can send a"
             " pre-case ACK (`Read(Offer(VulnerabilityReport))`, VAM-02-003)"
             " before deciding to accept or reject (CM-15-002, CM-15-003;"

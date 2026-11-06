@@ -394,7 +394,7 @@ groups:
       invitee; its deadline is the Invite's `endTime` (CM-28-001, CM-28-012); its
       expiry consequence is stale, not void: a reply after the deadline is still
       honoured under EMB-17 once the expiry has been recorded as `TIMED_OUT`
-      (CM-28-004).
+      (CM-18-002).
     rationale: >
       The embargo invitation already has every property an ask kind declares,
       and the relay (EP-09) emits one per participant per proposal, so the
@@ -414,7 +414,7 @@ groups:
     - rel_type: uses_definition
       spec_id: CM-28-001
     - rel_type: uses_definition
-      spec_id: CM-28-004
+      spec_id: CM-18-002
     see_also:
     - spec_id: CM-28-012
       reason: 'context for the reader'

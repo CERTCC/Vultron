@@ -225,7 +225,7 @@ and compare it with `actor_id`: the authority is a *role*, and an ungated helper
 identity spoofing (CM-24-009). Once gated, the executing actor *is* the CASE_MANAGER and
 `dl` is its store, so the activity and its outbox entry land in one store (BT-05-006):
 **`dl` determines the queue**, and `add_activity_to_outbox`'s actor argument is only a
-log label. A case always has a CASE_MANAGER (CM-24-006): a resolver that finds none
+log label. A case always has a CASE_MANAGER (CM-02-014): a resolver that finds none
 fails; there is no un-delegated fallback (CM-24-008, CM-24-014).
 
 ---
@@ -333,7 +333,7 @@ CM-24-002), queued in the CASE_MANAGER's outbox (CM-24-004).
   `actor`/`attributed_to` itself. The caller names both identities; the helper looks
   nothing up. `test/architecture/test_delegated_attribution_uses_helper.py` enforces it.
 - A trigger resolves the CASE_MANAGER with `resolve_case_manager_id()` and fails when
-  there is none (CM-24-006); a received-side node passes `self.actor_id`, which the role
+  there is none (CM-02-014); a received-side node passes `self.actor_id`, which the role
   gate makes the CASE_MANAGER.
 - **The delegated emit runs where the CASE_MANAGER is hosted** (ADR-0109). A trigger
   sends the requester's *own* activity to the CASE_MANAGER (the owner's

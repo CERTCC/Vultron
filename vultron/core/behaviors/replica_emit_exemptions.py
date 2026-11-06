@@ -155,7 +155,7 @@ REPORTER_INTRODUCTION: Final = ReplicaEmitExemption(
         "A trusted Create(VulnerabilityCase) seeds a replica, and the case"
         " owner that receives it is the report receiver, which introduces the"
         " CASE_MANAGER to the reporter with its own Create(VulnerabilityCase)"
-        " (CBT-01-001, CM-12-003, ADR-0132).  The introduction is the"
+        " (CBT-01-001, ADR-0132).  The introduction is the"
         " executing actor's own act, addressed to the actor that sent it the"
         " report: it answers that report outside any case traffic the"
         " CASE_MANAGER routes (PCR-08-001), and the reporter has no anchor"

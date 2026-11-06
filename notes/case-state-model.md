@@ -136,7 +136,7 @@ on-behalf trigger trees. The gate is deliberately case-wide, not per vendor
   Read it through the accessor (`participant_status`, `current_status`), never by
   indexing the list, and add no timestamp sort: a clock that steps back, a
   received time earlier than one held (ADR-0103), or a CASE_MANAGER role
-  delegated to an actor on another clock (CM-24-006) would make an older status
+  delegated to an actor on another clock (CM-02-014) would make an older status
   current.
 - Each `CaseStatus` the CASE_MANAGER appends takes a `published` strictly after
   the previous status's, via `now_utc_after` (CM-29-005), so time order agrees

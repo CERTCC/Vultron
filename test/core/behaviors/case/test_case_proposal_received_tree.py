@@ -521,7 +521,6 @@ class TestEmitCreateVulnerabilityCaseNode:
         assert activity.actor == _CASE_ACTOR_URI
 
     @pytest.mark.spec("CBT-01-010")
-    @pytest.mark.spec("CM-22-001")
     @pytest.mark.spec("CM-22-006")
     def test_case_manager_create_is_addressed_to_the_owner_only(self) -> None:
         """The CASE_MANAGER's Create goes to the report receiver alone.
@@ -956,7 +955,6 @@ def _created_case_activity(dl: SqliteDataLayer) -> Any:
 
 
 @pytest.mark.spec("CP-09-001")
-@pytest.mark.spec("CM-22-001")
 @pytest.mark.spec("CM-02-008")
 @pytest.mark.spec("CP-05-003")
 class TestCP09001CaseAttributedToOwner:
@@ -981,7 +979,7 @@ class TestCP09001CaseAttributedToOwner:
         assert isinstance(participant, CaseParticipant)
         assert CVDRole.CASE_OWNER in participant.case_roles
 
-    @pytest.mark.spec("CM-22-007")
+    @pytest.mark.spec("CP-09-006")
     def test_the_create_carries_the_participants_written_before_it(
         self, make_payload
     ):
@@ -995,7 +993,6 @@ class TestCP09001CaseAttributedToOwner:
         actors = {p["attributedTo"] for p in carried if isinstance(p, dict)}
         assert {_VENDOR_URI, _REPORTER_URI} <= actors, carried
 
-    @pytest.mark.spec("CM-22-005")
     @pytest.mark.spec("CP-09-011")
     def test_create_is_by_the_case_manager_about_an_owner_attributed_case(
         self, make_payload
@@ -2829,7 +2826,7 @@ class TestADR0041GenesisCommitFailure:
 class TestCaseActorRMLifecycleBootstrap:
     """CM-23-005/007: CaseActor emits 3 bootstrap ParticipantStatus records."""
 
-    @pytest.mark.spec("CM-24-006")
+    @pytest.mark.spec("CM-02-014")
     def test_bootstrap_statuses_created_on_case_init(self, make_payload):
         """Three bootstrap ParticipantStatus records exist after initialization.
 

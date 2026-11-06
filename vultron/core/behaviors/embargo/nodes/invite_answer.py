@@ -203,7 +203,7 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
     **Fails by raising, never by returning FAILURE.**  The node is the action
     of an arm in the EMB-15 response Selector, so a FAILURE from the accept
     arm would fall through to the reject arm and send the opposite answer.
-    A missing factory, a case with no CASE_MANAGER (CM-24-006), a factory
+    A missing factory, a case with no CASE_MANAGER (CM-02-014), a factory
     error or an outbox fault is a fault in this actor's own composition or
     store, never a decision, so it surfaces as one.  The base class's hooks
     each report FAILURE with a reason; ``update()`` is the one place that
@@ -246,7 +246,7 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
         if manager_id is None:
             self.feedback_message = (
                 f"case '{self._case_id}' has no CASE_MANAGER to answer"
-                f" Invite '{self._invite_id}' to (CM-24-006)"
+                f" Invite '{self._invite_id}' to (CM-02-014)"
             )
             return Status.FAILURE
         return self._invite_id, manager_id

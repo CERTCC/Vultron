@@ -9,7 +9,7 @@ Actor set: ``reporter``, ``coordinator``, ``vendor``, ``case-actor``.
 RCV-specific invariants (DEMOMA-12-008/009):
 - ``validate_report`` semantic type is present (Coordinator validates Reporter's report).
 - ``invite_actor_to_case`` appears exactly once (the Vendor's invitation; the
-  Reporter is seated at case creation, CM-22-002, and is never invited).
+  Reporter is seated at case creation, CP-09-002, and is never invited).
 - ``close_case`` semantic type is present.
 - CS transition VFd observed in Vendor's add_participant_status entries
   (the Vendor stops at VFd, CSB-15-002).
@@ -52,7 +52,7 @@ _RCV_EXPECTED_SEMANTIC_TYPES = [
     # vultron/demo/helpers/workflow/triage.py engage the case in every scenario.
     pytest.param("engage_case", id="engage_case"),
     # DEMOMA-16-007: the Coordinator invites the Vendor, who accepts.  The
-    # Reporter is seated at case creation (CM-22-002) — no Invite.
+    # Reporter is seated at case creation (CP-09-002) — no Invite.
     pytest.param("invite_actor_to_case", id="invite_actor_to_case"),
     pytest.param(
         "accept_invite_actor_to_case", id="accept_invite_actor_to_case"
@@ -118,7 +118,7 @@ def test_rcv_invite_actor_to_case_exactly_once(
     """``invite_actor_to_case`` appears exactly once (the Vendor's invitation).
 
     The Reporter submitted the report, so the CASE_MANAGER seats it as a signatory
-    participant (an ``AGREED`` consent row) when it creates the case (CM-22-002,
+    participant (an ``AGREED`` consent row) when it creates the case (CP-09-002,
     CM-14-005); RCV never invites it.  The one Invite is the Vendor's.  The upper bound
     matters: a
     floor alone cannot tell the scenario's one send from a second Invite, such

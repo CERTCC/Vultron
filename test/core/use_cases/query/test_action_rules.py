@@ -14,7 +14,7 @@
 
 """Tests for GetActionRulesUseCase (CA-2).
 
-Verifies CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
+Verifies CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 """
 
 import pytest

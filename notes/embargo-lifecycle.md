@@ -545,7 +545,7 @@ participant that believes P/X/A is set is still answered with its own `Reject`
 of the Invite, manager or not. Participant self-status (RM) keeps its local
 write.
 
-**The role is never unfilled** (CM-24-006, CM-24-008, CM-24-015). No "no manager" arm belongs
+**The role is never unfilled** (CM-02-014, CM-24-008, CM-24-015). No "no manager" arm belongs
 in any embargo tree; a resolver that finds nobody fails.
 
 **Only the CASE_MANAGER records an answer, and only one it can apply.** Answer

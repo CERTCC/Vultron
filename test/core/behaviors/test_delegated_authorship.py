@@ -33,7 +33,7 @@ def test_attributed_to_is_the_requesting_actor() -> None:
     )
 
 
-@pytest.mark.spec("CM-24-006")
+@pytest.mark.spec("CM-24-008")
 @pytest.mark.parametrize(
     "doing, requesting", [("", REQUESTER), (MANAGER, ""), ("", "")]
 )

@@ -78,7 +78,7 @@ existing ratchets; the rest read the cache.
 
 Rule: TB-16-001, TB-16-002.  Corpus: TB-13-001, TB-13-002, TB-13-003,
 TB-13-004 (``specs/testability.yaml``).  Ratchet discipline: ARCH-18-001,
-ARCH-18-002 (``specs/architecture.yaml``), TB-10-002, TB-10-003.
+ARCH-18-002 (``specs/architecture.yaml``).
 """
 
 import pytest
@@ -91,7 +91,7 @@ from test.architecture import _corpus, _guard_reachability as _reach
 #
 # Each entry would be a guard that enforces a rule nothing can ever break,
 # because nothing calls it.  Remove an entry in the same commit that wires
-# the guard up or deletes it (ARCH-18-002, TB-10-003); a new entry needs its
+# the guard up or deletes it (ARCH-18-002); a new entry needs its
 # owning issue named beside it.
 # ---------------------------------------------------------------------------
 KNOWN_UNREACHED_GUARDS: frozenset[str] = frozenset()
@@ -103,8 +103,8 @@ KNOWN_UNREACHED_GUARDS: frozenset[str] = frozenset()
 # Each entry would be a check that cannot run, the shape that left the
 # CLP-14/CLP-15 claimed-timestamp invariants unenforced for the whole life of
 # the guard that implements them (ISSUE-2824).  Remove an entry in the same
-# commit that supplies the argument or drops the gate (ARCH-18-002,
-# TB-10-003); a new entry needs its owning issue named beside it.
+# commit that supplies the argument or drops the gate (ARCH-18-002);
+# a new entry needs its owning issue named beside it.
 #
 # Read `_guard_reachability`'s docstring before adding one: this arm reads
 # "refuses" more widely than "refuses the caller's input", so a red arm may
@@ -124,7 +124,7 @@ def _ratchet_message(
     if resolved := known - actual:
         lines.append(
             "RESOLVED violations (remove these entries in this commit —"
-            " ARCH-18-002, TB-10-003):"
+            " ARCH-18-002):"
         )
         lines.extend(f"  - {site}" for site in sorted(resolved))
     return "\n\n" + "\n".join(lines)
@@ -150,7 +150,7 @@ def test_the_diff_names_a_resolved_violation_and_what_to_do() -> None:
         frozenset(), frozenset({"a.py:1 _x()"}), rule="the rule"
     )
     assert "RESOLVED violations" in message
-    assert "ARCH-18-002, TB-10-003" in message
+    assert "ARCH-18-002" in message
     assert "- a.py:1 _x()" in message
     assert "NEW violations" not in message
 

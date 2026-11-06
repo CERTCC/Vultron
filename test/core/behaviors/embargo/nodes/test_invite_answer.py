@@ -176,14 +176,13 @@ class TestSendEmbargoInviteAnswerNode:
         assert result.internal_error
         assert dl.outbox_list() == []
 
-    @pytest.mark.spec("CM-24-006")
     @pytest.mark.spec("CM-24-014")
     def test_a_case_with_no_manager_is_a_fault(self):
         dl = _store(with_manager=False)
         result = _run(dl, _send(True))
         assert result.status == Status.FAILURE
         assert result.internal_error
-        assert "CM-24-006" in (result.feedback_message or "")
+        assert "CM-02-014" in (result.feedback_message or "")
 
     @pytest.mark.spec("EP-09-003")
     def test_a_missing_case_is_a_fault(self):
