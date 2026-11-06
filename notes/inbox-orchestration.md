@@ -12,9 +12,11 @@ description: >
   when the per-case expiry window restarts,
   the internal-error fault for a raised dispatch,
   the queue replay's bounded retry and held fault, what is left of the
-  staged-record replacement of intake-first (ADR-0153, ADR-0154),
+  staged-record replacement of intake-first (ADR-0153, ADR-0154), the
+  sender-sequence hold that returns a record to HELD (ADR-0178),
   pending-queue port injection, and the test surface.
 related_specs:
+  - specs/sync-ledger-replication.yaml
   - specs/inbox-orchestration.yaml
   - specs/case-ledger-processing.yaml
   - specs/participant-case-replica.yaml
@@ -174,7 +176,16 @@ them are reachable, so neither can be read off the other:
 - `replay_owed` — whether a replay is still owed from the held body, because the
   delivery that carried it ended without routing it. It waits on its case
   (`awaiting_case_id`), on a ledger gap (SYNC-14-001), on an object fetch
-  (AKM-05-007), or on a retry.
+  (AKM-05-007), on a retry, or, at the CASE_MANAGER, on a gap in its sender's
+  `senderSequence` (SYNC-21-010).
+
+**A sender-sequence hold turns the record back to `HELD`** (`hold_unjudged_for_replay`):
+the activity has not been judged, so its replay is archived afresh by intake and
+judged as a first delivery, refusal notice included (CLP-02-005). Holding it as an
+archived record, as a buffered `Announce` is, would make the replay a redelivery,
+and the refusal stage skips a redelivery's notice. What is due is read from the
+`SenderSequenceOrder` record, never kept in a second list, and the inbox's
+`dispatch` queues it after every dispatch (`queue_due_held_activities`).
 
 A buffered `Announce(CaseLedgerEntry)` is the pairing that catches people out: intake
 archived it and the handler then held it, so it is `ARCHIVED` **and** owes a replay.

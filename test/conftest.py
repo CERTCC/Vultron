@@ -40,6 +40,7 @@ os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 import py_trees
 import pytest
 
+from test.support.received import reset_test_sender_numbers
 from test.support.xdist_workers import worker_count
 from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
@@ -198,6 +199,19 @@ def cleanup_test_datalayer():
     reset_datalayer()
     yield
     reset_datalayer()
+
+
+@pytest.fixture(autouse=True)
+def _reset_test_sender_numbers_between_tests() -> Iterator[None]:
+    """Each test's in-process senders number their activities from 1.
+
+    A hand-built case activity is numbered as its sender would number it
+    (``test.support.received.test_sender_number``, SYNC-21-001), so the
+    numbers one test used must not carry into the next.
+    """
+    reset_test_sender_numbers()
+    yield
+    reset_test_sender_numbers()
 
 
 @pytest.fixture(autouse=True)

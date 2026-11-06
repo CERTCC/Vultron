@@ -30,6 +30,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     door_refusal,
     find_named,
     reference_edit_verdict,
+    sender_sequence_verdict,
     unheld_case_refusal,
     verdict_from_bt,
 )
@@ -242,6 +243,11 @@ class CloseCaseReceivedUseCase:
             # the door's Case Owner check raises instead (ARCH-15-001).
             logger.info("CloseCaseReceivedUseCase: %s", closed.reason)
             return closed
+        if (ordered := sender_sequence_verdict(tree)) is not None:
+            # Held or refused for its number before the close was judged;
+            # the stage sits in the outer tree, not the close arm
+            # (SYNC-21-008).
+            return ordered
         if sender_guard_refused(tree):
             # No standing: refused before the close/decline decision, with
             # nothing committed, declined or sent (HP-01-006).

@@ -796,8 +796,10 @@ def _permitted_pre_commit_stage(node: py_trees.behaviour.Behaviour) -> bool:
     of the commit and the effects (CLP-10-026) — a replica's diversion
     writes and replies too, and only a CASE_MANAGER one may *commit*
     (:func:`_commits_own_entry`); a refusal reply, which runs only when a
-    guard refuses; and the ledger-position answer, whose writes
-    :func:`test_the_ledger_position_answer_commits_nothing` pins.
+    guard refuses; the ledger-position answer, whose writes
+    :func:`test_the_ledger_position_answer_commits_nothing` pins; and the
+    sender sequence stage, whose writes
+    :func:`test_the_sender_sequence_stage_commits_nothing` pins.
     """
     from vultron.core.behaviors.case.nodes.clock_decision_stage import (
         ClockDecisionStage,
@@ -811,6 +813,9 @@ def _permitted_pre_commit_stage(node: py_trees.behaviour.Behaviour) -> bool:
     from vultron.core.behaviors.sync.nodes.ledger_position import (
         LedgerPositionAnswer,
     )
+    from vultron.core.behaviors.sync.nodes.sender_sequence import (
+        SequenceOrderStage,
+    )
 
     return isinstance(
         node,
@@ -819,6 +824,7 @@ def _permitted_pre_commit_stage(node: py_trees.behaviour.Behaviour) -> bool:
             DiversionStage,
             RefusalEffectsBestEffort,
             LedgerPositionAnswer,
+            SequenceOrderStage,
         ),
     )
 
@@ -893,7 +899,8 @@ def test_only_permitted_stages_write_ahead_of_the_commit() -> None:
     }
     assert offenders == {}, (
         "Writes ahead of the guarded commit outside the clock decisions, a"
-        " diversion, a refusal reply or the ledger-position answer"
+        " diversion, a refusal reply, the ledger-position answer or the"
+        " sender sequence stage"
         f" (CLP-10-006, CLP-10-010): {offenders}"
     )
 
@@ -939,4 +946,44 @@ def test_the_ledger_position_answer_commits_nothing() -> None:
         "UpdateReplicationStateNode",
         "SendMissingEntriesNode",
         "ReseedPeerNode",
+    }
+
+
+@pytest.mark.spec("CLP-10-010")
+@pytest.mark.spec("SYNC-21-014")
+@pytest.mark.spec("SYNC-21-023")
+def test_the_sender_sequence_stage_commits_nothing() -> None:
+    """It moves the CASE_MANAGER's expected number, holds an activity past a
+    gap or sends a refusal notice for its number, but commits no ledger
+    entry: a held or refused activity changes no case state (SYNC-21-014,
+    SYNC-21-024)."""
+    from test.architecture._received_tree_builds import built_received_trees
+    from vultron.core.behaviors.sync.nodes.sender_sequence import (
+        SequenceOrderStage,
+    )
+
+    stages = [
+        stage
+        for tree in built_received_trees().values()
+        for stage in tree.iterate()
+        if isinstance(stage, SequenceOrderStage)
+    ]
+    assert stages, "no received tree judges a sender sequence"
+    commits = {
+        type(n).__name__
+        for stage in stages
+        for n in stage.iterate()
+        if isinstance(n, _commit_node_types())
+    }
+    assert commits == set()
+    writers = {
+        type(n).__name__
+        for stage in stages
+        for n in stage.iterate()
+        if isinstance(n, _writer_types())
+    }
+    assert writers == {
+        "AdmitInOrderNode",
+        "HoldPastGapNode",
+        "EmitSequenceRefusalNoticeNode",
     }

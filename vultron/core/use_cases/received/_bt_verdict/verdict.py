@@ -36,6 +36,9 @@ from vultron.core.use_cases.received._bt_verdict.door import (
     door_refusal,
     incomplete_activity_refusal,
 )
+from vultron.core.use_cases.received._bt_verdict.sequence import (
+    sender_sequence_verdict,
+)
 from vultron.core.use_cases.received._bt_verdict.tree_lookup import (
     _HasRoot,
     failure_reason,
@@ -71,6 +74,10 @@ def verdict_from_bt(
         return HandlerResult.skipped("not the replication leader")
     if (refusal := door_refusal(tree)) is not None:
         return refusal
+    if (ordered := sender_sequence_verdict(tree)) is not None:
+        # The stage after the door guards held or refused the activity for
+        # its number; its merits were never judged (SYNC-21-008).
+        return ordered
     if (refusal := incomplete_activity_refusal(tree)) is not None:
         # The guard's message is the whole reason, with no label (CLP-10-018).
         return refusal
@@ -142,6 +149,9 @@ def applied_or_raise(
         # The refusals such a tree can meet: the case closed (CM-23-013), or
         # the copy was not addressed to this receiver (HP-01-005).
         return refusal
+    if (ordered := sender_sequence_verdict(tree)) is not None:
+        # Held or refused for its number before it was judged (SYNC-21-008).
+        return ordered
     verdict = verdict_from_bt(tree, result, label=label)
     if verdict.disposition is HandlerDisposition.REFUSED:
         raise VultronBTInternalError(verdict.reason or label)

@@ -13,6 +13,7 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from vultron.core.models._helpers import MissingClaimedTimeError
+from vultron.core.models.sender_sequence import is_sender_sequence
 from vultron.wire.as2.case_proposal_envelope import (
     refuse_malformed_case_proposal_envelope,
 )
@@ -47,6 +48,9 @@ logger = logging.getLogger(__name__)
 #: Parsing is the only place this belongs: a caller *authoring* an object wants
 #: the default, and passing this context for one would silently drop its time.
 _INBOUND_CONTEXT = {as_Base.INBOUND_CONTEXT_KEY: True}
+
+#: The wire name of an activity's sender sequence (SYNC-21-001).
+_SENDER_SEQUENCE_KEY = "senderSequence"
 
 
 def _expand_inline_value(value: object, path: str = "") -> object:
@@ -314,6 +318,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # rule that decides a peer's property (MV-11-004).
     declared_body, set_aside = partition_unknown_keys(body, cls)
     _report_set_aside(body, set_aside)
+    declared_body = _without_malformed_sender_sequence(declared_body)
 
     try:
         activity = cast(
@@ -356,6 +361,30 @@ def parse_received_body(received_body: str) -> as_Activity:
         VultronParseError: When the held text no longer parses.
     """
     return parse_activity(json.loads(received_body))
+
+
+def _without_malformed_sender_sequence(body: dict[str, Any]) -> dict[str, Any]:
+    """*body* without a ``senderSequence`` that is not a positive integer.
+
+    A malformed number is the CASE_MANAGER's to refuse, with a notice naming
+    the number it expects, after its door and sender guards admit the
+    activity (SYNC-21-017, SYNC-21-023).  Refusing it here would refuse it
+    with no notice, and before the guards, so the value is set aside: the
+    activity parses as one that carries no number, and the received
+    evidence keeps the value as it arrived (VM-08-002).  A receiver that is
+    not the case's CASE_MANAGER reads no number, so it loses nothing.
+    """
+    value = body.get(_SENDER_SEQUENCE_KEY)
+    if value is None or is_sender_sequence(value):
+        return body
+    logger.info(
+        "Set aside %s %r, which is not a positive integer; the activity"
+        " carries no number (SYNC-21-017) [activity_id=%s]",
+        _SENDER_SEQUENCE_KEY,
+        value,
+        body.get("id"),
+    )
+    return {k: v for k, v in body.items() if k != _SENDER_SEQUENCE_KEY}
 
 
 def _report_set_aside(

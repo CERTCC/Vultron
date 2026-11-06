@@ -47,6 +47,20 @@ A resend keeps its number, as it keeps its position (SYNC-21-003).
 A participant that lost its count resumes past the highest of its own numbers in the ledger it holds (SYNC-21-006).
 A refusal notice that names an `expectedSenderSequence` moves the participant's count up, so its next message for the case is numbered no lower (SYNC-21-007).
 
+The CASE_MANAGER judges each sender's numbered messages in number order (SYNC-21-008).
+For each sender and case it keeps the next number it expects: one more than the highest it judged or skipped.
+Before it has judged any, that is one more than the highest of the sender's numbers in its ledger, or 1 (SYNC-21-009).
+A message refused on its merits still counts as judged.
+A message numbered past a gap is held, as the body that arrived, until the missing numbers arrive (SYNC-21-010).
+It is then judged as a delivery of its own.
+The hold ends when its wait has passed, whether or not anything else arrives, or when the sender has 16 messages held for the case (SYNC-21-011, SYNC-21-012).
+The CASE_MANAGER then skips the missing numbers, logging each at WARNING, and judges the held messages in number order (SYNC-21-013, SYNC-21-022).
+The wait is `ledger.sender_sequence_hold_seconds` (120 seconds by default), and the cap is `ledger.sender_sequence_hold_cap` (SYNC-21-021).
+A message numbered below the next expected one, one that reuses the number of a held message, and one that carries no valid number are refused with the [refusal notice](faults_and_acknowledgements.md#refusal-notice), which names the next expected number as `expectedSenderSequence` (SYNC-21-014, SYNC-21-015, SYNC-21-017).
+A refused message changes no case state and is never inserted into the ledger's history (SYNC-21-024).
+A repeat of a held or judged message is found by its id first and gets no notice (SYNC-21-018).
+Before the CASE_MANAGER role passes to another actor, the outgoing CASE_MANAGER judges every message it holds for the case, skipping the gaps (SYNC-21-025).
+
 The CASE_MANAGER reads the position on every case message it receives.
 Apart from a reply to the full-case Invite, which must not be behind the Invite's own position (CM-11-012), the position never changes how it judges the message.
 A position behind its ledger tail is normal while entries are still on their way, so the CASE_MANAGER logs the lag at DEBUG and applies or refuses the message on its own merits (SYNC-18-004, SYNC-18-010).

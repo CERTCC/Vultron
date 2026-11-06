@@ -35,6 +35,9 @@ from vultron.core.behaviors.case.nodes.reference_list import (
 from vultron.core.behaviors.sync.ledger_position_stage import (
     LEDGER_POSITION_GATE_NAME,
 )
+from vultron.core.behaviors.sync.sender_sequence_stage import (
+    SENDER_SEQUENCE_GATE_NAME,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -50,6 +53,11 @@ from vultron.core.use_cases.received._bt_verdict.tree_lookup import (
 
 logger = logging.getLogger(__name__)
 
+#: The gates of the stages every case tree runs ahead of the act.
+_STAGE_GATE_NAMES = frozenset(
+    {LEDGER_POSITION_GATE_NAME, SENDER_SEQUENCE_GATE_NAME}
+)
+
 
 def not_case_manager(tree: py_trees.behaviour.Behaviour | _HasRoot) -> bool:
     """True when the tree's CASE_MANAGER gate found this actor is not it.
@@ -59,16 +67,17 @@ def not_case_manager(tree: py_trees.behaviour.Behaviour | _HasRoot) -> bool:
     then has to say what that success was: see
     :func:`not_case_manager_refusal`.
 
-    The gate around the factory's answer to a stamped ledger position is not
-    counted: it runs ahead of the act's own guards in every case tree and
-    answers the position, not the act, so its skip at a replica says nothing
-    about whom the act was addressed to (SYNC-18-007).
+    The gates around the factory's answer to a stamped ledger position and
+    its judgment of the sender's number are not counted: they run ahead of
+    the act's own guards in every case tree and answer the position or the
+    number, not the act, so their skip at a replica says nothing about whom
+    the act was addressed to (SYNC-18-007, SYNC-21-008).
     """
     root = _root(tree)
     position_answer = {
         id(node)
         for gate in root.iterate()
-        if gate.name == LEDGER_POSITION_GATE_NAME
+        if gate.name in _STAGE_GATE_NAMES
         for node in gate.iterate()
     }
     return any(

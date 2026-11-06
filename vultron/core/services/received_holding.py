@@ -17,8 +17,9 @@ One :class:`~vultron.core.models.received_activity_record.ReceivedActivityRecord
 holds a received message, and these are the only sanctioned writes to its
 holding fields.  Every caller that holds a body for a replay, releases it, or
 discards it goes through here, so the "a held body owes a replay" invariant
-is kept in one place instead of at each of the four waits (a case, a ledger
-gap, an object fetch, a retry).
+is kept in one place instead of at each of the waits (a case, a ledger
+gap, an object fetch, a retry, and at the CASE_MANAGER a gap in a sender's
+numbers).
 
 The reads live in ``received_activity.py``, which stays read-only.
 
@@ -40,7 +41,10 @@ from vultron.core.models.received_activity_record import (
     ReceivedStage,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.received_activity import held_received_record
+from vultron.core.services.received_activity import (
+    held_received_record,
+    sealed_body_of,
+)
 from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
@@ -169,6 +173,47 @@ def hold_for_replay(
     return True
 
 
+def hold_unjudged_for_replay(dl: CasePersistence, activity_id: str) -> None:
+    """Hold an activity intake archived but the receiver has not judged yet.
+
+    The CASE_MANAGER holds an activity that arrives past a gap in its
+    sender's ``senderSequence`` before it judges it (SYNC-21-010), so the
+    delivery has not been received into its records yet: the record goes
+    back to ``HELD``, owing the replay that judges it as a delivery of its
+    own (IO-03-009, ADR-0154).  When that replay releases it, intake
+    archives it afresh, so the replay is judged as a first delivery, its
+    refusal notice included (CLP-02-005).
+
+    Raises:
+        VultronWiringError: Nothing is archived for *activity_id* (intake
+            runs before any guard, CLP-10-017), or it already owes a replay
+            for another wait, which would make one record two waits.
+    """
+    record = held_received_record(dl, activity_id)
+    if record is None:
+        raise VultronWiringError(
+            f"received activity '{activity_id}' is not archived, so there is"
+            " no received body to hold for its replay (CLP-10-017,"
+            " SYNC-21-010)"
+        )
+    if record.replay_owed:
+        raise VultronWiringError(
+            f"received activity '{activity_id}' already owes a replay, so it"
+            " cannot also wait on its sender's number (IO-03-009)"
+        )
+    dl.save(
+        ReceivedActivityRecord(
+            activity_id=record.activity_id,
+            # A receipt stub keeps no body, so there is none to hold.
+            received_body=sealed_body_of(record),
+            stage=ReceivedStage.HELD,
+            replay_owed=True,
+            received_at=record.received_at,
+            replay_rows_json=record.replay_rows_json,
+        )
+    )
+
+
 def release_from_holding(
     dl: CasePersistence, activity_id: str
 ) -> ReceivedActivityRecord | None:
@@ -254,6 +299,7 @@ __all__ = [
     "discard_holding",
     "held_for_replay",
     "hold_for_replay",
+    "hold_unjudged_for_replay",
     "owes_replay",
     "records_awaiting_case",
     "release_from_holding",

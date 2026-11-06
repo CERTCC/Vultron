@@ -62,6 +62,9 @@ from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     TerminationReason,
 )
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.received.embargo import (
     InviteToEmbargoOnCaseReceivedUseCase,
 )
@@ -477,15 +480,6 @@ def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> str:
     return str(participant.consent_for(embargo_id))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SYNC-19-001: a participant's Accept and Reject of one Invite, sent"
-        " back to back, are recorded in the order they arrive, so the last to"
-        " arrive decides its consent. ADR-0178 orders them by senderSequence"
-        " (SYNC-21-008). Tracked by #5202."
-    ),
-)
 @pytest.mark.spec("SYNC-19-001")
 def test_same_sender_answers_record_one_consent_in_either_order() -> None:
     """An Accept then a Reject of one Invite record one consent in any order."""
@@ -498,20 +492,36 @@ def test_same_sender_answers_record_one_consent_in_either_order() -> None:
             f"https://example.org/cases/two-answers-{send_order}"
         )
         embargo_id, invite_id = _invited(net, BYSTANDER, "two-answers")
-        accept = _answer_body(
-            net, BYSTANDER, invite_id, accept=True, tag=f"accept-{send_order}"
+        # Each answer is numbered as its sender sends it, the Accept first
+        # (SYNC-21-001), whatever order the network then delivers them in.
+        accept = net.stamp(
+            _answer_body(
+                net,
+                BYSTANDER,
+                invite_id,
+                accept=True,
+                tag=f"accept-{send_order}",
+            )
         )
-        reject = _answer_body(
-            net, BYSTANDER, invite_id, accept=False, tag=f"reject-{send_order}"
+        reject = net.stamp(
+            _answer_body(
+                net,
+                BYSTANDER,
+                invite_id,
+                accept=False,
+                tag=f"reject-{send_order}",
+            )
         )
         for body in (accept, reject) if send_order else (reject, accept):
             net.receive(MANAGER, body)
         consents[send_order] = _consent(net, BYSTANDER, embargo_id)
 
-    # ADR-0178 decides the answer sent last stands (DECLINED); the numbered
-    # version of this scenario is pinned by SYNC-21-008's test in
-    # test_sender_sequence.py.  This unnumbered one is reworked with the counter.
-    assert consents[True] == consents[False]
+    # The CASE_MANAGER judges them in their sender's order, so the answer
+    # sent last decides in either arrival order (SYNC-21-008, ADR-0178).
+    assert consents == {
+        True: str(EmbargoConsentState.DECLINED),
+        False: str(EmbargoConsentState.DECLINED),
+    }
 
 
 @pytest.mark.xfail(

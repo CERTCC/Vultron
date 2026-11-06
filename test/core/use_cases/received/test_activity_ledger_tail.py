@@ -224,6 +224,8 @@ def test_a_rebuilt_activity_keeps_the_position_it_was_first_sent_with():
     net = LedgerNetwork(CASE_ID)
     note_id = "https://example.org/notes/tail-2c"
     first = _add_note_body(note_id, net=net)
+    # Delivered, so the note numbered after it is judged in order (SYNC-21-008).
+    net.receive(MANAGER, first)
     _advance(net, "https://example.org/notes/tail-2d")
     net.deliver(MANAGER, to=OWNER, type_="Announce")
     assert ledger_tail_position(CASE_ID, net.stores[OWNER]) != (

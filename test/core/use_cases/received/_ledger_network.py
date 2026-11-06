@@ -33,16 +33,25 @@ from test.support.ledger_labels import label_mismatches
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
     register_rows,
+    replay_inbox,
     run_use_case,
 )
-from test.support.received import received_event, stamped
+from test.support.received import (
+    in_step_sender_sequence,
+    received_event,
+    stamped,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
 )
+from vultron.adapters.driven.sender_sequence_stamp import with_sender_sequence
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
+)
+from vultron.adapters.driving.fastapi.sender_sequence_holds import (
+    end_expired_holds,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.embargo.copy_commit import (
@@ -64,7 +73,9 @@ from vultron.core.models.embargo_apply import (
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.sender_sequence import SenderSequenceCounter
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.services.sender_sequence_order import sender_sequence_order
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
@@ -244,26 +255,61 @@ class LedgerNetwork:
         """Route *body* into *receiver*'s store as the inbox routes it.
 
         *without* names ports the receiver is composed without.  A body that
-        states no ``ledgerPosition`` is first stamped as its sender's adapter
-        would stamp it (:meth:`stamp`), so a test may hand over a factory's
-        dump; *as_sent* delivers the body exactly as given.
+        states no ``ledgerPosition`` or ``senderSequence`` is first stamped
+        as its sender's adapter would stamp it (:meth:`stamp`), so a test may
+        hand over a factory's dump; *as_sent* delivers the body exactly as
+        given.
         """
         if not as_sent:
-            body = self.stamp(body)
+            body = self.stamp(body, receiver=receiver)
+        # A body :meth:`stamp` positioned is delivered as it stands, so a body
+        # it left unnumbered stays unnumbered.
         event = received_event(
-            parse_activity(body), as_sent=as_sent, receiving_actor_id=receiver
+            parse_activity(body),
+            as_sent=as_sent or "ledgerPosition" in body,
+            receiving_actor_id=receiver,
         )
         return self.receive_event(receiver, event, without=without)
 
-    def stamp(self, body: dict[str, Any]) -> dict[str, Any]:
-        """*body* stating its sender's ledger tail, as its adapter sends it.
+    def stamp(
+        self, body: dict[str, Any], *, receiver: str | None = None
+    ) -> dict[str, Any]:
+        """*body* stating its sender's ledger tail and number, as sent.
 
         The tail comes from the sender's store when the network holds one
         (``with_sender_ledger_position``, SYNC-18-001), and is
         :data:`~test.support.received.TEST_SENDER_POSITION` for a sender the
         network keeps no store for.  A body that states a position, or whose
-        object states its own, is returned unchanged.
+        object states its own, keeps it.
+
+        Then the number (SYNC-21-001): a sender with a store numbers the body
+        from its own counter, as its adapter numbers what it seals
+        (``with_sender_sequence``), so bodies stamped in send order are
+        numbered in send order, whatever order they are delivered in.  A
+        sender the network keeps no store for is numbered in step with
+        *receiver*, the CASE_MANAGER
+        (:func:`~test.support.received.in_step_sender_sequence`).  A body
+        that carries a number keeps it.
         """
+        body = self._positioned(body)
+        if "senderSequence" in body or "ledgerPosition" not in body:
+            return body
+        activity = parse_activity(body)
+        sender_store = self.stores.get(str(_as_id(activity.actor)))
+        number: int | None = None
+        if sender_store is not None:
+            with sender_store.transaction():
+                number = with_sender_sequence(
+                    sender_store, activity
+                ).sender_sequence
+        elif receiver is not None:
+            number = in_step_sender_sequence(self.stores[receiver], activity)
+        if number is None:
+            return body
+        return {**body, "senderSequence": number}
+
+    def _positioned(self, body: dict[str, Any]) -> dict[str, Any]:
+        """*body* stating its sender's ledger tail (:meth:`stamp`)."""
         if "ledgerPosition" in body:
             return body
         activity = parse_activity(body)
@@ -277,6 +323,37 @@ class LedgerNetwork:
         if position is None:
             return body
         return {**body, "ledgerPosition": position.model_dump(by_alias=True)}
+
+    def withdraw_unsent_numbers(self, actor: str) -> None:
+        """Give back the numbers *actor* used on activities never delivered.
+
+        A test that leaves a replica's own reply in its outbox and sends
+        its own in its place stands for a sender that never sent that
+        reply.  Its counter goes back to the last number the CASE_MANAGER
+        has judged from it, so the test's own activity is numbered next, as
+        it would have been (SYNC-21-002), rather than held behind a gap no
+        delivery will fill.
+        """
+        expected = sender_sequence_order(
+            self.stores[MANAGER], self.case_id, actor
+        ).next_expected
+        self.stores[actor].save(
+            SenderSequenceCounter(
+                case_id=self.case_id, sender_id=actor, last_used=expected - 1
+            )
+        )
+
+    def end_expired_holds(self, actor: str = MANAGER) -> int:
+        """Tick *actor*'s sender-sequence hold timer once, then replay.
+
+        Ends each hold whose wait has passed by the clock (SYNC-21-011), as
+        the app's hold timer does, and replays what that makes due, in
+        number order.  Returns how many holds ended.
+        """
+        dl = self.stores[actor]
+        ended = end_expired_holds(dl)
+        replay_inbox(dl, actor)
+        return ended
 
     def receive_event(
         self,
