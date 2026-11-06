@@ -151,7 +151,8 @@ class FastAPIIngressAdapter:
     activity, which the receiver never holds under the id its sender chose
     (DL-06-006), and not the objects it carries inline, from which only the
     handler, after its guards, writes a record (CLP-10-017, #3763).  Intake
-    archives the activity under the receiver's key once it is routed.
+    records the activity under the receiver's key once it is routed and its
+    doors admit it.
 
     ``rehydrate`` rebuilds the parsed activity with it and its inline objects
     staged in a throwaway store (:mod:`.inbox_staging`).  A redelivery is
@@ -225,8 +226,9 @@ class FastAPIIngressAdapter:
           copy the receiver already holds (VM-08-009, VM-08-010, IE-10-001).  When the
           first delivery is still deferred, its held copy is routed without
           received evidence, and the record holding it is kept for the
-          replay, which carries it.  When intake already archived it, the
-          archived body is parsed and routed (ADR-0149) with that body as its
+          replay, which carries it.  When the receiver holds it owing no
+          replay (archived, or left in holding by a run with no verdict), the
+          held body is parsed and routed (ADR-0149) with that body as its
           received evidence: it is the first delivery's sealed body.  The
           tree's seen-before door answers the repeat from the record's stage
           (ADR-0154): an applied message is ``SKIPPED``, one still waiting is
@@ -316,10 +318,11 @@ class FastAPIIngressAdapter:
 
         - a replay still owed means the held copy is not this delivery and
           will carry the evidence when it is replayed, so the copy routed
-          now carries none (VM-08-010).  This holds whether or not intake
-          already archived the body: a buffered ``Announce`` is archived and
-          still awaiting its gap, and the replay it owes is the one that
-          will route it (SYNC-14-009);
+          now carries none (VM-08-010).  This holds whether the inbox held
+          the body before the doors or the handling tree held it after
+          intake: a buffered ``Announce`` is recorded and still awaiting its
+          gap, and the replay it owes is the one that will route it
+          (SYNC-14-009);
         - with no replay owed, the held body -- archived, or left in holding
           by a run with no verdict -- is the first delivery's, sealed at its
           parse, so the copy routed carries it (VM-08-009);

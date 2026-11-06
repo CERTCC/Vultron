@@ -69,6 +69,35 @@ from vultron.errors import VultronWiringError
 _ARCHIVES = frozenset({HandlerDisposition.APPLIED, HandlerDisposition.SKIPPED})
 
 
+def record_received_outcome(
+    port: ReceivedOutcomePort,
+    event: VultronEvent,
+    disposition: HandlerDisposition,
+    reason: str | None,
+) -> None:
+    """Record *disposition* as *event*'s final stage through *port*.
+
+    The one mapping from a verdict to what the receiver keeps (CLP-10-073):
+    applied or skipped is archived; refused, an unhandled semantic type
+    included, leaves a receipt stub and no body (CLP-10-018, CLP-10-074);
+    deferred is still waiting, so nothing is written (IO-03-009).
+    :class:`SettleReceivedOutcome` calls it after every dispatch that came
+    back with a verdict; a test that runs a use case without the inbox calls
+    it to settle the record the same way.
+    """
+    if disposition is HandlerDisposition.DEFERRED:
+        return
+    if disposition in _ARCHIVES:
+        port.apply(event.activity_id)
+        return
+    port.refuse(
+        event.activity_id,
+        sender_id=event.actor_id,
+        reason=reason or "refused",
+        received_body=event.received_evidence,
+    )
+
+
 class SettleReceivedOutcome(py_trees.decorators.Decorator):
     """Map the handler's verdict onto the received record's final stage.
 
@@ -150,17 +179,8 @@ class SettleReceivedOutcome(py_trees.decorators.Decorator):
         port = self._port(event)
         if port is None:
             return
-        if disposition in _ARCHIVES:
-            port.apply(event.activity_id)
-            return
-        # Refused, an unhandled semantic type included: nothing applies the
-        # message, so the receiver keeps a receipt and not the body
-        # (CLP-10-018, CLP-10-074).
-        port.refuse(
-            event.activity_id,
-            sender_id=event.actor_id,
-            reason=self._read(KEY_FAILURE_REASON) or "refused",
-            received_body=event.received_evidence,
+        record_received_outcome(
+            port, event, disposition, self._read(KEY_FAILURE_REASON)
         )
 
     def _port(self, event: VultronEvent) -> ReceivedOutcomePort | None:
@@ -186,4 +206,4 @@ class SettleReceivedOutcome(py_trees.decorators.Decorator):
         return port
 
 
-__all__ = ["SettleReceivedOutcome"]
+__all__ = ["SettleReceivedOutcome", "record_received_outcome"]

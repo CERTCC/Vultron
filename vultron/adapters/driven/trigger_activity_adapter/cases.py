@@ -169,8 +169,9 @@ class _CasesMixin:
         Leave does (ADR-0165), as sent by the ``close_sender`` (the Case
         Owner), then wrapped in an ``as:Reject``
         sent by ``actor`` (the Case Actor) back to the owner.  The inbound
-        Leave is not yet archived when this runs (intake only recorded it;
-        the outcome stage archives it after the tree), so the decline is
+        Leave is not archived when this runs (intake has only recorded it,
+        or, for a late Leave the post-close boundary refused, has not run;
+        the outcome stage settles it after the tree), so the decline is
         threaded to it via ``in_reply_to`` rather than read back from the
         DataLayer.
         """

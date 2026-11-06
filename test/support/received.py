@@ -56,12 +56,18 @@ from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    FastAPIReceivedOutcomePort,
+)
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
 from vultron.adapters.received_archive import (
     load_received_view,
     read_received_as_received,
+)
+from vultron.core.behaviors.inbox.nodes.outcome_stage import (
+    record_received_outcome,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.base import CoreObject
@@ -79,14 +85,9 @@ from vultron.core.models.received_activity_record import (
     ReceivedStage,
 )
 from vultron.core.models.received_activity_view import ReceivedActivityView
-from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.received_activity import sealed_body_of
-from vultron.core.services.received_outcome import (
-    archive_applied,
-    write_receipt_stub,
-)
 from vultron.core.services.sender_sequence_order import sender_sequence_order
 from vultron.core.sync_helpers import (
     first_case_with_ledger,
@@ -496,23 +497,18 @@ def settle_as_the_inbox(dl: Any, event: Any, result: Any) -> None:
     """Record *result*'s outcome on *event*'s record, as the inbox does.
 
     For a test that runs a use case directly, without the inbox's outcome
-    stage around it, and then delivers the activity again: the outcome stage
-    archives an applied or skipped message and leaves a receipt stub for a
-    refused one (CLP-10-073, CLP-10-018), and the seen-before door answers
-    the resend from that record (ADR-0154).  A deferred message is left in
-    holding.  Mirrors ``SettleReceivedOutcome``.
+    stage around it, and then delivers the activity again: the stage's own
+    mapping (``record_received_outcome``) and the production port archive an
+    applied or skipped message and leave a receipt stub for a refused one
+    (CLP-10-073, CLP-10-018), and the seen-before door answers the resend
+    from that record (ADR-0154).
     """
-    disposition = result.disposition
-    if disposition in (HandlerDisposition.APPLIED, HandlerDisposition.SKIPPED):
-        archive_applied(dl, event.activity_id)
-    elif disposition is HandlerDisposition.REFUSED:
-        write_receipt_stub(
-            dl,
-            event.activity_id,
-            sender_id=event.actor_id,
-            reason=result.reason or "refused",
-            received_body=event.received_evidence,
-        )
+    record_received_outcome(
+        FastAPIReceivedOutcomePort(dl),
+        event,
+        result.disposition,
+        result.reason,
+    )
 
 
 def intake_received(dl: Any, activity: Any) -> ReceivedActivityRecord:

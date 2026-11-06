@@ -201,9 +201,9 @@ Reject(Invite(Actor)[target=VulnerabilityCaseStub]) instead of Accept → RM.CLO
 - The invitee's `Accept` goes **to the CASE_MANAGER**, not the case owner
   (PCR-08-008). The invitee holds no case yet, but its inbox processes the stub Invite
   on arrival rather than deferring it (`is_deferral_exempt()`, PCR-06-005), so the
-  accept and reject triggers find intake's archive record
-  (`holds_received_activity()`, `core/services/received_activity.py`) and the reply
-  embeds the archived body (`read_received_as_received()`; CLP-10-036, ADR-0149,
+  accept and reject triggers find the record intake wrote, archived once the Invite
+  applied (`holds_received_activity()`, `core/services/received_activity.py`), and
+  the reply embeds the held body (`read_received_as_received()`; CLP-10-036, ADR-0149,
   [inbox-orchestration](inbox-orchestration.md)).
 - The CASE_MANAGER processes the Accept (PCR-08-009). The same handler runs on any
   actor holding a copy, so its effects sit behind the role gate, and a receiver the

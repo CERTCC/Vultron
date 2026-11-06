@@ -535,8 +535,8 @@ nothing is written before the last one admits the message (ADR-0154).
    guards in a `PreconditionGuardStage` (`case/nodes/refusal_stage.py`) that
    runs the refusal effects, each best-effort on its own, only when a
    precondition guard (not the sender guard) fails, inside a CASE_MANAGER
-   gate, and skips them on a
-   redelivery whose intake was already archived and on a failed guard whose
+   gate (a resend never reaches it: the seen-before door answered it), and
+   skips them on a failed guard whose
    `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
    reports `SKIPPED`), and on a delivery a `Diversion` among the guards took,
    which its diversion already answered (CLP-10-026). A guard that turns a

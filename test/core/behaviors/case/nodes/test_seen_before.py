@@ -53,6 +53,7 @@ from vultron.core.behaviors.case.nodes.seen_before import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.helpers import ACTIVITY_UNAVAILABLE
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
 from vultron.core.models.note import VultronNote
@@ -265,3 +266,25 @@ def test_a_nested_received_tree_runs_past_its_enclosing_trees_record(
         n for n in outer.iterate() if isinstance(n, ActivityNotSeenBeforeNode)
     ]
     assert [d.status for d in doors] == [Status.SUCCESS, Status.SUCCESS]
+
+
+@pytest.mark.spec("ARCH-15-001")
+def test_the_door_fails_closed_with_no_datalayer() -> None:
+    """A door composed without its store refuses nothing silently."""
+    door = ActivityNotSeenBeforeNode(label="SampleBT")
+    door.datalayer = None
+
+    assert door.update() == Status.FAILURE
+    assert door.seen is None
+
+
+@pytest.mark.spec("ARCH-15-001")
+def test_the_door_fails_closed_without_a_received_event(scenario) -> None:
+    """A bare value on the blackboard is no received event to look up."""
+    door = ActivityNotSeenBeforeNode(label="SampleBT")
+
+    result = scenario.run(door, activity="not-an-event")
+
+    assert result.status == Status.FAILURE
+    assert door.seen is None
+    assert door.feedback_message == ACTIVITY_UNAVAILABLE

@@ -406,6 +406,7 @@ def test_a_record_the_seen_before_door_answers_is_a_wiring_fault(
     result = scenario.run(node, activity=_note_event(_rich_note()))
 
     assert result.status == Status.FAILURE
+    assert result.internal_error
     assert "seen-before door" in node.feedback_message
     assert scenario.dl.by_type("ReceivedActivityRecord") == before
 

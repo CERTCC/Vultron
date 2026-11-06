@@ -1045,7 +1045,8 @@ groups:
       answer that sender with an internal-error `Create(ProcessingFault)`. It sends the
       fault only after it has undone every change the failed processing made.
     rationale: >
-      A failed received act keeps only intake's archive (CLP-07-015), and the
+      A failed received act keeps only intake's record, in holding (CLP-07-015,
+      CLP-10-074), and the
       inbox answered before processing, so without this fault the sender waits
       out its ask deadline in silence. Emitting after the rollback keeps the
       fault from being undone with the act. ASK-07-008 decides whether the fault

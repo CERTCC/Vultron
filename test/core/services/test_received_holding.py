@@ -234,6 +234,18 @@ def test_releasing_a_held_intake_record_hands_its_body_to_the_replay(dl):
     assert _absent(dl, activity_id)
 
 
+@pytest.mark.spec("CLP-10-074")
+def test_releasing_a_record_owing_no_replay_leaves_it_in_holding(dl):
+    """A record intake wrote, or a run left with no verdict, is not a wait:
+    there is no replay to release it for, so it stays for its re-run."""
+    activity_id = _aid("in-holding-1")
+    recorded = _record(dl, activity_id)
+
+    assert release_from_holding(dl, activity_id) is None
+
+    assert _stored(dl, activity_id) == recorded
+
+
 @pytest.mark.spec("SYNC-14-013")
 def test_discarding_a_held_intake_record_drops_it_body_and_all(dl):
     """An evicted Announce is dropped, body and all (SYNC-14-013)."""

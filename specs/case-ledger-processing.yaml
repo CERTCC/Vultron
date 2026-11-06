@@ -2258,7 +2258,9 @@ groups:
       (2a) the ledger-position answer (SYNC-18-004, SYNC-18-005, SYNC-18-007),
       (3) clock decisions (CLP-10-025), (4) precondition guards, (5) commit,
       (6) all protocol effects. Each door guard may end the run, and nothing is
-      written before intake. The seen-before door answers a delivery the
+      written before intake but the post-close reply (CM-23-057), an emit-only
+      answer at the CASE_MANAGER to a late activity the boundary refused. The
+      seen-before door answers a delivery the
       receiver holds a record for from that record''s stage: a receipt stub is
       `REFUSED` again with the reason the stub recorded, an archive is `SKIPPED`,
       and a record still owed a replay is `SKIPPED`, and nothing after the door
@@ -2324,6 +2326,8 @@ groups:
       spec_id: CM-23-018
     - rel_type: uses_definition
       spec_id: CLP-10-074
+    - rel_type: uses_definition
+      spec_id: CM-23-057
     - rel_type: uses_definition
       spec_id: HP-01-005
     - rel_type: uses_definition
@@ -3766,10 +3770,9 @@ groups:
     rationale: >-
       A refusal is whole and final for that activity, so the record of why it was
       refused is the first verdict's; a later refusal would otherwise rewrite history
-      (ADR-0154). While the doors still run after intake, a resend of a refused message
-      is archived over its stub before the tree judges it again, so its refusal meets
-      an archive, not a stub, and records its own reason. The seen-before door, which
-      answers that resend from the stub, removes that path.
+      (ADR-0154). The seen-before door answers a resend of a refused message from its
+      stub before intake runs, so nothing writes over the stub and the first reason is
+      the one a resend is refused with.
     verification: >-
       `test/core/services/test_received_outcome.py` refuses the same activity twice with
       different reasons and asserts the first stands.

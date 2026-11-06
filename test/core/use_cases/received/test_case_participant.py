@@ -130,7 +130,8 @@ class TestCaseParticipantUseCases:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
         assert "is not a participant" in result.reason
-        # A refused delivery is still archived (CLP-10-017, CLP-10-018).
+        # A refused delivery is still recorded by intake, for the outcome
+        # stage to stub (CLP-10-017, CLP-10-018).
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")

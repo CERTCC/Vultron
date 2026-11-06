@@ -371,7 +371,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert dl.read(_CASE_ID2) is None
-        # CLP-10-018: the refused Announce is still archived.
+        # CLP-10-018: the refused Announce is still recorded by intake.
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("PCR-03-001")

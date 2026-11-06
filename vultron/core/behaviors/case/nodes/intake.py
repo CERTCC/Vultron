@@ -68,6 +68,7 @@ delivery is new is the seen-before door's answer, from the record (ADR-0154).
 """
 
 import logging
+from typing import NoReturn
 
 from py_trees.common import Status
 from py_trees.ports import PortInformation
@@ -82,7 +83,7 @@ from vultron.core.models.received_activity_record import (
     ReceivedStage,
 )
 from vultron.core.services.received_activity import held_received_record
-from vultron.errors import VultronAlreadyExistsError
+from vultron.errors import VultronAlreadyExistsError, VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -101,13 +102,15 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
     tree's intake wrote it for a nested one.  It is left as it is, because
     its body is the one this delivery brings (ingress refuses a different
     one, IE-10-002).  Any other record means the seen-before door did not
-    run ahead of this node, which is a wiring fault: the node returns
-    ``FAILURE`` and writes nothing (ARCH-15-001).
+    run ahead of this node, which is a wiring fault: the node raises
+    :exc:`~vultron.errors.VultronWiringError` and writes nothing, so the
+    handler raises and the outcome stage leaves the record as it is
+    (ARCH-15-001, CLP-10-074).
 
-    Returns ``FAILURE`` also when the DataLayer is unavailable, no received
-    event is on the blackboard, or the event carries no received evidence
-    (VM-08-002); each is a wiring fault the handler raises on rather than
-    refusing the sender.
+    Returns ``FAILURE`` when the DataLayer is unavailable or no received event
+    is on the blackboard, each a wiring fault the handler raises on, and when
+    the event carries no received evidence (VM-08-002): there is nothing to
+    record, and the delivery is refused.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -144,10 +147,15 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
         activity_id = event.activity_id
         evidence = event.received_evidence
         if evidence is None:
-            return self._wiring_fault(
+            # Nothing to record, so the delivery is refused: a resend routed
+            # without its own body is answered by the seen-before door before
+            # intake, so meeting one here is a copy no record backs.
+            self.feedback_message = (
                 f"activity '{activity_id}' carries no received body to"
-                " record (VM-08-002)"
+                " record (VM-08-002, ARCH-15-001)"
             )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         # BT-HELPER-01: ``update()`` owns the only try/except.  Presence is the
         # ``VultronAlreadyExistsError`` that ``create()`` raises on a duplicate;
         # any other failure to store is a fault this node surfaces
@@ -193,8 +201,14 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
             " should have answered it before intake (ADR-0154)"
         )
 
-    def _wiring_fault(self, message: str) -> Status:
-        """Fail with *message*, logged at ERROR (ARCH-15-001)."""
+    def _wiring_fault(self, message: str) -> NoReturn:
+        """Raise *message* as a wiring fault (ARCH-15-001).
+
+        Raised, not returned as ``FAILURE``, so the bridge reports an internal
+        error: the handler raises instead of refusing the sender, and the
+        outcome stage, seeing no verdict, leaves the record as it is rather
+        than reducing it to a stub for a fault that is ours (CLP-10-074).
+        """
         self.feedback_message = f"{message} (ARCH-15-001)"
         self.logger.error("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        raise VultronWiringError(f"{self.name}: {self.feedback_message}")

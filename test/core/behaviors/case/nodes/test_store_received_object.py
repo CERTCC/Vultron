@@ -87,7 +87,7 @@ def test_a_missing_object_is_skipped_not_failed(datalayer, actor_id):
     assert result.status == Status.SUCCESS
     assert node.outcome is not None
     assert node.outcome.disposition is HandlerDisposition.SKIPPED
-    # Intake still archived the activity that carried nothing storable.
+    # Intake still recorded the activity that carried nothing storable.
     assert (
         datalayer.read(ReceivedActivityRecord.build_id(activity.id_))
         is not None

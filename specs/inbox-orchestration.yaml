@@ -433,9 +433,9 @@ groups:
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that a deferred
       activity is held whole, its body and rows, for its replay and released by the
       replay or by expiry. `test/core/services/test_received_holding.py` asserts that
-      releasing or discarding a hold on an already-archived activity leaves the archive
-      standing, and that what waits on a case is read from the waiting records in
-      arrival order.
+      releasing a hold hands the body to the replay, that discarding one drops it, that
+      an archived or refused activity is never held again, and that what waits on a
+      case is read from the waiting records in arrival order.
     relationships:
     - rel_type: implements
       spec_id: IO-03-004

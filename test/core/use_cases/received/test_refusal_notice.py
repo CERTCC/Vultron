@@ -293,6 +293,24 @@ def test_a_skipped_repeat_answer_under_a_new_id_queues_no_notice():
     assert _notices(net, MANAGER, BYSTANDER) == []
 
 
+@pytest.mark.spec("CLP-10-044")
+@pytest.mark.spec("OX-06-002")
+def test_a_rerun_whose_stub_was_never_written_queues_no_second_notice():
+    """The receipt stub's write is best-effort: when it is lost, the record
+    stays in holding and a resend runs the tree again.  The notice's id is
+    derived from the CASE_MANAGER and the refused activity, so the second run
+    queues the same sealed notice once, never a second one (ID-04-004)."""
+    net, _, invite_id = _network("rerun")
+    event = _accept_event(net, invite_id)
+    _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
+    first = _notices(net, MANAGER, BYSTANDER)
+    assert len(first) == 1
+
+    _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
+
+    assert _notices(net, MANAGER, BYSTANDER) == first
+
+
 @pytest.mark.spec("CLP-05-006")
 @pytest.mark.spec("CLP-10-044")
 def test_a_redelivery_queues_no_second_notice():

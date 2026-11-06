@@ -816,7 +816,7 @@ class TestCaseProposalDisposition:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "declined" in result.reason
         assert list(dl.list_objects("VulnerabilityCase")) == []
-        # CLP-10-018: the refused Create(CaseProposal) is still archived.
+        # CLP-10-018: the refused Create(CaseProposal) is still recorded by intake.
         assert len(list(dl.list_objects("ReceivedActivityRecord"))) == 1
 
     @pytest.mark.spec("HP-01-003")

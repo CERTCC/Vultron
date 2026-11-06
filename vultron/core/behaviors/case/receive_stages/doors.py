@@ -16,7 +16,7 @@
 """The door guards of a received tree (CLP-10-010, HP-01-005, CM-23-013).
 
 In ADR-0154's order: the addressee check, the seen-before door, the path
-stage, the closed-sender check, the post-close guard, any case resolution and
+stage, the post-close guard, the closed-sender check, any case resolution and
 the sender guard.  Intake follows them, so nothing is written before the last
 door admits the message.
 Split out of ``receive_activity_tree.py`` (CS-18-005).

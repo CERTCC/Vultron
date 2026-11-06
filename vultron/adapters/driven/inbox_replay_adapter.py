@@ -28,8 +28,9 @@ entry appliable is still running when the port is called, and once it ends
 ``process_payload`` under the same actor lock (IO-02-003, BT-11-001).  The
 older ``inbox_handler`` queue worker drains the same queue and rebuilds from
 the same record.  The replay parses the held body again, so it carries the
-evidence the first delivery did (VM-08-008); intake already archived that
-delivery, so it archives nothing new (CLP-10-017).
+evidence the first delivery did (VM-08-008); the release handed that body
+over, so the replay's doors find no record and its intake records it again,
+as a delivery of its own (CLP-10-017, IO-03-009).
 """
 
 import logging

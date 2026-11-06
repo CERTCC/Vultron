@@ -134,7 +134,8 @@ def test_submit_report_persists_activity_and_report(reporter, report, dl):
         expected=HandlerDisposition.REFUSED,
     )
 
-    # The refused delivery is still archived by intake (CLP-10-018).
+    # The refused delivery is still recorded by intake; the outcome stage
+    # reduces it to a receipt stub (CLP-10-018).
     assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is not None
     assert dl.read(report.id_) is not None
 
