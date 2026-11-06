@@ -15,8 +15,9 @@ description: >
   gets a theme but no Epic parent, why an artifact name needs the run attempt,
   why a GitHub write is retried and a label swap is split, how to read a red CI
   job correctly, why a new pull-request step must be mirrored locally or
-  excluded with a reason, and why the `CI gate` must be re-run after a re-run
-  check.
+  excluded with a reason, why the `CI gate` must be re-run after a re-run
+  check, how to read the red checks its log names, and why a new pull-request
+  check is verified on later pull requests rather than its own.
 related_notes:
   - notes/testing-pitfalls.md
   - notes/demo-ci-invariants.md
@@ -74,6 +75,20 @@ The gate judges once per pull-request event, so a re-run or a dispatched run
 on the head commit after it finished is never judged. After any such run,
 re-run the `CI gate` job too before merging. Otherwise a flaky check re-run
 green leaves the gate red, and a green check re-run red leaves it green.
+
+A red gate names what it judged, one `##[error]Red check: <name>: <conclusion>`
+line per red check, so the gate's own log says which check to open instead of
+leaving a reader to compare the whole check list (#5971).
+
+## A New Pull-Request Check Is Verified On Later Pull Requests, Not Its Own
+
+A `pull_request` workflow runs only on a pull request whose merge commit already
+contains it: its own, and ones opened or updated after it merges. Its own pull
+request therefore shows exactly one case — whichever that pull request happens
+to be — and every other verdict has to be read off ordinary pull requests that
+come later. So a new check destined for a ruleset needs a verification task
+*after* the merge, listing the verdicts still unobserved, and the ruleset waits
+on that task rather than on the pull request that added the check (#5971).
 
 ## Push-to-`main` and Scheduled Workflows MUST Wire `notify-failure`
 
