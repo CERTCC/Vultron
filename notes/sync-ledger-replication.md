@@ -92,8 +92,9 @@ everything after the last hash a participant reports.
   call, below `send_ledger_suffix`, because the fan-out of a new entry bypasses that
   loop. A replay stops at the broken entry: a replica
   can only hold what follows as a forward gap. Fan-out checks the entry it built in
-  memory, unless it reused a recorded one or backfills a paused peer, so a storage
-  round-trip bug usually surfaces at replay, which reads the stored copy.
+  memory; it announces no reused recorded entry (§ Commit Discipline), and a paused
+  peer's backfill reads the stored copy, so a storage round-trip bug usually
+  surfaces at replay, which reads the stored copy.
 - **A held-back send fails its node, except a fan-out's catch-up.** The node
   that holds back an entry returns `FAILURE` (BT-14-001), and inside an act's
   transaction the act then keeps nothing (CLP-07-015). So a broken *new* entry
@@ -199,6 +200,21 @@ Invariants every component touching state, messaging or storage must preserve:
      attaching it (RSH-08-006).
 5. **Reject on divergence**: an entry that does not extend the chain is rejected
    and triggers resynchronization.
+
+**A recorded entry is announced once, when it is committed.** The commit tree
+persists the entry and fans it out in one `ActTransaction`, so a recorded entry
+always has its announcements queued. A rebuilt act that finds its entry recorded
+(`CreateLogEntryNode` reuses it) announces nothing (`FanOutLogEntryNode`). Reason:
+a second announcement goes out under a new id, which no receiver can tell from a
+new message (SYNC-09-002, #5047).
+
+**Keep `Announce(CaseLedgerEntry)` ids freshly minted; never derive them.** A
+replica refuses an entry that does not extend its tail or arrives before its case
+is seeded, then asks for a replay (SYNC-03-001, SYNC-15-001). A derived id would
+give the replayed copy the refused copy's id, the seen-before door would refuse it
+again from the receipt stub, and the gap would never fill. Stop a duplicate by
+not sending it, as above and as the position answer does for an activity already
+judged in order (SYNC-18-007, SYNC-21-018).
 
 ## A Missing Sync Port Is a Wiring Fault
 

@@ -356,7 +356,9 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # ``log_entry`` / ``log_entry_preexisting`` —
                 #   CreateLogEntryNode (both arms write both keys) →
                 #   PersistLogEntryNode and FanOutLogEntryNode, its later
-                #   siblings in the commit tree.
+                #   siblings in the commit tree.  A tree that runs
+                #   FanOutLogEntryNode with no CreateLogEntryNode before it
+                #   passes both keys as context_data.
                 #
                 # ``invitee_case`` — CheckInviteeNotAlreadyParticipantNode
                 #   (``None`` on its duplicate arm), a precondition guard of

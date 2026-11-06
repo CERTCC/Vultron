@@ -167,6 +167,9 @@ def fan_out(bridge, entry, sync_port) -> None:
         tree=FanOutLogEntryNode(case_id=CASE_ID),
         actor_id=MANAGER_ID,
         log_entry=entry,
+        # No CreateLogEntryNode runs before it, so the key is passed
+        # (FanOutLogEntryNode announces only an entry newly recorded).
+        log_entry_preexisting=False,
         sync_port=sync_port,
     )
     assert result.status == Status.SUCCESS

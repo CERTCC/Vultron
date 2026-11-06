@@ -85,7 +85,8 @@ the general form of each is in [bt-pitfalls](bt-pitfalls.md).
    redelivery, and no state "declined, nothing queued" exists (CLP-07-015).
 
 A refusal has no channel for a reason or cause, so the `Reject` carries no `summary`
-and an unreachable backend reads as a permanent decline (#3446).
+and an unreachable backend reads as a permanent decline (#3446). ADR-0183 decides
+the fix (#6076, #6077).
 
 The decision records name the actor owed the answer `proposer_uri`. A row
 carrying the former `vendor_uri` key is refused as an unknown key
@@ -269,8 +270,8 @@ already-declined answer, closed-case decline, admission decision, accept flow.
 - The `Accept`'s `result` always names the case the proposal produced or reused, so
   the requester correlates it without a second `Create`, which is not sent again.
   `CheckCaseAlreadyAnnouncedNode` skips the `Create` step, and
-  `CommitNativeLedgerEntriesNode` skips entries already recorded; without that skip
-  the reused entries fan out again.
+  `CommitNativeLedgerEntriesNode` skips entries already recorded, so it rebuilds
+  nothing; the commit tree would reuse each one and announce none again.
 - **Every native-initialization node must be a no-op on a case that already has what it
   creates**, embargo included, whatever its EM state. A node that names the proposer
   as owner also skips a proposer that is not the case's `attributed_to`: a former

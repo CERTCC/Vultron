@@ -757,7 +757,7 @@ specified; this document supplies the "how."
 
 The single-hub fan-out model was chosen as the normative baseline over
 distributed consensus because it is simpler to implement correctly, sufficient
-for the current deployment topology (one service actor per case), and
+for the current deployment topology (one Case Actor service per container, managing many cases), and
 explicitly forward-compatible with a future multi-node Raft cluster without
 requiring changes to the wire format or the participant replication path.
 The two tiers — CaseActor cluster replication and participant replication —

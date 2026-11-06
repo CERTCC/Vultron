@@ -1263,3 +1263,61 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VM-10-004
+  - id: VM-10-006
+    lint_suppress:
+    - phantom_path_ref
+    priority: MUST
+    kind: project
+    statement: >-
+      The project MUST publish one JSON Schema for each Vultron type term the context
+      document declares. Each schema is published at
+      `ns/<wire version>/schema/types/<Type>.json`, beside that context document, with
+      that URL as its `$id`. It is generated from the Pydantic class that defines the
+      term, in the form Vultron accepts. A wire-alias class (VM-01-014) contributes no
+      schema, and a property term gets none.
+    rationale: >-
+      An outside implementer needs a machine-readable description of each Vultron
+      object, and a generated schema cannot drift from the model without a failing
+      check. Object shapes share the wire version with the vocabulary (ADR-0106), so
+      the schemas sit under the same version segment as the context. The schemas are
+      informative: JSON Schema checks one layout while JSON-LD allows several, so the
+      requirements, not the schemas, decide conformance (ADR-0181).
+    verification: >-
+      Tests marked `VM-10-006` in `test/metadata/test_wire_schemas.py` assert that the
+      committed schemas equal the generated ones, that their set equals the Vultron
+      type terms in the context document, that each schema declares properties (a
+      serialization-form schema declares none), and that each `$id` is its published
+      URL.
+    adr:
+    - ADR-0181
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VM-10-001
+    - rel_type: uses_definition
+      spec_id: VM-01-014
+  - id: VM-10-007
+    lint_suppress:
+    - phantom_path_ref
+    priority: MUST
+    kind: project
+    statement: >-
+      The generated message examples MUST be published at
+      `ns/<wire version>/examples/`, the same versioned path as the context document,
+      and at no other path.
+    rationale: >-
+      An example shows a wire shape, and wire shapes carry the wire version
+      (ADR-0106). One versioned home lets a peer find the context, the schemas, and the
+      examples together, and a wire-version bump moves all of them at once. The old
+      unversioned example URLs are not kept, since a second URL would hide the version
+      (ADR-0181).
+    verification: >-
+      Tests marked `VM-10-007` in `test/architecture/test_vocab_examples_current.py`
+      assert that the committed examples directory is
+      `docs/ns/<wire version>/examples/` and that `docs/reference/examples/` holds no
+      example; the existing tests there compare every committed example with a fresh
+      generation.
+    adr:
+    - ADR-0181
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VM-10-001

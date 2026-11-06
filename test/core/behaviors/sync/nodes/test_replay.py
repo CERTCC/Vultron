@@ -24,6 +24,7 @@ from vultron.core.behaviors.sync.nodes import (
     FanOutLogEntryNode,
     FindCaseActorNode,
     FindDivergenceIndexNode,
+    LogEntryCommittedBeforeNode,
     ReplayMissingEntriesNode,
     SendLogEntryToEachNode,
     SendMissingEntriesNode,
@@ -347,12 +348,19 @@ def test_collect_and_find_replay_context_writes_blackboard(bridge, datalayer):
 
 @pytest.mark.spec("SYNC-02-001")
 @pytest.mark.spec("SYNC-02-003")
-def test_fanout_log_entry_node_is_sequence_with_named_leaf_nodes():
+def test_fanout_log_entry_node_announces_only_an_entry_newly_recorded():
+    """The fan-out is skipped for an entry its commit found recorded (#5047).
+
+    Otherwise it collects the recipients, then sends to each.
+    """
     tree = FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry")
-    assert isinstance(tree, py_trees.composites.Sequence)
-    assert len(tree.children) == 2
-    assert isinstance(tree.children[0], CollectLogEntryRecipientsNode)
-    assert isinstance(tree.children[1], SendLogEntryToEachNode)
+    assert isinstance(tree, py_trees.composites.Selector)
+    skip, announce = tree.children
+    assert isinstance(skip, LogEntryCommittedBeforeNode)
+    assert isinstance(announce, py_trees.composites.Sequence)
+    assert len(announce.children) == 2
+    assert isinstance(announce.children[0], CollectLogEntryRecipientsNode)
+    assert isinstance(announce.children[1], SendLogEntryToEachNode)
 
 
 @pytest.mark.spec("SYNC-03-002")

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Integration tests for CommitLogEntryBT."""
 
+from typing import cast
 from unittest.mock import MagicMock
 
 import py_trees
@@ -8,6 +9,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.sync.commit_tree import (
@@ -27,7 +29,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.errors import VultronUnhostedActorError
+from vultron.errors import VultronError, VultronUnhostedActorError
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
@@ -133,8 +135,9 @@ def test_commit_tree_fans_out_only_after_it_persists():
         semantic_type="case_created",
     )
     _, mint = tree.children
-    # A Sequence runs a child only after the one before it succeeds.
-    assert type(mint) is py_trees.composites.Sequence
+    # A Sequence runs a child only after the one before it succeeds; the
+    # mint is one transaction (#5047).
+    assert type(mint) is ActTransaction
     kinds = [type(child) for child in mint.children]
     assert kinds.index(PersistLogEntryNode) < kinds.index(FanOutLogEntryNode)
     assert kinds[-1] is FanOutLogEntryNode
@@ -272,6 +275,107 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
         if entry.case_id == CASE_ID
     ]
     assert len(entries) == 1
+
+
+@pytest.mark.spec("SYNC-09-002", "OX-06-002")
+def test_a_reused_entry_is_not_announced_again(bridge, datalayer, case_obj):
+    """A commit that finds its entry recorded announces nothing (#5047).
+
+    The entry was announced when it was committed.  A second announcement
+    would go out under a new id, which a receiver cannot tell from a new
+    message, so a re-run that rebuilds the act sends nothing new.
+    """
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    def _commit() -> Status:
+        result = bridge.execute_with_setup(
+            tree=create_commit_log_entry_tree(
+                case_id=CASE_ID,
+                object_id="https://example.org/activities/act-4",
+                semantic_type="case_updated",
+                payload_snapshot=_canonical_note_snapshot(
+                    PEER_ID, "https://example.org/notes/note-4"
+                ),
+            ),
+            actor_id=OWNER_ACTOR_ID,
+            sync_port=sync_port,
+        )
+        return cast(Status, result.status)
+
+    assert _commit() == Status.SUCCESS
+    sync_port.send_announce_log_entry.assert_called_once()
+
+    assert _commit() == Status.SUCCESS
+    sync_port.send_announce_log_entry.assert_called_once()
+
+
+@pytest.mark.spec("SYNC-09-002", "OX-06-002")
+def test_an_entry_whose_fan_out_raises_is_not_recorded(
+    bridge, datalayer, case_obj
+):
+    """The entry is stored only with its announcements queued (#5047).
+
+    A commit that finds its entry recorded announces nothing, which is safe
+    only because no entry is ever recorded without its fan-out: the mint is
+    one transaction, so a fan-out that raises takes the entry back.
+    """
+    sync_port = MagicMock(spec=SyncActivityPort)
+    sync_port.send_announce_log_entry.side_effect = RuntimeError("lost")
+
+    result = bridge.execute_with_setup(
+        tree=create_commit_log_entry_tree(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-5",
+            semantic_type="case_updated",
+            payload_snapshot=_canonical_note_snapshot(
+                PEER_ID, "https://example.org/notes/note-5"
+            ),
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+
+    assert result.internal_error is True
+    assert datalayer.list_objects("CaseLedgerEntry") == []
+
+
+@pytest.mark.spec("SYNC-09-002", "OX-06-002")
+def test_an_entry_whose_fan_out_fails_is_not_recorded(
+    bridge, datalayer, case_obj, monkeypatch
+):
+    """A fan-out that returns FAILURE also takes the entry back (#5047).
+
+    A failed step is the other way the mint's transaction rolls back: an
+    undecidable embargo gate fails the fan-out without raising, and the
+    entry it persisted must not stay recorded with no announcements.
+    """
+
+    def _undecidable(*_args: object, **_kwargs: object) -> object:
+        raise VultronError("embargo gate undecidable")
+
+    monkeypatch.setattr(
+        "vultron.core.behaviors.sync.nodes.fanout.backfill_admitted_peers",
+        _undecidable,
+    )
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = bridge.execute_with_setup(
+        tree=create_commit_log_entry_tree(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-6",
+            semantic_type="case_updated",
+            payload_snapshot=_canonical_note_snapshot(
+                PEER_ID, "https://example.org/notes/note-6"
+            ),
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is False
+    sync_port.send_announce_log_entry.assert_not_called()
+    assert datalayer.list_objects("CaseLedgerEntry") == []
 
 
 @pytest.mark.spec("CLP-07-011")

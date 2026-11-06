@@ -14,6 +14,7 @@ tracks:
   - "#3421"
   - "#3423"
   - "#3427"
+  - "#6078"
 description: >
   Design for the capability layer's unbuilt work: core-owned typed-port
   contracts and renamed shape base classes (#3421), the call-out latency budget
@@ -172,10 +173,12 @@ All four shapes share one convention: synchronous, in-process,
   consult a Composer, how it relates to `vultron/core/behaviors/note/`, and
   whether reusing prior advisory text makes it a composite with a Retriever.
 - **Actuator** — causes an external side effect (e.g. `OnEmbargoExit`,
-  `InjectParticipant`, `RemoveRecipient` hooks) and returns SUCCESS/FAILURE
-  only, writing no outputs. Open (#3427): FAILURE and partial-success policy, the
-  authentication model for the foreign system it writes to, and which systems it
-  may reach. A hook that cannot confirm promptly is an ask or call-in monitor.
+  `InjectParticipant`, `RemoveRecipient` hooks) and answers yes, no or error
+  like every backend (ADR-0183). It acts on one target per call, keyed on an id
+  the tree derives, so a re-run from holding repeats no side effect; a side
+  effect it cannot confirm, or a rejected credential, is *error*. Its
+  credentials and the systems it may reach are a deployment matter. A hook that
+  cannot confirm promptly is an ask or call-in monitor.
 
 ## Trust / Execution Authority
 

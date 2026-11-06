@@ -181,7 +181,16 @@ The one exception is an embargo whose end time has passed: the CASE_MANAGER itse
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "EMB-13-003", "EMB-13-006", "EMB-13-007", "EMB-13-008", "EMB-14-001", "EMB-14-005", "EMB-14-006"))
 ```
 
-{% include-markdown "./_oq-embargo-termination-authority.md" %}
+**Termination once P, X or A is canonical.**
+The Case Owner uses its authority over this termination when the reported value is adopted, not after.
+Adopting a P, X or A value is the one authorization, and the CASE_MANAGER act that adopts the value also ends the embargo ([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate), ADR-0166).
+So the Case Owner cannot keep an embargo once one of these values is canonical, and there is no decision to keep the embargo to record.
+A policy that must delay the termination decides at adoption, by not adopting the value yet.
+Attacks Observed differs from Public Aware and Exploit Public only at adoption: the CASE_MANAGER is recommended, not required, to adopt an A value and end the embargo.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-03-001", "CSB-12-001", "CSB-13-002", "CSB-14-001"))
+```
 
 {% include-markdown "./_oq-delegated-embargo-activation.md" %}
 
