@@ -88,10 +88,18 @@ class TriggerEmbargoPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        derived_id: bool = False,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` embargo-reject activity.
 
-        Returns ``(activity_id, activity_dict)``.
+        With *derived_id* the id is derived from *actor* and the Invite: the
+        automatic rejection of a received Invite is one activity however
+        often the Invite is delivered (ID-04-004), and a second build returns
+        the first one's id and body.  Without it the id is fresh, so a
+        deliberate ``Reject`` after the actor's own ``Accept`` (or a second
+        ``Reject`` after a first one) is a new activity, a changed answer
+        (CM-18-003).  Returns ``(activity_id, activity_dict)``.
         """
         ...
 
@@ -172,9 +180,12 @@ class TriggerEmbargoPort(Protocol):
         """Whether *actor* already sent its automatic answer to *proposal_id*.
 
         Read-only.  True when *actor* built a derived ``Accept``
-        (:meth:`accept_embargo` with ``derived_id``) or a ``Reject``
-        (:meth:`reject_embargo`) of the Invite: the latch that keeps a
-        re-delivered Invite from being answered twice (ID-04-004).
+        (:meth:`accept_embargo` with ``derived_id=True``) or a derived
+        ``Reject`` (:meth:`reject_embargo` with ``derived_id=True``) of the
+        Invite: the latch that keeps a re-delivered Invite from being
+        answered twice (ID-04-004).  A deliberate (fresh-id) answer is not
+        detected here, because each deliberate answer is a new activity and
+        the guard is not appropriate for it.
         """
         ...
 
