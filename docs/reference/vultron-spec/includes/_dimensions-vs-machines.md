@@ -10,4 +10,5 @@
     The Vultron implementation splits VFD into two machines, so it has six.
     A vendor path, `CS_vf` (`vf`, `Vf`, `VF`), holds Vendor Aware and Fix Ready.
     A deployer path, `CS_d` (`d`, `D`), holds Fix Deployed.
-    Together the two paths give the same four VFD states (`vfd`, `Vfd`, `VFd`, `VFD`) and the same 32 compound CS states.
+    The two paths combine into six pairs.
+    The VFD order of [§8.1 VFD — Vendor Aware, Fix Ready, Fix Deployed](../tracking-models.md#81-vfd-vendor-aware-fix-ready-fix-deployed) rules out the two pairs with a deployed fix that was never ready, which leaves the same four VFD states (`vfd`, `Vfd`, `VFd`, `VFD`) and the same 32 compound CS states.

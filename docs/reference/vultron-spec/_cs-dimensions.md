@@ -74,8 +74,7 @@ The VFD order of [§8.1 VFD — Vendor Aware, Fix Ready, Fix Deployed](tracking-
 Two compound states are ephemeral, and each one has a single forced next event.
 `vP`, public awareness while the vendor is unaware, is resolved by Vendor Aware.
 `pX`, a public exploit while the public is unaware, is resolved by Public Aware.
-A participant status write never stores an ephemeral state.
-A write that would enter one also applies its forced event, so that single write changes more than one dimension.
+When a participant writes its own status and the write would enter an ephemeral state, the write also applies the forced event, so that single write changes more than one dimension.
 A write that sets X while P is unset also sets P, and a write that sets P while V is unset also sets V.
 This compound write is the one exception to the one-dimension rule.
 It loses no ordering, because each ephemeral state has only one possible next event.

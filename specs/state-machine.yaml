@@ -356,10 +356,6 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: SM-09-001
-    - rel_type: supersedes
-      spec_id: CSB-17-002
-    - rel_type: supersedes
-      spec_id: CSB-17-008
   - id: SM-09-002
     priority: MUST_NOT
     kind: protocol

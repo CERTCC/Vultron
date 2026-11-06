@@ -1283,6 +1283,7 @@ class TestCreateParticipantStatusNode:
     # ------------------------------------------------------------------
 
     @pytest.mark.spec("CSB-13-006")
+    @pytest.mark.spec("CSB-17-002")
     def test_ephemeral_pxa_pXa_promoted_before_write(self):
         """AC-1 / SM-09-003: pXa is promoted to PXa before writing, so the
         stored status sets P and X together (CSB-13-006)."""
@@ -1327,6 +1328,7 @@ class TestCreateParticipantStatusNode:
         assert stored.case_status is not None
         assert stored.case_status.pxa.state is CS_pxa.PXA
 
+    @pytest.mark.spec("CSB-17-002")
     def test_ephemeral_vP_promotes_vf_when_writing_pxa(self):
         """AC-1 / SM-09-003: vP compound state forces VF promotion to Vf.
 
