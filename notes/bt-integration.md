@@ -581,8 +581,9 @@ The ratchet also checks that the factory *returns* the shared factory's result
 (`KNOWN_FACTORIES_NESTING_THE_STAGES`, empty): nesting it under a hand-built
 root runs something before the doors. A tree that needs a branch ahead of the
 receipt commit uses an outer factory with `case_id=None` (intake, no commit)
-and an inner factory per arm that commits; the inner seen-before door and
-intake find the outer intake's `HELD` record, pass, and write nothing. Intake
+and an inner factory per arm that commits, built `nested=True` so it runs no
+seen-before door or intake of its own: a second intake would read the first
+run as a re-run (ADR-0154). Intake
 records nothing when the event carries no activity, so
 a semantic-registry entry must set `include_activity=True`. An activity that
 lacks a value its tree needs to be built (a case id, a participant id) is

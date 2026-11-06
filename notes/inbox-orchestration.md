@@ -173,10 +173,10 @@ last door.
 door (`case/nodes/seen_before.py`) reads the one record and its stage only: a stub is
 `REFUSED` again with its reason, an archive is `SKIPPED`, a record owed a replay is
 `SKIPPED`, and nothing after the door runs, so no refusal notice goes out again. A
-`HELD` record owing nothing lets the delivery through: inbox runs are serialized per
-actor, so a resend never meets a run in progress, only a run that ended with no
-verdict, which must run again. A nested received tree (the close-case tree's inner
-one) meets its enclosing tree's record the same way and passes. The door compares no
+`HELD` or `HANDLED` record owing nothing lets the delivery through: inbox runs are
+serialized per actor, so a resend never meets a run in progress, only a run that ended
+with no verdict, which must run again. A nested received tree (the close-case tree's
+inner one) has no door of its own (`nested=True`). The door compares no
 bodies: ingress does that once, so a reused id never reaches it (IE-10-002). Handlers
 read its answer through `door_refusal`, which may now return `SKIPPED`.
 
