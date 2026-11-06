@@ -257,6 +257,7 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
 @pytest.mark.spec("CM-18-003")
 @pytest.mark.spec("CM-13-005")
 @pytest.mark.spec("IE-10-001")
+@pytest.mark.spec("SYNC-21-001")
 def test_a_participants_reject_accept_reject_of_one_invite_records_final_reject():
     """Three deliberate answers to one Invite land as three distinct activities.
 
@@ -317,6 +318,10 @@ def test_a_participants_reject_accept_reject_of_one_invite_records_final_reject(
         "expected three distinct activity ids, got"
         f" {len(activity_ids)}: {activity_ids}"
     )
+    # Each fresh-id answer takes the sender's next number, so the
+    # CASE_MANAGER judges the three in send order (SYNC-21-001, ADR-0178).
+    numbers = [body["senderSequence"] for body in (body1, body2, body3)]
+    assert numbers == list(range(numbers[0], numbers[0] + 3)), numbers
 
     # The CASE_MANAGER's consent row for BYSTANDER ends at DECLINED.
     manager_case = net.case(MANAGER)

@@ -107,6 +107,49 @@ def test_non_manager_reject_embargo_asks_the_case_manager(
     )
 
 
+@pytest.mark.spec("CM-18-003")
+@pytest.mark.spec("IE-10-001")
+def test_each_deliberate_reject_is_a_new_activity(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A participant's trigger Reject has a fresh id, not the derived one.
+
+    Its answer may change after an earlier Reject (Reject, Accept, Reject),
+    so each deliberate Reject of one Invite is a new activity.  Under the
+    id derived from (actor, Invite), kept for the automatic answer, a later
+    Reject would rebuild the first one and the CASE_MANAGER would drop it
+    as a redelivery.
+    """
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, _, participant_id = _build_active_embargo_case(
+        finder_dl, owner.id_, finder.id_
+    )
+    proposal, _ = _open_revision(
+        finder_dl, case.id_, owner.id_, participant_id
+    )
+    request = RejectEmbargoTriggerRequest(
+        actor_id=finder.id_, case_id=case.id_, proposal_id=proposal.id_
+    )
+    adapter = TriggerActivityAdapter(finder_dl)
+
+    result = SvcRejectEmbargoUseCase(
+        finder_dl,
+        request,
+        trigger_activity=adapter,
+        sync_port=SyncActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+    derived_id, _ = adapter.reject_embargo(
+        proposal_id=proposal.id_,
+        case_id=case.id_,
+        actor=finder.id_,
+        derived_id=True,
+    )
+
+    assert activity_of(result)["id"] != derived_id
+
+
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("EP-09-007")
 def test_manager_reject_embargo_commits_the_decision(
