@@ -54,9 +54,6 @@ from vultron.core.behaviors.case.nodes.addressee import (
     ActivityAddressedToReceiverNode,
     AddresseeExemption,
 )
-from vultron.core.behaviors.case.nodes.submit_report import (
-    CheckOfferAddressedToReceiverNode,
-)
 from vultron.core.behaviors.embargo.invite_received_tree import (
     embargo_invite_fault_tree,
 )
@@ -106,17 +103,6 @@ OTHER_TO_COMPARISONS: frozenset[_Site] = frozenset(
 # permanent: HP-01-005 (each entry is a recorded exemption decision, #4832)
 ADDRESSEE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
-        # CM-15-002: the report and the Offer are kept before the check.
-        (
-            "OFFER_REPORT_STORED_FIRST",
-            f"{_C}/receive_report_case_tree.py",
-            "create_receive_report_case_tree",
-        ),
-        (
-            "OFFER_REPORT_STORED_FIRST",
-            f"{_C}/receive_report_case_tree.py",
-            "create_offer_received_without_report_tree",
-        ),
         # The close arm is a subtree of CloseCaseBT, which runs the guard.
         (
             "ENCLOSING_TREE_ADDRESSEE_CHECK",
@@ -136,14 +122,6 @@ ADDRESSEE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
 #: A subtree exemption (the close arm) is not here: its enclosing tree, built
 #: by the same function, holds the guard.
 STAND_INS: dict[_Site, type[py_trees.behaviour.Behaviour]] = {
-    (
-        f"{_C}/receive_report_case_tree.py",
-        "create_receive_report_case_tree",
-    ): CheckOfferAddressedToReceiverNode,
-    (
-        f"{_C}/receive_report_case_tree.py",
-        "create_offer_received_without_report_tree",
-    ): CheckOfferAddressedToReceiverNode,
     (
         f"{_E}/invite_received_tree.py",
         "embargo_invite_fault_tree",

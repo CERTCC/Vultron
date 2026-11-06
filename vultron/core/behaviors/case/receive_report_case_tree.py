@@ -33,10 +33,13 @@ the CaseActor — see ``vultron/core/use_cases/received/case/create.py``.
 Structure (ADR-0041):
 
     ReceiveReportCaseBT (Sequence)
-    ├─ ActivityNotSeenBeforeNode              # seen-before door (no addressee door)
+    ├─ ActivityAddressedToReceiverNode        # addressee door (HP-01-005)
+    ├─ ActivityNotSeenBeforeNode              # seen-before door
+    ├─ ReceivedPathNode                       # the no-case path only
     ├─ CaseOpenToExternalWrites               # post-close boundary
     ├─ IntakeReceivedActivityNode             # Record the Offer (CLP-10-017)
-    ├─ [received_effects]                     # Keep report/Offer/record, guard
+    ├─ [received_effects]                     # Keep the report and offer record
+    ├─ CheckOfferNamesReceiverInToNode        # Eligibility from to (HP-09-001)
     ├─ CheckAutoCaseCreationEnabledNode       # Gate on auto_create_case policy
     └─ ReceiveReportCaseSelector (Selector)
        ├─ CheckProposalAlreadySentForReport # Early exit if proposal already sent
@@ -44,6 +47,14 @@ Structure (ADR-0041):
           ├─ EnsureCaseActorHostedNode        # CaseActor record in its own store
           ├─ WritePendingReportCaseLinkNode   # VultronReportCaseLink(case_id=None)
           └─ ProposeReportCaseToActorNode     # Create(CaseProposal) → CaseActor
+
+Both trees here take the ordinary door order and declare the no-case path
+alone (ADR-0154, HP-01-041): an ``Offer(VulnerabilityReport)`` precedes its
+case and names none, so its receiver holds no replica of one.  A copy not
+addressed to the receiver, ``cc``-only included, is refused at the addressee
+door and keeps nothing but its receipt stub (HP-10-001, CLP-10-018); an
+addressed one keeps the report and the Offer whatever the receiver then
+decides about a case (CM-15-002).
 
 Per ADR-0041 and specs/case-proposal.yaml CP-04-001, CP-04-002.
 """
@@ -61,10 +72,9 @@ from vultron.core.behaviors.case.nodes import (
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
-from vultron.core.behaviors.case.nodes.addressee import (
-    OFFER_REPORT_STORED_FIRST,
-)
+from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.nodes.submit_report import (
+    CheckOfferNamesReceiverInToNode,
     submit_report_received_effects,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -106,11 +116,11 @@ def create_receive_report_case_tree(
                       ``CheckAutoCaseCreationEnabledNode`` for the
                       ``auto_create_case`` policy gate (CM-15-001).
         received_effects: Effect nodes that keep what the Offer carried (the
-                          report, the Offer, the offer record) and the
-                          addressing guard; they run after intake and ahead
-                          of the policy gate, so a receiver that opts out of
-                          case creation still holds them (CM-15-001,
-                          CM-15-005).  See
+                          report and the offer record; intake records the
+                          Offer); they run after intake and ahead of the
+                          eligibility and policy gates, so a receiver that
+                          proposes no case still holds them (CM-15-001,
+                          CM-15-002, CM-15-005).  See
                           :func:`~vultron.core.behaviors.case.nodes.submit_report.submit_report_received_effects`.
 
     Returns:
@@ -154,11 +164,10 @@ def create_receive_report_case_tree(
         name="ReceiveReportCaseBT",
         case_id=None,
         precondition_guards=[],
-        # The report and the Offer are kept before the addressee is checked
-        # (CM-15-002); CheckOfferAddressedToReceiverNode checks it there.
-        addressee_exemption=OFFER_REPORT_STORED_FIRST,
+        paths={ReceivedPath.NO_CASE},
         replica_effects=[
             *received_effects,
+            CheckOfferNamesReceiverInToNode(),
             CheckAutoCaseCreationEnabledNode(actor_config=actor_config),
             case_creation_selector,
         ],
@@ -186,7 +195,7 @@ def create_offer_received_without_report_tree(
         name="KeepOfferWithoutReportBT",
         case_id=None,
         precondition_guards=[],
-        addressee_exemption=OFFER_REPORT_STORED_FIRST,
+        paths={ReceivedPath.NO_CASE},
         replica_effects=list(received_effects),
     )
 

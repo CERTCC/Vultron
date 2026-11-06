@@ -258,8 +258,8 @@ def create_receive_activity_tree(
     The addressee check opts out only with ``addressee_exemption``, a
     registered
     :class:`~vultron.core.behaviors.case.nodes.addressee.AddresseeExemption`
-    that records why (an ``Offer(VulnerabilityReport)`` stores what it carried first and
-    checks later, CM-15-002); no tree writes its own copy of the check.
+    that records why (a subtree whose enclosing tree already runs the
+    check); no tree writes its own copy of the check.
 
     ``paths`` is the message type's declaration of the paths it handles,
     made once, here (HP-01-038, HP-01-007).  The factory places the

@@ -81,22 +81,31 @@ def dl() -> SqliteDataLayer:
     )
 
 
-def _offer_of_stored_report(dl: SqliteDataLayer) -> dict[str, Any]:
-    """An ``Offer`` naming a report the receiver already holds by bare ID."""
+def _offer_of_stored_report(
+    dl: SqliteDataLayer, **extra: Any
+) -> dict[str, Any]:
+    """An ``Offer`` naming a report the receiver already holds by bare ID.
+
+    Signed by its actor, as the sender delivers it (SIG-01-001); *extra*
+    adds top-level keys before it is signed.
+    """
     dl.save(
         VulnerabilityReport(
             id_=REPORT_ID, name="r", content="stored", attributed_to=ACTOR
         )
     )
-    return {
-        "@context": "https://www.w3.org/ns/activitystreams",
-        "type": "Offer",
-        "id": "https://example.org/activities/offer-1",
-        "actor": ACTOR,
-        "published": "2026-01-02T03:04:05+00:00",
-        "object": REPORT_ID,
-        "to": ["https://example.org/actors/vendor"],
-    }
+    return signed_body(
+        {
+            "@context": "https://www.w3.org/ns/activitystreams",
+            "type": "Offer",
+            "id": "https://example.org/activities/offer-1",
+            "actor": ACTOR,
+            "published": "2026-01-02T03:04:05+00:00",
+            "object": REPORT_ID,
+            "to": ["https://example.org/actors/vendor"],
+            **extra,
+        }
+    )
 
 
 @pytest.mark.spec("VM-08-002")
@@ -163,7 +172,7 @@ def _defer(dl: SqliteDataLayer, body: dict[str, Any]) -> None:
 
 
 def _announce_entry_body() -> dict[str, Any]:
-    """An ``Announce(CaseLedgerEntry)`` as a CASE_MANAGER delivers it."""
+    """An ``Announce(CaseLedgerEntry)``, signed, as a CASE_MANAGER sends it."""
     entry = CaseLedgerEntry(
         id_=f"{CASE_ID}/log/entry-1",
         case_id=CASE_ID,
@@ -174,12 +183,14 @@ def _announce_entry_body() -> dict[str, Any]:
         prev_log_hash="hash-0",
         log_index=1,
     )
-    return announce_log_entry_activity(
-        entry,
-        id_="https://example.org/activities/announce-entry-1",
-        actor=CASE_ACTOR,
-        to=[ACTOR],
-    ).model_dump(mode="json", by_alias=True, exclude_none=True)
+    return signed_body(
+        announce_log_entry_activity(
+            entry,
+            id_="https://example.org/activities/announce-entry-1",
+            actor=CASE_ACTOR,
+            to=[ACTOR],
+        ).model_dump(mode="json", by_alias=True, exclude_none=True)
+    )
 
 
 def _store_state(dl: SqliteDataLayer) -> dict[str, Any]:
@@ -264,8 +275,7 @@ def test_resend_of_the_held_body_under_a_deferred_id_routes_the_held_copy(
     it would describe a delivery other than the one routed; the record is
     kept for its replay and not held again.
     """
-    first = _offer_of_stored_report(dl)
-    first["summary"] = "first"
+    first = _offer_of_stored_report(dl, summary="first")
     _defer(dl, first)
     before = _store_state(dl)
     adapter = FastAPIIngressAdapter(dl=dl)
@@ -298,14 +308,13 @@ def test_a_different_body_under_a_deferred_id_is_refused(
 ):
     """A second body under a deferred id is refused, not routed as the held
     copy, and the deferred record is left exactly as it was (#3762)."""
-    first = _offer_of_stored_report(dl)
-    first["summary"] = "first"
+    first = _offer_of_stored_report(dl, summary="first")
     _defer(dl, first)
     held_before = dl.read(ReceivedActivityRecord.build_id(first["id"]))
     assert isinstance(held_before, ReceivedActivityRecord)
     assert held_before.stage is ReceivedStage.HELD
     assert held_before.replay_owed
-    second = {**copy.deepcopy(first), "summary": "second"}
+    second = resigned(first, summary="second")
 
     _assert_refused_through_the_inbox(dl, second, ACTOR, caplog)
 
@@ -359,8 +368,7 @@ def test_resend_of_an_archived_body_routes_the_archived_copy(
     """Detected from intake's archive, a resend of the same body is routed
     as the archived body's parse, carrying the archived body as its
     evidence, and nothing is written (ADR-0149)."""
-    first = _offer_of_stored_report(dl)
-    first["summary"] = "first"
+    first = _offer_of_stored_report(dl, summary="first")
     record = archive_received(dl, parse_activity(copy.deepcopy(first)))
     before = _store_state(dl)
     adapter = FastAPIIngressAdapter(dl=dl)
@@ -472,7 +480,7 @@ def test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place(
 ):
     """The same ``Announce(CaseLedgerEntry)`` body still takes the in-place
     path, so the SYNC-12-003 already-stored gate answers it (SYNC-13-004)."""
-    body = signed_body(_announce_entry_body())
+    body = _announce_entry_body()
     archive_received(dl, parse_activity(copy.deepcopy(body)))
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(copy.deepcopy(body))
@@ -511,8 +519,11 @@ def test_a_different_body_under_a_held_ledger_announce_id_is_refused(
     for its replay (SYNC-14-001, IO-03-004)."""
     body = _announce_entry_body()
     _defer(dl, body)
-    second = copy.deepcopy(body)
-    second["object"]["payload_snapshot"] = {"actor": "rewritten"}
+
+    def rewrite(entry: dict[str, Any]) -> None:
+        entry["object"]["payload_snapshot"] = {"actor": "rewritten"}
+
+    second = resigned(body, alter=rewrite)
 
     _assert_refused_through_the_inbox(dl, second, CASE_ACTOR, caplog)
 
@@ -556,8 +567,7 @@ def test_a_replayed_deferral_is_archived_as_its_first_delivery(
     """Deferred, then replayed through the inbox and dispatched: intake
     archives the body the first delivery sealed, so a deferred replay records
     the same evidence as a first delivery would (ADR-0149)."""
-    body = _offer_of_stored_report(dl)
-    body["x-firstDelivery"] = True
+    body = _offer_of_stored_report(dl, **{"x-firstDelivery": True})
     _defer(dl, body)
     replayed = StoredActivityIngressAdapter(dl=dl).parse(body["id"])
     assert replayed is not None

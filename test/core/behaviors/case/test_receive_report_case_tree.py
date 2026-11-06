@@ -71,7 +71,14 @@ def _event(offer):
             activity_type="Offer",
             actor_id=actor_id,
             activity=VultronActivity(
-                id_=offer.id_, type_="Offer", actor=actor_id
+                id_=offer.id_,
+                type_="Offer",
+                actor=actor_id,
+                to=[
+                    recipient_id
+                    for recipient in offer.to or []
+                    if (recipient_id := _as_id(recipient)) is not None
+                ],
             ),
         )
     )
@@ -113,10 +120,56 @@ class TestTreeStructure:
         assert tree is not None
         assert tree.name == "ReceiveReportCaseBT"
         assert isinstance(tree, py_trees.composites.Sequence)
-        # seen-before door, post-close guard, intake, gate, selector
-        assert len(tree.children) == 5
+        # addressee door, seen-before door, path stage, post-close guard,
+        # intake, eligibility, gate, selector
+        assert len(tree.children) == 8
 
-    def test_first_child_is_policy_gate(
+    @pytest.mark.spec("HP-01-012")
+    @pytest.mark.spec("HP-09-001")
+    def test_the_doors_come_first_and_eligibility_precedes_the_gate(
+        self, report, offer, reporter_actor_id
+    ):
+        """The ordinary door order, then case-creation eligibility (#5046).
+
+        The addressee door is the first child, as in every received tree, and
+        the no-case path stage is among the doors (ADR-0154, HP-01-041); the
+        ``to``-only eligibility check sits after intake, just ahead of the
+        ``auto_create_case`` gate.
+        """
+        from vultron.core.behaviors.case.nodes.addressee import (
+            ActivityAddressedToReceiverNode,
+        )
+        from vultron.core.behaviors.case.nodes.intake import (
+            IntakeReceivedActivityNode,
+        )
+        from vultron.core.behaviors.case.nodes.received_path import (
+            ReceivedPath,
+            ReceivedPathNode,
+        )
+        from vultron.core.behaviors.case.nodes.submit_report import (
+            CheckOfferNamesReceiverInToNode,
+        )
+
+        tree = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        kinds = [type(child) for child in tree.children]
+        assert kinds[0] is ActivityAddressedToReceiverNode
+        stage = next(
+            n for n in tree.iterate() if isinstance(n, ReceivedPathNode)
+        )
+        assert stage.declared == frozenset({ReceivedPath.NO_CASE})
+        intake = kinds.index(IntakeReceivedActivityNode)
+        eligibility = kinds.index(CheckOfferNamesReceiverInToNode)
+        assert (
+            intake
+            < eligibility
+            == kinds.index(CheckAutoCaseCreationEnabledNode) - 1
+        )
+
+    def test_policy_gate_precedes_the_selector(
         self, report, offer, reporter_actor_id
     ):
         """After the doors and intake comes CheckAutoCaseCreationEnabledNode."""
@@ -125,16 +178,16 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        assert isinstance(tree.children[3], CheckAutoCaseCreationEnabledNode)
+        assert isinstance(tree.children[-2], CheckAutoCaseCreationEnabledNode)
 
-    def test_second_child_is_selector(self, report, offer, reporter_actor_id):
+    def test_last_child_is_selector(self, report, offer, reporter_actor_id):
         """After the gate comes ReceiveReportCaseSelector (Selector)."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        sel = tree.children[4]
+        sel = tree.children[-1]
         assert isinstance(sel, py_trees.composites.Selector)
         assert sel.name == "ReceiveReportCaseSelector"
 
@@ -147,7 +200,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        sel = tree.children[4]
+        sel = tree.children[-1]
         assert isinstance(sel.children[0], CheckProposalAlreadySentForReport)
 
     def test_selector_second_child_is_flow_sequence(
@@ -159,7 +212,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[4].children[1]
+        flow = tree.children[-1].children[1]
         assert isinstance(flow, py_trees.composites.Sequence)
         assert flow.name == "ReceiveReportProposalFlow"
 
@@ -170,7 +223,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[4].children[1]
+        flow = tree.children[-1].children[1]
         assert len(flow.children) == 3
 
     def test_flow_first_child_ensures_case_actor_hosted(
@@ -188,7 +241,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[4].children[1]
+        flow = tree.children[-1].children[1]
         assert isinstance(flow.children[0], EnsureCaseActorHostedNode)
 
     def test_flow_second_child_is_write_link(
@@ -200,7 +253,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[4].children[1]
+        flow = tree.children[-1].children[1]
         assert isinstance(flow.children[1], WritePendingReportCaseLinkNode)
 
     def test_flow_third_child_is_propose(
@@ -212,7 +265,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[4].children[1]
+        flow = tree.children[-1].children[1]
         assert isinstance(flow.children[2], ProposeReportCaseToActorNode)
 
     def test_no_create_case_node(self, report, offer, reporter_actor_id):
@@ -283,7 +336,7 @@ class TestPolicyGate:
             reporter_actor_id=reporter_actor_id,
             actor_config=cfg,
         )
-        gate = tree.children[3]
+        gate = tree.children[-2]
         assert isinstance(gate, CheckAutoCaseCreationEnabledNode)
         assert gate.actor_config is cfg
 

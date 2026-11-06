@@ -95,7 +95,7 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_proof_naming_a_key_outside_the_authors_profile_is_refused`
       posts an activity whose proof names another actor's key.
-    tracking_issue: '#5383 (key resolution); #5386 (refusal)'
+    tracking_issue: '#5386'
     adr:
     - ADR-0164
     stories:
@@ -259,7 +259,7 @@ groups:
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_an_author_whose_profile_cannot_be_read_is_refused`
       posts an activity from an author whose profile the receiver holds no copy of and
       cannot fetch.
-    tracking_issue: '#5383 (key resolution); #5386 (refusal)'
+    tracking_issue: '#5386'
     relationships:
     - rel_type: refines
       spec_id: SIG-02-001

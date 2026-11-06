@@ -12,7 +12,7 @@ from vultron.core.behaviors.case.nodes import (
     CheckProposalAlreadySentForReport,
 )
 from vultron.core.behaviors.case.nodes.submit_report import (
-    CheckOfferAddressedToReceiverNode,
+    CheckOfferNamesReceiverInToNode,
 )
 from vultron.core.behaviors.report import received_report_trees
 from vultron.core.behaviors.sender_entitlement import (
@@ -34,7 +34,6 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
     door_refusal,
-    failure_reason,
     find_node,
     node_failed,
     node_succeeded,
@@ -61,20 +60,22 @@ def _submit_report_verdict(
 ) -> HandlerResult:
     """Classify the one ``Offer(VulnerabilityReport)`` tree's outcome (#2255).
 
-    The tree keeps the report, the Offer and the offer record, refuses an
-    Offer not addressed to the receiver (HP-01-005), and, when the Offer
-    names a report, proposes the case.  A report-less Offer, a disabled
-    ``auto_create_case`` gate and an already-sent proposal are no-ops, and
-    any other failure is this actor's own (a missing port, a CaseActor that
-    cannot be hosted), so it raises rather than refuses — except the door
-    guards a received tree carries (CM-23-013); this tree's addressee check
-    is its own late one (CM-15-002).
+    The factory's doors come first: a copy not addressed to the receiver,
+    ``cc``-only included, is refused there with nothing kept but its receipt
+    stub (HP-01-005, HP-10-001).  An addressed Offer keeps the report, the
+    Offer and the offer record and, when it names a report, proposes the
+    case.  A report-less Offer, a sender's own copy that names no ``to``
+    recipient here (HP-09-001), a disabled ``auto_create_case`` gate and an
+    already-sent proposal propose nothing and are ``SKIPPED``, so the Offer
+    is archived (CM-15-002, ADR-0154).  Any other failure is this actor's
+    own (a missing port, a CaseActor that cannot be hosted), so it raises
+    rather than refuses.
     """
     if (refusal := door_refusal(tree)) is not None:
         return refusal
-    guard = find_node(tree, CheckOfferAddressedToReceiverNode)
-    if guard is not None and guard.misaddressed:
-        return HandlerResult.refused(failure_reason(tree, result))
+    eligibility = find_node(tree, CheckOfferNamesReceiverInToNode)
+    if eligibility is not None and eligibility.not_named_in_to:
+        return HandlerResult.skipped(eligibility.feedback_message)
     if node_failed(tree, CheckAutoCaseCreationEnabledNode):
         logger.info(
             "SubmitReportReceivedUseCase: auto_create_case disabled for"

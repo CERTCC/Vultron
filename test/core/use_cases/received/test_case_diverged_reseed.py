@@ -32,6 +32,7 @@ import pytest
 from test.support.inbox_replay import held_depth
 from test.support.ledger import chain_tail, ledger_entries
 from test.support.received import delivered_body
+from test.support.signing import resigned
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
 )
@@ -105,7 +106,7 @@ def _fault_from(
     )
     body = delivered_body(activity)
     if published is not None:
-        body["published"] = published.isoformat()
+        body = resigned(body, published=published.isoformat())
     return cast(HandlerResult, net.receive(MANAGER, body))
 
 

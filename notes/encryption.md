@@ -7,7 +7,6 @@ tracks:
   - "#1184"
   - "#2841"
   - "#3477"
-  - "#5383"
   - "#5385"
   - "#5386"
 description: >
@@ -20,6 +19,7 @@ related_specs:
   - specs/message-validation.yaml
   - specs/actor-knowledge-model.yaml
   - specs/error-handling.yaml
+  - specs/object-ids.yaml
   - specs/vocabulary-model.yaml
 related_notes:
   - archived_notes/federation_ideas.md
@@ -93,12 +93,13 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   field again.
 - **Tests sign through `test/support/signing.py`**: `signed_body`, `resigned`
   (an altered copy, re-signed), `post_signed`. Proofs there are deterministic
-  (seeded key, fixed `created`), so a resend is the archived bytes. In
-  `test/support/received.py`, `body_of` (behind `archive_received` and
-  `intake_received`) and `hold_deferred` seed signed bodies; a test that resends
-  against them signs its delivery too, or IE-10-002 refuses it. Every other
-  helper there is still unsigned; #5385 repoints them with the other test
-  deliveries.
+  (seeded key, fixed `created`), so a resend is the archived bytes.
+  `delivered_body` in `test/support/received.py` signs what it returns, and
+  `body_of` and `hold_deferred` seed through it, so never wrap its result in
+  `signed_body` (a second proof raises). A test that alters a signed body
+  builds the copy with `resigned`, since an edit in place leaves a stale proof
+  that verification (#5386) refuses. A body read back from a sealed outbox is
+  signed by the outbox (#5382), never by the test.
 - **The parser sets `proof` aside** as a foreign key (MV-11-003), with one INFO
   record per delivery; the received evidence keeps it (SIG-04-001). Verification
   reads the raw body before the parser (#5386), so nothing needs it parsed.
@@ -138,15 +139,38 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   Tasks is the ratchet: everything signs first, then every test delivery signs
   through the shared helper, then verification turns on. Verification cannot
   merge while any inbox delivery is unsigned.
-- **Keys come from the author's profile** (SIG-02-001): a stored copy, else a
-  plain GET of the profile, which needs no proof (SIG-02-002). Check that the
-  `Multikey`'s `controller` is the actor whose profile lists it. When a profile
-  copy expires, and how a rotated key is found, are #1184.
-- **Read a key from `CoreActor.assertion_method`, not from raw JSON.** It is a
-  list of core `Multikey` values (`vultron/core/models/multikey.py`), and
-  validation already guarantees each key id is `<controller>#<fragment>` and
-  each controller is the profile's own actor. A resolver strips the fragment
-  to find the profile, then matches the key id exactly (ENC-01-002).
+- **Resolve a key with `resolve_verification_key`**
+  (`vultron/core/services/verification_key.py`), never by hand. It takes the
+  proof's `verificationMethod`, the document's author, the receiving actor's
+  store and an `ActorProfileFetchPort` (`HttpActorProfileFetchAdapter` in
+  `vultron/adapters/driven/http_actor_profile_fetch.py`), and returns the
+  core `Multikey` whose `publicKeyMultibase` goes to `signing.verify`. It reads
+  the held copy, else a plain GET of `{actor}/profile` with no proof
+  (SIG-02-001, SIG-02-002). It refuses a key whose actor is not the author
+  before any read, and checks the profile's id and the key's `controller` are
+  the key's actor. Which field names the author is the caller's (#5386).
+  When a profile copy expires, and how a rotated key is found, are #1184.
+- **The resolver is async and refuses with `VultronVerificationKeyError`**, a
+  `VultronProofVerificationError`, so the ingress answers an unresolvable key
+  as it answers a failed proof (SIG-03-002). It reads the held copy with one
+  synchronous `dl.read` before it awaits the fetch. A fetch failure is
+  `VultronActorProfileFetchError`, chained as the refusal's cause and logged;
+  the refusal text names only the key and its actor, since it goes back to the
+  sender. Anything else a fetcher raises is a fault and propagates.
+- **A held copy's keys are trusted as held.** A held key verifies, so a key
+  planted in a held copy would let its planter sign as that actor. The known
+  store paths write no peer `assertionMethod`: an inline profile carries none,
+  discovery records a bare id, and the resolver stores no fetch. A path that
+  starts storing peer keys must take them only from the actor's own profile;
+  what may replace a held key is #1184's rotation question.
+- **A key lookup runs before the sender is verified.** An unsigned or forged
+  delivery can make the receiver fetch the claimed author's profile, with the
+  fetch retries (AKM-05-008), from any URL it names, internal hosts included.
+  #5386 bounds that cost and those targets at the ingress; a production key
+  cache is #1184.
+- **Actor ids are compared normalised** (OID-01-006): the key's actor, the
+  profile id and the `controller`, each without a trailing slash. A held copy
+  stored under a slashed id is missed by the read and found by the fetch.
 - **The hosted actor's key is published, not stored.** Both profile routes,
   `/actors/{id}` and `/actors/{id}/profile`, list the actor's own
   `signing.published_multikey` and replace any key its record states: a
@@ -155,14 +179,14 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   (SIG-05-002). `GET /actors/` lists each hosted actor the same way.
 - **An inline sender profile carries no key.** An activity carries the
   sender's own stored record as held (AKM-05-005), and that record lists no
-  key, while a receiver keeps a held copy over a fetched one (MV-10-003). The
-  #5383 resolver must fetch the profile when its held copy lists no key the
-  proof names, not refuse on the held copy alone.
+  key, while a receiver keeps a held record over a fetched copy
+  (AKM-05-012). So the resolver fetches when its held copy lists no key the
+  proof names, and does not store what it fetched.
 - **A profile typed `"Actor"` loses its key at parse.** The wire `as_Actor`
   ignores unknown fields, so it drops `assertionMethod`, while the five
-  concrete actor types keep it. The #5383 resolver then finds no key and fails
-  closed (SIG-02-001); its refusal should name the generic type as the cause,
-  not say the actor published no key.
+  concrete actor types keep it. The fetch adapter refuses a profile typed
+  `"Actor"` with a `VultronActorProfileFetchError` naming the generic type, not
+  saying the actor published no key; the resolver logs it.
 - **The served profile's `@context` defines the key terms.** The Vultron
   context defines no `assertionMethod`, `Multikey`, `controller` or
   `publicKeyMultibase`, so `profile_of_record` appends

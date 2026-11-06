@@ -12,17 +12,29 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Protocol-tier @pytest.mark.spec coverage reporter.
 
-Scans the test suite for ``@pytest.mark.spec("ID")`` markers and reports
-coverage for the requirements every implementation must obey — ``protocol``
-and ``foundation`` kind (:data:`~vultron.metadata.specs.schema.IMPLEMENTER_KINDS`)
-— loaded from the spec registry.
+Scans the test suite for ``@pytest.mark.spec("ID")`` markers and reports, for
+the requirements every implementation must obey — ``protocol`` and
+``foundation`` kind (:data:`~vultron.metadata.specs.schema.IMPLEMENTER_KINDS`)
+— which of three states each one is in (SR-05-017):
+
+* **verified** — at least one marked test runs to pass or fail;
+* **xfail-only** — it has marked tests, and each one is held: a strict
+  ``xfail`` (conditional or not) is on it, or it cannot run (an unconditional
+  ``skip``, an empty parameter list), so no passing test shows that ``main``
+  meets it;
+* **untested** — no marker names it.
+
+The coverage figure is verified over total. ``--json PATH`` writes each
+requirement's state, statement and xfail reasons (SR-05-018).
 
 Runnable locally::
 
     spec-coverage
     spec-coverage specs/ test/
+    spec-coverage --json /tmp/spec-coverage.json
 
-Coverage reporter requirements: specs/spec-registry.yaml SR-05-004, SR-05-005.
+Coverage reporter requirements: specs/spec-registry.yaml SR-05-004,
+SR-05-005, SR-05-017, SR-05-018.
 """
 
 from __future__ import annotations
@@ -30,15 +42,23 @@ from __future__ import annotations
 import argparse
 import re
 from collections.abc import Iterable, Iterator, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
+from pydantic import BaseModel, ConfigDict, computed_field
+
+from vultron.metadata.specs.marked_tests import (
+    MarkedCase,
+    issue_refs,
+    marked_cases_in,
+)
 from vultron.metadata.specs.registry import (
     SpecRegistry,
     find_repo_root,
     load_registry,
 )
-from vultron.metadata.specs.schema import IMPLEMENTER_KINDS, SpecKind
+from vultron.metadata.specs.schema import IMPLEMENTER_KINDS, Spec, SpecKind
 
 SPEC_MARKER_RE = re.compile(r"(?<![\w.])pytest\.mark\.spec\(([^)]*)\)")
 """One ``pytest.mark.spec(...)`` marker; group 1 is its argument list.
@@ -53,20 +73,114 @@ _KEYWORD_ARG_RE = re.compile(r"""\b\w+\s*=\s*(["'])[^"']*\1""")
 """A ``name="value"`` keyword argument, whose value is not a spec ID."""
 
 
-@dataclass
-class ImplementerCoverageReport:
-    """Coverage of @pytest.mark.spec markers for implementer-kind requirements."""
+class CoverageState(StrEnum):
+    """What the test suite shows about one implementer-kind requirement."""
+
+    VERIFIED = "verified"
+    """A marked test runs to pass or fail."""
+    XFAIL_ONLY = "xfail_only"
+    """Every marked test is held by a strict ``xfail`` or cannot run."""
+    UNTESTED = "untested"
+    """No marker names the requirement."""
+
+
+class XfailTest(BaseModel):
+    """One strict ``xfail``, or skip, that holds a test marked for a requirement.
+
+    A skip's reason starts with ``skip:``.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    test: str
+    """``path::Class::function``, followed by ``[ids]`` when every parameter
+    set of the case has a literal ``id=``."""
+    reason: str | None
+    """The marker's ``reason``; ``None`` when it is not a resolvable string."""
+    issues: tuple[int, ...]
+    """The issue numbers *reason* cites as ``#N``."""
+
+
+class RequirementCoverage(BaseModel):
+    """One implementer-kind requirement and its coverage state."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    kind: SpecKind
+    statement: str
+    state: CoverageState
+    xfail_tests: tuple[XfailTest, ...] = ()
+    """Each strict ``xfail`` or skip on a test marked for this requirement, in
+    any state: a verified requirement can also have an xfail-marked test."""
+
+
+class CoverageSummary(BaseModel):
+    """The counts of each coverage state."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     total: int
-    covered_count: int
-    uncovered: list[str] = field(default_factory=list)
+    verified: int
+    xfail_only: int
+    untested: int
+    verified_pct: float
+    """Verified over total, as a percentage (0–100); 0.0 when total is 0."""
+
+
+class ImplementerCoverageReport(BaseModel):
+    """Coverage of ``protocol`` and ``foundation`` requirements by state.
+
+    Serialized by ``spec-coverage --json``: ``requirements`` lists every
+    implementer-kind requirement sorted by ID, and ``summary`` gives the
+    counts.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    requirements: tuple[RequirementCoverage, ...]
+
+    def _ids(self, state: CoverageState) -> list[str]:
+        return [r.id for r in self.requirements if r.state is state]
 
     @property
-    def covered_pct(self) -> float:
-        """Percentage of implementer-kind specs with a marker (0–100)."""
+    def total(self) -> int:
+        """Number of implementer-kind requirements."""
+        return len(self.requirements)
+
+    @property
+    def verified(self) -> list[str]:
+        """Marked IDs that are not xfail-only, sorted."""
+        return self._ids(CoverageState.VERIFIED)
+
+    @property
+    def xfail_only(self) -> list[str]:
+        """IDs whose every marked test is held, sorted."""
+        return self._ids(CoverageState.XFAIL_ONLY)
+
+    @property
+    def untested(self) -> list[str]:
+        """IDs no marker names, sorted."""
+        return self._ids(CoverageState.UNTESTED)
+
+    @property
+    def verified_pct(self) -> float:
+        """Percentage of implementer-kind requirements verified (0–100)."""
         if self.total == 0:
             return 0.0
-        return 100.0 * self.covered_count / self.total
+        return 100.0 * len(self.verified) / self.total
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def summary(self) -> CoverageSummary:
+        """The counts of each state, written with the requirements."""
+        return CoverageSummary(
+            total=self.total,
+            verified=len(self.verified),
+            xfail_only=len(self.xfail_only),
+            untested=len(self.untested),
+            verified_pct=self.verified_pct,
+        )
 
 
 def marked_ids_in(sources: Iterable[str]) -> frozenset[str]:
@@ -75,6 +189,10 @@ def marked_ids_in(sources: Iterable[str]) -> frozenset[str]:
     Each item of *sources* is one file's text. A plain regex pass; no AST.
     A marker naming several IDs, ``@pytest.mark.spec("A", "B")``, covers
     each of them; a keyword argument's string value is not an ID.
+
+    This set alone decides *untested*, so the SR-05-005 growth guard and the
+    report agree on it; :mod:`~vultron.metadata.specs.marked_tests` only
+    splits the marked IDs into verified and xfail-only.
     """
     return frozenset(
         spec_id.group(1)
@@ -86,14 +204,18 @@ def marked_ids_in(sources: Iterable[str]) -> frozenset[str]:
     )
 
 
-def _read_sources(test_root: Path) -> Iterator[str]:
+def _read_files(test_root: Path) -> Iterator[tuple[Path, str]]:
     for py_file in sorted(test_root.rglob("*.py")):
         if "__pycache__" in py_file.parts:
             continue
         try:
-            yield py_file.read_text(encoding="utf-8")
+            yield py_file, py_file.read_text(encoding="utf-8")
         except OSError:
             continue
+
+
+def _read_sources(test_root: Path) -> Iterator[str]:
+    return (source for _, source in _read_files(test_root))
 
 
 def collect_marked_ids(test_root: Path) -> frozenset[str]:
@@ -111,19 +233,69 @@ def collect_marked_ids(test_root: Path) -> frozenset[str]:
     return marked_ids_in(_read_sources(test_root))
 
 
-def _coverage_report(
-    registry: SpecRegistry, marked_ids: frozenset[str]
-) -> ImplementerCoverageReport:
-    implementer_ids = frozenset(
-        spec_id
+def _implementer_specs(registry: SpecRegistry) -> dict[str, Spec]:
+    return {
+        spec_id: spec
         for spec_id, spec in registry.all_specs.items()
         if spec.kind in IMPLEMENTER_KINDS
+    }
+
+
+def _state(
+    spec_id: str, marked_ids: frozenset[str], cases: list[MarkedCase]
+) -> CoverageState:
+    if spec_id not in marked_ids:
+        return CoverageState.UNTESTED
+    if cases and all(case.is_xfail for case in cases):
+        return CoverageState.XFAIL_ONLY
+    return CoverageState.VERIFIED
+
+
+def _xfail_tests(cases: Iterable[MarkedCase]) -> tuple[XfailTest, ...]:
+    found = {
+        (case.test, reason) for case in cases for reason in case.xfail_reasons
+    }
+    return tuple(
+        XfailTest(test=test, reason=reason, issues=issue_refs(reason))
+        for test, reason in sorted(
+            found, key=lambda t: (t[0], t[1] is not None, t[1] or "")
+        )
     )
-    covered_ids = implementer_ids & marked_ids
+
+
+def classify_requirements(
+    registry: SpecRegistry,
+    marked_ids: frozenset[str],
+    cases: Iterable[MarkedCase],
+) -> ImplementerCoverageReport:
+    """Put each implementer-kind requirement in its coverage state.
+
+    Args:
+        registry: The requirements to classify.
+        marked_ids: IDs any marker names (:func:`marked_ids_in`); an ID
+            outside it is untested.
+        cases: The marked test cases
+            (:func:`~vultron.metadata.specs.marked_tests.marked_cases_in`).
+            A marked ID is xfail-only when it has cases and each one is
+            held; otherwise it is verified. A marked ID with no case the
+            AST reader places in a test (one only the regex sees) counts
+            as verified.
+    """
+    by_id: dict[str, list[MarkedCase]] = {}
+    for case in cases:
+        for spec_id in case.spec_ids:
+            by_id.setdefault(spec_id, []).append(case)
     return ImplementerCoverageReport(
-        total=len(implementer_ids),
-        covered_count=len(covered_ids),
-        uncovered=sorted(implementer_ids - covered_ids),
+        requirements=tuple(
+            RequirementCoverage(
+                id=spec_id,
+                kind=spec.kind,
+                statement=spec.statement,
+                state=_state(spec_id, marked_ids, by_id.get(spec_id, [])),
+                xfail_tests=_xfail_tests(by_id.get(spec_id, [])),
+            )
+            for spec_id, spec in sorted(_implementer_specs(registry).items())
+        )
     )
 
 
@@ -135,13 +307,25 @@ def compute_implementer_coverage(
 
     Args:
         registry: Loaded :class:`~vultron.metadata.specs.registry.SpecRegistry`.
-        test_root: Directory to scan for test files.
+        test_root: Directory to scan for test files. Tests are named by their
+            path relative to its parent, so ``test/`` gives ``test/...``.
 
     Returns:
-        :class:`ImplementerCoverageReport` with covered/uncovered counts and the
-        sorted list of uncovered ``protocol`` and ``foundation`` spec IDs.
+        :class:`ImplementerCoverageReport` with every ``protocol`` and
+        ``foundation`` requirement in its :class:`CoverageState`.
     """
-    return _coverage_report(registry, collect_marked_ids(test_root))
+    files = list(_read_files(test_root))
+    base = test_root.resolve().parent
+    cases = [
+        case
+        for path, source in files
+        for case in marked_cases_in(
+            path.resolve().relative_to(base).as_posix(), source
+        )
+    ]
+    return classify_requirements(
+        registry, marked_ids_in(source for _, source in files), cases
+    )
 
 
 def uncovered_implementer_ids(
@@ -149,10 +333,12 @@ def uncovered_implementer_ids(
 ) -> frozenset[str]:
     """``protocol`` and ``foundation`` IDs under *repo_root* no marker covers.
 
-    The per-item extractor behind the SR-05-005 growth guard
+    The untested set of :class:`ImplementerCoverageReport`, and the per-item
+    extractor behind the SR-05-005 growth guard
     (:func:`vultron.metadata.specs.growth_guard.added_since_base`): it reads
     ``specs/`` and ``test/`` under *repo_root*, so the same function runs on
-    the working tree and on a materialized base tree.
+    the working tree and on a materialized base tree. An xfail-only
+    requirement has a marker, so it is not in this set.
 
     Args:
         repo_root: Tree holding ``specs/`` (and ``test/`` unless
@@ -163,10 +349,8 @@ def uncovered_implementer_ids(
     """
     if test_sources is None:
         test_sources = _read_sources(repo_root / "test")
-    report = _coverage_report(
-        load_registry(repo_root / "specs"), marked_ids_in(test_sources)
-    )
-    return frozenset(report.uncovered)
+    implementer = _implementer_specs(load_registry(repo_root / "specs"))
+    return frozenset(implementer) - marked_ids_in(test_sources)
 
 
 @dataclass(frozen=True)
@@ -216,12 +400,61 @@ def markers_dropped_by_kind_change(
     )
 
 
+def format_report(report: ImplementerCoverageReport) -> str:
+    """The text ``spec-coverage`` prints: the three counts, then the IDs.
+
+    Each xfail-only ID is followed by the reasons of the xfails that hold it,
+    and each untested ID is listed alone.
+    """
+    summary = report.summary
+    lines = [
+        f"Protocol and foundation spec coverage: "
+        f"{summary.verified}/{summary.total} verified ({summary.verified_pct:.1f}%)",
+        f"  verified:   {summary.verified}",
+        f"  xfail-only: {summary.xfail_only}",
+        f"  untested:   {summary.untested}",
+    ]
+    xfail_only = [
+        r for r in report.requirements if r.state is CoverageState.XFAIL_ONLY
+    ]
+    if xfail_only:
+        lines += [
+            "",
+            "xfail-only protocol and foundation requirements "
+            f"({len(xfail_only)}):",
+        ]
+        for requirement in xfail_only:
+            lines.append(f"  {requirement.id}")
+            reasons = dict.fromkeys(
+                t.reason or "(no reason)" for t in requirement.xfail_tests
+            )
+            lines += [f"      {reason}" for reason in reasons]
+    if report.untested:
+        lines += [
+            "",
+            "Untested protocol and foundation requirements "
+            f"({len(report.untested)}):",
+            *(f"  {spec_id}" for spec_id in report.untested),
+        ]
+    return "\n".join(lines)
+
+
+def write_json(report: ImplementerCoverageReport, path: Path) -> None:
+    """Write *report* to *path* as indented JSON (SR-05-018).
+
+    The output holds no clock or path outside the test tree, so the same
+    tree always writes the same bytes.
+    """
+    path.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+
+
 def main() -> None:
-    """CLI entry point: print uncovered implementer-kind spec IDs to stdout."""
+    """CLI entry point: print each implementer-kind requirement's state."""
     parser = argparse.ArgumentParser(
         description=(
-            "Report @pytest.mark.spec coverage for protocol- and "
-            "foundation-kind requirements."
+            "Report which protocol- and foundation-kind requirements a passing "
+            "@pytest.mark.spec test verifies, which only a strict xfail "
+            "checks, and which no marker names."
         )
     )
     parser.add_argument(
@@ -236,6 +469,13 @@ def main() -> None:
         default=None,
         help="Directory containing test files (default: test/ at repo root)",
     )
+    parser.add_argument(
+        "--json",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Also write each requirement's state and xfail reasons to PATH",
+    )
     args = parser.parse_args()
 
     spec_dir = Path(args.spec_dir) if args.spec_dir else None
@@ -247,19 +487,9 @@ def main() -> None:
         test_root = find_repo_root() / "test"
 
     report = compute_implementer_coverage(registry, test_root)
-    pct = report.covered_pct
-
-    print(
-        f"Protocol and foundation spec coverage: "
-        f"{report.covered_count}/{report.total} ({pct:.1f}%)"
-    )
-    if report.uncovered:
-        print(
-            "\nUncovered protocol and foundation requirements "
-            f"({len(report.uncovered)}):"
-        )
-        for spec_id in report.uncovered:
-            print(f"  {spec_id}")
+    print(format_report(report))
+    if args.json is not None:
+        write_json(report, args.json)
 
 
 if __name__ == "__main__":  # pragma: no cover

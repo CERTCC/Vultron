@@ -18,7 +18,11 @@ Instead it writes a pending VultronReportCaseLink and sends Create(CaseProposal)
 
 import pytest
 
-from test.support.received import assert_held_only_as_received, with_evidence
+from test.support.received import (
+    assert_held_only_as_received,
+    received_record,
+    with_evidence,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -301,11 +305,11 @@ class TestSubmitReportCreatesCase:
             " activity.to and receiving_actor_id is absent (CLP-10-005)"
         )
 
-    def test_submit_report_skips_case_creation_when_not_in_to(self):
-        """SubmitReportReceivedUseCase skips BT when receiving actor not in to.
+    def test_submit_report_refuses_when_not_in_to(self):
+        """An Offer whose ``to`` does not name the receiver creates no case.
 
-        If Offer.to is absent (or receiving actor is not listed), the use case
-        logs a WARNING and returns without creating a case (HP-09-001).
+        The addressee door refuses it before anything is stored, with a
+        WARNING (HP-01-005, HP-09-001).
         """
         report = VulnerabilityReport(
             id_="https://example.org/reports/r-no-to-1"
@@ -577,8 +581,8 @@ class TestOfferAddressingSemantics:
 
         The vendor is only in the wire Offer's ``cc``.  The extractor does not
         carry ``cc`` into core (ADR-0109), so the handler sees a receiver that
-        is not in ``to``, discards the Offer, and its WARNING says ``cc``
-        addressing is not supported.
+        is not in ``to``, refuses the Offer at the addressee door, and its
+        WARNING says a copy naming it only in ``cc`` is not addressed to it.
         """
         import logging
 
@@ -600,7 +604,7 @@ class TestOfferAddressingSemantics:
         warning_text = " ".join(
             r.message for r in caplog.records if r.levelno >= logging.WARNING
         )
-        assert "cc addressing not supported" in warning_text, (
+        assert "only in cc" in warning_text, (
             "Expected a WARNING naming cc addressing"
         )
 
@@ -901,7 +905,9 @@ class TestSubmitReportDisposition:
     def test_not_a_recipient_is_refused(self):
         result, _ = self._run(to=[self.OTHER_ID])
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason and "not a to recipient" in result.reason
+        assert result.reason and (
+            "neither the sender nor a recipient" in result.reason
+        )
 
     @pytest.mark.spec("HP-01-003")
     def test_auto_create_disabled_is_skipped(self):
@@ -987,7 +993,9 @@ class TestSubmitReportDisposition:
 
 
 class TestSubmitReportKeepsWhatArrived:
-    """Report, Offer and offer record survive every non-case disposition.
+    """Report, Offer and offer record survive every disposition the doors admit.
+
+    A copy a door refuses keeps nothing but its receipt stub (ADR-0154).
 
     The writes are effect nodes of the receive tree, not ``execute()`` work, so
     each exit has to keep them itself (CM-15-001, CLP-10-018).
@@ -1050,34 +1058,63 @@ class TestSubmitReportKeepsWhatArrived:
         assert result.disposition == HandlerDisposition.SKIPPED
         self._assert_kept(dl)
 
-    @pytest.mark.spec("CLP-10-018")
-    def test_not_a_recipient_still_keeps_everything(self):
+    def _assert_kept_nothing(self, dl):
+        """The addressee door refused before anything was stored (ADR-0154).
+
+        No report, no offer record, no case, nothing sent, and no received
+        record either: intake never ran, so the inbox's outcome stage writes
+        the receipt stub from the delivery itself (CLP-10-018).
+        """
+        from vultron.core.models.offer_record import VultronOfferRecord
+
+        assert dl.read(self.REPORT_ID) is None
+        assert dl.read(VultronOfferRecord.build_id(self.OFFER_ID)) is None
+        assert dl.read(self.OFFER_ID) is None
+        assert received_record(dl, self.OFFER_ID) is None
+        assert dl.get_all("VulnerabilityCase") == []
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("HP-01-012")
+    @pytest.mark.spec("CLP-10-010")
+    def test_not_a_recipient_is_refused_before_anything_is_kept(self):
+        """The addressee door runs first, so a copy for someone else keeps
+        no report and no Offer (ADR-0154, #5046)."""
         result, dl = self._run([self.OTHER_ID])
         assert result.disposition == HandlerDisposition.REFUSED
-        self._assert_kept(dl)
-        assert dl.get_all("VulnerabilityCase") == []
+        assert "neither the sender nor a recipient" in (result.reason or "")
+        self._assert_kept_nothing(dl)
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("HP-10-001")
+    def test_cc_only_copy_is_refused_before_anything_is_kept(self):
+        """A ``cc``-only receiver arrives with a ``to`` naming someone else
+        (ADR-0109): refused at the door, keeping nothing (HP-10-001)."""
+        result, dl = self._run([self.OTHER_ID])
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "only in cc" in (result.reason or "")
+        self._assert_kept_nothing(dl)
 
     @pytest.mark.spec("HP-01-005")
     @pytest.mark.spec("CLP-10-018")
-    def test_unaddressed_offer_without_report_is_refused_and_kept(self):
-        """The late addressee check runs for a report-less Offer too (#4832):
-        it keeps the Offer (CM-15-002), refuses, and sends nothing."""
+    def test_unaddressed_offer_without_report_is_refused_and_keeps_nothing(
+        self,
+    ):
+        """The report-less arm runs the same door (#4832, #5046)."""
         result, dl = self._run([self.OTHER_ID], report=False)
         assert result.disposition == HandlerDisposition.REFUSED
-        assert "not a to recipient" in (result.reason or "")
-        assert_held_only_as_received(dl, self.OFFER_ID)
-        assert dl.read(self.REPORT_ID) is None
-        assert dl.outbox_list() == []
+        assert "neither the sender nor a recipient" in (result.reason or "")
+        self._assert_kept_nothing(dl)
 
     @pytest.mark.spec("HP-09-001")
     @pytest.mark.spec("HP-01-012")
     def test_own_offer_addressed_elsewhere_proposes_no_case(self):
-        """Case-creation eligibility comes from ``to`` alone (HP-09-001), so
-        the receiver's own Offer to another actor is refused, unlike the door
-        guard, which admits a sender's own copy."""
+        """The door admits a sender's own copy, but case-creation eligibility
+        comes from ``to`` alone (HP-09-001): the receiver's own Offer to
+        another actor keeps what it carried and proposes no case."""
         result, dl = self._run([self.OTHER_ID], sender=self.VENDOR_ID)
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert "not a to recipient" in (result.reason or "")
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert "not eligible to create a case" in (result.reason or "")
         self._assert_kept(dl)
         assert dl.get_all("VulnerabilityCase") == []
         assert dl.outbox_list() == []

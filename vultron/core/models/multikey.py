@@ -24,12 +24,14 @@ An actor lists its signing key under ``assertionMethod`` in its profile
       "publicKeyMultibase": "z6Mk..."
     }
 
-A key resolver (#5383) finds the entry whose ``id`` is the proof's
-``verificationMethod`` and passes its ``publicKeyMultibase`` to
+The key resolver
+(:func:`vultron.core.services.verification_key.resolve_verification_key`)
+finds the entry whose ``id`` is the proof's ``verificationMethod``, and the
+verifier passes its ``publicKeyMultibase`` to
 ``vultron.wire.as2.signing.verify``.  Two invariants hold for every entry a
-profile carries, so the resolver need not re-check them: the key's ``id`` is a
-fragment of its ``controller``'s id, and the controller is the profile's own
-actor (:class:`~vultron.core.models.actor.CoreActor`).
+profile carries: the key's ``id`` is a fragment of its ``controller``'s id,
+and the controller is the profile's own actor
+(:class:`~vultron.core.models.actor.CoreActor`).
 
 The value is not decoded here: core holds the published text as received, and
 the signing module decodes it when it verifies, refusing a value that is not a

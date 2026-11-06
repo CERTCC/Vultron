@@ -16,6 +16,8 @@ search:
 This page holds the whole [Vultron Protocol Specification](index.md) in order, for printing or for searching the whole text at once.
 The [parts and annexes](index.md#parts) publish the same text one part per page, and the site search indexes those pages rather than this one.
 
+{% include-markdown "./_status.md" %}
+
 {% include-markdown "./_abstract.md" %}
 
 {% include-markdown "./_introduction.md" %}

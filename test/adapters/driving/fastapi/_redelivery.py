@@ -25,7 +25,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
-from test.support.signing import post_signed
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
@@ -62,12 +61,15 @@ def served_store(
 
 
 def post(client: TestClient, inbox: str, body: dict[str, Any]) -> None:
-    """Post *body*, signed by its actor, to *inbox*; the inbox accepts it.
+    """Post *body*, already signed by its author, to *inbox*; it accepts it.
 
-    Signing is deterministic (``test.support.signing``), so a second post of
-    the same body is the same bytes, and is routed as the archived copy.
+    *body* comes signed from :func:`test.support.received.delivered_body`, as
+    its author's outbox sends it (SIG-01-001), and is posted unchanged: a
+    redelivery is the same bytes, so a second post is routed as the archived
+    copy (IE-10-001).  An unsigned body is a test bug, refused here.
     """
-    response = post_signed(client, inbox, body)
+    assert "proof" in body, "sign the body before posting it (SIG-01-001)"
+    response = client.post(inbox, json=body)
     assert response.status_code == 202, response.text
 
 

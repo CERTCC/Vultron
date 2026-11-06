@@ -24,10 +24,10 @@ tree family, and asserts the copy is refused, that what remains of it is a
 receipt stub with no body (CLP-10-018), that nothing else is written and that
 nothing is sent.
 
-The one family that writes before it checks is ``Offer(VulnerabilityReport)``:
-it keeps the report and its offer record first (CM-15-002), then refuses
-(:data:`_KEPT_BEFORE_THE_CHECK`); of the Offer itself only the receipt stub
-remains.
+No family writes before the door: ``Offer(VulnerabilityReport)``, which once
+kept the report and its offer record ahead of a late check of its own, takes
+the ordinary door order like every other (ADR-0154, #5046), so a bystander's
+copy of it keeps nothing but the receipt stub (HP-10-001).
 """
 
 from collections import Counter
@@ -96,13 +96,6 @@ _UNHANDLED = frozenset(
 #: send nothing.
 _REFUSED_BEFORE_ANY_TREE: dict[str, str] = {}
 
-#: Examples whose tree keeps what the message carried before its addressee
-#: check (``OFFER_REPORT_STORED_FIRST``, CM-15-002), with the object types it
-#: keeps.
-_KEPT_BEFORE_THE_CHECK: dict[str, frozenset[str]] = {
-    "submit_report": frozenset({"VulnerabilityReport", "OfferRecord"}),
-}
-
 
 def _object_counts(dl: SqliteDataLayer) -> Counter[str]:
     """How many stored objects of each type *dl* holds."""
@@ -162,7 +155,7 @@ def test_the_sweep_has_examples() -> None:
     """A sweep over nothing passes vacuously (DF-09-009)."""
     assert len(_EXAMPLES) > 50
     assert set(_EXAMPLES) >= _UNDISPATCHABLE
-    assert set(_KEPT_BEFORE_THE_CHECK) <= set(_EXAMPLES)
+    assert "submit_report" in _EXAMPLES
     assert set(_REFUSED_BEFORE_ANY_TREE) <= set(_EXAMPLES)
     assert set(_EXAMPLES) >= _UNHANDLED
 
@@ -216,7 +209,6 @@ def test_an_unaddressed_copy_is_refused_and_acts_on_nothing(
             f"{name}: the stub's digest is not the body's (IE-10-002)"
         )
         assert stub.refusal_reason, f"{name}: the stub records no reason"
-    kept = _KEPT_BEFORE_THE_CHECK.get(name, frozenset())
     receipted = Counter(
         {}
         if name in _REFUSED_BEFORE_ANY_TREE
@@ -225,16 +217,14 @@ def test_an_unaddressed_copy_is_refused_and_acts_on_nothing(
     # Ingress writes nothing (DL-06-006, IO-03-004), so every write counted
     # here is the handler's.
     written = _object_counts(bystander_dl) - before - receipted
-    others = {type_: n for type_, n in written.items() if type_ not in kept}
+    others = {type_: n for type_, n in written.items() if n}
     assert not others, f"{name}: an unaddressed copy wrote {others}"
-    held = _object_counts(bystander_dl)
-    missing = sorted(type_ for type_ in kept if not held[type_])
-    assert not missing, f"{name}: did not keep {missing} (CM-15-002)"
     assert bystander_dl.outbox_list() == [], f"{name}: sent something"
     if name in _REFUSED_BEFORE_ANY_TREE:
         return
     if name in _UNHANDLED:
         return
     reason = outcome.failure_reason or ""
-    expected = "not a to recipient" if kept else "HP-01-005"
-    assert expected in reason, f"{name}: refused for another reason: {reason}"
+    assert "HP-01-005" in reason, (
+        f"{name}: refused for another reason: {reason}"
+    )
