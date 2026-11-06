@@ -1654,6 +1654,8 @@ groups:
     rationale: >-
       If the P and X bits were set in two steps, the participant would pass through
       the ephemeral state ···pX·, which cannot exist as a stable state (C-15).
+      The write is the exception CSB-17-002 names, and it loses no ordering:
+      ···pX· has one forced successor (CSB-17-012), so a replay recovers X, then P.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_ephemeral_pxa_pXa_promoted_before_write`) confirms a pXa status is stored
@@ -1674,6 +1676,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CSB-13-001
+    - rel_type: supersedes
+      spec_id: CSB-17-002
+    - rel_type: supersedes
+      spec_id: CSB-17-008
     stories:
     - story_2022_018
     - story_2022_081
@@ -2589,6 +2595,9 @@ groups:
     kind: protocol
     statement: >-
       A CS transition MUST change exactly one of the six CS dimensions.
+      The one exception is the compound transition of CSB-13-006 and SM-09-003:
+      a write that would enter `pX` or `vP` also applies that state's forced
+      event, so it changes two or three dimensions.
     rationale: >-
       CS events are irreversible and are observed one at a time; a compound
       state change of Hamming distance greater than one conflates two distinct
@@ -2599,7 +2608,7 @@ groups:
     verification: >-
       A unit test confirms that the transition validator accepts exactly the 58 valid
       single-event transitions and rejects all multi-dimension, reversal, and
-      VFD-prerequisite-skip cases.
+      VFD-prerequisite-skip cases. The exception is verified under CSB-13-006.
     testable: true
     preconditions:
     - description: A (source, destination) pair of compound CS states
@@ -2831,6 +2840,7 @@ groups:
     statement: >-
       A CS transition that changes two or more dimensions at once, that
       reverses a dimension, or that skips a VFD prerequisite MUST be rejected.
+      The one exception is the compound transition of CSB-13-006 and SM-09-003.
     rationale: >-
       Each of the three prohibited forms conflates or reorders distinct causal
       events; rejecting them enforces the one-event-at-a-time and monotonicity

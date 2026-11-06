@@ -71,7 +71,14 @@ Case State is the pair `CS = (VFD, PXA)`, giving 4 × 8 = 32 compound states.
 Not every ordering among them is reachable.
 Each CS event changes one of the six dimensions, once, from not yet happened to happened.
 The VFD order of [§8.1 VFD — Vendor Aware, Fix Ready, Fix Deployed](tracking-models.md#81-vfd-vendor-aware-fix-ready-fix-deployed) holds in every compound state.
-Two compound states are ephemeral: `vP`, public awareness while the vendor is unaware, which the next event resolves to Vendor Aware, and `pX`, which the next event resolves to Public Aware.
+Two compound states are ephemeral, and each one has a single forced next event.
+`vP`, public awareness while the vendor is unaware, is resolved by Vendor Aware.
+`pX`, a public exploit while the public is unaware, is resolved by Public Aware.
+A participant status write never stores an ephemeral state.
+A write that would enter one also applies its forced event, so that single write changes more than one dimension.
+A write that sets X while P is unset also sets P, and a write that sets P while V is unset also sets V.
+This compound write is the one exception to the one-dimension rule.
+It loses no ordering, because each ephemeral state has only one possible next event.
 A reported CS history is checked by replaying its events in order from `vfdpxa`, not by comparing timestamps.
 
 ```python exec="true" idprefix=""
