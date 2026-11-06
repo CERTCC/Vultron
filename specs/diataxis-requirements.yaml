@@ -2349,3 +2349,62 @@ groups:
       listed twice, or in both this set and the normative set; or when the declared
       set is empty. The test also checks that the banner states the
       precedence without an RFC 2119 keyword.
+  - id: DF-12-019
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The Protocol Specification MUST include a known-gaps page, outside the
+      normative set (DF-12-006), that is generated from the coverage states of
+      SR-05-017. The page lists every xfail-only `protocol` and `foundation`
+      requirement in one section, with the issues its holds cite (SR-05-018), and
+      every untested one in a second section that says no test shows `main` meets
+      it. It lists no other requirement, and it presents each listed requirement
+      as a callout (DF-12-003).
+    rationale: >-
+      A reader of a draft needs to know which published requirements `main` is
+      not shown to meet. A page generated from the test suite shrinks as tests
+      are written and cannot fall behind them, which hand-written prose or
+      placeholder tests would. An untested requirement is labelled by what the
+      tests show, because no test does not mean the behavior is unbuilt.
+    verification: >-
+      In `test/metadata/docs/test_known_gaps.py`, `TestRenderFragment` fails when
+      the fragment lists a verified requirement, omits an xfail-only or untested
+      one, puts one in the wrong section, drops the issue an xfail cites, or reads
+      an empty registry as no gaps.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SR-05-017
+    - rel_type: uses_definition
+      spec_id: SR-05-018
+    - rel_type: uses_definition
+      spec_id: DF-12-006
+    - rel_type: uses_definition
+      spec_id: DF-12-003
+  - id: DF-12-020
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      A check MUST fail a pull request whose committed known-gaps fragment
+      (DF-12-019) differs from a fresh generation, whether the change is to the
+      requirements, to the tests, or to the fragment itself.
+    rationale: >-
+      A requirement's state changes when a test gains a marker or loses an
+      `xfail`, which a pull request that touches no `docs/` file can do. The
+      page is trustworthy only if every such change regenerates it.
+    verification: >-
+      `docs-site --check`, run as the `docs-site-sync` pre-commit hook and in
+      `docs-build-check.yml`, fails a stale fragment. In
+      `test/metadata/docs/test_known_gaps.py`,
+      `test_committed_known_gaps_fragment_is_in_sync` runs in the unit suite on a
+      `test/` change and in `spec-check.yml` on a `specs/` change. In
+      `test/metadata/docs/test_site_sync.py`,
+      `test_a_new_marker_makes_the_known_gaps_fragment_stale` shows that a test
+      change alone makes the fragment stale, and
+      `test_a_hand_edited_known_gaps_fragment_is_stale` that a hand edit does.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-12-019

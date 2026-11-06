@@ -127,8 +127,8 @@ Without a marker the PR-only coverage guard (SR-05-005,
 the conformance-critical requirement becomes unverifiable. Add
 `@pytest.mark.spec("<ID>")` to every test exercising a `kind: protocol` or
 `kind: foundation` entry; `spec-coverage` lists the unmarked (untested) and the
-strict-`xfail`-only IDs. The strict-`xfail` pattern for a spec not implemented yet:
-[`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md).
+strict-`xfail`-only IDs. Strict-`xfail` pattern, and the `docs-site --write` a marker
+change needs (DF-12-020): [`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md).
 
 ### Renaming a Mark Touches Three Files
 

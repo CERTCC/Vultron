@@ -22,6 +22,7 @@ from vultron.metadata.docs.coverage_matrix import (
     measure_coverage,
     render_matrix,
 )
+from vultron.metadata.docs.known_gaps import FRAGMENT_PATH as KNOWN_GAPS_PATH
 from vultron.metadata.docs.landing_pages import (
     BEGIN_MARKER,
     CONTENTS_KEY,
@@ -52,8 +53,9 @@ from vultron.metadata.docs.story_coverage import (
 from vultron.metadata.docs.story_pages import STORY_DIR
 from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
 
-from ._lookup_tree import LOOKUP_NAV, with_lookup
-from ._story_tree import STORY_FILES
+from ._lookup_tree import LOOKUP_NAV
+from ._site_tree import site_tree
+from ._spec_tree import SEED_SPEC_ID
 
 _LANDING = (
     f"---\n{CONTENTS_KEY}: generated\n---\n\n"
@@ -99,25 +101,14 @@ def _repo(
     lookup: bool = True,
     stories: bool = True,
 ) -> Path:
-    """A checkout with repo-relative *files* and *nav*, plus, unless *lookup*
-    is false, the lookup page and its hosts every ``docs-site`` tree needs
-    (DF-11-021), and unless *stories* is false, one user-story page
-    (TRACE-03-003). Pass ``stories=False`` for a tree that must resolve no
-    pages at all."""
-    if lookup:
-        docs, nav = with_lookup({}, nav)
-        files = {**{f"docs/{k}": v for k, v in docs.items()}, **files}
-    if stories:
-        files = {
-            **{f"docs/{k}": v for k, v in STORY_FILES.items()},
-            **files,
-        }
-    (tmp_path / "mkdocs.yml").write_text(yaml.safe_dump({"nav": nav}))
+    """A :func:`site_tree` checkout taking ``docs/``-prefixed *files*. Pass
+    ``lookup=False, stories=False`` for a tree that must resolve no pages at
+    all."""
+    docs = {}
     for rel, text in files.items():
-        path = tmp_path / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-    return tmp_path
+        assert rel.startswith("docs/"), rel
+        docs[rel.removeprefix("docs/")] = text
+    return site_tree(tmp_path, docs, nav, lookup=lookup, stories=stories)
 
 
 def _guides_repo(tmp_path: Path, **pages: str) -> Path:
@@ -943,6 +934,33 @@ class TestSiteSync:
             encoding="utf-8",
         )
         assert site_sync.stale_artifacts(root) == [STORY_MATRIX_PATH]
+
+    @pytest.mark.spec("DF-12-020")
+    def test_a_hand_edited_known_gaps_fragment_is_stale(self, tmp_path):
+        """A hand edit of the generated known-gaps fragment fails the check."""
+        root = _guides_repo(tmp_path, a=_page("A"))
+        site_sync.write_artifacts(root)
+        fragment = root / KNOWN_GAPS_PATH
+        fragment.write_text(
+            fragment.read_text(encoding="utf-8") + "hand edit\n",
+            encoding="utf-8",
+        )
+        assert site_sync.stale_artifacts(root) == [KNOWN_GAPS_PATH]
+
+    @pytest.mark.spec("DF-12-020")
+    def test_a_new_marker_makes_the_known_gaps_fragment_stale(self, tmp_path):
+        """A change to ``test/`` alone, with no ``docs/`` edit, is caught."""
+        root = _guides_repo(tmp_path, a=_page("A"))
+        site_sync.write_artifacts(root)
+        assert site_sync.stale_artifacts(root) == []
+        marker = "pytest.mark." + "spec"  # not a marker in this file's text
+        (root / "test").mkdir()
+        (root / "test" / "test_seed.py").write_text(
+            f'import pytest\n\n\n@{marker}("{SEED_SPEC_ID}")\n'
+            "def test_seed():\n    pass\n",
+            encoding="utf-8",
+        )
+        assert site_sync.stale_artifacts(root) == [KNOWN_GAPS_PATH]
 
     @pytest.mark.spec("TRACE-03-003", "DF-09-009")
     def test_a_tree_with_no_story_page_fails(self, tmp_path):

@@ -1402,13 +1402,10 @@ def _find_case_for_report(
         case_data = client.get(client.dl_path(cid))
         if not case_data:
             continue
-        reports = (
-            case_data.get("vulnerabilityReports")
-            or case_data.get("vulnerability_reports")
-            or []
-        )
+        # The store serves the case by its AS2 names only (#6046).
+        reports = case_data.get("vulnerabilityReports") or []
         for r in reports:
-            r_id = r if isinstance(r, str) else (r.get("id_") or r.get("id"))
+            r_id = r if isinstance(r, str) else r.get("id")
             if r_id == report_id:
                 return str(cid)
     return None
