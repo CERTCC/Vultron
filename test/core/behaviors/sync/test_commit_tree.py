@@ -29,7 +29,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.errors import VultronUnhostedActorError
+from vultron.errors import VultronError, VultronUnhostedActorError
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
@@ -336,6 +336,45 @@ def test_an_entry_whose_fan_out_raises_is_not_recorded(
     )
 
     assert result.internal_error is True
+    assert datalayer.list_objects("CaseLedgerEntry") == []
+
+
+@pytest.mark.spec("SYNC-09-002", "OX-06-002")
+def test_an_entry_whose_fan_out_fails_is_not_recorded(
+    bridge, datalayer, case_obj, monkeypatch
+):
+    """A fan-out that returns FAILURE also takes the entry back (#5047).
+
+    A failed step is the other way the mint's transaction rolls back: an
+    undecidable embargo gate fails the fan-out without raising, and the
+    entry it persisted must not stay recorded with no announcements.
+    """
+
+    def _undecidable(*_args: object, **_kwargs: object) -> object:
+        raise VultronError("embargo gate undecidable")
+
+    monkeypatch.setattr(
+        "vultron.core.behaviors.sync.nodes.fanout.backfill_admitted_peers",
+        _undecidable,
+    )
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = bridge.execute_with_setup(
+        tree=create_commit_log_entry_tree(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-6",
+            semantic_type="case_updated",
+            payload_snapshot=_canonical_note_snapshot(
+                PEER_ID, "https://example.org/notes/note-6"
+            ),
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is False
+    sync_port.send_announce_log_entry.assert_not_called()
     assert datalayer.list_objects("CaseLedgerEntry") == []
 
 

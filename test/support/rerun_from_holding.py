@@ -52,7 +52,7 @@ class Effects:
         ledger: Every ledger entry the store holds, as JSON, in log order
             per case.
         outbox: Every activity the store's outbox holds, as its sealed
-            body's JSON, keyed by its id, in queue order.
+            text as stored, keyed by its id, in queue order.
     """
 
     ledger: tuple[str, ...]
