@@ -168,6 +168,39 @@ def test_post_non_activity_to_actor_inbox_returns_422(
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
+@pytest.mark.spec("IE-07-001")
+@pytest.mark.spec("HTTP-03-004")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "IE-07-001, HTTP-03-004: the inbox answers FastAPI's default 422 to a"
+        " body it cannot decode, not 400. Tracked by #6073."
+    ),
+)
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(b"not json", id="not-json"),
+        pytest.param(b"[1, 2]", id="json-not-an-object"),
+    ],
+)
+def test_post_undecodable_body_to_actor_inbox_returns_400(
+    client_actors, created_actors, body: bytes
+):
+    """A body that is not a JSON object is a malformed request, so it gets 400.
+
+    The request goes through the actors router, so FastAPI's own body decoding
+    answers, not ``parse_activity``.
+    """
+    actor = created_actors[0]
+    resp = client_actors.post(
+        f"/actors/{_route_key(actor.id_)}/inbox/",
+        content=body,
+        headers={"Content-Type": "application/activity+json"},
+    )
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST
+
+
 @pytest.mark.spec("CLP-15-010")
 def test_post_untimed_case_status_to_actor_inbox_returns_422(
     client_actors, created_actors

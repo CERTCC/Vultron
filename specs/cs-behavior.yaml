@@ -2608,7 +2608,8 @@ groups:
     verification: >-
       A unit test confirms that the transition validator accepts exactly the 58 valid
       single-event transitions and rejects all multi-dimension, reversal, and
-      VFD-prerequisite-skip cases. The exception is verified under CSB-13-006.
+      VFD-prerequisite-skip cases. The exception is verified under CSB-13-006 and
+      SM-09-003.
     testable: true
     preconditions:
     - description: A (source, destination) pair of compound CS states
