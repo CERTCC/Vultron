@@ -98,8 +98,9 @@ cannot be ready to merge no matter what those checks find.
    raises `MERGE-STATE-UNKNOWN`, `BEHIND` raises `BRANCH-BEHIND`, and `DRAFT`
    raises `PR-IS-DRAFT`. `BLOCKED` splits on the head commit's newest `CI gate`
    run, reported as `ci_gate=`: green leaves it a note, as it always was, and
-   anything else raises `CI-GATE-NOT-GREEN`. It prints one `verdict=` line, one
-   `flag=` line per flag, and the supporting fields.
+   anything else raises `CI-GATE-NOT-GREEN`. A PR onto a base the ruleset does
+   not target reports `not-required` and stays a note. It prints one `verdict=`
+   line, one `flag=` line per flag, and the supporting fields.
 
 2. Act on the verdict:
 
@@ -114,14 +115,34 @@ cannot be ready to merge no matter what those checks find.
      `CI gate` check on `main` and lists no bypass actor, so a gate that is
      red, pending or absent refuses the merge for every account, the admin
      role included (#5945). Read `ci_gate=`: `FAILURE` means open the gate's
-     log, which names each red check; `PENDING` means a run on the head commit
-     is unfinished, so wait and re-run `/pr-verify`; `CANCELLED` or `TIMED_OUT`
+     log, which names each red check; `CANCELLED` or `TIMED_OUT`
      means re-run the `CI gate` job itself, as any re-run of another check also
      requires; `absent` means no gate run reached the head commit at all; and
      `unknown` means the rollup could not be read, which blocks rather than
      clears because a merge gate never passes on missing evidence. A green gate
      beside a red sibling check is not this flag's business — the gate judges
      the siblings.
+
+     A conclusion is reported as GitHub gave it, so that list is not closed:
+     any other value (`STARTUP_FAILURE` from a broken `ci-gate.yml`,
+     `ACTION_REQUIRED`, `NEUTRAL`, `SKIPPED`, `STALE`) blocks the same way and
+     is read the same way — open the gate run and say what it concluded. Only
+     `SUCCESS` and `not-required` clear.
+
+     `PENDING` means a run on the head commit is unfinished, which makes
+     Phase 2's reading **stale by construction**: Phase 3 is about to wait for
+     exactly that run. So on `ci_gate=PENDING`, finish Phase 3 and then take
+     the reading again, and apply the second one — the flag is judged on the
+     gate's state at verdict time, not on a reading from before the wait. A
+     second `PENDING` (Phase 3 answered `ci-pending` too) keeps the flag and
+     the verdict is `PENDING-CI`; a gate that went green drops it, and one that
+     went red keeps it. Without the re-read a PR that merely started its CI
+     late would be reported `GAPS-FOUND` after Phase 3 waited it green, because
+     row 4 no longer matches and the stale flag disqualifies row 5.
+
+   - `ci_gate=not-required` — `main-3` targets `refs/heads/main` only, so a PR
+     onto another base is blocked by some other rule. Report it as the note it
+     is; do not send anyone to a gate nothing requires on that base.
    - `BRANCH-BEHIND` — GitHub reports `BEHIND` only when a ruleset requires
      up-to-date branches, which this repository does not set (ADR-0126).
      `pr-execute` updates the branch on GitHub when it sees `BEHIND`

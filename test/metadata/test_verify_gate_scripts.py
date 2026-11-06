@@ -55,6 +55,24 @@ def _labels(*names: str) -> dict:
     }
 
 
+def _gate_blocks(
+    tmp_path: Path, repo: Path, rollup: dict, expected: str
+) -> None:
+    """Run the merge gate on a BLOCKED PR and assert the not-green answer.
+
+    Every non-`SUCCESS` reading of the gate has the same three consequences,
+    so they are asserted in one place rather than copied per scenario
+    (CS-22-001); each caller supplies only the rollup that distinguishes it.
+    """
+    rules = [rollup, pr_view(status="BLOCKED")]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["ci_gate"] == [expected]
+    assert out["verdict"] == ["blocks-ready"]
+    assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+    # The note marks the survivable BLOCKED only, so this kind must not carry it.
+    assert "note" not in out
+
+
 @pytest.mark.parametrize(
     ("mergeable", "status", "verdict", "flags"),
     [
@@ -134,46 +152,71 @@ def test_a_blocked_pr_with_no_ci_gate_run_blocks(
     tmp_path: Path, repo: Path
 ) -> None:
     """The case a ruleset hangs on forever: the check never ran (#5942)."""
-    rules = [
+    _gate_blocks(
+        tmp_path,
+        repo,
         status_rollup(("Tests (pytest)", "COMPLETED", "SUCCESS")),
-        pr_view(status="BLOCKED"),
-    ]
-    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
-    assert out["ci_gate"] == ["absent"]
-    assert out["verdict"] == ["blocks-ready"]
-    assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+        "absent",
+    )
 
 
 def test_a_blocked_pr_whose_rollup_cannot_be_read_blocks(
     tmp_path: Path, repo: Path
 ) -> None:
     """A merge gate never clears on missing evidence."""
-    rules = [
+    _gate_blocks(
+        tmp_path,
+        repo,
         {"match": ["pr view", "statusCheckRollup"], "exit": 1},
-        pr_view(status="BLOCKED"),
-    ]
-    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
-    assert out["ci_gate"] == ["unknown"]
-    assert out["verdict"] == ["blocks-ready"]
-    assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+        "unknown",
+    )
 
 
+def test_a_finished_gate_run_with_no_conclusion_is_unknown(
+    tmp_path: Path, repo: Path
+) -> None:
+    """The third documented cause of `unknown`, beside the two gh failures.
+
+    A run that says it finished but carries no conclusion answers nothing, so
+    the jq prints an empty line and the shell maps it the same way it maps a
+    `gh` error: block rather than clear.
+    """
+    _gate_blocks(
+        tmp_path,
+        repo,
+        status_rollup(("CI gate", "COMPLETED", "")),
+        "unknown",
+    )
+
+
+@pytest.mark.parametrize("newest_first", [True, False])
 @pytest.mark.parametrize(
     ("older", "newer", "reported"),
     [("SUCCESS", "FAILURE", "FAILURE"), ("CANCELLED", "SUCCESS", "SUCCESS")],
 )
 def test_the_newest_ci_gate_run_is_the_one_that_counts(
-    tmp_path: Path, repo: Path, older: str, newer: str, reported: str
+    tmp_path: Path,
+    repo: Path,
+    older: str,
+    newer: str,
+    reported: str,
+    newest_first: bool,
 ) -> None:
     """A superseded run sits beside the live one in the rollup.
 
     An `edited` event cancels the in-flight gate and starts a fresh one, so the
     head commit carries several `CI gate` runs; GitHub's required-check
     evaluation reads the newest, and so must this (#5971).
+
+    Both array orderings are driven, because `gh` guarantees neither: a reading
+    that took the first entry and one that took the last would each pass under
+    a single ordering, so only running both pins the ranking by `startedAt`.
     """
     rules = [
         status_rollup(
-            ("CI gate", "COMPLETED", older), ("CI gate", "COMPLETED", newer)
+            ("CI gate", "COMPLETED", older),
+            ("CI gate", "COMPLETED", newer),
+            newest_first=newest_first,
         ),
         pr_view(status="BLOCKED"),
     ]
@@ -181,40 +224,40 @@ def test_the_newest_ci_gate_run_is_the_one_that_counts(
     assert out["ci_gate"] == [reported]
 
 
+@pytest.mark.parametrize("newest_first", [True, False])
 def test_an_unfinished_gate_run_outranks_an_older_green_one(
-    tmp_path: Path, repo: Path
+    tmp_path: Path, repo: Path, newest_first: bool
 ) -> None:
     """The false green a newest-first reading produces (#5945 pre-push review).
 
     An unstarted run has no usable `startedAt`, and both of `gh`'s renderings
     of one sort *below* every real timestamp. So asking which run is newest
     before ruling out the pending ones picks the older green run and clears a
-    PR that GitHub is blocking on the pending required check.
+    PR that GitHub is blocking on the pending required check. Driven in both
+    array orderings, so neither a first- nor a last-entry reading could pass.
     """
-    rules = [
+    _gate_blocks(
+        tmp_path,
+        repo,
         status_rollup(
-            ("CI gate", "COMPLETED", "SUCCESS"), ("CI gate", "QUEUED", "")
+            ("CI gate", "COMPLETED", "SUCCESS"),
+            ("CI gate", "QUEUED", ""),
+            newest_first=newest_first,
         ),
-        pr_view(status="BLOCKED"),
-    ]
-    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
-    assert out["ci_gate"] == ["PENDING"]
-    assert out["verdict"] == ["blocks-ready"]
-    assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+        "PENDING",
+    )
 
 
 def test_a_blocked_pr_whose_rollup_reads_empty_blocks(
     tmp_path: Path, repo: Path
 ) -> None:
     """`gh` succeeding with nothing to say is still no answer."""
-    rules = [
+    _gate_blocks(
+        tmp_path,
+        repo,
         {"match": ["pr view", "statusCheckRollup"], "stdout": ""},
-        pr_view(status="BLOCKED"),
-    ]
-    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
-    assert out["ci_gate"] == ["unknown"]
-    assert out["verdict"] == ["blocks-ready"]
-    assert out["flag"] == ["CI-GATE-NOT-GREEN"]
+        "unknown",
+    )
 
 
 def test_a_commit_status_named_ci_gate_is_not_read_as_the_check(
@@ -226,12 +269,44 @@ def test_a_commit_status_named_ci_gate_is_not_read_as_the_check(
     satisfy it. One that borrows the name must not answer for it — here that
     leaves no check run at all, which blocks.
     """
-    rules = [
+    _gate_blocks(
+        tmp_path,
+        repo,
         status_rollup(("CI gate", "COMPLETED", "SUCCESS"), context=True),
-        pr_view(status="BLOCKED"),
+        "absent",
+    )
+
+
+def test_a_blocked_pr_onto_another_base_does_not_claim_the_gate(
+    tmp_path: Path, repo: Path
+) -> None:
+    """`main-3` targets `refs/heads/main`, so it governs no other base.
+
+    A PR onto an integration branch that GitHub blocks is blocked by some other
+    rule. Naming the gate there would send the agent to chase a check nothing
+    requires, so the reading says `not-required` and the state stays the note it
+    was before the ruleset existed.
+    """
+    rules = [pr_view(status="BLOCKED", base="integration/x")]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["ci_gate"] == ["not-required"]
+    assert out["verdict"] == ["clear"]
+    assert "flag" not in out
+    assert out["note"] == ["blocked"]
+    # Nothing requires the gate there, so it is never even asked about.
+    assert "statusCheckRollup" not in (tmp_path / "gh-log.jsonl").read_text()
+
+
+def test_a_blocked_pr_whose_base_cannot_be_read_still_reads_the_gate(
+    tmp_path: Path, repo: Path
+) -> None:
+    """An unreadable base errs toward blocking, not toward `not-required`."""
+    rules = [
+        status_rollup(("CI gate", "COMPLETED", "FAILURE")),
+        pr_view(status="BLOCKED", base=""),
     ]
     out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
-    assert out["ci_gate"] == ["absent"]
+    assert out["ci_gate"] == ["FAILURE"]
     assert out["verdict"] == ["blocks-ready"]
     assert out["flag"] == ["CI-GATE-NOT-GREEN"]
 

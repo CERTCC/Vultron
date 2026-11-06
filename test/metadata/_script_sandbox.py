@@ -92,43 +92,74 @@ def pr_view(
 
 
 ZERO_TIME = "0001-01-01T00:00:00Z"
-"""Go's zero ``time.Time``, which is how ``gh`` renders an unset timestamp."""
+"""Go's zero ``time.Time``, which is how ``gh`` renders an unset timestamp.
+
+Observed on a live rollup: an ``IN_PROGRESS`` check run carries
+``completedAt: "0001-01-01T00:00:00Z"`` beside a real ``startedAt``.
+"""
 
 
-def status_rollup(*runs: tuple[str, str, str], context: bool = False) -> dict:
+def status_rollup(
+    *runs: tuple[str, str, str],
+    context: bool = False,
+    newest_first: bool = True,
+) -> dict:
     """A rule answering ``gh pr view --json statusCheckRollup``.
 
     Each run is ``(name, status, conclusion)``, **oldest first**: that order
-    sets ``startedAt``. The rule then lists them newest-first, the opposite
-    order, so a caller that trusts the array's order reads the wrong run.
+    sets ``startedAt``. ``newest_first`` (the default) then lists them in the
+    opposite order, so a reader that takes the array's *last* entry gets the
+    oldest run; pass ``newest_first=False`` to list them oldest-first, which
+    is what catches a reader that takes the *first* entry. Neither order is
+    the one ``gh`` guarantees, which is the point: only a reader that ranks
+    by ``startedAt`` answers both.
 
     The entries mirror how ``gh`` serializes a rollup, because the differences
     are what a naive reading trips on. A run that has not finished carries
-    ``conclusion: ""`` — not ``null``, so jq's ``//`` default never fires — and
-    a ``startedAt`` of :data:`ZERO_TIME`, which sorts *below* every real
-    timestamp rather than above it. Pass ``context=True`` for a commit status
-    rather than a check run: it carries a ``context`` field instead of
-    ``name``, so a filter on ``name`` never matches one — which is correct,
-    since no commit status can satisfy a rule pinned to an app.
+    ``conclusion: ""`` — not ``null``, so jq's ``//`` default never fires — a
+    ``startedAt`` of :data:`ZERO_TIME`, which sorts *below* every real
+    timestamp rather than above it, and a ``completedAt`` of the same.
+
+    Pass ``context=True`` for a commit status rather than a check run. A real
+    ``StatusContext`` shares *no* field with a ``CheckRun``: it carries
+    ``context``, ``state``, ``createdAt``, ``targetUrl`` and ``description``,
+    and has no ``name``, ``status`` or ``conclusion`` at all. So a filter on
+    ``name`` never matches one, and a reader widened to ``.context`` finds
+    none of the fields it would go on to read — which is correct, since no
+    commit status can satisfy a rule pinned to an app.
     """
     entries: list[dict[str, object]] = []
     for index, (name, status, conclusion) in enumerate(runs):
         finished = status == "COMPLETED"
-        entry: dict[str, object] = {
-            "status": status,
-            "conclusion": conclusion if finished else "",
-            "startedAt": (
-                f"2026-11-06T15:{index:02d}:00Z" if finished else ZERO_TIME
-            ),
-        }
+        started = f"2026-11-06T15:{index:02d}:00Z"
         if context:
-            entry |= {"__typename": "StatusContext", "context": name}
+            entry: dict[str, object] = {
+                "__typename": "StatusContext",
+                "context": name,
+                "state": conclusion if finished else "PENDING",
+                "createdAt": started,
+                "targetUrl": f"https://example.invalid/status/{index}",
+                "description": "a commit status, not a check run",
+            }
         else:
-            entry |= {"__typename": "CheckRun", "name": name}
+            entry = {
+                "__typename": "CheckRun",
+                "name": name,
+                "status": status,
+                "conclusion": conclusion if finished else "",
+                "startedAt": started if finished else ZERO_TIME,
+                "completedAt": (
+                    f"2026-11-06T15:{index:02d}:30Z" if finished else ZERO_TIME
+                ),
+                "detailsUrl": f"https://example.invalid/run/{index}",
+                "workflowName": name,
+            }
         entries.append(entry)
+    if newest_first:
+        entries.reverse()
     return {
         "match": ["pr view", "statusCheckRollup"],
-        "stdout": json.dumps({"statusCheckRollup": list(reversed(entries))}),
+        "stdout": json.dumps({"statusCheckRollup": entries}),
     }
 
 

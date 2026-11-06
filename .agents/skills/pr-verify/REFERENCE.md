@@ -73,8 +73,8 @@ this PR. Please decide whether to fold them in before merge:
 | 📝 PR-IS-DRAFT | PR is still a draft (check for a lingering `needs-rebase` label) |
 | 📄 STALE-DOCS-LINE | PR body's `Docs:` line is missing, still the placeholder, does not cover a fix commit that changed described behavior, or names a page the diff does not change (Phase 3b) |
 | 📑 MISSING-SPEC-AMENDED | `spec-amendments.sh` lists an amended `statement:`/`priority:` and the PR body lacks a `## Spec amended` section naming it, or that section still holds a `<TODO>` (Phase 3c) |
-| 🔒 BLOCKED-BY-POLICY | `mergeStateStatus: BLOCKED` with a green `CI gate` — some other `main` rule, such as `main-2`'s `pull_request` rule, which the admin role can bypass; reported, not verdict-blocking |
-| 🚦 CI-GATE-NOT-GREEN | `mergeStateStatus: BLOCKED` and the head commit's `CI gate` is not green (`ci_gate=`: a red conclusion, `PENDING` while any run is unfinished, `absent` if none ran, `unknown` on a gh error or an unreadable conclusion) — ruleset `main-3 Require CI gate` has no bypass actor, so no account can merge past it (#5945) |
+| 🔒 BLOCKED-BY-POLICY | `mergeStateStatus: BLOCKED` with a green `CI gate`, or `ci_gate=not-required` on a base the ruleset does not target — some other `main` rule, such as `main-2`'s `pull_request` rule, which the admin role can bypass; reported, not verdict-blocking |
+| 🚦 CI-GATE-NOT-GREEN | `mergeStateStatus: BLOCKED` and the head commit's `CI gate` is not green (`ci_gate=`: any conclusion but `SUCCESS`, `PENDING` while any run is unfinished, `absent` if none ran, `unknown` on a gh error or an unreadable conclusion) — ruleset `main-3 Require CI gate` has no bypass actor, so no account can merge past it (#5945). A `PENDING` read in Phase 2 is re-taken after Phase 3's wait before it is applied |
 
 ### Overall Verdict Rules
 

@@ -239,7 +239,7 @@ by GitHub, so check both.
 | `UNSTABLE` | Mergeable, but a non-required check is failing/pending | none — Phase 11 owns CI |
 | `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (`fix-now`: execute clears it with `gh pr update-branch`, PAD-18-014) |
 | `DIRTY` | Conflicts — authoritative even if `mergeable` says otherwise | **FAIL** |
-| `BLOCKED` | A required check is not green — usually `CI gate`, required by `main-3` with no bypass actor (#5945) — or a required review is missing | **IMPROVE** (name the cause from the head commit's newest `CI gate` run; a red gate is execute's to fix, a missing review is not) |
+| `BLOCKED` | A required check is not green — usually `CI gate`, required by `main-3` with no bypass actor (#5945) — or a required review is missing | **IMPROVE** (name the cause from `verify-merge-gate.sh`'s `ci_gate=` line, never a hand-rolled reading; a red gate is execute's to fix, a missing review is not) |
 | `DRAFT` | PR is a draft and cannot merge | **IMPROVE** |
 | `HAS_HOOKS` | Mergeable with pre-receive hooks | none |
 | `UNKNOWN` | Not yet computed | **FAIL** |
