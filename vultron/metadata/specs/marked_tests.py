@@ -25,9 +25,10 @@ combines them: a module ``pytestmark``, a class decorator or class
 applies to that parameter set only. Several ``parametrize`` decorators make
 their cross product.
 
-Every ``xfail`` counts as strict. TB-17-001 requires ``strict=True`` on each
-one, and ``xfail_strict = true`` in ``pyproject.toml`` makes an omitted
-``strict`` strict at run time, so the reader does not inspect ``strict``. An
+Every ``xfail`` counts as strict. The test suite requires ``strict=True`` on
+each one (``test_every_xfail_is_strict``), and ``xfail_strict = true`` in
+``pyproject.toml`` makes an omitted ``strict`` strict at run time, so the
+reader does not inspect ``strict``. An
 ``xfail`` with a condition counts as holding wherever it applies: the report
 errs toward listing a gap. Two things that stop a case running count like an
 ``xfail`` too, because no passing run comes of them: an unconditional
@@ -37,7 +38,7 @@ literal argument list is empty.
 As pytest does, only the last ``pytestmark`` assignment of a module or class
 counts, and a ``parametrize`` inside it adds an axis like a decorator.
 
-Loose reading, as for the TB-17-001 ratchet: the reader reads names, not
+Loose reading, as for that ratchet: the reader reads names, not
 values. It does not see a marker bound to a variable first (``xf =
 pytest.mark.xfail`` then ``@xf``), a mark inherited from a base class, or a
 ``skipif``. A ``parametrize`` argument list it cannot read (a call, a

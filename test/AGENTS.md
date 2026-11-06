@@ -126,9 +126,8 @@ Without a marker the PR-only coverage guard (SR-05-005,
 `test/architecture/test_spec_coverage_ratchet.py`) cannot enforce coverage, so
 the conformance-critical requirement becomes unverifiable. Add
 `@pytest.mark.spec("<ID>")` to every test exercising a `kind: protocol` or
-`kind: foundation` entry; `spec-coverage` lists the IDs of both kinds still
-unmarked (untested) and those only a strict `xfail` checks (xfail-only). The
-strict-`xfail` pattern for a spec not implemented yet:
+`kind: foundation` entry; `spec-coverage` lists the unmarked (untested) and the
+strict-`xfail`-only IDs. The strict-`xfail` pattern for a spec not implemented yet:
 [`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md).
 
 ### Renaming a Mark Touches Three Files
