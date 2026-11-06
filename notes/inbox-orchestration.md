@@ -199,8 +199,8 @@ are reachable in holding, so neither can be read off the other:
 the activity has not been judged, so its replay is recorded afresh by intake and
 judged as a first delivery, refusal notice included (CLP-02-005). A record still
 owed a replay is `HELD`, never archived, so a resend meets the seen-before door's
-"waiting" answer and the replay is the only run that judges it. What is due is read from the
-`SenderSequenceOrder` record, never kept in a second list, and the inbox's
+"waiting" answer and the replay is the only run that judges it. What is due is
+read from the `SenderSequenceOrder` record, never kept in a second list, and the inbox's
 `dispatch` queues it after every dispatch (`queue_due_held_activities`).
 
 An archive never owes a replay, and the record's validator refuses one: a replay of
