@@ -132,7 +132,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0022 Single BT Execution Per Inbox Delivery for Received-Side CaseActor Routing](0022-single-bt-execution-for-received-side-case-actor-routing.md)
 - [ADR-0023 Introduce `CaseProposal` for Distributed Case Actor Initialization](0023-case-proposal-protocol.md)
 - [ADR-0024 Capability Shape Taxonomy](0024-coordination-agent-taxonomy.md) — partially superseded by docs/adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md
-- [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with Typed Backends](0025-call-out-point-abstraction-layer.md)
+- [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with Typed Backends](0025-call-out-point-abstraction-layer.md) — partially superseded by 0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md
 - [ADR-0026 CaseActor-Routed Actor Suggestion and Invitation Flow](0026-caseactor-routed-actor-suggestion.md)
 - [ADR-0027 Exploit-Strategy Subtree Collapse: Five Simulator Nodes → EvaluateExploitStrategy](0027-exploit-strategy-bt-collapse.md)
 - [ADR-0028 Publication-Intent Subtree Collapse: Bypass Leaves → Intent-Record-Driven Arms](0028-publication-intent-bt-collapse.md)
@@ -198,7 +198,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0094 Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them](0094-ruff-replaces-flake8-isort-black.md)
 - [ADR-0095 Received-Side `HandlerResult` Carries a Handler Disposition Across the Dispatcher Boundary](0095-received-side-handler-result.md)
 - [ADR-0096 A Protocol Default Embargo Replaces the Pre-Case Phase](0096-protocol-default-embargo.md) *(revision 2)*
-- [ADR-0097 The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern](0097-capability-layer-four-shapes-and-core-declared-contracts.md) — partially supersedes 0024-coordination-agent-taxonomy.md
+- [ADR-0097 The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern](0097-capability-layer-four-shapes-and-core-declared-contracts.md) — partially superseded by 0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md; partially supersedes 0024-coordination-agent-taxonomy.md
 - [ADR-0098 Demo scenarios self-register at import time; every scenario table and the CI matrix become derived artifacts](0098-demo-scenarios-self-register.md)
 - [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md) — partially superseded by 0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md; supersedes 0017-domain-wire-object-separation.md, 0082-wire-core-boundary-pairing-registry.md; partially supersedes 0063-wire-rendering-port-for-core-objects.md, 0074-wire-activity-artifact-immutability.md
 - [ADR-0100 There Is No Multi-Candidate Embargo Poll; Open Proposals Resolve in Earliest-Expiration Order](0100-no-multi-candidate-embargo-poll.md)
@@ -287,6 +287,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
 - [ADR-0179 A Local Check Runs Only When It Answers Before a Required CI Gate](0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md, 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md, 0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
 - [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md)
+- [ADR-0183 A Call-Out Backend Answers Yes, No or Error, and the Seam Turns the Answer Into Tree Behaviour](0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md) — partially supersedes 0025-call-out-point-abstraction-layer.md, 0097-capability-layer-four-shapes-and-core-declared-contracts.md
 
 ## Rejected ADRs
 
