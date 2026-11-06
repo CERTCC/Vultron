@@ -45,6 +45,7 @@ from test.architecture._vocab_example_corpus import (
     wire_body,
 )
 from test.support.received import delivered_body
+from test.support.signing import resigned
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -433,7 +434,8 @@ def test_a_different_body_under_a_delivered_id_is_refused(
     assert (
         ReceivedActivityRecord.build_id(activity_id) in records_after_first
     ), "precondition: the first post was archived"
-    rewritten = {**body, "summary": "a different body under the same id"}
+    # Re-signed, so the proof is valid and only the body differs (IE-10-002).
+    rewritten = resigned(body, summary="a different body under the same id")
 
     for attempt in (1, 2):
         caplog.clear()

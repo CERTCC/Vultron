@@ -357,7 +357,7 @@ def create_processing_fault() -> Scenario:
     return Scenario(
         dl=net.stores[MANAGER],
         event=received_event(
-            parse_activity(net.stamp(fault, receiver=MANAGER)),
+            parse_activity(net.delivered_body(fault, receiver=MANAGER)),
             as_sent=True,
             receiving_actor_id=MANAGER,
         ),

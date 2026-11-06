@@ -35,6 +35,7 @@ from pydantic import BaseModel, ValidationError
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import FAR_FUTURE
+from test.support.signing import signed_body
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
@@ -744,13 +745,15 @@ def _received(activity: Any, **extra: object) -> Any:
     """*activity* as a receiver parses it from the body its sender sent.
 
     *extra* adds keys to that body, as a sender that names more than this
-    receiver's vocabulary would.
+    receiver's vocabulary would.  The body is signed by its author, as its
+    sender's outbox signs it (SIG-01-001), after *extra* is added, so the
+    proof covers what was sent.
     """
     body = activity.model_dump(
         mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
     )
     body.update(extra)
-    return parse_activity(body)
+    return parse_activity(signed_body(body))
 
 
 def _embedded(reply: BaseModel) -> dict[str, Any]:

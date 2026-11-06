@@ -93,7 +93,8 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   non-empty list of IRIs, never an inline term map; reuse it, do not widen a
   field again.
 - **Tests sign through `test/support/signing.py`**: `signed_body`, `resigned`
-  (an altered copy, re-signed), `post_signed`. Proofs there are deterministic
+  (an altered copy, re-signed), `post_signed`, and `post_delivered` for a body
+  that is signed already. Proofs there are deterministic
   (seeded key, fixed `created`), so a resend is the archived bytes.
   `delivered_body` and `evidence_for` in `test/support/received.py` sign what
   they return, and `body_of`, `hold_deferred` and `with_evidence` build on
@@ -103,6 +104,12 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   `resigned`, since an edit in place leaves a stale proof that verification
   (#5386) refuses. A body read back from a sealed outbox is
   signed by the outbox (#5382), never by the test.
+- **Unsigned test bodies that reach no verifier stay unsigned**: a test that
+  calls `parse_activity` itself is a parse-edge test, since verification is an
+  ingress stage before the parser; so are placeholder held or stored bodies
+  that nothing parses, `{}` behind a stubbed ingress, and parse-refusal posts.
+  When verification lands (#5386), a refusal post that reaches the verifier is
+  refused there before the parser, so its expected error may change.
 - **The parser sets `proof` aside** as a foreign key (MV-11-003), with one INFO
   record per delivery; the received evidence keeps it (SIG-04-001). Verification
   reads the raw body before the parser (#5386), so nothing needs it parsed.

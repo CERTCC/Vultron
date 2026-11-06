@@ -81,7 +81,7 @@ def _add_note_body(net: LedgerNetwork) -> dict[str, Any]:
         actor=OWNER,
         to=[MANAGER],
     )
-    return net.stamp(delivered_body(activity), receiver=MANAGER)
+    return net.delivered_body(delivered_body(activity), receiver=MANAGER)
 
 
 def _kind(row: tuple[str, str]) -> tuple[str, str]:

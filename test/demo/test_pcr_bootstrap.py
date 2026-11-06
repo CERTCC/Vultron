@@ -47,6 +47,7 @@ from test.demo.conftest import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
+from test.support.signing import post_delivered, signed_body
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -210,18 +211,6 @@ def _register_peer(client, host_slug: str, peer_id: str, name: str) -> None:
         200,
         201,
     ), f"Peer registration failed ({resp.status_code}): {resp.text}"
-
-
-def _post_to_inbox(client, actor_slug: str, activity) -> None:
-    """POST *activity* JSON to ``/api/v2/actors/{actor_slug}/inbox/``."""
-    resp = client.post(
-        f"/api/v2/actors/{actor_slug}/inbox/",
-        content=activity.model_dump_json(by_alias=True, exclude_none=True),
-        headers={"Content-Type": "application/json"},
-    )
-    assert resp.status_code == 202, (
-        f"Inbox POST returned {resp.status_code}: {resp.text}"
-    )
 
 
 def _actor_slug(actor_id: str) -> str:
@@ -603,7 +592,15 @@ class TestBootstrapSequence:
             actor=_DIRECT_OWNER_ACTOR_ID,
             context=_DIRECT_CASE_ID,
         )
-        _post_to_inbox(participant_tc, _actor_slug(actor_id), note_activity)
+        post_delivered(
+            participant_tc,
+            f"/api/v2/actors/{_actor_slug(actor_id)}/inbox/",
+            signed_body(
+                note_activity.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                )
+            ),
+        )
 
         # Assert 1: The note activity must NOT have been deferred.  What
         # waits on a case names it on its own received record (ADR-0154).

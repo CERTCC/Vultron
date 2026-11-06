@@ -23,7 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.support.signing import signed_body
+from test.support.signing import author_of, signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
@@ -76,6 +76,14 @@ _CREATE_BODY: dict[str, Any] = signed_body(
 )
 
 
+def _signer(body: dict[str, Any], actor_id: str) -> str:
+    """The actor *body* names by id, or *actor_id* when it names none."""
+    try:
+        return author_of(body)
+    except ValueError:
+        return actor_id
+
+
 def _received(
     body: dict[str, Any] | None = None,
     semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE,
@@ -83,11 +91,15 @@ def _received(
 ) -> VultronEvent:
     """A received event whose evidence is *body*, as the parser sealed it.
 
-    *body* is signed by *actor_id*, as its sender's outbox signs it
-    (SIG-01-001).
+    *body* is signed by the actor it names, as its sender's outbox signs it
+    (SIG-01-001), or by *actor_id* when it names none by id.  So a body that
+    names another actor than the event carries that actor's proof, as a
+    real impostor's would.
     """
     evidence = (
-        _CREATE_BODY if body is None else signed_body(body, author=actor_id)
+        _CREATE_BODY
+        if body is None
+        else signed_body(body, author=_signer(body, actor_id))
     )
     return VultronEvent(
         semantic_type=semantic_type,

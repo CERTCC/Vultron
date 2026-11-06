@@ -14,10 +14,11 @@
 """Unit tests for _FaultMixin.emit_processing_fault() in TriggerActivityAdapter."""
 
 import json
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
+from test.support.signing import signed_body
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     is_sealed,
@@ -158,9 +159,10 @@ class TestRefusalNotice:
 
     @staticmethod
     def _refused() -> dict[str, Any]:
-        return cast(
-            dict[str, Any],
-            json.loads(dump_outbound_body(add_fix_readiness_to_participant())),
+        # The refused activity as its sender delivered it, signed
+        # (SIG-01-001).
+        return signed_body(
+            json.loads(dump_outbound_body(add_fix_readiness_to_participant()))
         )
 
     @pytest.mark.spec("CLP-05-001")

@@ -33,6 +33,7 @@ from test.architecture._vocab_example_corpus import (
     wire_body,
 )
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.signing import resigned
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.fault import RefusalNoticeReceivedEvent
 from vultron.errors import VultronActivityConstructionError
@@ -160,7 +161,7 @@ def test_a_decline_of_a_leave_routes_to_the_refusal_notice():
 
 
 def test_the_case_falls_back_to_the_refused_activitys_context():
-    refused = {**_refused(), "context": "https://example.org/cases/7"}
+    refused = resigned(_refused(), context="https://example.org/cases/7")
 
     event = _event(_notice(refused))
 

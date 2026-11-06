@@ -72,8 +72,12 @@ def _net(tag: str) -> LedgerNetwork:
 def _from_body(
     net: LedgerNetwork, body: dict[str, Any], *, to: str = MANAGER
 ) -> Scenario:
-    """A scenario delivering the wire *body* to *to*, stamped as sent."""
-    stamped = net.stamp(body, receiver=to)
+    """A scenario delivering the wire *body* to *to*, stamped as sent.
+
+    Signed by its author unless it is the body its sender's outbox sealed
+    (:meth:`LedgerNetwork.delivered_body`).
+    """
+    stamped = net.delivered_body(body, receiver=to)
     event = received_event(
         parse_activity(stamped), as_sent=True, receiving_actor_id=to
     )

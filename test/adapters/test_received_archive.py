@@ -23,6 +23,7 @@ from test.support.received import (
     delivered_body,
     hold_deferred,
 )
+from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.received_archive import (
     load_received_view,
@@ -65,7 +66,9 @@ def _body(activity: Any) -> dict[str, Any]:
 def test_the_reply_seam_parses_the_archived_body_with_its_evidence(dl):
     """The parsed activity carries the archived body as its evidence, a key
     no vocabulary names included, so a reply can embed it verbatim."""
-    body = {**_body(_add()), "x-peerExtension": [1, 2]}
+    body = resigned(
+        _body(_add()), alter=lambda b: b.update({"x-peerExtension": [1, 2]})
+    )
     archive_delivered(dl, body)
 
     parsed = read_received_as_received(dl, body["id"])
