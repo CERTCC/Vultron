@@ -99,8 +99,9 @@ class as_VultronObject(as_Object):
     subclasses that have a meaningful reverse mapping SHOULD override it.
     """
 
-    # ``context_`` is inherited: ``as_Base`` already defaults it to the
-    # Vultron context URI (VM-10-001, VM-10-002, #5168).
+    # ``context_`` is inherited: ``as_Base`` defaults it to the
+    # ``DEFAULT_JSONLD_CONTEXT`` list, emitted on the top-level document only
+    # (VM-10-001, VM-10-002, VM-10-005).
     _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
     _field_map: ClassVar[dict[str, str]] = {}
     #: Ref fields that MUST stay inline through persistence. Public (no leading

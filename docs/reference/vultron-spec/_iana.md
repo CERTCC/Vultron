@@ -26,8 +26,8 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 **AS2 extension type naming conventions.** Vultron type names follow PascalCase
 without an `as_` prefix in wire output (for example, `"type": "VulnerabilityCase"`
 rather than `"type": "as:VulnerabilityCase"`). The Vultron JSON-LD context
-declares all type names, so implementations citing only the Vultron context URI
-do not need to separately declare the AS2 namespace.
+declares all type names.
+A message still lists the AS2 namespace before the Vultron context URI in its `@context`, because a receiver need not fetch the Vultron context to learn that it imports AS2 ([§5.2 Serialization](layers.md#52-serialization)).
 
 **IANA registration.** No new IANA registrations are required by the current
 version of this specification. If the Vultron namespace moves to a

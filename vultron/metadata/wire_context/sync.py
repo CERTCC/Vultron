@@ -14,16 +14,17 @@
 
 VM-10-001 requires every outbound Vultron message to list
 ``"https://certcc.github.io/Vultron/ns/context.jsonld"`` in its ``@context``,
-after the AS2 namespace. That document maps every Vultron-namespace ``type`` string (``CaseParticipant``,
-``ProcessingFault``, …) to its ``vultron:`` IRI so a receiver can resolve the
-term. Hand-maintaining it means a new Vultron-namespace wire type is added to
-the code but forgotten in the context, and receivers silently cannot resolve
-it. This module derives the document from the one source of truth — the wire
-classes' ``_vocab_ns`` annotation — and a drift check fails when the committed
-file diverges.  The check runs three ways: ``--check`` in the local pre-commit
-hook; ``--check`` in ``docs-build-check.yml``, on a pull request that changes
-``docs/`` (DOCBW-03-013); and ``test_committed_context_is_not_stale`` in the
-unit suite, on a pull request that changes ``vultron/``.
+after the AS2 namespace. That document maps every Vultron-namespace ``type``
+string (``CaseParticipant``, ``ProcessingFault``, …) to its ``vultron:`` IRI so
+a receiver can resolve the term. Hand-maintaining it means a new
+Vultron-namespace wire type is added to the code but forgotten in the context,
+and receivers silently cannot resolve it. This module derives the document
+from the one source of truth — the wire classes' ``_vocab_ns`` annotation —
+and a drift check fails when the committed file diverges.  The check runs
+three ways: ``--check`` in the local pre-commit hook; ``--check`` in
+``docs-build-check.yml``, on a pull request that changes ``docs/``
+(DOCBW-03-013); and ``test_committed_context_is_not_stale`` in the unit suite,
+on a pull request that changes ``vultron/``.
 
 The term set is every distinct concrete ``type_`` value carried by a wire class
 whose ``_vocab_ns`` is :data:`VocabNamespace.VULTRON`, plus every non-AS2
