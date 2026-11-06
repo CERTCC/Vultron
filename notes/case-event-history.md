@@ -27,6 +27,7 @@ related_notes:
   - notes/case-state-model.md
 related_adrs:
   - docs/adr/0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md
+  - docs/adr/0181-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md
   - docs/adr/0075-split-vfd-state-machine.md
   - docs/adr/0060-re-express-legacy-cs-invariants.md
 relevant_packages:
@@ -208,9 +209,19 @@ It computes no score (CEH-05-008). The existing desiderata scorer is
 name —
 and it admits only a *complete* six-event history, raising `ScoringError` on anything
 shorter. Every sequence the committed recordings yield is incomplete, so there is no
-score to compute for a typical case. How an incomplete sequence earns a score is an
-open research question, tracked by #5828; the measures themselves are out of this
-topic's scope either way.
+score to compute for a typical case. How an incomplete sequence earns a score is
+decided by ADR-0181 and built by its own Task; the measures stay out of this layer.
+
+### Measures built on these sequences take chance per vendor
+
+A measure scores each vendor's sequence against a baseline from the smallest model
+that holds the desideratum's events: one vendor and the case's shared events, or two
+vendors for a desideratum relating them (ADR-0181). Reason: a walk over the whole
+case grows with the participant count, and its baselines change with that count, so
+no table would serve every case. Do not build a whole-case walk, and do not key a
+baseline on the number of participants. An incomplete sequence is scored through its
+completions under the same walk (expected, best and worst), and a case reports
+per-vendor scores with their unweighted median and spread.
 
 ## Read the Canonical Copy; a Merge Reports Its Holes
 
