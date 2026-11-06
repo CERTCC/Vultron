@@ -3881,16 +3881,20 @@ groups:
     rationale: >-
       The enclosing tree's door answered the delivery, and its intake recorded it. A
       second intake would find that record and read a first run as a re-run
-      (CLP-10-080).
+      (CLP-10-080). The nested tree runs as an effect of the enclosing one, whose
+      stages follow the CLP-10-010 order.
     verification: >-
       `test/architecture/test_received_tree_staged_doors.py` asserts that every
       received tree inside another one is built nested, that a nested tree has no
       door or intake, and that it runs after its enclosing tree's intake.
       `test/core/behaviors/case/nodes/test_seen_before.py` asserts that a nested
-      tree's first run leaves the record `HELD`.
+      tree's first run leaves the record `HELD`, and that the factory refuses a
+      nested tree without its door exemptions or with a sender rule.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-017
+    - rel_type: refines
+      spec_id: CLP-10-010
     adr:
     - ADR-0154
 - id: CLP-11

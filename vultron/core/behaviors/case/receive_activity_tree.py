@@ -598,6 +598,7 @@ def create_receive_activity_tree(
             name,
             addressee_exemption=addressee_exemption,
             post_close_exemption=post_close_exemption,
+            has_sender_rule=sender_rule is not None,
         )
     children.extend(seen_before_stage(name, nested=nested))
     stage_case_id = path_stage_case_id(

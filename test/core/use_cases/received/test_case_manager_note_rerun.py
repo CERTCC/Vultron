@@ -35,6 +35,7 @@ from typing import Any
 
 import pytest
 
+from test.architecture._received_tree_builds import built_received_trees
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.ledger import ledger_entries
 from test.support.received import received_event
@@ -246,6 +247,24 @@ def test_every_received_note_kind_is_named() -> None:
         "EmitNoteDuplicateRecommendationToOwnerNode",
         "PxaEmInvariantDiagnosticNode",
     }
+
+
+@pytest.mark.spec("ID-04-004")
+def test_every_note_node_in_a_received_tree_names_its_kind() -> None:
+    """Checked over every built received tree, not only when a note runs.
+
+    A kindless note class raises only on the run that builds its note, which
+    a rare arm may never reach in a test.
+    """
+    trees = built_received_trees()
+    notes = {
+        (site, type(node).__name__): node._NOTE_KIND
+        for site, root in trees.items()
+        for node in root.iterate()
+        if isinstance(node, _CommitCaseManagerNoteBase)
+    }
+    assert notes, "no received tree holds a CASE_MANAGER note node"
+    assert sorted(k for k, kind in notes.items() if kind is None) == []
 
 
 def _subclasses(

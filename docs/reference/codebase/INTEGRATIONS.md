@@ -46,6 +46,7 @@ stakeholder_type: [project-contributor]
 - **Total-attempt bound (inbox)**: `run_inbox_pipeline` (`inbox_orchestration/pipeline.py`) counts cumulative processing attempts per activity it replays from the inbox queue using the same `QueueAttemptEntry` table and moves an exhausted item to the inbox dead-letter store after `AppConfig.max_inbox_retry_attempts` attempts (IE-06-004; `InboxDeadLetterEntry` in `vultron/adapters/outbox_dead_letter.py`).
   Each attempt commits as one DataLayer transaction (IE-06-005), and the app lifespan replays every hosted actor's queue once at startup (IE-06-006; `inbox_startup_replay.py`).
   Before that queue replay, it runs again every received record a stopped run left in holding (IE-06-014; `rerun_left_in_holding`).
+  Each re-run is counted against the inbox retry budget before it starts, so a record whose budget is spent is dead-lettered and not run again (IE-06-015).
 - **Ordering**: delivery is per recipient in enqueue order, with one drain per actor (ADR-0112, `outbox_lanes.py`); the outbound body is the sealed JSON stored at emission (`vultron/adapters/outbox_sealed_body.py`).
 - **Timeout policy**: outbound HTTP requests use `DEFAULT_DELIVERY_TIMEOUT` (30 s) unless the adapter is constructed with another value
 - **Circuit-breaker or fallback**: not observed

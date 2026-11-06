@@ -30,6 +30,7 @@ the run as a process stop would.
 import asyncio
 import json
 import logging
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -46,6 +47,7 @@ from test.support.rerun_from_holding import effects
 from vultron.adapters.driving.fastapi import inbox_startup_replay
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    pipeline,
     run_inbox_pipeline,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
@@ -113,6 +115,7 @@ def _interrupt_after_the_commit(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 
 @pytest.mark.spec("IE-06-014")
+@pytest.mark.spec("IE-06-015")
 @pytest.mark.spec("CLP-10-074")
 @pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("ID-04-004")
@@ -166,6 +169,9 @@ def test_an_interrupted_run_is_finished_on_restart_with_nothing_twice(
     ]
     assert len(recorded) == 1, "the act is committed exactly once"
     assert records_left_in_holding(dl) == []
+    assert dl.get_inbox_attempt_count(body["id"]) == 0, (
+        "a finished re-run still counts against the retry budget"
+    )
     finished = effects(dl)
     # What the interrupted run queued stands, unchanged and not queued again:
     # the restart read the record as a re-run and did not answer the ledger
@@ -224,10 +230,13 @@ def test_the_startup_runs_the_held_records_then_the_queue(monkeypatch):
 
 @pytest.mark.spec("IE-06-014")
 @pytest.mark.spec("CLP-10-074")
-def test_one_failing_rerun_keeps_neither_the_others_nor_the_queue_back(
+def test_one_failing_rerun_does_not_keep_the_others_back(
     monkeypatch, caplog: pytest.LogCaptureFixture
 ):
-    """A re-run that raises is logged; the next record still runs."""
+    """A re-run that raises is logged; the next record still runs.
+
+    That the queue replay still follows is the startup order test's.
+    """
     net = LedgerNetwork(f"{CASE_ID}-failing")
     dl = net.stores[MANAGER]
     first, second = (
@@ -246,8 +255,11 @@ def test_one_failing_rerun_keeps_neither_the_others_nor_the_queue_back(
         ran.append(payload["id"])
         if payload["id"] == "first":
             raise RuntimeError("store fault")
+        _settle(dl, payload["id"])
 
-    monkeypatch.setattr(inbox_startup_replay, "run_inbox_pipeline", _pipeline)
+    monkeypatch.setattr(
+        inbox_startup_replay, "run_delivery_without_replay", _pipeline
+    )
 
     with caplog.at_level(logging.ERROR):
         finished = asyncio.run(
@@ -260,3 +272,186 @@ def test_one_failing_rerun_keeps_neither_the_others_nor_the_queue_back(
         first.activity_id in r.getMessage() and r.levelno == logging.ERROR
         for r in caplog.records
     )
+
+
+def _settle(dl, name: str) -> None:
+    """Archive the record of *name*, as a re-run that applied it does."""
+    record = _stored(dl, name)
+    dl.save(record.model_copy(update={"stage": ReceivedStage.ARCHIVED}))
+
+
+def _stored(dl, name: str) -> ReceivedActivityRecord:
+    record = dl.read(
+        ReceivedActivityRecord.build_id(f"{CASE_ID}/activities/{name}")
+    )
+    assert isinstance(record, ReceivedActivityRecord)
+    return record
+
+
+def _left(dl, name: str, **fields: Any) -> ReceivedActivityRecord:
+    """Store a record in holding under *name*, with *fields* set on it."""
+    record = ReceivedActivityRecord(
+        activity_id=f"{CASE_ID}/activities/{name}",
+        received_body=json.dumps({"id": name, "type": "Add"}),
+        **fields,
+    )
+    dl.create(record)
+    return record
+
+
+@pytest.mark.spec("IE-06-014")
+@pytest.mark.spec("CLP-10-074")
+def test_the_startup_reruns_only_records_owing_no_replay(monkeypatch):
+    """A record waiting for its case, or for any replay, is not run again."""
+    net = LedgerNetwork(f"{CASE_ID}-scope")
+    dl = net.stores[MANAGER]
+    _left(dl, "held", stage=ReceivedStage.HELD)
+    _left(dl, "handled", stage=ReceivedStage.HANDLED)
+    _left(dl, "waiting", stage=ReceivedStage.HELD, replay_owed=True)
+    _left(
+        dl,
+        "awaiting-case",
+        stage=ReceivedStage.HELD,
+        replay_owed=True,
+        awaiting_case_id=f"{CASE_ID}/not-yet-here",
+    )
+    _left(dl, "archived", stage=ReceivedStage.ARCHIVED)
+    ran: list[str] = []
+
+    async def _pipeline(payload, *args, **kwargs) -> None:
+        ran.append(payload["id"])
+
+    monkeypatch.setattr(
+        inbox_startup_replay, "run_delivery_without_replay", _pipeline
+    )
+
+    asyncio.run(
+        inbox_startup_replay.rerun_left_in_holding(dl, MANAGER, None, None)
+    )
+
+    assert sorted(ran) == ["handled", "held"]
+
+
+@pytest.mark.spec("IE-06-015")
+@pytest.mark.spec("IE-06-004")
+def test_a_message_that_stops_the_process_is_dead_lettered_not_rerun_forever(
+    monkeypatch, caplog: pytest.LogCaptureFixture
+):
+    """A re-run that stops the process each start uses up its budget."""
+    net = LedgerNetwork(f"{CASE_ID}-poison")
+    dl = net.stores[MANAGER]
+    poison = _left(dl, "poison", stage=ReceivedStage.HANDLED)
+    ran: list[str] = []
+
+    async def _pipeline(payload, *args, **kwargs) -> None:
+        ran.append(payload["id"])
+        raise _ProcessStop
+
+    monkeypatch.setattr(
+        inbox_startup_replay, "run_delivery_without_replay", _pipeline
+    )
+    monkeypatch.setattr(
+        inbox_startup_replay,
+        "get_config",
+        lambda: SimpleNamespace(max_inbox_retry_attempts=2),
+    )
+
+    def _start() -> int:
+        return asyncio.run(
+            inbox_startup_replay.rerun_left_in_holding(dl, MANAGER, None, None)
+        )
+
+    for _ in range(2):
+        with pytest.raises(_ProcessStop):
+            _start()
+    assert dl.get_inbox_attempt_count(poison.activity_id) == 2
+    with caplog.at_level(logging.ERROR):
+        assert _start() == 0
+        assert _start() == 0
+
+    assert ran == ["poison", "poison"], "the budget did not stop the re-runs"
+    dead = [
+        entry
+        for entry in dl.inbox_dead_letter_list()
+        if entry.activity_id == poison.activity_id
+    ]
+    assert [(e.reason, e.total_attempts) for e in dead] == [
+        (inbox_startup_replay.RERUN_BUDGET_SPENT, 2)
+    ], "the spent record is dead-lettered exactly once"
+    assert any(
+        poison.activity_id in r.getMessage() and r.levelno == logging.ERROR
+        for r in caplog.records
+    )
+    # Left in holding, so a resend is still answered by its door.
+    assert [r.activity_id for r in records_left_in_holding(dl)] == [
+        poison.activity_id
+    ]
+
+
+@pytest.mark.spec("IE-06-015")
+@pytest.mark.spec("CLP-10-074")
+def test_a_rerun_that_ends_still_in_holding_keeps_its_count(
+    monkeypatch, caplog: pytest.LogCaptureFixture
+):
+    """A handler failure the pipeline settles without raising is no finish.
+
+    The record is still left in holding, so the count stands and the next
+    start runs it again until the budget is spent.
+    """
+    net = LedgerNetwork(f"{CASE_ID}-unfinished")
+    dl = net.stores[MANAGER]
+    stuck = _left(dl, "stuck", stage=ReceivedStage.HANDLED)
+
+    async def _pipeline(payload, *args, **kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(
+        inbox_startup_replay, "run_delivery_without_replay", _pipeline
+    )
+
+    with caplog.at_level(logging.ERROR):
+        finished = asyncio.run(
+            inbox_startup_replay.rerun_left_in_holding(dl, MANAGER, None, None)
+        )
+
+    assert finished == 0
+    assert dl.get_inbox_attempt_count(stuck.activity_id) == 1
+    assert any(
+        stuck.activity_id in r.getMessage() and r.levelno == logging.ERROR
+        for r in caplog.records
+    )
+
+
+@pytest.mark.spec("IE-06-014")
+def test_every_held_record_runs_before_any_queued_item(monkeypatch):
+    """A startup re-run replays no queue, so the queue waits for them all."""
+    calls: list[str] = []
+
+    def _process(run, payload) -> None:
+        calls.append(f"process {payload['id']}")
+
+    def _drain(self) -> None:
+        calls.append("queue")
+
+    monkeypatch.setattr(pipeline, "_process_one", _process)
+    monkeypatch.setattr(pipeline._InboxRun, "drain_queue", _drain)
+    net = LedgerNetwork(f"{CASE_ID}-order")
+    dl = net.stores[MANAGER]
+    first = _left(dl, "first", stage=ReceivedStage.HELD)
+    _left(
+        dl,
+        "second",
+        stage=ReceivedStage.HANDLED,
+        received_at=first.received_at,
+    )
+
+    asyncio.run(
+        inbox_startup_replay.rerun_left_in_holding(dl, MANAGER, None, None)
+    )
+    assert calls == ["process first", "process second"]
+
+    # The control: a delivery replays the queue after itself.
+    asyncio.run(
+        run_inbox_pipeline({"id": "delivered"}, dl, MANAGER, None, None)
+    )
+    assert calls[2:] == ["process delivered", "queue"]

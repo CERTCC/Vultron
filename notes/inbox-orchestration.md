@@ -14,7 +14,8 @@ description: >
   the internal-error fault for a raised dispatch,
   the queue replay's bounded retry and held fault, what is left of the
   staged-record migration (ADR-0153, ADR-0154), how a re-run is told
-  from a first run by the record and finished on restart, the
+  from a first run by the record and finished on restart within the
+  inbox retry budget, the
   sender-sequence hold that returns a record to HELD (ADR-0178),
   pending-queue port injection, and the test surface.
 related_specs:
@@ -327,7 +328,9 @@ window in which a re-run reads as a first run (ADR-0154,
 one delivery is built `nested=True` and runs no door or intake of its own. A second
 intake would read the first run as a re-run. At startup, `rerun_left_in_holding` runs
 each record left in holding owed no replay again, before the inbox queue
-(`test_interrupted_run_restart.py`).
+(`test_interrupted_run_restart.py`). Count each re-run against the inbox retry budget
+before it starts, and dead-letter a spent record: a message that stops the process
+when handled would otherwise stop every start (IE-06-015).
 
 ---
 

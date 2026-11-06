@@ -101,7 +101,8 @@ def _nodes_in(value: object, depth: int = 0) -> Iterator[object]:
 
 def _held_by(value: object) -> list[object]:
     """What *value* holds: its items, its bound ``self``, a partial's
-    function and arguments, its closure cells and a plain object's fields."""
+    function and arguments, its closure cells, its default arguments and a
+    plain object's fields."""
     if isinstance(value, (list, tuple, set, frozenset)):
         return list(value)
     if isinstance(value, dict):
@@ -111,6 +112,10 @@ def _held_by(value: object) -> list[object]:
     if isinstance(value, functools.partial):
         return [value.func, *value.args, *value.keywords.values()]
     held: list[object] = []
+    # A door captured as a default argument (``lambda d=door: d.seen``) is
+    # held just as a closure cell is.
+    held.extend(getattr(value, "__defaults__", None) or ())
+    held.extend((getattr(value, "__kwdefaults__", None) or {}).values())
     for cell in getattr(value, "__closure__", None) or ():
         try:
             held.append(cell.cell_contents)
@@ -318,6 +323,17 @@ def test_a_door_in_a_partial_or_a_plain_object_is_found() -> None:
         door,
         _Reader(is_rerun=functools.partial(getattr, door, "rerun")),
         _Reader(is_rerun=types.SimpleNamespace(answer=door)),
+    )
+
+    assert reference_findings(tree) == {("_Reader", "is_rerun", "_Door")}
+
+
+def test_a_door_captured_as_a_default_argument_is_found() -> None:
+    door = _Door()
+    tree = _planted(
+        door,
+        _Reader(is_rerun=lambda d=door: d.rerun),
+        _Reader(is_rerun=lambda *, d=door: d.rerun),
     )
 
     assert reference_findings(tree) == {("_Reader", "is_rerun", "_Door")}

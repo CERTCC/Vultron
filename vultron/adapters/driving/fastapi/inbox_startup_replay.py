@@ -19,6 +19,12 @@ re-run, which does nothing.  The held body is
 routed as a resend of itself, so the seen-before door lets it through, its
 intake marks the record ``HANDLED`` and every stage that answers a delivery
 once reads the run as a re-run.
+
+Each re-run is counted against the inbox retry budget before it starts
+(``AppConfig.max_inbox_retry_attempts``, IE-06-004), so a message whose
+handling stops the process is not run again at every start: once its budget
+is spent it is dead-lettered and left in holding, and the receiver starts
+without it (IE-06-015).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -43,16 +49,71 @@ from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     replay_inbox_queue,
-    run_inbox_pipeline,
+    run_delivery_without_replay,
+)
+from vultron.adapters.outbox_dead_letter import RetryStore
+from vultron.config import get_config
+from vultron.core.models.received_activity_record import (
+    HOLDING_STAGES,
+    ReceivedActivityRecord,
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
-from vultron.core.services.received_activity import sealed_body_of
+from vultron.core.services.received_activity import (
+    held_received_record,
+    sealed_body_of,
+)
 from vultron.core.services.received_holding import records_left_in_holding
 
 logger = logging.getLogger(__name__)
+
+
+#: The dead-letter reason of a message left in holding whose re-runs at
+#: startup used up the inbox retry budget without finishing (IE-06-015).
+RERUN_BUDGET_SPENT = "rerun_attempts_exhausted"
+
+
+def _rerun_budget_left(
+    retry: RetryStore,
+    record: ReceivedActivityRecord,
+    actor_id: str,
+    max_attempts: int,
+) -> bool:
+    """Count one more re-run of *record*, or dead-letter it when spent.
+
+    The count is stored before the re-run starts, outside its transaction,
+    so a re-run that stops the process is counted too: a message that
+    stops the process every time it is handled cannot keep the receiver
+    from starting (IE-06-015).  A spent record is dead-lettered once, for an
+    operator, and is left in holding as it is, so a resend from its sender
+    is still answered by its seen-before door.
+    """
+    activity_id = record.activity_id
+    attempts = retry.get_inbox_attempt_count(activity_id)
+    if attempts < max_attempts:
+        retry.set_inbox_attempt_count(activity_id, attempts + 1)
+        return True
+    if not any(
+        entry.activity_id == activity_id and entry.reason == RERUN_BUDGET_SPENT
+        for entry in retry.inbox_dead_letter_list()
+    ):
+        retry.inbox_dead_letter_append(
+            activity_id,
+            reason=RERUN_BUDGET_SPENT,
+            total_attempts=attempts,
+            last_error="no re-run reached an outcome; see the earlier logs",
+        )
+    logger.error(
+        "Activity '%s' for actor_id=%s was run again %d time(s) at startup"
+        " without reaching an outcome; it is dead-lettered and not run again"
+        " (IE-06-015).",
+        activity_id,
+        actor_id,
+        attempts,
+    )
+    return False
 
 
 async def rerun_left_in_holding(
@@ -64,22 +125,35 @@ async def rerun_left_in_holding(
     """Run again each message a run left in holding for *actor_id*.
 
     Each record is run as the delivery of the body it holds, through the
-    same pipeline and per-actor lock as a delivery
-    (:func:`~vultron.adapters.driving.fastapi.inbox_orchestration.run_inbox_pipeline`),
-    so it reaches its outcome as any re-run does: the handling tree runs
+    same pipeline and per-actor lock as a delivery, but with no queue
+    replay after it
+    (:func:`~vultron.adapters.driving.fastapi.inbox_orchestration.run_delivery_without_replay`),
+    so every record runs before the queue (IE-06-014).  Each reaches its
+    outcome as any re-run does: the handling tree runs
     again from the body, nothing its first run kept is done twice, and the
     outcome stage archives or stubs it (ADR-0154, CLP-10-074).  A record a
-    delivery settled meanwhile is answered by its seen-before door.
+    delivery settled meanwhile is answered by its seen-before door.  A
+    record waiting for a replay is not run: its wait ends it.
 
-    A record whose re-run raises is logged at ERROR and stays in holding for
-    the next start; the records after it are still run, and so is the
-    actor's queue replay after this returns.
+    Each re-run is counted before it starts (:func:`_rerun_budget_left`),
+    and the count is cleared only when the record has left holding, settled
+    or waiting for a replay.  A record whose re-run raises, or ends with the
+    record still left in holding, is logged at ERROR and stays in holding
+    for the next start; the records after it are still run, and so is the
+    actor's queue replay after this returns.  A record whose re-runs have
+    used up ``AppConfig.max_inbox_retry_attempts`` is dead-lettered and not
+    run again (IE-06-015).
 
-    Returns the number of records run again without raising.
+    Returns the number of records whose re-run took them out of holding.
     """
+    # SqliteDataLayer satisfies RetryStore structurally, as for the queue.
+    retry = cast(RetryStore, actor_dl)
+    max_attempts = get_config().max_inbox_retry_attempts
     records = records_left_in_holding(cast(CasePersistence, actor_dl))
     finished = 0
     for record in records:
+        if not _rerun_budget_left(retry, record, actor_id, max_attempts):
+            continue
         logger.info(
             "Running again activity '%s' for actor_id=%s, left in holding"
             " with no verdict by an earlier run (ADR-0154, CLP-10-074).",
@@ -87,7 +161,7 @@ async def rerun_left_in_holding(
             actor_id,
         )
         try:
-            await run_inbox_pipeline(
+            await run_delivery_without_replay(
                 json.loads(sealed_body_of(record)),
                 actor_dl,
                 actor_id,
@@ -104,8 +178,30 @@ async def rerun_left_in_holding(
                 actor_id,
             )
             continue
+        if _still_left_in_holding(actor_dl, record.activity_id):
+            # The handler failed inside the pipeline, which settles that
+            # as the delivery's outcome without raising (CLP-10-074).
+            logger.error(
+                "Re-run of activity '%s' for actor_id=%s ended with no"
+                " verdict; it stays in holding for the next start"
+                " (CLP-10-074).",
+                record.activity_id,
+                actor_id,
+            )
+            continue
+        retry.clear_inbox_attempt_count(record.activity_id)
         finished += 1
     return finished
+
+
+def _still_left_in_holding(actor_dl: DataLayer, activity_id: str) -> bool:
+    """Whether *activity_id*'s record is still in holding owing no replay."""
+    record = held_received_record(cast(CasePersistence, actor_dl), activity_id)
+    return (
+        record is not None
+        and record.stage in HOLDING_STAGES
+        and not record.replay_owed
+    )
 
 
 async def replay_hosted_inbox_queues(

@@ -89,6 +89,7 @@ def check_nested(
     *,
     addressee_exemption: AddresseeExemption | None,
     post_close_exemption: PostCloseExemption | None,
+    has_sender_rule: bool = False,
 ) -> None:
     """Refuse a nested tree that would run a door its enclosing tree ran.
 
@@ -96,10 +97,14 @@ def check_nested(
     already in holding: a post-close stage there would read the first run as
     a re-run (``began_in_an_earlier_run`` before intake) and skip its reply,
     and an addressee check would ask again what the enclosing door answered.
-    So a nested tree names both exemptions (ADR-0154).
+    So a nested tree names both exemptions (ADR-0154).  It takes no sender
+    rule either: the sender guard brings the ledger-position and
+    sender-sequence stages, which would answer the delivery a second time
+    on its first run (SYNC-18-009, SYNC-21-018).
 
     Raises:
-        VultronWiringError: either exemption is missing.
+        VultronWiringError: either exemption is missing, or a sender rule is
+            given.
     """
     missing = [
         argument
@@ -114,6 +119,13 @@ def check_nested(
             f"create_receive_activity_tree({name}): a nested tree runs on its"
             f" enclosing tree's doors, so it needs {', '.join(missing)}"
             " (ADR-0154)"
+        )
+    if has_sender_rule:
+        raise VultronWiringError(
+            f"create_receive_activity_tree({name}): a nested tree runs on its"
+            " enclosing tree's sender guard, so it takes no sender_rule: its"
+            " own would answer the ledger position and the sender's number"
+            " again (ADR-0154)"
         )
 
 

@@ -146,7 +146,10 @@ class ReceivedStage(StrEnum):
       from the held body.  Intake writes it when it meets the ``HELD``
       record, owed no replay, that the earlier run left, so every stage after
       intake tells a re-run from a first run by reading the record, not by
-      reading what the door saw (ADR-0154).  It never owes a replay.
+      reading what the door saw (ADR-0154).  It never owes a replay.  It is
+      not the "handled" step of ADR-0154's lifecycle sketch: a first run's
+      record stays ``HELD`` while it is handled, and only a re-run's is
+      ``HANDLED``.
     - ``ARCHIVED`` -- the receiver applied the message, and the outcome stage
       kept its sealed body as the archive (CLP-10-073).  It never owes a
       replay.

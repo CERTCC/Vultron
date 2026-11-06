@@ -70,6 +70,9 @@ from vultron.core.use_cases.received._bt_verdict import (
     seen_before_verdict,
     verdict_from_bt,
 )
+from vultron.core.use_cases.received.actor.invite import (
+    AcceptInviteActorToCaseReceivedUseCase,
+)
 from vultron.errors import VultronWiringError
 
 SENDER = "https://example.org/actors/reporter"
@@ -316,6 +319,22 @@ def test_a_nested_tree_without_its_door_exemptions_is_refused(missing):
             precondition_guards=[_Ran()],
             nested=True,
             **exemptions,
+        )
+
+
+@pytest.mark.spec("CLP-10-081")
+def test_a_nested_tree_with_a_sender_rule_is_refused() -> None:
+    """Its sender guard would bring a second ledger-position and
+    sender-sequence answer on the first run (ADR-0154)."""
+    with pytest.raises(VultronWiringError, match="takes no sender_rule"):
+        create_receive_activity_tree(
+            name="InnerBT",
+            case_id=None,
+            precondition_guards=[_Ran()],
+            addressee_exemption=ENCLOSING_TREE_ADDRESSEE_CHECK,
+            post_close_exemption=PostCloseExemption.ENCLOSING_TREE_GUARDS,
+            sender_rule=AcceptInviteActorToCaseReceivedUseCase.sender_entitlement,
+            nested=True,
         )
 
 
