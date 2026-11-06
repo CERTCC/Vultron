@@ -477,11 +477,16 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
     assert outcomes[True] == outcomes[False]
 
 
-def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> str:
+def _record(net: LedgerNetwork, actor: str) -> CaseParticipant:
+    """*actor*'s participant record in the CASE_MANAGER's store."""
     case = net.case(MANAGER)
     participant = net.stores[MANAGER].read(case.actor_participant_index[actor])
     assert isinstance(participant, CaseParticipant)
-    return str(participant.consent_for(embargo_id))
+    return participant
+
+
+def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> str:
+    return str(_record(net, actor).consent_for(embargo_id))
 
 
 @pytest.mark.spec("SYNC-19-001")
@@ -528,14 +533,6 @@ def test_same_sender_answers_record_one_consent_in_either_order() -> None:
     }
 
 
-def _record(net: LedgerNetwork, actor: str) -> CaseParticipant:
-    """*actor*'s participant record in the CASE_MANAGER's store."""
-    case = net.case(MANAGER)
-    participant = net.stores[MANAGER].read(case.actor_participant_index[actor])
-    assert isinstance(participant, CaseParticipant)
-    return participant
-
-
 def _note_then_leave(
     name: str, leave_of: Callable[[LedgerNetwork], as_Activity]
 ) -> dict[bool, LedgerNetwork]:
@@ -567,9 +564,13 @@ def _note_then_leave(
         ]
         delivered = sent if send_order else sent[::-1]
         results = [net.receive(MANAGER, body) for body in delivered]
-        held = HandlerDisposition.DEFERRED
-        assert (results[0].disposition is held) is not send_order
-        assert results[1].disposition is HandlerDisposition.APPLIED
+        # In send order each is judged as it arrives.  Out of order the Leave
+        # is held (DEFERRED), and the note that fills the gap is applied,
+        # which releases the Leave behind it.
+        applied, held = HandlerDisposition.APPLIED, HandlerDisposition.DEFERRED
+        assert [r.disposition for r in results] == (
+            [applied, applied] if send_order else [held, applied]
+        )
         assert [str(n) for n in net.case(MANAGER).notes] == [note.id_]
         networks[send_order] = net
     return networks
@@ -608,6 +609,11 @@ def test_note_sent_before_embargo_leave_is_kept_in_either_order() -> None:
     """
 
     def withdrawal(net: LedgerNetwork) -> as_Activity:
+        # The sender withdraws as a signatory of the embargo in force.
+        assert net.case(MANAGER).em_state is EM.ACTIVE
+        assert _consent(net, BYSTANDER, net.initial_embargo_id) == str(
+            EmbargoConsentState.AGREED
+        )
         embargo = net.stores[BYSTANDER].read(net.initial_embargo_id)
         assert isinstance(embargo, as_EmbargoEvent)
         return withdraw_from_embargo_activity(
