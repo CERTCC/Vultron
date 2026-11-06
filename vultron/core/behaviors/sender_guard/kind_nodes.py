@@ -156,8 +156,7 @@ def _case_owner_node(ctx: SenderCheckContext) -> py_trees.behaviour.Behaviour:
     On a case, an owner whose closure the case records is refused first:
     it has left and may act on nothing further (CM-23-018).  The check is
     composed here, beside the role check, rather than inside
-    :class:`SenderIsCaseOwnerNode`, whose standing reads in the Leave,
-    suggest-actor, status and embargo trees must keep asking the role alone.
+    :class:`SenderIsCaseOwnerNode`, so the check itself asks the role alone.
     The owner's own ``Leave`` is the exception (*closing_case_owner*): it
     closes a case that is not fully closed, so the role alone is asked and
     the tree's closed-sender door guard decides a repeat (CM-23-002).

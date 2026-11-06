@@ -31,6 +31,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.architecture._received_tree_builds import built_received_trees
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
@@ -41,6 +42,9 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.core.behaviors import sender_entitlement
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.leave_case_trigger_tree import (
+    create_leave_case_trigger_tree,
+)
 from vultron.core.behaviors.case.nodes.carried_snapshot import (
     StoreEmbeddedParticipantsNode,
 )
@@ -54,6 +58,7 @@ from vultron.core.behaviors.case_id_scope import (
     with_case_id,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
+from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
     SenderClosureNotRecordedNode,
@@ -89,6 +94,7 @@ from vultron.core.behaviors.sender_guard import (
     ReportOfferRequest,
     SenderCheckContext,
     compose_sender_guard,
+    is_composed_sender_guard,
     sender_guard_refused,
 )
 from vultron.core.models.activity import VultronActivity
@@ -1783,6 +1789,168 @@ def test_the_closed_sender_check_keeps_its_info_line(
         "lone-side": [(logging.INFO, False)],
         "any-of-arm": [(logging.INFO, False)],
     }
+
+
+# ---------------------------------------------------------------------------
+# A lone CASE_OWNER side logs its refusal; an overruled arm does not (#5845)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("HP-01-006", "SL-03-002", "BT-13-001")
+def test_a_lone_case_owner_side_logs_its_refusal_at_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``CASE_OWNER`` alone on the side is the guard's whole answer, so a
+    sender that does not hold the role draws one WARNING, and it carries the
+    reason ``BTBridge.get_failure_reason`` reports (BT-13-001).
+
+    Lone-``CASE_OWNER`` sides are live — Add(Report),
+    Add/Remove(CaseParticipant), Offer(CaseParticipantRole) and the two owner
+    embargo decisions among them — so their refusal must reach a reader and
+    ``expect_no_sender_refusals`` (#5845).
+    """
+    guard = compose_sender_guard(
+        SenderRule.in_case(Kind.CASE_OWNER),
+        SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
+    )
+    assert guard is not None
+    check = unscoped(_owner_role_check(guard))
+    assert isinstance(check, SenderIsCaseOwnerNode)
+    assert failure_is_the_refusal(check) is True
+    with caplog.at_level(logging.DEBUG):
+        result = _store(MANAGER).run(
+            guard, activity=SimpleNamespace(actor_id=VENDOR)
+        )
+    assert result.status == Status.FAILURE
+    lines = _refusal_lines(caplog, SenderIsCaseOwnerNode)
+    assert [record.levelno for record in lines] == [logging.WARNING]
+    assert "is not the Case Owner" in lines[0].getMessage()
+    assert "REFUSED (HP-01-006)" in lines[0].getMessage()
+    assert (
+        BTBridge.get_failure_reason(guard)
+        == lines[0].getMessage().split(": ", 1)[1]
+    )
+    # The one line above DEBUG in the whole tick, so the refusal is neither
+    # missing nor doubled by a second line stating the same thing.
+    assert _refusals_logged(caplog) == [lines[0].getMessage()]
+
+
+@pytest.mark.spec("HP-01-006", "HP-01-023", "SL-03-002", "SL-03-003")
+def test_an_overruled_case_owner_arm_logs_debug_without_refusal_wording(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Inside an any-of side the ``CASE_OWNER`` arm refuses no one: the side's
+    last arm names every standing it accepts, so the arm's own line is DEBUG
+    and drops the ``REFUSED`` group (SL-03-002, SL-03-003)."""
+    guard = compose_sender_guard(
+        ANY_OF, SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID)
+    )
+    assert guard is not None
+    with caplog.at_level(logging.DEBUG):
+        result = _store(MANAGER).run(
+            guard, activity=SimpleNamespace(actor_id=VENDOR)
+        )
+    assert result.status == Status.FAILURE
+    lines = _refusal_lines(caplog, SenderIsCaseOwnerNode)
+    assert [record.levelno for record in lines] == [logging.DEBUG]
+    assert "is not the Case Owner" in lines[0].getMessage()
+    assert "REFUSED" not in lines[0].getMessage()
+    refusals = _refusals_logged(caplog)
+    assert len(refusals) == 1, refusals
+    assert "none of the standings" in refusals[0]
+
+
+# ---------------------------------------------------------------------------
+# A CASE_OWNER read that picks an arm is not a sender door (#5845, #5903)
+# ---------------------------------------------------------------------------
+
+
+def _built_trees_with_the_leave_trigger() -> dict[
+    str, py_trees.behaviour.Behaviour
+]:
+    """Every built received tree, plus the Leave trigger tree.
+
+    The trigger tree reuses the received side's close guards, where no
+    received tree would reach them.
+    """
+    trees: dict[str, py_trees.behaviour.Behaviour] = {
+        f"{module.rsplit('/', 1)[-1]}:{factory}": tree
+        for (module, factory), tree in built_received_trees().items()
+    }
+    trees["leave_case_trigger_tree.py:create_leave_case_trigger_tree"] = (
+        create_leave_case_trigger_tree(
+            actor_id=OWNER,
+            case_id=CASE_ID,
+            activity_builder=lambda _case_id: [],
+            result_out={},
+        )
+    )
+    return trees
+
+
+def _inside_a_composed_sender_guard(
+    node: py_trees.behaviour.Behaviour,
+) -> bool:
+    parent = node.parent
+    while parent is not None:
+        if is_composed_sender_guard(parent):
+            return True
+        parent = parent.parent
+    return False
+
+
+def _owner_reads() -> dict[tuple[str, str], list[type]]:
+    """Every built CASE_OWNER check, by (tree, node name), with its class.
+
+    Keyed by name and collected per key, so two placements that share a name
+    are both recorded rather than one overwriting the other (#3984, #5535).
+    """
+    found: dict[tuple[str, str], list[type]] = {}
+    for site, tree in _built_trees_with_the_leave_trigger().items():
+        for node in tree.iterate():
+            is_owner_read = isinstance(node, SenderIsCaseOwnerNode) or (
+                isinstance(node, ActorHoldsRoleInCaseNode)
+                and node._role is CVDRole.CASE_OWNER
+            )
+            if is_owner_read and not _inside_a_composed_sender_guard(node):
+                found.setdefault((site, node.name), []).append(type(node))
+    return found
+
+
+@pytest.mark.spec("SL-03-002", "SL-03-003", "RSH-01-002", "HP-01-006")
+def test_a_case_owner_read_outside_the_sender_guard_states_no_refusal() -> (
+    None
+):
+    """A tree that picks an arm on the CASE_OWNER role reads it through
+    ``ActorHoldsRoleInCaseNode``, never through the sender door.
+
+    The suggest-actor, Leave, status and embargo trees ask the role to choose
+    a branch.  The sender door words its non-match as a refusal citing
+    HP-01-006 and logs it at WARNING wherever its FAILURE is the tree's
+    answer, so in the CM-23-011 decline arm or the closed-sender door's
+    fallback it would claim a refusal for a sender the guard admitted, or for
+    a Leave the handler reports ``SKIPPED``.  The role read states no refusal
+    at any placement, so the question is settled by the class, not by where
+    the read happens to sit.
+    """
+    reads = _owner_reads()
+    assert (
+        "factory.py:create_close_case_received_tree",
+        "CheckIsCaseOwnerForClose",
+    ) in reads, (
+        "no built tree places the CM-23-011 decline arm's role read, so this"
+        " proved nothing; the corpus or the read has moved"
+    )
+    doors = {
+        key: kinds
+        for key, kinds in reads.items()
+        if SenderIsCaseOwnerNode in kinds
+    }
+    assert doors == {}, (
+        "These CASE_OWNER reads sit outside the composed sender guard but use"
+        " the sender door, which words its non-match as a refusal; read the"
+        f" role with ActorHoldsRoleInCaseNode instead: {sorted(doors)}"
+    )
 
 
 class _Leaf(py_trees.behaviour.Behaviour):

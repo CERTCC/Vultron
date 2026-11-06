@@ -53,6 +53,10 @@ _LOGGER = logging.getLogger("vultron.test.refusal_matchers")
         # it even at WARNING; its sibling check always worded it this way.
         "No case in this store to check sender 'a' against — REFUSED"
         " (HP-01-006, DEMOMA-07-003 step 1)",
+        # The lone-CASE_OWNER refusal (#5845).  No demo drives one, so the
+        # line is pinned here rather than discovered the first time a demo
+        # step sends an owner-only activity from someone else.
+        "Sender 'a' is not the Case Owner of case 'c' — REFUSED (HP-01-006)",
     ],
 )
 def test_sender_matcher_catches_any_group_citing_hp_01_006(caplog, message):
@@ -73,6 +77,10 @@ def test_sender_matcher_catches_any_group_citing_hp_01_006(caplog, message):
         "Sender 'a' is not an active participant of case 'c', or has left it",
         "Sender 'a' is not a participant of case 'c'",
         "No case in this store to check sender 'a' against",
+        # The CASE_OWNER arm of an any-of side, overruled by a later kind:
+        # the group is gone, so the arm claims no refusal (SL-03-003, #5845).
+        "Sender 'a' is not the Case Owner of case 'c'; a later arm of the"
+        " any-of side may still admit it",
     ],
 )
 def test_sender_matcher_ignores_groups_without_hp_01_006(caplog, message):

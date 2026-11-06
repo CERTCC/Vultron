@@ -49,11 +49,10 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case_id_scope import with_case_id
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsCaseOwnerNode,
-    SenderRule,
-)
+from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
+from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.enums.roles import CVDRole
 
 
 def create_recommend_actor_to_case_received_tree(
@@ -111,10 +110,10 @@ def create_recommend_actor_to_case_received_tree(
                     │                   EmitAcceptActorRecommendationNode)
                     ├── AC-6:  Sequence(PendingOfferCaseParticipantNode,
                     │                   EmitNoteDuplicateRecommendationToOwnerNode)
-                    ├── Owner: Sequence(SenderIsCaseOwnerNode(recommender),
+                    ├── Owner: Sequence(ActorHoldsRoleInCaseNode(recommender),
                     │                   EvaluateDefaultRolesNode,
                     │                   EmitInviteActorToCaseNode)
-                    └── Fresh: Sequence(Inverter(SenderIsCaseOwnerNode),
+                    └── Fresh: Sequence(Inverter(ActorHoldsRoleInCaseNode),
                                         EvaluateDefaultRolesNode,
                                         EmitOfferCaseParticipantToOwnerNode)
 
@@ -205,8 +204,9 @@ def create_recommend_actor_to_case_received_tree(
         memory=False,
         children=[
             with_case_id(
-                SenderIsCaseOwnerNode(
-                    sender_actor_id=recommender_id,
+                ActorHoldsRoleInCaseNode(
+                    actor_id=recommender_id,
+                    role=CVDRole.CASE_OWNER,
                     name="RecommenderIsCaseOwnerForReinvite",
                 ),
                 case_id,
@@ -246,8 +246,10 @@ def create_recommend_actor_to_case_received_tree(
             py_trees.decorators.Inverter(
                 name="RecommenderIsNotCaseOwnerForReinvite",
                 child=with_case_id(
-                    SenderIsCaseOwnerNode(
-                        sender_actor_id=recommender_id,
+                    ActorHoldsRoleInCaseNode(
+                        actor_id=recommender_id,
+                        role=CVDRole.CASE_OWNER,
+                        name="RecommenderHoldsCaseOwnerForReinvite",
                     ),
                     case_id,
                 ),
@@ -263,8 +265,9 @@ def create_recommend_actor_to_case_received_tree(
         memory=False,
         children=[
             with_case_id(
-                SenderIsCaseOwnerNode(
-                    sender_actor_id=recommender_id,
+                ActorHoldsRoleInCaseNode(
+                    actor_id=recommender_id,
+                    role=CVDRole.CASE_OWNER,
                     name="RecommenderIsCaseOwner",
                 ),
                 case_id,
@@ -308,8 +311,10 @@ def create_recommend_actor_to_case_received_tree(
             py_trees.decorators.Inverter(
                 name="RecommenderIsNotCaseOwner",
                 child=with_case_id(
-                    SenderIsCaseOwnerNode(
-                        sender_actor_id=recommender_id,
+                    ActorHoldsRoleInCaseNode(
+                        actor_id=recommender_id,
+                        role=CVDRole.CASE_OWNER,
+                        name="RecommenderHoldsCaseOwner",
                     ),
                     case_id,
                 ),

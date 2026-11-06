@@ -21,13 +21,14 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.case_id_scope import with_case_id
+from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_check_context import (
     ClosedSenderCheck,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderClosureNotRecordedNode,
-    SenderIsCaseOwnerNode,
 )
+from vultron.enums.roles import CVDRole
 
 
 def closed_sender_guard(
@@ -99,14 +100,21 @@ def closed_sender_turned_away(
 def case_owner_guard(
     case_id: str, sender_id: str
 ) -> py_trees.behaviour.Behaviour:
-    """The ``CASE_OWNER`` check the closed-sender door asks as its fallback.
+    """The ``CASE_OWNER`` role read the closed-sender door asks as its fallback.
 
-    Built here, beside the kinds' guards, so no handler names a sender node
-    itself (HP-01-007).  It admits no one: :func:`closed_sender_door` asks it
-    to tell a Case Owner's redelivered ``Leave``, whose case closure may
-    still be incomplete, from a repeat that changes nothing (CM-23-002,
-    CM-23-018).
+    It admits no one: :func:`closed_sender_door` asks it to tell a Case
+    Owner's redelivered ``Leave``, whose case closure may still be
+    incomplete, from a repeat that changes nothing (CM-23-002, CM-23-018).
+    It is the door Selector's last child, so its FAILURE is the tree's
+    answer; it reads the role through ``ActorHoldsRoleInCaseNode``, which
+    states no refusal, because the handler reports that repeat ``SKIPPED``,
+    not ``REFUSED`` (ID-05-003, #5903).
     """
     return with_case_id(
-        SenderIsCaseOwnerNode(sender_actor_id=sender_id), case_id
+        ActorHoldsRoleInCaseNode(
+            actor_id=sender_id,
+            role=CVDRole.CASE_OWNER,
+            name="SenderHoldsCaseOwner",
+        ),
+        case_id,
     )

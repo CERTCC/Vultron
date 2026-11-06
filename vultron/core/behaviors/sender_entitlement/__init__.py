@@ -110,11 +110,16 @@ logged: ``SenderClosureNotRecordedNode``, whose FAILURE the handler may report
 malformed activity (no ``actor_id``, an unreadable ledger entry) is an anomaly,
 not a standing the sender lacks, so it takes its level from SL-03-001 — WARNING
 at every such site but one, ERROR where ``SenderIsCaseManagerNode`` cannot read
-the ledger entry (#5862) — and records no refusal reason; and
-``SenderIsCaseOwnerNode``
-states its non-match in a DEBUG line of its own and records its reason without
-putting either through this rule, so a lone ``CASE_OWNER`` side's refusal never
-reaches WARNING — that gap is #5845, not this rule.
+the ledger entry (#5862) — and records no refusal reason.
+
+A tree that picks an arm on an actor's role, rather than refusing a sender,
+does not place one of these nodes: it asks
+``vultron.core.behaviors.role_condition.ActorHoldsRoleInCaseNode``, which
+states no refusal (ADR-0153).  A kind check words its non-match as a refusal,
+so placed where its FAILURE is the tree's answer — the last arm of a
+Selector, such as the CM-23-011 decline arm or the closed-sender door's
+fallback — it would log ``REFUSED (HP-01-006)`` at WARNING for a sender the
+guard admitted, or for a Leave the handler reports ``SKIPPED`` (#5903).
 
 Nodes
 -----

@@ -30,6 +30,7 @@ A repeated ``Leave`` from a sender the case already records as closed is
 (CM-23-018, ID-05-003).
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Any, cast
 
@@ -45,10 +46,10 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderExemption,
-    SenderIsCaseOwnerNode,
     SenderRule,
 )
 from vultron.core.models._helpers import now_utc
@@ -522,6 +523,41 @@ def test_a_second_leave_with_a_new_id_is_skipped_and_records_nothing() -> None:
     assert world.outbox() == outbox
 
 
+@pytest.mark.spec("CM-23-018", "ID-05-003", "SL-03-002", "SL-03-003")
+def test_a_skipped_repeat_leave_logs_no_sender_refusal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The closed-sender door turns a closed non-owner's repeated Leave away
+    as ``SKIPPED``, so no line claims a refusal.
+
+    The door's Case Owner arm is its Selector's last child, so a sender node
+    there would log ``REFUSED (HP-01-006)`` at WARNING for a delivery the
+    handler reports ``SKIPPED``.  The arm reads the role through
+    ``ActorHoldsRoleInCaseNode``, which states no refusal, and the closure
+    line keeps INFO (CM-23-018).
+    """
+    world = _World()
+    first = world.leave_from(world.finder.id_, suffix="first")
+    assert first.disposition is HandlerDisposition.APPLIED
+
+    with caplog.at_level(logging.DEBUG):
+        again = world.leave_from(world.finder.id_, suffix="second")
+
+    assert again.disposition is HandlerDisposition.SKIPPED
+    claims = [
+        record.getMessage()
+        for record in caplog.records
+        if "REFUSED" in record.getMessage()
+    ]
+    assert claims == []
+    assert not [
+        record
+        for record in caplog.records
+        if record.levelno >= logging.WARNING
+        and "Case Owner" in record.getMessage()
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Invite(Actor)
 # ---------------------------------------------------------------------------
@@ -580,10 +616,10 @@ def test_an_internal_error_asking_for_the_case_owner_is_raised(
         HandlerDisposition.APPLIED
     )
 
-    def _crash(self: SenderIsCaseOwnerNode) -> Any:
+    def _crash(self: ActorHoldsRoleInCaseNode) -> Any:
         raise RuntimeError("owner lookup crashed")
 
-    monkeypatch.setattr(SenderIsCaseOwnerNode, "update", _crash)
+    monkeypatch.setattr(ActorHoldsRoleInCaseNode, "update", _crash)
 
     with pytest.raises(VultronBTInternalError):
         world.leave_from(world.finder.id_, suffix="second")
