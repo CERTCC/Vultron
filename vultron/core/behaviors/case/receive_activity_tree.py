@@ -13,18 +13,19 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Receive-side tree composition: the staged shared factory (ADR-0111, ADR-0135).
+"""Receive-side tree composition: the staged shared factory (ADR-0135, ADR-0154).
 
 :func:`create_receive_activity_tree` is the one way to build a received-side
 BT.
-It fixes the stage order intake → door guards (post-close guard, addressee
-check, path stage, closed-sender check, sender guard) → clock decisions →
-precondition guards → guarded commit → protocol effects (CLP-10-006,
-CLP-10-010, CLP-10-025, ADR-0115, CM-23-013, HP-01-005) and
-supplies the shared intake node, the post-close write-boundary guard and the
-addressee door guard itself (CLP-10-017, ADR-0131, HP-01-005), so no handler
-opts out of recording what arrived, forgets the closed-case boundary or acts
-on a copy that was not addressed to it.  A tree leaves a door guard out only
+It fixes the stage order door guards (addressee check, seen-before door,
+path stage, post-close guard, closed-sender check, sender guard) → intake →
+clock decisions → precondition guards → guarded commit → protocol effects
+(CLP-10-006, CLP-10-010, CLP-10-025, ADR-0115, CM-23-013, HP-01-005) and
+supplies the door guards and the shared intake node itself (CLP-10-017,
+ADR-0131, HP-01-005), so no handler acts on a copy that was not addressed to
+it, re-runs a resend, forgets the closed-case boundary or opts out of
+recording what arrived.  Each door can end the run, and nothing is written
+before the last one admits the message (ADR-0154).  A tree leaves a door guard out only
 by naming a registered exemption (``post_close_exemption``,
 ``addressee_exemption``) that records why.
 
@@ -56,8 +57,8 @@ the CASE_MANAGER, once per received activity, and the tree still fails
 before the commit (CLP-10-022).
 
 When ``sender_rule`` is provided, the factory composes the sender guard from
-it and places it after the post-close guard and the addressee check and
-before the caller's ``precondition_guards``; a
+it and places it last among the door guards, before intake and the caller's
+``precondition_guards``; a
 tree whose case is resolved at run time names the read-only steps that
 resolve it (``case_resolution``), which run just before the guard.
 A failed sender guard ends the tree with ``REFUSED`` and nothing is written
@@ -132,6 +133,7 @@ from vultron.core.behaviors.case.receive_stages.doors import (
     path_stage_case_id,
     post_close_stage,
     received_path_stage,
+    seen_before_stage,
     sender_guard_stage,
 )
 from vultron.core.behaviors.case.receive_stages.effects import (
@@ -202,12 +204,13 @@ def create_receive_activity_tree(
 ) -> ReceivedActivityTree:
     """Compose a receive-side BT with the CLP-10-010 stages in order.
 
-    Structurally enforces the receive-side ordering (ADR-0111, ADR-0115,
-    ADR-0135, BT-17-008, CM-23-013)::
+    Structurally enforces the receive-side ordering (ADR-0115, ADR-0135,
+    ADR-0154, BT-17-008, CM-23-013)::
 
-        Intake → CaseOpenToExternalWrites → ActivityAddressedToReceiver
-            → [ReceivedPath] → [closed-sender check] → [*case_resolution]
-            → [sender guard]
+        ActivityAddressedToReceiver → ActivityNotSeenBefore → [ReceivedPath]
+            → CaseOpenToExternalWrites → [closed-sender check]
+            → [*case_resolution] → [sender guard]
+            → Intake
             → [CaseManagerGate[LedgerPositionAnswer]]
             → [CaseManagerGate[SenderSequenceOrder]]
             → [CaseManagerGate[ClockDecisionStage[
@@ -220,17 +223,29 @@ def create_receive_activity_tree(
     ``ActTransaction[GuardedCommit, *replica_effects, CaseManagerGate]``,
     named ``{name}Act``: the act's own entry and every consequence a later
     node commits are written together or not at all, so a failure keeps
-    nothing but intake's archive and a redelivery runs the act afresh
-    (CLP-07-015, ADR-0146, ADR-0151).  A tree runs them outside one only by
-    naming a registered ``one_act_exemption`` that records why.
+    nothing but intake's record, in holding, and a redelivery runs the act
+    afresh (CLP-07-015, ADR-0146, ADR-0151, CLP-10-074).  A tree runs them
+    outside one only by naming a registered ``one_act_exemption`` that
+    records why.
     :func:`received_stages` lists a tree's stages either way.
 
     The addressee door guard,
     :class:`~vultron.core.behaviors.case.nodes.addressee.ActivityAddressedToReceiverNode`,
-    follows the post-close guard in every received tree and refuses a copy
-    not addressed to the receiver (HP-01-005), naming the tree in its
-    reason.  Intake has archived the copy; nothing else runs (CLP-10-010,
-    CLP-10-018).  A tree opts out only with ``addressee_exemption``, a
+    is the first door of every received tree and refuses a copy not
+    addressed to the receiver (HP-01-005), naming the tree in its reason.
+    Nothing has been written and nothing else runs; the inbox's outcome stage
+    leaves the receipt stub (CLP-10-010, CLP-10-018).
+
+    The seen-before door,
+    :class:`~vultron.core.behaviors.case.nodes.seen_before.ActivityNotSeenBeforeNode`,
+    follows it in every received tree, with no exemption: a delivery the
+    receiver holds a record for is answered from that record's stage and the
+    run ends there, so a resend re-runs nothing and no refusal notice goes
+    out again (ADR-0154).  A receipt stub is ``REFUSED`` again with its
+    reason, an archive and a record owed a replay are ``SKIPPED``, and a
+    ``HELD`` record owing nothing passes: a run that ended with no verdict
+    runs again (CLP-10-074), and a nested tree meets its enclosing tree's
+    record.  A tree opts out only with ``addressee_exemption``, a
     registered
     :class:`~vultron.core.behaviors.case.nodes.addressee.AddresseeExemption`
     that records why (an ``Offer(VulnerabilityReport)`` stores what it carried first and
@@ -240,7 +255,7 @@ def create_receive_activity_tree(
     made once, here (HP-01-038, HP-01-007).  The factory places the
     path door stage
     (:class:`~vultron.core.behaviors.case.nodes.received_path.ReceivedPathNode`)
-    after the addressee check and before the sender guard, on ``case_id``
+    after the seen-before door and before the sender guard, on ``case_id``
     (else ``manager_case_id``, else the case the ``sender_context`` names, so
     a tree that commits nothing still asks about the case the activity is
     about): it asks
@@ -274,7 +289,7 @@ def create_receive_activity_tree(
 
     ``closed_sender`` places the closed-sender door guard
     (:func:`~vultron.core.behaviors.sender_guard.closed_sender_door`) on
-    ``case_id`` (else ``manager_case_id``), after the addressee check: when
+    ``case_id`` (else ``manager_case_id``), after the post-close guard: when
     the case records the sender's closure the tree stops there, with nothing
     committed or sent, and the handler asks
     :func:`~vultron.core.behaviors.sender_guard.closed_sender_turned_away`
@@ -359,22 +374,23 @@ def create_receive_activity_tree(
     :class:`~vultron.core.behaviors.case.nodes.refusal_stage.PreconditionGuardStage`
     (CLP-10-022)::
 
-        Intake → [sender guard]
+        [door guards] → Intake
             → PreconditionGuardStage
                 ├─ PreconditionGuards[*precondition_guards]
                 └─ RefusalEffects → CaseManagerGate[*refusal_effects]
             → GuardedCommit → …
 
-    Intake is one shared :class:`IntakeReceivedActivityNode` that archives the
-    received activity exactly as received, idempotently, and writes nothing
-    else — in particular no core record from any object inlined in it, which
-    an effect node writes from the event's copy after the guards
+    Intake is one shared :class:`IntakeReceivedActivityNode` that records the
+    received activity exactly as received, as its ``HELD`` record, and writes
+    nothing else — in particular no core record from any object inlined in
+    it, which an effect node writes from the event's copy after the guards
     (CLP-10-017).
-    It runs first so a guard that refuses the assertion still leaves the
-    receiver holding what arrived (CLP-10-018).
+    It runs right after the door guards, so a door's refusal writes nothing
+    and a precondition guard's leaves the body for the refusal notice and
+    the outcome stage (CLP-10-018, CLP-10-073).
 
-    The sender guard is placed immediately after intake and before the
-    caller's ``precondition_guards``.
+    The sender guard is the last door, before intake and the caller's
+    ``precondition_guards``.
     When the case it checks the sender against is resolved at run time, the
     tree passes the read-only steps that resolve it as ``case_resolution``,
     and the factory runs them just before the guard: an activity about a
@@ -429,9 +445,9 @@ def create_receive_activity_tree(
     guard's failure is an idempotent repeat the handler reports ``SKIPPED``
     (``ReportsIdempotentRepeat``).  The factory
     gates them on the CASE_MANAGER of ``case_id`` (when it is ``None`` the
-    gate resolves the case from the blackboard and skips without one), skips
-    them on a redelivery that intake
-    found already archived, and keeps the tree's result the guard's
+    gate resolves the case from the blackboard and skips without one), never
+    reaches them on a resend, which the seen-before door answered, and keeps
+    the tree's result the guard's
     ``FAILURE``, so nothing is committed and the handler still reports
     ``REFUSED`` for the guard's reason.  Each refusal effect must be
     emit-capable and contain no state writer: a refusal commits nothing, so
@@ -444,7 +460,7 @@ def create_receive_activity_tree(
 
     When ``case_id`` is ``None`` the commit step is omitted entirely,
     preserving behaviour for trees that receive no explicit case context;
-    intake still runs.
+    the doors and intake still run.
 
     Set ``case_may_be_absent`` when the receiver legitimately holds no replica
     of the case yet — an invitee holds only the Invite's case stub
@@ -560,18 +576,15 @@ def create_receive_activity_tree(
         ),
     )
 
-    intake = IntakeReceivedActivityNode()
-    children: list[py_trees.behaviour.Behaviour] = [intake]
-    children.extend(
-        post_close_stage(
-            name,
-            intake,
-            case_id or manager_case_id,
-            post_close_exemption,
-            post_close_reply or [],
-        )
+    # The doors, in the order of ADR-0154's questions: addressed to me?
+    # seen before? which path? open to writes, and the sender entitled?
+    # Each answer can end the run, and nothing is written before the last
+    # of them (CLP-10-010).
+    children: list[py_trees.behaviour.Behaviour] = list(
+        addressee_stage(name, addressee_exemption)
     )
-    children.extend(addressee_stage(name, addressee_exemption))
+    seen_door = seen_before_stage(name)
+    children.append(seen_door)
     stage_case_id = path_stage_case_id(
         case_id, manager_case_id, sender_context
     )
@@ -587,6 +600,14 @@ def create_receive_activity_tree(
     # before anything checks what the branches hold (HP-01-038).
     replica = resolve_path_branches(where, replica_effects or [], path_stage)
     check_replica_effects(name, replica, replica_emit_exemption)
+    children.extend(
+        post_close_stage(
+            name,
+            case_id or manager_case_id,
+            post_close_exemption,
+            post_close_reply or [],
+        )
+    )
     if closed_sender is not None:
         children.append(
             closed_sender_stage(
@@ -609,15 +630,19 @@ def create_receive_activity_tree(
     if guard is not None:
         children.append(guard)
     door_guards = list(children)
+    # Intake records the message only once every door has admitted it, so a
+    # message a door turns away is never held in full (CLP-10-017,
+    # CLP-10-018).
+    children.append(IntakeReceivedActivityNode())
     if guard is not None:
         children.extend(
             ledger_position_stage(
-                name, intake, sender_context, ledger_position_exemption
+                name, seen_door, sender_context, ledger_position_exemption
             )
         )
         children.extend(
             sender_sequence_stage(
-                name, intake, sender_context, sender_sequence_exemption
+                name, seen_door, sender_context, sender_sequence_exemption
             )
         )
     decisions = case_and_tree_decisions(
@@ -653,7 +678,6 @@ def create_receive_activity_tree(
         children.append(
             refusal_stage(
                 name,
-                intake,
                 guards,
                 effects,
                 case_id,

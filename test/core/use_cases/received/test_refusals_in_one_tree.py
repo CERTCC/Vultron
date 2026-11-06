@@ -14,8 +14,10 @@
 
 A received delivery runs exactly one tree (CLP-10-005, ADR-0135).  An
 activity too incomplete to build its handler's tree, or one naming a case this
-store does not hold, is refused by a guard of that tree, and the refused
-activity is still archived (CLP-10-018).
+store does not hold, is refused by a guard of that tree.  A precondition
+guard's refusal leaves intake's record for the outcome stage to reduce to a
+receipt stub; a door's (the path stage) leaves nothing, and the outcome stage
+writes the stub from the delivery's own body (CLP-10-018).
 """
 
 import pytest
@@ -102,9 +104,13 @@ def _run_move(verb: str, dl: SqliteDataLayer, event):
     ).execute()
 
 
-def _only_the_archive(dl: SqliteDataLayer, activity_id: str) -> None:
-    """The refused activity is kept, and nothing about the case is."""
-    assert dl.read(ReceivedActivityRecord.build_id(activity_id))
+def _only_the_archive(
+    dl: SqliteDataLayer, activity_id: str, *, recorded: bool = True
+) -> None:
+    """The refused activity is kept only if intake ran, and nothing about
+    the case is: a door's refusal precedes intake (CLP-10-010)."""
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    assert (record is not None) is recorded
     assert dl.read(_CASE_ID) is None
     assert dl.read(f"{_CASE_ID}/participants/coord") is None
 
@@ -142,4 +148,4 @@ def test_move_for_an_unknown_case_is_refused_in_one_tree(
     assert result.disposition == HandlerDisposition.REFUSED
     assert result.reason == f"holds no replica of case '{_CASE_ID}'"
     assert len(tree_runs) == 1
-    _only_the_archive(dl, event.activity_id)
+    _only_the_archive(dl, event.activity_id, recorded=False)

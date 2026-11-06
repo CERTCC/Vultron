@@ -176,8 +176,9 @@ def test_tentative_reject_triggers_invalidation(reporter, report, dl):
         expected=HandlerDisposition.REFUSED,
     )
 
-    # The refused delivery is still archived by intake (CLP-10-018).
-    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is not None
+    # A door refused it, so intake recorded nothing: the outcome stage
+    # leaves its receipt stub from the delivery's own body (CLP-10-018).
+    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is None
 
 
 def test_create_case_from_untrusted_sender_is_refused(coordinator, case, dl):
@@ -203,5 +204,6 @@ def test_reject_offer_triggers_close_report(reporter, report, dl):
         expected=HandlerDisposition.REFUSED,
     )
 
-    # The refused delivery is still archived by intake (CLP-10-018).
-    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is not None
+    # A door refused it, so intake recorded nothing: the outcome stage
+    # leaves its receipt stub from the delivery's own body (CLP-10-018).
+    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is None

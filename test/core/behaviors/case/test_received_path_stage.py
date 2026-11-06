@@ -472,10 +472,10 @@ def test_the_door_guards_run_in_the_clp_10_010_order() -> None:
     tree = _declared_tree()
 
     assert [type(unscoped(guard)).__name__ for guard in tree.door_guards] == [
-        "IntakeReceivedActivityNode",
-        "CaseOpenToExternalWritesNode",
         "ActivityAddressedToReceiverNode",
+        "ActivityNotSeenBeforeNode",
         "ReceivedPathNode",
+        "CaseOpenToExternalWritesNode",
         "Sequence",  # the composed SenderRuleGuard
     ]
 

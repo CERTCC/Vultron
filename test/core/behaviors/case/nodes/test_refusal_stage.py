@@ -23,9 +23,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.diversion_stage import DiversionStage
-from vultron.core.behaviors.case.nodes.intake import (
-    IntakeReceivedActivityNode,
-)
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
     RefusalEffectsBestEffort,
@@ -54,19 +51,15 @@ class _Counting(py_trees.behaviour.Behaviour):
 def _stage(
     guard_status: Status,
     effect_status: Status = Status.SUCCESS,
-    found_ids: list[str] | None = None,
 ) -> tuple[PreconditionGuardStage, _Counting, _Counting]:
     guard = _Counting("Guard", guard_status)
     effect = _Counting("Effect", effect_status)
-    intake = IntakeReceivedActivityNode()
-    intake.found_ids = list(found_ids or [])
     stage = PreconditionGuardStage(
         name="Stage",
         guards=py_trees.composites.Sequence(
             name="PreconditionGuards", memory=False, children=[guard]
         ),
         refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=effect),
-        intake=intake,
     )
     return stage, guard, effect
 
@@ -113,21 +106,6 @@ def test_a_failed_refusal_effect_keeps_the_guards_reason(caplog) -> None:
     )
 
 
-@pytest.mark.spec("CLP-10-044")
-def test_a_redelivery_skips_the_refusal_effects() -> None:
-    stage, _, effect = _stage(
-        Status.FAILURE, found_ids=["urn:uuid:already-archived"]
-    )
-
-    stage.tick_once()
-
-    assert stage.status == Status.FAILURE
-    assert stage.skipped_as_redelivery
-    assert effect.ticks == 0
-    assert effect.status == Status.INVALID
-    assert BTBridge.get_failure_reason(stage) == "Guard said FAILURE"
-
-
 class _RunningThenSuccess(_Counting):
     """Returns RUNNING on its first tick, then SUCCESS."""
 
@@ -146,7 +124,6 @@ def test_a_running_refusal_effect_resumes_without_rejudging() -> None:
             name="PreconditionGuards", memory=False, children=[guard]
         ),
         refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=effect),
-        intake=IntakeReceivedActivityNode(),
     )
 
     stage.tick_once()
@@ -193,7 +170,6 @@ def _stage_with(guard: py_trees.behaviour.Behaviour, effect: _Counting):
             name="PreconditionGuards", memory=False, children=[guard]
         ),
         refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=effect),
-        intake=IntakeReceivedActivityNode(),
     )
 
 

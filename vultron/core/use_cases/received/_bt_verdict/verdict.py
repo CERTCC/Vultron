@@ -106,27 +106,23 @@ def intake_verdict(
 ) -> HandlerResult:
     """The ``HandlerResult`` for a tree whose state change is intake.
 
-    Intake archives what arrived, so a run that archived the activity is
-    ``APPLIED`` and a run that found it already archived is the benign no-op
-    of a redelivery, ``SKIPPED`` (HP-01-014).  A tree may also carry effect
-    nodes, but only ones that are idempotent on a redelivery — a narrative
-    log line, or a write that keeps an existing record (the invitee's trust
-    anchor) — because they run again and the verdict still reads
-    ``SKIPPED``.  The intake node reports which it was, so the handler does
-    not inspect the DataLayer (ADR-0111).  A refused or failed run reads as
+    Intake records what arrived, so a run that got through its doors is
+    ``APPLIED``.  A resend never gets that far: the seen-before door answers
+    it from the message's record, ``SKIPPED`` for one already applied or
+    waiting (HP-01-014, ADR-0154), and :func:`verdict_from_bt` returns that
+    answer.  A tree may also carry effect nodes, but only ones that are
+    idempotent on a re-run after a run that ended with no verdict — a
+    narrative log line, or a write that keeps an existing record (the
+    invitee's trust anchor).  A refused or failed run reads as
     :func:`verdict_from_bt` reads it.
+
+    Raises:
+        VultronBTInternalError: *tree* has no intake node, so it records
+            nothing to report on.
     """
-    verdict = verdict_from_bt(tree, result, label=label)
-    if verdict.disposition is not HandlerDisposition.APPLIED:
-        return verdict
-    intake = find_node(tree, IntakeReceivedActivityNode)
-    if intake is None:
+    if find_node(tree, IntakeReceivedActivityNode) is None:
         raise VultronBTInternalError(f"{label}: tree has no intake node")
-    if intake.stored_anything:
-        return verdict
-    return HandlerResult.skipped(
-        f"{label}: nothing arrived that was not already held"
-    )
+    return verdict_from_bt(tree, result, label=label)
 
 
 def applied_or_raise(

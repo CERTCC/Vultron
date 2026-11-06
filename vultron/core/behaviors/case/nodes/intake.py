@@ -13,23 +13,31 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Intake: the first stage of every received-side tree (ADR-0111).
+"""Intake: the received tree's first write, once every door admitted it.
 
-:class:`IntakeReceivedActivityNode` archives the mail.  It stores the received
-activity exactly as received, idempotently, and performs no other write
-(CLP-10-017).  It decides nothing, gates nothing, and ledgers nothing: a
-guard that refuses the assertion a moment later leaves the archive in place
-(CLP-10-018).
+:class:`IntakeReceivedActivityNode` records the message.  It stores the
+received activity exactly as received, as the message's one ``HELD`` record,
+and performs no other write (CLP-10-017).  It decides nothing, gates nothing,
+and ledgers nothing.  What the receiver keeps is decided once the handling
+tree has run, by the outcome stage: the record is archived when the message
+is applied or skipped, and reduced to a receipt stub when it is refused
+(CLP-10-073, CLP-10-018).
+
+It runs after the door guards (CLP-10-010, ADR-0154): a message a door turns
+away is never held in full, and a resend has already been answered from its
+record by the seen-before door.  So every delivery that reaches intake is
+new, or is the re-run of a message a run left in holding with no verdict
+(CLP-10-074).
 
 What it stores is the body that arrived, as the parser sealed it (VM-08-002),
 which the event carries as its received evidence
 (``VultronEvent.received_evidence``), and nothing derived from it (ADR-0149).
-A received ledger entry records the same body (CLP-07-011), so the archive
+A received ledger entry records the same body (CLP-07-011), so the record
 and the ledger hold one account of what arrived.  A reader loads the body
 again: core through the ``ReceivedActivityLoader`` port, a reply
 through the wire seam that embeds it as received (DL-06-004).
 
-The archive is keyed by the receiver.  Each activity is written as one
+The record is keyed by the receiver.  Each activity is written as one
 :class:`~vultron.core.models.received_activity_record.ReceivedActivityRecord`
 whose id the receiver derives (``ReceivedActivityRecord.build_id``), never
 under the id the sender chose: a sender who names its activity after a record
@@ -44,21 +52,19 @@ here would let any sender seed a replica ahead of the trust checks
 (PCR-03-004, CBT-01-005), because a stored case row *is* the replica.  So
 intake never writes them.
 
-``create_receive_activity_tree`` supplies this node as the first child of
-every tree it builds, so no handler opts out and no handler needs a store node
-or a store helper for the received activity (CLP-10-019).
+``create_receive_activity_tree`` supplies this node in every tree it builds,
+right after the door guards, so no handler opts out and no handler needs a
+store node or a store helper for the received activity (CLP-10-019).
 
 Blackboard contract (BTND-03-003):
 
 - ``activity`` (READ, ``/activity``): the received
   :class:`~vultron.core.models.events.base.VultronEvent`, placed by
   ``BTBridge.execute_with_setup``.  Its ``received_evidence`` is the body to
-  archive, under its ``activity_id``.
+  record, under its ``activity_id``.
 
-The node exposes what it did through :attr:`stored_ids` and
-:attr:`found_ids`, so a handler whose only work is intake can report
-``APPLIED`` or ``SKIPPED`` (HP-01-014) without inspecting the DataLayer — see
-``intake_verdict`` in ``vultron/core/use_cases/received/_bt_verdict/``.
+The node keeps no record of what it did for a later node to read: whether a
+delivery is new is the seen-before door's answer, from the record (ADR-0154).
 """
 
 import logging
@@ -75,48 +81,33 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
 )
-from vultron.core.services.received_activity import (
-    held_received_record,
-    holds_received_activity,
-)
+from vultron.core.services.received_activity import held_received_record
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
 
 class IntakeReceivedActivityNode(DataLayerActionWithPorts):
-    """Archive the received activity as received: the body that arrived.
+    """Record the received activity as received: the body that arrived.
 
-    Each activity is archived as a ``ReceivedActivityRecord`` under the
-    receiver's own key (``ReceivedActivityRecord.build_id``), so a sender's
-    choice of id can collide with nothing but its own earlier delivery.  The
-    record holds the event's received evidence, the body the parser sealed
-    (VM-08-002), and nothing else (ADR-0149).
+    Each activity is recorded as a ``HELD`` ``ReceivedActivityRecord`` under
+    the receiver's own key (``ReceivedActivityRecord.build_id``), so a
+    sender's choice of id can collide with nothing but its own earlier
+    delivery.  The record holds the event's received evidence, the body the
+    parser sealed (VM-08-002), and nothing else (ADR-0149).
 
-    Idempotent: an activity whose body this store already holds is left
-    untouched and its sender id recorded in :attr:`found_ids`; one this store
-    did not hold is archived and recorded in :attr:`stored_ids`.  Presence is
-    the ``VultronAlreadyExistsError`` that ``create()`` raises on the derived
-    id.  Only that error is caught: any other failure to store is a fault
-    this node must surface (ARCH-15-001), not a benign duplicate.
+    A ``HELD`` record with no replay owed may already be there: a run that
+    ended with no verdict left it (CLP-10-074), or the enclosing received
+    tree's intake wrote it for a nested one.  It is left as it is, because
+    its body is the one this delivery brings (ingress refuses a different
+    one, IE-10-002).  Any other record means the seen-before door did not
+    run ahead of this node, which is a wiring fault: the node returns
+    ``FAILURE`` and writes nothing (ARCH-15-001).
 
-    One record it finds is not a body: a receipt stub, all an earlier
-    refusal left (CLP-10-018).  That delivery is still one this receiver has
-    seen, so its id goes in :attr:`found_ids`, and the body it brings is
-    archived over the stub, because the tree about to run may apply it
-    (:meth:`_archive_over_a_receipt_stub`).
-
-    An event with no received evidence is a resend under an id the receiver
-    already holds (VM-08-010, IE-10-001): it is routed without a body of its
-    own, so there is nothing new to archive.  Intake finds the record holding
-    it -- archived, or still owing the replay that will archive it -- and
-    succeeds having written nothing.  With neither, there is no body to archive and none
-    held: that is a wiring fault, and the node returns ``FAILURE`` and writes
-    nothing (ARCH-15-001).
-
-    Returns ``FAILURE`` also when the DataLayer is unavailable or no received
-    event is on the blackboard (ARCH-15-001); each is a wiring fault the
-    handler raises on rather than refusing the sender.
+    Returns ``FAILURE`` also when the DataLayer is unavailable, no received
+    event is on the blackboard, or the event carries no received evidence
+    (VM-08-002); each is a wiring fault the handler raises on rather than
+    refusing the sender.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -127,8 +118,6 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.activity: object | None = None
-        self.stored_ids: list[str] = []
-        self.found_ids: list[str] = []
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -137,11 +126,6 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
     def initialise(self) -> None:
         super().initialise()
         self.activity = self._try_get_input("activity")
-
-    @property
-    def stored_anything(self) -> bool:
-        """True when this run archived something new."""
-        return bool(self.stored_ids)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -156,13 +140,14 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
             self.feedback_message = ACTIVITY_UNAVAILABLE
             return Status.FAILURE
 
-        self.stored_ids = []
-        self.found_ids = []
         assert self.datalayer is not None
         activity_id = event.activity_id
         evidence = event.received_evidence
         if evidence is None:
-            return self._find_held(activity_id)
+            return self._wiring_fault(
+                f"activity '{activity_id}' carries no received body to"
+                " record (VM-08-002)"
+            )
         # BT-HELPER-01: ``update()`` owns the only try/except.  Presence is the
         # ``VultronAlreadyExistsError`` that ``create()`` raises on a duplicate;
         # any other failure to store is a fault this node surfaces
@@ -172,87 +157,44 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
                 ReceivedActivityRecord(
                     activity_id=activity_id,
                     received_body=evidence,
-                    # Intake is what archives (CLP-10-017); it never leaves a
-                    # body held for a replay, which is the inbox's own stage
-                    # (ADR-0154).
-                    stage=ReceivedStage.ARCHIVED,
+                    # In holding until the outcome stage settles it
+                    # (CLP-10-073, ADR-0154).
+                    stage=ReceivedStage.HELD,
                     replay_owed=False,
                 )
             )
         except VultronAlreadyExistsError:
-            self.found_ids.append(activity_id)
-            self._archive_over_a_receipt_stub(activity_id, evidence)
-            self.logger.debug(
-                "Intake: %s activity '%s' already held",
-                event.activity_type,
-                activity_id,
-            )
-            return Status.SUCCESS
-        self.stored_ids.append(activity_id)
+            return self._find_in_holding(activity_id)
         self.logger.info(
-            "Intake archived %s activity '%s'",
+            "Intake recorded %s activity '%s'",
             event.activity_type,
             activity_id,
         )
         return Status.SUCCESS
 
-    def _archive_over_a_receipt_stub(
-        self, activity_id: str, evidence: str
-    ) -> None:
-        """Archive *evidence* when all this receiver held was a receipt stub.
-
-        A receipt stub is what a refusal left (CLP-10-018): the receipt
-        without the message.  A later delivery of the same activity brings a
-        body again, and the tree about to run may apply it, so the archive
-        CLP-10-017 promises has to exist.  The stub is replaced by that
-        archive; the activity id stays in :attr:`found_ids`, because this
-        receiver *had* seen the activity before, which is the question every
-        reader of that list asks.
-
-        This runs only while the doors still follow intake.  Once the
-        seen-before door runs first, a resend of a refused message is
-        answered from its stub and never reaches intake (#5045's third
-        part).
-        """
+    def _find_in_holding(self, activity_id: str) -> Status:
+        """Answer a record already there: in holding and owed nothing, or a fault."""
         assert self.datalayer is not None
         record = held_received_record(self.datalayer, activity_id)
-        if record is None or not record.is_receipt_stub:
-            return
-        self.datalayer.save(
-            ReceivedActivityRecord(
-                activity_id=activity_id,
-                received_body=evidence,
-                stage=ReceivedStage.ARCHIVED,
-                replay_owed=False,
-                received_at=record.received_at,
-            )
-        )
-        self.logger.info(
-            "Intake archived activity '%s' over the receipt stub its earlier"
-            " refusal left (CLP-10-017, CLP-10-018)",
-            activity_id,
-        )
-
-    def _find_held(self, activity_id: str) -> Status:
-        """Answer an event with no body: find what this receiver holds.
-
-        A resend under an id already held carries no received evidence
-        (VM-08-010).  Finding the record that holds it -- archived, or still
-        owing the replay that archives it -- is success with nothing written;
-        finding none is a wiring fault (ARCH-15-001).
-        """
-        assert self.datalayer is not None
-        if holds_received_activity(self.datalayer, activity_id):
-            self.found_ids.append(activity_id)
+        if (
+            record is not None
+            and record.stage is ReceivedStage.HELD
+            and not record.replay_owed
+        ):
             self.logger.debug(
-                "Intake: activity '%s' carries no received body and is"
-                " already held; nothing to archive",
+                "Intake: activity '%s' is already in holding; it runs again"
+                " from the body held (CLP-10-074)",
                 activity_id,
             )
             return Status.SUCCESS
-        self.feedback_message = (
-            f"activity '{activity_id}' carries no received body to archive"
-            " and this receiver holds none for it (VM-08-002, ARCH-15-001)"
+        return self._wiring_fault(
+            f"activity '{activity_id}' is already"
+            f" {record.stage if record else 'held'}, so the seen-before door"
+            " should have answered it before intake (ADR-0154)"
         )
+
+    def _wiring_fault(self, message: str) -> Status:
+        """Fail with *message*, logged at ERROR (ARCH-15-001)."""
+        self.feedback_message = f"{message} (ARCH-15-001)"
         self.logger.error("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE

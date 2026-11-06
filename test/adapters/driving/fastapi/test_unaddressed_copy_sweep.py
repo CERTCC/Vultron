@@ -75,8 +75,9 @@ _EXAMPLES: dict[str, as_Activity] = activity_examples()
 _UNDISPATCHABLE: frozenset[str] = frozenset()
 
 #: Examples of a recognized semantic type no received use case handles
-#: (SE-05-002): reported "no use case found", so nothing archives them and no
-#: addressee check runs.  Each is a CASE_MANAGER-only act (ADR-0140, #4724).
+#: (SE-05-002): reported "no use case found", so no addressee check runs, and
+#: like any refusal each leaves a receipt stub and no body (CLP-10-074).  Each
+#: is a CASE_MANAGER-only act (ADR-0140, #4724).
 _UNHANDLED = frozenset(
     {
         "undo_embargo_invite",
@@ -187,9 +188,6 @@ def test_an_unaddressed_copy_is_refused_and_acts_on_nothing(
     )
     if name in _UNHANDLED:
         assert outcome.unhandled, f"{name} is handled now: drop it"
-        assert _object_counts(bystander_dl) == before
-        assert bystander_dl.outbox_list() == []
-        return
     receipt = ReceivedActivityRecord.build_id(activity.id_)
     if name in _REFUSED_BEFORE_ANY_TREE:
         # Pinned until its owning issue lands; then the entry must go.
@@ -234,6 +232,8 @@ def test_an_unaddressed_copy_is_refused_and_acts_on_nothing(
     assert not missing, f"{name}: did not keep {missing} (CM-15-002)"
     assert bystander_dl.outbox_list() == [], f"{name}: sent something"
     if name in _REFUSED_BEFORE_ANY_TREE:
+        return
+    if name in _UNHANDLED:
         return
     reason = outcome.failure_reason or ""
     expected = "not a to recipient" if kept else "HP-01-005"

@@ -18,15 +18,18 @@
 The outcome stage runs after the dispatch, on every path the dispatch can
 take, and maps the handler's one verdict onto what the receiver keeps:
 
-- applied, skipped: the record keeps the sealed body, and that is the archive
-  (CLP-10-017);
+- applied, skipped: the record intake wrote is archived with the sealed body
+  (CLP-10-017, CLP-10-073);
 - refused: a receipt stub, with the sender, the activity id, the time of
-  receipt, the reason and the body's digest, and no body (CLP-10-018);
+  receipt, the reason and the body's digest, and no body (CLP-10-018), also
+  when no record was written yet because nothing ran intake;
+- a semantic type no use case handles: refused, so a receipt stub and no body
+  (CLP-10-074);
 - a duplicate of an applied message: ``SKIPPED``, and nothing new stored;
 - deferred: the message is still waiting, so the holding record stands
   (IO-03-009);
-- a dispatch that raised, or a semantic type no use case handles: nothing
-  judged the message, so the body stays for the re-run (ADR-0151).
+- a dispatch that raised: nothing judged the message, so the body stays for
+  the re-run (ADR-0151, CLP-10-074).
 
 Each test drives the real inbox tree through ``process_payload`` with the
 production ingress, dispatch and outcome adapters.  The handler is a stub for
@@ -40,7 +43,7 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.received import archive_received, delivered_body
+from test.support.received import delivered_body, intake_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -136,8 +139,8 @@ class _DefersAndHolds:
     """A handler that holds the body for a replay, then defers.
 
     The shape of the buffered ``Announce(CaseLedgerEntry)`` whose handler
-    finds a ledger gap after intake archived the body (SYNC-14-001): the
-    record is archived *and* owes a replay when the outcome stage runs.
+    finds a ledger gap after intake recorded the body (SYNC-14-001): the
+    record is in holding *and* owes a replay when the outcome stage runs.
     """
 
     def __init__(self, dl: Any, request: Any) -> None:
@@ -167,15 +170,52 @@ class _HoldsThenRefuses(_DefersAndHolds):
 
 
 class _SpyOutcomePort(FastAPIReceivedOutcomePort):
-    """The production port, recording every refusal that reaches it."""
+    """The production port, recording every outcome that reaches it."""
 
     def __init__(self, dl: SqliteDataLayer) -> None:
         super().__init__(dl)
         self.refused: list[str] = []
+        self.applied: list[str] = []
 
-    def refuse(self, activity_id: str, *, sender_id: str, reason: str) -> None:
+    def apply(self, activity_id: str) -> None:
+        self.applied.append(activity_id)
+        super().apply(activity_id)
+
+    def refuse(
+        self,
+        activity_id: str,
+        *,
+        sender_id: str,
+        reason: str,
+        received_body: str | None,
+    ) -> None:
         self.refused.append(activity_id)
-        super().refuse(activity_id, sender_id=sender_id, reason=reason)
+        super().refuse(
+            activity_id,
+            sender_id=sender_id,
+            reason=reason,
+            received_body=received_body,
+        )
+
+
+class _RefusesUnread:
+    """A handler that refuses without reading anything, as a door does."""
+
+    def __init__(self, dl: Any, request: Any) -> None:
+        pass
+
+    def execute(self) -> HandlerResult:
+        return HandlerResult.refused(_REASON)
+
+
+class _AppliesUnread:
+    """A handler that applies without running intake: no tree at all."""
+
+    def __init__(self, dl: Any, request: Any) -> None:
+        pass
+
+    def execute(self) -> HandlerResult:
+        return HandlerResult.applied()
 
 
 class _Raises:
@@ -232,7 +272,7 @@ def _records(dl: SqliteDataLayer) -> list[ReceivedActivityRecord]:
 
 
 # ---------------------------------------------------------------------------
-# applied and skipped: the record keeps the sealed body
+# applied and skipped: the record intake wrote is archived
 # ---------------------------------------------------------------------------
 
 
@@ -246,7 +286,7 @@ def _records(dl: SqliteDataLayer) -> list[ReceivedActivityRecord]:
 def test_an_applied_or_skipped_message_keeps_its_sealed_body(
     dl, activity, body, verdict
 ):
-    archive_received(dl, activity)
+    intake_received(dl, activity)
     sealed = json.dumps(body, sort_keys=False)
 
     outcome = _deliver(dl, body, _dispatcher_for(_answering(verdict)))
@@ -274,7 +314,7 @@ def test_an_applied_or_skipped_message_keeps_its_sealed_body(
 def test_a_refused_message_leaves_a_receipt_stub_with_no_body(
     dl, activity, body
 ):
-    stored = archive_received(dl, activity)
+    stored = intake_received(dl, activity)
     sealed = stored.received_body
     assert sealed is not None
 
@@ -306,7 +346,7 @@ def test_the_run_reads_the_body_before_the_stub_replaces_it(
     through.  Were the stub written before the dispatch, this read would
     raise and the outcome would be an internal error, not a refusal.
     """
-    archive_received(dl, activity)
+    intake_received(dl, activity)
     use_case = _answering(HandlerResult.refused(_REASON))
 
     outcome = _deliver(dl, body, _dispatcher_for(use_case))
@@ -327,7 +367,7 @@ def test_the_run_reads_the_body_before_the_stub_replaces_it(
 @pytest.mark.spec("IO-03-009")
 @pytest.mark.spec("CLP-10-073")
 def test_a_deferred_message_stays_in_holding_with_its_body(dl, activity, body):
-    stored = archive_received(dl, activity)
+    stored = intake_received(dl, activity)
     sealed = stored.received_body
     assert sealed is not None
     port = _SpyOutcomePort(dl)
@@ -335,13 +375,15 @@ def test_a_deferred_message_stays_in_holding_with_its_body(dl, activity, body):
     outcome = _deliver(dl, body, _dispatcher_for(_DefersAndHolds), port)
 
     assert outcome.status is InboxOutcomeStatus.DEFERRED
-    # Deferred is not a refusal: the port is never asked for a stub.
+    # Deferred is no outcome: the port is asked neither to archive nor to
+    # leave a stub.
     assert port.refused == []
+    assert port.applied == []
     record = held_received_record(dl, activity.id_)
     assert record is not None
     assert record.received_body == sealed
     assert record.replay_owed is True
-    assert not record.is_receipt_stub
+    assert record.stage is ReceivedStage.HELD
 
 
 @pytest.mark.spec("CLP-10-076")
@@ -353,7 +395,7 @@ def test_a_refusal_of_a_body_still_owed_to_a_replay_leaves_it_held(
     Not a fault either: nothing is logged at ERROR (the held message
     reaches its own outcome when the replay runs).
     """
-    stored = archive_received(dl, activity)
+    stored = intake_received(dl, activity)
     sealed = stored.received_body
     port = _SpyOutcomePort(dl)
 
@@ -380,7 +422,7 @@ def test_a_dispatch_that_raised_leaves_the_body_for_the_re_run(
     dl, activity, body
 ):
     """An internal error is not an outcome, so nothing is given up."""
-    stored = archive_received(dl, activity)
+    stored = intake_received(dl, activity)
 
     outcome = _deliver(dl, body, _dispatcher_for(_Raises))
 
@@ -392,10 +434,17 @@ def test_a_dispatch_that_raised_leaves_the_body_for_the_re_run(
 
 
 @pytest.mark.spec("CLP-10-074")
+@pytest.mark.spec("CLP-10-018")
 @pytest.mark.spec("IO-01-005")
-def test_an_unhandled_semantic_type_leaves_the_body(dl, activity, body):
-    """ "No use case found" is no verdict on the assertion (IO-01-005)."""
-    stored = archive_received(dl, activity)
+def test_an_unhandled_semantic_type_leaves_a_stub(dl, activity, body):
+    """No use case applies it, so the receiver keeps no copy of it.
+
+    A sender cannot make a receiver keep an arbitrary body by choosing a
+    type it does not handle (ADR-0154): like any refusal, it leaves a
+    receipt stub with no body.  No use case ran, so no intake wrote a
+    record first: the stub is written from the delivery's own sealed body.
+    """
+    sealed = json.dumps(body, sort_keys=False)
 
     outcome = _deliver(dl, body, _dispatcher_for(None))
 
@@ -403,8 +452,48 @@ def test_an_unhandled_semantic_type_leaves_the_body(dl, activity, body):
     assert outcome.unhandled
     record = held_received_record(dl, activity.id_)
     assert record is not None
-    assert record.received_body == stored.received_body
-    assert not record.is_receipt_stub
+    assert record.is_receipt_stub
+    assert record.received_body is None
+    assert record.sender_id == _SENDER_ID
+    assert record.refusal_reason
+    assert record.body_hash is not None
+    assert json.loads(sealed)["id"] == activity.id_
+    assert len(_records(dl)) == 1
+
+
+@pytest.mark.spec("CLP-10-018")
+def test_a_refusal_before_any_intake_leaves_a_stub_of_the_delivered_body(
+    dl, activity, body
+):
+    """A door refuses before intake writes anything (ADR-0154).
+
+    The handler here records nothing, as a tree whose door refused records
+    nothing, so the stub's digest is the delivery's own sealed body's.
+    """
+    ingress = FastAPIIngressAdapter(dl=dl)
+    parsed = ingress.parse(body)
+    assert parsed is not None
+    sealed = parsed.received_evidence_json
+    assert sealed is not None
+
+    outcome = _deliver(dl, body, _dispatcher_for(_RefusesUnread))
+
+    assert outcome.status is InboxOutcomeStatus.REJECTED
+    record = held_received_record(dl, activity.id_)
+    assert record is not None and record.is_receipt_stub
+    assert record.body_hash == received_body_digest(sealed)
+    assert record.sender_id == _SENDER_ID
+
+
+@pytest.mark.spec("CLP-10-073")
+def test_an_applied_message_with_no_intake_record_leaves_nothing(
+    dl, activity, body
+):
+    """A tree-less handler wrote no record, so there is nothing to archive."""
+    outcome = _deliver(dl, body, _dispatcher_for(_AppliesUnread))
+
+    assert outcome.status is InboxOutcomeStatus.PROCESSED
+    assert _records(dl) == []
 
 
 # ---------------------------------------------------------------------------

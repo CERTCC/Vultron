@@ -588,7 +588,7 @@ never calls `create_case_manager_gated_tree` itself.
 - **Two effect kinds.** `replica_effects` run on every replica, ungated;
   `manager_effects` are wrapped in a `CaseManagerGate` on `manager_case_id`
   (separate from the commit's `case_id`, which may be `None`). Stage order:
-  intake → guards → commit → `replica_effects` → `manager_effects`.
+  doors → intake → guards → commit → `replica_effects` → `manager_effects`.
   `manager_gate_name`, `manager_body_name` and `manager_case_may_be_absent`
   configure the gate.
 - **Emit-capable nodes carry `EmitCapable`** (`vultron/core/behaviors/emit_capable.py`).

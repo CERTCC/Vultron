@@ -356,7 +356,8 @@ class TestActivityAddressedToReceiverNode:
 
 @pytest.mark.spec("CLP-10-010")
 @pytest.mark.spec("HP-01-005")
-def test_the_factory_places_it_between_post_close_and_the_sender_guard():
+def test_the_factory_places_it_first_ahead_of_the_seen_before_door():
+    """Addressed to me? is ADR-0154's first question (CLP-10-010)."""
     tree = create_receive_activity_tree(
         name="Probe",
         case_id=_CASE,
@@ -365,11 +366,12 @@ def test_the_factory_places_it_between_post_close_and_the_sender_guard():
         precondition_guards=[],
     )
 
-    assert isinstance(tree.children[1], CaseOpenToExternalWritesNode)
-    assert isinstance(tree.children[2], ActivityAddressedToReceiverNode)
-    assert tree.children[2].label == "Probe"
+    assert isinstance(tree.children[0], ActivityAddressedToReceiverNode)
+    assert tree.children[0].label == "Probe"
+    assert tree.children[1].name == "ActivityNotSeenBeforeNode"
+    assert isinstance(tree.children[2], CaseOpenToExternalWritesNode)
     assert tree.children[3].name == "SenderIsParticipantNode"
-    assert tree.children[2] in tree.door_guards
+    assert tree.children[0] in tree.door_guards
 
 
 @pytest.mark.spec("HP-01-005")

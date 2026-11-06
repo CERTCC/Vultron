@@ -93,8 +93,9 @@ def create_sender_sequence_stage(
     """The CASE_MANAGER's judgment of *sender_id*'s number on *case_id*.
 
     Runs only at the case's CASE_MANAGER; a store that does not hold the
-    case skips it at ``debug`` level.  *is_redelivery* tells an activity this
-    store had already archived, which the factory reads from intake.
+    case skips it at ``debug`` level.  *is_redelivery* tells the re-run of an
+    activity a run left in holding, which the factory reads from the
+    seen-before door; a resend never reaches this stage (ADR-0154).
     """
     classify = ClassifySequenceNumberNode(
         case_id=case_id,

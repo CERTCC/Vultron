@@ -41,6 +41,9 @@ from test.architecture._received_tree_builds import built_received_trees
 from test.architecture.test_received_tree_case_manager_gate import (
     _receive_calls,
 )
+from vultron.core.behaviors.case.nodes.intake import (
+    IntakeReceivedActivityNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
 )
@@ -136,8 +139,9 @@ def test_every_received_tree_answers_the_position_at_most_once() -> None:
 @pytest.mark.spec("SYNC-18-004")
 @pytest.mark.spec("CLP-10-010")
 def test_the_answer_follows_the_door_guards() -> None:
-    """It runs once the delivery is admitted and before anything judges the
-    act, so the act's outcome cannot decide whether it runs."""
+    """It runs once the delivery is admitted and recorded, before anything
+    judges the act, so the act's outcome cannot decide whether it runs: right
+    after intake, which follows the last door guard (CLP-10-010)."""
     misplaced: list[str] = []
     placed = 0
     for (rel, scope), tree in built_received_trees().items():
@@ -150,8 +154,8 @@ def test_the_answer_follows_the_door_guards() -> None:
             placed += 1
             index = names.index(LEDGER_POSITION_GATE_NAME)
             doors = len(received.door_guards)
-            if index != doors or received.children[index - 1] not in (
-                received.door_guards
+            if index != doors + 1 or not isinstance(
+                received.children[index - 1], IntakeReceivedActivityNode
             ):
                 misplaced.append(f"{rel}:{scope} [{received.name}]")
     assert placed, "no received tree answers a stamped ledger position"

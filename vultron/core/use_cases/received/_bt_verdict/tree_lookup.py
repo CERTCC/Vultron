@@ -129,9 +129,10 @@ def door_guards_admitted(
 ) -> bool:
     """True when the run got past every door guard of its tree (CLP-10-010).
 
-    The intake, the post-close guard, the addressee check and the sender
-    guard all ran and succeeded, so the delivery reached its clock decisions
-    and precondition guards, whatever those then decided.  Asked of the
+    The addressee check, the seen-before door, the path stage, the
+    post-close guard and the sender guard all ran and succeeded, so intake
+    recorded the delivery and it reached its clock decisions and precondition
+    guards, whatever those then decided.  Asked of the
     factory's record of its door guards, so the answer does not depend on
     which guard the tree runs first.
 

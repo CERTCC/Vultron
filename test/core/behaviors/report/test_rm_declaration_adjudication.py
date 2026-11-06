@@ -46,6 +46,7 @@ from test.support.embargo_register import (
     agree_to_active_embargo,
     write_consent_rows,
 )
+from test.support.received import settle_as_the_inbox
 from test.support.rm_declaration import (
     ACTOR_ID,
     CASE_ID,
@@ -593,6 +594,9 @@ class TestRefusedRegressionIsNoted:
         first = deliver()
         assert first.disposition is HandlerDisposition.REFUSED
         assert len(recorded_notes(dl)) == 1, "the first delivery is noted"
+        # The inbox's outcome stage leaves the receipt stub, and the
+        # seen-before door answers the redelivery from it (ADR-0154).
+        settle_as_the_inbox(dl, event, first)
 
         second = deliver()
 

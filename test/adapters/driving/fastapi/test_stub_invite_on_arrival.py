@@ -57,6 +57,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
     FastAPIIngressAdapter,
     FastAPIQueuePort,
+    FastAPIReceivedOutcomePort,
 )
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
@@ -171,6 +172,7 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
             dl=dl, actor_id=_INVITEE_ID, dispatcher=make_dispatcher()
         ),
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
+        received_outcome_port=FastAPIReceivedOutcomePort(dl),
     )
 
 
@@ -236,7 +238,7 @@ def _announce_body(case_manager_dl: SqliteDataLayer, actor: str) -> dict:
 def test_stub_invite_is_processed_on_arrival_and_archived(
     case_actor_dl, invitee_dl
 ):
-    """AC-1: processed, archived by intake and anchored — not deferred."""
+    """AC-1: processed, archived as applied and anchored — not deferred."""
     invite_id, body = _stub_invite_body(case_actor_dl)
 
     outcome = _deliver(invitee_dl, body)
@@ -246,7 +248,7 @@ def test_stub_invite_is_processed_on_arrival_and_archived(
     )
     record = invitee_dl.read(ReceivedActivityRecord.build_id(invite_id))
     assert isinstance(record, ReceivedActivityRecord)
-    assert record.stage is ReceivedStage.ARCHIVED, "archived by intake"
+    assert record.stage is ReceivedStage.ARCHIVED, "archived as applied"
     assert not record.replay_owed, "nothing is held back for replay"
     assert not isinstance(invitee_dl.read(_CASE_ID), VulnerabilityCase)
     pending = _pending(invitee_dl)

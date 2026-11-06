@@ -26,9 +26,6 @@ from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
     DiversionStage,
 )
-from vultron.core.behaviors.case.nodes.intake import (
-    IntakeReceivedActivityNode,
-)
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
@@ -62,7 +59,6 @@ from vultron.errors import VultronWiringError
 
 def refusal_stage(
     name: str,
-    intake: IntakeReceivedActivityNode,
     precondition_guards: list[py_trees.behaviour.Behaviour],
     refusal_effects: list[py_trees.behaviour.Behaviour],
     case_id: str | None,
@@ -134,7 +130,6 @@ def refusal_stage(
             children=precondition_guards,
         ),
         refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=gate),
-        intake=intake,
     )
 
 

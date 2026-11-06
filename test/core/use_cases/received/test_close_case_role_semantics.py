@@ -48,6 +48,7 @@ from test.support.ledger import fail_commits, is_consent_row_update
 from test.support.received import (
     TEST_SENDER_POSITION,
     received_event,
+    settle_as_the_inbox,
     with_evidence,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -1249,14 +1250,23 @@ class TestPostCloseWriteBoundary:
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.spec("CM-23-057")
     def test_a_late_reply_is_answered_at_most_once(self):
-        """A redelivered late Leave is not answered again under REJECT."""
+        """A redelivered late Leave is not answered again under REJECT.
+
+        The first refusal leaves a receipt stub (the inbox's outcome stage),
+        and the seen-before door refuses the redelivery from it before the
+        post-close boundary, so no reply runs again (ADR-0154).
+        """
         dl = _closed_dl()
         outbox_before = set(dl.outbox_list())
         activity_id = "https://example.org/activities/leave-late-twice"
+        event = _make_close_case_event(
+            sender_actor_id=VENDOR_ID, activity_id=activity_id
+        )
         for _ in range(2):
-            _close_with_policy(
+            result = _close_with_policy(
                 dl, VENDOR_ID, activity_id, PostCloseReply.REJECT
             )
+            settle_as_the_inbox(dl, event, result)
         queued = [i for i in dl.outbox_list() if i not in outbox_before]
         assert len(queued) == 1, queued
 

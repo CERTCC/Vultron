@@ -59,9 +59,6 @@ from vultron.core.behaviors.case.nodes.invite_inert_participant import (
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
-from vultron.core.behaviors.case.nodes.received_path import (
-    ReceivedPathNode,
-)
 from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteAwaitingNode,
     ReinviteNotToClosedParticipantNode,
@@ -1504,12 +1501,13 @@ def test_every_effect_is_inside_the_case_manager_gate(
     ],
     ids=["recommend", "offer", "accept", "reject"],
 )
-def test_sender_guard_follows_intake_and_precedes_the_commit(
+def test_sender_guard_is_the_last_door_and_precedes_the_commit(
     factory, kwargs, guard_type
 ):
-    """The sender guard sits between intake and the receipt commit.
+    """The sender guard is the last door: intake follows it, then the commit.
 
-    A refused sender therefore writes and sends nothing (ADR-0115).
+    A refused sender therefore writes and sends nothing (ADR-0115), and
+    nothing of its message is recorded (CLP-10-010).
     """
     children = received_stages(factory(**kwargs))
     names = [c.name for c in children]
@@ -1527,12 +1525,9 @@ def test_sender_guard_follows_intake_and_precedes_the_commit(
         for i, c in enumerate(children)
         if isinstance(c, ActivityAddressedToReceiverNode)
     )
-    path_stages = sum(
-        1 for c in children if isinstance(unscoped(c), ReceivedPathNode)
-    )
-    assert guard_index == addressee_index + 1 + path_stages, (
-        "the sender guard must come right after intake, the post-close"
-        " guard (CM-23-013), the addressee door (HP-01-005) and, in a tree"
-        " that declares its paths, the path stage (HP-01-035)"
+    assert addressee_index < guard_index
+    assert names.index("IntakeReceivedActivityNode") == guard_index + 1, (
+        "the sender guard must be the last door, right before intake"
+        " (CLP-10-010)"
     )
     assert guard_index < commit_index

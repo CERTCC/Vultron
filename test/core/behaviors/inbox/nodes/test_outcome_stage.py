@@ -85,13 +85,26 @@ class _StubDispatch:
 
 
 class _RecordingOutcomePort:
-    """Records each refusal; raises instead when *raises* is set."""
+    """Records each outcome; raises instead when *raises* is set."""
 
     def __init__(self, raises: bool = False) -> None:
         self.refused: list[tuple[str, str, str]] = []
+        self.applied: list[str] = []
         self._raises = raises
 
-    def refuse(self, activity_id: str, *, sender_id: str, reason: str) -> None:
+    def apply(self, activity_id: str) -> None:
+        if self._raises:
+            raise RuntimeError("store write failed (stub)")
+        self.applied.append(activity_id)
+
+    def refuse(
+        self,
+        activity_id: str,
+        *,
+        sender_id: str,
+        reason: str,
+        received_body: str | None,
+    ) -> None:
         if self._raises:
             raise RuntimeError("store write failed (stub)")
         self.refused.append((activity_id, sender_id, reason))
@@ -133,18 +146,26 @@ def test_a_refusal_reaches_the_port_with_the_sender_and_the_reason(activity):
 @pytest.mark.spec("CLP-10-073")
 @pytest.mark.parametrize(
     "result",
-    [
-        HandlerResult.applied(),
-        HandlerResult.skipped("already applied"),
-        HandlerResult.deferred("awaiting entry 3"),
-    ],
-    ids=["applied", "skipped", "deferred"],
+    [HandlerResult.applied(), HandlerResult.skipped("already applied")],
+    ids=["applied", "skipped"],
 )
-def test_no_other_disposition_reaches_the_port(activity, result):
+def test_an_applied_or_skipped_message_is_archived(activity, result):
     port = _RecordingOutcomePort()
 
     _run(activity, _StubDispatch(result), port)
 
+    assert port.applied == [activity.id_]
+    assert port.refused == []
+
+
+@pytest.mark.spec("CLP-10-073")
+def test_a_deferred_message_reaches_the_port_with_nothing(activity):
+    """Still waiting: it has no outcome yet (IO-03-009)."""
+    port = _RecordingOutcomePort()
+
+    _run(activity, _StubDispatch(HandlerResult.deferred("entry 3")), port)
+
+    assert port.applied == []
     assert port.refused == []
 
 
@@ -157,6 +178,7 @@ def test_a_dispatch_that_raised_reaches_the_port_with_nothing(activity):
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
     assert port.refused == []
+    assert port.applied == []
 
 
 @pytest.mark.spec("CLP-10-074")

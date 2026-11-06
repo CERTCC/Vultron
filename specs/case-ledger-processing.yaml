@@ -2212,16 +2212,17 @@ groups:
       delivery the guards accept, and so never precedes a commit.
     rationale: >-
       Receipt is a fact whether or not the CASE_MANAGER admits the assertion, so the
-      record of what arrived is written before any step judges it (ADR-0111). The
+      record of what arrived is written before any precondition guard judges it,
+      once the door guards have admitted it (ADR-0111, ADR-0154). The
       commit comes after the guards, so a refused activity commits nothing. Effects
       come after the commit, so an admitted assertion's effects follow the ledger
       record of their cause. A refusal effect runs only on a refused path, which has no
       ledger record and no other effect.
-    verification: '`test/architecture/test_receive_side_intake_first.py` asserts
+    verification: '`test/architecture/test_receive_side_staged_order.py` asserts
       that every receive-side tree factory under `vultron/core/behaviors/` returns
       the result of `create_receive_activity_tree` (including the factories that
       composed `create_case_manager_gated_tree` directly before #3870), so the tree
-      has the intake node as its first child; `test_receive_side_bt_commit_ordering.py`
+      runs its door guards, then intake; `test_receive_side_bt_commit_ordering.py`
       asserts the guarded commit comes after every guard and no protocol-effect node
       ahead of the commit, counting `refusal_effects` as effects, that nothing
       writes ahead of the commit outside intake, the clock decisions, a
@@ -2250,46 +2251,79 @@ groups:
     priority: MUST
     kind: project
     statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
-      subtree, the ordering MUST be: (1) intake, (2) door guards, in order: the
-      post-close write boundary (CM-23-013), the addressee check (HP-01-005), the
-      path stage (ADR-0153) and
-      the sender guard (HP-01-006), (2a) the ledger-position answer (SYNC-18-004,
-      SYNC-18-005, SYNC-18-007), (3) clock decisions
-      (CLP-10-025), (4) precondition guards, (5) commit, (6) all protocol effects.
-      Clock decisions are the only commits before stage (5), other than a
-      diversion (CLP-10-026), which answers its delivery in place of stages (5)
-      and (6). On a delivery the guards admit, the ledger-position answer is the
-      only write before stage (5) besides intake, the clock decisions and a
-      diversion: it records replication state and may queue a replay or re-seed,
-      commits nothing and leaves the disposition of the act to the later stages. Refusal
-      effects (CLP-10-022) belong to stage (4): they run only
-      after a precondition guard refuses, and the tree then ends without
-      reaching (5) or (6). A tree whose message type declares the paths it
-      handles carries the path stage. It asks the receiver''s role once and picks the
-      manager, participant-replica or no-case path. It refuses a path the declaration
-      omits, and it writes nothing.'
-    rationale: Intake records what arrived. The canonical case ledger records the cause
-      (the received activity the CASE_MANAGER accepted) and replicates it to all
-      participants, so cause precedes effects. A clock decision is the CASE_MANAGER's
-      own act, ledgered even when the activity is then admitted (CM-21-014), so it
-      runs before the guards that read it, and after the door guards so an
-      unentitled sender never makes it write (ADR-0135). The ledger-position answer
-      runs before the guards because it answers the sender's stated position
-      whatever the act's own outcome (SYNC-18-007), and after the door guards for
-      the same reason as a clock decision. The path stage runs among the door guards
-      because the role question decides whether the message is this receiver's to act
-      on at all, and ahead of the sender guard so the guard reads the path instead of
-      asking the same question a second time (HP-01-012).
-    verification: Covered by the structural test named in CLP-10-006;
+      subtree, the ordering MUST be: (1) door guards, in order: the addressee
+      check (HP-01-005), the seen-before door (ADR-0154), the path stage
+      (ADR-0153), the post-close write boundary (CM-23-013), the closed-sender
+      door (CM-23-018) and the sender guard (HP-01-006), (2) intake (CLP-10-017),
+      (2a) the ledger-position answer (SYNC-18-004, SYNC-18-005, SYNC-18-007),
+      (3) clock decisions (CLP-10-025), (4) precondition guards, (5) commit,
+      (6) all protocol effects. Each door guard may end the run, and nothing is
+      written before intake. The seen-before door answers a delivery the
+      receiver holds a record for from that record''s stage: a receipt stub is
+      `REFUSED` again with the reason the stub recorded, an archive is `SKIPPED`,
+      and a record still owed a replay is `SKIPPED`, and nothing after the door
+      runs, so no refusal notice is sent again; a record in holding that owes no
+      replay lets the delivery through, so a run that ended with no verdict runs
+      again (CLP-10-074). Clock decisions are the only commits before stage (5),
+      other than a diversion (CLP-10-026), which answers its delivery in place
+      of stages (5) and (6). On a delivery the guards admit, the ledger-position
+      answer is the only write before stage (5) besides intake, the clock
+      decisions and a diversion: it records replication state and may queue a
+      replay or re-seed, commits nothing and leaves the disposition of the act
+      to the later stages. Refusal effects (CLP-10-022) belong to stage (4):
+      they run only after a precondition guard refuses, and the tree then ends
+      without reaching (5) or (6). A tree whose message type declares the paths
+      it handles carries the path stage. It asks the receiver''s role once and
+      picks the manager, participant-replica or no-case path. It refuses a path
+      the declaration omits, and it writes nothing.'
+    rationale: >-
+      Each door asks a question whose answer can end the run, so the cheapest
+      questions come first and nothing is stored before the last answer: a message
+      that is not for the receiver costs one read and one receipt stub, not a held
+      copy (ADR-0154). Whether the message is addressed to the receiver is asked
+      first. Whether it was seen before is asked next, from the one record that holds
+      it, so a resend is answered from what was recorded and runs nothing (ADR-0154).
+      Inbox runs are serialized per actor, so a resend never meets a run in progress;
+      a record in holding that owes no replay was left by a run that ended with no
+      verdict, and running it again is how it reaches its outcome. Whether a closed
+      case takes the write is a question about the case, asked beside the sender guard
+      once the message is known to be for the receiver. The canonical case ledger
+      records the cause (the received activity the CASE_MANAGER accepted) and
+      replicates it to all participants, so cause precedes effects. A clock decision
+      is the CASE_MANAGER's own act, ledgered even when the activity is then admitted
+      (CM-21-014), so it runs before the guards that read it, and after the door
+      guards so an unentitled sender never makes it write (ADR-0135). The ledger-
+      position answer runs before the guards because it answers the sender's stated
+      position whatever the act's own outcome (SYNC-18-007), and after the door guards
+      for the same reason as a clock decision. The path stage runs among the door
+      guards because the role question decides whether the message is this receiver's
+      to act on at all, and ahead of the sender guard so the guard reads the path
+      instead of asking the same question a second time (HP-01-012).
+    verification: >-
+      Covered by the structural test named in CLP-10-006, and by
+      `test/architecture/test_received_tree_staged_doors.py`, which asserts in every
+      built received tree that the seen-before door is a door guard after the
+      addressee check and that intake follows the last door guard;
       `test/core/behaviors/case/test_received_path_stage.py` pins the path stage's
-      place among the door guards.
+      place among the door guards;
+      `test/core/behaviors/case/nodes/test_seen_before.py` and
+      `test/adapters/driving/fastapi/test_seen_before_door.py` drive a resend against
+      a receipt stub, an archive, a record owed a replay and a record left in holding,
+      and assert each answer and that nothing after the door ran.
     adr:
     - ADR-0111
     - ADR-0135
     - ADR-0153
+    - ADR-0154
     relationships:
     - rel_type: uses_definition
+      spec_id: CLP-10-017
+    - rel_type: uses_definition
       spec_id: CM-23-013
+    - rel_type: uses_definition
+      spec_id: CM-23-018
+    - rel_type: uses_definition
+      spec_id: CLP-10-074
     - rel_type: uses_definition
       spec_id: HP-01-005
     - rel_type: uses_definition
@@ -2563,23 +2597,29 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Every receive-side BT tree MUST begin with the shared intake node that
-      `create_receive_activity_tree` supplies. The record that node writes is the
-      message's one staged record, not yet at its final stage: what the receiver keeps
+      Every receive-side BT tree MUST run the shared intake node that
+      `create_receive_activity_tree` supplies, right after its door guards
+      (CLP-10-010). The record that node writes is the message's one staged
+      record, in holding and not yet at its final stage: what the receiver keeps
       is decided once the tree has run, by the outcome stage (CLP-10-073).
     rationale: >-
       Receipt is a fact whether or not the receiver admits the assertion, so the record
-      of what arrived is written before any step judges it. One shared node gives every
-      received tree the same first step (ADR-0111). Keeping the body permanently is a
-      separate question from recording the receipt, and it is answered by the verdict,
-      so the archive a reader loads holds only messages the receiver applied
-      (ADR-0154).
+      of what arrived is written before any precondition guard judges it. It is
+      written after the door guards, so a message a door turns away costs one read
+      and a receipt stub, never a held copy, and a resend is answered from its record
+      before anything is written (ADR-0154). One shared node gives every received tree
+      the same step (ADR-0111). Keeping the body permanently is a separate question
+      from recording the receipt, and it is answered by the verdict, so the archive a
+      reader loads holds only messages the receiver applied (ADR-0154).
     verification: >-
-      `test/architecture/test_receive_side_intake_first.py` asserts the intake node is
-      the first child of every tree `create_receive_activity_tree` returns and that
-      every receive-side factory returns that tree.
-      `test/adapters/driving/fastapi/test_received_outcome_stage.py` asserts an applied
-      or skipped delivery keeps the sealed body intake wrote.
+      `test/architecture/test_receive_side_staged_order.py` asserts every receive-side
+      factory returns the tree `create_receive_activity_tree` builds, and
+      `test/architecture/test_received_tree_staged_doors.py` that in every built
+      received tree intake is the child right after the last door guard.
+      `test/core/behaviors/case/nodes/test_intake.py` asserts a door refusal records
+      nothing. `test/adapters/driving/fastapi/test_received_outcome_stage.py` asserts
+      an applied or skipped delivery's record is archived with the sealed body intake
+      wrote.
     adr:
     - ADR-0111
     - ADR-0149
@@ -2915,11 +2955,11 @@ groups:
       The first delivery already answered the refusal. A second answer for a redelivery
       would tell the sender twice about one refusal.
     verification: >-
-      `test_a_redelivery_skips_the_refusal_effects` in
-      `test/core/behaviors/case/nodes/test_refusal_stage.py` and
       `test_a_redelivery_queues_no_second_notice` in
-      `test/core/use_cases/received/test_refusal_notice.py` assert a redelivery runs no
-      refusal effect.
+      `test/core/use_cases/received/test_refusal_notice.py` asserts the seen-before door
+      refuses a redelivery from its receipt stub before any refusal effect runs, and
+      `test/adapters/driving/fastapi/test_seen_before_door.py` that a resend of a
+      refused message sends nothing (ADR-0154).
     relationships:
     - rel_type: extends
       spec_id: CLP-10-022
@@ -3608,9 +3648,10 @@ groups:
     statement: >-
       One outcome stage, outside the handling tree and after it, MUST map the handler's
       disposition onto the received record's final stage: an APPLIED or SKIPPED delivery
-      keeps the sealed body the record holds, and that is the archive (CLP-10-017); a
-      REFUSED delivery leaves a receipt stub and no body (CLP-10-018); a DEFERRED
-      delivery leaves the holding record as the wait left it (IO-03-009). The stage
+      keeps the sealed body the record holds, which moves from holding to the archive
+      (CLP-10-017); a REFUSED delivery leaves a receipt stub and no body (CLP-10-018);
+      a DEFERRED delivery leaves the holding record as the wait left it (IO-03-009).
+      The stage
       reads that disposition from the handler's result, the handler's only channel to
       the inbox (UCORG-05-010), and not from state an earlier stage left in memory
       (CLP-10-078). It records the outcome and never decides one (CLP-10-079).
@@ -3626,9 +3667,9 @@ groups:
       `test/adapters/driving/fastapi/test_received_outcome_stage.py` drives each
       disposition through the real inbox tree and asserts what remains, including a
       handler that reads the body through the function the refusal notice reads it
-      through and is then refused;
-      `test/architecture/test_intake_flag_readers.py` asserts no module outside the
-      handling tree reads the intake node's in-memory lists.
+      through and is then refused; `test/core/services/test_received_outcome.py`
+      asserts an applied message is archived with its body and one still owed a replay
+      stays in holding.
     relationships:
     - rel_type: uses_definition
       spec_id: CLP-10-017
@@ -3645,18 +3686,26 @@ groups:
     kind: project
     statement: >-
       A delivery that produced no handler verdict MUST leave the received record exactly
-      as it is, with its sealed body. That covers a dispatch that raised, a dispatch
-      that returned no `HandlerResult`, and a semantic type no use case handles
-      (IO-01-005).
+      as it is, in holding with its sealed body. That covers a dispatch that raised and
+      a dispatch that returned no `HandlerResult`. A semantic type no use case handles
+      (IO-01-005) is not such a delivery: it is `REFUSED`, so it leaves a receipt stub
+      and no body (CLP-10-018).
     rationale: >-
-      None of those is a verdict on the assertion, so none is an outcome. The act rolled
-      back and kept nothing (ADR-0151), so a resend or a re-run must be able to run it
-      again from the body the receiver holds; reducing that record to a receipt stub
-      would record a refusal the receiver never made and take the body the re-run needs
-      (ADR-0154).
+      A dispatch that raised is not a verdict on the assertion, so it is not an
+      outcome. The act rolled back and kept nothing (ADR-0151), so a resend or a re-run
+      must be able to run it again from the body the receiver holds; reducing that
+      record to a receipt stub would record a refusal the receiver never made and take
+      the body the re-run needs (ADR-0154). A message no use case handles is different:
+      nothing will ever apply it, its disposition is `REFUSED`, and keeping its body
+      would let any sender make the receiver keep an arbitrary body indefinitely by
+      choosing a type the receiver does not handle (ADR-0154: a message the receiver
+      will not act on costs one read and one stub, not a permanent copy).
     verification: >-
       `test/adapters/driving/fastapi/test_received_outcome_stage.py` asserts the body
-      stays after a dispatch that raised and after an unhandled semantic type;
+      stays after a dispatch that raised, and that an unhandled semantic type leaves a
+      receipt stub with no body;
+      `test/adapters/driving/fastapi/test_unaddressed_copy_sweep.py` asserts the stub
+      for every unhandled example type;
       `test/adapters/driving/fastapi/test_failed_act_redelivery.py` asserts the resend of
       a failed act is applied from the body the receiver kept.
     relationships:
@@ -3664,6 +3713,8 @@ groups:
       spec_id: CLP-10-073
     - rel_type: uses_definition
       spec_id: IO-01-005
+    - rel_type: uses_definition
+      spec_id: CLP-10-018
     adr:
     - ADR-0154
   - id: CLP-10-075
@@ -3732,17 +3783,18 @@ groups:
     kind: project
     statement: >-
       The outcome stage MUST NOT decide the received record's final stage from in-memory
-      state an earlier stage left behind, including the intake node's own lists of what
-      it stored and what it found.
+      state an earlier stage left behind.
     rationale: >-
       Every stage reads the record and the store, so the stages stay separable and a
       later one cannot be fooled by what an earlier one happened to leave in memory
       (ADR-0154). The handler's result is the one channel from the handling tree
       (UCORG-05-010); whether a delivery was seen before is a question for the record.
     verification: >-
-      `test/architecture/test_intake_flag_readers.py` pins the readers of the intake
-      node's lists to an exact allow-list, every one inside the handling tree, and
-      names the outcome stage as reading none.
+      `test/core/behaviors/inbox/nodes/test_outcome_stage.py` drives every disposition
+      through the stage, with an ingress whose event no intake node ever saw, and
+      asserts the outcome follows the verdict alone;
+      `test/core/behaviors/case/nodes/test_intake.py::test_intake_keeps_nothing_for_a_later_stage`
+      asserts the intake node exposes no per-run state a later stage could read.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-073

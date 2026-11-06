@@ -49,7 +49,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from test.support.ledger_records import with_ledger_records
-from test.support.received import received_event
+from test.support.received import received_event, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -180,6 +180,10 @@ def route_received(
         dl, event, **{k: v for k, v in ports.items() if k in accepted}
     ).execute()
     assert isinstance(result, HandlerResult)
+    # The inbox's outcome stage settles the record after the run, so a
+    # second route of the same activity meets its seen-before door
+    # (ADR-0154).
+    settle_as_the_inbox(dl, event, result)
     return result
 
 

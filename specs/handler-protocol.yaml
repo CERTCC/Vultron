@@ -706,14 +706,16 @@ groups:
     kind: architecture
     statement: >-
       The receive-tree factory MUST place the HP-01-005 addressee check in every
-      received tree, after intake and the post-close boundary and before the sender
-      guard.
+      received tree as its first door guard, ahead of the seen-before door, the path
+      stage, the post-close boundary, the sender guard and intake (CLP-10-010).
     rationale: >-
       HP-01-005 applies to every handler. If each tree must ask for the check, a tree
       can forget it. That tree then acts on copies addressed to a different party. A
       check written one time in the factory cannot be forgotten. A closed exemption
       list, with a reason for each entry, makes each tree that is different a visible
-      decision (CS-22-001).
+      decision (CS-22-001). It is the first question because a copy that is not for
+      the receiver is refused before anything else is asked of it or written for it:
+      it costs one read and a receipt stub (ADR-0154).
     verification: >-
       `test/architecture/test_received_tree_addressee_guard.py::test_every_received_tree_carries_the_guard_unless_exempt`
       builds every received tree and fails on one without the guard whose site is
@@ -721,7 +723,10 @@ groups:
       `test/adapters/driving/fastapi/test_unaddressed_copy_sweep.py` delivers every
       example activity to a store it was not addressed to and asserts it is refused,
       that what remains of it is a receipt stub with no body that names the sender, a
-      reason and the body's digest, and that it acts on nothing.
+      reason and the body's digest, and that it acts on nothing;
+      `test/architecture/test_received_tree_staged_doors.py` asserts in every built
+      received tree that the addressee check comes before the seen-before door and
+      that intake follows the last door guard.
     relationships:
     - rel_type: implements
       spec_id: HP-01-005

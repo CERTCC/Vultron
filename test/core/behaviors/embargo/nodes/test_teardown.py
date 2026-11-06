@@ -813,6 +813,7 @@ class TestApplyEmbargoTeardownNode:
         """Its received Announce is held, never patched over (ADR-0124)."""
         from vultron.core.models.received_activity_record import (
             ReceivedActivityRecord,
+            ReceivedStage,
         )
         from vultron.core.services.held_ledger_announces import (
             held_ledger_announces,
@@ -826,11 +827,13 @@ class TestApplyEmbargoTeardownNode:
         node.activity = type(
             "Carrier", (), {"log_entry": entry, "activity_id": announce_id}
         )()
-        # Intake archived the Announce that carried the entry (CLP-10-017).
+        # Intake recorded the Announce that carried the entry (CLP-10-017).
         dl.save(
             ReceivedActivityRecord(
                 activity_id=announce_id,
                 received_body=f'{{"id": "{announce_id}", "type": "Announce"}}',
+                stage=ReceivedStage.HELD,
+                replay_owed=False,
             )
         )
 
@@ -857,6 +860,7 @@ class TestApplyEmbargoTeardownNode:
         """With the holding area full, the refusal is reported as not held."""
         from vultron.core.models.received_activity_record import (
             ReceivedActivityRecord,
+            ReceivedStage,
         )
         from vultron.core.services import held_ledger_announces
         from vultron.errors import VultronEntryRefusedError
@@ -875,6 +879,8 @@ class TestApplyEmbargoTeardownNode:
             ReceivedActivityRecord(
                 activity_id=announce_id,
                 received_body=f'{{"id": "{announce_id}", "type": "Announce"}}',
+                stage=ReceivedStage.HELD,
+                replay_owed=False,
             )
         )
 

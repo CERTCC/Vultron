@@ -175,25 +175,47 @@ class PendingCaseQueuePort(Protocol):
 class ReceivedOutcomePort(Protocol):
     """Port: move a received record to its final outcome stage (ADR-0154).
 
-    Only a refusal changes what the receiver keeps, so that is the only
-    method: an applied or skipped message keeps the sealed body it already
-    holds, a deferred one stays in holding, and an internal error leaves the
-    record untouched for the re-run (CLP-10-017, CLP-10-018).
+    An applied or skipped message's record is archived with the sealed body
+    it holds (:meth:`apply`), a refused one leaves a receipt stub
+    (:meth:`refuse`), a deferred one stays in holding, and an internal error
+    leaves the record untouched for the re-run (CLP-10-073, CLP-10-074).
     """
 
-    def refuse(self, activity_id: str, *, sender_id: str, reason: str) -> None:
+    def apply(self, activity_id: str) -> None:
+        """Archive the ``HELD`` record of an applied or skipped *activity_id*.
+
+        Nothing is written for a record already at its outcome, one still
+        owed a replay, or no record at all (CLP-10-073, CLP-10-076).
+
+        Raises:
+            Exception: Whatever the store raises.  ``update()`` in the
+                calling node is what catches it (BT-HELPER-01).
+        """
+        ...  # pragma: no cover
+
+    def refuse(
+        self,
+        activity_id: str,
+        *,
+        sender_id: str,
+        reason: str,
+        received_body: str | None,
+    ) -> None:
         """Give up *activity_id*'s body for a receipt stub.
 
         The stub records *sender_id*, the activity id, the time of receipt,
-        *reason* and the digest of the body (CLP-10-018).  Idempotent: a
-        second refusal of the same activity leaves the first reason standing.
+        *reason* and the digest of the body (CLP-10-018).  A delivery a door
+        refused before intake ran has no record, so its stub is written from
+        *received_body*, its own sealed body.  Idempotent: a second refusal
+        of the same activity leaves the first reason standing.
 
         A body still owed to a replay is left as it is: the replay is the
         held message's own outcome (CLP-10-076).
 
         Raises:
             Exception: Whatever the store raises, and a wiring error when
-                nothing is held for *activity_id*.  ``update()`` in the
-                calling node is what catches it (BT-HELPER-01).
+                nothing is held for *activity_id* and no *received_body* is
+                given.  ``update()`` in the calling node is what catches it
+                (BT-HELPER-01).
         """
         ...  # pragma: no cover

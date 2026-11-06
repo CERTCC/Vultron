@@ -376,10 +376,11 @@ def test_create_engage_case_tree_returns_sequence(
     assert tree.name == "EngageCaseBT"
     assert hasattr(tree, "children")
     # RSH-08-003 (#3814): the RM write, gap note and broadcast now sit inside
-    # one CASE_MANAGER gate, so the top level is intake, the post-close guard
-    # (CM-23-013), the addressee door guard (HP-01-005), the path stage
-    # (HP-01-035), the sender guard (HP-01-008, #4696), the answer to the
-    # sender's ledger position (SYNC-18-007), the sender-sequence stage
+    # one CASE_MANAGER gate, so the top level is the addressee door guard
+    # (HP-01-005), the seen-before door (ADR-0154), the path stage
+    # (HP-01-035), the post-close guard (CM-23-013), the sender guard
+    # (HP-01-008, #4696), intake, the answer to the sender's ledger position
+    # (SYNC-18-007), the sender-sequence stage
     # (SYNC-21-023), the clock decisions (CLP-10-025), the guard stage, the
     # guarded commit, and that gate.
     assert len(received_stages(tree)) == 11
@@ -397,12 +398,13 @@ def test_create_defer_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "DeferCaseBT"
     assert hasattr(tree, "children")
-    # RSH-08-003 (#3814): intake, the post-close guard (CM-23-013), the
-    # addressee door guard (HP-01-005), the path stage (HP-01-035), the
-    # sender guard, the answer to the sender's ledger position
-    # (SYNC-18-007), the sender-sequence stage (SYNC-21-023), the clock
-    # decisions (CLP-10-025), the guard stage, the guarded commit, and the
-    # CASE_MANAGER gate holding the RM write + gap note.
+    # RSH-08-003 (#3814): the addressee door guard (HP-01-005), the
+    # seen-before door (ADR-0154), the path stage (HP-01-035), the post-close
+    # guard (CM-23-013), the sender guard, intake, the answer to the sender's
+    # ledger position (SYNC-18-007), the sender-sequence stage (SYNC-21-023),
+    # the clock decisions (CLP-10-025), the
+    # guard stage, the guarded commit, and the CASE_MANAGER gate holding the
+    # RM write + gap note.
     assert len(received_stages(tree)) == 11
 
 
@@ -413,21 +415,24 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
         sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
     stages = received_stages(tree)
-    # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
-    assert stages[0].name == "IntakeReceivedActivityNode"
-    assert stages[1].name == "CaseOpenToExternalWrites"
-    # The copy must be addressed to the receiver (HP-01-005) ...
-    assert stages[2].name == "ActivityAddressedToReceiverNode"
-    # ... the path stage asks the receiver's role once and admits only a
-    # declared path (HP-01-035, HP-01-038) ...
-    assert stages[3].name == "ReceivedPathNode"
-    # The sender must be a participant (HP-01-006), checked by the guard the
-    # factory composes from the declared rule (HP-01-025, #4696) ...
-    assert stages[4].name == "SenderIsParticipantNode"
+    # The doors, in ADR-0154's order: the copy must be addressed to the
+    # receiver (HP-01-005), not seen before, on a declared path (HP-01-035,
+    # HP-01-038), at an open case (CM-23-013), from a participant
+    # (HP-01-006, a guard the factory composes from the declared rule,
+    # HP-01-025, #4696) ...
+    assert [s.name for s in stages[:5]] == [
+        "ActivityAddressedToReceiverNode",
+        "ActivityNotSeenBeforeNode",
+        "ReceivedPathNode",
+        "CaseOpenToExternalWrites",
+        "SenderIsParticipantNode",
+    ]
+    # ... then intake records what arrived (CLP-10-017) ...
+    assert stages[5].name == "IntakeReceivedActivityNode"
     # ... the CASE_MANAGER answers its ledger position (SYNC-18-007) ...
-    assert stages[5].name == "LedgerPositionIfCaseManager"
+    assert stages[6].name == "LedgerPositionIfCaseManager"
     # ... judges the sender's number in its order (SYNC-21-023) ...
-    assert stages[6].name == "SenderSequenceIfCaseManager"
+    assert stages[7].name == "SenderSequenceIfCaseManager"
     assert stages[7].name == "ClockDecisionsIfCaseManager"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage (CLP-10-022); a refused regression is
@@ -491,21 +496,24 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
         sender_rule=DEFER_RULE,
     )
     stages = received_stages(tree)
-    # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
-    assert stages[0].name == "IntakeReceivedActivityNode"
-    # The case must not be fully closed at the CASE_MANAGER (CM-23-013) ...
-    assert stages[1].name == "CaseOpenToExternalWrites"
-    # The copy must be addressed to the receiver (HP-01-005) ...
-    assert stages[2].name == "ActivityAddressedToReceiverNode"
-    # ... the path stage asks the receiver's role once and admits only a
-    # declared path (HP-01-035, HP-01-038) ...
-    assert stages[3].name == "ReceivedPathNode"
-    # The sender must be a participant (HP-01-006) ...
-    assert stages[4].name == "SenderIsParticipantNode"
+    # The doors, in ADR-0154's order: the copy must be addressed to the
+    # receiver (HP-01-005), not seen before, on a declared path (HP-01-035,
+    # HP-01-038), at an open case (CM-23-013), from a participant
+    # (HP-01-006, a guard the factory composes from the declared rule,
+    # HP-01-025, #4696) ...
+    assert [s.name for s in stages[:5]] == [
+        "ActivityAddressedToReceiverNode",
+        "ActivityNotSeenBeforeNode",
+        "ReceivedPathNode",
+        "CaseOpenToExternalWrites",
+        "SenderIsParticipantNode",
+    ]
+    # ... then intake records what arrived (CLP-10-017) ...
+    assert stages[5].name == "IntakeReceivedActivityNode"
     # ... the CASE_MANAGER answers its ledger position (SYNC-18-007) ...
-    assert stages[5].name == "LedgerPositionIfCaseManager"
+    assert stages[6].name == "LedgerPositionIfCaseManager"
     # ... judges the sender's number in its order (SYNC-21-023) ...
-    assert stages[6].name == "SenderSequenceIfCaseManager"
+    assert stages[7].name == "SenderSequenceIfCaseManager"
     # ... then the CASE_MANAGER's clock decisions, the embargo end-time
     # check among them (CLP-10-025, EMB-13-003) ...
     assert stages[7].name == "ClockDecisionsIfCaseManager"

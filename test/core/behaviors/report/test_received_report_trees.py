@@ -598,7 +598,9 @@ class TestAckReportReceivedUseCase:
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _archived_by_intake(dl, ACTIVITY_ID)
+        # A door refused it before intake, so nothing is recorded; the
+        # outcome stage leaves its receipt stub (CLP-10-010, CLP-10-018).
+        assert not _archived_by_intake(dl, ACTIVITY_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -610,10 +612,10 @@ class TestAckReportReceivedUseCase:
 class TestCloseReportReceivedUseCase:
     @pytest.mark.spec("CM-23-019")
     @pytest.mark.spec("CLP-10-018")
-    def test_use_case_archives_and_refuses_a_close_on_a_case(self):
+    def test_use_case_refuses_a_close_on_a_case(self):
         """A ``Reject(Offer(VulnerabilityReport))`` for a case's report is refused.
 
-        The use case archives the activity and refuses it.
+        The use case refuses it at a door, before intake records it.
 
         No receiver applies one (CM-23-019), so the sender's RM does not move.
         """
@@ -626,7 +628,9 @@ class TestCloseReportReceivedUseCase:
         result = CloseReportReceivedUseCase(dl, event).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _archived_by_intake(dl, ACTIVITY_ID)
+        # A door refused it before intake, so nothing is recorded; the
+        # outcome stage leaves its receipt stub (CLP-10-010, CLP-10-018).
+        assert not _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(CaseParticipant, dl.read(p_id))
@@ -693,7 +697,7 @@ class TestInvalidateReportReceivedTree:
         participant = cast(CaseParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.RECEIVED
 
-    def test_no_case_fails_after_storing_activity(self, dl, caplog):
+    def test_no_case_fails_before_recording_the_activity(self, dl, caplog):
         """No case linked to report → BT FAILURE, but the activity is stored.
 
         Previously this soft-passed to SUCCESS.  The RM transition never
@@ -719,7 +723,9 @@ class TestInvalidateReportReceivedTree:
         assert any(
             "no vulnerabilitycase for report" in m.lower() for m in msgs
         )
-        assert _archived_by_intake(dl, ACTIVITY_ID)
+        # A door refused it before intake, so nothing is recorded; the
+        # outcome stage leaves its receipt stub (CLP-10-010, CLP-10-018).
+        assert not _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_idempotent_rm_transition(self, dl):
         """Already-INVALID participant stays INVALID; BT still SUCCESS."""
@@ -800,12 +806,13 @@ def test_report_verdict_tree_runs_case_clock_decisions_after_sender_guard():
         sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
     )
     assert [c.name for c in tree.children[:10]] == [
-        "IntakeReceivedActivityNode",
-        "CaseOpenToExternalWrites",
         "ActivityAddressedToReceiverNode",
+        "ActivityNotSeenBeforeNode",
         "ReceivedPathNode",
+        "CaseOpenToExternalWrites",
         "RequireCaseForReport",
         "SenderIsParticipantNode",
+        "IntakeReceivedActivityNode",
         "LedgerPositionIfCaseManager",
         "SenderSequenceIfCaseManager",
         "ClockDecisionsIfCaseManager",

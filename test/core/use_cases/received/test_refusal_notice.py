@@ -38,6 +38,7 @@ from test.support.received import (
     extract_stamped,
     received_activity,
     received_event,
+    settle_as_the_inbox,
 )
 from test.support.refusal_notice import assert_refusal_notice
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -55,6 +56,10 @@ from vultron.core.behaviors.case.nodes.refusal_notice import (
 )
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
+)
+from vultron.core.behaviors.case.nodes.seen_before import (
+    ActivityNotSeenBeforeNode,
+    SeenBefore,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
@@ -78,7 +83,10 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
     record_pending_assertion,
 )
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -288,17 +296,24 @@ def test_a_skipped_repeat_answer_under_a_new_id_queues_no_notice():
 @pytest.mark.spec("CLP-05-006")
 @pytest.mark.spec("CLP-10-044")
 def test_a_redelivery_queues_no_second_notice():
+    """The first refusal leaves a receipt stub, and the seen-before door
+    refuses the redelivery from it before any refusal effect (ADR-0154)."""
     net, _, invite_id = _network("redelivery")
     event = _accept_event(net, invite_id)
     _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
     first = _notices(net, MANAGER, BYSTANDER)
     assert len(first) == 1
+    settle_as_the_inbox(
+        net.stores[MANAGER], event, HandlerResult.refused("refused first")
+    )
     tree = _tree(net.case_id, BYSTANDER)
 
     _run(net, MANAGER, tree, event)
 
+    door = find_node(tree, ActivityNotSeenBeforeNode)
+    assert door is not None and door.seen is SeenBefore.REFUSED
     stage = find_node(tree, PreconditionGuardStage)
-    assert stage is not None and stage.skipped_as_redelivery
+    assert stage is not None and stage.status == Status.INVALID
     emit = find_node(tree, EmitRefusalNoticeNode)
     assert emit is not None and emit.status == Status.INVALID
     assert _notices(net, MANAGER, BYSTANDER) == first

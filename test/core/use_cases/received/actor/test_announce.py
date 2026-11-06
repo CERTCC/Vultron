@@ -442,9 +442,12 @@ class TestAnnounceFirstContactTrustGap:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
         assert "No CASE_MANAGER is known" in result.reason
-        # CLP-10-018: the refused Announce is still archived, and no case row
-        # was seeded from it.
-        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
+        # The sender guard is a door, so intake recorded nothing and no case
+        # row was seeded from it; the outcome stage leaves its receipt stub
+        # (CLP-10-018).
+        assert (
+            dl.read(ReceivedActivityRecord.build_id(event.activity_id)) is None
+        )
         assert dl.read(_CASE_ID) is None
 
     @pytest.mark.spec("HP-01-003")

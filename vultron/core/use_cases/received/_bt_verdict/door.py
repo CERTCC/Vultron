@@ -13,11 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Refusals owed when a door guard of a received tree turned the run away.
+"""Verdicts owed when a door guard of a received tree turned the run away.
 
-The post-close boundary (CM-23-013), the addressee check (HP-01-005), the
-path door stage (ADR-0153), the closed-sender door (CM-23-018) and the
-incomplete-activity guard; each keeps its guard's own reason (CLP-10-010).
+The addressee check (HP-01-005), the seen-before door (ADR-0154), the path
+door stage (ADR-0153), the post-close boundary (CM-23-013), the closed-sender
+door (CM-23-018) and the incomplete-activity guard; each keeps its guard's own
+reason (CLP-10-010).  The seen-before door is the one whose answer may be
+``SKIPPED``: a resend of a message already applied, or still waiting.
 """
 
 import py_trees
@@ -35,6 +37,10 @@ from vultron.core.behaviors.case.nodes.post_close import (
 )
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPathNode,
+)
+from vultron.core.behaviors.case.nodes.seen_before import (
+    ActivityNotSeenBeforeNode,
+    SeenBefore,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
@@ -62,9 +68,9 @@ def path_refusal(
     refused: the receiver is on a path this message type declares no branch
     for, so the message was never its to act on (HP-01-005).  The reason is
     the stage's own, composed in one place for every message type
-    (HP-01-039); :func:`door_refusal` asks this after the post-close
-    boundary and the addressee check, in the stage order the factory places
-    them in (CLP-10-010).
+    (HP-01-039); :func:`door_refusal` asks this after the addressee check
+    and the seen-before door, in the stage order the factory places them in
+    (CLP-10-010).
     """
     return guard_refusal(tree, ReceivedPathNode)
 
@@ -172,6 +178,33 @@ def incomplete_activity_refusal(
     return guard_refusal(tree, ActivityIncompleteNode)
 
 
+def seen_before_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> HandlerResult | None:
+    """The answer to a resend the seen-before door ended the run on.
+
+    ``None`` unless the tree's
+    :class:`~vultron.core.behaviors.case.nodes.seen_before.ActivityNotSeenBeforeNode`
+    found the activity already answered (ADR-0154):
+
+    - a receipt stub: ``REFUSED`` again, with the reason the stub recorded,
+      so a refusal is whole and final for that activity;
+    - an archive: ``SKIPPED``, because the message was applied;
+    - a record still owed a replay: ``SKIPPED``, because the held message is
+      answered when its replay reaches its own outcome.
+
+    Nothing ran after the door, so no refusal notice is sent again.
+    """
+    node = find_node(tree, ActivityNotSeenBeforeNode)
+    if node is None or node.status != Status.FAILURE or node.seen is None:
+        return None
+    if node.seen is SeenBefore.REFUSED:
+        return HandlerResult.refused(
+            node.refusal_reason or node.feedback_message
+        )
+    return HandlerResult.skipped(node.feedback_message)
+
+
 def post_close_refusal(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
 ) -> HandlerResult | None:
@@ -198,20 +231,28 @@ def post_close_refusal(
 def door_refusal(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
 ) -> HandlerResult | None:
-    """The refusal owed when a door guard every received tree carries refused.
+    """The verdict owed when a door guard every received tree carries ended it.
 
-    The post-close boundary (:func:`post_close_refusal`, CM-23-013), the
-    addressee check (:func:`addressee_refusal`, HP-01-005), then the path
-    stage (:func:`path_refusal`, ADR-0153); each keeps its guard's own
+    The addressee check (:func:`addressee_refusal`, HP-01-005), the
+    seen-before door (:func:`seen_before_verdict`, ADR-0154), the path stage
+    (:func:`path_refusal`, ADR-0153), then the post-close boundary
+    (:func:`post_close_refusal`, CM-23-013); each keeps its guard's own
     reason, and they are asked in the order the factory places them
-    (CLP-10-010).  ``None`` when none refused.  The factory places the first
-    two in every received tree unless it declares an exemption, and the path
-    stage in every tree that declared its paths, so
+    (CLP-10-010).  ``None`` when none ended the run.  Only one door can have
+    failed, because the first that fails ends the run, so the order decides
+    nothing but is kept to read as the tree does.  The seen-before door's
+    answer may be ``SKIPPED``, a resend of a message already applied or still
+    waiting; every other door's is ``REFUSED``.  The factory places the
+    addressee check and the post-close boundary in every received tree
+    unless it declares an exemption, the seen-before door in every received
+    tree, and the path stage in every tree that declared its paths, so
     :func:`verdict_from_bt` and :func:`applied_or_raise` ask this first, and
     a handler that maps a tree's failure itself asks it too.
     """
-    if (refusal := post_close_refusal(tree)) is not None:
-        return refusal
     if (refusal := addressee_refusal(tree)) is not None:
         return refusal
-    return path_refusal(tree)
+    if (verdict := seen_before_verdict(tree)) is not None:
+        return verdict
+    if (refusal := path_refusal(tree)) is not None:
+        return refusal
+    return post_close_refusal(tree)

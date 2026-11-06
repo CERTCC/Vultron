@@ -358,6 +358,13 @@ def test_a_redelivery_after_the_forward_was_sent_sends_nothing(make_payload):
     assert dl.outbox_list() == []
 
 
+def _outbound_type(dl: SqliteDataLayer, activity_id: str) -> str:
+    """The type of what queued *activity_id* carries, or its own type."""
+    activity = dl.read(activity_id)
+    carried = getattr(activity, "object_", None)
+    return f"{getattr(activity, 'type_', None)}({getattr(carried, 'type_', None)})"
+
+
 @pytest.mark.spec("ID-02-001")
 @pytest.mark.spec("CM-33-003")
 @pytest.mark.parametrize(
@@ -371,7 +378,13 @@ def test_a_redelivery_after_the_forward_was_sent_sends_nothing(make_payload):
 def test_an_offer_reusing_a_recorded_id_for_another_offer_is_refused(
     make_payload, changed
 ):
-    """Only the same role and target make it a redelivery."""
+    """Only the same role and target make it a redelivery.
+
+    Ingress refuses a reused id before routing it (IE-10-002); this drives
+    the handler directly, after a first delivery a run left in holding, so
+    the guard is what tells the other Offer from a redelivery.  It refuses,
+    commits nothing, and its only answer is the refusal notice (CLP-02-005).
+    """
     dl = _store(_CASE_MANAGER_ID)
     _deliver_offer(dl, make_payload, _offer())
     entries = _semantic_types(dl)
@@ -381,7 +394,9 @@ def test_an_offer_reusing_a_recorded_id_for_another_offer_is_refused(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _semantic_types(dl) == entries
-    assert dl.outbox_list() == queued
+    new = [i for i in dl.outbox_list() if i not in queued]
+    # The refusal notice is a Reject of the refused Offer (CLP-05-001).
+    assert [_outbound_type(dl, i) for i in new] == ["Reject(Offer)"]
 
 
 @pytest.mark.spec("CM-24-007")
