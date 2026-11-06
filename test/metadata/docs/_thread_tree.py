@@ -13,8 +13,8 @@ import yaml
 
 from vultron.metadata.docs.threads import LISTING_BEGIN, LISTING_END
 
-from ._lookup_tree import LOOKUP_LINK, with_lookup
-from ._story_tree import with_stories
+from ._lookup_tree import LOOKUP_LINK
+from ._site_tree import site_tree
 
 
 def member(page: str, blurb: str = "what you get.", **extra: str) -> dict:
@@ -48,18 +48,10 @@ def page(title: str) -> str:
 def tree(
     tmp_path: Path, files: dict[str, str], nav: list[object] | None = None
 ) -> Path:
-    """A checkout with ``docs/`` *files*, *nav* (empty by default), and the
-    lookup page and its hosts (DF-11-021).
+    """A :func:`site_tree` checkout with ``docs/`` *files* and *nav* (empty by
+    default).
 
     ``adr/`` is the working record; ``not_in_nav`` covers it so the tree is
     otherwise valid.
     """
-    files, full_nav = with_lookup(with_stories(files), nav or [])
-    (tmp_path / "mkdocs.yml").write_text(
-        yaml.safe_dump({"nav": full_nav, "not_in_nav": "adr/**\n"})
-    )
-    for rel, text in files.items():
-        path = tmp_path / "docs" / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-    return tmp_path
+    return site_tree(tmp_path, files, nav, not_in_nav="adr/**\n")
