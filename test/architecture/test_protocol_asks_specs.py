@@ -592,11 +592,13 @@ def test_processing_fault_closes_the_outstanding_ask_it_names() -> None:
 
 
 @pytest.mark.spec("ASK-07-008")
-def test_case_attributable_fault_is_recorded_in_the_ledger() -> None:
-    """A case-attributable fault MUST be a recorded CaseLedgerEntry (ASK-07-008).
+def test_a_processing_fault_is_never_recorded_in_the_ledger() -> None:
+    """A processing fault MUST NOT be recorded as a CaseLedgerEntry (ASK-07-008).
 
-    "B could not process A's message" is a true, legible statement about a
-    message that arrived, and it explains a later retransmission.
+    A fault reports how a message was handled and changes nothing in the
+    case, so it is not a case event (CLP-02-013).  This placeholder checks
+    only that the fault type exists; #6057 replaces it with a behavioral
+    test at the CASE_MANAGER.
     """
     assert _processing_fault() is not None, (
         "No ProcessingFault type is importable."
@@ -609,9 +611,8 @@ def test_unprocessable_activity_is_not_committed_to_the_ledger() -> None:
 
     There is no legible assertion to snapshot, so a ledger entry could not
     satisfy CLP-02-003. This holds today — the dead-letter path stores the
-    activity without committing a canonical entry — and must keep holding once
-    #2889 adds the *fault* entry beside it (ASK-07-008); it is the fault
-    statement that is recorded, never the unreadable message.
+    activity without committing a canonical entry.  The fault about it is
+    not ledgered either (ASK-07-008).
     """
     dead_letter = (
         _VULTRON / "core" / "behaviors" / "dead_letter" / "dead_letter_tree.py"

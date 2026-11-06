@@ -299,9 +299,10 @@ dead-lettered or dropped as a protocol violation, never on a re-queue, or a late
 success would follow a false fault (ASK-07-007). A raise after the dispatch returned
 (the post-bootstrap replay) is logged by `DispatchNode` and is neither retried nor
 answered. Never answer a raised
-`Create(ProcessingFault)` with a fault (`answers_with_internal_error_fault`), or two
-peers failing alike answer each other forever. The fault goes to the claimed `actor`:
-the inbox does not authenticate senders yet (#509). It is not ledgered (#4800).
+`Create(ProcessingFault)` with a fault (`answers_with_internal_error_fault`,
+ASK-07-019), or two peers failing alike answer each other forever. The fault goes to
+the claimed `actor`: the inbox does not authenticate senders yet (#509). It is never
+ledgered (ASK-07-008).
 
 **The queue replay retries back to back and settles on what it saw.** A re-queued item
 goes to the back of the inbox queue and is attempted again in the same drain, so the

@@ -718,14 +718,12 @@ class TestARaisedDispatchIsAnsweredWithAFault:
     @pytest.mark.spec("ASK-07-011")
     @pytest.mark.spec("ASK-07-019")
     @pytest.mark.spec("RMB-07-002")
-    @pytest.mark.spec("VP-03-010")
     def test_a_raised_fault_is_not_answered_with_a_fault(self):
         """Two peers failing alike must not answer each other's faults.
 
         A fault is never answered with a fault (ASK-07-019), including by a
         participant in RM Start that holds no report the fault names
-        (RMB-07-002), whose fault answer to other RM activities (VP-03-010)
-        leaves a fault out.
+        (RMB-07-002).
         """
         from vultron.wire.as2.factories.fault import (
             create_processing_fault_activity,
