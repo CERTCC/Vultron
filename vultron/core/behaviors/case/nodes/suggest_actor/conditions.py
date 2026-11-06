@@ -35,6 +35,9 @@ Node classes:
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
+    offer_case_participant_id,
+)
 from vultron.core.behaviors.case.nodes.suggest_actor.pending_request import (
     invitee,
     offered_participant_actor,
@@ -60,6 +63,7 @@ from vultron.core.models.protocol_pair import (
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronWiringError
 
 
 class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
@@ -406,17 +410,39 @@ class PendingOfferCaseParticipantNode(DataLayerActionWithPorts):
 
     Used as the third arm of the duplicate-detection Selector in
     :func:`~vultron.core.behaviors.case.suggest_actor_tree.create_recommend_actor_to_case_received_tree`.
+
+    The Offer this recommendation (*recommendation_id*) forwards itself is
+    not counted: its id derives from the recommendation, so a re-run from
+    holding finds it, and must forward nothing new and write no duplicate
+    note its first run never wrote (ADR-0154).
     """
 
     def __init__(
         self,
         recommended_id: str,
         case_id: str,
+        recommendation_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.recommended_id = recommended_id
         self.case_id = case_id
+        self.recommendation_id = recommendation_id
+
+    def _own_offer_id(self) -> str:
+        """The id of the Offer this recommendation forwards itself.
+
+        Raises:
+            VultronWiringError: the node runs with no executing actor.
+        """
+        if self.actor_id is None:
+            raise VultronWiringError(
+                f"{self.name}: no executing actor to derive the forwarded"
+                " Offer(CaseParticipant) id from"
+            )
+        return offer_case_participant_id(
+            self.actor_id, self.case_id, self.recommendation_id
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -429,6 +455,7 @@ class PendingOfferCaseParticipantNode(DataLayerActionWithPorts):
             MessageSemantics.OFFER_CASE_PARTICIPANT.value,
             OFFER_CASE_PARTICIPANT_REPLY_TYPES,
             offered_participant_actor,
+            own_request_id=self._own_offer_id(),
         ):
             self.logger.info(
                 "%s: Offer(CaseParticipant) for '%s' is pending Case Owner "

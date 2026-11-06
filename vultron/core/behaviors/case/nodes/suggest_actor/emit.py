@@ -63,6 +63,22 @@ OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE = (
 )
 
 
+def offer_case_participant_id(
+    case_manager_id: str, case_id: str, recommendation_id: str
+) -> str:
+    """The id of the ``Offer(CaseParticipant)`` a recommendation forwards.
+
+    Derived from the recommendation, so a retry rebuilds the same Offer
+    (OX-06-002) and a re-run finds the one it sent (ID-04-004).
+    """
+    return derived_activity_id(
+        OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        case_manager_id,
+        case_id,
+        recommendation_id,
+    )
+
+
 def _resolve_owner_recipient(
     dl: CasePersistence,
     case_id: str,
@@ -241,11 +257,8 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
             origin=self.recommendation_id,
             to=[owner_id],
             roles=roles,
-            id_=derived_activity_id(
-                OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
-                self.actor_id,
-                self.case_id,
-                self.recommendation_id,
+            id_=offer_case_participant_id(
+                self.actor_id, self.case_id, self.recommendation_id
             ),
         )
 

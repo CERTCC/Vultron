@@ -31,7 +31,17 @@ from typing import Any
 
 from test.support.ledger_rebuild import run_use_case
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.received_activity_record import HOLDING_STAGES
+from vultron.core.services.received_activity import (
+    held_received_record,
+    sealed_body_of,
+)
+from vultron.core.services.received_holding import (
+    hold_for_replay,
+    release_from_holding,
+)
 
 
 @dataclass(frozen=True)
@@ -41,8 +51,8 @@ class Effects:
     Attributes:
         ledger: Every ledger entry the store holds, as JSON, in log order
             per case.
-        outbox: Every activity the store's outbox holds, as JSON, keyed by
-            its id, in queue order.
+        outbox: Every activity the store's outbox holds, as its sealed
+            body's JSON, keyed by its id, in queue order.
     """
 
     ledger: tuple[str, ...]
@@ -51,6 +61,18 @@ class Effects:
 
 def _dump(obj: Any) -> str:
     return json.dumps(obj.model_dump(mode="json"), sort_keys=True)
+
+
+def _queued_body(dl: SqliteDataLayer, activity_id: str) -> str:
+    """The body the outbox sends for *activity_id*: its sealed body.
+
+    The sealed body is what is delivered (OX-07-001); an item queued with
+    none is compared by the stored activity instead.
+    """
+    sealed = read_sealed_body_dict(dl, activity_id)
+    if sealed is not None:
+        return json.dumps(sealed, sort_keys=True)
+    return _dump(dl.read(activity_id))
 
 
 def effects(dl: SqliteDataLayer) -> Effects:
@@ -64,7 +86,7 @@ def effects(dl: SqliteDataLayer) -> Effects:
         key=lambda e: (str(e.case_id), e.log_index),
     )
     outbox = tuple(
-        (activity_id, _dump(dl.read(activity_id)))
+        (activity_id, _queued_body(dl, activity_id))
         for activity_id in dl.outbox_list()
     )
     return Effects(ledger=tuple(_dump(e) for e in entries), outbox=outbox)
@@ -116,4 +138,152 @@ def rerun_from_holding(
     )
 
 
-__all__ = ["Effects", "Rerun", "effects", "rerun_from_holding"]
+@dataclass(frozen=True)
+class ReplayAfterRerun:
+    """A re-run from holding, held for a replay, then the replay."""
+
+    rerun: Rerun
+    replay: Any
+    after_replay: Effects
+
+    @property
+    def doubled(self) -> list[str]:
+        """What the re-run or the replay committed or queued anew."""
+        return Rerun(
+            first=self.rerun.first,
+            second=self.replay,
+            after_first=self.rerun.after_first,
+            after_second=self.after_replay,
+        ).doubled
+
+
+def rerun_then_replay(
+    dl: SqliteDataLayer,
+    event: Any,
+    *,
+    run: Callable[[SqliteDataLayer, Any], Any] = run_use_case,
+) -> ReplayAfterRerun:
+    """Run *event*, re-run it from holding, hold it for a replay, replay it.
+
+    The re-run's own run then ends in a hold, as when it raises and the
+    inbox's retry holds it (``hold_for_replay`` moves the ``HANDLED`` record
+    back to ``HELD``, owing a replay).  The replay releases the record, which
+    deletes it (``release_from_holding``), and runs the body as a delivery of
+    its own: intake records it afresh, so the replay reads as a first run
+    and its once-only answers are not skipped (ADR-0154).
+    """
+    rerun = rerun_from_holding(dl, event, run=run)
+    record = held_received_record(dl, event.activity_id)
+    assert record is not None and record.stage in HOLDING_STAGES, record
+    assert hold_for_replay(dl, event.activity_id, sealed_body_of(record))
+    released = release_from_holding(dl, event.activity_id)
+    assert released is not None
+    assert held_received_record(dl, event.activity_id) is None
+    replay = run(dl, event)
+    return ReplayAfterRerun(
+        rerun=rerun, replay=replay, after_replay=effects(dl)
+    )
+
+
+def deliver_outbox(dl: SqliteDataLayer) -> None:
+    """Empty *dl*'s outbox, as a drain that delivered every item does."""
+    while dl.outbox_pop() is not None:
+        pass
+
+
+@dataclass(frozen=True)
+class DrainedRerun:
+    """A first run whose sends were delivered, then a later run, by content.
+
+    Attributes:
+        first: The first run's verdict.
+        after_first: What the store held after the first run, undelivered.
+        delivered: What it held once the outbox was delivered.
+        last: The later run's verdict.
+        after_last: What it held after the later run.
+        rerun_queued: With a replay, what the re-run queued before it was
+            delivered in turn.
+    """
+
+    first: Any
+    after_first: Effects
+    delivered: Effects
+    last: Any
+    after_last: Effects
+    rerun_queued: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def sent_again(self) -> list[str]:
+        """What a later run committed anew or queued after the delivery."""
+        new_entries = sorted(
+            set(self.after_last.ledger) - set(self.delivered.ledger)
+        )
+        queued = (*self.rerun_queued, *self.after_last.outbox)
+        return [f"ledger: {e}" for e in new_entries] + [
+            f"outbox: {activity_id} {_kind(body)}"
+            for activity_id, body in queued
+        ]
+
+
+def _kind(body: str) -> str:
+    """``Type(ObjectType)`` of a queued body, for a readable failure."""
+    sent = json.loads(body)
+    obj = sent.get("object")
+    if not isinstance(obj, dict):
+        return f"{sent.get('type')}(ref)"
+    entry = obj.get("semanticType")
+    inner = f"{obj.get('type')}:{entry}" if entry else obj.get("type")
+    return f"{sent.get('type')}({inner})"
+
+
+def drained_rerun(
+    dl: SqliteDataLayer,
+    event: Any,
+    *,
+    replay: bool,
+    run: Callable[[SqliteDataLayer, Any], Any] = run_use_case,
+) -> DrainedRerun:
+    """Run *event*, deliver the outbox, then run it again from holding.
+
+    The inbox drains the outbox after every delivery's work, even work that
+    raised (``_run_serialised``), and the outbox monitor may deliver before
+    a crash, so a later run may find the first run's sends already gone.
+    With *replay*, the re-run is delivered too and then held for a replay,
+    as a re-run that raised is held for its retry, and the replay runs with
+    its record released (:func:`rerun_then_replay`).
+    """
+    first = run(dl, event)
+    after_first = effects(dl)
+    deliver_outbox(dl)
+    delivered = effects(dl)
+    last = run(dl, event)
+    rerun_queued: tuple[tuple[str, str], ...] = ()
+    if replay:
+        rerun_queued = effects(dl).outbox
+        deliver_outbox(dl)
+        record = held_received_record(dl, event.activity_id)
+        assert record is not None and record.stage in HOLDING_STAGES, record
+        assert hold_for_replay(dl, event.activity_id, sealed_body_of(record))
+        assert release_from_holding(dl, event.activity_id) is not None
+        last = run(dl, event)
+    return DrainedRerun(
+        first=first,
+        after_first=after_first,
+        delivered=delivered,
+        last=last,
+        after_last=effects(dl),
+        rerun_queued=rerun_queued,
+    )
+
+
+__all__ = [
+    "DrainedRerun",
+    "Effects",
+    "ReplayAfterRerun",
+    "Rerun",
+    "deliver_outbox",
+    "drained_rerun",
+    "effects",
+    "rerun_from_holding",
+    "rerun_then_replay",
+]

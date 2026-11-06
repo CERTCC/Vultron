@@ -54,6 +54,8 @@ def request_naming_actor_is_pending(
     request_semantic_type: str,
     reply_semantic_types: frozenset[str],
     named_actor: Callable[[dict[str, Any]], str | None],
+    *,
+    own_request_id: str | None = None,
 ) -> bool:
     """True when the latest *request_semantic_type* entry naming *actor_id* is unanswered.
 
@@ -62,6 +64,11 @@ def request_naming_actor_is_pending(
     the actor its snapshot names (*named_actor*).  It is answered only by a
     later *reply_semantic_types* entry that answers it (:func:`answers`): with
     Invites to two actors open, the Accept of one leaves the other pending.
+
+    *own_request_id* is the derived id of the request the activity being
+    handled would send itself (ID-04-004).  That request is never a
+    duplicate of it: a re-run from holding finds the one its first run sent
+    (ADR-0154), and must answer as that first run did.
     """
     entries = sorted_case_ledger_entries(dl, case_id)
     requests = [
@@ -69,6 +76,7 @@ def request_naming_actor_is_pending(
         for entry in entries
         if entry.semantic_type == request_semantic_type
         and named_actor(entry.payload_snapshot) == actor_id
+        and entry.log_object_id != own_request_id
     ]
     if not requests:
         return False
