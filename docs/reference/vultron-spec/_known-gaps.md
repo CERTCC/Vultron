@@ -9,115 +9,233 @@ The requirements are grouped by the issues that the held tests cite.
 ### Tracked by [#2883](https://github.com/CERTCC/Vultron/issues/2883)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ASK-01-004", "ASK-02-003", "ASK-06-001", "ASK-06-002", "ASK-06-003"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ASK-01-004",
+    "ASK-02-003",
+    "ASK-06-001",
+    "ASK-06-002",
+    "ASK-06-003",
+))
 ```
 
 ### Tracked by [#2883](https://github.com/CERTCC/Vultron/issues/2883) and [#3918](https://github.com/CERTCC/Vultron/issues/3918)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ASK-04-010", "ASK-04-013"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ASK-04-010",
+    "ASK-04-013",
+))
 ```
 
 ### Tracked by [#2884](https://github.com/CERTCC/Vultron/issues/2884)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ASK-03-001", "ASK-03-004", "ASK-03-006"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ASK-03-001",
+    "ASK-03-004",
+    "ASK-03-006",
+))
 ```
 
 ### Tracked by [#2884](https://github.com/CERTCC/Vultron/issues/2884) and [#3918](https://github.com/CERTCC/Vultron/issues/3918)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ASK-03-007"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ASK-03-007",
+))
 ```
 
 ### Tracked by [#2885](https://github.com/CERTCC/Vultron/issues/2885)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ASK-01-001", "ASK-02-005", "ASK-02-006"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ASK-01-001",
+    "ASK-02-005",
+    "ASK-02-006",
+))
 ```
 
 ### Tracked by [#2887](https://github.com/CERTCC/Vultron/issues/2887)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ASK-05-004", "ASK-05-005"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ASK-05-004",
+    "ASK-05-005",
+))
 ```
 
 ### Tracked by [#2889](https://github.com/CERTCC/Vultron/issues/2889)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ASK-07-007", "ASK-07-013"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ASK-07-007",
+    "ASK-07-013",
+))
 ```
 
 ### Tracked by [#2890](https://github.com/CERTCC/Vultron/issues/2890)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CP-05-007"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CP-05-007",
+))
 ```
 
 ### Tracked by [#3698](https://github.com/CERTCC/Vultron/issues/3698)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CBT-06-004"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CBT-06-004",
+))
 ```
 
 ### Tracked by [#3702](https://github.com/CERTCC/Vultron/issues/3702)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-32-025"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-32-025",
+))
 ```
 
 ### Tracked by [#4241](https://github.com/CERTCC/Vultron/issues/4241) and [#4242](https://github.com/CERTCC/Vultron/issues/4242)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-32-001", "CM-32-002", "CM-32-003", "CM-32-004", "CM-32-005", "CM-32-006", "CM-32-007", "CM-32-008", "CM-32-009", "CM-32-010", "CM-32-011", "CM-32-012", "CM-32-013", "CM-32-014", "CM-32-015", "CM-32-016", "CM-32-017", "CM-32-018", "CM-32-019", "CM-32-020", "CM-32-021", "CM-32-022", "CM-32-023", "CM-32-024", "CM-32-026", "CM-32-027", "CM-32-028", "CM-32-029", "CM-32-030", "CM-32-031", "CM-32-032", "CM-32-033", "CM-32-034", "CM-32-035", "CM-32-036", "CM-32-037", "CM-32-038", "CM-32-039", "CM-32-040", "CM-32-041", "CM-32-042", "CM-32-043", "CM-32-044", "CM-32-045", "VP-10-002", "VP-10-003", "VP-10-005"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-32-001",
+    "CM-32-002",
+    "CM-32-003",
+    "CM-32-004",
+    "CM-32-005",
+    "CM-32-006",
+    "CM-32-007",
+    "CM-32-008",
+    "CM-32-009",
+    "CM-32-010",
+    "CM-32-011",
+    "CM-32-012",
+    "CM-32-013",
+    "CM-32-014",
+    "CM-32-015",
+    "CM-32-016",
+    "CM-32-017",
+    "CM-32-018",
+    "CM-32-019",
+    "CM-32-020",
+    "CM-32-021",
+    "CM-32-022",
+    "CM-32-023",
+    "CM-32-024",
+    "CM-32-026",
+    "CM-32-027",
+    "CM-32-028",
+    "CM-32-029",
+    "CM-32-030",
+    "CM-32-031",
+    "CM-32-032",
+    "CM-32-033",
+    "CM-32-034",
+    "CM-32-035",
+    "CM-32-036",
+    "CM-32-037",
+    "CM-32-038",
+    "CM-32-039",
+    "CM-32-040",
+    "CM-32-041",
+    "CM-32-042",
+    "CM-32-043",
+    "CM-32-044",
+    "CM-32-045",
+    "VP-10-002",
+    "VP-10-003",
+    "VP-10-005",
+))
 ```
 
 ### Tracked by [#4596](https://github.com/CERTCC/Vultron/issues/4596)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("HTTP-03-007", "IE-03-003"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "HTTP-03-007",
+    "IE-03-003",
+))
 ```
 
 ### Tracked by [#4666](https://github.com/CERTCC/Vultron/issues/4666)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("HTTP-01-003", "HTTP-03-008", "IE-03-001"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "HTTP-01-003",
+    "HTTP-03-008",
+    "IE-03-001",
+))
 ```
 
 ### Tracked by [#4667](https://github.com/CERTCC/Vultron/issues/4667)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("HTTP-03-010"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "HTTP-03-010",
+))
 ```
 
 ### Tracked by [#5386](https://github.com/CERTCC/Vultron/issues/5386)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("SIG-03-001", "SIG-04-002"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "SIG-03-001",
+    "SIG-04-002",
+))
 ```
 
 ### Tracked by [#5636](https://github.com/CERTCC/Vultron/issues/5636)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("SM-09-004"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "SM-09-004",
+))
 ```
 
 ### Tracked by [#5637](https://github.com/CERTCC/Vultron/issues/5637)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VP-05-021"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "VP-05-021",
+))
 ```
 
 ### Tracked by [#5640](https://github.com/CERTCC/Vultron/issues/5640)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-20-006"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-20-006",
+))
 ```
 
 ### Tracked by [#5642](https://github.com/CERTCC/Vultron/issues/5642)
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-16-020"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-16-020",
+))
 ```
 
 ## Requirements no test checks
@@ -130,47 +248,472 @@ The requirements are grouped by their Requirements Catalog page.
 ### Vultron Protocol
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VP-01-001", "VP-01-002", "VP-01-003", "VP-02-001", "VP-02-002", "VP-02-003", "VP-02-005", "VP-02-006", "VP-02-007", "VP-02-008", "VP-02-009", "VP-02-010", "VP-02-011", "VP-02-012", "VP-02-013", "VP-02-014", "VP-02-016", "VP-02-017", "VP-02-018", "VP-02-019", "VP-02-021", "VP-02-022", "VP-02-023", "VP-02-024", "VP-02-025", "VP-02-026", "VP-02-027", "VP-02-028", "VP-02-029", "VP-02-030", "VP-02-031", "VP-02-032", "VP-02-033", "VP-02-034", "VP-02-035", "VP-03-001", "VP-03-002", "VP-03-003", "VP-03-004", "VP-03-005", "VP-03-006", "VP-03-007", "VP-03-008", "VP-03-010", "VP-03-011", "VP-03-012", "VP-04-001", "VP-04-003", "VP-04-004", "VP-05-001", "VP-05-002", "VP-05-003", "VP-05-004", "VP-05-005", "VP-05-006", "VP-05-007", "VP-05-008", "VP-05-009", "VP-05-010", "VP-05-011", "VP-05-012", "VP-05-013", "VP-05-014", "VP-05-015", "VP-05-016", "VP-05-017", "VP-05-018", "VP-05-019", "VP-05-020", "VP-06-001", "VP-06-002", "VP-06-003", "VP-06-004", "VP-06-004b", "VP-06-005", "VP-06-006", "VP-06-007", "VP-06-008", "VP-06-008b", "VP-06-009", "VP-06-010", "VP-06-011", "VP-06-012", "VP-06-013", "VP-06-014", "VP-06-015", "VP-06-016", "VP-06-017", "VP-07-001", "VP-07-002", "VP-07-003", "VP-07-004", "VP-07-005", "VP-07-006", "VP-07-007", "VP-07-008", "VP-07-009", "VP-07-010", "VP-07-011", "VP-07-012", "VP-07-013", "VP-08-001", "VP-08-002", "VP-08-003", "VP-08-005", "VP-08-006", "VP-08-007", "VP-08-008", "VP-08-009", "VP-08-010", "VP-08-011", "VP-08-012", "VP-08-013", "VP-08-014", "VP-08-015", "VP-08-016", "VP-08-017", "VP-08-018", "VP-08-019", "VP-08-020", "VP-08-021", "VP-09-001", "VP-09-002", "VP-09-003", "VP-09-004", "VP-09-005", "VP-09-006", "VP-10-001", "VP-10-004", "VP-10-006", "VP-10-007", "VP-10-008", "VP-11-002", "VP-11-003", "VP-11-004", "VP-11-005", "VP-11-007", "VP-11-008", "VP-11-009", "VP-11-010", "VP-12-001", "VP-12-002", "VP-12-002c", "VP-13-001", "VP-13-002", "VP-13-003", "VP-13-004", "VP-13-005", "VP-13-006", "VP-13-007", "VP-13-009", "VP-13-010", "VP-13-011", "VP-13-012", "VP-13-013", "VP-13-014", "VP-13-015", "VP-13-016", "VP-13-018", "VP-14-004", "VP-14-005", "VP-14-006", "VP-14-007", "VP-14-008", "VP-14-009", "VP-14-010", "VP-14-011", "VP-14-012", "VP-14-014", "VP-15-004", "VP-16-001", "VP-16-002", "VP-16-003", "VP-18-002"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "VP-01-001",
+    "VP-01-002",
+    "VP-01-003",
+    "VP-02-001",
+    "VP-02-002",
+    "VP-02-003",
+    "VP-02-005",
+    "VP-02-006",
+    "VP-02-007",
+    "VP-02-008",
+    "VP-02-009",
+    "VP-02-010",
+    "VP-02-011",
+    "VP-02-012",
+    "VP-02-013",
+    "VP-02-014",
+    "VP-02-016",
+    "VP-02-017",
+    "VP-02-018",
+    "VP-02-019",
+    "VP-02-021",
+    "VP-02-022",
+    "VP-02-023",
+    "VP-02-024",
+    "VP-02-025",
+    "VP-02-026",
+    "VP-02-027",
+    "VP-02-028",
+    "VP-02-029",
+    "VP-02-030",
+    "VP-02-031",
+    "VP-02-032",
+    "VP-02-033",
+    "VP-02-034",
+    "VP-02-035",
+    "VP-03-001",
+    "VP-03-002",
+    "VP-03-003",
+    "VP-03-004",
+    "VP-03-005",
+    "VP-03-006",
+    "VP-03-007",
+    "VP-03-008",
+    "VP-03-010",
+    "VP-03-011",
+    "VP-03-012",
+    "VP-04-001",
+    "VP-04-003",
+    "VP-04-004",
+    "VP-05-001",
+    "VP-05-002",
+    "VP-05-003",
+    "VP-05-004",
+    "VP-05-005",
+    "VP-05-006",
+    "VP-05-007",
+    "VP-05-008",
+    "VP-05-009",
+    "VP-05-010",
+    "VP-05-011",
+    "VP-05-012",
+    "VP-05-013",
+    "VP-05-014",
+    "VP-05-015",
+    "VP-05-016",
+    "VP-05-017",
+    "VP-05-018",
+    "VP-05-019",
+    "VP-05-020",
+    "VP-06-001",
+    "VP-06-002",
+    "VP-06-003",
+    "VP-06-004",
+    "VP-06-004b",
+    "VP-06-005",
+    "VP-06-006",
+    "VP-06-007",
+    "VP-06-008",
+    "VP-06-008b",
+    "VP-06-009",
+    "VP-06-010",
+    "VP-06-011",
+    "VP-06-012",
+    "VP-06-013",
+    "VP-06-014",
+    "VP-06-015",
+    "VP-06-016",
+    "VP-06-017",
+    "VP-07-001",
+    "VP-07-002",
+    "VP-07-003",
+    "VP-07-004",
+    "VP-07-005",
+    "VP-07-006",
+    "VP-07-007",
+    "VP-07-008",
+    "VP-07-009",
+    "VP-07-010",
+    "VP-07-011",
+    "VP-07-012",
+    "VP-07-013",
+    "VP-08-001",
+    "VP-08-002",
+    "VP-08-003",
+    "VP-08-005",
+    "VP-08-006",
+    "VP-08-007",
+    "VP-08-008",
+    "VP-08-009",
+    "VP-08-010",
+    "VP-08-011",
+    "VP-08-012",
+    "VP-08-013",
+    "VP-08-014",
+    "VP-08-015",
+    "VP-08-016",
+    "VP-08-017",
+    "VP-08-018",
+    "VP-08-019",
+    "VP-08-020",
+    "VP-08-021",
+    "VP-09-001",
+    "VP-09-002",
+    "VP-09-003",
+    "VP-09-004",
+    "VP-09-005",
+    "VP-09-006",
+    "VP-10-001",
+    "VP-10-004",
+    "VP-10-006",
+    "VP-10-007",
+    "VP-10-008",
+    "VP-11-002",
+    "VP-11-003",
+    "VP-11-004",
+    "VP-11-005",
+    "VP-11-007",
+    "VP-11-008",
+    "VP-11-009",
+    "VP-11-010",
+    "VP-12-001",
+    "VP-12-002",
+    "VP-12-002c",
+    "VP-13-001",
+    "VP-13-002",
+    "VP-13-003",
+    "VP-13-004",
+    "VP-13-005",
+    "VP-13-006",
+    "VP-13-007",
+    "VP-13-009",
+    "VP-13-010",
+    "VP-13-011",
+    "VP-13-012",
+    "VP-13-013",
+    "VP-13-014",
+    "VP-13-015",
+    "VP-13-016",
+    "VP-13-018",
+    "VP-14-004",
+    "VP-14-005",
+    "VP-14-006",
+    "VP-14-007",
+    "VP-14-008",
+    "VP-14-009",
+    "VP-14-010",
+    "VP-14-011",
+    "VP-14-012",
+    "VP-14-014",
+    "VP-15-004",
+    "VP-16-001",
+    "VP-16-002",
+    "VP-16-003",
+    "VP-18-002",
+))
 ```
 
 ### Messages and Vocabulary
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("AKM-01-002", "AKM-02-001", "MSM-01-004", "MSM-01-005", "MV-03-001", "MV-04-002", "MV-05-002", "VAM-01-008", "VAM-03-003", "VAM-03-004", "VAM-03-005", "VM-09-001"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "AKM-01-002",
+    "AKM-02-001",
+    "MSM-01-004",
+    "MSM-01-005",
+    "MV-03-001",
+    "MV-04-002",
+    "MV-05-002",
+    "VAM-01-008",
+    "VAM-03-003",
+    "VAM-03-004",
+    "VAM-03-005",
+    "VM-09-001",
+))
 ```
 
 ### Report, Embargo and Case State Behavior
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CSB-04-001", "CSB-04-002", "CSB-04-003", "CSB-04-004", "CSB-04-005", "CSB-05-001", "CSB-05-002", "CSB-05-003", "CSB-05-004", "CSB-05-005", "CSB-05-006", "CSB-06-004", "CSB-06-006", "CSB-07-001", "CSB-08-001", "CSB-09-001", "CSB-09-002", "CSB-10-001", "CSB-10-002", "CSB-11-001", "CSB-12-003", "CSB-13-001", "CSB-14-003", "CSB-14-004", "DUR-01-001", "DUR-01-003", "DUR-02-001", "DUR-02-002", "DUR-03-001", "DUR-03-002", "DUR-03-003", "DUR-04-001", "DUR-04-002", "DUR-04-003", "DUR-04-004", "DUR-06-001", "DUR-06-002", "DUR-06-003", "DUR-07-001", "DUR-07-002", "EMB-01-004", "EMB-01-005", "EMB-02-003", "EMB-04-001", "EMB-05-001", "EMB-08-001", "EMB-09-001", "EMB-10-001", "EMB-10-002", "EMB-11-002", "EMB-11-003", "EMB-11-004", "EMB-11-005", "EMB-12-001", "EMB-12-002", "EMB-12-003", "EMB-13-002", "EMB-17-006", "EMB-17-008", "EMB-19-002", "EP-01-002", "EP-01-006", "EP-01-007", "EP-03-001", "EP-03-002", "EP-06-001", "RMB-01-002", "RMB-01-003", "RMB-01-004", "RMB-01-005", "RMB-02-001", "RMB-02-002", "RMB-03-001", "RMB-03-002", "RMB-04-001", "RMB-04-002", "RMB-05-001", "RMB-05-002", "RMB-06-001", "RMB-06-002", "RMB-06-003", "RMB-07-001", "RMB-07-002", "RMB-08-001", "RMB-08-002", "RMB-09-002", "RMB-10-002", "RMB-10-003", "RMB-10-004", "RMB-11-002", "RMB-11-004", "RMB-12-002", "RMB-12-003", "RMB-13-001", "RMB-13-003", "RMB-14-003", "SM-09-002", "SM-10-001", "SM-10-002"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CSB-04-001",
+    "CSB-04-002",
+    "CSB-04-003",
+    "CSB-04-004",
+    "CSB-04-005",
+    "CSB-05-001",
+    "CSB-05-002",
+    "CSB-05-003",
+    "CSB-05-004",
+    "CSB-05-005",
+    "CSB-05-006",
+    "CSB-06-004",
+    "CSB-06-006",
+    "CSB-07-001",
+    "CSB-08-001",
+    "CSB-09-001",
+    "CSB-09-002",
+    "CSB-10-001",
+    "CSB-10-002",
+    "CSB-11-001",
+    "CSB-12-003",
+    "CSB-13-001",
+    "CSB-14-003",
+    "CSB-14-004",
+    "DUR-01-001",
+    "DUR-01-003",
+    "DUR-02-001",
+    "DUR-02-002",
+    "DUR-03-001",
+    "DUR-03-002",
+    "DUR-03-003",
+    "DUR-04-001",
+    "DUR-04-002",
+    "DUR-04-003",
+    "DUR-04-004",
+    "DUR-06-001",
+    "DUR-06-002",
+    "DUR-06-003",
+    "DUR-07-001",
+    "DUR-07-002",
+    "EMB-01-004",
+    "EMB-01-005",
+    "EMB-02-003",
+    "EMB-04-001",
+    "EMB-05-001",
+    "EMB-08-001",
+    "EMB-09-001",
+    "EMB-10-001",
+    "EMB-10-002",
+    "EMB-11-002",
+    "EMB-11-003",
+    "EMB-11-004",
+    "EMB-11-005",
+    "EMB-12-001",
+    "EMB-12-002",
+    "EMB-12-003",
+    "EMB-13-002",
+    "EMB-17-006",
+    "EMB-17-008",
+    "EMB-19-002",
+    "EP-01-002",
+    "EP-01-006",
+    "EP-01-007",
+    "EP-03-001",
+    "EP-03-002",
+    "EP-06-001",
+    "RMB-01-002",
+    "RMB-01-003",
+    "RMB-01-004",
+    "RMB-01-005",
+    "RMB-02-001",
+    "RMB-02-002",
+    "RMB-03-001",
+    "RMB-03-002",
+    "RMB-04-001",
+    "RMB-04-002",
+    "RMB-05-001",
+    "RMB-05-002",
+    "RMB-06-001",
+    "RMB-06-002",
+    "RMB-06-003",
+    "RMB-07-001",
+    "RMB-07-002",
+    "RMB-08-001",
+    "RMB-08-002",
+    "RMB-09-002",
+    "RMB-10-002",
+    "RMB-10-003",
+    "RMB-10-004",
+    "RMB-11-002",
+    "RMB-11-004",
+    "RMB-12-002",
+    "RMB-12-003",
+    "RMB-13-001",
+    "RMB-13-003",
+    "RMB-14-003",
+    "SM-09-002",
+    "SM-10-001",
+    "SM-10-002",
+))
 ```
 
 ### Case Management
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-01-001", "CM-01-002", "CM-02-003", "CM-02-006", "CM-03-001", "CM-03-002", "CM-03-003", "CM-03-004", "CM-03-005", "CM-03-007", "CM-04-001", "CM-04-002", "CM-04-003", "CM-04-004", "CM-04-006", "CM-04-007", "CM-04-008", "CM-05-002", "CM-05-003", "CM-05-004", "CM-05-006", "CM-05-007", "CM-05-008", "CM-05-009", "CM-05-010", "CM-05-011", "CM-05-012", "CM-06-004", "CM-09-001", "CM-09-002", "CM-09-003", "CM-10-002", "CM-12-002", "CM-12-004", "CM-14-001", "CM-14-004", "CM-14-006", "CM-14-008", "CM-14-010", "CM-14-013", "CM-16-002", "CM-16-005", "CM-18-004", "CM-20-001", "CM-20-002", "CM-20-003", "CM-20-004", "CM-20-005", "CM-21-009", "CM-23-006", "CM-23-008", "CM-23-009", "CM-25-001", "CM-25-002", "CM-25-003", "CM-25-004", "CM-25-006", "CM-25-007", "CM-28-002", "CP-01-006"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-01-001",
+    "CM-01-002",
+    "CM-02-003",
+    "CM-02-006",
+    "CM-03-001",
+    "CM-03-002",
+    "CM-03-003",
+    "CM-03-004",
+    "CM-03-005",
+    "CM-03-007",
+    "CM-04-001",
+    "CM-04-002",
+    "CM-04-003",
+    "CM-04-004",
+    "CM-04-006",
+    "CM-04-007",
+    "CM-04-008",
+    "CM-05-002",
+    "CM-05-003",
+    "CM-05-004",
+    "CM-05-006",
+    "CM-05-007",
+    "CM-05-008",
+    "CM-05-009",
+    "CM-05-010",
+    "CM-05-011",
+    "CM-05-012",
+    "CM-06-004",
+    "CM-09-001",
+    "CM-09-002",
+    "CM-09-003",
+    "CM-10-002",
+    "CM-12-002",
+    "CM-12-004",
+    "CM-14-001",
+    "CM-14-004",
+    "CM-14-006",
+    "CM-14-008",
+    "CM-14-010",
+    "CM-14-013",
+    "CM-16-002",
+    "CM-16-005",
+    "CM-18-004",
+    "CM-20-001",
+    "CM-20-002",
+    "CM-20-003",
+    "CM-20-004",
+    "CM-20-005",
+    "CM-21-009",
+    "CM-23-006",
+    "CM-23-008",
+    "CM-23-009",
+    "CM-25-001",
+    "CM-25-002",
+    "CM-25-003",
+    "CM-25-004",
+    "CM-25-006",
+    "CM-25-007",
+    "CM-28-002",
+    "CP-01-006",
+))
 ```
 
 ### Case Ledger and Replication
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CBT-02-002", "CBT-03-002", "CLP-01-001", "CLP-01-002", "CLP-01-004", "CLP-02-006", "CLP-02-007", "CLP-02-008", "CLP-02-009", "CLP-03-001", "CLP-03-002", "CLP-04-002", "CLP-04-004", "CLP-04-005", "CLP-04-006", "CLP-05-003", "CLP-06-001", "CLP-07-001", "CLP-07-004", "CLP-08-003", "CLP-08-006", "CLP-08-007", "PCR-01-001", "PCR-03-002", "PCR-03-003", "PCR-04-002", "PCR-04-003", "PCR-05-001", "PCR-06-001", "PCR-06-003", "PCR-08-002", "PCR-08-014", "SYNC-01-004", "SYNC-01-005", "SYNC-06-001", "SYNC-06-003", "SYNC-08-001", "SYNC-08-002", "SYNC-08-003", "SYNC-08-004", "SYNC-09-001", "SYNC-10-003", "SYNC-14-004", "SYNC-14-007", "SYNC-15-006", "SYNC-15-007"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CBT-02-002",
+    "CBT-03-002",
+    "CLP-01-001",
+    "CLP-01-002",
+    "CLP-01-004",
+    "CLP-02-006",
+    "CLP-02-007",
+    "CLP-02-008",
+    "CLP-02-009",
+    "CLP-03-001",
+    "CLP-03-002",
+    "CLP-04-002",
+    "CLP-04-004",
+    "CLP-04-005",
+    "CLP-04-006",
+    "CLP-05-003",
+    "CLP-06-001",
+    "CLP-07-001",
+    "CLP-07-004",
+    "CLP-08-003",
+    "CLP-08-006",
+    "CLP-08-007",
+    "PCR-01-001",
+    "PCR-03-002",
+    "PCR-03-003",
+    "PCR-04-002",
+    "PCR-04-003",
+    "PCR-05-001",
+    "PCR-06-001",
+    "PCR-06-003",
+    "PCR-08-002",
+    "PCR-08-014",
+    "SYNC-01-004",
+    "SYNC-01-005",
+    "SYNC-06-001",
+    "SYNC-06-003",
+    "SYNC-08-001",
+    "SYNC-08-002",
+    "SYNC-08-003",
+    "SYNC-08-004",
+    "SYNC-09-001",
+    "SYNC-10-003",
+    "SYNC-14-004",
+    "SYNC-14-007",
+    "SYNC-15-006",
+    "SYNC-15-007",
+))
 ```
 
 ### Message Processing
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EDF-03-004", "HP-00-001", "HP-00-002", "RF-03-002", "RF-04-002", "RF-05-001", "RF-06-002", "RF-09-001"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "EDF-03-004",
+    "HP-00-001",
+    "HP-00-002",
+    "RF-03-002",
+    "RF-04-002",
+    "RF-05-001",
+    "RF-06-002",
+    "RF-09-001",
+))
 ```
 
 ### Transport and Security
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ENC-01-001", "ENC-01-004", "ENC-01-005", "ENC-01-006", "ENC-02-001", "ENC-02-002", "IE-11-002"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ENC-01-001",
+    "ENC-01-004",
+    "ENC-01-005",
+    "ENC-01-006",
+    "ENC-02-001",
+    "ENC-02-002",
+    "IE-11-002",
+))
 ```
 
 ### Inherited Requirements
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-05-001", "OID-01-002", "RF-06-001"))
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "MV-05-001",
+    "OID-01-002",
+    "RF-06-001",
+))
 ```

@@ -104,12 +104,17 @@ _NO_ISSUE = "No issue cited"
 
 
 def _callout(spec_ids: Iterable[str]) -> list[str]:
-    """A ``markdown-exec`` block printing a callout of *spec_ids* (DF-12-003)."""
-    quoted = ", ".join(f'"{spec_id}"' for spec_id in spec_ids)
+    """A ``markdown-exec`` block printing a callout of *spec_ids* (DF-12-003).
+
+    One ID per line, so two pull requests that move different requirements
+    into or out of one group change different lines and do not conflict.
+    """
     return [
         '```python exec="true" idprefix=""',
-        "from vultron.metadata.specs.docs_render import requirement_callout; "
-        f"print(requirement_callout({quoted}))",
+        "from vultron.metadata.specs.docs_render import requirement_callout",
+        "print(requirement_callout(",
+        *(f'    "{spec_id}",' for spec_id in spec_ids),
+        "))",
         "```",
     ]
 
@@ -131,13 +136,17 @@ def _issue_links(issues: tuple[int, ...]) -> str:
 def _by_issues(
     requirements: Iterable[RequirementCoverage],
 ) -> dict[tuple[int, ...], list[str]]:
-    """Group IDs by cited issues; groups citing an issue first, in number order."""
+    """Group IDs, sorted, by cited issues; groups citing an issue first, in
+    number order."""
     groups: dict[tuple[int, ...], list[str]] = {}
     for requirement in requirements:
         groups.setdefault(cited_issues(requirement), []).append(requirement.id)
-    return dict(
-        sorted(groups.items(), key=lambda item: (not item[0], item[0]))
-    )
+    return {
+        issues: sorted(ids)
+        for issues, ids in sorted(
+            groups.items(), key=lambda item: (not item[0], item[0])
+        )
+    }
 
 
 def _by_catalog_page(
@@ -153,7 +162,7 @@ def _by_catalog_page(
     groups: dict[CatalogPage, list[str]] = {page: [] for page in pages}
     for spec_id in spec_ids:
         groups[catalog_location(spec_id, registry, pages).page].append(spec_id)
-    return {page: ids for page, ids in groups.items() if ids}
+    return {page: sorted(ids) for page, ids in groups.items() if ids}
 
 
 def _section(
@@ -184,8 +193,8 @@ def render_fragment(
 
     Raises:
         MetadataLoadError: If *report* holds no requirement (DF-09-009).
-        NotInCatalogError: If an untested requirement's file is on no
-            catalog page (DF-12-015).
+        NotInCatalogError: If a listed requirement's file is on no catalog
+            page (DF-12-015).
     """
     if not report.requirements:
         raise MetadataLoadError(
@@ -196,6 +205,11 @@ def render_fragment(
     xfail_only = [
         r for r in report.requirements if r.state is CoverageState.XFAIL_ONLY
     ]
+    # Each listed ID is printed by a callout, which refuses an uncatalogued
+    # one at build time (DF-12-012); refuse it here too, so the generator,
+    # not a later mkdocs build, reports it.
+    for requirement in xfail_only:
+        catalog_location(requirement.id, registry, pages)
     xfail_groups = {
         (f"Tracked by {_issue_links(issues)}" if issues else _NO_ISSUE): ids
         for issues, ids in _by_issues(xfail_only).items()

@@ -136,7 +136,7 @@ def desired_contents(root: Path) -> dict[str, str]:
             reported with the missing links (EH-07-001).
         ValueError: If a landing, start or lookup page's markers are missing
             or malformed, the requirement registry does not load, or an
-            untested requirement's file is on no catalog page (DF-12-015).
+            listed requirement's file is on no catalog page (DF-12-015).
     """
     contents = {
         FRAGMENT_PATH: render_fragment(),

@@ -26,7 +26,6 @@ from vultron.metadata.docs.known_gaps import (
     ISSUE_URL,
     PAGE,
     UNTESTED_HEADING,
-    UNTESTED_LABEL,
     XFAIL_ONLY_HEADING,
     known_gaps_fragment,
     render_fragment,
@@ -35,8 +34,15 @@ from vultron.metadata.docs.requirement_catalog import NotInCatalogError
 from vultron.metadata.docs.rfc2119_keywords import fragment_keyword_faults
 from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.generated_files import read_committed
-from vultron.metadata.specs.coverage import ImplementerCoverageReport
+from vultron.metadata.specs.coverage import (
+    CoverageState,
+    ImplementerCoverageReport,
+    RequirementCoverage,
+    XfailTest,
+    compute_implementer_coverage,
+)
 from vultron.metadata.specs.registry import load_registry
+from vultron.metadata.specs.schema import SpecKind
 
 _CALLOUT_RE = re.compile(r"requirement_callout\(([^)]*)\)")
 
@@ -175,8 +181,10 @@ class TestRenderFragment:
 
     def test_labels_the_untested_section_plainly(self, tmp_path):
         _, untested = _sections(_fragment(_checkout(tmp_path)))
-        assert UNTESTED_LABEL == "no test shows `main` does this"
-        assert UNTESTED_LABEL in untested
+        assert (
+            "For each requirement below, no test shows `main` does this."
+            in (untested)
+        )
         assert "unbuilt" not in untested.lower()
 
     def test_an_empty_state_says_so(self, tmp_path):
@@ -201,8 +209,9 @@ class TestRenderFragment:
                 load_registry(tmp_path / "specs"),
             )
 
-    def test_an_untested_requirement_on_no_catalog_page_raises(self, tmp_path):
-        root = _checkout(tmp_path, tests=None)
+    @staticmethod
+    def _uncatalogued(root: Path) -> Path:
+        """Rename the file to ``ZZ``, which no catalog page places."""
         spec_file = root / "specs" / "vultron-protocol-spec.yaml"
         spec_file.write_text(
             spec_file.read_text(encoding="utf-8")
@@ -210,8 +219,38 @@ class TestRenderFragment:
             .replace("VP-01", "ZZ-01"),
             encoding="utf-8",
         )
+        return root
+
+    def test_an_untested_requirement_on_no_catalog_page_raises(self, tmp_path):
+        root = self._uncatalogued(_checkout(tmp_path, tests=None))
         with pytest.raises(NotInCatalogError, match="DF-12-015"):
             _fragment(root)
+
+    def test_an_xfail_only_requirement_on_no_catalog_page_raises(
+        self, tmp_path
+    ):
+        """Refused by the generator, not first by the mkdocs build."""
+        registry = load_registry(
+            self._uncatalogued(_checkout(tmp_path, tests=None)) / "specs"
+        )
+        spec_id = _gap(2).replace("VP", "ZZ")
+        report = ImplementerCoverageReport(
+            requirements=(
+                RequirementCoverage(
+                    id=spec_id,
+                    kind=SpecKind.PROTOCOL,
+                    statement=registry.get(spec_id).statement,
+                    state=CoverageState.XFAIL_ONLY,
+                    xfail_tests=(
+                        XfailTest(
+                            test="test/t.py::t", reason="#1", issues=(1,)
+                        ),
+                    ),
+                ),
+            )
+        )
+        with pytest.raises(NotInCatalogError, match="DF-12-015"):
+            render_fragment(report, registry)
 
     def test_prose_holds_no_rfc2119_keyword(self, tmp_path):
         """Statements are rendered by callout, never copied (DF-12-004)."""
@@ -219,9 +258,25 @@ class TestRenderFragment:
         assert fragment_keyword_faults(FRAGMENT_PATH, fragment) == []
         assert "A participant MUST" not in fragment
 
-    def test_the_same_tree_writes_the_same_fragment(self, tmp_path):
+    def test_the_fragment_does_not_depend_on_report_order(self, tmp_path):
         root = _checkout(tmp_path)
-        assert _fragment(root) == _fragment(root)
+        registry = load_registry(root / "specs")
+        report = compute_implementer_coverage(registry, root / "test")
+        reordered = ImplementerCoverageReport(
+            requirements=tuple(reversed(report.requirements))
+        )
+        assert render_fragment(reordered, registry) == render_fragment(
+            report, registry
+        )
+
+    def test_one_id_per_line(self, tmp_path):
+        """Two PRs moving different requirements touch different lines."""
+        fragment = _fragment(_checkout(tmp_path))
+        id_lines = [
+            line for line in fragment.splitlines() if re.search(r'"VP-', line)
+        ]
+        assert len(id_lines) == 5
+        assert all(line.count('"VP-') == 1 for line in id_lines)
 
 
 @pytest.mark.spec("DF-12-020")

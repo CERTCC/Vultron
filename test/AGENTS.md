@@ -129,6 +129,9 @@ the conformance-critical requirement becomes unverifiable. Add
 `kind: foundation` entry; `spec-coverage` lists the unmarked (untested) and the
 strict-`xfail`-only IDs. The strict-`xfail` pattern for a spec not implemented yet:
 [`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md).
+Adding, removing or retargeting such a marker, or adding or dropping its strict
+`xfail`, can change a requirement's state on the generated known-gaps page: run
+`uv run docs-site --write` and commit `_known-gaps.md`, or CI fails (DF-12-020).
 
 ### Renaming a Mark Touches Three Files
 
