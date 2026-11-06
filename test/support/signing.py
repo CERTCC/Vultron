@@ -23,7 +23,7 @@ signs it here, never by hand:
   as "same id, different body" (IE-10-002).
 - :func:`post_signed` signs a body and posts it to an inbox.
 - :class:`AcceptingProofVerifier` stands in for proof verification in a test
-  that replaces the ingress with a stub, so no body reaches a real verifier.
+  that replaces the ingress with a stub; its port arrives with #5386.
 
 Proofs here are deterministic: the author's key is seeded from its actor id
 (SIG-05-001) and ``created`` defaults to :data:`TEST_PROOF_CREATED`, so
@@ -114,14 +114,18 @@ def post_signed(
 
 
 class AcceptingProofVerifier:
-    """A proof verifier that accepts every document and records each one.
+    """A stand-in proof verifier that accepts every document and records it.
 
     For a test that replaces the ingress with a stub (as
     ``test/core/behaviors/inbox/test_process_payload.py`` does, posting
-    ``{}``): no body reaches a real verifier there, so the test passes this
-    stand-in where the inbox takes its verifier.  :attr:`verified` lists the
-    documents it was asked to verify, so a test can show the stage ran.  It
-    never derives or reads a key (SIG-05-002).
+    ``{}``), so no body reaches a real verifier.  No verifier seam exists in
+    ``vultron/`` yet: the verification stage arrives with #5386, which
+    defines the port and makes this stand-in conform to it.  The shape here
+    is the stage's view, ``verify(document)``, raising on refusal: the stage
+    resolves the author's key itself (SIG-02-001), unlike
+    ``signing.verify(document, public_key_multibase)``.  :attr:`verified`
+    lists the documents it was asked to verify, so a test can show the stage
+    ran.  It never derives or reads a key (SIG-05-002).
     """
 
     def __init__(self) -> None:

@@ -130,12 +130,20 @@ def test_core_object_keeps_a_list_context_through_a_round_trip():
 @pytest.mark.spec("CS-08-002")
 @pytest.mark.parametrize(
     "context",
-    [[], [""], [VULTRON_CONTEXT_URI, "  "], ""],
-    ids=["empty-list", "blank-entry", "one-blank-entry", "blank-string"],
+    [[], [""], [VULTRON_CONTEXT_URI, "  "], "", [{"@vocab": "x"}]],
+    ids=[
+        "empty-list",
+        "blank-entry",
+        "one-blank-entry",
+        "blank-string",
+        "inline-term-map",
+    ],
 )
 def test_core_object_refuses_an_empty_or_blank_context(context: object):
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as raised:
         CoreObject.model_validate({"@context": context})
+
+    assert {error["loc"][0] for error in raised.value.errors()} == {"@context"}
 
 
 def test_core_object_context_defaults_to_the_vultron_uri_on_the_wire():

@@ -122,5 +122,7 @@ def test_a_single_context_still_parses_as_one_string():
     ],
 )
 def test_a_wire_object_refuses_an_empty_or_blank_context(context: Any):
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as raised:
         as_Activity.model_validate({"@context": context, "actor": ACTOR})
+
+    assert {error["loc"][0] for error in raised.value.errors()} == {"@context"}

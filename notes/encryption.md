@@ -92,9 +92,12 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   field again.
 - **Tests sign through `test/support/signing.py`**: `signed_body`, `resigned`
   (an altered copy, re-signed), `post_signed`. Proofs there are deterministic
-  (seeded key, fixed `created`), so a resend is the archived bytes; an
-  archive, intake or held record a test seeds holds a signed body, so a test
-  that resends it must sign its delivery too, or IE-10-002 refuses it.
+  (seeded key, fixed `created`), so a resend is the archived bytes. In
+  `test/support/received.py`, `archive_received`, `intake_received` and
+  `hold_deferred` seed signed bodies, so a test that resends against them signs
+  its delivery too, or IE-10-002 refuses it. `delivered`, `delivered_body`,
+  `evidence_for`, `with_evidence` and `archive_delivered` are still unsigned;
+  #5385 repoints them with the other test deliveries.
 - **The parser sets `proof` aside** as a foreign key (MV-11-003), with one INFO
   record per delivery; the received evidence keeps it (SIG-04-001). Verification
   reads the raw body before the parser (#5386), so nothing needs it parsed.
