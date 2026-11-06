@@ -54,6 +54,9 @@ from vultron.core.behaviors.case.nodes import refusal_notice
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     ClockDecisionStage,
 )
+from vultron.core.behaviors.case.nodes.earlier_run import (
+    FirstRunOfMessageNode,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -67,9 +70,6 @@ from vultron.core.behaviors.case.nodes.refusal_notice import (
 )
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
-)
-from vultron.core.behaviors.case.nodes.seen_before import (
-    ActivityNotSeenBeforeNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
@@ -464,7 +464,7 @@ def _hand_built(
                 for i in range(notices)
             ],
         ),
-        seen_door=ActivityNotSeenBeforeNode(label=name),
+        first_run=FirstRunOfMessageNode(intake_ran=True),
     )
     return ReceivedActivityTree(
         name=name,

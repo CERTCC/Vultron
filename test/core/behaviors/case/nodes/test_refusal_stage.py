@@ -28,9 +28,6 @@ from vultron.core.behaviors.case.nodes.refusal_stage import (
     RefusalEffectsBestEffort,
     enclosing_refusal_reason,
 )
-from vultron.core.behaviors.case.nodes.seen_before import (
-    ActivityNotSeenBeforeNode,
-)
 from vultron.core.behaviors.idempotency import (
     ReportsIdempotentRepeat,
     SilentIdempotencyGuardMixin,
@@ -51,11 +48,13 @@ class _Counting(py_trees.behaviour.Behaviour):
         return self._status
 
 
-def _door(*, rerun: bool = False) -> ActivityNotSeenBeforeNode:
-    """A seen-before door that let the delivery through, as a re-run or not."""
-    door = ActivityNotSeenBeforeNode(label="Stage")
-    door.rerun = rerun
-    return door
+def _first_run(*, rerun: bool = False) -> _Counting:
+    """The stage's first-run condition, answering as the record would.
+
+    The real condition reads the message's record
+    (``test_earlier_run.py``); the stage only acts on its answer.
+    """
+    return _Counting("FirstRun", Status.FAILURE if rerun else Status.SUCCESS)
 
 
 def _stage(
@@ -72,7 +71,7 @@ def _stage(
             name="PreconditionGuards", memory=False, children=[guard]
         ),
         refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=effect),
-        seen_door=_door(rerun=rerun),
+        first_run=_first_run(rerun=rerun),
     )
     return stage, guard, effect
 
@@ -151,7 +150,7 @@ def test_a_running_refusal_effect_resumes_without_rejudging() -> None:
             name="PreconditionGuards", memory=False, children=[guard]
         ),
         refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=effect),
-        seen_door=_door(),
+        first_run=_first_run(),
     )
 
     stage.tick_once()
@@ -198,7 +197,7 @@ def _stage_with(guard: py_trees.behaviour.Behaviour, effect: _Counting):
             name="PreconditionGuards", memory=False, children=[guard]
         ),
         refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=effect),
-        seen_door=_door(),
+        first_run=_first_run(),
     )
 
 

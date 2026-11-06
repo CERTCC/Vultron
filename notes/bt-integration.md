@@ -540,8 +540,10 @@ nothing is written before the last one admits the message (ADR-0154).
    `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
    reports `SKIPPED`), on a delivery a `Diversion` among the guards took,
    which its diversion already answered (CLP-10-026), and on the re-run of a
-   record a run left in holding, which the seen-before door tells (CLP-10-044):
-   the first run may have answered, and the RSH-06-004 note's id is minted. A
+   record a run left in holding, which its `first_run` condition reads from the
+   record (CLP-10-044): the first run may have answered. The RSH-06-004 note's
+   id is derived from the CASE_MANAGER, the received activity and the note's
+   kind, so a re-run that reached the effects would record nothing twice. A
    guard that turns a
    `VultronError` into a refusal re-raises `INTERNAL_FAULTS` first
    (`vultron/errors.py`): an internal failure is never answered with a

@@ -44,7 +44,7 @@ import logging
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.held_ledger_announce import HeldLedgerAnnounce
-from vultron.core.models.received_activity_record import ReceivedStage
+from vultron.core.models.received_activity_record import HOLDING_STAGES
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.received_activity import (
     held_received_record,
@@ -122,7 +122,7 @@ def _received_body(dl: CasePersistence, activity_id: str) -> str:
             tree, and holding nothing would lose the ``Announce``.
     """
     record = held_received_record(dl, activity_id)
-    if record is None or record.stage is not ReceivedStage.HELD:
+    if record is None or record.stage not in HOLDING_STAGES:
         raise VultronWiringError(
             f"Announce(CaseLedgerEntry) '{activity_id}' is not in holding, so"
             " there is no received body to hold for its replay (CLP-10-017,"

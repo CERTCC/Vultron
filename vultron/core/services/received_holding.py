@@ -45,6 +45,7 @@ answers the delivery instead.
 import logging
 
 from vultron.core.models.received_activity_record import (
+    HOLDING_STAGES,
     ReceivedActivityRecord,
     ReceivedStage,
 )
@@ -125,7 +126,7 @@ def hold_for_replay(
             )
         )
         return True
-    if existing.stage is not ReceivedStage.HELD:
+    if existing.stage not in HOLDING_STAGES:
         logger.info(
             "Received activity %s is already %s, so it is not held for a"
             " replay; its seen-before door answers it (ADR-0154).",
@@ -157,6 +158,9 @@ def hold_for_replay(
     dl.save(
         existing.model_copy(
             update={
+                # A message that waits is HELD, whichever run held it
+                # (ADR-0154): HANDLED never owes a replay.
+                "stage": ReceivedStage.HELD,
                 "replay_owed": True,
                 "awaiting_case_id": awaiting_case_id,
                 "replay_rows_json": replay_rows_json,
@@ -253,7 +257,7 @@ def discard_holding(dl: CasePersistence, activity_id: str) -> None:
     stub) is not a wait and is left as it is.
     """
     record = held_received_record(dl, activity_id)
-    if record is None or record.stage is not ReceivedStage.HELD:
+    if record is None or record.stage not in HOLDING_STAGES:
         return
     dl.delete(record.type_, record.id_)
 
@@ -277,6 +281,27 @@ def records_awaiting_case(
     return sorted(waiting, key=lambda r: (r.received_at, r.activity_id))
 
 
+def records_left_in_holding(
+    dl: CasePersistence,
+) -> list[ReceivedActivityRecord]:
+    """Every record a run left in holding with no verdict, oldest first.
+
+    A record in holding that owes no replay is one intake wrote whose run
+    did not reach its outcome: it raised, or the process stopped mid-run
+    (CLP-10-074).  Read at startup, when no run is in progress, each is the
+    message a crash left to be run again (ADR-0154).  A record waiting for a
+    replay is not one of them: its wait ends it.
+    """
+    left = [
+        obj
+        for obj in dl.list_objects(ReceivedActivityRecord.__name__)
+        if isinstance(obj, ReceivedActivityRecord)
+        and obj.stage in HOLDING_STAGES
+        and not obj.replay_owed
+    ]
+    return sorted(left, key=lambda r: (r.received_at, r.activity_id))
+
+
 __all__ = [
     "discard_holding",
     "held_for_replay",
@@ -284,6 +309,7 @@ __all__ = [
     "hold_unjudged_for_replay",
     "owes_replay",
     "records_awaiting_case",
+    "records_left_in_holding",
     "release_from_holding",
     "stop_awaiting_case",
 ]

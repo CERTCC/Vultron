@@ -40,6 +40,7 @@ notice reads the body and the stub replaces it.
 import logging
 
 from vultron.core.models.received_activity_record import (
+    HOLDING_STAGES,
     ReceivedActivityRecord,
     ReceivedStage,
 )
@@ -71,7 +72,7 @@ def archive_applied(dl: CasePersistence, activity_id: str) -> None:
     record = held_received_record(dl, activity_id)
     if (
         record is None
-        or record.stage is not ReceivedStage.HELD
+        or record.stage not in HOLDING_STAGES
         or record.replay_owed
     ):
         logger.debug(
@@ -140,7 +141,7 @@ def write_receipt_stub(
                 body_hash=received_body_digest(received_body),
             ),
         )
-    if record.stage is not ReceivedStage.HELD:
+    if record.stage not in HOLDING_STAGES:
         logger.debug(
             "Received activity %s is already %s; its first outcome stands.",
             activity_id,

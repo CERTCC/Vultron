@@ -276,20 +276,33 @@ def test_inlined_case_does_not_become_a_replica(scenario):
 
 
 @pytest.mark.spec("CLP-10-036")
-def test_second_intake_of_the_same_activity_writes_nothing(scenario):
+def test_second_intake_of_the_same_activity_marks_the_record_handled(
+    scenario,
+):
+    """The record a run left in holding is the one the re-run uses.
+
+    Intake keeps it, body and all (CLP-10-074), and moves it to ``HANDLED``,
+    the record's answer to "is this run a re-run" (ADR-0154).  A third run
+    leaves it ``HANDLED``.
+    """
     event = _note_event(_rich_note())
     scenario.assert_success(
         scenario.run(IntakeReceivedActivityNode(), activity=event)
     )
-    before = scenario.dl.by_type("ReceivedActivityRecord")
+    (first,) = scenario.dl.by_type("ReceivedActivityRecord").values()
+    assert first["stage"] == ReceivedStage.HELD.value
 
-    second = IntakeReceivedActivityNode()
-    result = scenario.run(second, activity=event)
+    scenario.assert_success(
+        scenario.run(IntakeReceivedActivityNode(), activity=event)
+    )
+    (second,) = scenario.dl.by_type("ReceivedActivityRecord").values()
+    assert second == {**first, "stage": ReceivedStage.HANDLED.value}
 
-    # The record a run left in holding is the one the re-run uses
-    # (CLP-10-074), and a nested tree's intake meets its enclosing tree's.
-    scenario.assert_success(result)
-    assert scenario.dl.by_type("ReceivedActivityRecord") == before
+    scenario.assert_success(
+        scenario.run(IntakeReceivedActivityNode(), activity=event)
+    )
+    (third,) = scenario.dl.by_type("ReceivedActivityRecord").values()
+    assert third == second
 
 
 @pytest.mark.spec("CLP-10-036")

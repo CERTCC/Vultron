@@ -13,7 +13,8 @@ description: >
   when the per-case expiry window restarts,
   the internal-error fault for a raised dispatch,
   the queue replay's bounded retry and held fault, what is left of the
-  staged-record migration (ADR-0153, ADR-0154), the
+  staged-record migration (ADR-0153, ADR-0154), how a re-run is told
+  from a first run by the record and finished on restart, the
   sender-sequence hold that returns a record to HELD (ADR-0178),
   pending-queue port injection, and the test surface.
 related_specs:
@@ -309,11 +310,22 @@ a resend of it routes the held copy as a redelivery (IE-10-001) and does not rel
 
 **What is left of the staged-record migration.** `Offer(VulnerabilityReport)` still
 stores what it carried before its own late addressee check, under the
-`OFFER_REPORT_STORED_FIRST` exemption, until it takes the no-case path (#5046); and
-nothing yet finds a record a crashed run left in holding on restart, or proves every
-handling tree safe to run twice from holding (#5047). New work should add no
-receiver-role gate outside the path stage and no reader of in-memory state an earlier
-stage left (ADR-0154).
+`OFFER_REPORT_STORED_FIRST` exemption, until it takes the no-case path (#5046); and no
+sweep yet proves every handling tree safe to run twice from holding (#5047). New work
+should add no receiver-role gate outside the path stage and no reader of in-memory state
+an earlier stage left (ADR-0154).
+
+**A re-run is told from a first run by the record, at intake.** Intake writes a new
+message `HELD` and moves a `HELD` record an earlier run left to `HANDLED`, so a stage
+after intake asks `began_in_an_earlier_run(..., intake_ran=True)` and reads `HANDLED`.
+A stage before intake (the post-close stage) asks with `intake_ran=False`: a record in
+holding owed no replay. Only intake may write the mark. A later write leaves a crash
+window in which a re-run reads as a first run (ADR-0154,
+`test_received_stages_read_the_record.py`). A received tree nested inside another for
+one delivery is built `nested=True` and runs no door or intake of its own. A second
+intake would read the first run as a re-run. At startup, `rerun_left_in_holding` runs
+each record left in holding owed no replay again, before the inbox queue
+(`test_interrupted_run_restart.py`).
 
 ---
 

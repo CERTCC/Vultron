@@ -2645,10 +2645,11 @@ groups:
     verification: >-
       A unit test for the intake node archives a received activity, asserts the activity
       is readable through `ReceivedActivityRecord.build_id` and not under the sender's
-      id, asserts a second run writes nothing, and asserts a sender activity whose id
-      equals a receiver-derived record id does not block the later `create()` of that
-      record. `test/core/behaviors/case/nodes/test_intake.py` also asserts the archive
-      is exactly the body the parser sealed.
+      id, asserts a second run keeps the body as it is and moves the record only from
+      `HELD` to `HANDLED` (ADR-0154), and a third changes nothing, and asserts a sender
+      activity whose id equals a receiver-derived record id does not block the later
+      `create()` of that record. `test/core/behaviors/case/nodes/test_intake.py` also
+      asserts the archive is exactly the body the parser sealed.
     relationships:
     - rel_type: extends
       spec_id: CLP-10-017

@@ -9,6 +9,14 @@ starts :func:`replay_hosted_inbox_queues` once at startup
 the server, so a slow replay or outbox drain never holds back readiness.  It
 re-runs what is queued, with the bounded retry and dead letter of a replay
 after a delivery (IE-06-004); it repairs nothing.
+
+Before the queue, it runs again every message a run left in holding with no
+verdict (:func:`rerun_left_in_holding`): a process stop mid-run leaves the
+message's record in holding, and at startup no run is in progress, so each
+such record is a run to finish (ADR-0154, CLP-10-074).  The held body is
+routed as a resend of itself, so the seen-before door lets it through, its
+intake marks the record ``HANDLED`` and every stage that answers a delivery
+once reads the run as a re-run.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -25,16 +33,60 @@ after a delivery (IE-06-004); it repairs nothing.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import asyncio
+import json
 import logging
+from typing import cast
 
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     replay_inbox_queue,
+    run_inbox_pipeline,
 )
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
+from vultron.core.services.received_activity import sealed_body_of
+from vultron.core.services.received_holding import records_left_in_holding
 
 logger = logging.getLogger(__name__)
+
+
+async def rerun_left_in_holding(
+    actor_dl: DataLayer,
+    actor_id: str,
+    dispatcher: ActivityDispatcher | None,
+    emitter: ActivityEmitter | None,
+) -> int:
+    """Run again each message a run left in holding for *actor_id*.
+
+    Each record is run as the delivery of the body it holds, through the
+    same pipeline and per-actor lock as a delivery
+    (:func:`~vultron.adapters.driving.fastapi.inbox_orchestration.run_inbox_pipeline`),
+    so it reaches its outcome as any re-run does: the handling tree runs
+    again from the body, nothing its first run kept is done twice, and the
+    outcome stage archives or stubs it (ADR-0154, CLP-10-074).  A record a
+    delivery settled meanwhile is answered by its seen-before door.
+
+    Returns the number of records run again.
+    """
+    records = records_left_in_holding(cast(CasePersistence, actor_dl))
+    for record in records:
+        logger.info(
+            "Running again activity '%s' for actor_id=%s, left in holding"
+            " with no verdict by an earlier run (ADR-0154, CLP-10-074).",
+            record.activity_id,
+            actor_id,
+        )
+        await run_inbox_pipeline(
+            json.loads(sealed_body_of(record)),
+            actor_dl,
+            actor_id,
+            dispatcher,
+            emitter,
+        )
+    return len(records)
 
 
 async def replay_hosted_inbox_queues(
@@ -68,6 +120,7 @@ async def replay_hosted_inbox_queues(
     for actor_id in actor_hosts.hosted_actor_ids():
         try:
             actor_dl = get_datalayer(actor_id)
+            await rerun_left_in_holding(actor_dl, actor_id, None, emitter)
             queued = len(actor_dl.inbox_list())
             if not queued:
                 continue

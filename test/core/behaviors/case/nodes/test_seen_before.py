@@ -25,8 +25,8 @@ handler's verdict and what ran are asserted:
 - a record a run left in holding with no verdict: the delivery runs again;
 - no record: the delivery runs, and intake records it.
 
-A nested received tree meets the record its enclosing tree's intake wrote,
-and still runs (the close-case tree's inner tree, CM-23-002).
+A nested received tree has no door or intake of its own, and runs on its
+enclosing tree's (the close-case tree's inner tree, CM-23-002).
 """
 
 from typing import cast
@@ -63,6 +63,7 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.received_activity import began_in_an_earlier_run
 from vultron.core.services.received_holding import hold_for_replay
 from vultron.core.services.received_outcome import write_receipt_stub
 from vultron.core.use_cases.received._bt_verdict import (
@@ -205,7 +206,9 @@ def test_a_message_left_in_holding_with_no_verdict_runs_again(scenario):
     """A run that raised left the record ``HELD``; the resend re-runs it.
 
     Runs are serialized per actor, so the only ``HELD`` record owing nothing
-    that a resend can meet is one a finished run left (ADR-0154).
+    that a resend can meet is one a finished run left (ADR-0154).  Intake
+    moves it to ``HANDLED``, which is how the stages after it read the run
+    as a re-run (SYNC-18-009, SYNC-21-018, CLP-10-044).
     """
     intake_received(scenario.dl, _event().activity)
     ran = _Ran()
@@ -216,13 +219,23 @@ def test_a_message_left_in_holding_with_no_verdict_runs_again(scenario):
     assert result.status == Status.SUCCESS
     assert ran.ticks == 1
     record = _record(scenario.dl)
-    assert record is not None and record.stage is ReceivedStage.HELD
-    # The stages that answer a delivery once read this (SYNC-18-009,
-    # SYNC-21-018).
-    door = next(
-        n for n in tree.iterate() if isinstance(n, ActivityNotSeenBeforeNode)
+    assert record is not None and record.stage is ReceivedStage.HANDLED
+    assert began_in_an_earlier_run(
+        scenario.dl, record.activity_id, intake_ran=True
     )
-    assert door.rerun is True
+
+
+@pytest.mark.spec("CLP-10-074")
+def test_a_second_rerun_keeps_the_record_handled(scenario):
+    """A re-run that also ended with no verdict leaves ``HANDLED`` for the next."""
+    intake_received(scenario.dl, _event().activity)
+    scenario.run(_tree(_Ran()), activity=_event())
+
+    result = scenario.run(_tree(_Ran()), activity=_event())
+
+    assert result.status == Status.SUCCESS
+    record = _record(scenario.dl)
+    assert record is not None and record.stage is ReceivedStage.HANDLED
 
 
 @pytest.mark.spec("CLP-10-017")
@@ -234,14 +247,13 @@ def test_a_delivery_never_seen_runs_and_is_recorded(scenario):
 
     assert result.status == Status.SUCCESS
     assert seen_before_verdict(tree) is None
-    door = next(
-        n for n in tree.iterate() if isinstance(n, ActivityNotSeenBeforeNode)
-    )
-    assert door.rerun is False
     assert ran.ticks == 1
     record = _record(scenario.dl)
     assert record is not None
     assert (record.stage, record.replay_owed) == (ReceivedStage.HELD, False)
+    assert not began_in_an_earlier_run(
+        scenario.dl, record.activity_id, intake_ran=True
+    )
 
 
 @pytest.mark.spec("CLP-10-010")
@@ -249,10 +261,12 @@ def test_a_delivery_never_seen_runs_and_is_recorded(scenario):
 def test_a_nested_received_tree_runs_past_its_enclosing_trees_record(
     scenario,
 ):
-    """The inner tree's door meets the outer intake's record and passes.
+    """A nested tree runs on its enclosing tree's door and intake.
 
     The shape of the close-case tree, whose inner ``CloseCaseReceive`` tree
-    is built by the same factory and runs as the outer tree's effect.
+    is built by the same factory, ``nested``, and runs as the outer tree's
+    effect.  It has no door or intake of its own, so its first run leaves
+    the record ``HELD``: a first run is still read as one (ADR-0154).
     """
     ran = _Ran("InnerRan")
     inner = create_receive_activity_tree(
@@ -261,6 +275,7 @@ def test_a_nested_received_tree_runs_past_its_enclosing_trees_record(
         precondition_guards=[ran],
         addressee_exemption=ENCLOSING_TREE_ADDRESSEE_CHECK,
         post_close_exemption=PostCloseExemption.ENCLOSING_TREE_GUARDS,
+        nested=True,
     )
     outer = create_receive_activity_tree(
         name="OuterBT",
@@ -275,7 +290,9 @@ def test_a_nested_received_tree_runs_past_its_enclosing_trees_record(
     doors = [
         n for n in outer.iterate() if isinstance(n, ActivityNotSeenBeforeNode)
     ]
-    assert [d.status for d in doors] == [Status.SUCCESS, Status.SUCCESS]
+    assert [d.status for d in doors] == [Status.SUCCESS]
+    record = _record(scenario.dl)
+    assert record is not None and record.stage is ReceivedStage.HELD
 
 
 @pytest.mark.spec("ARCH-15-001")

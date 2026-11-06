@@ -27,7 +27,9 @@ It runs after the door guards (CLP-10-010, ADR-0154): a message a door turns
 away is never held in full, and a resend has already been answered from its
 record by the seen-before door.  So every delivery that reaches intake is
 new, or is the re-run of a message a run left in holding with no verdict
-(CLP-10-074).
+(CLP-10-074).  Intake is the stage that tells the two apart on the record: it
+writes a new message ``HELD``, and moves the ``HELD`` record a run left to
+``HANDLED``, before any later stage reads it.
 
 What it stores is the body that arrived, as the parser sealed it (VM-08-002),
 which the event carries as its received evidence
@@ -63,8 +65,9 @@ Blackboard contract (BTND-03-003):
   ``BTBridge.execute_with_setup``.  Its ``received_evidence`` is the body to
   record, under its ``activity_id``.
 
-The node keeps no record of what it did for a later node to read: whether a
-delivery is new is the seen-before door's answer, from the record (ADR-0154).
+The node keeps no record of what it did for a later node to read in memory:
+whether a run is a re-run is the record's stage, read from the store
+(``began_in_an_earlier_run``, ADR-0154).
 """
 
 import logging
@@ -79,6 +82,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.received_activity_record import (
+    HOLDING_STAGES,
     ReceivedActivityRecord,
     ReceivedStage,
 )
@@ -98,10 +102,14 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
     parser sealed (VM-08-002), and nothing else (ADR-0149).
 
     A ``HELD`` record with no replay owed may already be there: a run that
-    ended with no verdict left it (CLP-10-074), or the enclosing received
-    tree's intake wrote it for a nested one.  It is left as it is, because
-    its body is the one this delivery brings (ingress refuses a different
-    one, IE-10-002).  Any other record means the seen-before door did not
+    ended with no verdict left it (CLP-10-074).  Its body is the one this
+    delivery brings (ingress refuses a different one, IE-10-002), so it is
+    kept, and moved to ``HANDLED`` so that every later stage of this run
+    reads the record as a re-run and does not answer again what the earlier
+    run may have answered (ADR-0154).  A ``HANDLED`` record, left by an
+    earlier re-run, stays as it is.  A nested received tree runs no intake of
+    its own (``create_receive_activity_tree(nested=True)``), so a first run
+    is never mistaken for a re-run.  Any other record means the seen-before door did not
     run ahead of this node, which is a wiring fault: the node raises
     :exc:`~vultron.errors.VultronWiringError` and writes nothing, so the
     handler raises and the outcome stage leaves the record as it is
@@ -186,12 +194,19 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
         record = held_received_record(self.datalayer, activity_id)
         if (
             record is not None
-            and record.stage is ReceivedStage.HELD
+            and record.stage in HOLDING_STAGES
             and not record.replay_owed
         ):
-            self.logger.debug(
-                "Intake: activity '%s' is already in holding; it runs again"
-                " from the body held (CLP-10-074)",
+            if record.stage is ReceivedStage.HELD:
+                # The record an earlier run left: say so on the record, so
+                # every later stage reads this run as a re-run (ADR-0154).
+                self.datalayer.save(
+                    record.model_copy(update={"stage": ReceivedStage.HANDLED})
+                )
+            self.logger.info(
+                "Intake: activity '%s' is already in holding, left by a run"
+                " that ended with no verdict; it runs again from the body"
+                " held (CLP-10-074)",
                 activity_id,
             )
             return Status.SUCCESS

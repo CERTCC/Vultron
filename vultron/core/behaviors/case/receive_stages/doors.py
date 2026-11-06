@@ -84,15 +84,19 @@ def addressee_stage(
     return []
 
 
-def seen_before_stage(name: str) -> ActivityNotSeenBeforeNode:
+def seen_before_stage(
+    name: str, *, nested: bool = False
+) -> list[py_trees.behaviour.Behaviour]:
     """The seen-before door, labelled with the tree's name (ADR-0154).
 
     Every received tree carries it, after the addressee check: a resend is
     answered from the message's record before intake writes anything, and no
-    tree opts out.  A nested received tree meets the record its enclosing
-    tree's intake wrote, ``HELD`` with no replay owed, and passes.
+    tree opts out.  A *nested* received tree has none: its enclosing tree's
+    door answered the delivery (``create_receive_activity_tree(nested=True)``).
     """
-    return ActivityNotSeenBeforeNode(label=name)
+    if nested:
+        return []
+    return [ActivityNotSeenBeforeNode(label=name)]
 
 
 def post_close_stage(
@@ -100,7 +104,6 @@ def post_close_stage(
     guard_case_id: str | None,
     exemption: PostCloseExemption | None,
     reply: list[py_trees.behaviour.Behaviour],
-    seen_door: ActivityNotSeenBeforeNode,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The post-close write-boundary guard, with its optional reply.
 
@@ -134,7 +137,8 @@ def post_close_stage(
             [guard],
             reply,
             guard_case_id,
-            seen_door=seen_door,
+            # The post-close stage is a door, ahead of intake (ADR-0154).
+            intake_ran=False,
             stage_name="PostCloseStage",
             guards_name="PostCloseGuard",
             gate_suffix="PostCloseReplyIfCaseManager",
