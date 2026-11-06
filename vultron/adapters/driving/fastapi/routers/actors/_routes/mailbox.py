@@ -35,6 +35,7 @@ from vultron.adapters.driven.sender_sequence_stamp import with_outbound_stamps
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
 )
+from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
@@ -207,7 +208,9 @@ def post_actor_outbox(
 
     # No clone: the injected DataLayer already is this actor's store.
     actor_dl = cast(Any, dl)
-    with actor_dl.transaction():
+    # Sealing signs the body (SIG-01-001); one the signer refuses is answered
+    # 422 and, the transaction rolled back, leaves nothing stored or queued.
+    with domain_error_translation(), actor_dl.transaction():
         # A case activity states this actor's ledger tail and, sent to the
         # CASE_MANAGER, its next sender sequence, as one its own adapter
         # builds does (SYNC-18-001, SYNC-21-001); one that states them keeps

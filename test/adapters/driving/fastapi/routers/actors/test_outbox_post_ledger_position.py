@@ -196,3 +196,28 @@ def test_a_posted_case_activity_is_sealed_with_the_actors_tail(
         "logIndex": EMPTY_LEDGER_LOG_INDEX,
         "entryHash": case.genesis_hash,
     }
+
+
+@pytest.mark.spec("SIG-01-001")
+def test_a_posted_activity_that_cannot_be_signed_is_refused_422(
+    actor_dl, monkeypatch
+) -> None:
+    """The signer's refusal is the client's content, so 422; nothing is kept."""
+    from vultron.adapters import outbox_sealed_body
+    from vultron.wire.as2.errors import VultronUnsignableJsonError
+
+    def _refuse(_activity: object) -> str:
+        raise VultronUnsignableJsonError("value cannot be canonicalized")
+
+    monkeypatch.setattr(outbox_sealed_body, "signed_outbound_body", _refuse)
+    actor, dl = actor_dl
+    case = _case_with_manager(dl, actor)
+    note = _note_to_manager(case, actor, "unsignable")
+
+    response = _post(dl, actor, note, monkeypatch)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["error"] == "ValidationError"
+    assert dl.read(note.id_) is None
+    assert read_sealed_body_dict(dl, note.id_) is None
+    assert dl.outbox_list() == []

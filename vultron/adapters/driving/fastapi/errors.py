@@ -11,6 +11,7 @@ from vultron.errors import (
     VultronProofVerificationError,
     VultronValidationError,
 )
+from vultron.wire.as2.errors import VultronUnsignableJsonError
 
 
 @contextmanager
@@ -76,6 +77,15 @@ def translate_domain_errors(exc: Exception) -> HTTPException:
         return _error_http_exception(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "ProofVerificationError",
+            str(exc),
+        )
+    if isinstance(exc, VultronUnsignableJsonError):
+        # A body the signer refuses (an integer outside ±(2^53 - 1), a
+        # non-finite number) is content the client must change, not a
+        # server fault (EH-05-001).
+        return _error_http_exception(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "ValidationError",
             str(exc),
         )
     if isinstance(exc, (VultronValidationError, PydanticValidationError)):

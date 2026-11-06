@@ -38,6 +38,39 @@ _FAILED_ACTIVITY = "https://example.org/activities/act-001"
 
 
 class TestEmitProcessingFault:
+    @pytest.mark.spec("SIG-01-001")
+    def test_a_fault_that_cannot_be_signed_leaves_nothing_behind(
+        self, adapter, dl, monkeypatch
+    ):
+        """Store, seal and queue are one transaction, so all roll back."""
+        from vultron.adapters import outbox_sealed_body
+        from vultron.wire.as2.errors import VultronUnsignableJsonError
+
+        def _refuse(_activity: Any) -> str:
+            raise VultronUnsignableJsonError("value cannot be canonicalized")
+
+        monkeypatch.setattr(
+            outbox_sealed_body, "signed_outbound_body", _refuse
+        )
+        fault_id = derived_activity_id(
+            "processing-fault",
+            _ACTOR,
+            _FAILED_ACTIVITY,
+            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+        )
+
+        with pytest.raises(VultronUnsignableJsonError):
+            adapter.emit_processing_fault(
+                actor=_ACTOR,
+                failed_activity_id=_FAILED_ACTIVITY,
+                failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+                to=[_SENDER],
+            )
+
+        assert dl.read(fault_id) is None
+        assert not is_sealed(dl, fault_id)
+        assert dl.outbox_list() == []
+
     def test_returns_activity_id(self, adapter, dl):
         activity_id = adapter.emit_processing_fault(
             actor=_ACTOR,
