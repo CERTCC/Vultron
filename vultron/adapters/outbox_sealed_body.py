@@ -169,7 +169,9 @@ def signed_outbound_body(activity: BaseModel) -> str:
             has no author to sign it, or holds a value that cannot be
             canonicalized.
     """
-    signed = signing.sign_as_author(json.loads(dump_outbound_body(activity)))
+    signed = signing.sign_as_author(
+        signing.load_json(dump_outbound_body(activity))
+    )
     return json.dumps(signed, ensure_ascii=False, separators=(",", ":"))
 
 

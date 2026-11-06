@@ -1149,9 +1149,12 @@ groups:
       URI alone hides the AS2 reference from a plain-JSON receiver.
     verification: >-
       Tests marked `VM-10-001` in `test/adapters/test_outbound_vultron_context.py`
-      render one sealed outbound body per activity verb that a `SEMANTIC_REGISTRY`
-      pattern matches and assert its top-level `@context` is the two-entry list, and
-      that a core or wire object dumped on its own carries the list.
+      render one outbound body per activity verb that a `SEMANTIC_REGISTRY` pattern
+      matches, before signing, and assert its top-level `@context` is the two-entry
+      list, and that a core or wire object dumped on its own carries the list.
+      `test_signing_only_appends_the_data_integrity_context` checks that the sealed,
+      signed body keeps that list first and adds only the data-integrity context
+      (SIG-01-001).
     adr:
     - ADR-0069
     stories:

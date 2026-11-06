@@ -40,6 +40,7 @@ from vultron.adapters.outbox_sealed_body import (
     SealedOutboundBody,
     dump_outbound_body,
     sealed_body_id,
+    signed_outbound_body,
 )
 from vultron.core.models.actor import VultronOrganization
 from vultron.wire.as2.factories import rm_submit_report_activity
@@ -198,7 +199,11 @@ def test_handle_outbox_item_hands_over_the_held_inbox():
 
 @pytest.mark.spec("OX-02-002")
 def test_handle_outbox_item_delivers_an_activitystreams_activity():
-    """The body that reaches the emitter parses as an AS2 activity."""
+    """The signed body that reaches the emitter parses as an AS2 activity.
+
+    The body is sealed as the outbox seals it, proof included; the parser
+    sets the proof aside (MV-11-003).
+    """
     offer = rm_submit_report_activity(
         as_VulnerabilityReport(name="VU#OX-02-002", content="a report"),
         to=RECIPIENT,
@@ -207,14 +212,17 @@ def test_handle_outbox_item_delivers_an_activitystreams_activity():
     sealed = SealedOutboundBody(
         id_=sealed_body_id(offer.id_),
         activity_id=offer.id_,
-        body=dump_outbound_body(offer),
+        body=signed_outbound_body(offer),
     )
     mock_emitter = AsyncMock()
 
     _deliver("actor-abc", sealed.activity_id, _dl_with(sealed), mock_emitter)
 
     delivered = json.loads(mock_emitter.emit.call_args.args[1])
-    assert delivered["@context"] == list(DEFAULT_JSONLD_CONTEXT)
+    assert delivered["@context"][: len(DEFAULT_JSONLD_CONTEXT)] == list(
+        DEFAULT_JSONLD_CONTEXT
+    )
+    assert "proof" in delivered
     assert delivered["type"] == "Offer"
     parsed = parse_activity(delivered)
     assert isinstance(parsed, as_Offer)

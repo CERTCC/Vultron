@@ -42,6 +42,7 @@ import json
 import re
 from collections.abc import Iterator, Mapping
 from typing import Any
+from urllib.parse import urlparse
 
 import pytest
 
@@ -62,6 +63,30 @@ from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
 _UNSAFE_IN_HOST = re.compile(r"[^a-z0-9-]+")
+
+
+def _served_key(topo: _Topology, body: Mapping[str, Any]) -> str:
+    """The key the proof names, read from the author's served profile.
+
+    A plain GET of the author's profile on its own node (SIG-02-001,
+    SIG-02-002), so the test verifies against the published key, not one it
+    derives.
+    """
+    author = signing.author_of(body)
+    method = signing.proof_verification_method(body)
+    [node] = [
+        app
+        for app in (topo.ca_host, topo.owner, topo.invitee)
+        if author.startswith(f"{app.base_url}/")
+    ]
+    response = node.client.get(urlparse(author).path)
+    assert response.status_code == 200, response.text
+    [key] = [
+        entry
+        for entry in response.json().get("assertionMethod", [])
+        if isinstance(entry, dict) and entry.get("id") == method
+    ]
+    return str(key["publicKeyMultibase"])
 
 
 class _RecordingRouter(InProcessRouter):
@@ -168,11 +193,7 @@ class TestTheWireCarriesTheSealedBody:
         senders = {signing.author_of(body) for body in bodies}
         assert {topo.owner_actor_id, topo.ca_actor_id} <= senders, senders
         for body in bodies:
-            author = signing.author_of(body)
-            key = signing.published_multikey(
-                signing.seeded_signing_key(author), author
-            )
-            signing.verify(body, key.public_key_multibase)
+            signing.verify(body, _served_key(topo, body))
 
     def test_the_wire_carries_the_enriched_case_stub(self, recorded_topology):
         """CM-17-002 reaches the wire: the collapsed-stub defect (#2624) is gone."""

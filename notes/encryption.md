@@ -119,6 +119,15 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   JSON-shape checks and before the parser (SIG-03-003). The pre-parsed
   `as_Activity` ingress path has no body to verify and goes when verification
   lands (#5386).
+- **An uncanonicalizable body fails at the CASE_MANAGER's seal until #5386.**
+  A received body holding an integer beyond ±(2^53 - 1) cannot be signed, so
+  the `Announce(CaseLedgerEntry)` carrying its snapshot fails to seal and the
+  commit tree fails without a named refusal. A sender's outbox cannot sign
+  such a body either, so the verification stage should refuse it at ingress.
+- **The parser drops `proof` from what it parses.** Only the ledger snapshot
+  keeps the received body, so an activity a receiver re-embeds from its parsed
+  copy carries no original proof. A relay that must carry an author's proof
+  takes it from the received evidence (SIG-04-001).
 - **A failed proof raises `VultronProofVerificationError`** (EH-03-005), which
   `translate_domain_errors` answers 422 as `ProofVerificationError`, not 401:
   the proof is content, not an HTTP credential. `signing.verify` raises its
