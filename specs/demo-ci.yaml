@@ -2884,6 +2884,293 @@ groups:
           - rel_type: depends_on
             spec_id: DEMOCI-11-034
 
+      - id: DEMOCI-11-054
+        priority: MUST
+        kind: project
+        statement: >-
+          On a pull request that changes a file under `vultron/demo/`, CI MUST
+          record every registered scenario in-process at the base commit and at the
+          head.
+        rationale: >-
+          This is the evidence DEMOMA-17-002 asks of a consolidation. Comparing head
+          with base, not with the committed recordings, commits nothing, so no pull
+          request regenerates a recording. A core-only pull request is not a
+          consolidation; the daily recordings run covers its drift.
+        verification: >-
+          The workflow's path filter names `vultron/demo/`, and the job records
+          every registered scenario at both commits.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: satisfies
+            spec_id: DEMOMA-17-002
+
+      - id: DEMOCI-11-055
+        priority: MUST
+        kind: project
+        statement: >-
+          CI MUST compare each scenario's base and head runs on their normalized
+          ledgers and on their check trees.
+        rationale: >-
+          The plot manifest sees a reorder but not an edit inside a fragment. A
+          ledger sees the protocol acts but not the checks. A check tree sees the
+          checks but not the acts. Only both together cover what a scenario passes
+          or fails on.
+        verification: >-
+          A test of the comparison command asserts that two identical runs compare
+          equal and that a difference in either trace fails.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-054
+
+      - id: DEMOCI-11-056
+        priority: MUST
+        kind: project
+        statement: >-
+          A scenario's check tree MUST list every `demo_step`, `demo_check` and
+          `demo_gate` its run enters, in order and nested as they ran.
+        rationale: >-
+          A check that moves into or out of a gate changes what the scenario passes
+          or fails on and leaves the ledger byte-identical. The three context
+          managers are the one place every check is entered, so the run sees the
+          nesting exactly.
+        verification: >-
+          A mutation test moves a `demo_check` out of its `demo_gate` in a fixture
+          story; both runs record the same ledger and different check trees.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-055
+
+      - id: DEMOCI-11-057
+        priority: MUST
+        kind: project
+        statement: >-
+          Each node of a check tree MUST carry its kind, its label, its outcome and
+          the cast members whose containers it read.
+        rationale: >-
+          A wait that reads another actor's replica has changed its subject, which
+          EDF-06-002 constrains. Every replica read goes through the recorder's
+          client, so the run resolves the subject, which a static reading of the
+          source cannot.
+        verification: >-
+          A mutation test switches a wait from one cast member's client to another's
+          in a fixture story; the two check trees differ in that node's containers.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-056
+
+      - id: DEMOCI-11-058
+        priority: MUST
+        kind: project
+        statement: >-
+          The comparison of DEMOCI-11-055 MUST relabel every id by its first
+          appearance, with one mapping across a scenario's ledger and check labels.
+        rationale: >-
+          A refactor that draws one more id shifts every later id without changing
+          what the scenario does. One mapping across both traces keeps an id in a
+          check label tied to the same entity as in the ledger.
+        verification: >-
+          A unit test asserts that a run with one extra id draw compares equal to
+          the run without it.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-055
+
+      - id: DEMOCI-11-059
+        priority: MUST
+        kind: project
+        statement: >-
+          The comparison of DEMOCI-11-055 MUST drop timestamps and hash-chain
+          digests.
+        rationale: >-
+          The recording clock ticks on every read, so one added clock read shifts
+          every later timestamp and digest without changing what the scenario does.
+        verification: >-
+          A unit test asserts that a run with a shifted clock compares equal to the
+          run without the shift.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-055
+
+      - id: DEMOCI-11-060
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The comparison of DEMOCI-11-055 MUST NOT normalize anything other than
+          ids, timestamps and hash-chain digests.
+        rationale: >-
+          Anything else that differs, such as a note's text, an added act or a
+          changed argument, is a change the reviewer must see.
+        verification: >-
+          Unit tests assert that a changed note text, an added entry and a changed
+          check label each compare different.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-055
+          - rel_type: constrains
+            spec_id: DEMOCI-11-058
+          - rel_type: constrains
+            spec_id: DEMOCI-11-059
+
+      - id: DEMOCI-11-061
+        priority: MUST
+        kind: project
+        statement: >-
+          The comparison of DEMOCI-11-055 MUST fail, printing the difference per
+          scenario, when a normalized ledger or check tree differs between base and
+          head.
+        rationale: >-
+          The printed difference is what lets a reviewer judge whether the change
+          was meant.
+        verification: >-
+          A test of the comparison command asserts a non-zero exit and a per-
+          scenario diff on a difference.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-055
+
+      - id: DEMOCI-11-062
+        priority: MUST
+        kind: project
+        statement: >-
+          The comparison of DEMOCI-11-055 MUST report a run that compared no
+          scenario as a distinct failure.
+        rationale: >-
+          A gate that passes on an empty set passes over nothing (DF-09-009).
+        verification: >-
+          A test of the comparison command asserts a distinct exit code on an empty
+          scenario set.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-055
+          - rel_type: refines
+            spec_id: DF-09-009
+
+      - id: DEMOCI-11-063
+        priority: MUST
+        kind: project
+        statement: >-
+          A pull request labelled `demo-verdict-change` MUST pass the comparison of
+          DEMOCI-11-055 when its runs differ.
+        rationale: >-
+          A change that alters a verdict on purpose belongs in its own change
+          (DEMOMA-17-004), and it needs a way past the gate. The label states that
+          the change was meant.
+        verification: >-
+          A run on a labelled pull request whose runs differ passes.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-061
+          - rel_type: refines
+            spec_id: DEMOCI-11-055
+
+      - id: DEMOCI-11-064
+        priority: MUST
+        kind: project
+        statement: >-
+          On a pull request labelled `demo-verdict-change`, the comparison job MUST
+          print the difference to its summary.
+        rationale: >-
+          The printed difference shows what the reviewer is approving, so the opt-
+          out never hides the change it admits.
+        verification: >-
+          A run on a labelled pull request whose runs differ writes the diff to the
+          job summary.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-063
+
+      - id: DEMOCI-11-065
+        priority: MUST
+        kind: project
+        statement: >-
+          The docstring of every fragment the plot manifest names MUST open with one
+          sentence that says what the step does in CVD domain terms.
+        rationale: >-
+          The plot manifest names fragments by code name, which a CVD domain expert
+          cannot review. One domain sentence per fragment lets the plot render as a
+          story a domain expert can read (DEMOCI-11-067).
+        verification: >-
+          A test asserts every fragment in the plot manifest has a docstring whose
+          first sentence ends in a full stop.
+        relationships:
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-034
+
+      - id: DEMOCI-11-066
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The opening sentence of DEMOCI-11-065 MUST NOT name a code identifier, a
+          helper or a container.
+        rationale: >-
+          A sentence in code terms is the code name again, and the rendering would
+          be as unreadable to a domain expert as the manifest.
+        verification: >-
+          A test asserts no fragment's opening sentence holds backticks, a
+          snake_case identifier or a cast container name.
+        relationships:
+          - rel_type: constrains
+            spec_id: DEMOCI-11-065
+
+      - id: DEMOCI-11-067
+        priority: MUST
+        kind: project
+        statement: >-
+          Each registered scenario's narrative page MUST include a generated
+          numbered story of its plot after its hand-written narrative.
+        rationale: >-
+          The rendering lets a reader check the composed story against the narrative
+          above it. It never replaces the narrative, which is written without the
+          code so that it can contradict it; a rendering of the code can only agree
+          with it. Placing it after keeps the main story first.
+        verification: >-
+          A docs-build test asserts each narrative page includes its rendering after
+          the narrative.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-034
+
+      - id: DEMOCI-11-068
+        priority: MUST
+        kind: project
+        statement: >-
+          The story of DEMOCI-11-067 MUST render a fragment as its docstring's
+          opening sentence and a choice as its deciding role and presenter label.
+        rationale: >-
+          The presenter label comes from the branch-point table (DEMOCI-11-013), so
+          the story states each decision in the words the demo UI shows, and no
+          label is declared a second time.
+        verification: >-
+          A shape test asserts a fixture plot renders each fragment as its opening
+          sentence and each choice as its role and the branch-point table's
+          presenter label.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-067
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-065
+
+      - id: DEMOCI-11-069
+        priority: MUST
+        kind: project
+        statement: >-
+          The drift check of DEMOCI-11-005 MUST fail when a committed story
+          rendering differs from the plot manifest.
+        rationale: >-
+          Generating the story keeps it current only when a stale copy fails;
+          otherwise it drifts like a hand-written list.
+        verification: >-
+          A drift test fails when a committed rendering differs from a fresh export,
+          naming the regeneration command.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-005
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-067
+
       - id: DEMOCI-11-019
         priority: MUST
         kind: project
