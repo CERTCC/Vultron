@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 
 from test.support.received import received_record
+from test.support.signing import resigned
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -56,7 +57,12 @@ def _relayed_invite_with_extras(net: LedgerNetwork) -> dict[str, Any]:
     body = read_sealed_body_dict(net.stores[MANAGER], invite.id_)
     assert body is not None
     assert body.get("endTime"), "the relayed Invite carries its deadline"
-    return {**body, "cc": [_WATCHER], "x-vendorExtension": _EXTRA}
+    # Altered after its outbox sealed it, so its author signs it again.
+    return resigned(
+        body,
+        cc=[_WATCHER],
+        alter=lambda b: b.update({"x-vendorExtension": _EXTRA}),
+    )
 
 
 @pytest.mark.spec("DL-06-004")

@@ -33,6 +33,7 @@ import pytest
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
 from test.support.received import delivered_body
+from test.support.signing import resigned
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
@@ -126,10 +127,12 @@ def _carrying_a_full_case(
         *copy_.get("caseParticipants", []),
         planted.model_dump(mode="json", by_alias=True, exclude_none=True),
     ]
-    carried = copy.deepcopy(body)
-    holder = _slot(carried, path[:-1])
-    holder[path[-1]] = copy_
-    return carried
+
+    def _carry(carried: dict[str, Any]) -> None:
+        _slot(carried, path[:-1])[path[-1]] = copy_
+
+    # The copy changes the signed body, so its author signs it again.
+    return resigned(body, alter=_carry)
 
 
 def _deliver(net: LedgerNetwork, body: dict[str, Any]) -> Any:

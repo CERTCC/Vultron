@@ -73,7 +73,7 @@ from .test_case_manager_note_replay import RECOMMENDED, _notes, _set_rm
 
 def _event_for(net: LedgerNetwork, activity: Any) -> Any:
     """*activity* as the CASE_MANAGER's inbox extracts it, stamped as sent."""
-    body = net.stamp(
+    body = net.delivered_body(
         json.loads(dump_outbound_body(activity)), receiver=MANAGER
     )
     return received_event(

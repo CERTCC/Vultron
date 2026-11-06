@@ -33,6 +33,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -156,8 +157,11 @@ def _deliver_offer(
     request = make_payload(offer, receiving_actor_id=dl.actor_id, at=dl)
     if drop_role:
         role_obj = request.activity.object_
-        body = request.received_body()
-        del body["object"]["role"]
+        # The edit changes the signed body, so its author signs it again.
+        body = resigned(
+            request.received_body(),
+            alter=lambda copy: copy["object"].pop("role"),
+        )
         request = request.model_copy(
             update={
                 "activity": request.activity.model_copy(

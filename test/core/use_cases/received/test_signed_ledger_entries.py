@@ -27,6 +27,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import ledger_entries
+from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -39,17 +40,6 @@ from ._ledger_network import MANAGER, OWNER, LedgerNetwork
 
 CASE_ID = "https://example.org/cases/case-signed-entries"
 _NOT_SIGNED = "the outbox does not sign activities yet. Tracked by #5382."
-#: A proof of the right shape.  The network routes bodies past the ingress, so
-#: nothing verifies it here, and the snapshot test uses it in place of the
-#: real proof: whether the outbox signs at all is SIG-01-001's test.
-_PLACEHOLDER_PROOF = {
-    "type": "DataIntegrityProof",
-    "cryptosuite": "eddsa-jcs-2022",
-    "verificationMethod": f"{OWNER}#main-key",
-    "proofPurpose": "assertionMethod",
-    "created": "2026-10-28T00:00:00Z",
-    "proofValue": "z" + "1" * 86,
-}
 
 
 def _note_body(
@@ -142,12 +132,14 @@ def test_a_sent_proof_names_the_cryptosuite_and_the_authors_key():
 @pytest.mark.spec("VM-08-003")
 def test_a_ledger_snapshot_keeps_the_senders_proof():
     net = LedgerNetwork(CASE_ID)
-    body = _owner_note(net, "https://example.org/notes/signed-4")
-    _commit(net, {**body, "proof": _PLACEHOLDER_PROOF})
+    # Signed through the test helper, so the check does not wait on the
+    # outbox signing (SIG-01-001 has its own test).
+    body = resigned(_owner_note(net, "https://example.org/notes/signed-4"))
+    _commit(net, body)
 
     snapshot = _announce_of(net, body["id"])["object"]["payloadSnapshot"]
 
-    assert snapshot.get("proof") == _PLACEHOLDER_PROOF
+    assert snapshot.get("proof") == body["proof"]
 
 
 @pytest.mark.xfail(
@@ -162,10 +154,10 @@ def test_a_replica_refuses_an_entry_whose_author_proof_is_missing():
     announce = _announce_of(net, body["id"])
     announce["object"]["payloadSnapshot"].pop("proof", None)
     # Removing the author's proof also breaks the CASE_MANAGER's proof on the
-    # Announce.  The implementing Task re-signs the Announce through the shared
-    # test helper (#5384), so only the author's proof fails; until then the
-    # refusal must name the snapshot's author, so that a replica checking only
-    # the outer proof cannot pass this test.
+    # Announce, so ``net.receive`` re-signs the altered Announce through the
+    # shared test helper and only the author's proof fails.  The refusal must
+    # still name the snapshot's author, so that a replica checking only the
+    # outer proof cannot pass this test.
 
     try:
         verdict = net.receive(OWNER, announce)

@@ -30,6 +30,7 @@ from pydantic import ValidationError
 
 from test.support.ledger import ledger_entries
 from test.support.received import TEST_SENDER_POSITION, extract_stamped
+from test.support.signing import signed_body
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -199,7 +200,7 @@ def test_parse_edge_promotes_a_carried_cause_onto_the_event() -> None:
     body = _remove_body()
     body["terminationCause"] = {"kind": "FIX_DEPLOYED"}
 
-    event = _extract(parse_activity(body))
+    event = _extract(parse_activity(signed_body(body)))
 
     cause = event.model_dump(mode="json").get("termination_cause")
     assert cause is not None and cause["kind"] == "FIX_DEPLOYED"
@@ -210,7 +211,7 @@ def test_parse_edge_promotes_a_carried_cause_onto_the_event() -> None:
 
 @pytest.mark.spec("EMB-13-005")
 def test_a_remove_with_no_cause_extracts_none() -> None:
-    event = _extract(parse_activity(_remove_body()))
+    event = _extract(parse_activity(signed_body(_remove_body())))
 
     assert event.model_dump(mode="json").get("termination_cause") is None
 
@@ -304,7 +305,9 @@ def test_the_factory_carries_the_cause_as_termination_cause(
     assert body["terminationCause"] == cause.model_dump(
         mode="json", by_alias=True
     )
-    assert _extract(parse_activity(body)).termination_cause == cause
+    assert (
+        _extract(parse_activity(signed_body(body))).termination_cause == cause
+    )
 
 
 @pytest.mark.spec("EMB-13-005")
