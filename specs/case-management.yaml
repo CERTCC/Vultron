@@ -3260,9 +3260,9 @@ groups:
       Case creation is protocol-significant behavior (BT-15-001). Thus the gate is a
       condition node in the behavior tree. A short-circuit in the use case must store
       the report and the Offer before it returns. That is a store path outside the tree,
-      which CLP-10-019 forbids. The intake node stores the report and the Offer for
-      every inbound `Offer(VulnerabilityReport)` (ADR-0111). Thus a gate outside the
-      tree has nothing to do.
+      which CLP-10-019 forbids. The tree stores the report and the Offer for every
+      addressed inbound `Offer(VulnerabilityReport)` (ADR-0111, ADR-0154). Thus a gate
+      outside the tree has nothing to do.
     verification: A received-side handler test posts an `Offer(VulnerabilityReport)`
       to a receiver with `auto_create_case=False`, asserts the disposition is
       SKIPPED, that no case and no outbound activity exist, and that the report and

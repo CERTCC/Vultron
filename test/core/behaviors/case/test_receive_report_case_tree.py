@@ -169,7 +169,7 @@ class TestTreeStructure:
             == kinds.index(CheckAutoCaseCreationEnabledNode) - 1
         )
 
-    def test_first_child_is_policy_gate(
+    def test_policy_gate_precedes_the_selector(
         self, report, offer, reporter_actor_id
     ):
         """After the doors and intake comes CheckAutoCaseCreationEnabledNode."""
@@ -180,7 +180,7 @@ class TestTreeStructure:
         )
         assert isinstance(tree.children[-2], CheckAutoCaseCreationEnabledNode)
 
-    def test_second_child_is_selector(self, report, offer, reporter_actor_id):
+    def test_last_child_is_selector(self, report, offer, reporter_actor_id):
         """After the gate comes ReceiveReportCaseSelector (Selector)."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,

@@ -101,6 +101,19 @@ def test_case_creation_eligibility_reads_to_alone(to, status):
         assert "HP-09-001" in node.feedback_message
 
 
+def test_eligibility_without_a_received_event_is_not_a_decline(caplog):
+    """No event on the blackboard is a wiring fault, never a decline."""
+    node = CheckOfferNamesReceiverInToNode()
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
+    with caplog.at_level("ERROR"):
+        result = BTBridge(datalayer=dl).execute_with_setup(
+            node, actor_id=VENDOR
+        )
+    assert result.status == Status.FAILURE
+    assert node.not_named_in_to is False
+    assert any(r.levelname == "ERROR" for r in caplog.records)
+
+
 def test_eligibility_wiring_fault_is_not_a_decline():
     """A missing DataLayer fails the node without reading as a decline."""
     node = CheckOfferNamesReceiverInToNode()

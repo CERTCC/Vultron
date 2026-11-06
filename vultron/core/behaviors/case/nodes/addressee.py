@@ -41,9 +41,9 @@ when
 no Vultron activity gives a ``cc`` recipient standing (HP-01-005, OX-08-001,
 HP-09-001, ADR-0109).  Core does not carry ``cc``, so the guard cannot tell a
 ``cc``-only copy from any other unaddressed one, and does not need to: its
-reason says ``cc`` addressing is not supported, which is true of every copy
-it refuses, so a ``cc``-only receiver's WARNING names ``cc`` (HP-10-001,
-HP-10-002).
+reason says that a copy naming the receiver only in ``cc``, ``bto`` or
+``bcc`` is not addressed to it, which is true of every copy it refuses, so a
+``cc``-only receiver's WARNING names ``cc`` (HP-10-001, HP-10-002).
 
 :class:`ActivityAddressedToReceiverNode` is that check.
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
@@ -83,6 +83,7 @@ __all__ = [
     "MISROUTED_EMBARGO_INVITE",
     "addressed_to_receiver",
     "named_in_to",
+    "received_to",
     "unaddressed_copy_reason",
 ]
 
@@ -203,6 +204,17 @@ def addressed_to_receiver(
     return named_in_to(dl, receiving_actor_id, to)
 
 
+def received_to(event: object) -> list[str]:
+    """The ``to`` recipients of the received *event*'s activity, as ids.
+
+    Empty for an event with no activity, which names no recipient.  The one
+    place a received event's ``to`` is read, by the door guard and by the
+    ``Offer(VulnerabilityReport)`` case-creation check (CS-22-001).
+    """
+    activity = getattr(event, "activity", None)
+    return list(getattr(activity, "to", None) or []) if activity else []
+
+
 def unaddressed_copy_reason(
     dl: CasePersistence,
     receiving_actor_id: str,
@@ -223,8 +235,7 @@ def unaddressed_copy_reason(
         label: Names the tree in the reason, e.g. ``"AcceptEmbargoInviteBT"``.
     """
     sender_id = getattr(event, "actor_id", None)
-    activity = getattr(event, "activity", None)
-    to = list(getattr(activity, "to", None) or []) if activity else []
+    to = received_to(event)
     if addressed_to_receiver(
         dl,
         receiving_actor_id,
@@ -235,8 +246,8 @@ def unaddressed_copy_reason(
     return (
         f"'{receiving_actor_id}' is neither the sender nor a recipient of"
         f" {label} '{getattr(event, 'activity_id', None)}' (to={to});"
-        " cc addressing not supported, as cc, bto and bcc address no Vultron"
-        " recipient (OX-08-001), and an unaddressed copy is refused"
+        " a copy that names it only in cc, bto or bcc is not addressed to it"
+        " (HP-10-001, ADR-0109), and an unaddressed copy is refused"
         " (HP-01-005)"
     )
 

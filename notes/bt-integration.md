@@ -288,8 +288,8 @@ nothing is written before the last one admits the message (ADR-0154).
    a `{case_id}/participants` collection `to` names; `cc` and an empty `to`
    address nobody. Never write a tree's own copy of the check or a Python
    pre-check in `execute()`; a tree that must differ passes a registered
-   `AddresseeExemption` with its reason (an `Offer(VulnerabilityReport)` keeps what it
-   carried first, CM-15-002), and
+   `AddresseeExemption` with its reason (a subtree whose enclosing tree runs the
+   check), and
    `test/architecture/test_received_tree_addressee_guard.py` pins each use.
    The check reads `event.activity`, so a registry entry must set
    `include_activity` or every delivery of that message is refused.

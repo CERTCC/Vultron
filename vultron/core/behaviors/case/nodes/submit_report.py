@@ -40,7 +40,10 @@ import py_trees
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
-from vultron.core.behaviors.case.nodes.addressee import named_in_to
+from vultron.core.behaviors.case.nodes.addressee import (
+    named_in_to,
+    received_to,
+)
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
 )
@@ -112,8 +115,9 @@ class CheckOfferNamesReceiverInToNode(DataLayerConditionWithPorts):
 
     ``FAILURE`` is that decline, not a refusal: the tree stops before the
     ``auto_create_case`` gate and the handler reports ``SKIPPED``.  A wiring
-    fault (a missing DataLayer or actor) also fails, and
-    :attr:`not_named_in_to` tells the handler which it was.
+    fault (a missing DataLayer, actor or received event) also fails, logged
+    at ERROR, and :attr:`not_named_in_to` tells the handler which it was, so
+    a fault never reads as a decline.
 
     Reads ``to`` off the received event's activity on the blackboard, the
     same place the addressee door reads it.
@@ -142,9 +146,16 @@ class CheckOfferNamesReceiverInToNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None and self.actor_id is not None
         self.not_named_in_to = False
-        activity = getattr(self._event, "activity", None)
-        to = list(getattr(activity, "to", None) or [])
-        if named_in_to(self.datalayer, self.actor_id, to):
+        if self._event is None:
+            self.feedback_message = (
+                "no received event on the blackboard to read the Offer's to"
+                " from"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        if named_in_to(
+            self.datalayer, self.actor_id, received_to(self._event)
+        ):
             return Status.SUCCESS
         self.not_named_in_to = True
         self.feedback_message = (

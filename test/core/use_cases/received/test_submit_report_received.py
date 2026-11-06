@@ -305,11 +305,11 @@ class TestSubmitReportCreatesCase:
             " activity.to and receiving_actor_id is absent (CLP-10-005)"
         )
 
-    def test_submit_report_skips_case_creation_when_not_in_to(self):
-        """SubmitReportReceivedUseCase skips BT when receiving actor not in to.
+    def test_submit_report_refuses_when_not_in_to(self):
+        """An Offer whose ``to`` does not name the receiver creates no case.
 
-        If Offer.to is absent (or receiving actor is not listed), the use case
-        logs a WARNING and returns without creating a case (HP-09-001).
+        The addressee door refuses it before anything is stored, with a
+        WARNING (HP-01-005, HP-09-001).
         """
         report = VulnerabilityReport(
             id_="https://example.org/reports/r-no-to-1"
@@ -581,8 +581,8 @@ class TestOfferAddressingSemantics:
 
         The vendor is only in the wire Offer's ``cc``.  The extractor does not
         carry ``cc`` into core (ADR-0109), so the handler sees a receiver that
-        is not in ``to``, discards the Offer, and its WARNING says ``cc``
-        addressing is not supported.
+        is not in ``to``, refuses the Offer at the addressee door, and its
+        WARNING says a copy naming it only in ``cc`` is not addressed to it.
         """
         import logging
 
@@ -604,7 +604,7 @@ class TestOfferAddressingSemantics:
         warning_text = " ".join(
             r.message for r in caplog.records if r.levelno >= logging.WARNING
         )
-        assert "cc addressing not supported" in warning_text, (
+        assert "only in cc" in warning_text, (
             "Expected a WARNING naming cc addressing"
         )
 
@@ -993,7 +993,9 @@ class TestSubmitReportDisposition:
 
 
 class TestSubmitReportKeepsWhatArrived:
-    """Report, Offer and offer record survive every non-case disposition.
+    """Report, Offer and offer record survive every disposition the doors admit.
+
+    A copy a door refuses keeps nothing but its receipt stub (ADR-0154).
 
     The writes are effect nodes of the receive tree, not ``execute()`` work, so
     each exit has to keep them itself (CM-15-001, CLP-10-018).
@@ -1088,9 +1090,9 @@ class TestSubmitReportKeepsWhatArrived:
     def test_cc_only_copy_is_refused_before_anything_is_kept(self):
         """A ``cc``-only receiver arrives with a ``to`` naming someone else
         (ADR-0109): refused at the door, keeping nothing (HP-10-001)."""
-        result, dl = self._run([])
+        result, dl = self._run([self.OTHER_ID])
         assert result.disposition == HandlerDisposition.REFUSED
-        assert "cc addressing not supported" in (result.reason or "")
+        assert "only in cc" in (result.reason or "")
         self._assert_kept_nothing(dl)
 
     @pytest.mark.spec("HP-01-005")

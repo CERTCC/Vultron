@@ -311,8 +311,8 @@ class TestUnaddressedCopyReason:
         assert reason == (
             f"'{_BYSTANDER}' is neither the sender nor a recipient of"
             f" RemoveEmbargoFromCaseBT '{_CASE}/activities/a2'"
-            f" (to=['{_MANAGER}']); cc addressing not supported, as cc, bto"
-            " and bcc address no Vultron recipient (OX-08-001), and an"
+            f" (to=['{_MANAGER}']); a copy that names it only in cc, bto or"
+            " bcc is not addressed to it (HP-10-001, ADR-0109), and an"
             " unaddressed copy is refused (HP-01-005)"
         )
 
@@ -325,10 +325,9 @@ class TestUnaddressedCopyReason:
             node = _run(_event([_OTHER], [_MANAGER]), _MANAGER)
 
         assert node.status is Status.FAILURE
-        assert "cc addressing not supported" in node.feedback_message
+        assert "only in cc" in node.feedback_message
         assert any(
-            r.levelname == "WARNING"
-            and "cc addressing not supported" in r.getMessage()
+            r.levelname == "WARNING" and "only in cc" in r.getMessage()
             for r in caplog.records
         )
 

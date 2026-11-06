@@ -50,6 +50,7 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
 )
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -62,18 +63,40 @@ _REPORT_ID = "https://example.org/reports/offer-report-outcome"
 _OFFER_ID = "https://example.org/activities/offer-report-outcome"
 
 
-@pytest.fixture
-def vendor_dl(monkeypatch):
-    """The vendor's store, with ``auto_create_case`` off (CM-15-001)."""
+def _vendor_store(monkeypatch, *, auto_create_case: bool):
     monkeypatch.setattr(
         port_factories,
         "_resolve_actor_config",
-        lambda: ActorConfig(auto_create_case=False),
+        lambda: ActorConfig(auto_create_case=auto_create_case),
     )
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR)
     dl.save(VultronService(id_=_VENDOR))
+    return dl
+
+
+@pytest.fixture
+def vendor_dl(monkeypatch):
+    """The vendor's store, with ``auto_create_case`` off (CM-15-001)."""
+    dl = _vendor_store(monkeypatch, auto_create_case=False)
     yield dl
     dl.close()
+
+
+@pytest.fixture
+def proposing_vendor_dl(monkeypatch):
+    """The vendor's store, with ``auto_create_case`` on (the default)."""
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL",
+        "http://case-actor:7999/api/v2",
+    )
+    from vultron.config.app import reload_config
+
+    reload_config()
+    dl = _vendor_store(monkeypatch, auto_create_case=True)
+    yield dl
+    dl.close()
+    monkeypatch.undo()
+    reload_config()
 
 
 def _deliver(dl: SqliteDataLayer, *, to: str, cc: list[str]) -> InboxOutcome:
@@ -107,7 +130,7 @@ def test_a_cc_only_copy_leaves_only_a_receipt_stub(vendor_dl) -> None:
     outcome = _deliver(vendor_dl, to=_OTHER, cc=[_VENDOR])
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
-    assert "cc addressing not supported" in (outcome.failure_reason or "")
+    assert "only in cc" in (outcome.failure_reason or "")
     record = _record(vendor_dl)
     assert record.is_receipt_stub
     assert record.received_body is None
@@ -137,3 +160,24 @@ def test_declining_a_case_keeps_the_report_and_archives_the_offer(
     assert offer_record.report_id == _REPORT_ID
     assert vendor_dl.get_all("VulnerabilityCase") == []
     assert vendor_dl.outbox_list() == []
+
+
+@pytest.mark.spec("CM-12-001")
+@pytest.mark.spec("HP-09-001")
+def test_an_addressed_offer_proposes_a_case_when_auto_create_is_on(
+    proposing_vendor_dl,
+) -> None:
+    """The control for the decline above: with the policy on, the addressed
+    Offer passes the ``to``-only eligibility check and proposes its case, so
+    the decline test's ``SKIPPED`` is the policy's, not a broken check's."""
+    outcome = _deliver(proposing_vendor_dl, to=_VENDOR, cc=[])
+
+    assert outcome.status is InboxOutcomeStatus.PROCESSED, (
+        outcome.failure_reason
+    )
+    assert _record(proposing_vendor_dl).stage is ReceivedStage.ARCHIVED
+    assert (
+        proposing_vendor_dl.read(VultronReportCaseLink.build_id(_REPORT_ID))
+        is not None
+    )
+    assert proposing_vendor_dl.outbox_list() != []
