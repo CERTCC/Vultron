@@ -105,9 +105,11 @@ The protocol treats it as one decision with one outcome, and does not specify ho
 
 Adopting a reported status as canonical case state is the **Case Owner's** decision.
 The Case Owner is the party whose disclosure decision the case exists to serve, so it is the party entitled to decide what the case asserts.
-By default the CASE_MANAGER therefore asks for the Case Owner's authorization before it adopts a participant's reported status.
+By default the protocol therefore has the CASE_MANAGER ask for the Case Owner's authorization before it adopts a participant's reported status.
 
 One case is exempt.
 Where the Case Owner is itself the sender, the CASE_MANAGER adopts the status without asking: asking the Case Owner to approve its own report would be circular.
 
 [§11.3 Status Adoption: One Authorization Gate](../interactions.md#113-status-adoption-one-authorization-gate) states both rules and the permissive configuration an implementation can choose instead.
+The reference implementation's `main` branch does not yet send the authorization request, and [Known Gaps](../known-gaps.md) lists that request as not yet met, tracked by [#2885](https://github.com/CERTCC/Vultron/issues/2885).
+Section 11.3 says what `main` does meanwhile.

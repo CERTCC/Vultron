@@ -2066,12 +2066,10 @@ groups:
       that wording conflated the obligation to *initiate* termination (any Participant,
       VP-11-003) with the authority to *effect* it (Case Owner, enacted by the CASE_MANAGER,
       VP-11-011). The obligation to terminate itself is VP-09-001, and what a Participant
-      other than the Case Owner may do is VP-11-012. Whether the Case Owner retains any
-      discretion to keep an embargo once the public/exploit condition is canonical is an
-      open question — see
-      `docs/reference/vultron-spec/_oq-embargo-termination-authority.md`; the working
-      position is that teardown is mandatory once the condition is adopted as canonical case
-      state (DEMOMA-07-003).
+      other than the Case Owner may do is VP-11-012. The Case Owner keeps no discretion to
+      keep an embargo once the public/exploit condition is canonical: adopting the value
+      is the one authorization, and the act that adopts it ends the embargo (ADR-0166,
+      RSH-03-001, CSB-12-001, CSB-13-002).
     verification_debt: '#3612'
     stories:
     - story_2022_007

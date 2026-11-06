@@ -13,7 +13,7 @@ subject: protocol
 {% include-markdown "./_full-page-tip.md" %}
 
 This page collects the questions the [Vultron Protocol Specification](index.md) leaves unresolved.
-Several concern the Case State (CS) dimension Vendor aware, Fix ready, fix Deployed (VFD) and the Participant Embargo Consent (PEC) machine.
+They concern a disputed vendor awareness in the Case State (CS) dimension Vendor aware, Fix ready, fix Deployed (VFD), what a sender does after a processing fault, the Hypertext Transfer Protocol (HTTP) responses a receiving actor returns, how a participant acquires a role after it joins a case, and whether the Case Owner may delegate embargo activation.
 This page covers what the specification has not decided.
 For the requirements that no passing test shows the reference implementation meets, see [Known Gaps](known-gaps.md).
 
