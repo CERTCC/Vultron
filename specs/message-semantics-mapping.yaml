@@ -1703,17 +1703,17 @@ groups:
     kind: protocol
     statement: >-
       ACTIVATE_EMBARGO_ON_CASE MUST mark the Case Owner's row for the activated embargo
-      AGREED unless it already is. This includes a DECLINED row, since activating is the
-      owner changing its answer (CM-18-003).
+      AGREED when that row is UNINVITED, INVITED or TIMED_OUT. An AGREED row is left as
+      it is, and an activation from a DECLINED row is refused (MSM-07-037).
     rationale: >-
-      The owner that activates terms is bound by them, so its own row has to say so,
-      whatever it answered before.
+      The owner that activates terms is bound by them, so its own row has to say so. A
+      row that holds no answer the owner gave, or only a lapsed invitation, contradicts
+      nothing when it becomes AGREED, so the owner need not accept before it activates
+      (ADR-0180).
     verification: >-
       `test/core/models/test_embargo_consent_move.py` (`test_the_owners_row_is_agreed`,
-      `test_an_agreed_owner_moves_nothing`) and
-      `test/core/use_cases/received/test_embargo_owner_decision.py`
-      (`test_an_activation_the_owner_declined_changes_its_answer`) confirm the owner's
-      row becomes AGREED, a DECLINED row with one ledger entry.
+      `test_an_agreed_owner_moves_nothing`) confirms the owner's row becomes AGREED and an
+      AGREED row moves nothing.
     relationships:
     - rel_type: extends
       spec_id: MSM-07-008
@@ -1721,6 +1721,61 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0122
+    - ADR-0180
+    stories:
+    - story_2026_087
+  - id: MSM-07-037
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse ACTIVATE_EMBARGO_ON_CASE before committing it when the
+      Case Owner's row for the named embargo is DECLINED. Its refusal notice MUST tell the
+      owner to accept the invitation first (CLP-05-001).
+    rationale: >-
+      The owner's decline is an answer it sent and the ledger holds. An activation that
+      moved the row to AGREED would make one activity both the case's decision and a
+      change of the owner's own answer, so each would be read off the other (ADR-0180).
+      An owner that changes its mind sends `Accept(Invite(EmbargoEvent))` and then
+      activates, and the ledger records each answer as it was given.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_owner_decision.py`
+      (`test_an_activation_the_owner_declined_is_refused_uncommitted`) confirms the
+      activation is refused with nothing committed and the owner's row left DECLINED.
+      It is a strict `xfail` until #6043 builds the refusal.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-07-028
+    adr:
+    - ADR-0180
+    stories:
+    - story_2026_087
+    see_also:
+    - spec_id: CLP-05-001
+      reason: 'context for the reader'
+  - id: MSM-07-038
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse REJECT_INVITE_TO_EMBARGO_ON_CASE before committing it
+      when its sender is the proposer of that embargo.
+    rationale: >-
+      A proposer's row is AGREED because proposing terms is consenting to them
+      (MSM-07-005), and it receives no invitation to its own proposal, so it has none to
+      decline. An actor undoes an invitation it sent, with `Undo(Invite(EmbargoEvent))`,
+      and rejects one it received (ADR-0152). Refusing the Reject keeps the proposer's row
+      matching the proposal it still offers, so a Case Owner cannot decline its own
+      proposal and then activate it. The sender-is-invitee check (EP-09-010) is what
+      refuses it.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_manager_consent.py`
+      (`test_a_proposers_reject_of_its_own_proposal_is_refused_uncommitted`) confirms the
+      Reject is refused with nothing committed and the proposer's row left AGREED.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-07-004
+    adr:
+    - ADR-0152
+    - ADR-0180
     stories:
     - story_2026_087
   - id: MSM-07-029
@@ -1762,6 +1817,8 @@ groups:
     rationale: >-
       The owner's rejection decides the proposal for the case; whether the owner, as a
       participant, also refuses those terms is a separate Reject of the Invite (MSM-07-004).
+      The owner's own row does not constrain the rejection: an owner that accepted terms
+      for itself may still reject them for the case (ADR-0180).
       Keeping the two apart lets the owner keep the prior terms without declining them
       (ADR-0122).
     verification: >-
