@@ -13,6 +13,9 @@
 """The HTTP object fetcher: URLs, retries and terminal answers (AKM-05-008)."""
 
 import asyncio
+import subprocess
+import sys
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, urlsplit
@@ -20,16 +23,20 @@ from urllib.parse import parse_qs, urlsplit
 import httpx2 as httpx
 import pytest
 
+from vultron.adapters.driven import http_object_fetch
 from vultron.adapters.driven.http_object_fetch import (
     REQUESTER_HEADER,
     HttpObjectFetcher,
+    default_object_fetcher,
     fetch_url,
+    parse_fetched_object,
 )
 from vultron.core.models.object_fetch import (
     ObjectFetchSource,
     ObjectFetchUse,
     ObjectReference,
 )
+from vultron.errors import VultronValidationError
 
 _HOST = "https://example.org/api/v2/actors/case-actor"
 _CASE = "https://example.org/cases/c-1"
@@ -187,3 +194,63 @@ class TestAnyFailureIsAResult:
         assert "Invalid port" in result.failure
         assert result.attempts == 2
         assert get.call_count == 2
+
+
+class TestTheDefaultFetcher:
+    def test_it_takes_its_limits_from_the_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(
+            http_object_fetch,
+            "get_config",
+            lambda: SimpleNamespace(
+                max_object_fetch_attempts=7, object_fetch_timeout_seconds=1.5
+            ),
+        )
+
+        fetcher = default_object_fetcher()
+
+        assert fetcher._max_attempts == 7
+        assert fetcher._timeout == 1.5
+
+
+class TestParseFetchedObject:
+    @pytest.mark.parametrize(
+        "body, match",
+        [
+            ({"id": "urn:uuid:x"}, "names no type"),
+            ({"type": "NoSuchType", "id": "urn:uuid:x"}, "not a valid"),
+        ],
+        ids=["untyped", "unknown-type"],
+    )
+    def test_a_body_the_vocabulary_cannot_type_is_refused(
+        self, body: dict[str, Any], match: str
+    ):
+        with pytest.raises(VultronValidationError, match=match):
+            parse_fetched_object(body, "urn:uuid:x")
+
+    def test_it_types_an_actor_profile_with_nothing_else_imported(self):
+        """The module loads the vocabulary it types by, whoever imports it.
+
+        Run in a fresh interpreter: in this process other imports have
+        already filled the registry.
+        """
+        script = (
+            "from vultron.adapters.driven.http_object_fetch import"
+            " parse_fetched_object\n"
+            "actor = 'https://example.org/actors/vendor'\n"
+            "parsed = parse_fetched_object("
+            "{'type': 'Person', 'id': actor}, actor)\n"
+            "print(type(parsed).__name__)\n"
+        )
+
+        run = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+
+        assert run.returncode == 0, run.stderr
+        assert run.stdout.strip() == "VultronPerson"

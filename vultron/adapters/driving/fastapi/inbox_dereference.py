@@ -411,9 +411,7 @@ async def resolve_open_fetches(
 __all__ = [
     "MAX_FETCH_ROUNDS",
     "FastAPIDereferencePort",
-    "default_object_fetcher",
     "resolve_open_fetches",
     "open_fetches",
-    "parse_fetched_object",
     "settle_fetch",
 ]

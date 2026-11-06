@@ -144,7 +144,12 @@ async def resolve_verification_key(
     names, the profile is fetched through *fetcher* (SIG-02-001).  A held
     copy stored under an unnormalised id is not found by the read; the
     fetch, made to the normalised id, still finds the key.  A store fault
-    in the read is not a proof failure and propagates as it is.
+    in the read is not a proof failure and propagates as it is, as does
+    anything a fetcher raises other than
+    :class:`~vultron.errors.VultronActorProfileFetchError`: that is a fault
+    in the fetcher, not in the proof.  A refusal names the key and its
+    actor only, never what the fetch met, because it goes back to the
+    sender, who chose the URL fetched; the log says why.
 
     Raises:
         VultronVerificationKeyError: *verification_method* names no key in an
@@ -170,23 +175,20 @@ async def resolve_verification_key(
     try:
         fetched = await fetcher.fetch_profile(owner, requester_id)
     except VultronActorProfileFetchError as exc:
-        raise VultronVerificationKeyError(
-            f"cannot read key {verification_method!r}: the held profile of"
-            f" {owner!r} does not list it, and fetching the profile failed:"
-            f" {exc}"
-        ) from exc
-    except Exception as exc:
-        # A fetcher is not to raise anything else, but one that does leaves
-        # the key unread, and that refuses the proof (SIG-03-002).
+        # The refusal goes back to the sender, who chose the URL fetched, so
+        # it says nothing of what the fetch met; the log and the chained
+        # cause do.
         logger.warning(
-            "The profile fetcher raised fetching %s for actor_id=%s: %r",
+            "Cannot read key %s: fetching the profile of %s for actor_id=%s"
+            " failed: %s",
+            verification_method,
             owner,
             requester_id,
             exc,
         )
         raise VultronVerificationKeyError(
-            f"cannot read key {verification_method!r}: fetching the profile"
-            f" of {owner!r} raised {exc!r}"
+            f"cannot read key {verification_method!r}: the profile of"
+            f" {owner!r} could not be fetched (SIG-02-001)"
         ) from exc
     key = published_key(fetched, verification_method)
     if key is None:

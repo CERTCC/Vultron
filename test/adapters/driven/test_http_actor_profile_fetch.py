@@ -148,6 +148,16 @@ def test_a_failed_fetch_raises_with_the_failure():
     assert "3 attempt" in str(caught.value)
 
 
+def test_an_actor_id_that_is_no_uri_is_refused_without_a_fetch():
+    fetcher = _TableFetcher(_fetched({}))
+
+    with pytest.raises(VultronActorProfileFetchError) as caught:
+        _fetch(fetcher, actor_id="vendor")
+
+    assert "'vendor' is not an actor id" in str(caught.value)
+    assert fetcher.asked == []
+
+
 def test_a_profile_typed_actor_is_refused_by_its_generic_type():
     """The generic type drops ``assertionMethod`` at parse, so name it."""
     key = signing.published_multikey(

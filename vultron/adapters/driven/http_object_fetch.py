@@ -58,6 +58,14 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.object_fetch import ObjectFetchSource, ObjectReference
 from vultron.errors import VultronValidationError
 from vultron.primitives import same_actor_id
+
+# parse_fetched_object types a body by WIRE_TYPE_MAP, which these packages
+# fill on import.  Without them a fetched ``Person`` is unknown, or parses as
+# the plain wire actor without its assertionMethod.
+from vultron.wire.as2.vocab import (
+    activities as _activities,  # noqa: F401
+    objects as _objects,  # noqa: F401
+)
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 

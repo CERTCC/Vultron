@@ -21,6 +21,7 @@ normalised (OID-01-006).
 import ast
 import asyncio
 import inspect
+import logging
 
 import pytest
 
@@ -166,14 +167,33 @@ def test_a_fetched_profile_without_the_key_refuses_the_proof():
 
 
 @pytest.mark.spec("SIG-03-002")
-def test_a_failed_fetch_refuses_the_proof_and_says_why():
-    fetcher = _FakeProfileFetch(failure="GET answered HTTP 404")
+def test_a_failed_fetch_refuses_the_proof_and_logs_why(
+    caplog: pytest.LogCaptureFixture,
+):
+    failure = "GET https://10.0.0.7:8080/profile: connection refused"
+    fetcher = _FakeProfileFetch(failure=failure)
 
-    with pytest.raises(VultronVerificationKeyError) as caught:
+    with (
+        caplog.at_level(logging.WARNING, logger=vk.__name__),
+        pytest.raises(VultronVerificationKeyError) as caught,
+    ):
         _resolve(_store(), fetcher)
 
-    assert "GET answered HTTP 404" in str(caught.value)
+    assert METHOD in str(caught.value)
+    assert "could not be fetched" in str(caught.value)
     assert isinstance(caught.value.__cause__, VultronActorProfileFetchError)
+    assert failure in caplog.text
+
+
+def test_a_refusal_says_nothing_of_what_the_fetch_met():
+    """The sender chose the URL, so the refusal it gets back is no probe."""
+    failure = "GET https://10.0.0.7:8080/profile: connection refused"
+
+    with pytest.raises(VultronVerificationKeyError) as caught:
+        _resolve(_store(), _FakeProfileFetch(failure=failure))
+
+    assert "10.0.0.7" not in str(caught.value)
+    assert "connection refused" not in str(caught.value)
 
 
 @pytest.mark.spec("OID-01-006")
@@ -287,18 +307,17 @@ def test_a_key_appended_past_validation_with_a_foreign_id_is_not_used():
     assert vk.published_key(profile, METHOD) is None
 
 
-@pytest.mark.spec("SIG-03-002")
-def test_a_fetcher_that_raises_refuses_the_proof():
+def test_a_fault_in_the_fetcher_is_not_a_proof_refusal():
+    """A fetcher bug propagates; only a failed fetch refuses the proof."""
+
     class _Raises(_FakeProfileFetch):
         async def fetch_profile(
             self, actor_id: str, requester_id: str
         ) -> CoreActor:
-            raise RuntimeError("the client refused the URL")
+            raise RuntimeError("a bug in the fetcher")
 
-    with pytest.raises(VultronVerificationKeyError) as caught:
+    with pytest.raises(RuntimeError, match="a bug in the fetcher"):
         _resolve(_store(), _Raises())
-
-    assert isinstance(caught.value.__cause__, RuntimeError)
 
 
 def test_an_object_that_is_not_an_actor_lists_no_key():

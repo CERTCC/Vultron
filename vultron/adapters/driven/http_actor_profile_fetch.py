@@ -69,17 +69,24 @@ class HttpActorProfileFetchAdapter:
         """Fetch and parse *actor_id*'s profile on behalf of *requester_id*.
 
         Raises:
-            VultronActorProfileFetchError: The fetch failed, or the body is
-                not *actor_id*'s profile as one of the concrete actor types.
+            VultronActorProfileFetchError: *actor_id* is not a URI to fetch
+                from, the fetch failed, or the body is not *actor_id*'s
+                profile as one of the concrete actor types.
         """
         if self._fetcher is None:
             self._fetcher = default_object_fetcher()
-        reference = ObjectReference(
-            object_id=actor_id,
-            source=ObjectFetchSource.ACTOR_PROFILE,
-            host_actor_id=actor_id,
-            use=ObjectFetchUse.HAND_OFF,
-        )
+        try:
+            reference = ObjectReference(
+                object_id=actor_id,
+                source=ObjectFetchSource.ACTOR_PROFILE,
+                host_actor_id=actor_id,
+                use=ObjectFetchUse.HAND_OFF,
+            )
+        except ValueError as exc:
+            raise VultronActorProfileFetchError(
+                f"{actor_id!r} is not an actor id a profile can be fetched"
+                f" from: {exc}"
+            ) from exc
         result = await self._fetcher.fetch(reference, requester_id)
         if result.body is None:
             raise VultronActorProfileFetchError(

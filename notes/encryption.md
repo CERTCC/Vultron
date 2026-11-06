@@ -8,7 +8,6 @@ tracks:
   - "#2841"
   - "#3477"
   - "#5382"
-  - "#5383"
   - "#5386"
 description: >
   Implementation notes for actor signing (object-level proofs from seeded keys,
@@ -126,7 +125,9 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   `VultronProofVerificationError`, so the ingress answers an unresolvable key
   as it answers a failed proof (SIG-03-002). It reads the held copy with one
   synchronous `dl.read` before it awaits the fetch. A fetch failure is
-  `VultronActorProfileFetchError`, chained as the refusal's cause.
+  `VultronActorProfileFetchError`, chained as the refusal's cause and logged;
+  the refusal text names only the key and its actor, since it goes back to the
+  sender. Anything else a fetcher raises is a fault and propagates.
 - **A held copy's keys are trusted as held.** A held key verifies, so a key
   planted in a held copy would let its planter sign as that actor. The known
   store paths write no peer `assertionMethod`: an inline profile carries none,
@@ -135,8 +136,9 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   what may replace a held key is #1184's rotation question.
 - **A key lookup runs before the sender is verified.** An unsigned or forged
   delivery can make the receiver fetch the claimed author's profile, with the
-  fetch retries (AKM-05-008). #5386 bounds that cost at the ingress; a
-  production key cache is #1184.
+  fetch retries (AKM-05-008), from any URL it names, internal hosts included.
+  #5386 bounds that cost and those targets at the ingress; a production key
+  cache is #1184.
 - **Actor ids are compared normalised** (OID-01-006): the key's actor, the
   profile id and the `controller`, each without a trailing slash. A held copy
   stored under a slashed id is missed by the read and found by the fetch.
@@ -154,8 +156,8 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
 - **A profile typed `"Actor"` loses its key at parse.** The wire `as_Actor`
   ignores unknown fields, so it drops `assertionMethod`, while the five
   concrete actor types keep it. The fetch adapter refuses a profile typed
-  `"Actor"` by naming the generic type, not by saying the actor published no
-  key.
+  `"Actor"` with a `VultronActorProfileFetchError` naming the generic type, not
+  saying the actor published no key; the resolver logs it.
 - **The profile's `@context` lacks the key terms.** It is the Vultron context
   alone, which defines no `assertionMethod`, `Multikey`, `controller` or
   `publicKeyMultibase`, so a JSON-LD-expanding verifier drops them. Add
