@@ -1,0 +1,631 @@
+id: CSAF
+title: CSAF Documents in Reports
+description: >-
+  Requirements for a Common Security Advisory Framework (CSAF) 2.1 document that
+  travels as an attachment of a VulnerabilityReport: how it is carried and
+  recognized, the one occasion on which a receiver may read it as the sender's
+  statement (the initial Offer of a report), how its fields map onto the inputs of
+  the case created from that report, and how this codebase checks documents
+  against a CSAF 2.1 draft that is still changing. Producing a CSAF document from a
+  case (a projection) is out of scope (#5134).
+scope:
+- prototype
+- production
+tags:
+- wire-format
+- protocol
+groups:
+- id: CSAF-01
+  title: Carrying a CSAF Document in a Report
+  specs:
+  - id: CSAF-01-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A sender that includes a CSAF document with a `VulnerabilityReport` MUST
+      carry it as a `Document` object in the report's `attachment`, with the
+      JSON text of the CSAF document as the `content` of that `Document`.
+    rationale: >-
+      AS2 `content` is a string, so the report's own `content` cannot hold a JSON
+      object, and the report's text stays readable by a receiver that does not
+      read CSAF. An attachment list also lets one report carry the CSAF document
+      beside other files, in the way ActivityPub servers attach media to a note.
+      Inline `content` keeps the document inside the signed activity (SIG-01-003)
+      and inside the copy that the case ledger records.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the attachment is built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-01-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `Document` that carries a CSAF document MUST have the `mediaType`
+      `application/json`.
+    rationale: >-
+      CSAF registers no media type of its own, and the distribution feeds that the
+      CSAF draft defines label each CSAF document `application/json`. A media type
+      that only Vultron invented would mean nothing to other tools.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the attachment is built.
+    relationships:
+    - rel_type: extends
+      spec_id: CSAF-01-001
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-01-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST recognize an attached document as CSAF 2.1 from the document
+      itself, by its `$schema` value and its `document.csaf_version` value.
+    rationale: >-
+      `application/json` does not tell CSAF apart from other JSON. The CSAF 2.1
+      schema fixes both values, so they identify the format, and
+      `document.category` then names the profile.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until recognition is built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+- id: CSAF-02
+  title: The Sender's Statement at the Initial Report
+  specs:
+  - id: CSAF-02-001
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A receiver MAY fill a value that an initial `Offer(VulnerabilityReport)` and
+      its report leave unstated from a CSAF document of category
+      `csaf_vulnerability_report` attached to that report. The Offer is initial
+      when its report belongs to no case at the receiver.
+    rationale: >-
+      At the first report the CSAF document is the sender's own account of the
+      report, made for this exchange by the CSAF Vulnerability Report profile, so
+      it can supply what the Vultron fields leave out. Reading it stays optional:
+      a receiver that treats the document as opaque still handles the report.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the case inputs are built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-02-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT change case data from a CSAF document other than the one
+      that CSAF-02-001 names: a document on another activity, on a report that
+      already belongs to a case, in a vulnerability record, or of another category.
+    rationale: >-
+      Participants produce CSAF documents from their copies of a case and share
+      draft advisories in CSAF. Such a document is a result of the case, so
+      reading it back as a statement would let a projection rewrite the case it
+      describes. The case changes only through Vultron's own activities.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the case inputs are built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_100
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CSAF-02-001
+  - id: CSAF-02-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the Offer or its report states a value and the attached CSAF document
+      states a value for the same thing, the receiver MUST use the value of the
+      Offer or the report.
+    rationale: >-
+      The Vultron fields are the sender's statement in the protocol, and the CSAF
+      document is the material the report describes. One rule for every field
+      keeps a receiver from weighing two answers, for example a `proposedEmbargo`
+      against a `disclosure_date`.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the case inputs are built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-02-004
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A sender SHOULD give the report's name, its summary and the Offer's
+      `proposedEmbargo` values that agree with the CSAF document it attaches.
+    rationale: >-
+      A sender is free to fill the Vultron fields as it chooses, and CSAF-02-003
+      makes them win. Values that agree with the attachment keep the two accounts
+      of one report from contradicting each other.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the sender side is built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-02-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT take a value that the CSAF document does not contain as
+      a statement by the sender, including a default that the CSAF schema declares.
+    rationale: >-
+      An omitted field states nothing, so the case input falls back to what the
+      receiver does for a report with no CSAF document. A schema default, such as
+      the TLP label `CLEAR`, is filled in by a parser and was never sent.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the case inputs are built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-02-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT refuse an `Offer(VulnerabilityReport)` because its
+      attached CSAF document cannot be read or fails the CSAF 2.1 schema.
+    rationale: >-
+      The report is valid or invalid by the receiver's report-validation decision,
+      not by the form of one attachment, and refusing would leave a real
+      vulnerability unreported. The receiver reads what it can (CSAF-04-003).
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the receive side is built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-02-007
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: >-
+      A sender SHOULD NOT attach a CSAF document that fails the CSAF 2.1 schema.
+    rationale: >-
+      A sender is strict in what it sends and a receiver lenient in what it
+      accepts (CSAF-02-006). A schema-valid document lets every receiver read it
+      the same way.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the sender side is built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+- id: CSAF-03
+  title: Case Inputs From the Initial Report
+  specs:
+  - id: CSAF-03-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver that fills case inputs from a CSAF document (CSAF-02-001) MUST
+      take a `vulnerabilities[].disclosure_date` later than the time of receipt as
+      the end of the sender's proposed embargo, when the Offer carries no
+      `proposedEmbargo`.
+    rationale: >-
+      The CSAF 2.1 draft says that a future disclosure date indicates the intended
+      date for disclosure, also called the embargo date, and the Vulnerability
+      Report profile uses it to coordinate that date. It then competes with the
+      receiver's own default as any proposed embargo does (EP-04-003).
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the case inputs are built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CSAF-02-001
+  - id: CSAF-03-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When several vulnerabilities in the document have a future
+      `disclosure_date`, the receiver MUST take the earliest of them as the end of
+      the proposed embargo of CSAF-03-001.
+    rationale: >-
+      One case has one embargo. The earliest date honors every vulnerability's
+      intended disclosure, in the same way that the shorter term wins between two
+      parties (EP-04-003).
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the case inputs are built.
+    relationships:
+    - rel_type: extends
+      spec_id: CSAF-03-001
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-03-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver that fills case inputs from a CSAF document MUST take a
+      `disclosure_date` no later than the time of receipt, on any vulnerability, as
+      a statement that the vulnerability is public (P).
+    rationale: >-
+      The CSAF 2.1 draft defines a past disclosure date as the time the
+      vulnerability was disclosed to the public. A case cannot hold an embargo for
+      one vulnerability while another in the same report is public (EP-04-008).
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the case inputs are built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-03-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver that fills case inputs from a CSAF document MUST take an SSVC
+      Exploitation value of `PoC`, on any vulnerability, as a statement that an
+      exploit is public (X), and a value of `Active` as a statement that attacks
+      are occurring (A).
+    rationale: >-
+      The SSVC Exploitation decision point maps onto the CS model in both
+      directions (the SSVC crosswalk): `None` means neither X nor A, `PoC` means X
+      without A, and `Active` means A. `None` therefore states nothing to set.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the case inputs are built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-03-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver that fills case inputs from a CSAF document MUST take an entry in
+      `vulnerabilities[].first_known_exploitation_dates`, on any vulnerability, as a
+      statement that attacks are occurring (A).
+    rationale: >-
+      Each entry records when an exploitation happened, which is an observed
+      attack in the CS model.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until the case inputs are built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-03-006
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A case created from a report SHOULD start with the report's name and
+      summary as its own.
+    rationale: >-
+      The report is the first account of the case, and other CVD tools start a
+      case from the report in the same way. The case can change its name and
+      summary later.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until case naming is built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-03-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver that fills case inputs from a CSAF document MUST take a name that
+      the report leaves unstated from `document.title`, and a summary that the
+      report leaves unstated from the document-level note of category `summary`,
+      or else of category `description`.
+    rationale: >-
+      Every CSAF document has a title that names the whole document, and a
+      document-level note describes the whole report, so neither depends on which
+      of several vulnerabilities a reader picks.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until case naming is built.
+    relationships:
+    - rel_type: extends
+      spec_id: CSAF-03-006
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-03-008
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A receiver that fills case inputs from a CSAF document SHOULD give the case a
+      vulnerability record for each entry in `vulnerabilities[]`, named by its
+      `cve` or else its first `ids[]` entry, with the other identifiers as aliases
+      and the entry's title and summary or description note as its description.
+    rationale: >-
+      The profile requires an identifier for each reported vulnerability, and the
+      identifiers are what later messages and projections refer to (CM-05-003,
+      CM-05-009). The case has no field for records until #5132 adds one.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until vulnerability records are built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+  - id: CSAF-03-009
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A receiver that fills case inputs from a CSAF document SHOULD give the case a
+      case reference for each entry in `document.references[]` and
+      `vulnerabilities[].references[]`.
+    rationale: >-
+      CSAF references and case references have the same shape, a URL and a
+      summary, and the profile uses them for evidence of exploitation (CM-05-004,
+      CM-05-005). The case has no field for references until #5132 adds one.
+    verification: >-
+      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
+      probe until case references are built.
+    adr:
+    - ADR-0184
+    stories:
+    - story_2026_099
+- id: CSAF-04
+  title: Receiving and Sending CSAF in This Codebase
+  specs:
+  - id: CSAF-04-001
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST check each attached CSAF 2.1 document against the full
+      CSAF 2.1 schema at receipt, and record a verdict of schema-valid or
+      schema-invalid with each schema error.
+    rationale: >-
+      The receiver wants to know at receipt whether the document holds together,
+      and the errors tell its human what is wrong.
+    verification: >-
+      A receive-path test attaches a schema-valid and a schema-invalid CSAF document and
+      reads the stored verdict and its errors.
+  - id: CSAF-04-002
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The verdict of CSAF-04-001 MUST NOT call a document valid CSAF.
+    rationale: >-
+      CSAF validity also needs the mandatory tests of the CSAF draft, which a schema
+      cannot express. Measured against the test documents of the CSAF Technical
+      Committee, the schema catches few of the documents that fail a mandatory
+      test.
+    verification: >-
+      The verdict values are the closed set schema-valid and schema-invalid; a test
+      asserts no other value is stored.
+    relationships:
+    - rel_type: extends
+      spec_id: CSAF-04-001
+  - id: CSAF-04-003
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST read the fields of CSAF-03 from a schema-invalid document
+      one field at a time, skip each field it cannot read, and log each skipped
+      field at INFO.
+    rationale: >-
+      A fault in one part of a document says nothing about the rest of it, and
+      CSAF-02-006 keeps the report itself.
+    verification: >-
+      A receive-path test attaches a schema-invalid document with one malformed and one
+      readable claim field and checks that the readable one is applied and the skip is
+      logged at INFO.
+  - id: CSAF-04-004
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST store with each received report that has a CSAF
+      attachment the verdict, each value it read, and what became of each value:
+      applied, overridden by a Vultron field, or kept for display only.
+    rationale: >-
+      A human who validates the report sees what the document claimed and which
+      claims shaped the case. Fields that set no case input, such as the TLP label,
+      `involvement` and `acknowledgments`, are kept for that display.
+    verification: >-
+      A receive-path test reads the stored record and checks one value of each outcome:
+      applied, overridden and display only.
+  - id: CSAF-04-005
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      This codebase MUST NOT send the record of CSAF-04-004 to another actor.
+    rationale: >-
+      The record is the receiver's own judgment. Each actor that receives the
+      report forms its own.
+    verification: >-
+      A test checks that no activity this codebase emits after receipt carries the
+      record.
+    relationships:
+    - rel_type: extends
+      spec_id: CSAF-04-004
+  - id: CSAF-04-006
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST record a case-split signal with the report when the
+      vulnerabilities of its CSAF document differ in public status, in P, X or A,
+      or in their future disclosure dates.
+    rationale: >-
+      One case takes the most cautious value (CSAF-03-002 to CSAF-03-005), which
+      can hold back a vulnerability whose state differs. The Case Owner decides
+      whether to split the case.
+    verification: >-
+      A receive-path test attaches a document whose vulnerabilities differ in P, X or A
+      and reads the stored case-split signal.
+  - id: CSAF-04-007
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST record a candidate-parties signal with the report when the
+      vendors of the products that its CSAF document lists as known affected are
+      more than one, or include a vendor other than the receiver.
+    rationale: >-
+      Affected products name the parties that a case needs, for example when a
+      coordinator or one of several vendors receives the report. Party discovery
+      then suggests those actors to the case (BT-20-003).
+    verification: >-
+      A receive-path test attaches a document with two affected vendors and reads the
+      stored candidate-parties signal.
+  - id: CSAF-04-008
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      This codebase MUST NOT split a case, suggest an actor or invite an actor
+      because of a signal of CSAF-04-006 or CSAF-04-007.
+    rationale: >-
+      A split and an invitation are decisions of the Case Owner. A signal only
+      shows that one may be needed.
+    verification: >-
+      The tests of CSAF-04-006 and CSAF-04-007 check that no split, suggestion or
+      invitation follows a signal.
+    relationships:
+    - rel_type: extends
+      spec_id: CSAF-04-006
+    - rel_type: extends
+      spec_id: CSAF-04-007
+  - id: CSAF-04-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The submit-report trigger MUST refuse, with HTTP 422 naming each fault, a
+      CSAF document that fails the CSAF 2.1 schema or whose category is not
+      `csaf_vulnerability_report`.
+    rationale: >-
+      This is the sender's side of CSAF-02-007. A refusal that names each fault
+      tells the Reporter what to correct before anything is sent.
+    verification: >-
+      A trigger test posts a schema-invalid document and one of another category and
+      checks the 422 body names each fault.
+  - id: CSAF-04-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The submit-report trigger MUST fill a report name, a report summary or a
+      `proposedEmbargo` that its request leaves unstated from the attached CSAF
+      document, by the mapping of CSAF-03.
+    rationale: >-
+      This is the sender's side of CSAF-02-004, so a receiver gets explicit
+      Vultron fields and needs to read the CSAF document only for what they omit.
+    verification: >-
+      A trigger test posts a CSAF document with no report name, summary or proposed
+      embargo end and reads them on the sent Offer.
+- id: CSAF-05
+  title: Following the CSAF 2.1 Draft
+  specs:
+  - id: CSAF-05-001
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST check CSAF documents against one pinned revision of the
+      CSAF 2.1 draft, recorded once with its source repository, commit and draft
+      stage.
+    rationale: >-
+      Every CSAF 2.1 draft uses the same `$schema` value, so a document cannot say
+      which draft it follows. The crosswalk pages, the pinned local copy of the
+      schemas and the models generated from them read the one record, so they
+      cannot disagree about the draft.
+    verification: >-
+      A test checks that the crosswalk version include and the pinned local copy name
+      the same commit.
+  - id: CSAF-05-002
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST keep a pinned local copy of the CSAF 2.1 schema and of the
+      schemas it references, and generate its CSAF models from that copy.
+    rationale: >-
+      The CSAF schema references the CVSS and SSVC schemas by URL. A local copy
+      makes the models reproducible without network access.
+    verification: >-
+      The regeneration script reads only the pinned local copy; the test of CSAF-05-003
+      runs it with network access disabled.
+  - id: CSAF-05-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A test MUST fail when regenerating the CSAF models from the pinned local copy
+      does not reproduce the committed models.
+    rationale: >-
+      Without the test, a hand edit or a schema change without regeneration leaves
+      the models out of step with the schema they claim to follow.
+    verification: >-
+      A test regenerates the models into a temporary directory and compares them with
+      the committed models.
+  - id: CSAF-05-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The test suite MUST NOT depend on the test documents of the CSAF Technical
+      Committee.
+    rationale: >-
+      Those documents are governed by the OASIS IPR policy and change with the
+      draft. An optional script that reads a local clone checks them when the pin
+      moves.
+    verification: >-
+      A test checks that no test module reads a path under the CSAF Technical
+      Committee's test data.
+  - id: CSAF-05-005
+    priority: MUST
+    kind: process
+    statement: >-
+      A scheduled job MUST open an issue when an upstream change to the CSAF 2.1
+      draft would change the generated models, the profile text or the list of
+      mandatory tests.
+    rationale: >-
+      CSAF 2.1 is a draft that its Technical Committee can still change. Most
+      upstream commits change neither the schema nor the profiles, so a filter on
+      what the models and profiles depend on keeps the job from reporting them.
+    verification: >-
+      A test of the job's comparison script feeds it two schema revisions that differ
+      only in a description and two that differ in a property, and checks that only the
+      second reports a change.
+  - id: CSAF-05-006
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      The job of CSAF-05-005 MUST NOT open a second issue or comment on its open
+      issue while that issue stays open.
+    rationale: >-
+      One open issue says that the pin is behind. Repeating it adds noise and no
+      information.
+    verification: >-
+      A test of the job's issue step checks that an open issue with the job's marker
+      makes it exit without writing.
+    relationships:
+    - rel_type: extends
+      spec_id: CSAF-05-005
+  - id: CSAF-05-007
+    priority: MUST
+    kind: process
+    statement: >-
+      The issue of CSAF-05-005 MUST say which of the CSAF fields that this codebase
+      reads the upstream change affects.
+    rationale: >-
+      A change to a field that sets a case input needs a review of its mapping, and
+      a change elsewhere needs only a regeneration.
+    verification: >-
+      A test of the job's comparison script checks that a changed `disclosure_date`
+      property is listed as a read field.
+    relationships:
+    - rel_type: extends
+      spec_id: CSAF-05-005
