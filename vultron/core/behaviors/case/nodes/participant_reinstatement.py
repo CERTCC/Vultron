@@ -21,7 +21,8 @@ to the CASE_MANAGER to reinstate a removed participant, and only that
 :mod:`~vultron.core.behaviors.case.nodes.case_participant_received`, reusing
 its guard, effect and notice frames:
 
-- three read-only precondition guards — the named participant is on the
+- a repeat guard, which skips an ``Add`` the ledger already records, then
+  three read-only precondition guards — the named participant is on the
   roster (:class:`MoveNamesCaseParticipantNode`, shared), has joined, and
   is removed; each failure is ``REFUSED``, so ``Add`` never seats a member
   (joining is accepting a stub Invite, ADR-0114);
@@ -43,6 +44,9 @@ from vultron.core.behaviors.case.nodes.case_participant_received import (
     ParticipantMove,
     ParticipantMoveEffectNode,
     ParticipantMoveGuardNode,
+)
+from vultron.core.behaviors.case.nodes.ledgered_repeat import (
+    ActivityNotYetLedgeredNode,
 )
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.models.case_participant import CaseParticipant
@@ -96,10 +100,14 @@ def case_manager_admits_reinstatement_guard(
     path skips it (it writes nothing, RSH-08-003), and the CASE_MANAGER runs
     the three reinstatement guards in order, so an ``Add`` it refuses leaves
     no ledger entry (CM-31-011).  *claimed_actor_id* is the actor the inline
-    participant is attributed to, when it names one.
+    participant is attributed to, when it names one.  A repeat of an ``Add``
+    the ledger already records is skipped first, because its participant is
+    no longer removed and the removed check would refuse it
+    (:class:`~vultron.core.behaviors.case.nodes.ledgered_repeat.ActivityNotYetLedgeredNode`).
     """
     return OnPaths.at_case_manager(
         "ReinstatementAdmissibleIfCaseManager",
+        ActivityNotYetLedgeredNode(case_id=case_id),
         MoveNamesCaseParticipantNode(
             participant_id=participant_id,
             case_id=case_id,

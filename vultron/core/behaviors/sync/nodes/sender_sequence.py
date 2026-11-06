@@ -237,7 +237,10 @@ class ClassifySequenceNumberNode(DataLayerActionWithPorts):
             self.number,
             event.activity_id,
             redelivery=redelivery,
-            ledgered=redelivery
+            # A past number is a repeat when the ledger records it, record
+            # or no record (SYNC-21-018).
+            ledgered=self.number is not None
+            and self.number < self.order.next_expected
             and is_ledgered_activity(dl, self.case_id, event.activity_id),
         )
         self.logger.debug(

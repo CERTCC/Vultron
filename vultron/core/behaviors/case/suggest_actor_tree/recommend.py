@@ -171,6 +171,7 @@ def create_recommend_actor_to_case_received_tree(
             InviteInFlightNode(
                 recommended_id=recommended_id,
                 case_id=case_id,
+                recommendation_id=recommendation_id,
             ),
             EmitAcceptActorRecommendationNode(
                 recommender_id=recommender_id,
@@ -188,6 +189,7 @@ def create_recommend_actor_to_case_received_tree(
             PendingOfferCaseParticipantNode(
                 recommended_id=recommended_id,
                 case_id=case_id,
+                recommendation_id=recommendation_id,
             ),
             EmitNoteDuplicateRecommendationToOwnerNode(
                 recommendation_id=recommendation_id,
