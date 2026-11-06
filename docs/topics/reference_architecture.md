@@ -159,7 +159,7 @@ The [Capability Model](capability_model/index.md) page is the full taxonomy: the
 ## What the reference implementation provides, and what you supply
 
 The extension boundary is the set of ports.
-The reference implementation provides the protocol machinery: the five state machines, the wire vocabulary and its semantic mapping, the inbox and outbox pipelines, the behavior trees that orchestrate transitions, and the persistence and delivery adapters that make a local actor run.
+The reference implementation provides the protocol machinery: the protocol's state machines, the wire vocabulary and its semantic mapping, the inbox and outbox pipelines, the behavior trees that orchestrate transitions, and the persistence and delivery adapters that make a local actor run.
 What an adopter supplies are the capabilities behind the call-out points — the judgment and the connections to outside systems that the protocol deliberately leaves open.
 
 This division also shows in how conformance is tested.

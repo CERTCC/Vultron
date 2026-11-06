@@ -45,6 +45,7 @@ They follow a few rules, described in detail in §2.4 of [A State-Based Model fo
 States record events that have or have not occurred, and history is immutable, so every transition is irreversible.
 The result is an acyclic directed graph of states, beginning at $q^{cs}_0={vfdpxa}$ and ending at $\mathcal{F}^{cs}=\{VFDPXA\}$, with the allowed transitions as its edges.
 In practical terms, there is an arrow of time from *vfdpxa* to *VFDPXA*, and each transition changes exactly one letter from lowercase to uppercase.
+One status write can still record two transitions at once: an event and the forced next event of an ephemeral state, as [§8.3 Case State as a Compound Tuple](../../../reference/vultron-spec/tracking-models.md#83-case-state-as-a-compound-tuple) describes.
 
 ### The Vendor Fix Path Is Ordered
 

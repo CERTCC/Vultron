@@ -6,8 +6,9 @@ description: >
   Rules for working with the CVD case state: where the CS rules live and the
   legacy reference model's status, which dimensions are per-participant versus
   per-case, role-gated VF/D writes, the two v→V drive paths, the d→D causal
-  gate, append-only status history, the invite-path RM entry point, and why
-  the compound CS enum stays.
+  gate, append-only status history, the invite-path RM entry point, the
+  same-write promotion out of an ephemeral state, and why the compound CS
+  enum stays.
 related_specs:
   - specs/architecture.yaml (ARCH-12-002)
   - specs/case-management.yaml
@@ -66,6 +67,10 @@ rules for changing the code that implements it.
   live cases; `is_valid_cs_history()` requires all six events.
 - **Ephemeral states**: the six `vP` states must next take `V`, and the six
   `pX` states must next take `P` (`required_next_cs_events()`, CSB-17-003).
+  A status write that would enter one applies the forced event in the same
+  write (CSB-13-006, SM-09-003), the one exception to CSB-17-002. Only the
+  trigger write path promotes today (#6080); route any new persistence path
+  through that promotion, never a copy of it.
 
 Do not delete the legacy module (ADR-0060): `cs/` still uses
 `case_states.validations.ensure_valid_state`, and
