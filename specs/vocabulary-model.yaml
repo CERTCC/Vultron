@@ -1253,3 +1253,51 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VM-10-004
+  - id: VM-10-006
+    lint_suppress:
+    - phantom_path_ref
+    priority: MUST
+    kind: project
+    statement: >-
+      The project MUST publish one JSON Schema for each Vultron term the context
+      document declares, at `ns/<wire version>/schema/types/<Type>.json` beside that
+      context document, generated from the Pydantic class that defines the term in the
+      form Vultron accepts, with the schema's published URL as its `$id`.
+    rationale: >-
+      An outside implementer needs a machine-readable description of each Vultron
+      object, and a generated schema cannot drift from the model without a failing
+      check. Object shapes share the wire version with the vocabulary (ADR-0106), so
+      the schemas sit under the same version segment as the context. The schemas are
+      informative: JSON Schema checks one layout while JSON-LD allows several, so the
+      requirements, not the schemas, decide conformance (ADR-0181).
+    verification: >-
+      Tests marked `VM-10-006` in `test/metadata/test_wire_schemas.py` assert that the
+      committed schemas equal the generated ones, that their set equals the Vultron
+      terms in the context document, and that each `$id` is its published URL.
+    adr:
+    - ADR-0181
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VM-10-001
+  - id: VM-10-007
+    lint_suppress:
+    - phantom_path_ref
+    priority: MUST
+    kind: project
+    statement: >-
+      The generated message examples MUST be published at
+      `ns/<wire version>/examples/`, the same versioned path as the context document.
+    rationale: >-
+      An example shows a wire shape, and wire shapes carry the wire version
+      (ADR-0106). One versioned home lets a peer find the context, the schemas, and the
+      examples together, and a wire-version bump moves all of them at once. The old
+      unversioned example URLs are not kept, since a second URL would hide the version
+      (ADR-0181).
+    verification: >-
+      The example generator writes to the versioned directory, and the tests in
+      `test/architecture/test_vocab_examples_current.py` read the examples from it.
+    adr:
+    - ADR-0181
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VM-10-001

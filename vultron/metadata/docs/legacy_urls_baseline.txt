@@ -189,6 +189,7 @@ adr/0177-a-cited-requirement-with-no-relationship-is-listed-in-see-also.md
 adr/0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md
 adr/0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md
 adr/0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md
+adr/0181-wire-artifacts-publish-under-the-versioned-namespace-and-type-schemas-are-informative.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
