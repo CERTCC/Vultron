@@ -115,10 +115,9 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | ASK — Protocol Asks and Outstanding-Ask Registers | [ASK-01-001](../vultron-spec/requirements/case-management.md#ask-01-001), [ASK-01-005](../vultron-spec/requirements/case-management.md#ask-01-005), [ASK-03-001](../vultron-spec/requirements/case-management.md#ask-03-001), [ASK-08-001](../vultron-spec/requirements/case-management.md#ask-08-001) |
-| CM — Case Management | [CM-14-006](../vultron-spec/requirements/case-management.md#cm-14-006) |
 | DUR — Duration | [DUR-01-001](../vultron-spec/requirements/state-behavior.md#dur-01-001), [DUR-01-002](../vultron-spec/requirements/state-behavior.md#dur-01-002), [DUR-01-003](../vultron-spec/requirements/state-behavior.md#dur-01-003), [DUR-06-001](../vultron-spec/requirements/state-behavior.md#dur-06-001), [DUR-06-004](../vultron-spec/requirements/state-behavior.md#dur-06-004), [DUR-07-001](../vultron-spec/requirements/state-behavior.md#dur-07-001), [DUR-07-002](../vultron-spec/requirements/state-behavior.md#dur-07-002), [DUR-07-003](../vultron-spec/requirements/state-behavior.md#dur-07-003) |
 | EMB — Embargo Management Behavioral Requirements | [EMB-13-003](../vultron-spec/requirements/state-behavior.md#emb-13-003), [EMB-13-006](../vultron-spec/requirements/state-behavior.md#emb-13-006), [EMB-13-007](../vultron-spec/requirements/state-behavior.md#emb-13-007), [EMB-13-008](../vultron-spec/requirements/state-behavior.md#emb-13-008) |
-| EP — Embargo Policy | [EP-01-002](../vultron-spec/requirements/state-behavior.md#ep-01-002), [EP-01-006](../vultron-spec/requirements/state-behavior.md#ep-01-006), [EP-01-007](../vultron-spec/requirements/state-behavior.md#ep-01-007), [EP-04-002](../vultron-spec/requirements/state-behavior.md#ep-04-002) |
+| EP — Embargo Policy | [EP-01-002](../vultron-spec/requirements/state-behavior.md#ep-01-002), [EP-01-006](../vultron-spec/requirements/state-behavior.md#ep-01-006), [EP-01-007](../vultron-spec/requirements/state-behavior.md#ep-01-007), [EP-04-002](../vultron-spec/requirements/state-behavior.md#ep-04-002), [EP-04-003](../vultron-spec/requirements/state-behavior.md#ep-04-003) |
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-02-001](../vultron-spec/requirements/messages.md#msm-02-001) |
 | VAM — Vultron Semantic–AS2 Mapping | [VAM-05-004](../vultron-spec/requirements/messages.md#vam-05-004) |
 | VP — Vultron Protocol | [VP-04-003](../vultron-spec/requirements/vultron-protocol.md#vp-04-003), [VP-04-004](../vultron-spec/requirements/vultron-protocol.md#vp-04-004), [VP-05-001](../vultron-spec/requirements/vultron-protocol.md#vp-05-001), [VP-05-017](../vultron-spec/requirements/vultron-protocol.md#vp-05-017), [VP-06-004b](../vultron-spec/requirements/vultron-protocol.md#vp-06-004b), [VP-06-010](../vultron-spec/requirements/vultron-protocol.md#vp-06-010), [VP-07-006](../vultron-spec/requirements/vultron-protocol.md#vp-07-006), [VP-08-019](../vultron-spec/requirements/vultron-protocol.md#vp-08-019), [VP-11-010](../vultron-spec/requirements/vultron-protocol.md#vp-11-010) |
@@ -469,7 +468,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | TB — Testability | [TB-03-001](../specs/project.md#tb-03-001) |
 | TRIG — Triggerable Behaviors | [TRIG-07-001](../specs/project.md#trig-07-001) |
 | VAM — Vultron Semantic–AS2 Mapping | [VAM-07-002](../vultron-spec/requirements/messages.md#vam-07-002) |
-| VM — Vocabulary Model | [VM-10-001](../vultron-spec/requirements/messages.md#vm-10-001), [VM-10-002](../specs/project.md#vm-10-002), [VM-10-003](../vultron-spec/requirements/messages.md#vm-10-003) |
+| VM — Vocabulary Model | [VM-10-001](../vultron-spec/requirements/messages.md#vm-10-001), [VM-10-002](../specs/project.md#vm-10-002), [VM-10-003](../vultron-spec/requirements/messages.md#vm-10-003), [VM-10-004](../vultron-spec/requirements/messages.md#vm-10-004) |
 | VP — Vultron Protocol | [VP-03-012](../vultron-spec/requirements/vultron-protocol.md#vp-03-012) |
 
 ## [story_2022_040](story_2022_040.md)

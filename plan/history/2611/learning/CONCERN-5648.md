@@ -29,7 +29,7 @@ Low. Design debt, not blocking. #5641 sets `inReplyTo` on the current activities
 ## Evidence
 
 - `vultron/wire/as2/vocab/activities/embargo.py`: `_ActivateEmbargoActivity(as_Accept)`, `_RejectEmbargoProposalActivity(as_Reject)` and `_RemoveEmbargoFromCaseActivity(as_Remove)`.
-- ADR-0122 (embargo register and owner decision) and ADR-0152 (withdrawing or declining a proposal).
+- ADR-0122 (embargo register and owner decision) and ADR-0152 (one semantic type per shape, whoever sends it).
 
 ## Impact if Ignored
 

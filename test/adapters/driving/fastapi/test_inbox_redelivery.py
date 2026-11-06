@@ -44,6 +44,7 @@ from test.architecture._vocab_example_corpus import (
     activity_examples,
     wire_body,
 )
+from test.support.received import delivered_body
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -97,7 +98,7 @@ def _create_report_body() -> dict[str, Any]:
         actor=_SENDER_ID,
         to=[_ACTOR_ID],
     )
-    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return delivered_body(activity)
 
 
 def _store_snapshot(dl: SqliteDataLayer) -> dict[str, Any]:

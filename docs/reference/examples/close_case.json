@@ -1,12 +1,14 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Leave",
   "id": "urn:uuid:a1aa73db-a618-4394-98b9-95f7ea83de39",
   "name": "https://vultron.example/organizations/vendorco Leave urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "content": "We're closing this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "VulnerabilityCase",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
   }

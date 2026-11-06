@@ -25,12 +25,13 @@ Spec coverage:
 
 import json
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
 
 from test.support.received import delivered_body
+from test.support.signing import resigned
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.states.embargo_register import TerminationReason
@@ -607,14 +608,13 @@ def test_all_embargo_factories_importable_from_package():
     )
 
 
-def _received(activity: as_Invite, **extra: object) -> as_Invite:
+def _received(activity: as_Invite, **extra: Any) -> as_Invite:
     """*activity* as a receiver parses it from the body its sender sent.
 
     *extra* adds keys to that body, as a sender that names more than this
     receiver's vocabulary would.
     """
-    body = delivered_body(activity)
-    body.update(extra)
+    body = resigned(delivered_body(activity), **extra)
     return cast(as_Invite, parse_activity(body))
 
 

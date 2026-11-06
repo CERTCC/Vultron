@@ -27,6 +27,7 @@ from typing import Any
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.received import delivered_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -38,7 +39,6 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
-from vultron.adapters.outbox_sealed_body import OUTBOUND_DUMP_KWARGS
 from vultron.core.behaviors.case.nodes.proposal_announcement import (
     announced_case_id,
     case_is_announced,
@@ -91,10 +91,11 @@ def _create_case(actor: str, **kwargs: Any) -> as_Create:
 
 
 def _body(activity: as_Activity) -> dict[str, Any]:
-    # The outbound body's own options, so the inline case keeps its own
+    # Signed as a sender delivers it (SIG-01-001): stamped, serialised and
+    # signed through the shared helper so the inline case keeps its own
     # fields, such as the ledgerPosition a received case must carry
     # (SYNC-16-005).
-    return activity.model_dump(mode="json", **OUTBOUND_DUMP_KWARGS)
+    return delivered_body(activity)
 
 
 def _deliver(dl: SqliteDataLayer, activity: as_Activity) -> InboxOutcome:

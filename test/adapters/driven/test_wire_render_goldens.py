@@ -27,8 +27,10 @@ embargoes live in its ``embargoRegister`` (ADR-0122, #4290), a consent row
 is an AS2 object of its own (ADR-0122, #4713), a case always names its
 owner, so it carries its seeded status and genesis hash (#5092), an actor
 no longer derives the inbox/outbox its profile does not state (#5177),
-every timestamp takes the fixed six-digit form (ADR-0167, #5452), and an
-authored case status carries no ``updated`` (CM-29-006, #5749).
+every timestamp takes the fixed six-digit form (ADR-0167, #5452), an
+authored case status carries no ``updated`` (CM-29-006, #5749), and the
+top-level ``@context`` is the AS2-then-Vultron list that nested objects do
+not restate (VM-10-001, VM-10-004, #6006).
 
 Two value classes are generated afresh on every construction by nested
 defaults and are normalised before comparison: minted ``urn:uuid:`` ids and

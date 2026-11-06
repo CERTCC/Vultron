@@ -28,11 +28,12 @@ follow that a reader needs pinned, and this module pins both:
    § "Key a Ratchet on the Act, Not on the Name of What Performs It").  The
    set is held to equality in both directions, so a tree that stops
    declaring, starts declaring, or changes which paths it names fails here.
-   A site that declares nothing is in one of two inventories, never both:
-   :data:`KNOWN_UNDECLARED_PATH_SITES`, the ratchet of sites an Epic #5193
-   wave still owes a declaration, whose terminal value is empty; and
-   :data:`UNDECLARED_PATH_EXEMPTIONS`, the pinned set of call sites no
-   delivery's path stage would answer for.
+   A site that declares nothing is in :data:`UNDECLARED_PATH_EXEMPTIONS`,
+   the pinned set of call sites no delivery's path stage would answer for.
+   The ratchet of sites an Epic #5193 wave still owed a declaration reached
+   its terminal value, empty, when the ``Offer(VulnerabilityReport)`` trees
+   declared theirs (#5046), and was removed: a new undeclared site either
+   declares or is exempt with its reason.
    :data:`CONDITIONAL_DECLARATION_EXEMPTIONS` is pinned the same way.
 2. **The disposition at a non-manager receiver**, which is what the
    declaration decides (AC-3 of #5043): a tree that names the
@@ -72,7 +73,8 @@ _FACTORY = "create_receive_activity_tree"
 
 #: The migrated areas: the case, participant, report and status trees
 #: (#5043), the embargo trees (#5042), the note and dead-letter trees
-#: (#5785) and the sync trees (#5044).  One inventory for all of them, so
+#: (#5785), the sync trees (#5044) and the ``Offer(VulnerabilityReport)``
+#: trees (#5046).  One inventory for all of them, so
 #: several waves cannot keep several tables of the same fact (CS-22-001).
 _ROOTS = (
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors" / "case",
@@ -261,6 +263,20 @@ DECLARED_PATHS: dict[Site, frozenset[ReceivedPath]] = {
         "refusal_notice_received_tree",
         0,
     ): frozenset({PR}),
+    # Offer(VulnerabilityReport) precedes its case and names none, so its
+    # receiver holds no replica of one: the no-case path alone (HP-01-041).
+    # Both arms, the one that proposes a case and the report-less one,
+    # declare it, behind the ordinary doors (ADR-0154, #5046).
+    (
+        f"{_C}/receive_report_case_tree.py",
+        "create_receive_report_case_tree",
+        0,
+    ): frozenset({NC}),
+    (
+        f"{_C}/receive_report_case_tree.py",
+        "create_offer_received_without_report_tree",
+        0,
+    ): frozenset({NC}),
     # --- report ---------------------------------------------------------
     (f"{_R}/prioritize_tree.py", "create_engage_case_tree", 0): frozenset(
         {CM, PR}
@@ -439,24 +455,6 @@ CONDITIONAL_DECLARATION_EXEMPTIONS: frozenset[Site] = frozenset(
     }
 )
 
-#: Sites in these areas still waiting for a declaration, each owned by the
-#: Epic #5193 wave that migrates its family.  Terminal value: empty.
-# owner: #5046
-KNOWN_UNDECLARED_PATH_SITES: dict[Site, str] = {
-    # Offer(VulnerabilityReport) stores what it carried before it checks the
-    # addressee, so its path declaration waits for that rework.
-    (
-        f"{_C}/receive_report_case_tree.py",
-        "create_receive_report_case_tree",
-        0,
-    ): "#5046",
-    (
-        f"{_C}/receive_report_case_tree.py",
-        "create_offer_received_without_report_tree",
-        0,
-    ): "#5046",
-}
-
 #: Sites that declare no paths by decision, each with the reason.  The
 #: discriminator is not whether a delivery runs the tree — several of these run
 #: on real deliveries — but whether any branch of it would use the answer a
@@ -522,11 +520,11 @@ UNDECLARED_PATH_EXEMPTIONS: dict[Site, str] = {
     ): "the receiver's own diagnostic record, scoped to no case",
 }
 
-#: Every site that declares no paths, for whichever reason.
-UNDECLARED: dict[Site, str] = {
-    **KNOWN_UNDECLARED_PATH_SITES,
-    **UNDECLARED_PATH_EXEMPTIONS,
-}
+#: Every site that declares no paths.  The Epic #5193 migration is done, so
+#: each one is a decision with its reason; a site waiting for a declaration
+#: has no inventory to wait in, and fails
+#: :func:`test_every_factory_call_site_in_these_areas_is_accounted_for`.
+UNDECLARED: dict[Site, str] = UNDECLARED_PATH_EXEMPTIONS
 
 
 def _rel(path: Path) -> str:
@@ -695,19 +693,10 @@ def test_every_factory_call_site_in_these_areas_is_accounted_for() -> None:
     )
     assert undeclared == frozenset(UNDECLARED), _diff(
         "The set of call sites that declare no paths changed (HP-01-038):"
-        " declare the tree's paths, add the site to"
-        " KNOWN_UNDECLARED_PATH_SITES with the wave that owes it, or add it"
-        " to UNDECLARED_PATH_EXEMPTIONS with the reason no delivery's path"
-        " stage answers for it.",
+        " declare the tree's paths, or add it to UNDECLARED_PATH_EXEMPTIONS"
+        " with the reason no delivery's path stage answers for it.",
         undeclared,
         frozenset(UNDECLARED),
-    )
-    assert not (
-        frozenset(KNOWN_UNDECLARED_PATH_SITES)
-        & frozenset(UNDECLARED_PATH_EXEMPTIONS)
-    ), (
-        "a site is both owed a declaration and exempt from one; it is one or"
-        " the other (ARCH-18-007, ARCH-18-011)"
     )
 
 

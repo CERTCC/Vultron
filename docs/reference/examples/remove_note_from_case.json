@@ -1,12 +1,14 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Remove",
   "id": "urn:uuid:bea43757-e41d-4bf2-8761-dc2446ecb6bb",
   "name": "https://vultron.example/users/finndervul Remove Note to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "actor": "https://vultron.example/users/finndervul",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Note",
     "id": "https://vultron.example/notes/1",
     "name": "Note",

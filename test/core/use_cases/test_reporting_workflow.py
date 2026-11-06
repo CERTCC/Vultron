@@ -122,11 +122,14 @@ def test_create_report_handler_returns_applied(reporter, report, dl):
     _call_use_case(activity, CreateReportReceivedUseCase, dl=dl)
 
 
-def test_submit_report_persists_activity_and_report(reporter, report, dl):
+def test_unaddressed_submit_report_is_refused_and_stores_nothing(
+    reporter, report, dl
+):
     activity = as_Offer(actor=reporter, object_=report)
-    # Addressed to no one, so the receiver refuses it (HP-01-005): the Offer
-    # names no party entitled to propose a case.  The report is still stored
-    # for a later explicit decision (CM-15-001).
+    # Addressed to no one, so the addressee door refuses it before anything
+    # is stored (HP-01-005, ADR-0154): no report, and no received record,
+    # because intake never ran; the inbox's outcome stage writes the receipt
+    # stub from the delivery itself (CLP-10-018).
     _call_use_case(
         activity,
         SubmitReportReceivedUseCase,
@@ -134,10 +137,8 @@ def test_submit_report_persists_activity_and_report(reporter, report, dl):
         expected=HandlerDisposition.REFUSED,
     )
 
-    # The refused delivery is still recorded by intake; the outcome stage
-    # reduces it to a receipt stub (CLP-10-018).
-    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is not None
-    assert dl.read(report.id_) is not None
+    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is None
+    assert dl.read(report.id_) is None
 
 
 def test_read_activity_from_a_non_addressee_is_refused(reporter, report, dl):

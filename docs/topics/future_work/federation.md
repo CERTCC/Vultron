@@ -191,7 +191,10 @@ It puts the initial activity in an AS2 `Announce` and signs the `Announce`.
 
 ```json
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Announce",
   "id": "https://vendorb.example/cases/1234/actor/outbox/relay/88",
   "actor": "https://vendorb.example/cases/1234/actor",

@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Create",
   "id": "urn:uuid:70d177fc-03e5-437b-8000-a2033a628b2b",
   "name": "https://vultron.example/organizations/vendorco Create urn:uuid:98e9762e-e9c4-4bf9-9bd1-83080b0675dc",
@@ -8,7 +11,6 @@
   ],
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "ProcessingFault",
     "id": "urn:uuid:98e9762e-e9c4-4bf9-9bd1-83080b0675dc",
     "inReplyTo": "https://vultron.example/case-actors/vendorco-case-actor/announce/9",

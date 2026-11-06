@@ -54,7 +54,6 @@ _REPO_TOP_LEVEL_DIRS = frozenset(
         ".devcontainer",
         ".github",
         "archived_notes",
-        "doc",
         "docker",
         "docs",
         "integration_tests",

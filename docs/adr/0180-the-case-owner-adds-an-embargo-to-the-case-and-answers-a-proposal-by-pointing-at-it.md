@@ -84,9 +84,9 @@ Chosen option: "The owner adds, rejects and removes the embargo; each decision n
 - Bad, because an owner that declined and then changes its mind sends two activities, the `Accept` and the `Add`, where one would be unambiguous.
 - Bad, because the wire format changes: the activation activity, its semantic type's pattern, the generated examples and the message reference pages all change.
 - Bad, because activation and rejection no longer use matching verbs: `Add` puts an embargo in force, while `Reject` refuses one that never was.
-- Neutral, because ADR-0152's rule that a CASE_MANAGER performing a participant's act shares its semantic type does not apply: the owner deciding for the case is not the act of a participant answering an invitation.
+- Neutral, because ADR-0152's rule of one semantic type per shape, whoever sends it, holds unchanged: no participant act has the shape of `Add(EmbargoEvent, target=VulnerabilityCase)` or `Reject(EmbargoEvent, target=VulnerabilityCase)`, so each owner decision keeps a semantic type of its own.
 
-### Confirmation
+## Validation
 
 The implementation is confirmed when the activation activity is an `Add` with `target` naming the case, no `Accept(EmbargoEvent, target=VulnerabilityCase)` shape remains in the vocabulary or its patterns, the tests that build both owner decisions find `inReplyTo` naming the proposal's `Invite(EmbargoEvent)`, and an activation from an owner whose row is `DECLINED` is refused with nothing committed.
 
@@ -105,12 +105,12 @@ The implementation is confirmed when the activation activity is an `Add` with `t
 ### The owner adds the embargo, and rejects a proposal by rejecting its `Invite(EmbargoEvent)`
 
 - Good, because the rejection names the proposal as its `object`, so its reply link is natural.
-- Bad, because `Reject(Invite(EmbargoEvent))` would mean the owner's decision for the case when the owner sends it and the sender's own decline from anyone else. That is the sender-switched meaning ADR-0122 retired for activation.
+- Bad, because `Reject(Invite(EmbargoEvent))` would mean the owner's decision for the case when the owner sends it and the sender's own decline from anyone else. That is the sender-switched meaning ADR-0122 retired for both owner decisions (MSM-07-003, MSM-07-004).
 - Bad, because the owner could no longer decline a proposal for itself and leave the case's decision open: any decline from the owner would close the proposal.
 
 ## More Information
 
-This record partially supersedes [ADR-0122](0122-per-embargo-participant-consent.md): it replaces the activation activity in ADR-0122's table of register and consent effects, refuses an activation from an owner that declined the proposal, and adds `inReplyTo` to both owner decisions.
+This record partially supersedes [ADR-0122](0122-per-embargo-participant-consent.md): it replaces the activation activity in ADR-0122's table of register and consent effects and in its table of register steps, refuses an activation from an owner that declined the proposal, and adds `inReplyTo` to both owner decisions.
 
 A proposer cannot decline its own proposal and then activate it: it receives no invitation to its own proposal, so its `Reject(Invite(EmbargoEvent))` is refused, and it withdraws a proposal with `Undo(Invite(EmbargoEvent))` ([ADR-0152](0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md)).
 

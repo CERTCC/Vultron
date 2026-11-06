@@ -273,25 +273,29 @@ def test_scan_actually_reaches_core_modules():
 # The scan above is anchored on an *identifier*, so it cannot see the AS2
 # namespace URI — a different shape of the same mistake, and one no import
 # ratchet catches either, because a copy-pasted literal is not an import
-# (ARCH-01-001).  Core supplies no wire shape at all (ARCH-20-001): the
-# ``@context`` a Vultron object carries is core's own
-# :data:`~vultron.core.models.base.context.VULTRON_CONTEXT_URI`, and the AS2
-# namespace beside it is added by the wire layer, which is the only place
-# :data:`~vultron.wire.as2.vocab.base.base.ACTIVITY_STREAMS_NS` is spelled.
+# (ARCH-01-001).  The URI is spelled in exactly one place:
+# :data:`~vultron.core.models.base.context.ACTIVITY_STREAMS_NS`.  It lives in
+# core for the reason ``VULTRON_CONTEXT_URI`` beside it does: under ADR-0099 the
+# core classes are the objects that carry the default ``@context`` list, AS2
+# first (VM-10-001, #6006), and core cannot import wire.  The wire layer
+# re-exports it.  Every other core module names the constant.
 #
-# This check is zero-tolerance, not a ratchet: core holds no copy of the URI
-# today, so the terminal value is reached (ARCH-18-005) and there is no
+# This check is zero-tolerance, not a ratchet: the one defining module is the
+# only exemption, so the terminal value is reached (ARCH-18-005) and there is no
 # baseline to carry.
 #
 # Loose reading: it can **invent** a violation, and it can **miss** one.  It
 # invents because every occurrence counts, a docstring included, so core prose
 # that quotes the URI rather than naming the constant trips it.  That is the
 # intended answer — name ``ACTIVITY_STREAMS_NS``, or say "the ActivityStreams
-# namespace" as ``core_object.py`` and ``context.py`` already do.  It misses
+# namespace" as ``core_object.py`` already does.  It misses
 # any spelling the source text does not hold verbatim: an ``http://`` scheme, a
 # literal split across two adjacent strings, or a URI assembled in an f-string.
 # A plain substring scan is the right trade here — the mistake it exists to
 # catch is a paste, and a paste is verbatim.
+
+#: The one core module allowed to spell the AS2 namespace: its definition.
+_AS2_NAMESPACE_HOME = "vultron/core/models/base/context.py"
 
 
 def test_core_does_not_reference_the_as2_namespace():
@@ -300,16 +304,19 @@ def test_core_does_not_reference_the_as2_namespace():
     Spec: ARCH-01-001, ARCH-20-001.  Issue #3934 item 6.
     """
     violations = sorted(
-        f"{path.relative_to(_corpus.REPO_ROOT).as_posix()}:{line}"
+        f"{rel}:{line}"
         for path, source in _corpus.sources_mentioning(
             ACTIVITY_STREAMS_NS, under=_CORE_ROOT
         )
+        if (rel := path.relative_to(_corpus.REPO_ROOT).as_posix())
+        != _AS2_NAMESPACE_HOME
         for line, text in enumerate(source.splitlines(), start=1)
         if ACTIVITY_STREAMS_NS in text
     )
     assert not violations, (
-        "core spells the AS2 namespace URI (ARCH-01-001, ARCH-20-001 — the"
-        " wire layer owns it; core carries VULTRON_CONTEXT_URI):\n"
+        "core spells the AS2 namespace URI outside its one definition"
+        f" ({_AS2_NAMESPACE_HOME}); name ACTIVITY_STREAMS_NS instead"
+        " (ARCH-01-001, ARCH-20-001):\n"
         + "\n".join(f"  + {v}" for v in violations)
     )
 
@@ -319,14 +326,14 @@ def test_the_namespace_scan_can_see_a_violation():
 
     Without this, a misspelled or renamed ``ACTIVITY_STREAMS_NS`` would make
     the check above scan for a string nothing contains, and pass everywhere —
-    which is the vacuous shape it exists to replace.  The wire layer is where
-    the URI legitimately lives, so finding it there proves both the needle and
-    the corpus walk.
+    which is the vacuous shape it exists to replace.  The defining module is
+    where the URI legitimately lives, so finding it there proves both the
+    needle and the corpus walk over core.
     """
     found = [
         path.relative_to(_corpus.REPO_ROOT).as_posix()
         for path, _source in _corpus.sources_mentioning(
-            ACTIVITY_STREAMS_NS, under=_corpus.REPO_ROOT / "vultron" / "wire"
+            ACTIVITY_STREAMS_NS, under=_CORE_ROOT
         )
     ]
-    assert "vultron/wire/as2/vocab/base/base.py" in found
+    assert _AS2_NAMESPACE_HOME in found

@@ -344,8 +344,12 @@ class TestAcceptedStatusIsRecordedAsSent:
         assert snap["caseStatus"]["pxaState"] == CS_pxa.Pxa.name
         assert snap["caseStatus"].get("id") == f"{ASSERTED_STATUS_ID}/cs"
         assert snap.get("type") == "ParticipantStatus"
-        # Nothing in the recorded object differs from the status as sent.
-        assert snap == As2WireRenderAdapter().render(asserted)
+        # Nothing in the recorded object differs from the status as sent.  It
+        # was sent nested in the activity, so it carries no ``@context`` of
+        # its own (VM-10-004); a stand-alone render of it does.
+        sent = As2WireRenderAdapter().render(asserted)
+        assert "@context" not in snap
+        assert snap == {k: v for k, v in sent.items() if k != "@context"}
 
     @pytest.mark.spec("RSH-09-010")
     def test_an_omitted_dimension_is_recorded_as_omitted(

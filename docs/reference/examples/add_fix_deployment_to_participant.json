@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Add",
   "id": "urn:uuid:9e68c971-847c-4e57-8b5f-da32618c2dc6",
   "name": "https://vultron.example/organizations/deployer Add ACCEPTED D NONE pxa to https://vultron.example/cases/1/participants/deployer",
@@ -26,9 +29,7 @@
       "context": "https://vultron.example/cases/1",
       "published": "2026-06-01T19:12:00.000000+00:00",
       "emState": "NONE",
-      "pxaState": "pxa",
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
-    },
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      "pxaState": "pxa"
+    }
   }
 }

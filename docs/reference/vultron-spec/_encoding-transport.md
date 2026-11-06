@@ -51,12 +51,13 @@ Vultron messages are serialized as JavaScript Object Notation for Linked Data (J
 JSON-LD is JavaScript Object Notation (JSON) with a context that maps short names to full URIs.
 A message is therefore readable as ordinary JSON while remaining unambiguous about which vocabulary each term comes from.
 
-An outbound message sets `@context` to the Vultron JSON-LD context document URI, `https://certcc.github.io/Vultron/ns/context.jsonld`.
-That context document imports the AS2 namespace and declares every Vultron type name.
-An implementation therefore cites only the Vultron URI and does not need to declare the AS2 namespace separately.
-An object nested in an activity can restate the same `@context`, and restating it changes nothing about how the object's terms are read.
-The reference implementation does this for the objects it builds, because each one carries the context it would carry if it were sent on its own.
-An object it received and embeds keeps the `@context` it arrived with.
+An outbound message sets its top-level `@context` to a list of two URIs, in this order: the AS2 namespace, `https://www.w3.org/ns/activitystreams`, then the Vultron JSON-LD context document, `https://certcc.github.io/Vultron/ns/context.jsonld`.
+The AS2 URI comes first so that an AS2 receiver that does not process JSON-LD still finds it, as AS2 requires producers to provide.
+The Vultron context document declares every Vultron type name.
+It also imports the AS2 namespace, but a receiver is not required to fetch it, so citing it alone would hide the AS2 reference from such a receiver.
+An object nested in an activity does not restate the `@context`, because a JSON-LD context applies to every object inside the document that declares it.
+An object a sender received from a peer and embeds as received keeps the `@context` it arrived with.
+A receiver accepts a `@context` that is a single URI or a list of URIs.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-001"))
@@ -142,7 +143,7 @@ Once an actor's profile is known, its inbox is the endpoint the profile names.
 
 The exchanges below show occasions of [§4 Messages](layers.md#4-messages-n) as they appear on the wire.
 Each one is given first in Wire Activity notation and then as the JSON a sender delivers.
-The identifiers, timestamps and hashes are illustrative, and optional fields such as `name` and `updated` are left out, as is a nested object's restatement of its activity's `@context` ([§5.2 Serialization](layers.md#52-serialization)).
+The identifiers, timestamps and hashes are illustrative, and optional fields such as `name` and `updated` are left out.
 Every activity carries the `published` timestamp its sender stamps on it ([CLP-15-006](requirements/ledger-replication.md#clp-15-006)).
 
 #### Submitting a report
@@ -161,7 +162,10 @@ No case exists yet, so both messages go directly between the two actors.
 
     ```json
     {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        "https://certcc.github.io/Vultron/ns/context.jsonld"
+      ],
       "type": "Offer",
       "id": "https://vultron.example/users/finndervul/activities/offer-1",
       "published": "2026-05-30T10:00:00.000000+00:00",
@@ -178,7 +182,10 @@ No case exists yet, so both messages go directly between the two actors.
 
     ```json
     {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        "https://certcc.github.io/Vultron/ns/context.jsonld"
+      ],
       "type": "Read",
       "id": "https://vultron.example/organizations/vendorco/activities/read-1",
       "published": "2026-05-30T11:00:00.000000+00:00",
@@ -220,7 +227,10 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
 
     ```json
     {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        "https://certcc.github.io/Vultron/ns/context.jsonld"
+      ],
       "type": "Invite",
       "id": "https://vultron.example/cases/1/embargo_proposals/1",
       "published": "2026-06-01T18:00:00.000000+00:00",
@@ -240,7 +250,10 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
 
     ```json
     {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        "https://certcc.github.io/Vultron/ns/context.jsonld"
+      ],
       "type": "Invite",
       "id": "https://vultron.example/cases/1/embargo_proposals/1/invites/coordinator",
       "actor": "https://vultron.example/case-actors/vendorco-case-actor",
@@ -262,7 +275,10 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
 
     ```json
     {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        "https://certcc.github.io/Vultron/ns/context.jsonld"
+      ],
       "type": "Accept",
       "id": "https://vultron.example/organizations/coordinator/activities/accept-1",
       "published": "2026-06-02T09:00:00.000000+00:00",
@@ -304,7 +320,10 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
 
     ```json
     {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        "https://certcc.github.io/Vultron/ns/context.jsonld"
+      ],
       "type": "Add",
       "id": "https://vultron.example/organizations/vendorco/activities/add-status-3",
       "published": "2026-07-15T14:00:00.000000+00:00",
@@ -342,7 +361,10 @@ The two digests below are illustrative: they show the fields' shape and are not 
 
     ```json
     {
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        "https://certcc.github.io/Vultron/ns/context.jsonld"
+      ],
       "type": "Announce",
       "id": "https://vultron.example/case-actors/vendorco-case-actor/activities/announce-0",
       "published": "2026-05-31T12:00:01.000000+00:00",

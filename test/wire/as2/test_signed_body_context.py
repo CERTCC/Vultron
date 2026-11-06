@@ -27,7 +27,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.received import delivered_body
-from test.support.signing import signed_body
+from test.support.signing import resigned
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.signing import DATA_INTEGRITY_CONTEXT
@@ -41,7 +41,11 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 ACTOR = "https://example.org/actors/finder"
 CASE_ID = "https://example.org/cases/signed-context"
-SIGNED_CONTEXT = [VULTRON_CONTEXT_URI, DATA_INTEGRITY_CONTEXT]
+SIGNED_CONTEXT = [
+    ACTIVITY_STREAMS_NS,
+    VULTRON_CONTEXT_URI,
+    DATA_INTEGRITY_CONTEXT,
+]
 
 
 def _signed_add_note() -> dict[str, Any]:
@@ -53,9 +57,11 @@ def _signed_add_note() -> dict[str, Any]:
     activity = add_note_to_case_activity(
         note, target=CASE_ID, actor=ACTOR, to=["https://example.org/a/cm"]
     )
-    body = delivered_body(activity)
-    body["object"]["@context"] = [VULTRON_CONTEXT_URI, ACTIVITY_STREAMS_NS]
-    return signed_body(body)
+
+    def list_the_note_context(body: dict[str, Any]) -> None:
+        body["object"]["@context"] = [VULTRON_CONTEXT_URI, ACTIVITY_STREAMS_NS]
+
+    return resigned(delivered_body(activity), alter=list_the_note_context)
 
 
 @pytest.mark.spec("VM-10-001")

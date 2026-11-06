@@ -673,6 +673,7 @@ reference/vultron-spec/_references.md
 reference/vultron-spec/_rm-state-machine.md
 reference/vultron-spec/_security.md
 reference/vultron-spec/_semantic-layer.md
+reference/vultron-spec/_status.md
 reference/vultron-spec/_syntactic-layer.md
 reference/vultron-spec/_terminology.md
 reference/vultron-spec/annex-a-single-vendor.md
@@ -706,6 +707,7 @@ reference/vultron-spec/requirements/messages.md
 reference/vultron-spec/requirements/state-behavior.md
 reference/vultron-spec/requirements/transport-security.md
 reference/vultron-spec/requirements/vultron-protocol.md
+reference/vultron-spec/revision-log.md
 reference/vultron-spec/tracking-models.md
 reference/vultron-taxonomy.md
 research/index.md

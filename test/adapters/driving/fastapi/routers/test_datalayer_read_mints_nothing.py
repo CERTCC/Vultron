@@ -339,7 +339,10 @@ def test_an_as2_object_is_served_as_an_as2_document() -> None:
     assert isinstance(served, AS2JSONResponse)
     assert served.media_type == "application/activity+json"
     assert json.loads(bytes(served.body)) == {
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+        "@context": [
+            "https://www.w3.org/ns/activitystreams",
+            "https://certcc.github.io/Vultron/ns/context.jsonld",
+        ],
         "type": "VulnerabilityReport",
         "id": report.id_,
         "name": "Report",

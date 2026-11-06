@@ -15,15 +15,18 @@
 Issue #3872.
 """
 
+from types import SimpleNamespace
+
 import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.submit_report import (
-    CheckOfferAddressedToReceiverNode,
+    CheckOfferNamesReceiverInToNode,
     StoreSubmitReportOfferRecordNode,
 )
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.offer_record import VultronOfferRecord
 
 VENDOR = "https://example.org/actors/vendor"
@@ -65,24 +68,60 @@ def test_offer_record_node_is_idempotent():
         assert result.status == Status.SUCCESS
 
 
-@pytest.mark.spec("HP-01-005")
-@pytest.mark.spec("HP-10-001")
+def _offer_event(to: list[str], sender: str = FINDER) -> SimpleNamespace:
+    """A received event as the tree sees it: its activity carries ``to``."""
+    return SimpleNamespace(
+        activity=VultronActivity(id_=OFFER, type_="Offer", actor=sender, to=to)
+    )
+
+
+@pytest.mark.spec("HP-09-001")
 @pytest.mark.parametrize(
     ("to", "status"),
     [
         ([VENDOR], Status.SUCCESS),
-        # A receiver the sender put only in cc arrives with an empty `to`:
-        # core does not carry cc (ADR-0109).
-        ([], Status.FAILURE),
+        # The receiver's own Offer to someone else: the addressee door admits
+        # it as the sender's copy, but `to` does not name the receiver.
         (["https://example.org/actors/other"], Status.FAILURE),
+        ([], Status.FAILURE),
     ],
-    ids=["to", "cc-only", "someone-else"],
+    ids=["named-in-to", "own-copy-to-someone-else", "empty-to"],
 )
-def test_addressing_guard(to, status):
-    node = CheckOfferAddressedToReceiverNode(to=to, report_id=REPORT)
-    _, result = _run(node)
+def test_case_creation_eligibility_reads_to_alone(to, status):
+    """Eligibility comes from ``to`` only (HP-09-001), off the blackboard."""
+    node = CheckOfferNamesReceiverInToNode()
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
+    result = BTBridge(datalayer=dl).execute_with_setup(
+        node, actor_id=VENDOR, activity=_offer_event(to, sender=VENDOR)
+    )
     assert result.status == status
+    assert node.not_named_in_to is (status is Status.FAILURE)
     if status is Status.FAILURE:
-        assert node.misaddressed is True
-        assert "not a to recipient" in node.feedback_message
-        assert "cc addressing not supported" in node.feedback_message
+        assert "not eligible to create a case" in node.feedback_message
+        assert "HP-09-001" in node.feedback_message
+
+
+def test_eligibility_without_a_received_event_is_not_a_decline(caplog):
+    """No event on the blackboard is a wiring fault, never a decline."""
+    node = CheckOfferNamesReceiverInToNode()
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
+    with caplog.at_level("ERROR"):
+        result = BTBridge(datalayer=dl).execute_with_setup(
+            node, actor_id=VENDOR
+        )
+    assert result.status == Status.FAILURE
+    assert node.not_named_in_to is False
+    assert "no received event" in node.feedback_message
+    assert any(
+        r.levelname == "ERROR" and "no received event" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_eligibility_wiring_fault_is_not_a_decline():
+    """A missing DataLayer fails the node without reading as a decline,
+    even when an earlier tick of the same node declined."""
+    node = CheckOfferNamesReceiverInToNode()
+    node.not_named_in_to = True
+    assert node.update() is Status.FAILURE
+    assert node.not_named_in_to is False

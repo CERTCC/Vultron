@@ -26,8 +26,11 @@ set and is never an addition.
 
 No count is committed, so concurrent PRs cannot race on it (#4315,
 ``notes/testing-pitfalls.md`` § "A Two-Sided Count Pin Races Every Concurrent
-PR"). ``spec-coverage`` prints the live uncovered total. When no base ref is
-available the test skips with the reason; under GitHub Actions it fails.
+PR"). ``spec-coverage`` prints the live untested total. A requirement whose
+only marked tests are strict xfails is reported as xfail-only (SR-05-017) and
+is outside the coverage figure, but it has a marker, so this guard does not
+count it as uncovered. When no base ref is available the test skips with the
+reason; under GitHub Actions it fails.
 
 A second guard, :func:`test_no_pr_drops_a_marker_while_changing_a_kind`,
 holds the MS-12-011 rule: a spec whose kind changes keeps the markers it had,

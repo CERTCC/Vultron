@@ -16,6 +16,9 @@ tracks:
   - "#5650"
   - "#5651"
   - "#5652"
+  - "#6025"
+  - "#6026"
+  - "#6028"
 description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,
@@ -49,7 +52,8 @@ relevant_packages:
 Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
 choice, ending, scenario, recording). Decision records: ADR-0098 and ADR-0104,
 both amended 2026-10-15; ADR-0098 amended again 2026-10-30. Requirements:
-DEMOCI-11-013 through DEMOCI-11-025, DEMOCI-11-034 and DEMOCI-11-035.
+DEMOCI-11-013 through DEMOCI-11-025, DEMOCI-11-034, DEMOCI-11-035, and
+DEMOCI-11-054 through DEMOCI-11-069.
 Parent Epic: #4747.
 
 ---
@@ -383,39 +387,60 @@ vendor-first half, whose Reporter tells a Vendor.
   DEMOMA-21-015, DEMOMA-13-012, DEMOMA-14-017). Give a shared
   stretch its own spec group only when one change to it must be edited in
   several scenario groups.
-- **Verdicts do not move.** A change that extracts or merges demo code is a
-  consolidation, so no scenario's pass or fail may change in it
-  (DEMOMA-17-002). An unchanged recording is the cheapest evidence of that; a
-  scenario whose seeding moved has none, so read its diff instead: the
-  semantic-type sequence and the entry count must be unchanged, and the bytes
-  may differ only in timestamps, hash-chain digests and the uuids drawn after
-  the branch point. That diff is what catches an act the change added —
-  giving a joining coordinator the RM triage a vendor gets adds an
-  `engage_case` entry and drops a participant status at closure. A shared join
-  helper therefore takes `triages=`: a vendor judges the report it was invited
-  over, a coordinator joining to coordinate does not.
-- **The plot manifest catches a reorder; nothing at PR time catches an edit.**
-  Nothing in PR CI regenerates a recording: the freshness check runs daily on
-  `main` and files a refresh Task rather than failing (`demo-recordings.yml`).
-  `TestSharedPrefixes` compares the two *committed* recordings with each
-  other, so a reordered shared fragment moves both alike and still passes.
-  The plot manifest (DEMOCI-11-034, DEMOCI-11-035) closes the reorder half for
-  free: it lists each story's choices and fragment names, read without running
-  anything, and drift-fails on any change in order. A manifest diff is a sign
-  the PR may change what a scenario passes or fails on, which DEMOMA-17-002
-  forbids; check it before merging. It cannot see an edit inside a fragment's
-  body, so until the manifest is built, run `export-demo-recordings
-  --report-changes` from a clean tree in any PR that edits a fragment; that
-  run is DEMOMA-17-002's evidence, and it exits 3 when a recording changed.
-  Run it from a clean tree and not twice: the first run overwrites the
-  committed files, so a second run compares them against themselves and
-  reports no change (#5589).
-- **Byte-comparing a fresh run with the committed files is a rejected gate.**
-  The recording clock ticks 10 ms on every read, so a refactor that adds one
-  `now_utc()` call shifts every later timestamp and digest. Comparing on every
-  PR would also undo #3901's rule that no PR regenerates recordings. A
-  fresh-versus-fresh comparison of base and head that ignores timestamps and
-  digests is the open alternative.
+- **Verdicts do not move, and a recording alone does not show it.** A change that
+  extracts or merges demo code is a consolidation, so no scenario's pass or fail may
+  change in it (DEMOMA-17-002). What a scenario passes or fails on is its protocol
+  acts *and* its checks, and a recording holds only the acts: a `demo_check` moved out
+  of its `demo_gate`, or a wait that reads another actor's replica, leaves the
+  recording byte-identical (#5596). The evidence is therefore the base-versus-head
+  comparison below, over both traces. Read a ledger diff for what it says about acts:
+  giving a joining coordinator the RM triage a vendor gets adds an `engage_case` entry
+  and drops a participant status at closure. A shared join helper therefore takes
+  `triages=`: a vendor judges the report it was invited over, a coordinator joining to
+  coordinate does not.
+- **A demo PR is checked by recording base and head, not by the committed files.** On
+  a PR that changes `vultron/demo/`, CI records every registered scenario in-process
+  at the base commit and at the head and compares each scenario's two runs
+  (DEMOCI-11-054, DEMOCI-11-055). Nothing is committed, so no PR regenerates a
+  recording (#3901) and a stale committed recording does not matter. Core-only PRs are
+  not consolidations; the daily `demo-recordings.yml` run covers their drift.
+- **Two traces, because each is blind to what the other sees.** The normalized ledger
+  shows an added act, a changed note text or a changed argument. The check tree shows
+  every `demo_step`, `demo_check` and `demo_gate` the run entered, nested as it ran,
+  with its kind, label, outcome and the cast members whose containers it read
+  (DEMOCI-11-056, DEMOCI-11-057). Capture it at runtime, where the three context
+  managers and the recorder's routed client are the only paths, not by reading the
+  source: a static pass cannot resolve which actor `state.session(owner.name)` is, and
+  that subject is what EDF-06-002 constrains.
+- **Normalize ids and clocks, nothing else.** Relabel every id by its first appearance
+  with one mapping across a scenario's ledger and check labels, and drop timestamps
+  and hash-chain digests (DEMOCI-11-058 to DEMOCI-11-060). The recording clock ticks
+  10 ms on every read, so one added `now_utc()` call shifts every later timestamp, and
+  one extra id draw shifts every later id; neither is a change in what the scenario
+  does. A byte comparison would fail on both, which is why comparing a fresh run with
+  the committed files was rejected.
+- **A deliberate verdict change takes the `demo-verdict-change` label.** It belongs in
+  its own change (DEMOMA-17-004); the label passes the job, and the job still prints
+  the diff to its summary, so the opt-out shows what it admits (DEMOCI-11-063,
+  DEMOCI-11-064). The comparison fails on an empty scenario set (DEMOCI-11-062,
+  DF-09-009).
+- **The plot manifest catches a reorder for free.** It lists each story's choices and
+  fragment names, read without running anything, and drift-fails on any change in
+  order (DEMOCI-11-034, DEMOCI-11-035). `TestSharedPrefixes` compares two *committed*
+  recordings with each other, so a reordered shared fragment moves both alike and
+  still passes it. Until the base-versus-head job is built, run
+  `export-demo-recordings --report-changes` from a clean tree in any PR that edits a
+  fragment, and read the composed fragments' checks against the base by hand. Run it
+  once: the first run overwrites the committed files, so a second compares them with
+  themselves (#5589).
+- **The plot renders as a story a domain expert can read.** Every fragment the
+  manifest names opens its docstring with one sentence in CVD domain terms, with no
+  code identifier, helper or container (DEMOCI-11-065, DEMOCI-11-066). Each narrative
+  page includes, after its hand-written narrative, a generated numbered story:
+  fragments by that sentence, choices by deciding role and the branch-point table's
+  presenter label (DEMOCI-11-067 to DEMOCI-11-069). The rendering can only agree with
+  the code, so it never replaces the narrative, which is written without the code so
+  that it can contradict it (#2204).
 
 ## Test starting points
 
@@ -461,3 +486,6 @@ point stops a run there.
    #5347 and #5348, and last #5349.
 2. The plot manifest (#5613), then the clock-reading read paths that keep a
    shared stretch from being byte-stable: #5649, #5650, #5651 and #5652.
+3. Verdict evidence: the check-tree capture and compare command (#6025), then
+   the base-versus-head CI job that calls it (#6026). The story rendering
+   (#6028) needs only the plot manifest (#5613).

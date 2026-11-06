@@ -31,7 +31,7 @@ import pytest
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 from vultron.core.models.actor import VultronPerson, VultronService
-from vultron.core.models.base import VULTRON_CONTEXT_URI
+from vultron.core.models.base.context import DEFAULT_JSONLD_CONTEXT
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -285,12 +285,12 @@ def test_context_is_supplied_once_and_not_as_a_core_field(adapter):
         attributed_to="urn:uuid:actor", context="urn:uuid:case"
     )
     result = adapter.render(obj)
-    assert result["@context"] == VULTRON_CONTEXT_URI
+    assert result["@context"] == list(DEFAULT_JSONLD_CONTEXT)
     assert "context_" not in result
-    # Nested promoted objects carry their own, as VM-10-001 requires.
+    # Nested promoted objects do not restate it (VM-10-004).
     statuses = result["participantStatuses"]
     assert statuses, "fixture must exercise a nested object"
-    assert all(s["@context"] == VULTRON_CONTEXT_URI for s in statuses)
+    assert all("@context" not in s for s in statuses)
     assert obj.model_dump(mode="json").get("@context") is None
 
 
@@ -300,7 +300,7 @@ def test_render_succeeds_for_case_actor(adapter):
     result = adapter.render(obj)
     assert isinstance(result, dict)
     assert result.get("type") == "Service"
-    assert result.get("@context") == VULTRON_CONTEXT_URI
+    assert result.get("@context") == list(DEFAULT_JSONLD_CONTEXT)
     # The endpoints render as the AS2 collection URIs the profile states.
     assert result.get("inbox") == "urn:x:inbox"
     assert result.get("outbox") == "urn:x:outbox"

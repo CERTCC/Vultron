@@ -29,6 +29,7 @@ from typing import Any
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
+from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.engine import (
     actor_db_url,
@@ -93,7 +94,9 @@ def _add_note_body(content: str = "staged") -> dict[str, Any]:
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
     )
-    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return signed_body(
+        activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    )
 
 
 def _routed(dl: SqliteDataLayer, body: dict[str, Any], **kwargs: Any) -> Any:
@@ -221,8 +224,9 @@ def test_a_later_bare_reference_does_not_see_an_earlier_staged_object(dl):
     """One sender's staged object never routes another delivery."""
     first = _add_note_body()
     _routed(dl, first)
-    bare = {**first, "id": "https://example.org/activities/bare-add"}
-    bare["object"] = _NOTE_ID
+    bare = resigned(
+        first, id="https://example.org/activities/bare-add", object=_NOTE_ID
+    )
 
     routed = _routed(dl, bare)
 
@@ -609,8 +613,14 @@ def test_deferring_an_activity_with_no_inline_object_holds_it_alone(dl):
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
     )
-    body = activity.model_dump(mode="json", by_alias=True, exclude_none=True)
-    body["object"] = _NOTE_ID
+    body = signed_body(
+        {
+            **activity.model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            ),
+            "object": _NOTE_ID,
+        }
+    )
     routed = _routed(dl, body, staging=staging)
 
     queue.queue(activity_id=routed.id_, case_id=_CASE_ID)

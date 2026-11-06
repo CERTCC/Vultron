@@ -85,7 +85,9 @@ first gave all of the items above.
 In this repository, we make the first steps to build the protocol and behavior logic
 from that report. Currently, the work maps the formal protocol onto the syntax and
 semantics of the [ActivityPub](https://www.w3.org/TR/activitypub/) protocol. You can
-find examples of these first steps in [doc/examples](doc/examples)
+find examples of these first steps in [docs/reference/examples/](docs/reference/examples/),
+which the [Message Type Reference](https://certcc.github.io/Vultron/reference/messages/)
+links message by message.
 
 ## What is Vultron *not*?
 

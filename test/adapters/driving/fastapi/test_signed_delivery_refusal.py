@@ -137,8 +137,8 @@ def test_a_body_changed_after_signing_is_refused(
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "SIG-02-001: no key is resolved from a profile yet. Tracked by "
-        "#5383 (key resolution) and #5386 (refusal)."
+        "SIG-02-001: the inbox does not resolve a proof's key yet. "
+        "Tracked by #5386."
     ),
 )
 @pytest.mark.spec("SIG-02-001")
@@ -164,8 +164,8 @@ def test_a_proof_naming_a_key_outside_the_authors_profile_is_refused(
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "SIG-05-002: no key is resolved from a profile yet. Tracked by "
-        "#5383 (key resolution) and #5386 (refusal)."
+        "SIG-05-002: the inbox does not resolve a proof's key yet. "
+        "Tracked by #5386."
     ),
 )
 @pytest.mark.spec("SIG-05-002")
