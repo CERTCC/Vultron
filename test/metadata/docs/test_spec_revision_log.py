@@ -106,6 +106,14 @@ def test_status_block_title_names_its_version() -> None:
     assert status.version == f"draft-{status.number}"
 
 
+def test_status_block_citation_example_names_its_version_and_date() -> None:
+    status = _status()
+    citation = (
+        f"Vultron Protocol Specification, `{status.version}`, {status.date}."
+    )
+    assert citation in STATUS.read_text(encoding="utf-8")
+
+
 def test_entry_versions_follow_draft_n_scheme() -> None:
     for entry in _entries():
         assert entry.version == f"draft-{entry.number}", entry
