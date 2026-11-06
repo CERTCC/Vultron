@@ -334,12 +334,10 @@ class LogEntryCommittedBeforeNode(DataLayerConditionWithPorts):
 
     Reads ``log_entry_preexisting``, which ``CreateLogEntryNode`` writes on
     both of its arms in the same commit tree; absent, it is ``False``.  An
-    entry already recorded was announced when it was committed: an act's
-    commit and its fan-out write in one transaction (ADR-0146), so a
-    recorded entry has its announcements queued with it.  Where a caller
-    commits outside one, an entry a crash left unannounced reaches each
-    recipient by the gap repair the next entry or the recipient's next
-    stamped position starts (SYNC-03-001, SYNC-18-007).
+    entry already recorded was announced when it was committed: the commit
+    tree persists the entry and fans it out in one transaction
+    (``create_commit_log_entry_tree``, ADR-0146), so a recorded entry has
+    its announcements, embargo pauses and backfills queued with it.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {

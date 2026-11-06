@@ -142,6 +142,27 @@ def sender_sequence_order(
     )
 
 
+def is_past(order: SenderSequenceOrder, number: int | None) -> bool:
+    """Whether *number* is below *order*'s next expected number."""
+    return number is not None and number < order.next_expected
+
+
+def ledgered_if_past(
+    dl: CasePersistence,
+    order: SenderSequenceOrder,
+    number: int | None,
+    activity_id: str,
+) -> bool:
+    """Whether *number* is past and the case ledger records *activity_id*.
+
+    The ledger is scanned only for a past number, the one case where
+    :func:`classify_sender_sequence` reads it (SYNC-21-018).
+    """
+    return is_past(order, number) and is_ledgered_activity(
+        dl, order.case_id, activity_id
+    )
+
+
 def judged_before(
     order: SenderSequenceOrder,
     number: int | None,
@@ -157,9 +178,9 @@ def judged_before(
     survived: the replay of a re-run held for a retry runs with its record
     released (ADR-0154, SYNC-21-018).
     """
-    if number is None or number >= order.next_expected:
-        return False
-    return ledgered or activity_id == order.last_judged_id
+    return is_past(order, number) and (
+        ledgered or activity_id == order.last_judged_id
+    )
 
 
 def was_judged_in_order(
@@ -177,13 +198,11 @@ def was_judged_in_order(
     answered again (SYNC-18-007, ADR-0154).
     """
     order = sender_sequence_order(dl, case_id, sender_id)
-    if number is None or number >= order.next_expected:
-        return False  # not past, so no ledger scan is needed
     return judged_before(
         order,
         number,
         activity_id,
-        ledgered=is_ledgered_activity(dl, case_id, activity_id),
+        ledgered=ledgered_if_past(dl, order, number, activity_id),
     )
 
 
@@ -236,7 +255,7 @@ def classify_sender_sequence(
         return SequenceStanding.MISSING
     if reused:
         return SequenceStanding.REUSED
-    if number < order.next_expected:
+    if is_past(order, number):
         # Found by its id before its number (SYNC-21-018): one the ledger
         # records, or the one last judged, was judged in order, whether its
         # record survived or a replay that released the record runs it as
@@ -496,7 +515,9 @@ __all__ = [
     "end_case_sender_sequence_holds",
     "end_expired_sender_sequence_holds",
     "hold_past_gap",
+    "is_past",
     "judged_before",
+    "ledgered_if_past",
     "queue_due_sender_sequence_replays",
     "sender_sequence_order",
     "was_judged_in_order",

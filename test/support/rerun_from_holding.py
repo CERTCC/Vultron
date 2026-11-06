@@ -204,6 +204,8 @@ class DrainedRerun:
         after_last: What it held after the later run.
         rerun_queued: With a replay, what the re-run queued before it was
             delivered in turn.
+        before: What the store held before the first run, so what a
+            builder queued while setting up is not read as the first run's.
     """
 
     first: Any
@@ -212,6 +214,17 @@ class DrainedRerun:
     last: Any
     after_last: Effects
     rerun_queued: tuple[tuple[str, str], ...] = ()
+    before: Effects = Effects(ledger=(), outbox=())
+
+    @property
+    def first_sent(self) -> dict[str, str]:
+        """``id -> sealed body`` of every item the first run queued."""
+        setup = set(self.before.outbox)
+        return {
+            activity_id: body
+            for activity_id, body in self.after_first.outbox
+            if (activity_id, body) not in setup
+        }
 
     @property
     def queued_again(self) -> tuple[tuple[str, str], ...]:
@@ -226,7 +239,7 @@ class DrainedRerun:
         door drops the copy, so it is not a second send (ID-02-001,
         SYNC-09-002, #5047 AC-1 as reworded).
         """
-        first = dict(self.after_first.outbox)
+        first = self.first_sent
         return [
             f"outbox: {activity_id} {_kind(body)}"
             for activity_id, body in self.queued_again
@@ -238,15 +251,16 @@ class DrainedRerun:
         """What a later run committed or sent a second time.
 
         A new ledger entry; an item queued under an id the first run did not
-        send, which a receiver cannot tell from a new message; or an item
-        under an id the first run sent, with other bytes, which a receiver
-        refuses as a reused id.  An item queued again with the bytes it was
-        first sent with is :attr:`resent`, not here.
+        send (:attr:`first_sent`), which a receiver cannot tell from a new
+        message; or an item under an id the first run sent, with other
+        bytes, which a receiver refuses as a reused id.  An item queued
+        again with the bytes it was first sent with is :attr:`resent`, not
+        here.
         """
         new_entries = sorted(
             set(self.after_last.ledger) - set(self.delivered.ledger)
         )
-        first = dict(self.after_first.outbox)
+        first = self.first_sent
         problems = [f"ledger: {e}" for e in new_entries]
         for activity_id, body in self.queued_again:
             if activity_id not in first:
@@ -288,6 +302,7 @@ def drained_rerun(
     as a re-run that raised is held for its retry, and the replay runs with
     its record released (:func:`rerun_then_replay`).
     """
+    before = effects(dl)
     first = run(dl, event)
     after_first = effects(dl)
     deliver_outbox(dl)
@@ -309,6 +324,7 @@ def drained_rerun(
         last=last,
         after_last=effects(dl),
         rerun_queued=rerun_queued,
+        before=before,
     )
 
 

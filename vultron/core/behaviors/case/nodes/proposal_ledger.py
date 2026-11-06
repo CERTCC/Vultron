@@ -224,8 +224,9 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             is not None
         ):
             # Already committed and fanned out by an earlier delivery.  The
-            # commit tree would reuse the entry, but it would also fan it out
-            # to every recipient again (CP-05-008).
+            # commit tree would reuse the entry and announce nothing again
+            # (FanOutLogEntryNode), so skipping saves only the rebuild
+            # (CP-05-008).
             logger.debug(
                 "%s: '%s' entry for '%s' already committed — skipping",
                 self.name,

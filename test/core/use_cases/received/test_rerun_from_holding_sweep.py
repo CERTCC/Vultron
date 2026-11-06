@@ -430,9 +430,18 @@ def test_a_later_run_after_the_outbox_drained_sends_nothing_again(
     )
 
 
-def _drained(*queued_again: tuple[str, str]) -> DrainedRerun:
-    """A drained run whose first run sent ``first`` with one body."""
-    sent = Effects(ledger=(), outbox=(("first", '{"type": "Reject"}'),))
+_SETUP = ("setup", '{"type": "Offer"}')
+
+
+def _drained(
+    *queued_again: tuple[str, str],
+    rerun_queued: tuple[tuple[str, str], ...] = (),
+) -> DrainedRerun:
+    """A drained run whose first run sent ``first`` with one body.
+
+    A builder queued ``setup`` before the first run.
+    """
+    sent = Effects(ledger=(), outbox=(_SETUP, ("first", '{"type": "Reject"}')))
     empty = Effects(ledger=(), outbox=())
     return DrainedRerun(
         first=None,
@@ -440,7 +449,24 @@ def _drained(*queued_again: tuple[str, str]) -> DrainedRerun:
         delivered=empty,
         last=None,
         after_last=Effects(ledger=(), outbox=tuple(queued_again)),
+        rerun_queued=rerun_queued,
+        before=Effects(ledger=(), outbox=(_SETUP,)),
     )
+
+
+def test_the_baseline_is_what_the_first_run_sent() -> None:
+    """A set-up item is not one of the first run's sends."""
+    assert _drained().first_sent == {"first": '{"type": "Reject"}'}
+    assert _drained(_SETUP).sent_again == [
+        "outbox: setup Offer(ref) under a new id"
+    ]
+
+
+def test_what_a_held_rerun_queued_is_compared_too() -> None:
+    """With a replay, the re-run's own queue is judged as the replay's is."""
+    drained = _drained(rerun_queued=(("second", '{"type": "Reject"}'),))
+
+    assert drained.sent_again == ["outbox: second Reject(ref) under a new id"]
 
 
 def test_a_resend_under_the_first_id_with_the_same_bytes_is_not_sent_again() -> (
