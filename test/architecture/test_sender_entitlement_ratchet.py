@@ -484,51 +484,13 @@ GUARDS_NOT_YET_MIGRATED: dict[Site, Listed] = {}
 #: Standing reads that choose an effect after the declared rule has admitted
 #: the sender, or that read an actor other than the sender.  They admit no
 #: one, so they are not sender guards and need no migration; each says why.
-STANDING_READS: dict[Site, Listed] = {
-    Site(
-        "vultron/core/behaviors/case/suggest_actor_tree/recommend.py",
-        "create_recommend_actor_to_case_received_tree",
-        "SenderIsCaseOwnerNode",
-    ): Listed(
-        4,
-        "in manager_effects: picks the owner's direct Invite or re-invite"
-        " (and its CM-11-043 closed-participant check) or the Offer to the"
-        " owner (CM-16)",
-    ),
-    Site(
-        "vultron/core/behaviors/case/receive_close_case_tree/closure_effects.py",
-        "owner_or_non_owner_effects",
-        "SenderIsCaseOwnerNode",
-    ): Listed(2, "picks the owner's or a participant's Leave arm (CM-23-003)"),
-    Site(
-        "vultron/core/behaviors/case/owner_close_embargo_guards.py",
-        "owner_close_blocked_by_embargo_guards",
-        "SenderIsCaseOwnerNode",
-    ): Listed(
-        1,
-        "decides whether a live embargo blocks the closer's Leave, on receipt"
-        " and in the leave-case trigger (CM-23-011, TRIG-13-003)",
-    ),
-    Site(
-        "vultron/core/behaviors/status/add_participant_status_tree.py",
-        "add_participant_status_tree",
-        "SenderIsCaseOwnerNode",
-    ): Listed(
-        1,
-        "in manager_effects: the owner's status bypasses the adoption"
-        " call-out (RSH-01-002)",
-    ),
-    Site(
-        "vultron/core/behaviors/embargo/response_decision_tree.py",
-        "create_embargo_response_decision_tree",
-        "SenderIsCaseOwnerNode",
-    ): Listed(1, "reads the local deciding actor, not a sender (EMB-15-002)"),
-    # The embargo Invite tree's two invitee-is-owner reads went with #5042:
-    # a role an activity's subject holds is now asked through
-    # ActorHoldsRoleInCaseNode, which is no sender node (ADR-0153,
-    # ARCH-24-001).  #5766's split moved the entry to
-    # announce_teardown_tree/invite.py; it is removed rather than repointed.
-}
+#: Empty: a tree that picks an arm on an actor's role asks
+#: ``ActorHoldsRoleInCaseNode`` through ``has_role``, the one sanctioned way
+#: to ask about a role (ADR-0153), which states no refusal.  A sender node
+#: placed there would log ``REFUSED (HP-01-006)`` for a door that admitted
+#: the sender wherever its FAILURE is the tree's answer (SL-03-002, #5903),
+#: so a new entry is a regression.
+STANDING_READS: dict[Site, Listed] = {}
 
 
 def _listed() -> dict[Site, int]:

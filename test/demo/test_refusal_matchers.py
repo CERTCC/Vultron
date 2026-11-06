@@ -53,10 +53,9 @@ _LOGGER = logging.getLogger("vultron.test.refusal_matchers")
         # it even at WARNING; its sibling check always worded it this way.
         "No case in this store to check sender 'a' against — REFUSED"
         " (HP-01-006, DEMOMA-07-003 step 1)",
-        # The lone-CASE_OWNER refusal, which reached no level at all until
-        # #5845 routed it onto the shared rule.  No demo drives one today, so
-        # the line is latent: pinned here rather than discovered the first
-        # time a demo step sends an owner-only activity from someone else.
+        # The lone-CASE_OWNER refusal (#5845).  No demo drives one, so the
+        # line is pinned here rather than discovered the first time a demo
+        # step sends an owner-only activity from someone else.
         "Sender 'a' is not the Case Owner of case 'c' — REFUSED (HP-01-006)",
     ],
 )

@@ -42,9 +42,7 @@ from vultron.core.behaviors.case_id_scope import unscoped
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsCaseOwnerNode,
-)
+from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.demo.fuzzer.bundles.embargo import EMBARGO_STOCHASTIC
@@ -162,10 +160,13 @@ class TestAcceptArm:
 
     @pytest.mark.spec("EMB-15-002")
     def test_authorize_first_child_is_check_is_case_owner(self):
-        """EMB-15-002: gospel-bypass guard is SenderIsCaseOwnerNode."""
+        """EMB-15-002: the gospel bypass reads the deciding actor's
+        CASE_OWNER role; it is a role read, not a sender guard."""
         tree = _make_tree()
         auth = tree.children[0].children[0]
-        assert isinstance(unscoped(auth.children[0]), SenderIsCaseOwnerNode)
+        check = unscoped(auth.children[0])
+        assert isinstance(check, ActorHoldsRoleInCaseNode)
+        assert check._role is CVDRole.CASE_OWNER
 
     def test_authorize_first_child_name(self):
         tree = _make_tree()

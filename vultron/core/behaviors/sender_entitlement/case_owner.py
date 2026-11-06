@@ -93,32 +93,21 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
     Returns ``FAILURE`` for any actor that is not a known CASE_OWNER,
     including unknown actors or those holding other roles.
 
-    Used as the hard-bypass child of ``StatusAdoptionGate`` (RSH-01-002):
-    a CASE_OWNER's status reports are authoritative ("gospel") and do not
-    require approval by the ``CaseOwnerApprovesStatusUpdate`` call-out.
-
     A non-match goes through
     :meth:`~vultron.core.behaviors.sender_entitlement.base
     .SenderEntitlementConditionNode._refuse_by_placement`, the rule every
-    other kind check takes, so the one line it writes for a non-match is
-    WARNING where this check is the guard's whole answer and DEBUG where a
-    later arm, a Selector or a decorator can still turn it into an admission
-    (SL-03-002, SL-03-003).  Before #5845 it recorded the reason and logged a
-    DEBUG line that named no refusal, so a lone-``CASE_OWNER`` side refused a
-    sender with no line above DEBUG anywhere in the run.
+    kind check takes, so its one line is WARNING where this check is the
+    guard's whole answer and DEBUG, without the ``REFUSED`` wording, where a
+    later arm of an any-of side may still admit the sender (SL-03-002,
+    SL-03-003).
 
-    That matters because this node is also a *standing read*: the
-    suggest-actor, Leave, status and embargo trees tick it to pick an arm
-    rather than to refuse.  Each of those placements sits under a Selector
-    with a later sibling or under an ``Inverter``, so the walk answers
-    ``False`` and the line is DEBUG, which is what a branch choice should be.
-    One placement is neither: the CM-23-011 decline arm, the last child of
-    ``CloseOrDecline``, which ticks only once the close arm has already
-    failed — so the tree does refuse the Leave, and the WARNING is honest
-    about the outcome even though the standing it names is not the whole
-    cause; moving that read is a tree change, tracked as #5903.
-    ``test/core/behaviors/test_sender_guard.py`` records both groups from the
-    built trees.
+    It is the sender door only, placed by the composed guard.  A tree that
+    picks an arm on whether an actor holds the role — the status adoption
+    bypass (RSH-01-002), the Leave, suggest-actor and embargo trees — asks
+    :class:`~vultron.core.behaviors.role_condition.ActorHoldsRoleInCaseNode`
+    instead, which states no refusal: placed where its FAILURE is the tree's
+    answer, this node would log ``REFUSED (HP-01-006)`` for a sender the
+    guard admitted (#5903).
 
     Reads ``case_id`` only from the ``/case_id`` input port (BTND-01-006); a
     tree that names the case at build time seeds the port with

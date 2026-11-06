@@ -68,9 +68,8 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
 )
 from vultron.core.behaviors.case_id_scope import with_case_id
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsCaseOwnerNode,
-)
+from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +90,10 @@ def create_embargo_response_decision_tree(
     InviteToEmbargoOnCase) and delegates to the caller-supplied mechanical BTs.
 
     **Authorization (EMB-15-002)**: a ``AuthorizeSelector`` (Fallback) puts
-    ``SenderIsCaseOwnerNode`` first — when the **deciding** actor (the local
-    actor processing the inbound overture and choosing how to respond) holds
-    ``CVDRole.CASE_OWNER``, the response is gospel and no approval call-out
-    is invoked.  Non-owners route through
+    a CASE_OWNER role read (``ActorHoldsRoleInCaseNode``) first — when the
+    **deciding** actor (the local actor processing the inbound overture and
+    choosing how to respond) holds ``CVDRole.CASE_OWNER``, the response is
+    gospel and no approval call-out is invoked.  Non-owners route through
     ``CaseOwnerApprovesEmbargoResponse`` (default SUCCESS).
 
     **Default-accept (EMB-15-001)**: ``EvaluateEmbargoProposal`` defaults to
@@ -122,7 +121,7 @@ def create_embargo_response_decision_tree(
             status for the gospel-bypass guard.
         deciding_actor_id: Actor ID of the LOCAL actor that is processing the
             inbound overture and making the accept/counter/reject decision.
-            Passed to ``SenderIsCaseOwnerNode`` — gospel bypass fires when THIS
+            Read by the CASE_OWNER role check — gospel bypass fires when THIS
             actor holds ``CVDRole.CASE_OWNER``, not when the remote proposer does.
         accept_bt: Pre-built BT to execute when the accept arm is taken.
             For Flow A: ``accept_embargo_trigger_bt(...)``.
@@ -145,8 +144,9 @@ def create_embargo_response_decision_tree(
         memory=False,
         children=[
             with_case_id(
-                SenderIsCaseOwnerNode(
-                    sender_actor_id=deciding_actor_id,
+                ActorHoldsRoleInCaseNode(
+                    actor_id=deciding_actor_id,
+                    role=CVDRole.CASE_OWNER,
                     name="CheckIsCaseOwner",
                 ),
                 case_id,

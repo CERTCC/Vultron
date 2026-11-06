@@ -112,12 +112,14 @@ not a standing the sender lacks, so it takes its level from SL-03-001 — WARNIN
 at every such site but one, ERROR where ``SenderIsCaseManagerNode`` cannot read
 the ledger entry (#5862) — and records no refusal reason.
 
-``SenderIsCaseOwnerNode`` is also read as a standing rather than as a door, by
-the suggest-actor, Leave, status and embargo trees, and it takes this rule all
-the same (#5845): every one of those placements sits under a Selector with a
-later sibling or under an ``Inverter``, so the walk answers ``False`` there and
-the branch choice is DEBUG.  A kind check needs no second rule to be read as a
-standing — the placement already says which it is.
+A tree that picks an arm on an actor's role, rather than refusing a sender,
+does not place one of these nodes: it asks
+``vultron.core.behaviors.role_condition.ActorHoldsRoleInCaseNode``, which
+states no refusal (ADR-0153).  A kind check words its non-match as a refusal,
+so placed where its FAILURE is the tree's answer — the last arm of a
+Selector, such as the CM-23-011 decline arm or the closed-sender door's
+fallback — it would log ``REFUSED (HP-01-006)`` at WARNING for a sender the
+guard admitted, or for a Leave the handler reports ``SKIPPED`` (#5903).
 
 Nodes
 -----

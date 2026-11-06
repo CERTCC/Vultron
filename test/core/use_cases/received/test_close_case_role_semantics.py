@@ -666,6 +666,42 @@ class TestNonOwnerLeaveReceivePath:
         assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID)
         assert not _case_is_fully_closed(dl)
 
+    @pytest.mark.spec("CM-23-010", "CM-23-011", "SL-03-002", "SL-03-003")
+    def test_every_refusal_line_of_the_non_owner_leave_cites_cm_23_010(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """The CM-23-010 guard refuses the Leave, so every refusal line the run
+        writes cites it.  The decline arm then ticks and reads the sender's
+        CASE_OWNER role to decide whether an embargo blocks the close
+        (CM-23-011); that read admits and refuses no one, so it logs no
+        ``REFUSED`` line of its own, and none cites HP-01-006 for a sender
+        guard that admitted the sender (#5903)."""
+        dl = _make_full_dl()
+
+        with caplog.at_level(logging.DEBUG):
+            result = _close(
+                dl, CASE_ACTOR_ID, "https://example.org/activities/cm-leave"
+            )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        refusals = [
+            record.getMessage()
+            for record in caplog.records
+            if "REFUSED" in record.getMessage()
+            and record.levelno >= logging.WARNING
+        ]
+        # The guard's line, and the handler's echo of the reason it reports.
+        assert refusals, "the CM-23-010 refusal logged nothing above DEBUG"
+        assert all("CM-23-010" in message for message in refusals), refusals
+        # At any level: the demo matcher keys on the group, not on level.
+        decline_read = [
+            record.getMessage()
+            for record in caplog.records
+            if record.getMessage().startswith("CheckIsCaseOwnerForClose")
+        ]
+        assert decline_read, "the decline arm's role read logged nothing"
+        assert not [m for m in decline_read if "REFUSED" in m], decline_read
+
 
 def _close(
     dl: SqliteDataLayer, sender_actor_id: str, activity_id: str

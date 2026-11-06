@@ -308,8 +308,8 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     a repeat sent under a new id does not share.  Read-only.
 
     Its line stays at INFO, and does not take the placement rule the kinds'
-    checks take (:func:`refuse_by_placement`, SL-03-002).  Three reasons,
-    and the third is why DEBUG would cost something (#5786):
+    checks take (:func:`refuse_by_placement`, SL-03-002), for two reasons
+    (#5786):
 
     - Its FAILURE is not a refusal.  The handler decides the verdict from
       the act: a repeat of an act that would close the sender again is
@@ -318,13 +318,14 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
       line reports a recorded state, which is INFO under SL-03-001.
     - It carries no ``REFUSED`` wording, so no reader and no matcher takes
       it as the tree's answer (SL-03-003 is met as it stands).
-    - At the closed-sender door that lets a closing Case Owner through
-      (:func:`vultron.core.behaviors.sender_guard.closed_sender_door` with
-      ``case_owner_completes``) this check is the Selector's first arm, so
-      the placement rule would read DEBUG — while the arm after it,
-      :class:`~vultron.core.behaviors.sender_entitlement.case_owner.SenderIsCaseOwnerNode`,
-      records its reason without logging it at all (#5845).  The door's
-      refusal would then have no line above DEBUG anywhere.
+
+    At the closed-sender door that lets a closing Case Owner through
+    (:func:`vultron.core.behaviors.sender_guard.closed_sender_door` with
+    ``case_owner_completes``) the arm after this one reads the sender's
+    CASE_OWNER role through
+    :class:`~vultron.core.behaviors.role_condition.ActorHoldsRoleInCaseNode`,
+    which states no refusal either: that door turns away only a repeated
+    Leave, which the handler reports ``SKIPPED`` (#5903).
 
     Spec: CM-23-018, ID-05-003, HP-01-007, SL-03-001.
     """

@@ -87,6 +87,7 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_reject_actor_recommendation_received_tree,
 )
 from vultron.core.behaviors.case_id_scope import unscoped
+from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
@@ -1124,7 +1125,7 @@ class TestDuplicateDetectionTreeStructure:
         assert isinstance(reinvite, py_trees.composites.Sequence)
         assert reinvite.name == "OwnerReinvite"
         assert [type(unscoped(c)) for c in reinvite.children] == [
-            SenderIsCaseOwnerNode,
+            ActorHoldsRoleInCaseNode,
             ReinviteAwaitingNode,
             EvaluateDefaultRolesNode,
             EmitInviteActorToCaseNode,
@@ -1184,14 +1185,15 @@ class TestDuplicateDetectionTreeStructure:
         assert isinstance(owner, py_trees.composites.Sequence)
         assert owner.name == "OwnerDirectInvite"
         assert [type(unscoped(c)) for c in owner.children] == [
-            SenderIsCaseOwnerNode,
+            ActorHoldsRoleInCaseNode,
             EvaluateDefaultRolesNode,
             EmitInviteActorToCaseNode,
             CreateInertInviteeParticipantNode,
         ]
         check = unscoped(owner.children[0])
-        assert isinstance(check, SenderIsCaseOwnerNode)
-        assert check._sender_actor_id == _RECOMMENDER
+        assert isinstance(check, ActorHoldsRoleInCaseNode)
+        assert check._actor_id == _RECOMMENDER
+        assert check._role is CVDRole.CASE_OWNER
         emit = owner.children[2]
         assert isinstance(emit, EmitInviteActorToCaseNode)
         assert emit.invitee_id == _RECOMMENDED
@@ -1204,7 +1206,7 @@ class TestDuplicateDetectionTreeStructure:
         child_types = [type(c) for c in fresh.children]
         guard = fresh.children[0]
         assert isinstance(guard, py_trees.decorators.Inverter)
-        assert isinstance(unscoped(guard.decorated), SenderIsCaseOwnerNode)
+        assert isinstance(unscoped(guard.decorated), ActorHoldsRoleInCaseNode)
         assert EvaluateDefaultRolesNode in child_types
         assert EmitOfferCaseParticipantToOwnerNode in child_types
 

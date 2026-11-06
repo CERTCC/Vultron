@@ -9,7 +9,7 @@ description: >
   not per-call `extra=`), narrative log template (SL-04-006), infrastructure
   demotion list (SL-04-007), why a Selector arm a sibling can overrule logs at
   DEBUG (SL-03-002) with the refusal wording kept to the refusal (SL-03-003),
-  why a check read as a standing takes that rule from the same placement,
+  why a role read that picks an arm is not a sender check,
   which lines are not refusal reasons and stay off that rule, and where new
   narrative lines go so INFO logs read as a CVD protocol story.
 related_specs:
@@ -247,20 +247,18 @@ a base method of that name in silence: mypy does not check override parameter na
 and pyright at `typeCheckingMode: basic` reports nothing either, so routing such a
 check through the rule would look done and do nothing (#5786).
 
-**A check read as a *standing* takes the same rule, from the same placement.**
-`SenderIsCaseOwnerNode` is both a sender door and a branch read: the
-suggest-actor, Leave, status and embargo trees tick it to pick an arm. Every one
-of those placements sits under a Selector with a later sibling or under an
-`Inverter`, so the walk already answers `False` and the branch choice is DEBUG —
-a kind check needs no second rule to be read as a standing, because the
-placement says which it is (#5845). One placement is neither: the CM-23-011
-decline arm, last child of `CloseOrDecline`, ticks only once the close arm has
-failed, so the tree refuses the Leave whatever the arm answers and the WARNING
-states a real outcome — but it cites HP-01-006 for a door that admitted the
-sender, so moving that read is tracked as #5903.
-`test/core/behaviors/test_sender_guard.py` records, per placement, which ones
-the walk calls the tree's answer, so a new standing read that lands in a
-WARNING position has to be decided rather than discovered.
+**A role read that picks an arm is not a sender check.** A sender check words its
+non-match as a refusal citing HP-01-006, so wherever its FAILURE is the tree's
+answer — the last arm of a Selector — it logs `REFUSED` at WARNING. A tree that
+picks an arm on an actor's role (the status adoption bypass, the Leave,
+suggest-actor and embargo trees) therefore asks `ActorHoldsRoleInCaseNode`, the
+`has_role` read (ADR-0153), which states no refusal at any placement. Placed as
+the CM-23-011 decline arm, a sender check claimed an HP-01-006 refusal for a
+sender the guard admitted; as the closed-sender door's fallback, it claimed one
+for a Leave the handler reports `SKIPPED` (#5903). The level rule cannot catch
+this: both placements really are the tree's answer, and the wrong part is the
+citation. `test/core/behaviors/test_sender_guard.py` fails on a
+`SenderIsCaseOwnerNode` placed outside a composed sender guard in any built tree.
 
 **A line that is not a refusal reason stays off the rule, and says so where it is
 logged.** The placement rule picks the level of a *refusal reason*.
@@ -271,12 +269,9 @@ verdict the handler decides — a repeat of a closing act is `SKIPPED`, not `REF
 unreadable ledger entry) is an anomaly, so it takes its level from SL-03-001 and
 records no refusal reason at all — WARNING at every such site but one, where
 `SenderIsCaseManagerNode` logs ERROR for a ledger entry it cannot read (#5862).
-That reason stands on its own, and no longer on a neighbour's silence: at the
-closed-sender door that lets a closing Case Owner through, the closure check is
-the Selector's first arm and `SenderIsCaseOwnerNode` is the arm after it, and
-that arm now takes the placement rule too, so the door's refusal does reach
-WARNING (#5845). The closure line keeps INFO because its verdict is the
-handler's, not to cover for a quiet neighbour.
+At the closed-sender door that lets a closing Case Owner through, the arm after the
+closure check is a role read that states no refusal either: that door turns away
+only a repeated Leave, which is `SKIPPED` (#5903).
 
 **Keep the refusal wording to the refusal (SL-03-003).** `— REFUSED (IDs)` is the
 token the demo tests' `expect_no_sender_refusals` matches, so the DEBUG line states

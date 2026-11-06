@@ -52,7 +52,7 @@ path by which a participant's P, X or A report reaches the case status:
                 └─ AdoptOrWithhold (Selector)  # A withheld adoption keeps the act
                     ├─ AdoptionWithheld (Inverter)
                     │   └─ StatusAdoptionGate (Selector)  # Authorization (RSH-01-002)
-                    │       ├─ CheckIsCaseOwnerNode       # Hard bypass: CASE_OWNER gospel
+                    │       ├─ SenderIsCaseOwner          # Hard bypass: CASE_OWNER gospel
                     │       └─ CaseOwnerApprovesStatusUpdate  # Call-out: non-owners
                     └─ AdoptStatus (Sequence)
                         ├─ EmitCaseStatusUpdateNode  # Adopted P/X/A (RSH-01-003)
@@ -103,10 +103,8 @@ from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.node_logger import node_logger
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsCaseOwnerNode,
-    SenderRule,
-)
+from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
+from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
     AuthoredParticipantRecord,
     SenderCheckContext,
@@ -130,6 +128,7 @@ from vultron.core.behaviors.status.nodes.threat_termination import (
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
+from vultron.enums.roles import CVDRole
 from vultron.primitives import same_actor_id
 
 logger = logging.getLogger(__name__)
@@ -234,7 +233,8 @@ def add_participant_status_tree(
     ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
     should adopt the status:
 
-    - ``CheckIsCaseOwnerNode`` — hard bypass for CASE_OWNER gospel (RSH-01-002)
+    - ``SenderIsCaseOwner`` (``ActorHoldsRoleInCaseNode``) — hard bypass for
+      CASE_OWNER gospel (RSH-01-002)
     - ``CaseOwnerApprovesStatusUpdate`` — call-out backed by
       ``call_out.status_adoption_gate_factory``; default is
       ``RequireCaseOwnerApprovalNode`` (ADR-0076)
@@ -291,8 +291,9 @@ def add_participant_status_tree(
         memory=False,
         children=[
             with_case_id(
-                SenderIsCaseOwnerNode(
-                    sender_actor_id=actor_id,
+                ActorHoldsRoleInCaseNode(
+                    actor_id=actor_id,
+                    role=CVDRole.CASE_OWNER,
                     name="SenderIsCaseOwner",
                 ),
                 tree_case_id,

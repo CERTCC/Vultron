@@ -29,9 +29,8 @@ from vultron.core.behaviors.case.nodes.leave import (
     ExpirePendingInvitesOnCloseNode,
 )
 from vultron.core.behaviors.case_id_scope import with_case_id
-from vultron.core.behaviors.sender_entitlement import (
-    SenderIsCaseOwnerNode,
-)
+from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
+from vultron.enums.roles import CVDRole
 
 
 def _close_and_record(
@@ -138,8 +137,9 @@ def owner_or_non_owner_effects(
                     py_trees.decorators.Inverter(
                         name="SenderIsNotCaseOwner",
                         child=with_case_id(
-                            SenderIsCaseOwnerNode(
-                                sender_actor_id=sender_actor_id,
+                            ActorHoldsRoleInCaseNode(
+                                actor_id=sender_actor_id,
+                                role=CVDRole.CASE_OWNER,
                                 name="CheckIsCaseOwnerForLeave",
                             ),
                             case_id,
@@ -157,8 +157,9 @@ def owner_or_non_owner_effects(
                 memory=False,
                 children=[
                     with_case_id(
-                        SenderIsCaseOwnerNode(
-                            sender_actor_id=sender_actor_id,
+                        ActorHoldsRoleInCaseNode(
+                            actor_id=sender_actor_id,
+                            role=CVDRole.CASE_OWNER,
                             name="CheckIsCaseOwnerForNonOwnerLeave",
                         ),
                         case_id,

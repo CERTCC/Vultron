@@ -47,8 +47,9 @@ status entries and never works out a closure path itself; applying
   already records never reaches this tree: the use case reports it
   ``SKIPPED`` first (CM-23-049, ID-05-003).
 
-The role check is performed by :class:`~vultron.core.behaviors.case.nodes
-.vfd_role_guards.SenderIsCaseOwnerNode` as a tree-level condition node, per
+The owner-or-participant arm is picked by
+:class:`~vultron.core.behaviors.role_condition.ActorHoldsRoleInCaseNode`
+reading the sender's ``CVDRole.CASE_OWNER``, a tree-level condition node, per
 BTND-08-001/BTND-08-002 (role checks MUST be in the tree, not in action node
 ``update()`` logic).
 

@@ -33,7 +33,8 @@ from vultron.core.behaviors.embargo.nodes import (
     IsCloseBlockedByActiveEmbargoNode,
     ReadEmStateNode,
 )
-from vultron.core.behaviors.sender_entitlement import SenderIsCaseOwnerNode
+from vultron.core.behaviors.role_condition import ActorHoldsRoleInCaseNode
+from vultron.enums.roles import CVDRole
 
 
 def owner_close_blocked_by_embargo_guards(
@@ -65,8 +66,9 @@ def owner_close_blocked_by_embargo_guards(
     """
     return [
         with_case_id(
-            SenderIsCaseOwnerNode(
-                sender_actor_id=closing_actor_id,
+            ActorHoldsRoleInCaseNode(
+                actor_id=closing_actor_id,
+                role=CVDRole.CASE_OWNER,
                 name="CheckIsCaseOwnerForClose",
             ),
             case_id,
