@@ -54,4 +54,4 @@ def tree(
     ``adr/`` is the working record; ``not_in_nav`` covers it so the tree is
     otherwise valid.
     """
-    return site_tree(tmp_path, files, nav, not_in_nav="adr/**\n")
+    return site_tree(tmp_path, files, nav, config={"not_in_nav": "adr/**\n"})

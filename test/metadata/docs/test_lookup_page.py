@@ -63,7 +63,7 @@ def _repo(
     **config: object,
 ) -> Path:
     """A :func:`site_tree` checkout whose test writes its own lookup files."""
-    return site_tree(tmp_path, files, nav, lookup=False, **config)
+    return site_tree(tmp_path, files, nav, lookup=False, config=config)
 
 
 def _listed(root: Path) -> list[tuple[str, list[str | None]]]:

@@ -31,7 +31,7 @@ def site_tree(
     lookup: bool = True,
     stories: bool = True,
     specs: bool = True,
-    **config: object,
+    config: dict[str, object] | None = None,
 ) -> Path:
     """Write a checkout under *tmp_path* and return it.
 
@@ -51,7 +51,7 @@ def site_tree(
     if lookup:
         files, nav = with_lookup(files, nav)
     (tmp_path / "mkdocs.yml").write_text(
-        yaml.safe_dump({"nav": nav, **config})
+        yaml.safe_dump({"nav": nav, **(config or {})})
     )
     for rel, text in files.items():
         path = tmp_path / "docs" / rel
