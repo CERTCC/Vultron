@@ -50,8 +50,6 @@ no ledger entry: a position statement changes nothing in the case file
 (SYNC-17-006, SYNC-20-007).
 """
 
-from collections.abc import Callable
-
 import py_trees
 
 from vultron.core.behaviors.case.nodes.role_gates import (
@@ -93,8 +91,6 @@ def _is(*expect: PositionStanding) -> LedgerPositionIsNode:
 def create_ledger_position_stage(
     case_id: str,
     sender_id: str,
-    *,
-    is_redelivery: Callable[[], bool] | None = None,
 ) -> CaseManagerGate:
     """The CASE_MANAGER's answer to *sender_id*'s stamped position in *case_id*.
 
@@ -108,10 +104,10 @@ def create_ledger_position_stage(
     an active participant re-seeded under the SYNC-16-004 bound
     (SYNC-18-005).  An inert sender's position is neither recorded nor
     answered.  Whatever the answer does, the received activity is judged as
-    it would be without it.  *is_redelivery* tells the re-run of an activity
-    a run left in holding, whose first delivery may already have been
-    answered; the factory passes the seen-before door's answer (ADR-0154).
-    A resend never reaches this stage: the door answered it.
+    it would be without it.  The re-run of an activity a run left in
+    holding, whose first delivery may already have been answered, is not
+    answered again; the classifier reads that from the message's record
+    (ADR-0154).  A resend never reaches this stage: the door answered it.
     """
     replay_a_lag = py_trees.composites.Selector(
         name="ReplayIfLagging",
@@ -198,7 +194,6 @@ def create_ledger_position_stage(
                 case_id=case_id,
                 sender_id=sender_id,
                 name="ClassifyLedgerPosition",
-                is_redelivery=is_redelivery,
             ),
             by_standing,
         ],

@@ -31,6 +31,14 @@ fan-out is the delivery, and each replica attaches the note from the entry
 
 Every active participant sees such a note, not only the one it is for.  A
 private message outside the case record is not implemented (#4885).
+
+A note that answers a received activity takes an id derived from the
+CASE_MANAGER, the received activity and the note's kind, so the re-run of a
+record a run left in holding names the note its first run stored, and its
+``Add(Note)``, whose id is derived from the note, is the one the first run
+committed and sent: nothing is committed or announced twice (ID-04-004,
+ADR-0154).  A note the add-note trigger posts answers no received activity,
+and its id is minted.
 """
 
 import json
@@ -39,13 +47,16 @@ from dataclasses import dataclass
 from typing import ClassVar, cast
 
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
 from vultron.core.behaviors.note.attach import attach_note
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.activity_ids import derived_object_id
+from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.errors import VultronWiringError
 
 
 @dataclass(frozen=True)
@@ -82,6 +93,21 @@ class _CommitCaseManagerNoteBase(
 
     _BEST_EFFORT: ClassVar[bool] = False
 
+    #: The note's kind, the label its derived id is built from.  Every
+    #: subclass that runs in a received tree names one; a note built while a
+    #: received activity is on the blackboard with no kind is a wiring fault,
+    #: because its id would be minted and a re-run would record it twice.
+    _NOTE_KIND: ClassVar[str | None] = None
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_CommitCaseManagerActivityBase.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {**super()._domain_port_remappings(), "activity": "/activity"}
+
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(
             case_id=case_id,
@@ -93,6 +119,36 @@ class _CommitCaseManagerNoteBase(
         self._note_id: str | None = None
         self._note_blob: str | None = None
         self._entry_committed = False
+        self._answers: object | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._answers = self._try_get_input("activity")
+
+    def _derived_note_id(self, actor_id: str) -> str | None:
+        """The note's id when it answers a received activity, else ``None``.
+
+        Derived from the CASE_MANAGER *actor_id*, the received activity and
+        the note's kind (ID-04-004).  ``None`` when no received activity is
+        on the blackboard (the add-note trigger), so the id is minted.
+
+        Raises:
+            VultronWiringError: a received activity is on the blackboard and
+                the class names no :attr:`_NOTE_KIND`.
+        """
+        event = self._answers
+        if not isinstance(event, VultronEvent):
+            return None
+        if self._NOTE_KIND is None:
+            raise VultronWiringError(
+                f"{type(self).__name__} answers received activity"
+                f" '{event.activity_id}' but names no _NOTE_KIND, so its"
+                " note id would be minted and a re-run would record it twice"
+                " (ID-04-004)"
+            )
+        return derived_object_id(
+            "case-manager-note", self._NOTE_KIND, actor_id, event.activity_id
+        )
 
     def _compose(self) -> CaseManagerNote | None:
         """Return the note the case is owed, or ``None``."""
@@ -143,6 +199,7 @@ class _CommitCaseManagerNoteBase(
             context_id=self._case_id,
             attributed_to=self.actor_id,
             in_reply_to=self._composed.in_reply_to,
+            note_id=self._derived_note_id(actor_id),
         )
         self._note_id = note_id
         self._note_blob = note_blob

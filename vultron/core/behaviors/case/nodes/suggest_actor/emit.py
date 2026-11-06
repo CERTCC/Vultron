@@ -295,6 +295,8 @@ class EmitNoteDuplicateRecommendationToOwnerNode(_CommitCaseManagerNoteBase):
     there is nobody the note is for.
     """
 
+    _NOTE_KIND = "duplicate-recommendation"
+
     def __init__(
         self,
         recommendation_id: str,

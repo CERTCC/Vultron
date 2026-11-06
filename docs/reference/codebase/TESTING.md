@@ -45,7 +45,7 @@ uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytes
 - **CI invariant harness**: `test/ci/invariants/universal_harness.py` — factory for the universal ledger-invariant test functions injected into each scenario module via `globals().update(make_universal_invariant_tests(...))` (ISSUE-2007).
   Read the inventory from the factory's `result` dict, not a count quoted here.
   Diagnostic guidance per invariant lives in `notes/demo-ci-diagnostics.md`, which `test/ci/invariants/test_diagnostic_map_sync.py` ratchets against the factory (ISSUE-3337).
-- **Shared helpers**: `test/support/` (clock pinning, blank-string cases, core-vocab registry restore, trigger-result helpers)
+- **Shared helpers**: `test/support/` (clock pinning, blank-string cases, core-vocab registry restore, trigger-result helpers, `signing.py` for signing what a test delivers to an inbox)
 - **Setup files**: `test/conftest.py` — root conftest; sets `VULTRON_DATABASE__DB_URL=sqlite:///:memory:` before any `vultron` import, registers the `spec` marker, applies the integration timeout tier, warns on unknown spec IDs, and provides `reset_datalayer()`-based isolation and the `isolated_core_registries` fixture.
   `test/core/behaviors/conftest.py` clears the py_trees blackboard before every BT test.
 

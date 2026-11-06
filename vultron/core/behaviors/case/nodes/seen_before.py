@@ -28,13 +28,16 @@ by its stage, and never from in-memory state an earlier stage left:
 - ``HELD`` with a replay owed -- the message is waiting (for its case, a
   ledger gap, a fetch, a retry): the resend is skipped, and the held record
   is answered when its replay reaches its own outcome;
-- ``HELD`` with no replay owed -- the record a run left with no verdict
-  (CLP-10-074), or the one the enclosing tree's intake wrote for a nested
-  tree: the door passes, so the act runs again from the body (ADR-0154).
-  Inbox runs are serialized per actor, so a resend never meets a run in
-  progress.  :attr:`ActivityNotSeenBeforeNode.rerun` says the door let such a
-  record through, for the stages of the same tree that answer a delivery once
-  (the ledger position, the sender's number).
+- ``HELD`` or ``HANDLED`` with no replay owed -- the record a run left with
+  no verdict (CLP-10-074): the door passes, so the act runs again from the
+  body (ADR-0154).  Inbox runs are serialized per actor, so a resend never
+  meets a run in progress.
+
+The door keeps nothing for a later stage to read.  A stage that answers a
+delivery once (the ledger position, the sender's number, the refusal effects)
+tells a re-run from a first run by reading the record itself
+(``began_in_an_earlier_run``), because the door is outside the handling tree
+and a stage reads only the record and the store (ADR-0154).
 
 The door does not compare bodies.  A delivery whose body differs from what
 the receiver holds, as a body or as a stub's digest, is a reused id, which
@@ -121,8 +124,6 @@ class ActivityNotSeenBeforeNode(DataLayerConditionWithPorts):
         self._activity: object | None = None
         self.seen: SeenBefore | None = None
         self.refusal_reason: str | None = None
-        self.rerun = False
-        """True when the door let through a record a run left in holding."""
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -133,7 +134,6 @@ class ActivityNotSeenBeforeNode(DataLayerConditionWithPorts):
         self._activity = self._try_get_input("activity")
         self.seen = None
         self.refusal_reason = None
-        self.rerun = False
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -151,11 +151,6 @@ class ActivityNotSeenBeforeNode(DataLayerConditionWithPorts):
         record = held_received_record(self.datalayer, event.activity_id)
         self.seen = seen_before(record)
         if self.seen is None:
-            # A record the door lets through is a run left in holding: the
-            # tree's stages that answer a delivery once (the ledger
-            # position, the sender's number) read this (SYNC-18-009,
-            # SYNC-21-018).
-            self.rerun = record is not None
             return Status.SUCCESS
         assert record is not None
         self.refusal_reason = record.refusal_reason

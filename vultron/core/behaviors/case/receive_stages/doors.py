@@ -84,15 +84,64 @@ def addressee_stage(
     return []
 
 
-def seen_before_stage(name: str) -> ActivityNotSeenBeforeNode:
+def check_nested(
+    name: str,
+    *,
+    addressee_exemption: AddresseeExemption | None,
+    post_close_exemption: PostCloseExemption | None,
+    has_sender_rule: bool = False,
+) -> None:
+    """Refuse a nested tree that would run a door its enclosing tree ran.
+
+    A nested tree runs after its enclosing tree's intake, so the record is
+    already in holding: a post-close stage there would read the first run as
+    a re-run (``began_in_an_earlier_run`` before intake) and skip its reply,
+    and an addressee check would ask again what the enclosing door answered.
+    So a nested tree names both exemptions (ADR-0154).  It takes no sender
+    rule either: the sender guard brings the ledger-position and
+    sender-sequence stages, which would answer the delivery a second time
+    on its first run (SYNC-18-009, SYNC-21-018).
+
+    Raises:
+        VultronWiringError: either exemption is missing, or a sender rule is
+            given.
+    """
+    missing = [
+        argument
+        for argument, value in (
+            ("addressee_exemption", addressee_exemption),
+            ("post_close_exemption", post_close_exemption),
+        )
+        if value is None
+    ]
+    if missing:
+        raise VultronWiringError(
+            f"create_receive_activity_tree({name}): a nested tree runs on its"
+            f" enclosing tree's doors, so it needs {', '.join(missing)}"
+            " (ADR-0154)"
+        )
+    if has_sender_rule:
+        raise VultronWiringError(
+            f"create_receive_activity_tree({name}): a nested tree runs on its"
+            " enclosing tree's sender guard, so it takes no sender_rule: its"
+            " own would answer the ledger position and the sender's number"
+            " again (ADR-0154)"
+        )
+
+
+def seen_before_stage(
+    name: str, *, nested: bool = False
+) -> list[py_trees.behaviour.Behaviour]:
     """The seen-before door, labelled with the tree's name (ADR-0154).
 
     Every received tree carries it, after the addressee check: a resend is
     answered from the message's record before intake writes anything, and no
-    tree opts out.  A nested received tree meets the record its enclosing
-    tree's intake wrote, ``HELD`` with no replay owed, and passes.
+    tree opts out.  A *nested* received tree has none: its enclosing tree's
+    door answered the delivery (``create_receive_activity_tree(nested=True)``).
     """
-    return ActivityNotSeenBeforeNode(label=name)
+    if nested:
+        return []
+    return [ActivityNotSeenBeforeNode(label=name)]
 
 
 def post_close_stage(
@@ -100,7 +149,6 @@ def post_close_stage(
     guard_case_id: str | None,
     exemption: PostCloseExemption | None,
     reply: list[py_trees.behaviour.Behaviour],
-    seen_door: ActivityNotSeenBeforeNode,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The post-close write-boundary guard, with its optional reply.
 
@@ -134,7 +182,8 @@ def post_close_stage(
             [guard],
             reply,
             guard_case_id,
-            seen_door=seen_door,
+            # The post-close stage is a door, ahead of intake (ADR-0154).
+            intake_ran=False,
             stage_name="PostCloseStage",
             guards_name="PostCloseGuard",
             gate_suffix="PostCloseReplyIfCaseManager",

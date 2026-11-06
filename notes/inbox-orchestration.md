@@ -13,7 +13,9 @@ description: >
   when the per-case expiry window restarts,
   the internal-error fault for a raised dispatch,
   the queue replay's bounded retry and held fault, what is left of the
-  staged-record migration (ADR-0153, ADR-0154), the
+  staged-record migration (ADR-0153, ADR-0154), how a re-run is told
+  from a first run by the record and finished on restart within the
+  inbox retry budget, the
   sender-sequence hold that returns a record to HELD (ADR-0178),
   pending-queue port injection, and the test surface.
 related_specs:
@@ -153,7 +155,8 @@ body is still owed to a replay, because that replay would route a body the stub 
 dropped; and a second refusal, which leaves the first reason standing.
 
 **No verdict is not an outcome** (CLP-10-074). A dispatch that raised and one that
-returned no `HandlerResult` leave the record exactly as it is, `HELD` with its body:
+returned no `HandlerResult` leave the record exactly as it is, in holding (`HELD` or
+`HANDLED`) with its body:
 the act rolled back keeping nothing (ADR-0151), so the resend or re-run must be able to
 run it again from that body. The outcome stage tells them apart by the disposition
 `DispatchNode` publishes, which is written only when a verdict came back. A semantic
@@ -172,10 +175,10 @@ last door.
 door (`case/nodes/seen_before.py`) reads the one record and its stage only: a stub is
 `REFUSED` again with its reason, an archive is `SKIPPED`, a record owed a replay is
 `SKIPPED`, and nothing after the door runs, so no refusal notice goes out again. A
-`HELD` record owing nothing lets the delivery through: inbox runs are serialized per
-actor, so a resend never meets a run in progress, only a run that ended with no
-verdict, which must run again. A nested received tree (the close-case tree's inner
-one) meets its enclosing tree's record the same way and passes. The door compares no
+`HELD` or `HANDLED` record owing nothing lets the delivery through: inbox runs are
+serialized per actor, so a resend never meets a run in progress, only a run that ended
+with no verdict, which must run again. A nested received tree (the close-case tree's
+inner one) has no door of its own (`nested=True`). The door compares no
 bodies: ingress does that once, so a reused id never reaches it (IE-10-002). Handlers
 read its answer through `door_refusal`, which may now return `SKIPPED`.
 
@@ -186,9 +189,10 @@ list are retired into it. The record carries two facts, and both values of the f
 are reachable in holding, so neither can be read off the other:
 
 - `stage` — `HELD` for a message in holding (waiting, being handled, or left by a run
-  with no verdict), `ARCHIVED` once the outcome stage archived an applied message
-  (CLP-10-073), `REFUSED` for a receipt stub, which keeps no body at all
-  (CLP-10-018);
+  with no verdict), `HANDLED` for one a later run's intake found left in holding and
+  is handling again (CLP-10-080), `ARCHIVED` once the outcome stage archived an
+  applied message (CLP-10-073), `REFUSED` for a receipt stub, which keeps no body at
+  all (CLP-10-018);
 - `replay_owed` — whether a replay is still owed from the held body, because the
   delivery that carried it ended without routing it. It waits on its case
   (`awaiting_case_id`), on a ledger gap (SYNC-14-001), on an object fetch
@@ -275,7 +279,7 @@ raises `VultronWiringError` (ARCH-15-001) rather than guess a match
 (`test_ingress_received_evidence.py`).
 
 **A failed act stays in holding, not in the archive.** A received act that failed kept
-no entry and no verdict, so its record stays `HELD` and its redelivery runs again,
+no entry and no verdict, so its record stays in holding and its redelivery runs again,
 committing the held body; an applied act's redelivery is `SKIPPED` at the seen-before
 door. `CommitCaseLedgerEntryNode` keeps the first entry when the ledger already
 records the activity as the same semantic, which covers a tree whose own repeat
@@ -307,11 +311,24 @@ that caught its own raise, such as extraction) is retried like a raise, or the i
 lost; a handler's verdict is final. A dead-lettered item stays held for the operator, so
 a resend of it routes the held copy as a redelivery (IE-10-001) and does not release it.
 
-**What is left of the staged-record migration.** Nothing yet finds a record a
-crashed run left in holding on restart, or proves every
-handling tree safe to run twice from holding (#5047). New work should add no
-receiver-role gate outside the path stage and no reader of in-memory state an earlier
-stage left (ADR-0154).
+**What is left of the staged-record migration.** No sweep yet proves every handling
+tree safe to run twice from holding (#5047). New work should add no receiver-role gate
+outside the path stage and no reader of in-memory state an earlier stage left
+(ADR-0154).
+
+**A re-run is told from a first run by the record, at intake.** Intake writes a new
+message `HELD` and moves a `HELD` record an earlier run left to `HANDLED`, so a stage
+after intake asks `began_in_an_earlier_run(..., intake_ran=True)` and reads `HANDLED`.
+A stage before intake (the post-close stage) asks with `intake_ran=False`: a record in
+holding owed no replay. Only intake may write the mark. A later write leaves a crash
+window in which a re-run reads as a first run (ADR-0154,
+`test_received_stages_read_the_record.py`). A received tree nested inside another for
+one delivery is built `nested=True` and runs no door or intake of its own. A second
+intake would read the first run as a re-run. At startup, `rerun_left_in_holding` runs
+each record left in holding owed no replay again, before the inbox queue
+(`test_interrupted_run_restart.py`). Count each re-run against the inbox retry budget
+before it starts, and dead-letter a spent record: a message that stops the process
+when handled would otherwise stop every start (IE-06-015).
 
 ---
 

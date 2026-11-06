@@ -50,7 +50,10 @@ from vultron.core.models.base._computed import (
     computed_field_spellings,
     refuse_computed_field_serializers,
 )
-from vultron.core.models.base.context import VULTRON_CONTEXT_URI
+from vultron.core.models.base.context import (
+    VULTRON_CONTEXT_URI,
+    JsonLdContext,
+)
 from vultron.core.models.base.record import (
     CoreRecord,
     concrete_type_annotation,
@@ -156,7 +159,7 @@ class CoreObject(CoreRecord):
     audience: Any | None = None
     attributed_to: NonEmptyString | None = None
 
-    context_: NonEmptyString | None = Field(
+    context_: JsonLdContext | None = Field(
         default=None,
         validation_alias="@context",
         serialization_alias="@context",
@@ -274,15 +277,18 @@ class CoreObject(CoreRecord):
 
     @field_validator("context_")
     @classmethod
-    def _default_context_as_absent(cls, value: str | None) -> str | None:
+    def _default_context_as_absent(
+        cls, value: str | list[str] | None
+    ) -> str | list[str] | None:
         """Read the default Vultron ``@context`` back as no override.
 
         The AS2 serializer emits ``self.context_ or VULTRON_CONTEXT_URI``, so
         ``None`` and the default URI dump identically.  Keeping the supplied
         default would make every ``by_alias`` dump validate into an object
         unequal to the one dumped (ARCH-23-005, CM-31-021).  A non-default
-        context is kept, so a document parsed from the wire still dumps
-        with the context it arrived with.
+        context is kept, a list included (a signed body's context is one), so
+        a document parsed from the wire still dumps with the context it
+        arrived with.
         """
         return None if value == VULTRON_CONTEXT_URI else value
 

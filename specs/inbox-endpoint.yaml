@@ -518,6 +518,56 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: IE-06-004
+  - id: IE-06-014
+    priority: MUST
+    kind: project
+    statement: >-
+      When the serving process starts, it MUST run again, before the queue replay,
+      every received record in holding that owes no replay. Each record is run as a
+      delivery of the body it holds.
+    rationale: >-
+      A process stop during a handling tree leaves the message's record in holding
+      (CLP-10-074), and no queue item stands for it. Without this, only a resend
+      from the sender finishes it, which may never happen. The re-run reads the
+      record, so what the first run already did is not done again (CLP-10-080).
+    verification: >-
+      `test/adapters/driving/fastapi/test_interrupted_run_restart.py` interrupts a
+      run during its act, shows that the restart finishes it with the act committed
+      once and nothing queued twice, that the startup runs the held records before
+      the queue, that no re-run replays the queue before the next record runs, that
+      a re-run that raises does not stop the others, and that a record owing a replay
+      is not run.
+    relationships:
+    - rel_type: extends
+      spec_id: IE-06-006
+    - rel_type: uses_definition
+      spec_id: CLP-10-074
+    adr:
+    - ADR-0154
+  - id: IE-06-015
+    priority: MUST
+    kind: project
+    statement: >-
+      Each startup re-run of IE-06-014 MUST be counted against the inbox retry budget
+      (IE-06-004) before it starts, and a record whose budget is spent is
+      dead-lettered and not run again.
+    rationale: >-
+      A message whose handling stops the process is left in holding again by every
+      start. Counted only after a run, it would stop every start and the receiver
+      could never come up. The count is stored before the re-run, outside its
+      transaction, so a process stop is counted too.
+    verification: >-
+      `test/adapters/driving/fastapi/test_interrupted_run_restart.py` stops the
+      process on each re-run and shows that the record is dead-lettered once, when
+      its budget is spent, and is not run again; that a re-run ending still in
+      holding keeps its count; and that a finished re-run clears it.
+    relationships:
+    - rel_type: refines
+      spec_id: IE-06-014
+    - rel_type: uses_definition
+      spec_id: IE-06-004
+    adr:
+    - ADR-0154
 - id: IE-07
   title: Error Responses
   specs:

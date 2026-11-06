@@ -28,6 +28,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     BODY_BEARING_STAGES,
+    HOLDING_STAGES,
     ReceivedActivityRecord,
     ReceivedStage,
 )
@@ -170,9 +171,11 @@ def test_sender_cannot_occupy_a_receiver_derived_id(dl):
         # In holding and owed nothing: intake recorded it and its run is in
         # progress, or ended with no verdict (CLP-10-074).
         (ReceivedStage.HELD, False),
+        # Handled again: a later run's intake met the record a run left.
+        (ReceivedStage.HANDLED, False),
     ],
 )
-def test_the_three_reachable_stage_and_replay_pairings_are_accepted(
+def test_the_four_reachable_stage_and_replay_pairings_are_accepted(
     stage, replay_owed
 ):
     record = ReceivedActivityRecord(
@@ -197,6 +200,63 @@ def test_an_archive_owing_a_replay_is_refused():
             replay_owed=True,
         )
     assert "ARCHIVED and owes a replay" in str(caught.value)
+
+
+@pytest.mark.spec("CLP-10-074")
+def test_a_handled_record_owing_a_replay_is_refused():
+    """A message a run is handling again is not also waiting (ADR-0154)."""
+    with pytest.raises(ValidationError) as caught:
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID,
+            received_body=_body(),
+            stage=ReceivedStage.HANDLED,
+            replay_owed=True,
+        )
+    assert "HANDLED and owes a replay" in str(caught.value)
+
+
+@pytest.mark.spec("CLP-10-074")
+def test_a_handled_record_with_no_body_is_refused():
+    """``HANDLED`` is run again from its body, so it must hold one.
+
+    Named outright rather than through ``BODY_BEARING_STAGES``, so a stage
+    dropped from that set is caught here (CLP-10-017).
+    """
+    with pytest.raises(ValidationError) as caught:
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID, stage=ReceivedStage.HANDLED
+        )
+    assert "no received body" in str(caught.value)
+
+
+@pytest.mark.spec("CLP-10-017")
+def test_a_handled_record_carrying_a_stubs_field_is_refused():
+    """The other direction: a ``HANDLED`` record keeps no stub field."""
+    with pytest.raises(ValidationError) as caught:
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID,
+            received_body=_body(),
+            stage=ReceivedStage.HANDLED,
+            refusal_reason="x",
+        )
+    assert "only a receipt stub keeps" in str(caught.value)
+
+
+@pytest.mark.spec("CLP-10-074")
+def test_the_handled_invariant_survives_assignment():
+    record = ReceivedActivityRecord(
+        activity_id=ACTIVITY_ID,
+        received_body=_body(),
+        stage=ReceivedStage.HANDLED,
+    )
+    with pytest.raises(ValidationError):
+        record.replay_owed = True
+
+
+def test_the_holding_stages_are_held_and_handled():
+    """The stages a reader asks about to mean "still in holding" (ADR-0154)."""
+    assert {ReceivedStage.HELD, ReceivedStage.HANDLED} == HOLDING_STAGES
+    assert HOLDING_STAGES < BODY_BEARING_STAGES
 
 
 @pytest.mark.spec("IO-03-009")

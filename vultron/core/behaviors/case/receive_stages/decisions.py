@@ -37,9 +37,6 @@ from vultron.core.behaviors.case.nodes.post_close import (
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
 )
-from vultron.core.behaviors.case.nodes.seen_before import (
-    ActivityNotSeenBeforeNode,
-)
 from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.sender_guard import (
     SenderCheckContext,
@@ -153,7 +150,6 @@ def case_and_tree_decisions(
 
 def ledger_position_stage(
     name: str,
-    seen_door: ActivityNotSeenBeforeNode,
     sender_context: SenderContext | None,
     exemption: LedgerPositionExemption | None,
 ) -> list[py_trees.behaviour.Behaviour]:
@@ -167,8 +163,8 @@ def ledger_position_stage(
     activity at run time is about an activity outside SYNC-18-001's scope.
     A tree that answers the position itself names a registered *exemption*.
     A resend never reaches it: the seen-before door answered it first, and
-    the re-run of a record a run left in holding, which *seen_door* tells, is
-    not answered again (SYNC-18-002, ADR-0154).
+    the re-run of a record a run left in holding, which the stage reads from
+    the record, is not answered again (SYNC-18-002, ADR-0154).
 
     Raises:
         VultronWiringError: *exemption* is not registered in
@@ -190,16 +186,13 @@ def ledger_position_stage(
         return []
     return [
         create_ledger_position_stage(
-            sender_context.case_id,
-            sender_context.sender_id,
-            is_redelivery=lambda: seen_door.rerun,
+            sender_context.case_id, sender_context.sender_id
         )
     ]
 
 
 def sender_sequence_stage(
     name: str,
-    seen_door: ActivityNotSeenBeforeNode,
     sender_context: SenderContext | None,
     exemption: SenderSequenceExemption | None,
 ) -> list[py_trees.behaviour.Behaviour]:
@@ -211,9 +204,10 @@ def sender_sequence_stage(
     (SYNC-21-001): it runs after the door guards, so only an admitted
     activity is held or refused for its number (SYNC-21-023), and before
     anything judges the act (SYNC-21-008).  A tree whose activity its
-    sender numbers not names a registered *exemption*.  *seen_door* tells the
-    re-run of an activity a run left in holding (SYNC-21-018); a resend never
-    reaches this stage, because the door answered it (ADR-0154).
+    sender numbers not names a registered *exemption*.  The stage reads the
+    re-run of an activity a run left in holding from the record
+    (SYNC-21-018); a resend never reaches it, because the door answered it
+    (ADR-0154).
 
     Raises:
         VultronWiringError: *exemption* is not registered in
@@ -235,8 +229,6 @@ def sender_sequence_stage(
         return []
     return [
         create_sender_sequence_stage(
-            sender_context.case_id,
-            sender_context.sender_id,
-            is_redelivery=lambda: seen_door.rerun,
+            sender_context.case_id, sender_context.sender_id
         )
     ]

@@ -129,6 +129,7 @@ from vultron.core.behaviors.case.receive_stages.decisions import (
 from vultron.core.behaviors.case.receive_stages.doors import (
     addressee_stage,
     case_resolution_stage,
+    check_nested,
     closed_sender_stage,
     path_stage_case_id,
     post_close_stage,
@@ -201,6 +202,7 @@ def create_receive_activity_tree(
     clock_decisions: list[py_trees.behaviour.Behaviour] | None = None,
     ledger_position_exemption: LedgerPositionExemption | None = None,
     sender_sequence_exemption: SenderSequenceExemption | None = None,
+    nested: bool = False,
 ) -> ReceivedActivityTree:
     """Compose a receive-side BT with the CLP-10-010 stages in order.
 
@@ -243,9 +245,17 @@ def create_receive_activity_tree(
     run ends there, so a resend re-runs nothing and no refusal notice goes
     out again (ADR-0154).  A receipt stub is ``REFUSED`` again with its
     reason, an archive and a record owed a replay are ``SKIPPED``, and a
-    ``HELD`` record owing nothing passes: a run that ended with no verdict
-    runs again (CLP-10-074), and a nested tree meets its enclosing tree's
-    record.  A tree opts out only with ``addressee_exemption``, a
+    ``HELD`` or ``HANDLED`` record owing nothing passes: a run that ended with
+    no verdict runs again (CLP-10-074).
+
+    ``nested`` builds a received tree that runs inside another received tree
+    for the same delivery (the close-case tree's close arm).  It has no
+    seen-before door and no intake of its own: the enclosing tree's door
+    answered the delivery and its intake recorded it, so a second intake
+    would meet that record and read the first run as a re-run (ADR-0154).
+    Every other stage is built as usual.
+
+    The addressee check opts out only with ``addressee_exemption``, a
     registered
     :class:`~vultron.core.behaviors.case.nodes.addressee.AddresseeExemption`
     that records why (a subtree whose enclosing tree already runs the
@@ -583,8 +593,14 @@ def create_receive_activity_tree(
     children: list[py_trees.behaviour.Behaviour] = list(
         addressee_stage(name, addressee_exemption)
     )
-    seen_door = seen_before_stage(name)
-    children.append(seen_door)
+    if nested:
+        check_nested(
+            name,
+            addressee_exemption=addressee_exemption,
+            post_close_exemption=post_close_exemption,
+            has_sender_rule=sender_rule is not None,
+        )
+    children.extend(seen_before_stage(name, nested=nested))
     stage_case_id = path_stage_case_id(
         case_id, manager_case_id, sender_context
     )
@@ -606,7 +622,6 @@ def create_receive_activity_tree(
             case_id or manager_case_id,
             post_close_exemption,
             post_close_reply or [],
-            seen_door,
         )
     )
     if closed_sender is not None:
@@ -634,16 +649,17 @@ def create_receive_activity_tree(
     # Intake records the message only once every door has admitted it, so a
     # message a door turns away is never held in full (CLP-10-017,
     # CLP-10-018).
-    children.append(IntakeReceivedActivityNode())
+    # A nested tree's enclosing tree recorded the message (ADR-0154).
+    children.extend([] if nested else [IntakeReceivedActivityNode()])
     if guard is not None:
         children.extend(
             ledger_position_stage(
-                name, seen_door, sender_context, ledger_position_exemption
+                name, sender_context, ledger_position_exemption
             )
         )
         children.extend(
             sender_sequence_stage(
-                name, seen_door, sender_context, sender_sequence_exemption
+                name, sender_context, sender_sequence_exemption
             )
         )
     decisions = case_and_tree_decisions(
@@ -682,7 +698,7 @@ def create_receive_activity_tree(
                 guards,
                 effects,
                 case_id,
-                seen_door=seen_door,
+                intake_ran=True,
             )
         )
     else:
@@ -721,6 +737,7 @@ def create_receive_activity_tree(
         door_guards=door_guards,
         refusal_notice_exemption=refusal_notice_exemption,
         one_act_exemption=one_act_exemption,
+        nested=nested,
     )
 
 
