@@ -260,7 +260,9 @@ class LedgerNetwork:
         states no ``ledgerPosition`` or ``senderSequence`` is first stamped
         as its sender's adapter would stamp it (:meth:`stamp`), so a test may
         hand over a factory's dump; *as_sent* delivers the body unstamped.
-        Either way it is signed as :meth:`delivered_body` signs it.
+        Either way it is signed as :meth:`delivered_body` signs it, which
+        replaces any proof the caller attached unless the body is the one
+        its sender's outbox sealed.
         """
         body = (
             self._signed(body)
@@ -285,7 +287,8 @@ class LedgerNetwork:
         sealed is then delivered as sealed, carrying the proof the outbox
         gave it (#5382); any other body is signed by its author, as its
         outbox would sign it (SIG-01-001), so a body a test built or altered
-        carries a proof over what it sends.
+        carries a proof over what it sends.  A proof the caller attached is
+        replaced, so a test of a bad proof cannot route it through here.
         """
         return self._signed(self.stamp(body, receiver=receiver))
 
@@ -295,10 +298,7 @@ class LedgerNetwork:
 
     def _sealed_as_sent(self, body: dict[str, Any]) -> bool:
         """Whether *body* is the body its sender's outbox sealed, unchanged."""
-        try:
-            sender = self.stores.get(author_of(body))
-        except ValueError:
-            return False
+        sender = self.stores.get(author_of(body))
         if sender is None or not isinstance(body.get("id"), str):
             return False
         return read_sealed_body_dict(sender, body["id"]) == body
@@ -322,6 +322,10 @@ class LedgerNetwork:
         *receiver*, the CASE_MANAGER
         (:func:`~test.support.received.in_step_sender_sequence`).  A body
         that carries a number keeps it.
+
+        A stamp changes the body, so a proof it carried no longer covers it:
+        deliver a stamped body through :meth:`delivered_body`, which signs it
+        again.
         """
         body = self._positioned(body)
         if "senderSequence" in body or "ledgerPosition" not in body:

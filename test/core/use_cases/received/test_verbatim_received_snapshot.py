@@ -28,6 +28,7 @@ import pytest
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
 from test.support.received import delivered_body
+from test.support.signing import resigned
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
@@ -59,7 +60,8 @@ def _add_note_body(note_id: str, **extra: Any) -> dict[str, Any]:
         actor=OWNER,
         to=[MANAGER],
     )
-    return {**delivered_body(activity), **extra}
+    # The extra keys change the signed body, so its author signs it again.
+    return resigned(delivered_body(activity), **extra)
 
 
 def _deliver(net: LedgerNetwork, body: dict[str, Any]) -> Any:
@@ -116,9 +118,10 @@ def test_a_change_to_the_received_body_changes_the_snapshot():
     and by key order is recorded with that key, in that order."""
     net = LedgerNetwork(CASE_ID)
     body = _add_note_body("https://example.org/notes/verbatim-2")
-    changed = dict(
-        reversed(list({**body, "exampleExtension": {"kept": [1, 2]}}.items()))
-    )
+    # The extra key changes the signed body, so its author signs it again;
+    # key order is outside what the proof covers.
+    extended = resigned(body, exampleExtension={"kept": [1, 2]})
+    changed = dict(reversed(list(extended.items())))
 
     _deliver(net, changed)
 

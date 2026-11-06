@@ -45,7 +45,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register, terminate
 from test.support.ledger import fail_commits
 from test.support.received import received_event
-from test.support.signing import signed_body
+from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -1080,8 +1080,8 @@ class TestCLP08002GenesisHashAnchoredToTheOwner:
         inline_case["genesisHash"] = sent
         # The empty ledger's position names the genesis hash (CLP-08-004).
         inline_case["ledgerPosition"] = {"logIndex": -1, "entryHash": sent}
-
-        event = received_event(parse_activity(signed_body(body)), at=dl)
+        # Altered after its outbox sealed it, so its author signs it again.
+        event = received_event(parse_activity(resigned(body)), at=dl)
         replica = getattr(event, "object_", None)
 
         assert isinstance(replica, VulnerabilityCase)

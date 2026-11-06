@@ -150,7 +150,11 @@ def replay_inbox(
 def receive_into(
     dl: SqliteDataLayer, body: dict[str, Any], receiver: str
 ) -> Any:
-    """Route the sealed *body* into *receiver*'s store as the inbox routes it."""
+    """Route the delivered *body* into *receiver*'s store as the inbox does.
+
+    *body* is routed as given, so it carries whatever proof its caller gave
+    it (SIG-01-001).
+    """
     return run_use_case(
         dl, received_event(parse_activity(body), receiving_actor_id=receiver)
     )

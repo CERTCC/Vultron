@@ -229,12 +229,13 @@ def test_the_refusal_notice_embeds_the_refused_activity_as_received():
         to=[MANAGER],
         id_=f"{BYSTANDER}/answers/verbatim",
     )
-    body = {
-        **delivered_body(answer),
-        "cc": ["https://example.org/users/watcher"],
-        "endTime": "2031-01-01T00:00:00+00:00",
-        "x-vendorExtension": {"kept": True},
-    }
+    # The extra keys change the signed body, so its author signs it again.
+    body = resigned(
+        delivered_body(answer),
+        cc=["https://example.org/users/watcher"],
+        endTime="2031-01-01T00:00:00+00:00",
+        alter=lambda b: b.update({"x-vendorExtension": {"kept": True}}),
+    )
     event = received_event(parse_activity(body), receiving_actor_id=MANAGER)
 
     _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)

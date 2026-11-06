@@ -210,10 +210,14 @@ def test_the_archive_is_the_body_the_parser_sealed(scenario):
         ' "object": {"type": "Note", "id": "https://example.org/notes/s-1",'
         ' "content": "caf\u00e9"}, "fooBar": [1, 2]'
     )
-    # The sender signs what it sends (SIG-01-001); the proof is written into
-    # the request bytes, so they stay the sender's own spacing.
-    proof = signed_body(json.loads(unsigned + "}"))["proof"]
-    request_bytes = f'{unsigned}, "proof": {json.dumps(proof)} }}'
+    # The sender signs what it sends (SIG-01-001); the context the proof
+    # names and the proof are written into the request bytes, so they stay
+    # the sender's own spacing.
+    signed = signed_body(json.loads(unsigned + "}"))
+    request_bytes = (
+        f'{unsigned}, "@context": {json.dumps(signed["@context"])},'
+        f' "proof": {json.dumps(signed["proof"])} }}'
+    )
     parsed = parse_activity(json.loads(request_bytes))
     event = extract_stamped(parsed)
 
