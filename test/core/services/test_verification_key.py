@@ -1,0 +1,295 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""The verification-key resolver reads a proof's key from its author's profile.
+
+The held copy is read first, and a profile is fetched when the held copy
+lists no key the proof names (SIG-02-001, MV-10-003); ids are compared
+normalised (OID-01-006).
+"""
+
+import asyncio
+
+import pytest
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.actor import CoreActor, VultronOrganization
+from vultron.core.models.multikey import Multikey
+from vultron.core.services import verification_key as vk
+from vultron.errors import (
+    VultronActorProfileFetchError,
+    VultronProofVerificationError,
+    VultronVerificationKeyError,
+)
+from vultron.wire.as2 import signing
+
+RECEIVER = "https://receiver.example/api/v2/actors/receiver"
+AUTHOR = "https://author.example/api/v2/actors/author"
+METHOD = signing.key_id_for(AUTHOR)
+AUTHOR_KEY = signing.published_multikey(
+    signing.seeded_signing_key(AUTHOR), AUTHOR
+)
+
+
+class _FakeProfileFetch:
+    """Answers each fetch with a fixed profile or failure, recording calls."""
+
+    def __init__(
+        self,
+        profile: CoreActor | None = None,
+        failure: str | None = None,
+    ) -> None:
+        self._profile = profile
+        self._failure = failure
+        self.asked: list[tuple[str, str]] = []
+
+    async def fetch_profile(
+        self, actor_id: str, requester_id: str
+    ) -> CoreActor:
+        self.asked.append((actor_id, requester_id))
+        if self._profile is None:
+            raise VultronActorProfileFetchError(self._failure or "no profile")
+        return self._profile
+
+
+def _store() -> SqliteDataLayer:
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVER)
+
+
+def _profile(
+    keys: list[Multikey] | None = None, actor_id: str = AUTHOR
+) -> VultronOrganization:
+    return VultronOrganization(
+        id_=actor_id, name="Author", assertion_method=keys or []
+    )
+
+
+def _resolve(
+    dl: SqliteDataLayer,
+    fetcher: _FakeProfileFetch,
+    method: str = METHOD,
+    author_id: str = AUTHOR,
+) -> Multikey:
+    return asyncio.run(
+        vk.resolve_verification_key(
+            method,
+            author_id=author_id,
+            dl=dl,
+            fetcher=fetcher,
+            requester_id=RECEIVER,
+        )
+    )
+
+
+@pytest.mark.spec("SIG-02-001")
+@pytest.mark.spec("MV-10-003")
+def test_a_held_profile_listing_the_key_is_used_without_a_fetch():
+    dl = _store()
+    dl.save(_profile([AUTHOR_KEY]))
+    fetcher = _FakeProfileFetch(failure="must not be fetched")
+
+    key = _resolve(dl, fetcher)
+
+    assert key == AUTHOR_KEY
+    assert fetcher.asked == []
+
+
+@pytest.mark.spec("SIG-02-001")
+@pytest.mark.spec("AKM-05-005")
+def test_a_held_profile_without_the_key_leads_to_a_fetch():
+    """An inline sender profile lists no key, so it cannot settle the lookup."""
+    dl = _store()
+    dl.save(_profile())
+    fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
+
+    key = _resolve(dl, fetcher)
+
+    assert key == AUTHOR_KEY
+    assert fetcher.asked == [(AUTHOR, RECEIVER)]
+
+
+@pytest.mark.spec("SIG-02-001")
+def test_an_unheld_profile_is_fetched_from_the_author():
+    fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
+
+    key = _resolve(_store(), fetcher)
+
+    assert key == AUTHOR_KEY
+    assert fetcher.asked == [(AUTHOR, RECEIVER)]
+
+
+@pytest.mark.spec("SIG-02-001")
+def test_a_held_profile_listing_only_another_key_leads_to_a_fetch():
+    other = Multikey(
+        id_=f"{AUTHOR}#old-key",
+        type_="Multikey",
+        controller=AUTHOR,
+        public_key_multibase=AUTHOR_KEY.public_key_multibase,
+    )
+    dl = _store()
+    dl.save(_profile([other]))
+    fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
+
+    key = _resolve(dl, fetcher)
+
+    assert key == AUTHOR_KEY
+    assert len(fetcher.asked) == 1
+
+
+@pytest.mark.spec("SIG-02-001")
+@pytest.mark.spec("SIG-03-002")
+def test_a_fetched_profile_without_the_key_refuses_the_proof():
+    fetcher = _FakeProfileFetch(_profile())
+
+    with pytest.raises(VultronVerificationKeyError) as caught:
+        _resolve(_store(), fetcher)
+
+    assert isinstance(caught.value, VultronProofVerificationError)
+    assert METHOD in str(caught.value)
+    assert "does not list key" in str(caught.value)
+
+
+@pytest.mark.spec("SIG-03-002")
+def test_a_failed_fetch_refuses_the_proof_and_says_why():
+    fetcher = _FakeProfileFetch(failure="GET answered HTTP 404")
+
+    with pytest.raises(VultronVerificationKeyError) as caught:
+        _resolve(_store(), fetcher)
+
+    assert "GET answered HTTP 404" in str(caught.value)
+    assert isinstance(caught.value.__cause__, VultronActorProfileFetchError)
+
+
+@pytest.mark.spec("OID-01-006")
+def test_a_key_id_with_a_trailing_slash_finds_the_held_key():
+    dl = _store()
+    dl.save(_profile([AUTHOR_KEY]))
+    fetcher = _FakeProfileFetch(failure="must not be fetched")
+
+    key = _resolve(dl, fetcher, f"{AUTHOR}/#{signing.KEY_FRAGMENT}")
+
+    assert key == AUTHOR_KEY
+    assert fetcher.asked == []
+
+
+@pytest.mark.spec("OID-01-006")
+def test_a_key_id_with_a_trailing_slash_fetches_the_normalised_actor():
+    fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
+
+    _resolve(_store(), fetcher, f"{AUTHOR}/#{signing.KEY_FRAGMENT}")
+
+    assert fetcher.asked == [(AUTHOR, RECEIVER)]
+
+
+@pytest.mark.spec("OID-01-006")
+def test_an_author_spelled_with_a_trailing_slash_owns_its_key():
+    dl = _store()
+    dl.save(_profile([AUTHOR_KEY]))
+
+    key = _resolve(dl, _FakeProfileFetch(), author_id=f"{AUTHOR}/")
+
+    assert key == AUTHOR_KEY
+
+
+@pytest.mark.spec("SIG-02-001")
+def test_a_key_of_another_actor_is_refused_without_a_read_or_fetch():
+    """A bystander's valid key says nothing about who wrote the document."""
+    bystander = "https://bystander.example/api/v2/actors/bystander"
+    method = signing.key_id_for(bystander)
+    bystander_key = signing.published_multikey(
+        signing.seeded_signing_key(bystander), bystander
+    )
+    dl = _store()
+    dl.save(_profile([bystander_key], bystander))
+    fetcher = _FakeProfileFetch(_profile([bystander_key], bystander))
+
+    with pytest.raises(VultronVerificationKeyError) as caught:
+        _resolve(dl, fetcher, method)
+
+    assert method in str(caught.value)
+    assert AUTHOR in str(caught.value)
+    assert fetcher.asked == []
+
+
+@pytest.mark.spec("OID-01-006")
+def test_a_controller_spelled_with_a_trailing_slash_names_the_same_actor():
+    """A profile stored under ``…/author/`` lists the key ``…/author#…`` names."""
+    slashed = f"{AUTHOR}/"
+    key = Multikey(
+        id_=f"{slashed}#{signing.KEY_FRAGMENT}",
+        type_="Multikey",
+        controller=slashed,
+        public_key_multibase=AUTHOR_KEY.public_key_multibase,
+    )
+
+    assert vk.published_key(_profile([key], slashed), METHOD) == key
+
+
+@pytest.mark.spec("SIG-02-001")
+def test_a_profile_of_another_actor_lists_no_key_for_the_author():
+    other_id = "https://other.example/api/v2/actors/other"
+    other_key = signing.published_multikey(
+        signing.seeded_signing_key(other_id), other_id
+    )
+
+    assert vk.published_key(_profile([other_key], other_id), METHOD) is None
+
+
+def test_an_object_that_is_not_an_actor_lists_no_key():
+    assert vk.published_key(None, METHOD) is None
+    assert vk.published_key({"assertionMethod": []}, METHOD) is None
+
+
+@pytest.mark.spec("SIG-01-002")
+@pytest.mark.parametrize(
+    "method",
+    [AUTHOR, f"{AUTHOR}#", "#main-key", "/#main-key"],
+    ids=["no-fragment", "empty-fragment", "no-actor", "slash-only-actor"],
+)
+def test_a_method_naming_no_profile_key_is_refused_without_a_fetch(
+    method: str,
+):
+    fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
+
+    with pytest.raises(VultronVerificationKeyError):
+        _resolve(_store(), fetcher, method)
+
+    assert fetcher.asked == []
+
+
+def test_the_key_owner_is_the_normalised_actor_id():
+    assert vk.key_owner_id(f"{AUTHOR}/#main-key") == AUTHOR
+    assert vk.key_owner_id(METHOD) == AUTHOR
+
+
+@pytest.mark.spec("SIG-05-002")
+def test_resolving_and_verifying_derives_no_key_from_a_seed(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The resolved key verifies the author's proof with no seed in sight."""
+    signed = signing.sign(
+        {"id": f"{AUTHOR}/activities/1", "type": "Create"},
+        signing.seeded_signing_key(AUTHOR),
+    )
+    fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
+
+    def _no_seed(actor_id: str) -> signing.SigningKey:
+        raise AssertionError(f"derived {actor_id!r}'s key from its seed")
+
+    monkeypatch.setattr(signing, "seeded_signing_key", _no_seed)
+    monkeypatch.setattr(signing, "_seed_for", _no_seed)
+
+    key = _resolve(
+        _store(), fetcher, signing.proof_verification_method(signed)
+    )
+    signing.verify(signed, key.public_key_multibase)

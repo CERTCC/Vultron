@@ -110,15 +110,25 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   Tasks is the ratchet: everything signs first, then every test delivery signs
   through the shared helper, then verification turns on. Verification cannot
   merge while any inbox delivery is unsigned.
-- **Keys come from the author's profile** (SIG-02-001): a stored copy, else a
-  plain GET of the profile, which needs no proof (SIG-02-002). Check that the
-  `Multikey`'s `controller` is the actor whose profile lists it. When a profile
-  copy expires, and how a rotated key is found, are #1184.
-- **Read a key from `CoreActor.assertion_method`, not from raw JSON.** It is a
-  list of core `Multikey` values (`vultron/core/models/multikey.py`), and
-  validation already guarantees each key id is `<controller>#<fragment>` and
-  each controller is the profile's own actor. A resolver strips the fragment
-  to find the profile, then matches the key id exactly (ENC-01-002).
+- **Resolve a key with `resolve_verification_key`**
+  (`vultron/core/services/verification_key.py`), never by hand. It takes the
+  proof's `verificationMethod`, the document's author, the receiving actor's
+  store and an `ActorProfileFetchPort` (`HttpActorProfileFetchAdapter` in
+  `vultron/adapters/driving/fastapi/actor_profile_fetch.py`), and returns the
+  core `Multikey` whose `publicKeyMultibase` goes to `signing.verify`. It reads
+  the held copy, else a plain GET of `{actor}/profile` with no proof
+  (SIG-02-001, SIG-02-002). It refuses a key whose actor is not the author
+  before any read, and checks the profile's id and the key's `controller` are
+  the key's actor. Which field names the author is the caller's (#5386).
+  When a profile copy expires, and how a rotated key is found, are #1184.
+- **The resolver is async and refuses with `VultronVerificationKeyError`**, a
+  `VultronProofVerificationError`, so the ingress answers an unresolvable key
+  as it answers a failed proof (SIG-03-002). It reads the held copy with one
+  synchronous `dl.read` before it awaits the fetch. A fetch failure is
+  `VultronActorProfileFetchError`, chained as the refusal's cause.
+- **Actor ids are compared normalised** (OID-01-006): the key's actor, the
+  profile id and the `controller`, each without a trailing slash. A held copy
+  stored under a slashed id is missed by the read and found by the fetch.
 - **The hosted actor's key is published, not stored.** Both profile routes,
   `/actors/{id}` and `/actors/{id}/profile`, list the actor's own
   `signing.published_multikey` and replace any key its record states: a
@@ -127,14 +137,14 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   (SIG-05-002). `GET /actors/` lists each hosted actor the same way.
 - **An inline sender profile carries no key.** An activity carries the
   sender's own stored record as held (AKM-05-005), and that record lists no
-  key, while a receiver keeps a held copy over a fetched one (MV-10-003). The
-  #5383 resolver must fetch the profile when its held copy lists no key the
-  proof names, not refuse on the held copy alone.
+  key, while a receiver keeps a held copy over a fetched one (MV-10-003). So
+  the resolver fetches when its held copy lists no key the proof names, and
+  does not store what it fetched.
 - **A profile typed `"Actor"` loses its key at parse.** The wire `as_Actor`
   ignores unknown fields, so it drops `assertionMethod`, while the five
-  concrete actor types keep it. The #5383 resolver then finds no key and fails
-  closed (SIG-02-001); its refusal should name the generic type as the cause,
-  not say the actor published no key.
+  concrete actor types keep it. The fetch adapter refuses a profile typed
+  `"Actor"` by naming the generic type, not by saying the actor published no
+  key.
 - **The profile's `@context` lacks the key terms.** It is the Vultron context
   alone, which defines no `assertionMethod`, `Multikey`, `controller` or
   `publicKeyMultibase`, so a JSON-LD-expanding verifier drops them. Add

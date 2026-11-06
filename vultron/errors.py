@@ -242,6 +242,26 @@ class VultronProofVerificationError(VultronError):
     """
 
 
+class VultronVerificationKeyError(VultronProofVerificationError):
+    """Raised when the key a proof names cannot be read from its author.
+
+    A receiver takes the key that verifies a proof only from the author's
+    actor profile (SIG-02-001).  When neither the held copy nor a fetched
+    copy lists the key the proof's ``verificationMethod`` names, the
+    receiver cannot tell who wrote the document and refuses it
+    (SIG-03-002), so this is a proof-verification failure, answered as one.
+    """
+
+
+class VultronActorProfileFetchError(VultronError):
+    """Raised when an actor's profile cannot be fetched or read.
+
+    The fetch failed, or the answer is not that actor's profile: a body
+    that does not parse as one of the concrete actor types, or one for
+    another actor.  The message says which.
+    """
+
+
 class VultronCanonicalEntryError(VultronError):
     """Raised when a case-ledger entry violates canonical entry criteria."""
 

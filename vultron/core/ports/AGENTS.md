@@ -86,6 +86,14 @@ builds an activity: the replay is the one that was received. Reason:
 running the entry inline makes one delivery run two trees (CLP-10-005). A
 missing port is a `VultronWiringError`, never an inline fallback.
 
+### `ActorProfileFetchPort`
+
+`ActorProfileFetchPort` (`actor_profile_fetch.py`) fetches an actor's profile
+for the verification-key resolver when the held copy lists no key a proof
+names (SIG-02-001). The adapter (`HttpActorProfileFetchAdapter`) makes the
+GET and parses the body, so core gets a `CoreActor`. Reason: core makes no
+HTTP call and parses no wire JSON (ARCH-01-001, ADR-0032).
+
 ### Server-Level Inbox: Deferred Design Decision
 
 A server-level inbox is recognized as a future option, but current
