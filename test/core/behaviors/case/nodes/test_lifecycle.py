@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
@@ -69,7 +70,10 @@ def bridge(datalayer):
 # ---------------------------------------------------------------------------
 
 
-_CREATE_BODY: dict[str, Any] = {"id": ACTIVITY_ID, "type": "Create"}
+#: The body a sender delivers is signed by its author (SIG-01-001).
+_CREATE_BODY: dict[str, Any] = signed_body(
+    {"id": ACTIVITY_ID, "type": "Create"}, author=ACTOR_ID
+)
 
 
 def _received(
@@ -77,12 +81,19 @@ def _received(
     semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE,
     actor_id: str = ACTOR_ID,
 ) -> VultronEvent:
-    """A received event whose evidence is *body*, as the parser sealed it."""
+    """A received event whose evidence is *body*, as the parser sealed it.
+
+    *body* is signed by *actor_id*, as its sender's outbox signs it
+    (SIG-01-001).
+    """
+    evidence = (
+        _CREATE_BODY if body is None else signed_body(body, author=actor_id)
+    )
     return VultronEvent(
         semantic_type=semantic_type,
         activity_id=ACTIVITY_ID,
         actor_id=actor_id,
-        received_evidence=json.dumps(_CREATE_BODY if body is None else body),
+        received_evidence=json.dumps(evidence),
     )
 
 
@@ -245,7 +256,7 @@ def test_received_body_is_forwarded_as_payload_snapshot_unchanged(bridge):
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
         semantic_type=MessageSemantics.CREATE_CASE.value,
-        payload_snapshot=body,
+        payload_snapshot=signed_body(body, author=ACTOR_ID),
     )
 
 

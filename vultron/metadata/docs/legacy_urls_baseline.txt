@@ -657,10 +657,12 @@ reference/vultron-spec/_encoding-transport.md
 reference/vultron-spec/_full-page-tip.md
 reference/vultron-spec/_iana.md
 reference/vultron-spec/_introduction.md
+reference/vultron-spec/_known-gaps.md
 reference/vultron-spec/_messages.md
 reference/vultron-spec/_model-interactions.md
 reference/vultron-spec/_open-questions.md
 reference/vultron-spec/_oq-cs-ordering.md
+reference/vultron-spec/_oq-delegated-embargo-activation.md
 reference/vultron-spec/_oq-embargo-termination-authority.md
 reference/vultron-spec/_oq-negative-ack.md
 reference/vultron-spec/_oq-role-acquisition.md
@@ -696,6 +698,7 @@ reference/vultron-spec/includes/_vfd-states-table.md
 reference/vultron-spec/index.md
 reference/vultron-spec/interactions.md
 reference/vultron-spec/introduction.md
+reference/vultron-spec/known-gaps.md
 reference/vultron-spec/layers.md
 reference/vultron-spec/open-questions.md
 reference/vultron-spec/requirements/case-management.md

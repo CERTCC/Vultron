@@ -259,20 +259,21 @@ class _World:
         # production does.
         stored = self.dl.read(self.case_id, raise_on_missing=True)
         assert stored is not None
-        case_dict = As2WireRenderAdapter().render(
-            stored.model_copy(
-                update={
-                    "case_participants": [self.participant],
-                    "vulnerability_reports": [self.report],
-                }
+        # The case rides on the activity and the whole graph renders once
+        # (VM-10-005, #6046).
+        return As2WireRenderAdapter().render(
+            VultronCreateCaseActivity(
+                actor=_CASE_ACTOR,
+                object_=stored.model_copy(
+                    update={
+                        "case_participants": [self.participant],
+                        "vulnerability_reports": [self.report],
+                    }
+                ),
+                context=self.case_id,
+                to=[_PEER],
             )
         )
-        return VultronCreateCaseActivity(
-            actor=_CASE_ACTOR,
-            object_=case_dict,
-            context=self.case_id,
-            to=[_PEER],
-        ).model_dump(by_alias=True)
 
 
 Recipe = Callable[[_World], Any]

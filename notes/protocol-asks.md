@@ -7,6 +7,7 @@ tracks:
   - "#3188"
   - "#3471"
   - "#4981"
+  - "#6057"
 description: >
   Design guidance for the protocol-ask primitive: asking and terminating rather
   than suspending, conversation-state routing, the outstanding-ask register, ask
@@ -115,8 +116,10 @@ RecommendActorToCaseBT
 
 `InviteInFlightNode` and `PendingOfferCaseParticipantNode`
 (`case/nodes/suggest_actor/conditions.py`) read open/closed state from the
-ledger via `find_protocol_pair`. Two sibling trees handle the `Accept` and the
-`Reject`.
+ledger via `find_protocol_pair`. Neither counts the request the recommendation
+being handled sent itself (its id is derived from the recommendation), so a
+re-run from holding answers as its first run did, not as a duplicate (ADR-0154).
+Two sibling trees handle the `Accept` and the `Reject`.
 
 `VultronOfferRecord` (`vultron/core/models/offer_record.py`) is the reference
 per-ask record: durable, DataLayer-backed, keyed deterministically by
@@ -299,11 +302,16 @@ use case. Send no fault for an attempt that will be retried, only when none
 follows, or a retry that succeeds leaves a false fault that closes the ask
 (ASK-07-014, ASK-07-017, ASK-07-007).
 
-The **fault statement itself** is different. "B could not process A's message" is
-a true, legible statement about a message that arrived, so it is recorded as an
-ordinary entry (ASK-07-008) and it explains a subsequent retransmission. It is
-not per-actor observability content, so CLP-07-004 is unaffected: the *fact* of a
-fault is protocol history; the *diagnosis* is not.
+The **fault statement itself** stays out of the ledger too (ASK-07-008). A fault
+reports how a message was handled and changes nothing in the case, so it is not
+a case event (CLP-02-013); its sender already holds its own record of the failed
+message. Do not add a commit node to the fault use case.
+
+**A fault is never answered with a fault** (ASK-07-019). Each answering fault is
+a new activity, so the one-fault-per-activity bound (ASK-07-015) cannot stop two
+actors that cannot process each other's faults. The inbox's
+`answers_with_internal_error_fault()` exempts a received fault; a new rule that
+answers some received activity with a fault excludes a fault, as VP-03-010 does.
 
 ## Pitfalls
 

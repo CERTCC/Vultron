@@ -268,6 +268,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0173 A Push Is Gated by CI's Non-Suite Checks and a Scratch Merge of the Overlap](0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md) *(provisional)* — partially superseded by 0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md; partially supersedes 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md
 - [ADR-0175 Before 1.0, Vultron Supports One Protocol and Storage Version, So a Former Field Name Is an Unknown Key](0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md) *(provisional)* — partially supersedes 0078-retire-finder-role.md, 0099-one-object-model-as2-is-a-serialization.md, 0122-per-embargo-participant-consent.md
 - [ADR-0177 A Requirement a Statement Cites With No Relationship Is Listed in `see_also`, With a Reason](0177-a-cited-requirement-with-no-relationship-is-listed-in-see-also.md) *(provisional)*
+- [ADR-0180 The Case Owner Adds an Embargo to the Case, and Each Owner Decision Points at the Proposal It Answers](0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md) *(revision 2)* *(provisional)* — partially supersedes 0122-per-embargo-participant-consent.md
 
 ## Proposed ADRs
 
@@ -284,7 +285,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0176 An Act Reads the Clock Once, at Its Edge](0176-an-act-reads-the-clock-once-at-its-edge.md) *(revision 2)* — partially supersedes 0103-object-time-is-carried-never-minted.md
 - [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
 - [ADR-0179 A Local Check Runs Only When It Answers Before a Required CI Gate](0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md, 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md, 0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
-- [ADR-0180 The Case Owner Adds an Embargo to the Case, and Each Owner Decision Points at the Proposal It Answers](0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md) — partially supersedes 0122-per-embargo-participant-consent.md
 - [ADR-0181 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0181-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md)
 
 ## Rejected ADRs

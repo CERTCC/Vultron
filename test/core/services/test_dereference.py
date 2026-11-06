@@ -23,6 +23,7 @@ from test.support.case_manager import (
 )
 from test.support.embargo_register import activate, propose
 from test.support.received import TEST_SENDER_POSITION
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import VultronOrganization
@@ -80,15 +81,17 @@ def _embargo(case_id: str, days: int = 30) -> EmbargoEvent:
 
 def _unresolvable(case_id: str, object_id: str) -> Any:
     activity = parse_activity(
-        {
-            "type": "Accept",
-            "id": "https://example.org/activities/a-1",
-            "published": "2026-10-26T12:00:00Z",
-            "actor": CASE_MANAGER_ID,
-            "object": object_id,
-            "context": case_id,
-            "to": [_PARTICIPANT],
-        }
+        signed_body(
+            {
+                "type": "Accept",
+                "id": "https://example.org/activities/a-1",
+                "published": "2026-10-26T12:00:00Z",
+                "actor": CASE_MANAGER_ID,
+                "object": object_id,
+                "context": case_id,
+                "to": [_PARTICIPANT],
+            }
+        )
     )
     event = extract_event(activity)
     assert event.semantic_type is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
@@ -97,26 +100,28 @@ def _unresolvable(case_id: str, object_id: str) -> Any:
 
 def _proposal(actor: Any) -> Any:
     activity = parse_activity(
-        {
-            "type": "Create",
-            "id": "https://example.org/activities/create-proposal",
-            "published": "2026-10-26T12:00:00Z",
-            "actor": actor,
-            "to": [_CASE_ACTOR],
-            "object": {
-                "type": "CaseProposal",
-                "id": "https://example.org/proposals/p-1",
-                "attributedTo": _PARTICIPANT,
+        signed_body(
+            {
+                "type": "Create",
+                "id": "https://example.org/activities/create-proposal",
+                "published": "2026-10-26T12:00:00Z",
+                "actor": actor,
+                "to": [_CASE_ACTOR],
                 "object": {
-                    "type": "VulnerabilityReport",
-                    "id": "https://example.org/reports/r-1",
-                    "name": "A report",
-                    "content": "Details",
+                    "type": "CaseProposal",
+                    "id": "https://example.org/proposals/p-1",
                     "attributedTo": _PARTICIPANT,
+                    "object": {
+                        "type": "VulnerabilityReport",
+                        "id": "https://example.org/reports/r-1",
+                        "name": "A report",
+                        "content": "Details",
+                        "attributedTo": _PARTICIPANT,
+                    },
+                    "target": _CASE_ACTOR,
                 },
-                "target": _CASE_ACTOR,
-            },
-        }
+            }
+        )
     )
     return extract_event(activity)
 
@@ -164,22 +169,24 @@ class TestReferencesToFetch:
         case = make_case_with_case_manager(dl)
         missing = "urn:uuid:inner-not-held"
         activity = parse_activity(
-            {
-                "type": "Accept",
-                "id": "https://example.org/activities/a-nested",
-                "published": "2026-10-26T12:00:00Z",
-                "actor": CASE_MANAGER_ID,
-                "object": {
-                    "type": "Invite",
-                    "id": "https://example.org/activities/invite-1",
+            signed_body(
+                {
+                    "type": "Accept",
+                    "id": "https://example.org/activities/a-nested",
                     "published": "2026-10-26T12:00:00Z",
-                    "actor": _PARTICIPANT,
-                    "object": missing,
+                    "actor": CASE_MANAGER_ID,
+                    "object": {
+                        "type": "Invite",
+                        "id": "https://example.org/activities/invite-1",
+                        "published": "2026-10-26T12:00:00Z",
+                        "actor": _PARTICIPANT,
+                        "object": missing,
+                        "context": case.id_,
+                    },
                     "context": case.id_,
-                },
-                "context": case.id_,
-                "to": [_PARTICIPANT],
-            }
+                    "to": [_PARTICIPANT],
+                }
+            )
         )
         event = extract_event(activity)
         assert (
@@ -218,15 +225,17 @@ class TestReferencesToFetch:
         }
         dl.create(parse_activity(accept))
         activity = parse_activity(
-            {
-                "type": "Undo",
-                "id": "https://example.org/activities/undo-nested",
-                "published": "2026-10-26T12:00:00Z",
-                "actor": CASE_MANAGER_ID,
-                "object": accept,
-                "context": case.id_,
-                "to": [_PARTICIPANT],
-            }
+            signed_body(
+                {
+                    "type": "Undo",
+                    "id": "https://example.org/activities/undo-nested",
+                    "published": "2026-10-26T12:00:00Z",
+                    "actor": CASE_MANAGER_ID,
+                    "object": accept,
+                    "context": case.id_,
+                    "to": [_PARTICIPANT],
+                }
+            )
         )
         event = extract_event(activity)
         assert (

@@ -96,6 +96,7 @@ nav:
         - Annex F Behavior Trees as an Implementation Pattern: 'reference/vultron-spec/annex-f-behavior-trees.md'
         - Annex G Capability Shapes: 'reference/vultron-spec/annex-g-capability-shapes.md'
       - Open Questions: 'reference/vultron-spec/open-questions.md'
+      - Known Gaps: 'reference/vultron-spec/known-gaps.md'
       - Revision Log: 'reference/vultron-spec/revision-log.md'
     - Protocol Requirements: 'reference/specs/index.md'
     - Messages:

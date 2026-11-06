@@ -148,6 +148,11 @@ def _recipient_ids(to: object) -> list[str]:
     return [rid for rid in (_as_id(value) for value in values) if rid]
 
 
+def _is_past(number: int | None, order: SenderSequenceOrder) -> bool:
+    """Whether *number* is below *order*'s next expected number."""
+    return number is not None and number < order.next_expected
+
+
 class ClassifySequenceNumberNode(DataLayerActionWithPorts):
     """Say what the received activity's ``senderSequence`` is, once.
 
@@ -237,7 +242,9 @@ class ClassifySequenceNumberNode(DataLayerActionWithPorts):
             self.number,
             event.activity_id,
             redelivery=redelivery,
-            ledgered=redelivery
+            # A past number is a repeat when the ledger records it, record
+            # or no record (SYNC-21-018).
+            ledgered=_is_past(self.number, self.order)
             and is_ledgered_activity(dl, self.case_id, event.activity_id),
         )
         self.logger.debug(

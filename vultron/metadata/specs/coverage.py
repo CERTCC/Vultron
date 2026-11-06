@@ -40,7 +40,6 @@ SR-05-005, SR-05-017, SR-05-018.
 from __future__ import annotations
 
 import argparse
-import re
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -51,7 +50,8 @@ from pydantic import BaseModel, ConfigDict, computed_field
 from vultron.metadata.specs.marked_tests import (
     MarkedCase,
     issue_refs,
-    marked_cases_in,
+    marked_spec_ids,
+    read_marked_file,
 )
 from vultron.metadata.specs.registry import (
     SpecRegistry,
@@ -59,18 +59,6 @@ from vultron.metadata.specs.registry import (
     load_registry,
 )
 from vultron.metadata.specs.schema import IMPLEMENTER_KINDS, Spec, SpecKind
-
-SPEC_MARKER_RE = re.compile(r"(?<![\w.])pytest\.mark\.spec\(([^)]*)\)")
-"""One ``pytest.mark.spec(...)`` marker; group 1 is its argument list.
-
-Matches the decorator form and the ``pytestmark = pytest.mark.spec(...)``
-(or list) form alike.
-"""
-
-_QUOTED_ID_RE = re.compile(r'["\']([^"\']+)["\']')
-
-_KEYWORD_ARG_RE = re.compile(r"""\b\w+\s*=\s*(["'])[^"']*\1""")
-"""A ``name="value"`` keyword argument, whose value is not a spec ID."""
 
 
 class CoverageState(StrEnum):
@@ -186,22 +174,18 @@ class ImplementerCoverageReport(BaseModel):
 def marked_ids_in(sources: Iterable[str]) -> frozenset[str]:
     """Spec IDs referenced by ``@pytest.mark.spec`` markers in *sources*.
 
-    Each item of *sources* is one file's text. A plain regex pass; no AST.
-    A marker naming several IDs, ``@pytest.mark.spec("A", "B")``, covers
-    each of them; a keyword argument's string value is not an ID.
+    Each item of *sources* is one file's text, read by
+    :func:`~vultron.metadata.specs.marked_tests.marked_spec_ids`: every
+    ``mark.spec`` call counts, wherever it is, and marker text inside a string
+    literal or a comment does not. A marker naming several IDs,
+    ``@pytest.mark.spec("A", "B")``, covers each of them; a keyword argument
+    is not an ID.
 
     This set alone decides *untested*, so the SR-05-005 growth guard and the
     report agree on it; :mod:`~vultron.metadata.specs.marked_tests` only
     splits the marked IDs into verified and xfail-only.
     """
-    return frozenset(
-        spec_id.group(1)
-        for source in sources
-        for marker in SPEC_MARKER_RE.finditer(source)
-        for spec_id in _QUOTED_ID_RE.finditer(
-            _KEYWORD_ARG_RE.sub("", marker.group(1))
-        )
-    )
+    return frozenset().union(*(marked_spec_ids(source) for source in sources))
 
 
 def _read_files(test_root: Path) -> Iterator[tuple[Path, str]]:
@@ -214,14 +198,29 @@ def _read_files(test_root: Path) -> Iterator[tuple[Path, str]]:
             continue
 
 
-def _read_sources(test_root: Path) -> Iterator[str]:
-    return (source for _, source in _read_files(test_root))
+def _marked_ids_under(test_root: Path) -> frozenset[str]:
+    """:func:`marked_ids_in` of the files under *test_root*, naming a bad file."""
+    return frozenset().union(
+        *(
+            marked_spec_ids(source, path.as_posix())
+            for path, source in _read_files(test_root)
+        )
+    )
+
+
+def _marked_ids(
+    repo_root: Path, test_sources: Iterable[str] | None
+) -> frozenset[str]:
+    """The marked IDs of *test_sources*, or of ``test/`` under *repo_root*."""
+    if test_sources is None:
+        return _marked_ids_under(repo_root / "test")
+    return marked_ids_in(test_sources)
 
 
 def collect_marked_ids(test_root: Path) -> frozenset[str]:
     """Scan ``*.py`` files under *test_root* and return referenced spec IDs.
 
-    Uses a plain regex pass over each file; does not parse ASTs.
+    Reads each file as :func:`marked_ids_in` does.
 
     Args:
         test_root: Directory to scan recursively for ``*.py`` files.
@@ -229,8 +228,12 @@ def collect_marked_ids(test_root: Path) -> frozenset[str]:
     Returns:
         Frozen set of all spec ID strings referenced by ``@pytest.mark.spec``
         markers found under *test_root*.
+
+    Raises:
+        SyntaxError: A file with ``mark.spec`` text does not parse; the error
+            names the file.
     """
-    return marked_ids_in(_read_sources(test_root))
+    return _marked_ids_under(test_root)
 
 
 def _implementer_specs(registry: SpecRegistry) -> dict[str, Spec]:
@@ -277,9 +280,9 @@ def classify_requirements(
         cases: The marked test cases
             (:func:`~vultron.metadata.specs.marked_tests.marked_cases_in`).
             A marked ID is xfail-only when it has cases and each one is
-            held; otherwise it is verified. A marked ID with no case the
-            AST reader places in a test (one only the regex sees) counts
-            as verified.
+            held; otherwise it is verified. A marked ID with no case (its
+            call sits where the case reader does not look) counts as
+            verified.
     """
     by_id: dict[str, list[MarkedCase]] = {}
     for case in cases:
@@ -314,17 +317,15 @@ def compute_implementer_coverage(
         :class:`ImplementerCoverageReport` with every ``protocol`` and
         ``foundation`` requirement in its :class:`CoverageState`.
     """
-    files = list(_read_files(test_root))
     base = test_root.resolve().parent
-    cases = [
-        case
-        for path, source in files
-        for case in marked_cases_in(
-            path.resolve().relative_to(base).as_posix(), source
-        )
+    marked = [
+        read_marked_file(path.resolve().relative_to(base).as_posix(), source)
+        for path, source in _read_files(test_root)
     ]
     return classify_requirements(
-        registry, marked_ids_in(source for _, source in files), cases
+        registry,
+        frozenset().union(*(file.spec_ids for file in marked)),
+        [case for file in marked for case in file.cases],
     )
 
 
@@ -347,10 +348,8 @@ def uncovered_implementer_ids(
             reading ``test/`` — the architecture suite passes its shared
             ``test/architecture/_corpus.py`` sources here.
     """
-    if test_sources is None:
-        test_sources = _read_sources(repo_root / "test")
     implementer = _implementer_specs(load_registry(repo_root / "specs"))
-    return frozenset(implementer) - marked_ids_in(test_sources)
+    return frozenset(implementer) - _marked_ids(repo_root, test_sources)
 
 
 @dataclass(frozen=True)
@@ -371,9 +370,7 @@ def kinds_and_markers(
     :func:`vultron.metadata.specs.growth_guard.compare_with_base`. Arguments
     are as :func:`uncovered_implementer_ids` documents.
     """
-    if test_sources is None:
-        test_sources = _read_sources(repo_root / "test")
-    marked = marked_ids_in(test_sources)
+    marked = _marked_ids(repo_root, test_sources)
     registry = load_registry(repo_root / "specs")
     return {
         spec_id: KindAndMarker(spec.kind, spec_id in marked)

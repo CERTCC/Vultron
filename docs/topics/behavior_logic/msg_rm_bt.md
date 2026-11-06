@@ -82,7 +82,7 @@ A fallback node covers three major cases:
 
 - (B) The second case is an RM Error (*RE*).
     The recipient emits a general inquiry (*GI*), so that the Participants can find the cause of the problem.
-    The recipient also emits an *RK* to acknowledge receipt of the error.
+    The recipient does not acknowledge the error with *RK* ([VP-03-011](../../reference/vultron-spec/requirements/vultron-protocol.md#vp-03-011)), and it never answers the fault with a fault ([ASK-07-019](../../reference/vultron-spec/requirements/case-management.md#ask-07-019)).
 
 - (C) The third case covers most of the remaining RM messages.
     Each CVD Participant has its own RM process.
@@ -90,5 +90,6 @@ A fallback node covers three major cases:
     If a case already exists ($q^{rm} \not\in S$), the recipient can update its record of the sender state.
     No other action is necessary.
 
-For all three cases, an *RK* message acknowledges receipt of the message.
+For cases (A) and (C), an *RK* message acknowledges receipt of the message.
 The tree replies with an *RE* message to any message that it does not handle, to show an error.
+That reply never applies to a received *RE*: a fault is never answered with a fault ([ASK-07-019](../../reference/vultron-spec/requirements/case-management.md#ask-07-019)).

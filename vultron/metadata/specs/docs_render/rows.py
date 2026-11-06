@@ -149,8 +149,15 @@ def _render_behavioral_cell(spec: BehavioralSpec) -> str:
 def _render_requirement_cell(
     spec: Spec,
 ) -> str:
-    """Return the Requirement cell content for a spec table row."""
-    cell = f"{spec.statement}<br><br>*{spec.rationale}*"
+    """Return the Requirement cell content for a spec table row.
+
+    The statement and rationale are folded onto one line: a YAML ``>`` block
+    keeps a trailing newline and a ``|`` block keeps every line break, and
+    either inside a Markdown table cell ends the row.
+    """
+    statement = " ".join(spec.statement.split())
+    rationale = " ".join(spec.rationale.split())
+    cell = f"{statement}<br><br>*{rationale}*"
     if isinstance(spec, BehavioralSpec):
         eca = _render_behavioral_cell(spec)
         if eca:

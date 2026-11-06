@@ -62,7 +62,8 @@ The receiver may send the same fault again, with the same id and body, and the s
 This internal-error fault answers only a use case that failed: a body the inbox could not parse into an activity that names its sender never reaches one, and a processing fault that fails is not answered with another, so two receivers never answer each other's faults.
 The prototype inbox does not yet authenticate a sender, so it answers the actor the activity names; a fault to an unauthenticated sender is not allowed ([ASK-07-002](../vultron-spec/requirements/case-management.md#ask-07-002)).
 An activity the receiver will try again later is answered only when it stops trying, so a later success never follows a fault.
-This implementation does not ledger the fault, as it ledgers no processing fault; whether a case-attributable fault belongs in the ledger is not yet decided ([ASK-07-008](../vultron-spec/requirements/case-management.md#ask-07-008)).
+A processing fault is never recorded in the case ledger, at its sender or at the CASE_MANAGER, because it changes nothing in the case ([ASK-07-008](../vultron-spec/requirements/case-management.md#ask-07-008)).
+A received fault is never answered with a fault, whatever the reason it cannot be processed ([ASK-07-019](../vultron-spec/requirements/case-management.md#ask-07-019)).
 
 The formal fault shorthands have no dedicated wire counterpart ([MSM-05-001](../vultron-spec/requirements/messages.md#msm-05-001)).
 

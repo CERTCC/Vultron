@@ -62,6 +62,11 @@ from vultron.metadata.specs.verification_refs import (
     unmarked_named_test_ids,
 )
 
+# One worker runs all three guards, so the parse of the test tree that
+# ``marked_spec_ids`` caches by file text is paid once per run, not once per
+# guard on whichever worker each lands (#5880).
+pytestmark = pytest.mark.xdist_group("spec_coverage_ratchet")
+
 #: The trees :func:`uncovered_implementer_ids` reads.
 _GUARDED_PATHS = ("specs", "test")
 _TEST_ROOT = _corpus.REPO_ROOT / "test"

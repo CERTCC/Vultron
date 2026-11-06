@@ -220,10 +220,11 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   replica, HP-01-008), their admission guard, the guarded
   commit, then CASE_MANAGER-gated effects and notice, built on
   `ParticipantMoveGuardNode` / `ParticipantMoveEffectNode` /
-  `EmitParticipantMoveNoticeNode`. Every reinstatement guard failure is `REFUSED`,
-  never an idempotent skip. At a replica the received tree writes nothing; the entry is
-  replayed by the apply nodes, which resolve the record through
-  `actor_participant_index`.
+  `EmitParticipantMoveNoticeNode`. A reinstatement guard failure is `REFUSED`,
+  except a repeat of an `Add` the ledger already records, which
+  `ActivityNotYetLedgeredNode` skips first (CLP-05-006). At a replica the
+  received tree writes nothing; the entry is replayed by the apply nodes, which
+  resolve the record through `actor_participant_index`.
 - **`Add(CaseParticipant)` only reinstates** (CM-31-012). It is refused for a
   participant not removed or never joined, and nothing emits it after a stub-Invite
   acceptance: replicas learn of a new member from the entries for the messages

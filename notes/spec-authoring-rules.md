@@ -34,6 +34,7 @@ related_specs:
   - specs/actor-knowledge-model.yaml (AKM-05-003, the inline-object ruling)
   - specs/http-protocol.yaml (HTTP-03, the status-code ruling)
   - specs/inbox-endpoint.yaml (IE-07-001, IE-07-002, IE-11-001)
+  - specs/diataxis-requirements.yaml (DF-12-020, the known-gaps drift check)
 related_notes:
   - notes/specs-vs-adrs.md
   - notes/actor-knowledge-model.md
@@ -401,6 +402,10 @@ reports a requirement whose every marked test is a strict xfail as xfail-only,
 outside the coverage figure, and `--json` writes the `#N` its reason cites for
 the known-gaps page (SR-05-017, SR-05-018). Keep the reason a literal or an
 f-string of module string constants, which the reader resolves.
+
+Adding or removing the `xfail` changes the requirement's state, so regenerate
+the known-gaps fragment with `uv run docs-site --write` in the same PR; a stale
+fragment fails CI (DF-12-020).
 
 ---
 

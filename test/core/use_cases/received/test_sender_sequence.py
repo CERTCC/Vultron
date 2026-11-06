@@ -30,7 +30,12 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import ledger_entries
-from test.support.ledger_rebuild import rebuild_from_ledger, replay_inbox
+from test.support.ledger_rebuild import (
+    rebuild_from_ledger,
+    replay_inbox,
+    run_use_case,
+)
+from test.support.received import received_event
 from test.support.refusal_notice import (
     assert_no_refusal_notice,
     assert_refusal_notice,
@@ -54,7 +59,18 @@ from vultron.core.behaviors.sync.nodes.sender_sequence_drain import (
 from vultron.core.models._helpers import clock as helpers_clock, now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.sender_sequence import SenderSequenceOrder
+from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.services.received_activity import (
+    held_received_record,
+    sealed_body_of,
+)
+from vultron.core.services.received_holding import (
+    hold_for_replay,
+    release_from_holding,
+)
 from vultron.core.services.sender_sequence_order import (
+    SequenceStanding,
+    classify_sender_sequence,
     end_case_sender_sequence_holds,
 )
 from vultron.core.states.participant_embargo_consent import (
@@ -66,6 +82,7 @@ from vultron.core.use_cases.received.actor.accept_reject_case_participant_role i
 )
 from vultron.demo.determinism import SteppingClock
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
@@ -683,6 +700,80 @@ def test_a_repeat_is_found_by_id_before_its_number() -> None:
         assert_no_refusal_notice(
             net.stores[MANAGER], manager=MANAGER, refused_id=body["id"]
         )
+
+
+@pytest.mark.spec("SYNC-21-018")
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.parametrize(
+    ("ledgered", "last_judged", "redelivery", "expected"),
+    [
+        # Judged before: a repeat, record or no record (ADR-0154).
+        (False, True, False, SequenceStanding.JUDGED_REPEAT),
+        (True, False, False, SequenceStanding.JUDGED_REPEAT),
+        (True, False, True, SequenceStanding.JUDGED_REPEAT),
+        # Never judged: late on a first delivery, refused again on a repeat.
+        (False, False, False, SequenceStanding.LATE),
+        (False, False, True, SequenceStanding.REPEAT_REFUSED),
+    ],
+)
+def test_a_past_number_is_found_by_its_id_first(
+    ledgered: bool,
+    last_judged: bool,
+    redelivery: bool,
+    expected: SequenceStanding,
+) -> None:
+    activity_id = "urn:uuid:sender-sequence-past"
+    order = SenderSequenceOrder(
+        case_id="https://example.org/cases/sender-sequence-past",
+        sender_id=OWNER,
+        next_expected=3,
+        last_judged_id=activity_id if last_judged else "urn:uuid:other",
+    )
+
+    standing = classify_sender_sequence(
+        order, 1, activity_id, redelivery=redelivery, ledgered=ledgered
+    )
+
+    assert standing is expected
+
+
+@pytest.mark.spec("SYNC-21-018")
+@pytest.mark.spec("CLP-05-006")
+def test_a_replay_of_a_ledgered_activity_is_not_answered_as_late() -> None:
+    """The replay of a held re-run is found by its id, not refused as late.
+
+    The first run commits the note and its outcome is lost, so its record
+    stays in holding; the sender's next note is then judged, so the first
+    is no longer the one last judged.  A re-run held for a retry is
+    released for its replay, which deletes the record (ADR-0154), so only
+    the ledger shows the note was judged.  The replay must not refuse it
+    with a late-number notice (SYNC-21-014): it is a repeat (CLP-05-006).
+    """
+    net = _network("replay-ledgered")
+    manager_dl = net.stores[MANAGER]
+    first = _numbered(_note_body(net, "first"), 1)
+    event = received_event(
+        parse_activity(net.stamp(first, receiver=MANAGER)),
+        as_sent=True,
+        receiving_actor_id=MANAGER,
+    )
+    first_run = run_use_case(manager_dl, event)
+    assert first_run.disposition is HandlerDisposition.APPLIED
+    second = _numbered(_note_body(net, "second"), 2)
+    net.receive(MANAGER, second)
+    record = held_received_record(manager_dl, first["id"])
+    assert record is not None
+    assert hold_for_replay(manager_dl, first["id"], sealed_body_of(record))
+    assert release_from_holding(manager_dl, first["id"]) is not None
+    entries_before = len(ledger_entries(manager_dl, net.case_id))
+    queued_before = manager_dl.outbox_list()
+
+    replay = run_use_case(manager_dl, event)
+
+    assert replay.disposition is not HandlerDisposition.REFUSED, replay.reason
+    assert manager_dl.outbox_list() == queued_before
+    assert len(ledger_entries(manager_dl, net.case_id)) == entries_before
+    assert _committed_notes(net) == [_note_of(first), _note_of(second)]
 
 
 @pytest.mark.spec("SYNC-21-018")

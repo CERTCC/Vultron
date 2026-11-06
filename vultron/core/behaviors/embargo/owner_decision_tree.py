@@ -33,6 +33,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.ledgered_repeat import (
+    ActivityNotYetLedgeredNode,
+)
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
@@ -85,6 +88,7 @@ def activate_embargo_on_case_tree(
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
         ├─ IntakeReceivedActivityNode        # records what arrived (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
+        ├─ ActivityNotYetLedgeredNode        # a repeat is SKIPPED (CLP-05-006)
         ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
         ├─ OwnerMayActivateEmbargoNode       # P/X/A clear (EMB-02-002)
         ├─ ActivationAppliesNode             # decide + trial apply (ADR-0124)
@@ -146,6 +150,9 @@ def activate_embargo_on_case_tree(
         # The owner decides knowing of every timeout (CM-28-015).
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
+            # A repeat of the applied decision finds the proposal decided, so
+            # it is skipped before that guard refuses it (CLP-05-006).
+            ActivityNotYetLedgeredNode(case_id=case_id),
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
             OwnerMayActivateEmbargoNode(
                 case_id=case_id, embargo_id=embargo_id
@@ -193,6 +200,7 @@ def reject_embargo_proposal_on_case_tree(
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
         ├─ IntakeReceivedActivityNode        # records what arrived (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
+        ├─ ActivityNotYetLedgeredNode        # a repeat is SKIPPED (CLP-05-006)
         ├─ IsOpenEmbargoProposalNode         # read-only guard (CLP-10-009)
         ├─ OwnerRejectionAppliesNode         # trial REJECT (+ TERMINATE)
         └─ RejectEmbargoProposalOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
@@ -246,6 +254,9 @@ def reject_embargo_proposal_on_case_tree(
         # The owner decides knowing of every timeout (CM-28-015).
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
+            # A repeat of the applied decision finds the proposal decided, so
+            # it is skipped before that guard refuses it (CLP-05-006).
+            ActivityNotYetLedgeredNode(case_id=case_id),
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
             OwnerRejectionAppliesNode(case_id=case_id, embargo_id=embargo_id),
         ],

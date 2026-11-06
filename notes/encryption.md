@@ -95,11 +95,13 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
 - **Tests sign through `test/support/signing.py`**: `signed_body`, `resigned`
   (an altered copy, re-signed), `post_signed`. Proofs there are deterministic
   (seeded key, fixed `created`), so a resend is the archived bytes.
-  `delivered_body` in `test/support/received.py` signs what it returns, and
-  `body_of` and `hold_deferred` seed through it, so never wrap its result in
-  `signed_body` (a second proof raises). A test that alters a signed body
-  builds the copy with `resigned`, since an edit in place leaves a stale proof
-  that verification (#5386) refuses. A body read back from a sealed outbox is
+  `delivered_body` and `evidence_for` in `test/support/received.py` sign what
+  they return, and `body_of`, `hold_deferred` and `with_evidence` build on
+  them, so never wrap their result in `signed_body` (a second proof raises).
+  `LedgerNetwork.delivered_body` signs any body but the one its sender's
+  outbox sealed. A test that alters a signed body builds the copy with
+  `resigned`, since an edit in place leaves a stale proof that verification
+  (#5386) refuses. A body read back from a sealed outbox is
   signed by the outbox (#5382), never by the test.
 - **The parser sets `proof` aside** as a foreign key (MV-11-003), with one INFO
   record per delivery; the received evidence keeps it (SIG-04-001). Verification

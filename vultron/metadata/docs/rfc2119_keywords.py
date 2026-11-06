@@ -100,6 +100,7 @@ RECONCILED_FRAGMENTS: tuple[str, ...] = (
     "reference/vultron-spec/_oq-role-acquisition.md",
     "reference/vultron-spec/_oq-transport-status-codes.md",
     "reference/vultron-spec/_oq-v-to-V.md",
+    "reference/vultron-spec/_known-gaps.md",
 )
 """``docs/``-relative fragments the keyword check enforces (DF-12-013)."""
 
