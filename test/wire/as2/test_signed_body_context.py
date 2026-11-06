@@ -41,7 +41,11 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 ACTOR = "https://example.org/actors/finder"
 CASE_ID = "https://example.org/cases/signed-context"
-SIGNED_CONTEXT = [VULTRON_CONTEXT_URI, DATA_INTEGRITY_CONTEXT]
+SIGNED_CONTEXT = [
+    ACTIVITY_STREAMS_NS,
+    VULTRON_CONTEXT_URI,
+    DATA_INTEGRITY_CONTEXT,
+]
 
 
 def _signed_add_note() -> dict[str, Any]:

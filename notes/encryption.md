@@ -21,6 +21,7 @@ related_specs:
   - specs/message-validation.yaml
   - specs/actor-knowledge-model.yaml
   - specs/error-handling.yaml
+  - specs/vocabulary-model.yaml
 related_notes:
   - archived_notes/federation_ideas.md
   - notes/case-ledger-genesis-hardening.md
@@ -85,8 +86,9 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   parsers disagree on both.
 - **A signed activity's `@context` is a list.** Signing appends
   `https://w3id.org/security/data-integrity/v2` to the activity's own
-  `@context`, as FEP-8b32's examples do and other implementers expect, so a
-  single context becomes a list. `@context` on the wire and core roots is
+  `@context`, as FEP-8b32's examples do and other implementers expect, so the
+  default AS2-then-Vultron list (VM-10-001) gains a third entry and a single
+  received context becomes a list. `@context` on the wire and core roots is
   `JsonLdContext` (`vultron/core/models/base/context.py`): one IRI or a
   non-empty list of IRIs, never an inline term map; reuse it, do not widen a
   field again.

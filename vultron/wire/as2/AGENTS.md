@@ -185,16 +185,12 @@ and
 for all AS2 pitfalls (pattern matching, Union serialization, wire format vs.
 domain model, `serialize_as_any=True`, rehydration, bootstrap activities, etc.).
 
-**Outbound `@context` MUST cite the Vultron namespace, not only AS2** —
-`as_Base.context_`, and so every activity, MUST default to the Vultron JSON-LD
-context URI (`https://certcc.github.io/Vultron/ns/context.jsonld`), not the bare
-ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`). The AS2
-namespace does not declare Vultron-specific types (`VulnerabilityCase`,
-`EmbargoEvent`, etc.); using it alone means receivers cannot resolve those type
-names. The Vultron context document imports AS2 internally, so citing only the
-Vultron URI is both correct and sufficient. Domain types are core
-`CoreObject`s (ARCH-25-003), not `as_VultronObject` subclasses: they get
-the same context from `CoreObject`'s `by_alias` serializer, not from delivery
-(#3490). Defaulting it only on Vultron objects left the outer activity on AS2
-(#5168). See VM-10-001, ADR-0069.
+**Outbound `@context` is AS2-then-Vultron, top level only** — the list is
+`DEFAULT_JSONLD_CONTEXT` (`vultron/core/models/base/context.py`, VM-10-001). AS2
+is what a non-JSON-LD receiver looks for; citing the Vultron URI alone fails,
+since a receiver need not fetch it (VM-10-003, #6006). Both roots place it via
+`serialize_with_top_level_context`, so nested objects never restate it; a
+subclass with its own `model_serializer` MUST delegate to `as_Base._as2_document`
+(`as_Activity` does). A non-default (received) context is kept at any depth.
+See VM-10-004/005, ADR-0069.
 *Source: CONCERN-2105*

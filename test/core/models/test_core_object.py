@@ -20,6 +20,7 @@ from vultron.core.models import (
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import VULTRON_CONTEXT_URI, CoreRecord
+from vultron.core.models.base.context import DEFAULT_JSONLD_CONTEXT
 from vultron.core.models.base.record import concrete_type_annotation
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import (
@@ -154,14 +155,29 @@ def _assert_core_context_refused(context: object) -> None:
     assert {error["loc"][0] for error in raised.value.errors()} == {"@context"}
 
 
-def test_core_object_context_defaults_to_the_vultron_uri_on_the_wire():
-    """An object carrying no context still declares the Vultron one.
+@pytest.mark.spec("VM-10-002")
+def test_core_object_context_defaults_to_the_list_on_the_wire():
+    """An object carrying no context still declares AS2 then Vultron.
 
-    VM-10-001 requires it on Vultron-specific types; the ActivityStreams
-    namespace alone is not sufficient for types AS2 does not define.
+    VM-10-001 requires the list on every outbound top-level document.
     """
     as2 = CoreObject().model_dump(by_alias=True, exclude_none=True)
-    assert as2["@context"] == VULTRON_CONTEXT_URI
+    assert as2["@context"] == list(DEFAULT_JSONLD_CONTEXT)
+
+
+@pytest.mark.spec("VM-10-002")
+def test_core_object_reads_the_default_list_back_as_no_override():
+    """The default list reads back as ``None``, so a dump round-trips equal.
+
+    A single Vultron URI, the pre-#6006 default, is not the default any more,
+    so it is kept as the context the object arrived with.
+    """
+    obj = CoreObject()
+    again = CoreObject.model_validate(obj.model_dump(by_alias=True))
+    assert again.context_ is None
+    assert again == obj
+    single = CoreObject.model_validate({"@context": VULTRON_CONTEXT_URI})
+    assert single.context_ == VULTRON_CONTEXT_URI
 
 
 def test_core_object_context_empty_string_rejected():

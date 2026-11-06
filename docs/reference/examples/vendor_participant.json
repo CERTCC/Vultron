@@ -1,4 +1,8 @@
 {
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/vendorco",
   "type": "CaseParticipant",
   "name": "VendorCo",
@@ -21,11 +25,9 @@
       "caseEngagement": true,
       "cvdRole": [
         "OBSERVER"
-      ],
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      ]
     }
   ],
   "embargoConsents": [],
-  "joined": true,
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  "joined": true
 }

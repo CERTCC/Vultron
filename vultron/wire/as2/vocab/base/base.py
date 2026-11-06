@@ -20,7 +20,10 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
     ValidationInfo,
+    model_serializer,
     model_validator,
 )
 from pydantic.alias_generators import to_camel
@@ -35,6 +38,13 @@ from vultron.core.models.base import (
     VULTRON_PROPERTY_KEY,
     JsonLdContext,
 )
+from vultron.core.models.base.context import (
+    ACTIVITY_STREAMS_NS,
+    DEFAULT_JSONLD_CONTEXT,
+    default_jsonld_context,
+    is_default_jsonld_context,
+    serialize_with_top_level_context,
+)
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
@@ -46,18 +56,18 @@ from vultron.wire.as2.vocab.base.registry import (
 )
 from vultron.wire.as2.vocab.base.utils import generate_new_id
 
-ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
 #: The Vultron vocabulary namespace IRI, bound to the ``vultron:`` prefix in the
 #: generated ``docs/ns/context.jsonld``. Distinct from ``VULTRON_CONTEXT_URI``,
 #: which is the URL of the context *document*; this is the term namespace it
 #: defines (VM-10-002). Single source of truth for the context generator.
 VULTRON_NS_URI = "https://certcc.github.io/Vultron/ns#"
 
-# Re-exported: this was the constant's original home, and wire-layer callers
-# import it from here.  It now lives in core, because core objects are what
-# carry it under ADR-0099 and core cannot import wire (ARCH-01-001).
+# Re-exported: this was the constants' original home, and wire-layer callers
+# import them from here.  They now live in core, because core objects are what
+# carry them under ADR-0099 and core cannot import wire (ARCH-01-001).
 __all__ = [
     "ACTIVITY_STREAMS_NS",
+    "DEFAULT_JSONLD_CONTEXT",
     "VULTRON_CONTEXT_URI",
     "VULTRON_NS_URI",
     "VULTRON_PROPERTY_EXTRA",
@@ -106,15 +116,14 @@ class as_Base(BaseModel):
         if not is_wire_type_alias(cls):
             WIRE_TYPE_MAP[wire_type_value(cls)] = cls
 
-    # Every outbound object cites the Vultron context, activities included
-    # (VM-10-001, #5168): that document imports AS2 and declares every Vultron
-    # term, so it is a superset of ``ACTIVITY_STREAMS_NS`` and a receiver can
-    # expand ``VulnerabilityCase`` or ``EmbargoEvent`` from the activity's own
-    # context.  An inbound body citing only the AS2 namespace still parses and
-    # keeps the context it arrived with (permissive receive), and so does one
-    # whose context is a list, as every signed body's is (FEP-8b32).
+    # Every outbound document cites AS2 and then the Vultron context
+    # (VM-10-001): AS2 so a plain-JSON AS2 receiver recognizes it, Vultron so
+    # ``VulnerabilityCase`` or ``EmbargoEvent`` expand.  The serializer emits
+    # the default on the top-level document only.  An inbound body citing a
+    # single string, or any other list (every signed body's is one, FEP-8b32),
+    # still parses and keeps the context it arrived with (permissive receive).
     context_: JsonLdContext = Field(
-        default=VULTRON_CONTEXT_URI,
+        default_factory=default_jsonld_context,
         validation_alias="@context",
         serialization_alias="@context",
     )
@@ -179,6 +188,33 @@ class as_Base(BaseModel):
                 self, "type_", self.__class__.__name__.removeprefix("as_")
             )
         return self
+
+    @model_serializer(mode="wrap")
+    def _serialize_with_top_level_context(
+        self,
+        handler: SerializerFunctionWrapHandler,
+        info: SerializationInfo,
+    ) -> Any:
+        """Emit ``@context`` on the top-level AS2 document only (VM-10-001)."""
+        return self._as2_document(handler, info)
+
+    def _as2_document(
+        self,
+        handler: SerializerFunctionWrapHandler,
+        info: SerializationInfo,
+    ) -> Any:
+        """Dump this object, with ``@context`` placed per VM-10-001.
+
+        A subclass that declares its own ``model_serializer`` replaces
+        :meth:`_serialize_with_top_level_context`, so it calls this to keep the
+        rule (``as_Activity``).
+        """
+        explicit = (
+            None if is_default_jsonld_context(self.context_) else self.context_
+        )
+        return serialize_with_top_level_context(
+            lambda: handler(self), info, explicit
+        )
 
     def to_json(self, **kwargs):
         """Serialize the model to a JSON string, excluding None values and using aliases."""

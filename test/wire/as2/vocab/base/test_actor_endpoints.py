@@ -281,7 +281,6 @@ def test_serialized_endpoints_carry_only_address_type_and_items():
 
     for field_name in _ENDPOINTS:
         assert dumped[field_name] == {
-            "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
             "id": f"{ACTOR_ID}/{field_name}",
             "type": "OrderedCollection",
             "items": [],
