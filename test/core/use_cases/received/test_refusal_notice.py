@@ -326,9 +326,12 @@ def test_a_rerun_whose_stub_was_never_written_queues_no_second_notice():
 @pytest.mark.spec("CLP-10-044")
 @pytest.mark.spec("RSH-06-004")
 def test_a_rerun_of_a_refused_rm_regression_records_no_second_note():
-    """The RSH-06-004 note is a refusal effect whose id is minted, so only
-    the skip on a re-run keeps a lost receipt stub from committing a second
-    note and announcing it (CLP-10-044, CLP-10-048)."""
+    """A lost receipt stub commits and announces no second RSH-06-004 note.
+
+    The re-run reads the record intake marked ``HANDLED`` and skips the
+    refusal effects (CLP-10-044); the note's id is derived as well, so a
+    re-run that reached them would record nothing twice either
+    (``test_case_manager_note_rerun.py``, CLP-10-048)."""
     from vultron.core.states.em import EM
     from vultron.core.states.rm import RM
 

@@ -74,6 +74,7 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
     """
 
     _BEST_EFFORT = True
+    _NOTE_KIND = "pxa-em-invariant"
 
     def __init__(
         self,

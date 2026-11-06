@@ -24,7 +24,11 @@ tree -- the close-case tree's inner one -- is checked where it runs.  In each
 - intake is the child right after the last door guard, so a message a door
   turns away is never held in full;
 - the addressee check, where the tree carries it, comes before the
-  seen-before door, in ADR-0154's order.
+  seen-before door, in ADR-0154's order;
+- a tree built ``nested`` has no seen-before door and no intake of its own,
+  and runs inside a tree that has both, after that tree's intake: a second
+  intake would meet the record the first wrote and read a first run as a
+  re-run (ADR-0154).
 """
 
 import py_trees
@@ -59,13 +63,48 @@ def _index(tree: ReceivedActivityTree, node_type: type) -> list[int]:
     ]
 
 
+def _enclosing_intake_ran_first(tree: ReceivedActivityTree) -> bool:
+    """Whether a non-nested received tree holds *tree* after its intake."""
+    child: py_trees.behaviour.Behaviour = tree
+    parent = tree.parent
+    while parent is not None:
+        if isinstance(parent, ReceivedActivityTree) and not parent.nested:
+            position = parent.children.index(child)
+            intake = _index(parent, IntakeReceivedActivityNode)
+            return bool(intake) and intake[0] < position
+        child, parent = parent, parent.parent
+    return False
+
+
+def _inside_a_received_tree(tree: ReceivedActivityTree) -> bool:
+    parent = tree.parent
+    while parent is not None:
+        if isinstance(parent, ReceivedActivityTree):
+            return True
+        parent = parent.parent
+    return False
+
+
 def _misplaced(tree: ReceivedActivityTree) -> list[str]:
     """What is out of the staged order in *tree*'s own children."""
     problems: list[str] = []
+    if not tree.nested and _inside_a_received_tree(tree):
+        # Its intake would meet the enclosing tree's record and read the
+        # first run as a re-run (ADR-0154).
+        return ["received tree inside another, not built nested"]
     seen = _index(tree, ActivityNotSeenBeforeNode)
     intake = _index(tree, IntakeReceivedActivityNode)
     addressee = _index(tree, ActivityAddressedToReceiverNode)
     doors = len(tree.door_guards)
+    if tree.nested:
+        if seen or intake:
+            problems.append(
+                f"nested tree has a seen-before door at {seen} or intake at"
+                f" {intake}"
+            )
+        if not _enclosing_intake_ran_first(tree):
+            problems.append("nested tree not after an enclosing intake")
+        return problems
     if len(seen) != 1 or tree.children[seen[0]] not in tree.door_guards:
         problems.append(f"seen-before door at {seen}, not one door guard")
     if intake != [doors]:
@@ -75,6 +114,7 @@ def _misplaced(tree: ReceivedActivityTree) -> list[str]:
     return problems
 
 
+@pytest.mark.spec("CLP-10-081")
 @pytest.mark.spec("CLP-10-010")
 @pytest.mark.spec("CLP-10-017")
 def test_every_received_tree_runs_its_doors_before_intake() -> None:
@@ -98,3 +138,37 @@ def test_the_check_reports_a_tree_built_out_of_order() -> None:
         name="Control", children=[intake, door], door_guards=[door]
     )
     assert _misplaced(tree) == ["intake at [0], not right after 1 doors"]
+
+
+@pytest.mark.spec("CLP-10-081")
+@pytest.mark.spec("CLP-10-010")
+def test_the_check_reports_a_tree_nested_without_the_flag() -> None:
+    """A control: an inner tree that forgot ``nested=True`` is reported."""
+    inner_door = ActivityNotSeenBeforeNode(label="Inner")
+    inner = ReceivedActivityTree(
+        name="Inner",
+        children=[inner_door, IntakeReceivedActivityNode()],
+        door_guards=[inner_door],
+    )
+    door = ActivityNotSeenBeforeNode(label="Outer")
+    ReceivedActivityTree(
+        name="Outer",
+        children=[door, IntakeReceivedActivityNode(), inner],
+        door_guards=[door],
+    )
+    assert _misplaced(inner) == [
+        "received tree inside another, not built nested"
+    ]
+
+
+@pytest.mark.spec("CLP-10-010")
+def test_the_check_reports_a_nested_tree_with_its_own_intake() -> None:
+    """A control: a nested tree that records the message again is reported."""
+    intake = IntakeReceivedActivityNode()
+    nested = ReceivedActivityTree(
+        name="Inner", children=[intake], door_guards=[], nested=True
+    )
+    assert _misplaced(nested) == [
+        "nested tree has a seen-before door at [] or intake at [0]",
+        "nested tree not after an enclosing intake",
+    ]

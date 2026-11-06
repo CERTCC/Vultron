@@ -50,9 +50,6 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     DiversionStage,
 )
-from vultron.core.behaviors.case.nodes.seen_before import (
-    ActivityNotSeenBeforeNode,
-)
 from vultron.core.behaviors.idempotency import ReportsIdempotentRepeat
 
 logger = logging.getLogger(__name__)
@@ -93,6 +90,9 @@ class PreconditionGuardStage(py_trees.composites.Composite):
     Children, in order:
 
     - ``guards`` — a ``Sequence`` of the tree's precondition guards;
+    - ``first_run`` — a condition that succeeds when no earlier run began
+      handling the message, read from its record
+      (:class:`~vultron.core.behaviors.case.nodes.earlier_run.FirstRunOfMessageNode`);
     - ``refusal`` — the refusal effects, wrapped by the factory.
 
     Returns:
@@ -108,13 +108,15 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         the refusal effects are skipped too (CLP-10-070).  A resend of a
         refused activity never reaches this stage: the seen-before door
         answers it from its receipt stub (ADR-0154).  The re-run of a record
-        a run left in holding, which *seen_door* tells (``rerun``), skips
-        the refusal effects too (``skipped_as_redelivery``): the first run
-        may already have answered the refusal, and its receipt stub was
+        a run left in holding, which ``first_run`` reads from the record,
+        skips the refusal effects too (``skipped_as_redelivery``): the first
+        run may already have answered the refusal, and its receipt stub was
         then lost, so a refused activity is answered at most once
         (CLP-10-044).  A refusal effect writes no state but the RSH-06-004
         note (CLP-10-048), so nothing records that the effects ran: a re-run
-        whose first run never reached them is not answered either.
+        whose first run never reached them is not answered either.  The
+        effects' own ids are derived, so even a re-run that ran them would
+        send and commit nothing twice (ID-04-004).
 
         RUNNING while the guards or the refusal effects are running.
     """
@@ -125,10 +127,9 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         guards: py_trees.behaviour.Behaviour,
         refusal: py_trees.behaviour.Behaviour,
         *,
-        seen_door: ActivityNotSeenBeforeNode,
+        first_run: py_trees.behaviour.Behaviour,
     ) -> None:
-        super().__init__(name=name, children=[guards, refusal])
-        self._seen_door = seen_door
+        super().__init__(name=name, children=[guards, first_run, refusal])
         self.skipped_as_redelivery = False
         self.skipped_as_repeat = False
         self.skipped_as_diversion = False
@@ -141,9 +142,14 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         return self.children[0]
 
     @property
+    def first_run(self) -> py_trees.behaviour.Behaviour:
+        """The condition that this run is the first to handle the message."""
+        return self.children[1]
+
+    @property
     def refusal(self) -> py_trees.behaviour.Behaviour:
         """The refusal effects, run only when :attr:`guards` refuse."""
-        return self.children[1]
+        return self.children[2]
 
     def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
         """Tick the guards, then the refusal effects if the guards failed.
@@ -182,16 +188,31 @@ class PreconditionGuardStage(py_trees.composites.Composite):
             self._fail()
             yield self
             return
+        self.current_child = self.first_run
+        yield from self.first_run.tick()
+        if self.first_run.status != Status.SUCCESS:
+            # The guards' refusal is the reason the run reports, not the
+            # condition's answer (BTBridge follows the last failed child).
+            self.first_run.stop(Status.INVALID)
+            self.skipped_as_redelivery = True
+            logger.debug(
+                "%s: re-run of an activity a run left in holding — refusal"
+                " effects skipped (CLP-10-044)",
+                self.name,
+            )
+            self._fail()
+            yield self
+            return
         self.refusal_reason = BTBridge.get_failure_reason(self.guards)
         yield from self._tick_refusal()
 
     def _skips_refusal_effects(self) -> bool:
         """True, with its flag set, when the guards' failure is no refusal.
 
-        A repeat (``skipped_as_repeat``), a diverted delivery
-        (``skipped_as_diversion``) and the re-run of a record a run left in
-        holding (``skipped_as_redelivery``) are each already answered, or
-        owe no answer (CLP-10-044, CLP-10-070).
+        A repeat (``skipped_as_repeat``) and a diverted delivery
+        (``skipped_as_diversion``) are each already answered, or owe no
+        answer (CLP-10-044, CLP-10-070).  The re-run of a record a run left
+        in holding is the ``first_run`` child's question, asked next.
         """
         if self._failed_as_repeat():
             self.skipped_as_repeat = True
@@ -206,14 +227,6 @@ class PreconditionGuardStage(py_trees.composites.Composite):
             logger.debug(
                 "%s: the delivery was diverted — its diversion answered it,"
                 " so refusal effects skipped (CLP-10-026)",
-                self.name,
-            )
-            return True
-        if self._seen_door.rerun:
-            self.skipped_as_redelivery = True
-            logger.debug(
-                "%s: re-run of an activity a run left in holding — refusal"
-                " effects skipped (CLP-10-044)",
                 self.name,
             )
             return True

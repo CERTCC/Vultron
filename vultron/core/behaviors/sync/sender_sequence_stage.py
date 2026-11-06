@@ -38,8 +38,6 @@ A held activity is judged later, as a delivery of its own, once it is due
 (``queue_due_sender_sequence_replays``).
 """
 
-from collections.abc import Callable
-
 import py_trees
 
 from vultron.core.behaviors.act_transaction import RefusalActTransaction
@@ -87,21 +85,18 @@ def _arm(
 def create_sender_sequence_stage(
     case_id: str,
     sender_id: str,
-    *,
-    is_redelivery: Callable[[], bool] | None = None,
 ) -> CaseManagerGate:
     """The CASE_MANAGER's judgment of *sender_id*'s number on *case_id*.
 
     Runs only at the case's CASE_MANAGER; a store that does not hold the
-    case skips it at ``debug`` level.  *is_redelivery* tells the re-run of an
-    activity a run left in holding, which the factory reads from the
-    seen-before door; a resend never reaches this stage (ADR-0154).
+    case skips it at ``debug`` level.  The classifier tells the re-run of an
+    activity a run left in holding from the message's record; a resend never
+    reaches this stage (ADR-0154).
     """
     classify = ClassifySequenceNumberNode(
         case_id=case_id,
         sender_id=sender_id,
         name="ClassifySenderSequence",
-        is_redelivery=is_redelivery,
     )
     answer = py_trees.composites.Selector(
         name="AnswerBySenderSequence",

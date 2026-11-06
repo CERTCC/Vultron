@@ -48,7 +48,6 @@ A tree whose activity takes no number names a registered
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Final, cast
 
 import py_trees
@@ -68,7 +67,10 @@ from vultron.core.models.events.base import LedgerPositionedEvent
 from vultron.core.models.sender_sequence import SenderSequenceOrder
 from vultron.core.participants.role_predicate import has_role
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.received_activity import held_received_body
+from vultron.core.services.received_activity import (
+    began_in_an_earlier_run,
+    held_received_body,
+)
 from vultron.core.services.sender_sequence_order import (
     JUDGED,
     NOTICED,
@@ -178,13 +180,10 @@ class ClassifySequenceNumberNode(DataLayerActionWithPorts):
         case_id: str,
         sender_id: str,
         name: str | None = None,
-        *,
-        is_redelivery: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.sender_id = sender_id
-        self.redelivery_check = is_redelivery
         self.activity: object | None = None
         self.standing: SequenceStanding = SequenceStanding.NOT_NUMBERED
         self.order: SenderSequenceOrder | None = None
@@ -228,8 +227,10 @@ class ClassifySequenceNumberNode(DataLayerActionWithPorts):
             event.activity.sender_sequence if event.activity else None
         )
         self.order = sender_sequence_order(dl, self.case_id, self.sender_id)
-        redelivery = (
-            self.redelivery_check() if self.redelivery_check else False
+        # The re-run of a record a run left in holding, read from the
+        # record intake marked (SYNC-21-018, ADR-0154).
+        redelivery = began_in_an_earlier_run(
+            dl, event.activity_id, intake_ran=True
         )
         self.standing = classify_sender_sequence(
             self.order,

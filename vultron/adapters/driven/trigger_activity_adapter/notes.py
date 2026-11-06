@@ -71,8 +71,21 @@ class _NotesMixin:
         context_id: str,
         attributed_to: str,
         in_reply_to: str | None = None,
+        note_id: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a Note object; return ``(note_id, note_dict)``."""
+        """Create and persist a Note object; return ``(note_id, note_dict)``.
+
+        A *note_id* the caller derived names the note a re-run's first run
+        stored, so the note stored is handed back as it is and nothing is
+        stored twice (ID-04-004).  Without one the id is minted.
+        """
+        if note_id is not None and self._dl.read(note_id) is not None:
+            stored = _note_for_wire(self._dl, note_id)
+            logger.debug(
+                "create_note: note '%s' is already stored; returning it",
+                note_id,
+            )
+            return note_id, stored.model_dump_json(**OUTBOUND_DUMP_KWARGS)
         note = as_Note(
             name=name,
             content=content,
@@ -80,6 +93,8 @@ class _NotesMixin:
             attributed_to=attributed_to,
             in_reply_to=in_reply_to,
         )
+        if note_id is not None:
+            note = note.model_copy(update={"id_": note_id})
         try:
             self._dl.create(note)
         except VultronAlreadyExistsError:

@@ -34,7 +34,9 @@ from typing import Any
 
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
+    HOLDING_STAGES,
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
@@ -53,6 +55,35 @@ def held_received_record(
     """
     record = dl.read(ReceivedActivityRecord.build_id(activity_id))
     return record if isinstance(record, ReceivedActivityRecord) else None
+
+
+def began_in_an_earlier_run(
+    dl: CasePersistence, activity_id: str, *, intake_ran: bool
+) -> bool:
+    """Whether a run before this one began handling *activity_id*.
+
+    Read from the message's record, never from what an earlier stage of this
+    run left in memory (ADR-0154).  *intake_ran* says where the asking stage
+    sits in its tree, because intake is the stage that records the answer:
+
+    - after intake, the run is a re-run when the record is ``HANDLED``:
+      intake moves the ``HELD`` record an earlier run left there, and leaves
+      the ``HELD`` record it writes itself on a first run as it is;
+    - before intake (the post-close stage), it is a re-run when a record
+      owed no replay is already in holding: only an earlier run's intake
+      writes one, since a replay deletes the record it routes and the doors
+      write nothing.
+
+    A message a run is re-running may already have been answered by that
+    run (its ledger position, its sender's number, its refusal), so a stage
+    that answers a delivery once asks this first.
+    """
+    record = held_received_record(dl, activity_id)
+    if record is None or record.replay_owed:
+        return False
+    if intake_ran:
+        return record.stage is ReceivedStage.HANDLED
+    return record.stage in HOLDING_STAGES
 
 
 def holds_received_activity(dl: CasePersistence, activity_id: str) -> bool:
@@ -194,6 +225,7 @@ def read_held_activity(
 
 
 __all__ = [
+    "began_in_an_earlier_run",
     "held_received_body",
     "held_received_record",
     "holds_activity",
