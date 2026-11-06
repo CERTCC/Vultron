@@ -312,8 +312,8 @@ class TestUnaddressedCopyReason:
             f"'{_BYSTANDER}' is neither the sender nor a recipient of"
             f" RemoveEmbargoFromCaseBT '{_CASE}/activities/a2'"
             f" (to=['{_MANAGER}']); a copy that names it only in cc, bto or"
-            " bcc is not addressed to it (HP-10-001, ADR-0109), and an"
-            " unaddressed copy is refused (HP-01-005)"
+            " bcc is not addressed to it (ADR-0109), and an unaddressed copy"
+            " is refused (HP-01-005)"
         )
 
     @pytest.mark.spec("HP-10-001")

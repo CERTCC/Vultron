@@ -247,8 +247,7 @@ def unaddressed_copy_reason(
         f"'{receiving_actor_id}' is neither the sender nor a recipient of"
         f" {label} '{getattr(event, 'activity_id', None)}' (to={to});"
         " a copy that names it only in cc, bto or bcc is not addressed to it"
-        " (HP-10-001, ADR-0109), and an unaddressed copy is refused"
-        " (HP-01-005)"
+        " (ADR-0109), and an unaddressed copy is refused (HP-01-005)"
     )
 
 

@@ -111,11 +111,17 @@ def test_eligibility_without_a_received_event_is_not_a_decline(caplog):
         )
     assert result.status == Status.FAILURE
     assert node.not_named_in_to is False
-    assert any(r.levelname == "ERROR" for r in caplog.records)
+    assert "no received event" in node.feedback_message
+    assert any(
+        r.levelname == "ERROR" and "no received event" in r.getMessage()
+        for r in caplog.records
+    )
 
 
 def test_eligibility_wiring_fault_is_not_a_decline():
-    """A missing DataLayer fails the node without reading as a decline."""
+    """A missing DataLayer fails the node without reading as a decline,
+    even when an earlier tick of the same node declined."""
     node = CheckOfferNamesReceiverInToNode()
+    node.not_named_in_to = True
     assert node.update() is Status.FAILURE
     assert node.not_named_in_to is False

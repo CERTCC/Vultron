@@ -142,10 +142,10 @@ class CheckOfferNamesReceiverInToNode(DataLayerConditionWithPorts):
         self._event = self._try_get_input("activity")
 
     def update(self) -> Status:
+        self.not_named_in_to = False
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None and self.actor_id is not None
-        self.not_named_in_to = False
         if self._event is None:
             self.feedback_message = (
                 "no received event on the blackboard to read the Offer's to"
