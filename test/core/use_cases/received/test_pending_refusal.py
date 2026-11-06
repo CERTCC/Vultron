@@ -38,6 +38,10 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
     record_pending_assertion,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.use_cases.received._pending_refusal import (
+    close_refused_embargo_ask,
+)
 from vultron.core.use_cases.received.embargo import (
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
@@ -60,16 +64,26 @@ _OTHER = "https://example.org/actors/refusal-other"
 _INVITE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
 
 
-def _proposer_with_pending_proposal() -> tuple[
-    SqliteDataLayer, VulnerabilityCase, as_Invite
-]:
-    """The proposer's replica: its ask to the manager is pending."""
+def _proposer_with_pending_proposal(
+    *,
+    manager_roster_id: str = _MANAGER,
+    other_is_case_manager: bool = False,
+) -> tuple[SqliteDataLayer, VulnerabilityCase, as_Invite]:
+    """The proposer's replica: its ask to the manager is pending.
+
+    *manager_roster_id* is how the roster spells the manager: the
+    ``attributed_to`` a peer wrote inside an activity, which the extractor
+    does not normalise as it does a sender id (OID-01-007).  With
+    *other_is_case_manager* the roster also records ``CVDRole.CASE_MANAGER``
+    on ``_OTHER``, listed after the manager — the window a role delegation
+    opens (CM-33).
+    """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_PROPOSER)
     for actor_id in (_PROPOSER, _MANAGER, _OTHER):
         dl.create(as_Service(id_=actor_id, name=actor_id.rsplit("/", 1)[-1]))
     case = VulnerabilityCase(name="Refusal case", attributed_to=_MANAGER)
     manager = VendorParticipant(
-        attributed_to=_MANAGER,
+        attributed_to=manager_roster_id,
         context=case.id_,
     )
     manager.add_role(CVDRole.CASE_MANAGER)
@@ -80,9 +94,11 @@ def _proposer_with_pending_proposal() -> tuple[
         )
         for actor_id in (_PROPOSER, _OTHER)
     ]
+    if other_is_case_manager:
+        finders[1].add_role(CVDRole.CASE_MANAGER)
     case.case_participants = [manager.id_, *(f.id_ for f in finders)]
     case.actor_participant_index = {
-        _MANAGER: manager.id_,
+        manager_roster_id: manager.id_,
         _PROPOSER: finders[0].id_,
         _OTHER: finders[1].id_,
     }
@@ -100,24 +116,33 @@ def _proposer_with_pending_proposal() -> tuple[
     return dl, case, proposal
 
 
-def _receive_reject(
+def _reject_event(
     dl: SqliteDataLayer,
     proposal: as_Invite,
     case_id: str,
     rejecting_actor_id: str,
-) -> None:
+) -> RejectInviteToEmbargoOnCaseReceivedEvent:
     reject = em_reject_embargo_activity(
         proposal=proposal,
         context=case_id,
         actor=rejecting_actor_id,
         to=[_PROPOSER],
     )
-    event = cast(
+    return cast(
         RejectInviteToEmbargoOnCaseReceivedEvent,
         received_event(reject, at=dl).model_copy(
             update={"receiving_actor_id": _PROPOSER}
         ),
     )
+
+
+def _receive_reject(
+    dl: SqliteDataLayer,
+    proposal: as_Invite,
+    case_id: str,
+    rejecting_actor_id: str,
+) -> None:
+    event = _reject_event(dl, proposal, case_id, rejecting_actor_id)
     RejectInviteToEmbargoOnCaseReceivedUseCase(
         dl, event, wire_render_port=As2WireRenderAdapter()
     ).execute()
@@ -147,9 +172,80 @@ def test_case_managers_reject_closes_the_pending_proposal() -> None:
 
 
 @pytest.mark.spec("EP-09-017")
+@pytest.mark.spec("ARCH-24-008")
 def test_participants_reject_leaves_the_proposal_pending() -> None:
-    dl, case, proposal = _proposer_with_pending_proposal()
+    """A participant holding no role is not the authority: its Reject
+    leaves the ask pending.
 
-    _receive_reject(dl, proposal, case.id_, _OTHER)
+    Called below the use case's door guards, which refuse ``_OTHER`` on
+    grounds of their own (it is not the Invite's invitee, EP-09-010);
+    through the use case this would pass whatever the authority check said.
+    """
+    dl, case, proposal = _proposer_with_pending_proposal()
+    assert _pending(case.id_, proposal.id_)
+
+    close_refused_embargo_ask(
+        dl,
+        _reject_event(dl, proposal, case.id_, _OTHER),
+        at=now_utc(),
+    )
 
     assert _pending(case.id_, proposal.id_)
+
+
+@pytest.mark.spec("EP-09-019")
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("ARCH-24-008")
+def test_a_slash_spelled_managers_reject_closes_the_pending_proposal() -> None:
+    """The roster spells the manager with a trailing slash; its Reject still
+    closes the ask.
+
+    The sender id is normalised at extraction and the roster's
+    ``attributed_to`` is not (OID-01-007), so the two spellings meet here.
+    They name one actor (OID-01-006): the manager's refusal is still the
+    manager's, and the proposer must not keep waiting on an ask that was
+    refused (#5924).
+    """
+    dl, case, proposal = _proposer_with_pending_proposal(
+        manager_roster_id=_MANAGER + "/"
+    )
+    assert resolve_case_manager_id(case, dl) == _MANAGER + "/"
+    assert _pending(case.id_, proposal.id_)
+
+    _receive_reject(dl, proposal, case.id_, _MANAGER)
+
+    assert not _pending(case.id_, proposal.id_)
+
+
+@pytest.mark.spec("EP-09-017")
+@pytest.mark.spec("EP-09-019")
+@pytest.mark.spec("ARCH-24-008")
+@pytest.mark.parametrize(
+    ("rejecting_actor_id", "closes"),
+    [(_MANAGER, True), (_OTHER, False)],
+    ids=["resolved-manager", "second-holder"],
+)
+def test_a_reject_closes_the_ask_only_from_the_resolved_manager(
+    rejecting_actor_id: str, closes: bool
+) -> None:
+    """Two holders of the role on the roster: only the resolver's answer is
+    the authority whose Reject closes the ask (ARCH-24-001, ARCH-24-006).
+
+    Called below the use case's door guards, which refuse ``_OTHER`` on
+    grounds of their own (it is not the Invite's invitee, EP-09-010); through
+    the use case the second holder's arm would pass whatever the authority
+    check said.
+    """
+    dl, case, proposal = _proposer_with_pending_proposal(
+        other_is_case_manager=True
+    )
+    assert resolve_case_manager_id(case, dl) == _MANAGER
+    assert _pending(case.id_, proposal.id_)
+
+    close_refused_embargo_ask(
+        dl,
+        _reject_event(dl, proposal, case.id_, rejecting_actor_id),
+        at=now_utc(),
+    )
+
+    assert _pending(case.id_, proposal.id_) is not closes
