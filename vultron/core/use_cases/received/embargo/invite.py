@@ -103,8 +103,11 @@ def resolve_proposer_id(
     the terms (ADR-0093) and excludes it from the relay (EP-09-002).
 
     Only a relay may attribute: ``attributedTo`` is honoured when the Invite's
-    ``actor`` holds ``CVDRole.CASE_MANAGER`` for the case and ignored
-    otherwise, so a participant cannot have a third party's consent recorded
+    ``actor`` is the case's CASE_MANAGER, as
+    :func:`~vultron.core.participants.role_predicate.has_role` answers it
+    (ARCH-24-008), and ignored otherwise — including for a second participant
+    the roster also records with the role — so a participant cannot have a
+    third party's consent recorded
     — or that party left out of the Invites — by naming it on its own
     proposal (no identity spoofing on the received side, PCR-08-010).
     """

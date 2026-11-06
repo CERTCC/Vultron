@@ -172,10 +172,23 @@ def test_case_managers_reject_closes_the_pending_proposal() -> None:
 
 
 @pytest.mark.spec("EP-09-017")
+@pytest.mark.spec("ARCH-24-008")
 def test_participants_reject_leaves_the_proposal_pending() -> None:
-    dl, case, proposal = _proposer_with_pending_proposal()
+    """A participant holding no role is not the authority: its Reject
+    leaves the ask pending.
 
-    _receive_reject(dl, proposal, case.id_, _OTHER)
+    Called below the use case's door guards, which refuse ``_OTHER`` on
+    grounds of their own (it is not the Invite's invitee, EP-09-010);
+    through the use case this would pass whatever the authority check said.
+    """
+    dl, case, proposal = _proposer_with_pending_proposal()
+    assert _pending(case.id_, proposal.id_)
+
+    close_refused_embargo_ask(
+        dl,
+        _reject_event(dl, proposal, case.id_, _OTHER),
+        at=now_utc(),
+    )
 
     assert _pending(case.id_, proposal.id_)
 
@@ -227,6 +240,7 @@ def test_a_reject_closes_the_ask_only_from_the_resolved_manager(
         other_is_case_manager=True
     )
     assert resolve_case_manager_id(case, dl) == _MANAGER
+    assert _pending(case.id_, proposal.id_)
 
     close_refused_embargo_ask(
         dl,

@@ -2215,9 +2215,11 @@ groups:
       with no list of sanctioned classes.
     verification: >-
       `test_the_authority_boolean_has_one_source` in
-      `test/architecture/test_role_authority_resolver.py` holds the set of
-      `(module, shape)` sites writing either ingredient to an exact inventory, so a
-      new one fails. `test_the_detector_reports_a_planted_id_comparison`,
+      `test/architecture/test_role_authority_resolver.py` asserts the scan reports no
+      `(module, shape)` site writing either ingredient, so a new one fails;
+      `test_the_ingredient_scan_opens_modules` and
+      `test_the_authority_question_is_asked_through_the_predicate` keep its subjects
+      non-empty. `test_the_detector_reports_a_planted_id_comparison`,
       `test_the_detector_reports_a_planted_id_comparison_by_call`,
       `test_the_detector_reports_a_planted_role_list_test` and
       `test_the_detector_reports_the_per_record_predicate` fire the scan on each
