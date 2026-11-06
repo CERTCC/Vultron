@@ -60,7 +60,7 @@ Chosen option: "An answer with a fixed verdict (yes, no, error) and typed data; 
 2. **The seam turns the answer into tree behaviour.**
    *Yes* writes the declared outputs and the node succeeds.
    *No* writes the refusal payload to its declared keys and the node fails.
-   *Error* raises an error that names the node, so the message is not judged and stays in holding to be tried again, as a backend that exceeds its time budget already does (BT-18-027).
+   *Error* raises an error that names the node, so the message is not judged and stays in holding to be tried again, as BT-18-027 already requires of a backend that exceeds its time budget.
    The diagnostics go into the raised error and the logs, never onto the blackboard.
    No tree reads the answer itself.
 3. **A refusal is a decision; an error is not.**
@@ -88,7 +88,7 @@ How a backend hands its answer to the seam (a returned value, or a declared slot
 - Bad, because a backend author must tell *no* from *error* correctly; one that answers *no* for an outage brings back the permanent decline.
 - Neutral, because a tree that wants partial results must ask per target, which costs one call per target.
 
-### Validation
+## Validation
 
 The decision is confirmed when the seam guard rejects an answer outside the three verdicts, a *no* writes its refusal payload to declared keys, an *error* raises and leaves the message in holding, and the case-proposal gate records the admission backend's reason and records no decline when its policy service is unreachable.
 

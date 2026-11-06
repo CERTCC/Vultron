@@ -6,8 +6,9 @@ description: >
   How running code selects backend factories for call-out point nodes in BT
   tree builders: the three-mode model and its ceiling/floor default rule, domain
   bundles and singletons, the security-significant gate verdicts, STOCHASTIC
-  bundles for production-only domains, and why a data-producing capability's
-  default must write its declared outputs.
+  bundles for production-only domains, why a data-producing capability's
+  default must write its declared outputs, and the yes/no/error answer the seam
+  turns into tree behaviour (ADR-0183).
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
