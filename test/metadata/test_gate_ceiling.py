@@ -121,7 +121,7 @@ _LOCKED_PREFIX = f"{_LOCK} {_CEILING} "
 #: A heavy command on a line of a skill's code: one that starts many processes
 #: or uses much memory.
 _HEAVY_COMMAND = re.compile(
-    r"uv run pyright|mkdocs build|mkdocs-build-strict\.sh|merged-tree-tests"
+    r"uv run pyright|mkdocs build|mkdocs-build-strict\.sh"
 )
 
 
@@ -193,7 +193,8 @@ def test_detector_reads_only_the_code_an_agent_runs() -> None:
             "```bash",
             '"$G" pyright vultron/ -- uv run pyright',
             f'"$G" pyright vultron/ -- {_LOCK} uv run pyright',
-            f"{_LOCK} timeout -k 30 1800 uv run merged-tree-tests",
+            f"{_LOCK} timeout -k 30 1800 "
+            ".github/scripts/mkdocs-build-strict.sh",
             "```",
             "uv run pyright",
         ]

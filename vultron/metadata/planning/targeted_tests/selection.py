@@ -206,9 +206,9 @@ def overlap(branch: Iterable[str], base: Iterable[str]) -> list[str]:
 def branch_overlap(git: GitRunner, start: str, base: str) -> list[str]:
     """Paths the branch and *base* both changed since *start*, their merge base.
 
-    The one overlap computation: ``targeted-tests --overlap`` and
-    ``merged-tree-tests`` both read it, so they agree on when a branch
-    overlaps its base.
+    ``targeted-tests --overlap`` reports these paths, and nothing else
+    computes them: the overlap decides whether the merger refreshes the
+    Pull Request on GitHub before merging it (PAD-18-019). It runs no test.
     """
     return overlap(
         changed_paths(git, start), base_changed_paths(git, start, base)
