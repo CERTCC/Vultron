@@ -71,7 +71,13 @@ from .rerun_sweep import (
     REFUSED,
     Scenario,
 )
-from .rerun_sweep.drained_failures import CLASSES, DRAINED_FAILURES
+from .rerun_sweep.drained_failures import (
+    CLASSES,
+    DRAINED_FAILURES,
+    PinnedDrainedFailure,
+    drained_failure_classes,
+    pinned_classes,
+)
 from .test_sender_sequence import _note_body
 
 
@@ -383,10 +389,12 @@ def _drained_params() -> list[Any]:
                     [
                         pytest.mark.xfail(
                             strict=True,
+                            raises=PinnedDrainedFailure,
                             reason=(
                                 f"#5047 part 3, class {classes}: "
                                 + "; ".join(
-                                    CLASSES[c] for c in classes.split(", ")
+                                    CLASSES[c]
+                                    for c in sorted(pinned_classes(classes))
                                 )
                             ),
                         )
@@ -436,6 +444,7 @@ def test_a_later_run_after_the_outbox_drained_sends_nothing_again(
     _assert_built(semantic, scenario)
     before = effects(scenario.dl)
 
+    sender = str(scenario.event.actor_id)
     drained = drained_rerun(
         scenario.dl, scenario.event, replay=path == "replay", run=scenario.run
     )
@@ -447,7 +456,35 @@ def test_a_later_run_after_the_outbox_drained_sends_nothing_again(
         _assert_refusal_reached(
             semantic, drained.first, before, drained.after_first
         )
+    pin = DRAINED_FAILURES.get((path, kind, semantic))
+    if pin is not None and drained.sent_again:
+        _raise_if_only_pinned(drained, pin, kind=kind, sender=sender)
     assert drained.sent_again == [], (
         f"{semantic.value}: the {path} sent again after the drain:"
         f" {drained.sent_again}"
+    )
+
+
+def _raise_if_only_pinned(
+    drained: Any, pin: str, *, kind: str, sender: str
+) -> None:
+    """Raise the pinned failure when the sends match the pin, else fail.
+
+    Raises:
+        PinnedDrainedFailure: every item sent again is in a class the pin
+            names, and every named class is seen; the strict ``xfail``
+            accepts this exception alone.
+    """
+    seen, unexplained = drained_failure_classes(
+        drained, kind=kind, sender=sender
+    )
+    expected = pinned_classes(pin)
+    if seen == expected and not unexplained:
+        raise PinnedDrainedFailure(
+            f"class {pin}, as pinned: {drained.sent_again}"
+        )
+    pytest.fail(
+        f"pinned as class {pin}, but the later run sent classes"
+        f" {sorted(seen)} and items no class explains: {unexplained}"
+        f" (sent again: {drained.sent_again})"
     )

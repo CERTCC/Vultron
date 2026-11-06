@@ -1034,10 +1034,28 @@ def test_the_offer_this_recommendation_forwarded_is_not_its_duplicate():
     dl = _ledger(
         ("offer_case_participant", _OFFER_SNAPSHOT), object_ids={0: own}
     )
+    assert _pending_offer_status(dl) == Status.FAILURE
+
+
+@pytest.mark.spec("CM-16-008")
+def test_another_pending_offer_is_a_duplicate_beside_this_ones_own():
+    """Only this recommendation's own Offer is left out: another pending
+    Offer for the same actor is still found (CM-16-008)."""
+    own = offer_case_participant_id(_ACTOR_ID, _CASE_ID, _RECOMMENDATION)
+    dl = _ledger(
+        ("offer_case_participant", _OFFER_SNAPSHOT),
+        ("offer_case_participant", _OFFER_SNAPSHOT),
+        object_ids={0: own},
+    )
+    assert _pending_offer_status(dl) == Status.SUCCESS
+
+
+def _pending_offer_status(dl: SqliteDataLayer) -> Status:
+    """Run :class:`PendingOfferCaseParticipantNode` once on *dl*."""
     node = _lookup_node(PendingOfferCaseParticipantNode)
     _make_node_with_datalayer(node, dl)
     try:
-        assert node.update() == Status.FAILURE
+        return cast(Status, node.update())
     finally:
         dl.close()
         py_trees.blackboard.Blackboard.storage.clear()

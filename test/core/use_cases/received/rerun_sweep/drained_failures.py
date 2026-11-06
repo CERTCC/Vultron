@@ -29,16 +29,29 @@ Keyed by (path, kind, semantic): path ``rerun`` (a re-run from holding) or
   minted ids;
 - **B**: the replay of a refused activity sends its refusal notice again,
   under the same derived id;
-- **C**: a re-run's effects emit their derived-id activity again, and its
-  entry, already committed, is announced again under minted ids.
+- **C**: a later run's effects emit their derived-id activity again, or
+  announce an entry already committed, such as the act's own or a refusal
+  note's, to the case again under minted ids.
+
+A pin accepts only the classes it names (:func:`drained_failure_classes`):
+the sweep raises :class:`PinnedDrainedFailure`, the one exception the
+``xfail`` accepts, only when every item the later run sent again belongs to
+a named class and every named class is seen.  Anything else, such as a new
+ledger entry, an unexplained send, a missing class, or a crash, fails the
+test.
 """
 
+import json
+from collections import defaultdict
+from typing import Any
+
+from test.support.rerun_from_holding import DrainedRerun
 from vultron.core.models.events.base import MessageSemantics
 
 CLASSES: dict[str, str] = {
     "A": "a replay answers the stale ledgerPosition again",
     "B": "a replay answers the refusal again",
-    "C": "a re-run's effects emit and announce again",
+    "C": "a later run's effects emit or announce again",
 }
 
 DRAINED_FAILURES: dict[tuple[str, str, MessageSemantics], str] = {
@@ -145,7 +158,7 @@ DRAINED_FAILURES: dict[tuple[str, str, MessageSemantics], str] = {
         "replay",
         "refused",
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
-    ): "A, B",
+    ): "B, C",
     ("replay", "refused", MessageSemantics.INVALIDATE_REPORT): "B",
     ("replay", "refused", MessageSemantics.INVITE_TO_EMBARGO_ON_CASE): "B",
     ("replay", "refused", MessageSemantics.OFFER_ACTOR_TO_CASE): "B",
@@ -205,4 +218,93 @@ DRAINED_FAILURES: dict[tuple[str, str, MessageSemantics], str] = {
     ("rerun", "applied", MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT): "C",
 }
 
-__all__ = ["CLASSES", "DRAINED_FAILURES"]
+
+class PinnedDrainedFailure(Exception):
+    """A pinned scenario sent again exactly as its pin names (#5047 part 3).
+
+    The drained sweep's strict ``xfail`` accepts this exception alone, so a
+    pinned scenario that fails in any other way fails the run.
+    """
+
+
+def _announced_entry(body: dict[str, Any]) -> str | None:
+    """The id of the ledger entry *body* announces, or ``None``."""
+    entry = body.get("object")
+    if body.get("type") != "Announce" or not isinstance(entry, dict):
+        return None
+    if entry.get("type") != "CaseLedgerEntry":
+        return None
+    return str(entry.get("id") or entry.get("logIndex"))
+
+
+def drained_failure_classes(
+    drained: DrainedRerun, *, kind: str, sender: str
+) -> tuple[set[str], list[str]]:
+    """The classes of what a later run sent again, and what none explains.
+
+    Each item the later run committed or queued after the drain is put in
+    one class by its shape:
+
+    - **A**: a new ``Announce(CaseLedgerEntry)`` whose entry is announced
+      to *sender* alone, as a ledger-position answer is;
+    - **B**: in a refused scenario, a ``Reject`` queued again under the id
+      the first run queued it with;
+    - **C**: in an applied scenario, an activity queued again under the id
+      the first run queued it with; or a new ``Announce(CaseLedgerEntry)``
+      whose entry is announced to a participant other than *sender*, as a
+      broadcast of a committed entry is.
+
+    A new ledger entry, or any other send, is unexplained.
+
+    Args:
+        drained: The drained scenario's runs.
+        kind: ``applied`` or ``refused``.
+        sender: The received activity's actor.
+
+    Returns:
+        The classes seen, and a description of each unexplained item.
+    """
+    first_ids = {activity_id for activity_id, _ in drained.after_first.outbox}
+    seen: set[str] = set()
+    unexplained = [
+        f"ledger: {entry}"
+        for entry in sorted(
+            set(drained.after_last.ledger) - set(drained.delivered.ledger)
+        )
+    ]
+    recipients: dict[str, set[str]] = defaultdict(set)
+    for activity_id, raw in (
+        *drained.rerun_queued,
+        *drained.after_last.outbox,
+    ):
+        body = json.loads(raw)
+        to = {str(r) for r in body.get("to") or []}
+        entry = _announced_entry(body)
+        if activity_id in first_ids:
+            if kind == "refused" and body.get("type") == "Reject":
+                seen.add("B")
+            elif kind == "applied":
+                seen.add("C")
+            else:
+                unexplained.append(f"outbox: {activity_id} {body.get('type')}")
+        elif entry is not None:
+            recipients[entry] |= to
+        else:
+            unexplained.append(f"outbox: {activity_id} {body.get('type')}")
+    for to in recipients.values():
+        seen.add("A" if to == {sender} else "C")
+    return seen, unexplained
+
+
+def pinned_classes(pin: str) -> set[str]:
+    """The classes a pin such as ``"A, B"`` names."""
+    return set(pin.split(", "))
+
+
+__all__ = [
+    "CLASSES",
+    "DRAINED_FAILURES",
+    "PinnedDrainedFailure",
+    "drained_failure_classes",
+    "pinned_classes",
+]
