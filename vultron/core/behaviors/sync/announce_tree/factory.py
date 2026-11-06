@@ -224,7 +224,7 @@ def create_announce_log_entry_tree(
         body_name="ProcessAnnouncedEntryBody",
     )
     # The replication envelope is never itself a canonical entry (CLP-10-004),
-    # so there is no commit stage (``case_id=None``); intake archives the
+    # so there is no commit stage (``case_id=None``); intake records the
     # received Announce only and leaves the inlined entry to the chain check.
     return create_receive_activity_tree(
         name="AnnounceLogEntryReceivedBT",

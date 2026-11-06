@@ -14,9 +14,9 @@
 """Shared intake-only tree for received handlers that commit nothing (#3871).
 
 Every intake-only received handler builds this one tree and runs it once
-(CLP-10-005): intake archives the activity it received (CLP-10-017,
-CLP-10-018), and nothing else runs.  There are no guards, no commit and no
-effects, so the tree writes nothing to the case file.
+(CLP-10-005): once the doors admit it, intake records the activity it
+received (CLP-10-017, CLP-10-018), and nothing else runs.  There are no
+guards, no commit and no effects, so the tree writes nothing to the case file.
 
 Why no commit (``case_id=None``): a handler uses this tree only for an
 activity that records no case event on a CLP-02-013 ground (a
@@ -68,11 +68,12 @@ def create_incomplete_activity_received_tree(
     name: str,
     reason: str,
 ) -> py_trees.composites.Sequence:
-    """Build the tree that archives an incomplete activity and refuses it.
+    """Build the tree that records an incomplete activity and refuses it.
 
-    Intake → post-close guard → ``ActivityIncompleteNode``: nothing is
-    committed and no effect runs, and the handler reads the guard's
-    ``FAILURE`` as ``REFUSED`` for *reason*.
+    Doors (post-close guard among them) → intake → ``ActivityIncompleteNode``:
+    nothing is committed and no effect runs, and the handler reads the guard's
+    ``FAILURE`` as ``REFUSED`` for *reason*; the outcome stage reduces the
+    record to a receipt stub (CLP-10-018).
 
     Args:
         name: Name for the root ``Sequence``; the handler's own tree name.

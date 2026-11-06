@@ -30,7 +30,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 logger = logging.getLogger(__package__)
 
 
-#: The stored type a received activity is read from: intake's archive record of
+#: The stored type a received activity is read from: intake's record of
 #: the body that arrived, kept under a key the receiver derives (CLP-10-036,
 #: ADR-0149).  A row of an
 #: activity type under its own id is one the actor authored, never one it

@@ -27,7 +27,7 @@ Provides:
   BT-17-008).
 - :func:`create_offer_ownership_transfer_tree` — BT for
   ``OfferCaseOwnershipTransferReceivedUseCase``: the transferee takes the
-  CASE_MANAGER's Offer, which intake archives for it to answer; its sender
+  CASE_MANAGER's Offer, which intake records for it to answer; its sender
   guard admits the case's CASE_MANAGER alone, and nobody at the
   CASE_MANAGER (CM-21-019).
 - :func:`create_accept_ownership_transfer_tree` — BT for

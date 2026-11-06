@@ -17,8 +17,8 @@
 
 Each factory composes its leaf nodes through
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
-so intake archives the received activity first (CLP-10-017) and a refused
-delivery still leaves its record (CLP-10-018).
+so intake records the received activity once its doors admit it
+(CLP-10-017) and a refused delivery still leaves a receipt stub (CLP-10-018).
 
 Both trees are Case Owner requests to the CASE_MANAGER (ADR-0116): ``Remove``
 takes a participant out of active participation (CM-31-004), and ``Add``
@@ -85,9 +85,11 @@ def create_add_case_participant_received_tree(
     stage for stage (the CLP-10-010 stages, ADR-0111)::
 
         AddCaseParticipantReceivedBT (Sequence)
-        ├── IntakeReceivedActivityNode                       # intake
+        ├── ActivityAddressedToReceiverNode                  # addressee door
+        ├── ActivityNotSeenBeforeNode                        # seen-before door
         ├── ReceivedPathNode                                 # manager or replica
         ├── SenderRuleGuard (Sequence)                       # sender guard
+        ├── IntakeReceivedActivityNode                       # intake
         ├── ReinstatementAdmissibleIfCaseManager (Selector)  # guards (manager only)
         │   ├── MoveNamesCaseParticipantNode
         │   ├── ParticipantHasJoinedNode
@@ -201,9 +203,11 @@ def create_remove_case_participant_received_tree(
     Structure (the CLP-10-010 stages, ADR-0111)::
 
         RemoveCaseParticipantReceivedBT (Sequence)
-        ├── IntakeReceivedActivityNode                  # intake
+        ├── ActivityAddressedToReceiverNode             # addressee door
+        ├── ActivityNotSeenBeforeNode                   # seen-before door
         ├── ReceivedPathNode                            # manager or replica
         ├── SenderRuleGuard (Sequence)                  # sender guard
+        ├── IntakeReceivedActivityNode                  # intake
         ├── RemovalAdmissibleIfCaseManager (Selector)   # guards (manager only)
         │   ├── MoveNamesCaseParticipantNode
         │   ├── RemovalTargetIsRemovableNode

@@ -20,10 +20,11 @@ The CASE_MANAGER answers an assertion a precondition guard refused with one
 sent it reads the notice here::
 
     RefusalNoticeReceivedBT (Sequence)
-    ├─ IntakeReceivedActivityNode
-    ├─ CaseOpenToExternalWrites / ActivityAddressedToReceiverNode
+    ├─ ActivityAddressedToReceiverNode / ActivityNotSeenBeforeNode
     ├─ ReceivedPathNode                # the participant replica alone
+    ├─ CaseOpenToExternalWrites
     ├─ <sender guard: the case's CASE_MANAGER only>
+    ├─ IntakeReceivedActivityNode      # records the notice (CLP-10-017)
     ├─ ClearRefusedAssertionNode
     └─ ResumeOutboundSequenceNode        # only when the notice names a number
 

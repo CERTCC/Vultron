@@ -154,7 +154,7 @@ class PendingCaseQueuePort(Protocol):
         activity's own record, under a key the receiver derives (DL-06-006,
         IO-03-009); the hold is what records the wait, naming *case_id* on
         that record (ADR-0154), and a core reader loads the body from there
-        before intake archives it.
+        before the outcome stage archives it.
         """
         ...  # pragma: no cover
 

@@ -55,11 +55,12 @@ def create_recommendation_answer_received_tree(
     Tree structure::
 
         <name> (Sequence, memory=False)
-        ├── IntakeReceivedActivityNode     — archive what arrived (CLP-10-018)
-        ├── CaseOpenToExternalWrites       — post-close boundary (CM-23-013)
         ├── ActivityAddressedToReceiver    — addressee door guard (HP-01-005)
+        ├── ActivityNotSeenBeforeNode      — seen-before door
         ├── ReceivedPathNode               — the participant replica alone
-        └── sender guard                   — only the CASE_MANAGER (PCR-03-001)
+        ├── CaseOpenToExternalWrites       — post-close boundary (CM-23-013)
+        ├── sender guard                   — only the CASE_MANAGER (PCR-03-001)
+        └── IntakeReceivedActivityNode     — record what arrived (CLP-10-017)
 
     The answer is the recommender's to receive, and the recommender is a
     participant of the case, so the participant-replica path is the only one
@@ -74,7 +75,7 @@ def create_recommendation_answer_received_tree(
     Args:
         name: Name for the root ``Sequence``; the handler's own tree name.
         case_id: ID of the VulnerabilityCase the answer names; ``None`` for
-            an answer that names no case, which intake archives and the
+            an answer that names no case, which intake records and the
             tree refuses, since there is no case to check the sender
             against (CLP-10-018).
         sender_id: Actor ID of the answer's sender.

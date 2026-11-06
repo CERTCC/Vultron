@@ -268,9 +268,9 @@ class InlineObjectStaging:
         return self._rebuild_from(pending)[0]
 
     def rehydrate_archived(self, activity_id: str) -> as_Activity | None:
-        """Rebuild an archived received activity from the body intake kept.
+        """Rebuild an archived received activity from the body it holds.
 
-        For a redelivery of an activity intake already archived: the archived
+        For a redelivery of an activity the receiver already holds: the held
         body is parsed and routed in place of the redelivered one
         (IE-10-001, ADR-0149).  It carries that body as its received
         evidence: the body is the first delivery's, sealed at its parse, so

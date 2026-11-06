@@ -52,10 +52,11 @@ def create_remove_note_from_case_received_tree(
     Structure (the CLP-10-010 stages)::
 
         GuardedDetachAndCommitBT (Sequence)
-        ├── IntakeReceivedActivityNode                    # intake
         ├── ActivityAddressedToReceiverNode               # addressee door
+        ├── ActivityNotSeenBeforeNode                     # seen-before door
         ├── ReceivedPathNode                              # manager or replica
         ├── SenderRuleGuard (Sequence)                    # sender guard
+        ├── IntakeReceivedActivityNode                    # intake
         ├── CaseReferenceEditPendingNode                  # duplicate guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)     # commit
         └── GuardedDetachNoteBT (Selector)                # effect

@@ -153,7 +153,7 @@ class _ProposalsMixin:
     ) -> as_Offer | None:
         """The ``Offer(VulnerabilityReport)`` *offer_id* as this actor holds it.
 
-        A received Offer is parsed from the body its intake archived, never
+        A received Offer is parsed from the body its intake recorded, never
         read under the id its sender chose (DL-06-006); an Offer this actor
         sent is held under its own id (:func:`read_held_as_received`).  A
         received Offer is carried as the Reporter sent it, every field

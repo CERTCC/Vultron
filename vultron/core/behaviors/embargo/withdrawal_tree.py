@@ -60,9 +60,11 @@ def withdraw_from_embargo_on_case_tree(
     """Create the BT for a received ``Leave(EmbargoEvent)`` (MSM-07-010)::
 
         WithdrawFromEmbargoOnCaseBT (Sequence)
-        ├─ IntakeReceivedActivityNode
+        ├─ ActivityAddressedToReceiverNode       # addressee door
+        ├─ ActivityNotSeenBeforeNode             # seen-before door
         ├─ ReceivedPathNode                      # door: the CASE_MANAGER only
         ├─ <sender guard>                        # composed from sender_rule
+        ├─ IntakeReceivedActivityNode            # records it (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager           # overdue invites (CM-28-015)
         ├─ IsWithdrawableEmbargoNode             # read-only guard (CLP-10-009)
         │                                        # and redelivery (HP-01-014)

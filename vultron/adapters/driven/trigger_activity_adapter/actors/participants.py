@@ -78,7 +78,7 @@ class _ParticipantsMixin:
         """Build, persist and seal the Case Owner's answer to a forwarded Offer.
 
         Shared by the Accept (CM-16-006) and the Reject (CM-16-007).  The
-        Offer is read as received: parsed from the body intake archived,
+        Offer is read as received: parsed from the body intake recorded,
         which holds the participant inline (#3763).  The answer embeds it
         verbatim, and addresses the case as the Offer did (AKM-02-002).
         """

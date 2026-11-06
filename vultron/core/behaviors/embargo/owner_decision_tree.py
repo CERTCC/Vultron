@@ -79,9 +79,11 @@ def activate_embargo_on_case_tree(
     Handles receipt of an ``Accept(EmbargoEvent)[target=VulnerabilityCase]``::
 
         ActivateEmbargoOnCaseBT (Sequence)
-        ├─ IntakeReceivedActivityNode
+        ├─ ActivityAddressedToReceiverNode   # addressee door
+        ├─ ActivityNotSeenBeforeNode         # seen-before door
         ├─ ReceivedPathNode                  # door: the CASE_MANAGER only
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
+        ├─ IntakeReceivedActivityNode        # records what arrived (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
         ├─ OwnerMayActivateEmbargoNode       # P/X/A clear (EMB-02-002)
@@ -185,9 +187,11 @@ def reject_embargo_proposal_on_case_tree(
     Handles receipt of a ``Reject(EmbargoEvent)[target=VulnerabilityCase]``::
 
         RejectEmbargoProposalOnCaseBT (Sequence)
-        ├─ IntakeReceivedActivityNode
+        ├─ ActivityAddressedToReceiverNode   # addressee door
+        ├─ ActivityNotSeenBeforeNode         # seen-before door
         ├─ ReceivedPathNode                  # door: the CASE_MANAGER only
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
+        ├─ IntakeReceivedActivityNode        # records what arrived (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ IsOpenEmbargoProposalNode         # read-only guard (CLP-10-009)
         ├─ OwnerRejectionAppliesNode         # trial REJECT (+ TERMINATE)

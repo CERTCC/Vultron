@@ -115,10 +115,12 @@ def accept_invite_to_embargo_tree(
     One tree for every delivery (CLP-10-005, ADR-0135)::
 
         AcceptInviteToEmbargoBT (Sequence)
-        ├─ Intake → CaseOpenToExternalWrites
         ├─ ActivityAddressedToReceiverNode     # door: HP-01-005
+        ├─ ActivityNotSeenBeforeNode            # door: seen before
         ├─ ReceivedPathNode                     # door: the CASE_MANAGER only
+        ├─ CaseOpenToExternalWrites             # door: post-close (CM-23-013)
         ├─ <sender guard>                       # door: the Invite's invitee
+        ├─ IntakeReceivedActivityNode           # records it (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager          # the Invite expiry (CM-28-009)
         ├─ ValidateCaseExistsNode
         ├─ EmbargoAnswerNotRecorded             # repeat → SKIPPED (CM-13-005)
@@ -282,11 +284,12 @@ def reject_invite_to_embargo_tree(
     sender's own consent, the case owner's included (ADR-0122)::
 
         RejectInviteToEmbargoBT (Sequence)
-        ├─ IntakeReceivedActivityNode
-        ├─ CaseOpenToExternalWrites           # door: post-close (CM-23-013)
         ├─ ActivityAddressedToReceiverNode    # door: addressee (HP-01-005)
+        ├─ ActivityNotSeenBeforeNode          # door: seen before
         ├─ ReceivedPathNode                   # door: manager or replica
+        ├─ CaseOpenToExternalWrites           # door: post-close (CM-23-013)
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
+        ├─ IntakeReceivedActivityNode         # records it (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager        # overdue invites (CM-28-015)
         ├─ IsAnswerableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (manager path)  # repeat guard

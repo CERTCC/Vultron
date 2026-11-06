@@ -134,7 +134,7 @@ def wait_for_embargo_proposal_indexed(
 ) -> None:
     """Poll until the invitee's case maps *embargo_id* to *invite_id*.
 
-    The relayed Invite is readable as soon as intake archives it, but the
+    The relayed Invite is readable as soon as intake records it, but the
     accept and reject triggers correlate an embargo with its Invite through the
     case's proposal index, which the received tree writes last (ID-04-005).
     An answer posted between the two builds its Accept with no object, so the

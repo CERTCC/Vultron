@@ -88,18 +88,21 @@ def create_close_case_received_tree(
     Structure (with role semantics)::
 
         CloseCaseBT (Sequence, via create_receive_activity_tree)
-        ├── IntakeReceivedActivityNode                  # archive the Leave (CLP-10-017)
+        ├── ActivityAddressedToReceiverNode             # addressee door (HP-01-005)
+        ├── ActivityNotSeenBeforeNode                   # seen-before door
+        ├── ReceivedPathNode                            # manager or replica (HP-01-038)
         ├── CaseOpenToExternalWrites                    # post-close boundary (CM-23-013)
         │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
         │        arm emits EmitRejectLateLeave at the CASE_MANAGER)
-        ├── ReceivedPathNode                            # manager or replica (HP-01-038)
         ├── SenderRuleGuard                             # composed from sender_rule (HP-01-025)
+        ├── IntakeReceivedActivityNode                  # record the Leave (CLP-10-017)
         ├── ClockDecisions (CaseManagerGate)            # embargo end-time check (CLP-10-051)
         └── CloseOrDeclineIfCaseManager (CaseManagerGate)  # BT-17-008, #3825
             └── CloseOrDecline (Selector)               # close unless declined
                 ├── CloseCaseReceive (Sequence, via create_receive_activity_tree)
-                │   ├── IntakeReceivedActivityNode          # finds the archive; no-op
-                │   │   (no post-close guard: CloseCaseBT's guard runs first)
+                │   ├── ActivityNotSeenBeforeNode           # finds the HELD record; passes
+                │   │   (no addressee or post-close door: CloseCaseBT's ran first)
+                │   ├── IntakeReceivedActivityNode          # finds the record; no-op
                 │   ├── CaseManagerLeavesOnlyAsCaseOwner    # guard: CM-23-010
                 │   ├── Inverter(OwnerCloseBlockedByEmbargoCheck)  # guard: SUCCESS iff NOT declining
                 │   │   └── Sequence: CheckIsCaseOwner → ReadEmState
@@ -128,13 +131,14 @@ def create_close_case_received_tree(
                     │        → IsCloseBlockedByActiveEmbargo  # decline decision
                     └── EmitRejectCloseCase                 # decline via as:Reject
 
-    Intake runs first, ahead of the gate, so the inbound Leave is archived on
-    every replica whether or not the receiver is the CASE_MANAGER (CLP-10-017,
-    CLP-10-018); the per-arm ``StoreActivityNode`` this tree once carried
-    duplicated it and was removed (CLP-10-019).  The inner ``CloseCaseReceive``
-    is built by the same factory because only the factory supplies the guarded
-    receipt commit; its intake node finds the archive already present and
-    writes nothing.
+    Intake runs after the doors, ahead of the gate, so the inbound Leave is
+    recorded on every replica the doors admit, whether or not the receiver is
+    the CASE_MANAGER (CLP-10-010, CLP-10-017); the per-arm ``StoreActivityNode``
+    this tree once carried duplicated it and was removed (CLP-10-019).  The
+    inner ``CloseCaseReceive`` is built by the same factory because only the
+    factory supplies the guarded receipt commit; its seen-before door and its
+    intake find the outer intake's ``HELD`` record, so both pass and write
+    nothing.
 
     The ``CloseOrDecline`` Selector is passed as the factory's
     ``manager_effects``, so the factory wraps the whole close/decline decision
@@ -280,7 +284,7 @@ def create_close_case_received_tree(
     )
 
     # Decline arm: emit an as:Reject; commit nothing (CM-23-011). The Leave is
-    # already archived by the root intake node.
+    # already recorded by the root intake node.
     decline_arm = py_trees.composites.Sequence(
         name="DeclineOwnerCloseIfEmbargoed",
         memory=False,
@@ -301,7 +305,7 @@ def create_close_case_received_tree(
 
     # Close first (the common path); fall through to the decline arm only when
     # the close arm's inverted embargo guard blocks it. Intake sits ahead of
-    # the Selector so both arms leave the archive in place (CLP-10-018); no
+    # the Selector so both arms leave the record in place (CLP-10-018); no
     # commit at this level — the receipt commit belongs to the close arm.
     #
     # The whole Selector is passed as ``manager_effects`` so the factory wraps
@@ -341,7 +345,7 @@ def create_close_case_received_tree(
         precondition_guards=[],
         # The leaver asks the CASE_MANAGER, which decides the close or the
         # decline, and the CASE_MANAGER relays the Leave to a participant
-        # replica, which archives it and takes the closure from the ledger
+        # replica, which records it and takes the closure from the ledger
         # fan-out (CM-23-002, CLP-10-001, RSH-08-003, HP-01-038).  The close
         # arm inside the manager gate declares no paths of its own: this
         # tree's stage already answered the question for the delivery

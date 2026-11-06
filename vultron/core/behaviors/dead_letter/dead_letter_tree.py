@@ -44,7 +44,7 @@ def create_store_dead_letter_tree(
             surrounding activity context.
 
     Returns:
-        An intake-first tree whose effect is ``StoreDeadLetterRecordNode``,
+        A doors-then-intake tree whose effect is ``StoreDeadLetterRecordNode``,
         ready for execution via
         ``BTBridge.execute_with_setup()``.
     """

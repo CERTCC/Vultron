@@ -19,8 +19,8 @@
 way, delegating existence checks to ``idempotent_store()``, which uses
 ``dl.read()`` to avoid a silent catch-all on ``ValueError``.
 
-The received activity is not stored here: intake archives it first
-(CLP-10-017, CLP-10-019).
+The received activity is not stored here: intake records it once the doors
+admit it (CLP-10-017, CLP-10-019).
 
 Per issue #759 AC-1, AC-2, AC-3, AC-4.
 """

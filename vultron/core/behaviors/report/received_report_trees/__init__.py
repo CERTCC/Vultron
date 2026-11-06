@@ -17,8 +17,8 @@
 Behavior tree factories for received-side report use cases.
 
 Each factory produces a ``py_trees.composites.Sequence`` that implements the
-inbound protocol handling (intake archives each received activity first,
-CLP-10-017) for one of the report-lifecycle activities:
+inbound protocol handling (intake records each received activity once its
+doors admit it, CLP-10-017) for one of the report-lifecycle activities:
 
 - ``CreateReport`` — store VulnerabilityReport
 - ``AckReport``    — check the acknowledgement's sender

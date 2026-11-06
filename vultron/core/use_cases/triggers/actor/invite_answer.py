@@ -58,7 +58,7 @@ class SvcAcceptCaseInviteUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        # Held as the body intake archived (CLP-10-017): a stub Invite
+        # Held as the body intake recorded (CLP-10-017): a stub Invite
         # precedes its case, so the inbox processes it on arrival
         # (PCR-06-005).
         if not holds_received_activity(self._dl, request.invite_id):
@@ -94,7 +94,7 @@ class SvcRejectCaseInviteUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        # Held as the body intake archived (CLP-10-017): a stub Invite
+        # Held as the body intake recorded (CLP-10-017): a stub Invite
         # precedes its case, so the inbox processes it on arrival
         # (PCR-06-005).
         if not holds_received_activity(self._dl, request.invite_id):

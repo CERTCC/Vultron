@@ -63,10 +63,11 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
     inner Offer — this case, a transferee it can address — ledgers the
     proposal, and makes the one ``Offer(VulnerabilityCase)`` of the transfer
     under an id it derives, with ``attributedTo`` the owner, and ledgers that
-    Offer (CM-21-028, CM-21-029).  Anyone else is ``REFUSED`` by the tree's sender
-    guard before anything but intake's archive is written (CLP-10-018): no
-    expiry, no ledger entry, no Offer.  A redelivery of a proposal the
-    CASE_MANAGER already made its Offer from is ``SKIPPED`` (HP-01-014).
+    Offer (CM-21-028, CM-21-029).  Anyone else is ``REFUSED`` by the tree's
+    sender guard, a door, before anything is written; the outcome stage leaves
+    only a receipt stub (CLP-10-018): no expiry, no ledger entry, no Offer.  A
+    redelivery of a proposal the CASE_MANAGER already made its Offer from is
+    ``SKIPPED`` (HP-01-014).
     """
 
     # Only the Case Owner proposes; a participant never receives a proposal,
@@ -162,11 +163,12 @@ class OfferCaseOwnershipTransferReceivedUseCase:
     The one ``Offer(VulnerabilityCase)`` of a transfer, which the
     CASE_MANAGER made from the Case Owner's proposal (ADR-0148).  A
     participant takes it from the case's CASE_MANAGER alone (CM-21-019,
-    PCR-03-001); intake's archive is the copy it answers, never stored under
-    the id its sender chose (DL-06-006).  At the CASE_MANAGER no sender is
-    admitted: an owner proposes, it does not offer.  Anyone else is
-    ``REFUSED`` with nothing but intake's archive written (CLP-10-018).  A
-    redelivery is ``SKIPPED`` (HP-01-014).
+    PCR-03-001); the body intake recorded is the copy it answers, never
+    stored under the id its sender chose (DL-06-006).  At the CASE_MANAGER no
+    sender is admitted: an owner proposes, it does not offer.  Anyone else is
+    ``REFUSED`` at the sender door with nothing written but the receipt stub
+    the outcome stage leaves (CLP-10-018).  A redelivery is ``SKIPPED``
+    (HP-01-014).
     """
 
     # Only the CASE_MANAGER makes the Offer; nobody sends it one
@@ -222,7 +224,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
                 verdict.reason,
             )
             return verdict
-        # The transferee keeps the Offer, which intake archived, so what it
+        # The transferee keeps the Offer, which intake recorded, so what it
         # did is what intake did (HP-01-003).
         return intake_verdict(tree, result, label="OfferOwnershipTransferBT")
 

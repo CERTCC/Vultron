@@ -154,7 +154,7 @@ def invite_to_embargo_on_case_tree(
     matter (HP-01-037, HP-01-038).
 
     **A participant replica stores and answers** the Invite addressed to it
-    and writes nothing else (EP-09-003).  The intake archives the Invite
+    and writes nothing else (EP-09-003).  Intake records the Invite
     under the receiver's key (CLP-10-017, DL-06-006); when
     the executing actor is its addressee, the EMB-15 response decision
     (``create_embargo_response_decision_tree``) queues an ``Accept`` or

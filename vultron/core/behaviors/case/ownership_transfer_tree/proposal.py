@@ -81,8 +81,8 @@ def create_propose_ownership_transfer_tree(
 
     The CASE_MANAGER executes the owner's proposal (ADR-0148)::
 
-        Intake → doors (the path stage admits the manager path alone)
-            → sender guard (the Case Owner, CM-21-019)
+        Doors (the path stage admits the manager path alone)
+            → sender guard (the Case Owner, CM-21-019) → intake
             → NoOpenOwnershipOffer → OwnershipProposalAdmissible
             → GuardedCommit (the proposal)
             → CaseManagerGate[MakeOwnershipTransferOfferNode]
@@ -122,7 +122,7 @@ def create_propose_ownership_transfer_tree(
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
     if case_id is None:
-        # Intake archives the proposal; there is no case to judge it
+        # Intake records the proposal; there is no case to judge it
         # against (CLP-10-018).
         return create_incomplete_activity_received_tree(
             "ProposeOwnershipTransferBT",
@@ -190,16 +190,16 @@ def create_offer_ownership_transfer_tree(
 
     The transferee receives the one ``Offer(VulnerabilityCase)`` of the
     transfer, which the CASE_MANAGER made from the owner's proposal
-    (ADR-0148).  Intake archives it, which is the copy the transferee
-    answers (CLP-10-017); its sender guard admits the case's CASE_MANAGER
-    alone, and a store that holds no such case refuses (CM-21-046,
-    PCR-03-001).  At the CASE_MANAGER the rule admits nobody: an owner
-    proposes, it does not offer.  Nothing is committed: the CASE_MANAGER
-    ledgered the Offer when it made it.
+    (ADR-0148).  Intake records it, which is the copy the transferee
+    answers (CLP-10-017); its sender guard, a door ahead of intake, admits
+    the case's CASE_MANAGER alone, and a store that holds no such case
+    refuses (CM-21-046, PCR-03-001).  At the CASE_MANAGER the rule admits
+    nobody: an owner proposes, it does not offer.  Nothing is committed: the
+    CASE_MANAGER ledgered the Offer when it made it.
 
     Args:
         case_id: URI of the case whose ownership is offered; ``None`` for an
-            Offer that names no case, which intake archives (CLP-10-018).
+            Offer that names no case, which intake records (CLP-10-018).
         sender_rule: The use case's declared sender rule (HP-01-008).
         sender_id: The Offer's sender, which the guard checks.
 

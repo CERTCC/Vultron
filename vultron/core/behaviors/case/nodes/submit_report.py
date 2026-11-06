@@ -17,8 +17,8 @@
 
 A receiver keeps the report, the Offer and the offer record whatever it later
 decides about the Offer, so a receiver that opts out of case creation can
-still ACK or decide on the report (CM-15-001, CM-15-002).  Intake archives
-the activity only (CLP-10-017), and that archive is the Offer the receiver
+still ACK or decide on the report (CM-15-001, CM-15-002).  Intake records
+the activity only (CLP-10-017), and that record is the Offer the receiver
 keeps: nothing stores it under the id its sender chose (DL-06-006).  These
 nodes write the core records from the event's copy.
 :func:`submit_report_received_effects` builds them in the order the tree
@@ -173,7 +173,7 @@ def submit_report_received_effects(
                 name="StoreReceivedReport",
             )
         )
-    # The Offer itself is intake's archive, read through its receiver-keyed
+    # The Offer itself is intake's record, read through its receiver-keyed
     # record; nothing holds it under the id its sender chose (DL-06-006).
     activity = request.activity
     if report_id and activity is not None:

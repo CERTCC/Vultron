@@ -15,8 +15,8 @@
 
 A received activity is held only under a key the receiver derives (DL-06-006),
 and only as the body that arrived: one ``ReceivedActivityRecord``, whichever
-stage it is in -- archived by intake, or held for a replay the inbox still
-owes (ADR-0154).  Core reads its facts by
+stage it is in -- recorded by intake, archived once applied or skipped, or
+held for a replay the inbox still owes (ADR-0154).  Core reads its facts by
 loading that body through the ``ReceivedActivityLoader`` port, which parses
 and extracts it as the inbox did and returns a read-only view.  That is the
 one sanctioned way core reads a received activity's facts (DL-06-001,
@@ -47,8 +47,8 @@ def held_received_record(
 ) -> ReceivedActivityRecord | None:
     """The receiver-keyed record holding the received *activity_id*, if any.
 
-    One read of one row, whatever stage it is in: intake's archive and a body
-    held for a replay are the same record now (ADR-0154).  Never a row under
+    One read of one row, whatever stage it is in: intake's record, the archive
+    and a body held for a replay are the same record now (ADR-0154).  Never a row under
     the id the sender chose (DL-06-006).  Nothing is parsed.
     """
     record = dl.read(ReceivedActivityRecord.build_id(activity_id))
@@ -93,7 +93,7 @@ def held_received_body(
     For a node in the run that hands the received activity to the reply seam
     unread, to be embedded as it arrived (DL-06-004, ADR-0149): the refusal
     notice.  Readers in the run read the holding record, whichever
-    body-bearing stage it is in -- archived by intake, or still held for a
+    body-bearing stage it is in -- recorded by intake, or still held for a
     replay -- because the message is the same message either way
     (ADR-0154).
 
@@ -135,11 +135,12 @@ def read_received_activity(
     """Return the read-only view of the received activity *activity_id*.
 
     One ``ReceivedActivityRecord`` under the receiver's own key holds the
-    body, whichever stage it is in (ADR-0154): archived by intake once the
-    activity reached its use case (CLP-10-017), or held for a replay while
-    the inbox defers it until its case is known (IO-03-009).  A stub Invite
-    is never in that second stage: it precedes its case by design, so the
-    invitee processes it on arrival and intake archives it (PCR-06-005).
+    body, whichever stage it is in (ADR-0154): recorded by intake once the
+    activity reached its use case (CLP-10-017) and archived once applied, or
+    held for a replay while the inbox defers it until its case is known
+    (IO-03-009).  A stub Invite is never in that last stage: it precedes its
+    case by design, so the invitee processes it on arrival and intake records
+    it (PCR-06-005).
     Nothing is read under the sender's id (DL-06-006).
 
     Either way the view is parsed from the held body on this call, so it is

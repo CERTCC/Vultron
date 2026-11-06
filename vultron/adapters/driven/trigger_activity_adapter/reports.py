@@ -169,7 +169,7 @@ class _ReportsMixin:
     def _resolve_offer(self, offer_id: str) -> Any:
         """Read the Offer as this actor holds it; else rebuild it from its record.
 
-        A received Offer is parsed from the body its intake archived, never
+        A received Offer is parsed from the body its intake recorded, never
         read under the id its sender chose (DL-06-006), so the reply embeds
         it as the Reporter sent it (DL-06-004); an Offer this actor sent is
         held under its own id (:func:`read_held_as_received`).  When neither
