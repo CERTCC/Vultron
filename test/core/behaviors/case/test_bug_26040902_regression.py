@@ -170,6 +170,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         type_="Offer",
         actor=_reporter_actor_id,
         object_=report,
+        to=[_actor_id],
     )
     submit_report_event = with_evidence(
         SubmitReportReceivedEvent(

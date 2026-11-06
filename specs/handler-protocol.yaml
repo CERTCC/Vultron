@@ -245,10 +245,9 @@ groups:
       The `HP-01-005`-marked tests under `test/core/use_cases/received/` drive each affected
       handler at a receiver that is not the CASE_MANAGER, or not an entitled addressee, and
       assert `REFUSED` with no protocol effect: an empty outbox and no case-state write.
-      There is one deliberate retention: `Offer(VulnerabilityReport)`, whose handler
-      stores the report and the Offer before the addressing check so that a
-      receiver with `auto_create_case` off keeps the data for a later explicit
-      decision (CM-15-002); the refused receipt still proposes no case. A
+      An unaddressed or `cc`-only `Offer(VulnerabilityReport)` is refused at the
+      addressee door before anything is stored, so it keeps no report and no Offer
+      (`test_submit_report_received.py::TestSubmitReportKeepsWhatArrived`). A
       `Join(VulnerabilityCase)` names its case
       and carries no snapshot to hold (ADR-0165), so a refused one stores nothing. A
       control test per handler shows the CASE_MANAGER or entitled addressee still acts.
