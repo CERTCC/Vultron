@@ -292,9 +292,12 @@ def pxa_refusal_verdict(
     """The verdict of a delivery the P/X/A refusal *name* diverted, else ``None``.
 
     ``SKIPPED`` when the ``Reject`` of the Invite *answered* names was
-    already sent, so the redelivery is not refused twice (HP-01-003);
-    otherwise ``REFUSED`` for the condition's reason (EMB-01-002,
-    EMB-02-004), whether or not the ``Reject`` could be sent.
+    already sent by an earlier run that ended with no verdict (one whose
+    queue write failed), so the re-run sends nothing new (HP-01-014,
+    ID-04-005); otherwise ``REFUSED`` for the condition's reason
+    (EMB-01-002, EMB-02-004), whether or not the ``Reject`` could be sent.
+    A resend after a refusal never reaches this: the seen-before door
+    refuses it again from its receipt stub (ADR-0154).
     """
     stage = taken_diversion(tree, name)
     if stage is None:

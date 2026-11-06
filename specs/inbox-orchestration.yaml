@@ -417,9 +417,9 @@ groups:
       For an activity the inbox defers, the ingress payload adapter MAY keep the
       activity itself, as the received body the parser sealed (VM-08-002). It keeps the
       body beside the staged rows on the activity's one record, keyed by the activity
-      and marked as owing a replay, which the replay or the queue's expiry releases: a
-      record the receiver had not archived goes with the release, and one intake had
-      already archived keeps its archive and only stops owing the replay (CLP-10-018).
+      and marked as owing a replay, which the replay or the queue's expiry releases.
+      The record goes with the release, because a message still owed a replay has not
+      been archived (ADR-0154).
       The activity names there the case it waits on, so what waits for a case is read
       from the waiting activities and kept in no second list. A held out-of-order
       `Announce(CaseLedgerEntry)` (SYNC-14-001) is kept the same way, released by its
@@ -445,12 +445,6 @@ groups:
       spec_id: SYNC-14-001
     - rel_type: uses_definition
       spec_id: SYNC-14-006
-    see_also:
-    - spec_id: CLP-10-018
-      reason: >-
-        precedent: CLP-10-018 keeps intake's archive when a message is refused, and
-        this keeps it when a hold is released; a release is not a refusal, so no type
-        fits
     tags:
     - tooling
     adr:

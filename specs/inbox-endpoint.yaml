@@ -639,7 +639,7 @@ groups:
       is routed in its place (VM-08-002). Whether that copy carries received evidence
       is decided by whether a replay is still owed from the held body: with one owed
       the copy carries none, because the held copy is not this delivery and will carry
-      the evidence when it is replayed; with none owed the body intake archived is
+      the evidence when it is replayed; with none owed the body the receiver holds is
       routed, carrying that body as its received evidence. A delivery under a held
       id whose body differs is not a redelivery; IE-10-002 refuses it.
     rationale: >-
@@ -685,7 +685,7 @@ groups:
       (IE-10-001). The endpoint MUST refuse the delivery when its sealed received body
       (VM-08-002) is not exactly the body held for that id. The held body is the
       deferred record's while the first delivery is still deferred, else the body intake
-      archived. This applies to every activity type, including an
+      recorded. This applies to every activity type, including an
       `Announce(CaseLedgerEntry)` that ingress hydrates in place (SYNC-13-004).
     rationale: >-
       An activity id names one activity (ID-01-001). A second body under a held id is a

@@ -379,10 +379,13 @@ def test_the_stage_runs_after_the_addressee_check_and_before_the_guard() -> (
     names = [child.name for child in tree.children]
 
     addressee = stages.index(ActivityAddressedToReceiverNode.__name__)
+    seen = stages.index("ActivityNotSeenBeforeNode")
     path = stages.index(ReceivedPathNode.__name__)
     guard = names.index("SenderRuleGuard")
 
-    assert addressee < path < guard
+    assert addressee < seen < path < guard
+    # Directly after the seen-before door (HP-01-035).
+    assert path == seen + 1
 
 
 @pytest.mark.spec("HP-01-005")

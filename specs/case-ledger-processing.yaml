@@ -2632,10 +2632,11 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The intake node MUST idempotently archive the received activity exactly as
-      received, as a `ReceivedActivityRecord`. The record holds the received body as the
-      parser sealed it (VM-08-002), and nothing derived from it. The receiver derives
-      its id (`ReceivedActivityRecord.build_id`), never using the id the sender chose.
+      The intake node MUST idempotently record the received activity exactly as
+      received, as its `ReceivedActivityRecord`. The record holds the received body as
+      the parser sealed it (VM-08-002), and nothing derived from it. The receiver
+      derives its id (`ReceivedActivityRecord.build_id`), never using the id the sender
+      chose.
       The record carries the sender's activity id for the reverse lookup.
     rationale: >-
       The archive is the sealed body (ADR-0149), because a summary drops what core does

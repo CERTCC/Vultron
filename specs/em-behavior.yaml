@@ -94,7 +94,8 @@ groups:
       is classified as an embargo Invite only once the receiver holds the terms
       (SE-01-006). Its `Reject` follows the fetch of those terms (AKM-05-007), and none
       is sent when the fetch fails (AKM-05-015). A re-delivery of an Invite already
-      answered with a `Reject` is a duplicate, and gets no second `Reject` (HP-01-014).
+      answered with a `Reject` gets no second `Reject`: the seen-before door refuses
+      it again from its receipt stub (CLP-10-010, HP-01-014).
     rationale: >-
       Embargo negotiation is not viable once public disclosure has occurred.
       VP-06-001 prohibits new embargo negotiations in these states.
@@ -127,6 +128,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-06-001
+    - rel_type: uses_definition
+      spec_id: CLP-10-010
       note: MUST NOT propose or accept embargo when public/exploit/attacks
     - rel_type: uses_definition
       spec_id: MSM-02-001
