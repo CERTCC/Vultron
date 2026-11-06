@@ -133,7 +133,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
   `BTBridge` serializes executions with a module-level `RLock`, and `blackboard_scope.py` snapshots and restores execution-scoped keys, but any key outside those managed sets can leak between trees.
 - **Core modules over the CS-18 size cap**: several core files exceed the 500-line threshold of CS-18-001, the largest being `vultron/core/behaviors/case/receive_activity_tree.py` (see `CONCERNS.md`).
 - **Content signing decided, partly built**: ADR-0164 (`accepted-provisional`) chooses object-level proofs inside each activity (FEP-8b32, `eddsa-jcs-2022`) from seeded keys, with strict verification and no switch.
-  The one signing module, `vultron/wire/as2/signing.py`, creates and verifies proofs, but nothing calls it yet: no delivery is signed, the inbox accepts any well-formed body, and the expected behavior is pinned by strict-`xfail` tests (`test/adapters/driving/fastapi/test_signed_delivery_refusal.py`, `test/core/use_cases/received/test_signed_ledger_entries.py`).
+  The one signing module, `vultron/wire/as2/signing.py`, creates and verifies proofs, but production code calls it only to publish each hosted actor's key on its profile, and only tests sign through it (`test/support/signing.py`): no outbound delivery is signed, the inbox accepts any well-formed body, and the expected behavior is pinned by strict-`xfail` tests (`test/adapters/driving/fastapi/test_signed_delivery_refusal.py`, `test/core/use_cases/received/test_signed_ledger_entries.py`).
 - **Demo layer mixed into `vultron/demo/`**: demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear.
 
 ### 6) Evidence

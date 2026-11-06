@@ -33,6 +33,7 @@ from vultron.core.models.base import (
     VULTRON_CONTEXT_URI,
     VULTRON_PROPERTY_EXTRA,
     VULTRON_PROPERTY_KEY,
+    JsonLdContext,
 )
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
@@ -110,8 +111,9 @@ class as_Base(BaseModel):
     # term, so it is a superset of ``ACTIVITY_STREAMS_NS`` and a receiver can
     # expand ``VulnerabilityCase`` or ``EmbargoEvent`` from the activity's own
     # context.  An inbound body citing only the AS2 namespace still parses and
-    # keeps the context it arrived with (permissive receive).
-    context_: NonEmptyString = Field(
+    # keeps the context it arrived with (permissive receive), and so does one
+    # whose context is a list, as every signed body's is (FEP-8b32).
+    context_: JsonLdContext = Field(
         default=VULTRON_CONTEXT_URI,
         validation_alias="@context",
         serialization_alias="@context",
