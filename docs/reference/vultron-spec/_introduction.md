@@ -86,8 +86,9 @@ Within a case, though, shared state has one writer.
 
     Equally, Vultron as it stands is **not** a fully decentralized design. Within
     a case there is one writer, and its availability bounds how fast the case can
-    progress. The current reference implementation goes further and runs a
-    dedicated service actor per case.
+    progress.
+    The current reference implementation runs one Case Actor service per container, which holds the CASE_MANAGER role for all the cases it manages.
+    A Case Owner that does not delegate management holds the role itself.
 
     The protocol leaves more distributed realizations open — a shared ledger
     among peers, for instance — and this version does not specify one
@@ -116,13 +117,12 @@ integrated with the wider ActivityPub ecosystem.
 vocabulary as its wire format, and ActivityPub HTTP delivery is the anticipated
 transport.
 
-This version builds on the vocabulary but not on full ActivityPub server behavior:
-inbox and outbox HTTP delivery, WebFinger discovery and HTTP Signatures are not
-conformance requirements here. A future version is expected to raise the floor to
-full ActivityPub for all participants, at which point the vocabulary-only profile
-may become a compatibility profile. An implementation built against this version
-can expect to be re-evaluated against that one. This paragraph is the
-specification's single statement of that roadmap; other sections cite it.
+This version builds on the vocabulary but not on full ActivityPub server behavior.
+HTTP POST to each actor's inbox endpoint is required ([§5.3 Transport](layers.md#53-transport-ni)).
+WebFinger discovery, HTTP Signatures, and ActivityPub federation behaviors such as shared inbox, outbox GET, and followers collections are not conformance requirements here.
+A future version is expected to raise the floor to full ActivityPub for all participants, at which point the vocabulary-only profile may become a compatibility profile.
+An implementation built against this version can expect to be re-evaluated against that one.
+This paragraph is the specification's single statement of that roadmap; other sections cite it.
 
 **ISO/IEC 29147 and 30111.** International Organization for Standardization (ISO) 29147 specifies vulnerability disclosure
 practices; ISO 30111 specifies vulnerability handling processes. Vultron
