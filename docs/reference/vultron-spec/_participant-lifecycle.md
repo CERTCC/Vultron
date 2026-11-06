@@ -79,11 +79,14 @@ A stub carries these fields only while an embargo is in force:
   The stub may carry the embargo inline or name it by an identifier the invitee can ask the inviter to resolve.
   The reference implementation always carries the full embargo inline, because it does not build that lookup.
 
-The stub model also accepts these optional fields:
+The reference implementation's stub object also accepts these optional fields:
 
 - `published` and `updated`: the times the stub itself was created and last changed.
   They describe the stub, not the case.
   The reference implementation sets neither on a stub it sends, so its stubs carry only the fields above.
+
+That object also inherits the generic ActivityStreams object fields, such as `name` and `content`.
+A sender puts no case content in them ([CM-17-022](requirements/case-management.md#cm-17-022)).
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-013", "CM-11-037", "CM-11-038", "CM-17-010", "CM-17-020", "CM-17-021", "CM-17-022", "CM-17-023", "CM-17-002", "CM-17-013", "CM-17-014", "EP-09-011", "MV-10-001"))
