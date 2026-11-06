@@ -40,6 +40,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -198,8 +199,10 @@ def test_ownership_offer_after_a_recommendation_is_made_and_committed(
     )
     _deliver(
         case_actor_dl,
-        recommendation.model_dump(
-            mode="json", by_alias=True, exclude_none=True
+        signed_body(
+            recommendation.model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            )
         ),
     )
 

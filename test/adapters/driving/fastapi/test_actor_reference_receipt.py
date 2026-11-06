@@ -33,6 +33,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
 )
 from test.support.received import delivered_body
+from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -90,9 +91,11 @@ def _recommendation_with_reference() -> dict[str, Any]:
         to=[_CASE_ACTOR_ID],
         suggested_roles=["vendor"],
     )
-    body = delivered_body(offer)
-    body["object"] = {"id": _PEER_ID, "type": "Actor"}
-    return body
+    # The reference replaces the full profile the factory inlines, so the
+    # altered body is signed again (SIG-01-001).
+    return resigned(
+        delivered_body(offer), object={"id": _PEER_ID, "type": "Actor"}
+    )
 
 
 @pytest.mark.spec("AKM-05-018")

@@ -33,6 +33,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
@@ -155,7 +156,9 @@ def _make_announce_body(entry: CaseLedgerEntry) -> dict[str, Any]:
         actor=_CASE_ACTOR_ID,
         to=[_PEER_ID],
     )
-    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return signed_body(
+        activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    )
 
 
 def test_get_actor_lock_returns_same_lock_for_same_actor():

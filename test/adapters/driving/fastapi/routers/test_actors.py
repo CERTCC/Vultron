@@ -21,6 +21,7 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.signing import signed_body
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
     get_all_actor_datalayers,
@@ -145,7 +146,7 @@ def test_post_activity_to_actor_inbox_accepted(client_actors, created_actors):
     for actor in created_actors:
         note = as_Note(content="This is a test note.")
         activity = as_Create(object_=note, actor=actor.id_)
-        payload = jsonable_encoder(activity, exclude_none=True)
+        payload = signed_body(jsonable_encoder(activity, exclude_none=True))
         resp = client_actors.post(
             f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
         )
@@ -187,7 +188,9 @@ def test_post_untimed_case_status_to_actor_inbox_returns_422(
         },
         "target": case_id,
     }
-    resp = client_actors.post(_inbox_path(actor.id_), json=payload)
+    resp = client_actors.post(
+        _inbox_path(actor.id_), json=signed_body(payload)
+    )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert "CLP-15-010" in resp.text
 
@@ -254,7 +257,7 @@ def test_an_activity_not_in_its_types_form_is_refused_before_processing(
     scheduled = _record_scheduled_pipelines(monkeypatch)
     actor = created_actors[0]
     resp = client_actors.post(
-        _inbox_path(actor.id_), json={**body, "actor": actor.id_}
+        _inbox_path(actor.id_), json=signed_body({**body, "actor": actor.id_})
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, resp.text
     assert reason in resp.text
@@ -271,7 +274,7 @@ def test_an_activity_in_its_types_form_is_scheduled_for_processing(
     activity = as_Create(object_=as_Note(content="hello"), actor=actor.id_)
     resp = client_actors.post(
         _inbox_path(actor.id_),
-        json=jsonable_encoder(activity, exclude_none=True),
+        json=signed_body(jsonable_encoder(activity, exclude_none=True)),
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     assert scheduled == [activity.id_]
@@ -291,7 +294,7 @@ def test_an_accepted_delivery_is_answered_with_an_empty_202(
     activity = as_Create(object_=as_Note(content="hello"), actor=actor.id_)
     resp = client_actors.post(
         f"/actors/{_route_key(actor.id_)}{path_suffix}",
-        json=jsonable_encoder(activity, exclude_none=True),
+        json=signed_body(jsonable_encoder(activity, exclude_none=True)),
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     assert resp.content == b""
@@ -312,12 +315,14 @@ def test_a_refused_delivery_carries_the_error_body(
     actor = created_actors[0]
     resp = client_actors.post(
         _inbox_path(actor.id_),
-        json={
-            "type": "Bogus",
-            "id": "https://example.org/activities/bogus",
-            "actor": actor.id_,
-            "published": _PUBLISHED,
-        },
+        json=signed_body(
+            {
+                "type": "Bogus",
+                "id": "https://example.org/activities/bogus",
+                "actor": actor.id_,
+                "published": _PUBLISHED,
+            }
+        ),
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     body = resp.json()
@@ -328,7 +333,9 @@ def test_a_refused_delivery_carries_the_error_body(
 
 def _create_note_body(actor_id: str) -> str:
     activity = as_Create(object_=as_Note(content="hello"), actor=actor_id)
-    return json.dumps(jsonable_encoder(activity, exclude_none=True))
+    return json.dumps(
+        signed_body(jsonable_encoder(activity, exclude_none=True))
+    )
 
 
 @pytest.mark.spec("HTTP-01-001")
@@ -508,7 +515,7 @@ def test_post_inbox_returns_400_when_activity_addressed_to_other_actor(
         activity, "to", other_id
     )  # explicitly addressed to a different actor
 
-    payload = jsonable_encoder(activity, exclude_none=True)
+    payload = signed_body(jsonable_encoder(activity, exclude_none=True))
     resp = client_actors.post(
         f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
     )
@@ -533,7 +540,7 @@ def test_a_misaddressed_activity_writes_nothing_to_the_receivers_store(
     activity = as_Create(object_=note, actor=other_id)
     object.__setattr__(activity, "to", other_id)
 
-    payload = jsonable_encoder(activity, exclude_none=True)
+    payload = signed_body(jsonable_encoder(activity, exclude_none=True))
     resp = client_actors.post(
         f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
     )
@@ -555,7 +562,7 @@ def test_post_inbox_returns_202_when_activity_addressed_to_actor(
     activity = as_Create(object_=note, actor=actor.id_)
     object.__setattr__(activity, "to", actor.id_)
 
-    payload = jsonable_encoder(activity, exclude_none=True)
+    payload = signed_body(jsonable_encoder(activity, exclude_none=True))
     resp = client_actors.post(
         f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
     )
@@ -572,7 +579,7 @@ def test_post_inbox_returns_202_when_activity_has_no_addressing(
     activity = as_Create(object_=note, actor=actor.id_)
     # no to/cc/bto/bcc set
 
-    payload = jsonable_encoder(activity, exclude_none=True)
+    payload = signed_body(jsonable_encoder(activity, exclude_none=True))
     resp = client_actors.post(
         f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
     )
@@ -1209,6 +1216,7 @@ def test_post_inbox_does_not_persist_core_class_for_core_only_type(
         "published": "2026-09-25T00:00:00Z",
         "object": {"id": "urn:uuid:core-only-inline", "type": "CoreActor"},
     }
+    payload = signed_body(payload)
     resp = client_actors.post(
         f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
     )

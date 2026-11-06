@@ -40,6 +40,7 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.signing import DATA_INTEGRITY_CONTEXT
 from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -490,7 +491,8 @@ def test_response_round_trips_through_the_as2_parser(
     body = delivered_body(factory(offer=sample_offer, actor=sample_actor))
 
     # The Vultron context imports AS2, so citing it is AS2 conformance
-    # (VM-10-001).
-    assert body["@context"] == VULTRON_CONTEXT_URI
+    # (VM-10-001); the body is signed, so it also cites the Data Integrity
+    # context its proof is defined in (SIG-01-002).
+    assert body["@context"] == [VULTRON_CONTEXT_URI, DATA_INTEGRITY_CONTEXT]
     assert body["type"] == wire_type
     assert isinstance(parse_activity(body), cls)

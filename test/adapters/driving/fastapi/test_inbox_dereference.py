@@ -445,6 +445,7 @@ def test_a_proposers_profile_is_handed_to_the_proposal_and_never_stored():
             "target": _CASE_ACTOR,
         },
     }
+    payload = signed_body(payload)
     fetcher = _FakeFetcher(
         {_REPLICA: ObjectFetchResult(_body(profile), None, 1)}
     )

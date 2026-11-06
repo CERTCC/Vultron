@@ -29,6 +29,7 @@ from test.support.received import (
     archive_received,
     delivered_body,
 )
+from test.support.signing import signed_body
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
@@ -599,7 +600,9 @@ class TestAnswerCaseParticipantOffer:
             recommended=vendor, target=case.id_, actor=_ACTOR, to=[_ACTOR]
         )
         FastAPIIngressAdapter(dl=dl).parse(
-            offer.model_dump(mode="json", by_alias=True, exclude_none=True)
+            signed_body(
+                offer.model_dump(mode="json", by_alias=True, exclude_none=True)
+            )
         )
         archive_received(dl, offer)
         participant_id = getattr(offer.object_, "id_", None)
