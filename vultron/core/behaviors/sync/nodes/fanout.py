@@ -41,6 +41,7 @@ from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
     PortInformation,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
@@ -328,16 +329,76 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class FanOutLogEntryNode(py_trees.composites.Sequence):
+class LogEntryCommittedBeforeNode(DataLayerConditionWithPorts):
+    """SUCCESS when the commit found the entry already recorded.
+
+    Reads ``log_entry_preexisting``, which ``CreateLogEntryNode`` writes on
+    both of its arms in the same commit tree; absent, it is ``False``.  An
+    entry already recorded was announced when it was committed: an act's
+    commit and its fan-out write in one transaction (ADR-0146), so a
+    recorded entry has its announcements queued with it.  Where a caller
+    commits outside one, an entry a crash left unannounced reaches each
+    recipient by the gap repair the next entry or the recipient's next
+    stamped position starts (SYNC-03-001, SYNC-18-007).
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "log_entry_preexisting": PortInformation(
+            data_type=bool, required=False
+        ),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"log_entry_preexisting": "/log_entry_preexisting"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.preexisting = bool(
+            self.get_input("log_entry_preexisting", default=False)
+        )
+
+    def update(self) -> Status:
+        if not self.preexisting:
+            return Status.FAILURE
+        self.logger.info(
+            "%s: the log entry was committed and announced before; it is"
+            " not announced again (SYNC-09-002, OX-06-002)",
+            self.name,
+        )
+        return Status.SUCCESS
+
+
+class FanOutLogEntryNode(py_trees.composites.Selector):
+    """Announce a newly committed entry to its recipients, once.
+
+    The entry is announced only when this commit recorded it.  A re-run that
+    rebuilds an act under its first id finds the act's entry already
+    recorded (``CreateLogEntryNode`` reuses it), and that entry was
+    announced when it was committed: a second announcement would go out
+    under new ids, which no receiver can tell from a new message.  A
+    derived announcement id is not used instead, because a receiver that
+    refused an announcement (a gap, an unseeded case) must accept the same
+    entry when it is replayed to it later (SYNC-03-001, SYNC-15-001).
+    """
+
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(
             name=name or self.__class__.__name__,
             memory=False,
             children=[
-                CollectLogEntryRecipientsNode(
-                    case_id=case_id,
-                    name="CollectLogEntryRecipients",
+                LogEntryCommittedBeforeNode(name="LogEntryCommittedBefore"),
+                py_trees.composites.Sequence(
+                    name="AnnounceLogEntry",
+                    memory=False,
+                    children=[
+                        CollectLogEntryRecipientsNode(
+                            case_id=case_id,
+                            name="CollectLogEntryRecipients",
+                        ),
+                        SendLogEntryToEachNode(name="SendLogEntryToEach"),
+                    ],
                 ),
-                SendLogEntryToEachNode(name="SendLogEntryToEach"),
             ],
         )

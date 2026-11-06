@@ -40,6 +40,8 @@ import pytest
 from test.support.ledger_rebuild import run_use_case
 from test.support.received import received_event
 from test.support.rerun_from_holding import (
+    DrainedRerun,
+    Effects,
     drained_rerun,
     effects,
     rerun_from_holding,
@@ -71,13 +73,7 @@ from .rerun_sweep import (
     REFUSED,
     Scenario,
 )
-from .rerun_sweep.drained_failures import (
-    CLASSES,
-    DRAINED_FAILURES,
-    PinnedDrainedFailure,
-    drained_failure_classes,
-    pinned_classes,
-)
+from .rerun_sweep.drained_failures import DRAINED_FAILURES
 from .test_sender_sequence import _note_body
 
 
@@ -379,56 +375,26 @@ def test_a_replay_after_a_held_rerun_answers_a_lagging_position_once() -> None:
 
 
 def _drained_params() -> list[Any]:
-    """Every (path, kind, semantic), each pinned failure a strict xfail."""
-    params = []
-    for path in ("rerun", "replay"):
-        for kind, table in (("applied", APPLIED), ("refused", REFUSED)):
-            for semantic in sorted(table, key=lambda s: s.value):
-                classes = DRAINED_FAILURES.get((path, kind, semantic))
-                marks = (
-                    [
-                        pytest.mark.xfail(
-                            strict=True,
-                            raises=PinnedDrainedFailure,
-                            reason=(
-                                f"#5047 part 3, class {classes}: "
-                                + "; ".join(
-                                    CLASSES[c]
-                                    for c in sorted(pinned_classes(classes))
-                                )
-                            ),
-                        )
-                    ]
-                    if classes
-                    else []
-                )
-                params.append(
-                    pytest.param(
-                        path,
-                        kind,
-                        semantic,
-                        marks=marks,
-                        id=f"{path}-{kind}-{semantic.value}",
-                    )
-                )
-    return params
+    """Every (path, kind, semantic) of the drained sweep."""
+    return [
+        pytest.param(
+            path, kind, semantic, id=f"{path}-{kind}-{semantic.value}"
+        )
+        for path in ("rerun", "replay")
+        for kind, table in (("applied", APPLIED), ("refused", REFUSED))
+        for semantic in sorted(table, key=lambda s: s.value)
+    ]
 
 
-def test_every_pinned_drained_failure_names_a_scenario() -> None:
-    """A pin with no scenario behind it is stale."""
-    tables = {"applied": APPLIED, "refused": REFUSED}
-    stale = sorted(
-        f"{path}-{kind}-{semantic.value}"
-        for path, kind, semantic in DRAINED_FAILURES
-        if path not in ("rerun", "replay") or semantic not in tables[kind]
+def test_no_drained_scenario_is_pinned() -> None:
+    """A scenario that sends again is fixed, never pinned (#5047)."""
+    assert DRAINED_FAILURES == {}, (
+        "a drained scenario is pinned as a known failure; fix what it sends"
+        f" again instead: {sorted(DRAINED_FAILURES)}"
     )
-    assert stale == []
-    assert set(DRAINED_FAILURES.values()) <= {
-        ", ".join(c) for c in ("A", "B", "C", "AB", "AC", "BC", "ABC")
-    }
 
 
-@pytest.mark.spec("SYNC-09-002", "OX-06-002", "CLP-05-006")
+@pytest.mark.spec("SYNC-09-002", "OX-06-002", "ID-02-001", "CLP-05-006")
 @pytest.mark.parametrize(("path", "kind", "semantic"), _drained_params())
 def test_a_later_run_after_the_outbox_drained_sends_nothing_again(
     path: str, kind: str, semantic: MessageSemantics
@@ -438,13 +404,15 @@ def test_a_later_run_after_the_outbox_drained_sends_nothing_again(
     The inbox drains the outbox after each delivery, even one whose work
     raised (``_run_serialised``), so a re-run, and the replay of a re-run
     held for its retry, may find the first run's sends already gone.  The
-    later run must commit nothing new and queue nothing at all.
+    later run must commit nothing new and send nothing under a new id, nor
+    under the first run's id with other bytes.  A send queued again exactly
+    as first sealed is allowed: the receiver drops it (ID-02-001; #5047 AC-1
+    as reworded).
     """
     scenario = (APPLIED if kind == "applied" else REFUSED)[semantic]()
     _assert_built(semantic, scenario)
     before = effects(scenario.dl)
 
-    sender = str(scenario.event.actor_id)
     drained = drained_rerun(
         scenario.dl, scenario.event, replay=path == "replay", run=scenario.run
     )
@@ -456,35 +424,47 @@ def test_a_later_run_after_the_outbox_drained_sends_nothing_again(
         _assert_refusal_reached(
             semantic, drained.first, before, drained.after_first
         )
-    pin = DRAINED_FAILURES.get((path, kind, semantic))
-    if pin is not None and drained.sent_again:
-        _raise_if_only_pinned(drained, pin, kind=kind, sender=sender)
     assert drained.sent_again == [], (
         f"{semantic.value}: the {path} sent again after the drain:"
-        f" {drained.sent_again}"
+        f" {drained.sent_again} (resent as first sent: {drained.resent})"
     )
 
 
-def _raise_if_only_pinned(
-    drained: Any, pin: str, *, kind: str, sender: str
+def _drained(*queued_again: tuple[str, str]) -> DrainedRerun:
+    """A drained run whose first run sent ``first`` with one body."""
+    sent = Effects(ledger=(), outbox=(("first", '{"type": "Reject"}'),))
+    empty = Effects(ledger=(), outbox=())
+    return DrainedRerun(
+        first=None,
+        after_first=sent,
+        delivered=empty,
+        last=None,
+        after_last=Effects(ledger=(), outbox=tuple(queued_again)),
+    )
+
+
+def test_a_resend_under_the_first_id_with_the_same_bytes_is_not_sent_again() -> (
+    None
+):
+    drained = _drained(("first", '{"type": "Reject"}'))
+
+    assert drained.sent_again == []
+    assert drained.resent == ["outbox: first Reject(ref)"]
+
+
+@pytest.mark.parametrize(
+    ("queued", "why"),
+    [
+        (("first", '{"type": "Reject", "x": 1}'), "with a different body"),
+        (("second", '{"type": "Reject"}'), "under a new id"),
+    ],
+    ids=["same-id-other-bytes", "new-id"],
+)
+def test_a_send_a_receiver_would_take_as_new_or_refuse_is_sent_again(
+    queued: tuple[str, str], why: str
 ) -> None:
-    """Raise the pinned failure when the sends match the pin, else fail.
+    drained = _drained(queued)
 
-    Raises:
-        PinnedDrainedFailure: every item sent again is in a class the pin
-            names, and every named class is seen; the strict ``xfail``
-            accepts this exception alone.
-    """
-    seen, unexplained = drained_failure_classes(
-        drained, kind=kind, sender=sender
-    )
-    expected = pinned_classes(pin)
-    if seen == expected and not unexplained:
-        raise PinnedDrainedFailure(
-            f"class {pin}, as pinned: {drained.sent_again}"
-        )
-    pytest.fail(
-        f"pinned as class {pin}, but the later run sent classes"
-        f" {sorted(seen)} and items no class explains: {unexplained}"
-        f" (sent again: {drained.sent_again})"
-    )
+    assert len(drained.sent_again) == 1
+    assert drained.sent_again[0].endswith(why)
+    assert drained.resent == []

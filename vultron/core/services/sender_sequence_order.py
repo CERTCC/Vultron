@@ -61,6 +61,7 @@ from vultron.core.models.sender_sequence import (
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.inbox_replay import InboxReplayPort
 from vultron.core.services.received_holding import hold_unjudged_for_replay
+from vultron.core.sync_helpers.recorded_entries import is_ledgered_activity
 from vultron.core.sync_helpers.sender_sequence import (
     highest_ledgered_sender_sequence,
 )
@@ -141,6 +142,51 @@ def sender_sequence_order(
     )
 
 
+def judged_before(
+    order: SenderSequenceOrder,
+    number: int | None,
+    activity_id: str,
+    *,
+    ledgered: bool,
+) -> bool:
+    """Whether *activity_id*, numbered *number*, was judged in *order* before.
+
+    Its number is past (below the next expected one), and the ledger records
+    it (*ledgered*) or it is the activity last judged.  Read from the order
+    record and the ledger, so it holds whether or not the activity's record
+    survived: the replay of a re-run held for a retry runs with its record
+    released (ADR-0154, SYNC-21-018).
+    """
+    if number is None or number >= order.next_expected:
+        return False
+    return ledgered or activity_id == order.last_judged_id
+
+
+def was_judged_in_order(
+    dl: CasePersistence,
+    case_id: str,
+    sender_id: str,
+    activity_id: str,
+    number: int | None,
+) -> bool:
+    """Whether this CASE_MANAGER already judged *activity_id* in order.
+
+    :func:`judged_before`, read from *dl*: the sender's order record for
+    *case_id* and the case ledger.  A stage that answers an activity once
+    per judgment asks this, so a replay whose record was released is not
+    answered again (SYNC-18-007, ADR-0154).
+    """
+    order = sender_sequence_order(dl, case_id, sender_id)
+    if number is None or number >= order.next_expected:
+        return False  # not past, so no ledger scan is needed
+    return judged_before(
+        order,
+        number,
+        activity_id,
+        ledgered=is_ledgered_activity(dl, case_id, activity_id),
+    )
+
+
 def _held_by_id(
     order: SenderSequenceOrder, activity_id: str
 ) -> HeldSenderActivity | None:
@@ -195,7 +241,7 @@ def classify_sender_sequence(
         # records, or the one last judged, was judged in order, whether its
         # record survived or a replay that released the record runs it as
         # a first delivery (ADR-0154), so it is never answered as late.
-        if ledgered or activity_id == order.last_judged_id:
+        if judged_before(order, number, activity_id, ledgered=ledgered):
             return SequenceStanding.JUDGED_REPEAT
         if not redelivery:
             return SequenceStanding.LATE
@@ -450,6 +496,8 @@ __all__ = [
     "end_case_sender_sequence_holds",
     "end_expired_sender_sequence_holds",
     "hold_past_gap",
+    "judged_before",
     "queue_due_sender_sequence_replays",
     "sender_sequence_order",
+    "was_judged_in_order",
 ]

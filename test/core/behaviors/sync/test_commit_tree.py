@@ -274,6 +274,37 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
     assert len(entries) == 1
 
 
+@pytest.mark.spec("SYNC-09-002", "OX-06-002")
+def test_a_reused_entry_is_not_announced_again(bridge, datalayer, case_obj):
+    """A commit that finds its entry recorded announces nothing (#5047).
+
+    The entry was announced when it was committed.  A second announcement
+    would go out under a new id, which a receiver cannot tell from a new
+    message, so a re-run that rebuilds the act sends nothing new.
+    """
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    def _commit() -> Status:
+        return bridge.execute_with_setup(
+            tree=create_commit_log_entry_tree(
+                case_id=CASE_ID,
+                object_id="https://example.org/activities/act-4",
+                semantic_type="case_updated",
+                payload_snapshot=_canonical_note_snapshot(
+                    PEER_ID, "https://example.org/notes/note-4"
+                ),
+            ),
+            actor_id=OWNER_ACTOR_ID,
+            sync_port=sync_port,
+        ).status
+
+    assert _commit() == Status.SUCCESS
+    sync_port.send_announce_log_entry.assert_called_once()
+
+    assert _commit() == Status.SUCCESS
+    sync_port.send_announce_log_entry.assert_called_once()
+
+
 @pytest.mark.spec("CLP-07-011")
 def test_create_commit_log_entry_tree_default_payload_snapshot_is_empty_dict():
     """Omitting payload_snapshot passes an empty dict through to CreateLogEntryNode."""
