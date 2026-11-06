@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Add",
   "id": "urn:uuid:21f4bfb2-5b99-48e3-8597-8cb42d3482ac",
   "name": "https://vultron.example/organizations/vendorco Add FDR-8675309 to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",

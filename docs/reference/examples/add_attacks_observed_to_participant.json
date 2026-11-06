@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Add",
   "id": "urn:uuid:259b3fb9-430d-4e80-9a25-a852cb0e8354",
   "name": "https://vultron.example/organizations/finder Add ACCEPTED NONE pxA to https://vultron.example/cases/1/participants/finder",

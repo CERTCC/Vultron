@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Offer",
   "id": "urn:uuid:1f075842-1506-4058-b7b1-60fa31e9a619",
   "name": "https://vultron.example/users/finndervul Offer FDR-8675309",

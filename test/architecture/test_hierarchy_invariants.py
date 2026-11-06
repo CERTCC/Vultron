@@ -60,9 +60,6 @@ from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
-# AS2 namespace constant from wire layer
-ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
-
 #: The AS2 Activity Vocabulary properties whose domain is ``Object`` (W3C
 #: Activity Vocabulary section 4), plus ``id`` and ``type``. Listed here rather
 #: than read off a model so that a property dropped from every model still

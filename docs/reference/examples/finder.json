@@ -1,16 +1,16 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Person",
   "id": "https://vultron.example/users/finndervul",
   "name": "Finn der Vul",
   "inbox": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "OrderedCollection",
     "id": "https://vultron.example/users/finndervul/inbox",
     "items": []
   },
   "outbox": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "OrderedCollection",
     "id": "https://vultron.example/users/finndervul/outbox",
     "items": []

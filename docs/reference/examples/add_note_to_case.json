@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Add",
   "id": "urn:uuid:4c69711a-7a32-46cd-b76b-04fc466bec2c",
   "name": "https://vultron.example/users/finndervul Add Note to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -7,7 +7,7 @@
   "actor": "https://vultron.example/users/finndervul",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Note",
     "id": "https://vultron.example/notes/1",
     "name": "Note",

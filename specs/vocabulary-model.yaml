@@ -1147,9 +1147,12 @@ groups:
       dereferenceable JSON-LD context so that external implementations can resolve them.
       The context document at the Vultron namespace URI imports the AS2 namespace, so
       implementations need only cite the Vultron context URI.
-    verification: Inspection of `vultron/wire/as2/vocab/objects/base.py` confirms that the class with `_vocab_ns =
-      VocabNamespace.VULTRON` sets `context_` to `"https://certcc.github.io/Vultron/ns/context.jsonld"` as the default
-      field value, ensuring all outbound Vultron objects carry the correct `@context` declaration.
+    verification: >-
+      Tests marked `VM-10-001` in `test/adapters/test_outbound_vultron_context.py`
+      render one sealed outbound body per activity verb that a `SEMANTIC_REGISTRY`
+      pattern matches and assert its top-level `@context` is the Vultron context URI,
+      and that any nested object's `@context` restates that same value. The default
+      lives on `as_Base`, so activities carry it, not only Vultron objects (#5168).
     adr:
     - ADR-0069
     stories:

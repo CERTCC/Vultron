@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Reject",
   "id": "urn:uuid:78fbaa3b-85ca-4322-a607-90941aca4e8d",
   "name": "https://example.org/case-actors/alpha Reject urn:uuid:653760f5-776e-4047-a522-1174526ad048",

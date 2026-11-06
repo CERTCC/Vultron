@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Reject",
   "id": "urn:uuid:9eaaf5d5-b885-423e-868d-1ba6e71f759e",
   "name": "https://vultron.example/organizations/vendorco Reject https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",
@@ -7,7 +7,7 @@
   "to": "https://vultron.example/cases/1/participants",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Invite",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/1",
     "name": "https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",

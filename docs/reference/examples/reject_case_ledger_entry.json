@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Reject",
   "id": "urn:uuid:fbc07321-bab2-436c-a6a8-835721b664bf",
   "name": "https://vultron.example/organizations/vendorco Reject urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/2",

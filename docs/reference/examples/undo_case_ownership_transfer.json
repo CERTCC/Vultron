@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Undo",
   "id": "urn:uuid:69d18287-3a13-4005-9304-d7f1ed3a673a",
   "name": "https://vultron.example/organizations/vendorco Undo https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
@@ -9,7 +9,7 @@
   ],
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Offer",
     "id": "urn:uuid:cec214fd-07ea-49e7-abb0-26e4d8e60e1d",
     "name": "https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
@@ -22,7 +22,7 @@
     ],
     "actor": "https://vultron.example/organizations/vendorco",
     "object": {
-      "@context": "https://www.w3.org/ns/activitystreams",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Offer",
       "id": "urn:uuid:72cee889-f890-4611-a267-f431d39b07a0",
       "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
@@ -30,7 +30,7 @@
       "updated": "2026-06-01T19:12:00.000000+00:00",
       "actor": "https://vultron.example/organizations/vendorco",
       "target": {
-        "@context": "https://www.w3.org/ns/activitystreams",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
         "type": "Actor",
         "id": "https://vultron.example/organizations/coordinator"
       },

@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Remove",
   "id": "urn:uuid:dbe1756a-4767-4c6d-ba1d-547acf91faa4",
   "name": "https://vultron.example/organizations/vendorco Remove Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",

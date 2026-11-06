@@ -1,5 +1,5 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "type": "Announce",
   "id": "urn:uuid:9e08b946-4b29-46ac-ba18-bc70917c674a",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Announce urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/log/0",

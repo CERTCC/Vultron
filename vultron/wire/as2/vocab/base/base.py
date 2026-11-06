@@ -105,8 +105,14 @@ class as_Base(BaseModel):
         if not is_wire_type_alias(cls):
             WIRE_TYPE_MAP[wire_type_value(cls)] = cls
 
+    # Every outbound object cites the Vultron context, activities included
+    # (VM-10-001, #5168): that document imports AS2 and declares every Vultron
+    # term, so it is a superset of ``ACTIVITY_STREAMS_NS`` and a receiver can
+    # expand ``VulnerabilityCase`` or ``EmbargoEvent`` from the activity's own
+    # context.  An inbound body citing only the AS2 namespace still parses and
+    # keeps the context it arrived with (permissive receive).
     context_: NonEmptyString = Field(
-        default=ACTIVITY_STREAMS_NS,
+        default=VULTRON_CONTEXT_URI,
         validation_alias="@context",
         serialization_alias="@context",
     )
