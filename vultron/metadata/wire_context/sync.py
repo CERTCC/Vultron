@@ -12,9 +12,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Generate the normative JSON-LD ``@context`` from the wire vocabulary (#2943).
 
-VM-10-001 requires every outbound Vultron message to declare
-``@context: "https://certcc.github.io/Vultron/ns/context.jsonld"``. That
-document maps every Vultron-namespace ``type`` string (``CaseParticipant``,
+VM-10-001 requires every outbound Vultron message to list
+``"https://certcc.github.io/Vultron/ns/context.jsonld"`` in its ``@context``,
+after the AS2 namespace. That document maps every Vultron-namespace ``type`` string (``CaseParticipant``,
 ``ProcessingFault``, …) to its ``vultron:`` IRI so a receiver can resolve the
 term. Hand-maintaining it means a new Vultron-namespace wire type is added to
 the code but forgotten in the context, and receivers silently cannot resolve

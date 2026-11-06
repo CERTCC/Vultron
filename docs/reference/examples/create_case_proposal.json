@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Create",
   "id": "urn:uuid:b7ea11b6-fc44-49eb-b4a5-871add599847",
   "name": "VendorCo Create urn:uuid:27de30c4-15bc-4ec2-aadc-83294c9f5388",
@@ -21,13 +24,10 @@
       "updated": "2026-06-01T19:12:00.000000+00:00",
       "actorId": "https://vultron.example/organizations/vendorco",
       "inbox": "https://vultron.example/organizations/vendorco/inbox",
-      "preferredDuration": "P45D",
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
-    },
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      "preferredDuration": "P45D"
+    }
   },
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "CaseProposal",
     "id": "urn:uuid:27de30c4-15bc-4ec2-aadc-83294c9f5388",
     "published": "2026-06-01T19:12:00.000000+00:00",
@@ -41,8 +41,7 @@
       "published": "2026-06-01T19:12:00.000000+00:00",
       "updated": "2026-06-01T19:12:00.000000+00:00",
       "content": "I found a vulnerability!",
-      "attributedTo": "https://vultron.example/users/finndervul",
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      "attributedTo": "https://vultron.example/users/finndervul"
     },
     "target": "https://example.org/case-actors/alpha",
     "proposerCaseRoles": [

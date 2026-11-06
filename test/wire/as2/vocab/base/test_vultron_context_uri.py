@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 """Tests for VM-10-001 and VM-10-002: as_VultronObject context_ defaults to the
-Vultron namespace URI, and every wire type whose type_ value is not an AS2
+AS2-then-Vultron list, and every wire type whose type_ value is not an AS2
 vocabulary term carries VocabNamespace.VULTRON.
 
-AC-1: as_VultronObject.context_ defaults to VULTRON_CONTEXT_URI.
-AC-2: as_Base.context_ also defaults to VULTRON_CONTEXT_URI, so activities
-cite it too (#5168; tested in test_wire_base_hierarchy.py).
-AC-3: Serialization emits the Vultron URI in @context for as_VultronObject subclasses.
-AC-4: Round-trip from_json(obj.to_json()) preserves the Vultron @context.
+AC-1: as_VultronObject.context_ defaults to DEFAULT_JSONLD_CONTEXT.
+AC-2: as_Base.context_ also defaults to it, so activities cite it too
+(#5168, #6006; tested in test_wire_base_hierarchy.py).
+AC-3: Serialization emits the list in @context for as_VultronObject subclasses.
+AC-4: Round-trip from_json(obj.to_json()) preserves the @context list.
 AC-6: Every wire type with a non-AS2 type_ value annotates _vocab_ns=VULTRON.
 AC-7: Tests carry @pytest.mark.spec("VM-10-001") / @pytest.mark.spec("VM-10-002").
 """
@@ -37,7 +37,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.wire.as2.enums import as_AllObjectTypes
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
-    VULTRON_CONTEXT_URI,
+    DEFAULT_JSONLD_CONTEXT,
 )
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
@@ -51,6 +51,8 @@ for _mi in list(pkgutil.iter_modules(_act_pkg.__path__)):
     importlib.import_module(f"vultron.wire.as2.vocab.activities.{_mi.name}")
 
 # Complete set of standard ActivityStreams 2.0 type_ values.
+_DEFAULT_CONTEXT = list(DEFAULT_JSONLD_CONTEXT)
+
 _AS2_VOCAB_TERMS = frozenset({m.value for m in as_AllObjectTypes}) | {
     "Object",
     "Collection",
@@ -67,10 +69,10 @@ _AS2_VOCAB_TERMS = frozenset({m.value for m in as_AllObjectTypes}) | {
 
 
 @pytest.mark.spec("VM-10-002")
-def test_as_vultron_object_context_defaults_to_vultron_uri():
-    """AC-1: as_VultronObject.context_ defaults to the Vultron context URI."""
+def test_as_vultron_object_context_defaults_to_the_list():
+    """AC-1: as_VultronObject.context_ defaults to the AS2-then-Vultron list."""
     obj = as_VultronObject()
-    assert obj.context_ == VULTRON_CONTEXT_URI
+    assert obj.context_ == _DEFAULT_CONTEXT
 
 
 @pytest.mark.spec("VM-10-002")
@@ -85,11 +87,11 @@ def test_as_vultron_object_context_is_not_as2_namespace():
 
 @pytest.mark.spec("VM-10-001")
 @pytest.mark.spec("VM-10-002")
-def test_vultron_subclass_serializes_vultron_context():
-    """AC-3: A as_VultronObject subclass serializes @context as the Vultron URI."""
+def test_vultron_subclass_serializes_the_context_list():
+    """AC-3: A as_VultronObject subclass serializes @context as the list."""
     obj = as_VultronObject()
     data = json.loads(obj.to_json())
-    assert data["@context"] == VULTRON_CONTEXT_URI
+    assert data["@context"] == _DEFAULT_CONTEXT
 
 
 @pytest.mark.spec("VM-10-001")
@@ -97,7 +99,7 @@ def test_embargo_event_serializes_vultron_context():
     """AC-3: as_EmbargoEvent is now a core class (ARCH-25-003, ADR-0099, issue #3487).
 
     The paired wire class was deleted; as_EmbargoEvent IS EmbargoEvent (core).
-    The core class adds the Vultron ``@context`` on the by-alias (wire) dump
+    The core class adds the ``@context`` list on the by-alias (wire) dump
     (ARCH-25-001, ADR-0099), so the collapsed class still serializes it.
     """
     from vultron.core.models.embargo_event import EmbargoEvent
@@ -108,22 +110,21 @@ def test_embargo_event_serializes_vultron_context():
     )
     data = json.loads(obj.model_dump_json(exclude_none=True, by_alias=True))
     assert data["type"] == "EmbargoEvent"
-    assert data["@context"] == VULTRON_CONTEXT_URI
+    assert data["@context"] == _DEFAULT_CONTEXT
 
 
 @pytest.mark.spec("VM-10-001")
-def test_plain_as_base_serializes_the_vultron_context():
-    """A plain AS2 class (not ``as_VultronObject``) also cites the Vultron context.
+def test_plain_as_base_serializes_the_context_list():
+    """A plain AS2 class (not ``as_VultronObject``) also cites both contexts.
 
     Activities are plain AS2 classes, and VM-10-001 covers every outbound
-    message, so the default lives on ``as_Base`` (#5168).  The Vultron context
-    imports AS2, so an AS2 term still expands.
+    message, so the default lives on ``as_Base`` (#5168, #6006).
     """
     from vultron.wire.as2.vocab.base.base import as_Base
 
     obj = as_Base()
     data = json.loads(obj.to_json())
-    assert data["@context"] == VULTRON_CONTEXT_URI
+    assert data["@context"] == _DEFAULT_CONTEXT
 
 
 # --- AC-4: Round-trip preserves Vultron @context -------------------------------
@@ -132,10 +133,10 @@ def test_plain_as_base_serializes_the_vultron_context():
 @pytest.mark.spec("VM-10-001")
 @pytest.mark.spec("VM-10-002")
 def test_as_vultron_object_roundtrip_preserves_context():
-    """AC-4: from_json(obj.to_json()) preserves the Vultron @context."""
+    """AC-4: from_json(obj.to_json()) preserves the @context list."""
     obj = as_VultronObject()
     restored = as_VultronObject.from_json(obj.to_json())
-    assert restored.context_ == VULTRON_CONTEXT_URI
+    assert restored.context_ == _DEFAULT_CONTEXT
 
 
 @pytest.mark.spec("VM-10-001")

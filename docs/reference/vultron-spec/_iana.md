@@ -8,7 +8,7 @@ See ADR-0069.
 
 **JSON-LD context document.** The normative JavaScript Object Notation for Linked Data (JSON-LD) context is identified by
 `https://certcc.github.io/Vultron/ns/context.jsonld`.
-Every outbound Vultron message names this URI as its `@context` value ([§5.2 Serialization](layers.md#52-serialization)):
+Every outbound Vultron message lists this URI in its `@context`, after the AS2 namespace ([§5.2 Serialization](layers.md#52-serialization)):
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-001"))

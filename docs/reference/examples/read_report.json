@@ -1,12 +1,14 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Read",
   "id": "urn:uuid:28fc50c5-d5d5-4278-a718-99ef7bed2af7",
   "name": "https://vultron.example/organizations/vendorco Read https://vultron.example/users/finndervul Offer FDR-8675309",
   "content": "We have received the report. We will get back to you soon.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "Offer",
     "id": "urn:uuid:fb5efdcc-2a15-47e7-88b4-b46ed8bf7ca0",
     "name": "https://vultron.example/users/finndervul Offer FDR-8675309",
@@ -23,8 +25,7 @@
       "published": "2026-06-01T19:12:00.000000+00:00",
       "updated": "2026-06-01T19:12:00.000000+00:00",
       "content": "I found a vulnerability!",
-      "attributedTo": "https://vultron.example/users/finndervul",
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      "attributedTo": "https://vultron.example/users/finndervul"
     }
   }
 }

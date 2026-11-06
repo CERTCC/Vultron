@@ -635,7 +635,7 @@ def test_rm_invite_stub_carries_no_case_content(sample_actor):
     case's own ``summary`` and its ``attributedTo`` never travel.
     """
     stub = _invite_stub_wire(sample_actor)
-    assert set(stub) <= {"@context", "type", "id", "caseId", "summary"}
+    assert set(stub) <= {"type", "id", "caseId", "summary"}
     assert stub.get("summary") != "A summary of the case"
 
 
@@ -643,7 +643,7 @@ def test_rm_invite_stub_carries_no_case_content(sample_actor):
 def test_rm_invite_stub_carries_a_non_empty_summary(sample_actor):
     """The stub carries a non-empty ``summary`` beside its identity (CM-17-010)."""
     stub = _invite_stub_wire(sample_actor)
-    assert set(stub) == {"@context", "type", "id", "caseId", "summary"}
+    assert set(stub) == {"type", "id", "caseId", "summary"}
     assert isinstance(stub["summary"], str)
     assert stub["summary"].strip()
 
@@ -1039,7 +1039,6 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     stub = wire["target"]
     # "summary" is the stub summary #4165 adds (CM-17-010), not case content.
     assert set(stub) - {"summary"} == {
-        "@context",
         "type",
         "id",
         "caseId",
@@ -1050,7 +1049,6 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     assert status["emState"] == EM.ACTIVE.value
     # ``published`` is the time every status carries (CLP-15-010).
     assert set(status) <= {
-        "@context",
         "id",
         "type",
         "context",
@@ -1247,6 +1245,7 @@ def test_rm_invite_stub_embeds_the_full_active_embargo(
     expected = json.loads(
         embargo.model_dump_json(by_alias=True, exclude_none=True)
     )
+    del expected["@context"]  # nested: VM-10-004
     assert wire["target"]["activeEmbargo"] == expected
 
 

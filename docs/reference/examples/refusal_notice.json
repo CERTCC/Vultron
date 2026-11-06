@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Reject",
   "id": "urn:uuid:7bdceebd-59f8-4a2b-bfb7-322e3f51180d",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Reject https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor",
@@ -11,7 +14,10 @@
   ],
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ],
     "type": "Add",
     "id": "urn:uuid:2987701c-3c95-4077-8e97-5ce4c02fa016",
     "name": "https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor",
@@ -40,10 +46,8 @@
         "context": "https://vultron.example/cases/1",
         "published": "2026-06-01T19:12:00.000000+00:00",
         "emState": "NONE",
-        "pxaState": "pxa",
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
-      },
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        "pxaState": "pxa"
+      }
     }
   }
 }

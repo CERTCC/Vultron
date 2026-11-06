@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Create",
   "id": "urn:uuid:4bc281de-9275-525f-b4e1-2671dcace1bb/create",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Create urn:uuid:4bc281de-9275-525f-b4e1-2671dcace1bb",
@@ -10,7 +13,6 @@
     "type": "EmbargoConsent",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "embargoId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-08-30T00:00:00+00:00",
-    "state": "UNINVITED",
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "state": "UNINVITED"
   }
 }

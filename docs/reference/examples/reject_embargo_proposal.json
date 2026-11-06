@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Reject",
   "id": "urn:uuid:ea20455d-6b29-43fe-991d-28ddd3ccd558",
   "name": "https://vultron.example/organizations/vendorco Reject Embargo for VendorCo Case #20260601 to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -15,7 +18,6 @@
     "endTime": "2026-08-30T00:00:00.000000+00:00",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
-    "content": "We propose to embargo VendorCo Case #20260601 for 90 days.",
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "content": "We propose to embargo VendorCo Case #20260601 for 90 days."
   }
 }

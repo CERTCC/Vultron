@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Create",
   "id": "urn:uuid:fbfd8da0-40e0-4a2c-8794-b290cb971011",
   "name": "https://vultron.example/users/finndervul Create FDR-8675309",
@@ -11,7 +14,6 @@
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "content": "I found a vulnerability!",
-    "attributedTo": "https://vultron.example/users/finndervul",
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "attributedTo": "https://vultron.example/users/finndervul"
   }
 }

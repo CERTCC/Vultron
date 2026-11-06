@@ -1,5 +1,8 @@
 {
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "type": "Add",
   "id": "urn:uuid:50c3f505-a71d-40e2-9304-2b5eca6f89a9",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Add NONE pxa to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -15,7 +18,6 @@
     "context": "https://vultron.example/cases/1",
     "published": "2026-06-01T19:12:00.000000+00:00",
     "emState": "NONE",
-    "pxaState": "pxa",
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "pxaState": "pxa"
   }
 }

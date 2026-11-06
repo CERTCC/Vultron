@@ -1,4 +1,8 @@
 {
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://certcc.github.io/Vultron/ns/context.jsonld"
+  ],
   "id": "https://vultron.example/cases/1/participants/vendor",
   "type": "CaseParticipant",
   "name": "Vendor",
@@ -29,13 +33,10 @@
         "context": "https://vultron.example/cases/1",
         "published": "2026-06-01T19:12:00.000000+00:00",
         "emState": "NONE",
-        "pxaState": "pxa",
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
-      },
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        "pxaState": "pxa"
+      }
     }
   ],
   "embargoConsents": [],
-  "joined": true,
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  "joined": true
 }

@@ -189,12 +189,16 @@ class TestPutEmbargoPolicy:
             _PATH, json={"preferred_duration": "P30D"}
         ).json()
 
+        # Nested in the profile, the policy does not restate the profile's
+        # ``@context`` (VM-10-004); the stand-alone record does carry one.
+        inline = {k: v for k, v in published.items() if k != "@context"}
         profile = client_actors.get(f"/actors/{_SLUG}/profile").json()
-        assert profile["embargoPolicy"] == published
+        assert profile["embargoPolicy"] == inline
         actor = client_actors.get(f"/actors/{_SLUG}").json()
-        assert actor["embargoPolicy"] == published
-        # The endpoint returns the record the profile carries (EP-02-006).
-        assert client_actors.get(_PATH).json() == profile["embargoPolicy"]
+        assert actor["embargoPolicy"] == inline
+        # The endpoint returns the record the profile carries (EP-02-006),
+        # as a stand-alone document with its own ``@context``.
+        assert client_actors.get(_PATH).json() == published
 
     @pytest.mark.spec("HTTP-03-005")
     def test_an_actor_this_node_does_not_host_is_404(self, client_actors):
