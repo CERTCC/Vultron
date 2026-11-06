@@ -2603,27 +2603,32 @@ groups:
     description: >-
       Where the build-to-merge pipeline runs tests locally, and when it merges
       the base branch into a PR. CI on `pull_request` runs the full suite
-      against the PR merged into its base as of the push, so after the first
-      push a local run is worth its cost only when it catches something
-      before CI would.
+      against the PR merged into its base as of the push, and GitHub refuses a
+      merge while that run is red or has not run. So a local check is worth its
+      cost only when it answers before CI would (ADR-0179).
     specs:
       - id: PAD-18-001
         adr:
         - ADR-0126
+        - ADR-0179
         priority: MUST
         kind: process
         statement: >-
           Before an implementation Pull Request's first push, `create-pr` MUST
-          run the full local unit and integration suites and push only when
-          both pass.
+          gate it with the linters and the branch diff's targeted test set.
+          It pushes only when both pass.
         rationale: >-
-          One full run keeps an obviously broken branch out of CI. It is the
-          only point where the local suite is not repeating a CI run that is
-          about to happen anyway.
+          The full local suites took a median of 11.6 minutes, longer than CI
+          takes to run both. The linters and the targeted set keep an obviously
+          broken branch out of CI in a few minutes, and CI's required run tests
+          the rest on the merge with the base.
         verification: >-
-          Inspection: `create-pr` Phase 3 runs both suites on its
-          implementation-PR path before its push step and stops on a non-zero
-          `exit:` line.
+          Inspection: `create-pr` Phase 3 runs the linters and
+          `targeted-tests` on its implementation-PR path before its push step
+          and stops on a non-zero `exit:` line.
+        relationships:
+        - rel_type: uses_definition
+          spec_id: PAD-18-026
       - id: PAD-18-010
         adr:
         - ADR-0126
@@ -2634,10 +2639,11 @@ groups:
           `create-pr` MUST gate it with the linters and `prepush-ci-mirror`.
           That gate runs no unit or integration suite.
         rationale: >-
-          A docs-only branch has nothing for the suites to catch. CI's guards
-          still read its Markdown and specs, though: AGENTS.md ceilings, ADR
-          back-edges, line limits. Three of the #5580 audit's failures came
-          from docs-typed PRs that ran no local check at all.
+          A docs-only branch has nothing for the suites to catch. The mirror's
+          cheap checks still read its Markdown and specs: generated-file sync,
+          front matter, the ADR index, spec-lint and Markdown lint. Three of
+          the #5580 audit's failures came from docs-typed PRs that ran no local
+          check at all.
         verification: >-
           Inspection: `create-pr` Phase 3 runs only the linters on its
           docs-PR path, and Phase 3c runs `prepush-ci-mirror` on every PR
@@ -2695,23 +2701,20 @@ groups:
         adr:
         - ADR-0126
         - ADR-0143
-        priority: MUST
+        - ADR-0179
+        priority: MUST_NOT
         kind: process
         statement: >-
-          The PAD-18-002 gate MUST escalate to the full unit and integration
-          suites when the branch diff touches shared test infrastructure.
-          That infrastructure is `conftest.py`, `pyproject.toml`, `uv.lock`,
-          `vultron/__init__.py`, and test fixtures, factories, helpers or data
-          files outside the directories PAD-18-002 always selects.
+          The PAD-18-002 gate MUST NOT escalate to the full unit and
+          integration suites, whatever paths the branch diff touches.
         rationale: >-
-          The import index cannot see tests that reach a change through fixtures or
-          configuration. Only those paths need the whole suite. The key is the branch
-          diff, not the fix commit, so a fix on top of a `conftest.py` change still
-          escalates. This list does not control the gate after a conflict merge.
-          PAD-18-015 sets that gate.
+          A full local run takes longer than CI's run of both suites, which
+          GitHub requires before the merge. Escalating would make the agent
+          wait for the slower of two runs that give the same answer.
         verification: >-
-          Inspection: the targeted-test command reports `full` for a branch
-          diff that touches any listed path.
+          Inspection: `pr-execute` gates each post-first-push fix with
+          `targeted-tests` and runs no full suite, whatever the command
+          reports for the branch diff.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-002
@@ -2719,23 +2722,28 @@ groups:
         adr:
         - ADR-0126
         - ADR-0143
-        priority: MUST_NOT
+        - ADR-0179
+        priority: MUST
         kind: process
         statement: >-
-          The fix-commit gate of PAD-18-002 MUST NOT escalate to the full
-          suites for any path that PAD-18-003 does not list.
+          When a local test gate's paths include shared test infrastructure,
+          it MUST run the targeted set it can select and the always-selected
+          directories of PAD-18-002. Shared test infrastructure is
+          `conftest.py`, `pyproject.toml`, `uv.lock`, `vultron/__init__.py`,
+          and the test fixtures, factories, helpers and data files outside
+          those directories.
         rationale: >-
-          The gate selects code in an integration-bearing layer
-          (`vultron/core/behaviors/`, `vultron/adapters/`, and similar) by its
-          importers, like all other code, and includes integration-marked
-          importers. Escalation on such a layer would send most code Pull Requests
-          to a full local run on each fix commit. That run repeats, more slowly,
-          the full run that CI makes on the push (ADR-0143).
+          The import index cannot see the tests that reach a change through
+          fixtures or configuration, so no targeted set bounds such a path.
+          The gate still runs what it can select, and the directories where
+          nearly every red local run failed. CI's required full run covers
+          the rest.
         verification: >-
-          Inspection: the targeted-test command reports a targeted set for a
-          branch diff that touches only integration-bearing paths.
+          Inspection: when `targeted-tests` reports `full`, the gate in
+          `create-pr` and `pr-execute` runs the importers and mirror tests it
+          can still select, with `test/architecture/` and `test/metadata/`.
         relationships:
-        - rel_type: constrains
+        - rel_type: refines
           spec_id: PAD-18-003
         - rel_type: uses_definition
           spec_id: PAD-18-002
@@ -2774,8 +2782,8 @@ groups:
           CI already tests the merge of the PR into its base at each push, and no
           repository rule requires branches to be up to date. A conflict is the only
           sync that needs an agent, because someone must resolve it. GitHub can make
-          every clean merge, and CI tests it. A merge on file overlap alone would send
-          most merges to a full local suite run for paths that the merge did not
+          every clean merge, and CI tests it. A merge on file overlap alone would add
+          a local merge and a local test run for paths that the merge did not
           change.
         verification: >-
           Test: `test/metadata/test_sync_decision_script.py` runs
@@ -2816,25 +2824,22 @@ groups:
         - ADR-0126
         - ADR-0138
         - ADR-0143
+        - ADR-0179
         priority: MUST
         kind: process
         statement: >-
           After resolving a conflict, the agent MUST gate the merge with the
           linters and the targeted set for the conflicted files alone. Each
           conflicted file counts as wholly changed. The gate also runs
-          `test/architecture/` and `test/metadata/`. It escalates to the full
-          suite only when a conflicted file is a `conftest.py`,
-          `pyproject.toml`, `uv.lock`, or `vultron/__init__.py`.
+          `test/architecture/` and `test/metadata/`.
         rationale: >-
-          A gate from the whole branch diff would send most conflict merges to a full
-          local suite run for paths that the merge did not change. The gate treats a
-          conflicted file as wholly changed, because both sides edited it. The rest of
-          the merge changed no line that the PR wrote, and CI runs the full suite on
-          the push.
+          A gate from the whole branch diff would test paths that the merge did
+          not change. The gate treats a conflicted file as wholly changed,
+          because both sides edited it. The rest of the merge changed no line
+          that the PR wrote, and CI runs the full suite on the push.
         verification: >-
           Inspection: `pr-execute` Phase 5 Step 3 gates a conflict merge with
-          `targeted-tests --paths`, which reports `full` only for the listed
-          configuration files.
+          `targeted-tests --paths` and runs no full suite.
         relationships:
         - rel_type: extends
           spec_id: PAD-18-004
@@ -2886,24 +2891,24 @@ groups:
       - id: PAD-18-016
         adr:
         - ADR-0126
+        - ADR-0179
         priority: MUST
         kind: process
         statement: >-
           The PAD-18-006 count MUST include only runs that happened. The
-          first-push run of PAD-18-001 counts as one full run when `create-pr`
-          ran the suites. A Pull Request that `create-pr` gated by the linters
-          alone starts the full count at zero.
+          first-push gate of PAD-18-001 counts as one targeted run when
+          `create-pr` ran the targeted set. A Pull Request that `create-pr`
+          gated by the linters alone starts both counts at zero.
         rationale: >-
-          The first-push run happens in `create-pr`, before any execute artifact or
-          comment exists, so it has to be counted explicitly. Leaving it out would
-          understate every Pull Request by the single most expensive run in the
-          pipeline, which is the figure PAD-18-007 needs. Counting it for a docs-only
-          Pull Request that ran no suite would overstate the cost the same way.
+          The first-push run happens in `create-pr`, before any execute artifact
+          or comment exists, so it has to be counted explicitly. Leaving it out
+          would understate every Pull Request, and counting a run that did not
+          happen would overstate it. PAD-18-007 needs the true figure.
         verification: >-
           Inspection: the documented derivation in
-          `.agents/skills/pr-execute/REFERENCE.md` starts the full count at one
-          when `create-pr` ran the suites before the first push and at zero
-          when it did not.
+          `.agents/skills/pr-execute/REFERENCE.md` starts the targeted count at
+          one when `create-pr` ran the targeted set before the first push and
+          at zero when it did not.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-006
@@ -2932,18 +2937,19 @@ groups:
       - id: PAD-18-008
         adr:
         - ADR-0126
-        priority: MUST
+        - ADR-0179
+        priority: MUST_NOT
         kind: process
         statement: >-
-          The full local gate of PAD-18-001 MUST run exactly once before a
-          Pull Request's first push.
+          The gates before a Pull Request's first push MUST NOT run the full
+          unit or integration suites.
         rationale: >-
-          If the same suites run twice with no change to the tree between them, every
-          implementation Pull Request does the most expensive step in the pipeline two
-          times.
+          CI runs both suites on the first push, faster than a local run, and
+          GitHub refuses the merge until they pass. A local full run only makes
+          the agent wait for an answer that CI gives sooner.
         verification: >-
-          Inspection: `create-pr` Phase 3 is the sole pre-first-push suite
-          run.
+          Inspection: no `create-pr` path runs `pytest` on the whole unit or
+          integration suite before its push step.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-001
@@ -2956,9 +2962,9 @@ groups:
           A skill that hands off to `create-pr` MUST NOT run the unit or
           integration suites itself.
         rationale: >-
-          With the gate in `create-pr` only, the gate runs immediately before the push
-          that it guards. That position is the only thing that makes the gate worth its
-          cost.
+          CI runs both suites on the push, and GitHub requires that run. A suite
+          run in a skill before `create-pr` repeats it more slowly, before the
+          gate that guards the push has even run.
         verification: >-
           Inspection: `build` Phase 6 runs the linters but no `pytest`
           invocation.
@@ -2979,7 +2985,7 @@ groups:
         verification: >-
           Inspection: `work-epic-tasks` step 4 runs the merge-state,
           `git merge-tree`, and `targeted-tests --overlap` checks on the Pull
-          Request about to merge.
+          Request about to merge. None of them runs a test.
       - id: PAD-18-018
         adr:
         - ADR-0138
@@ -3088,71 +3094,64 @@ groups:
       - id: PAD-18-023
         adr:
         - ADR-0173
-        priority: MUST
+        - ADR-0179
+        priority: MUST_NOT
         kind: process
         statement: >-
-          `prepush-ci-mirror` MUST run its limit-enforcing guard tests on every
-          run, whatever the Pull Request's type and whatever the targeted set
-          holds.
+          `prepush-ci-mirror` MUST NOT run pyright, the spec-corpus suite, its
+          separate guard-test check, the site build, or a check that reads the
+          built site.
         rationale: >-
-          The guards behind most mechanical CI failures are pytest files: line
-          length, statement and module limits, AGENTS.md ceilings, the OpenAPI
-          snapshot. A docs-typed Pull Request runs no pytest locally, and a fix
-          commit's targeted set can leave a guard out, so the mirror runs them
-          on every push.
+          These checks took most of the mirror's median 824 seconds on each
+          push, and CI's spec and docs jobs answer them in about two to three
+          minutes. The mirror keeps the cheap checks, which find the most
+          frequent push failures in a few minutes. Most guard tests sit in
+          `test/architecture/` and `test/metadata/`, which every targeted gate
+          still runs.
         verification: >-
-          `test/metadata/test_ci_mirror.py`: the guard check runs on an empty
-          diff and on a docs-only diff. `test/ci/test_prepush_ci_mirror_parity.py`
-          checks each guard file exists.
+          Inspection: `vultron/metadata/planning/ci_mirror/_registry.py` lists
+          each of these checks in its exclusions, with a reason that names CI
+          as its owner.
         relationships:
-        - rel_type: uses_definition
+        - rel_type: constrains
           spec_id: PAD-18-021
       - id: PAD-18-024
         adr:
         - ADR-0173
-        priority: MUST
-        kind: process
-        statement: >-
-          When the base and a pushed Pull Request changed the same path without
-          a conflict, `pr-execute` MUST test their merge before it pushes. It
-          runs the tests for the shared paths on the merge of `HEAD` with the
-          base, in a scratch worktree.
-        rationale: >-
-          CI tests the Pull Request merged into its base. After the first push
-          the base moves, and a fix that passes on the branch alone can fail on
-          a file both sides changed. Testing that merge locally catches the
-          drift without merging the base into the branch, which PAD-18-004
-          forbids. Selecting for the shared paths alone, as PAD-18-015 does
-          after a conflict, keeps the run from escalating to the full suite
-          for paths the base never touched (ADR-0138).
-        verification: >-
-          `test/metadata/test_merged_tree_tests.py`: the gate runs on a tree
-          that holds both sides' changes, for the shared paths, and it does not
-          run when nothing overlaps. Inspection: `pr-execute` Phase 5 Step 3 runs
-          `merged-tree-tests` on a `no-merge` verdict with a `deferred` reason.
-        relationships:
-        - rel_type: uses_definition
-          spec_id: PAD-18-004
-      - id: PAD-18-025
-        adr:
-        - ADR-0173
+        - ADR-0179
         priority: MUST_NOT
         kind: process
         statement: >-
-          The merged-tree run of PAD-18-024 MUST NOT move the Pull Request
-          branch or leave its scratch worktree behind.
+          An agent MUST NOT run tests on a scratch merge of a Pull Request with
+          its base. A scratch merge is one the agent does not commit.
         rationale: >-
-          The run tests a merge that PAD-18-004 keeps out of the branch, so it
-          must leave no trace in it. `.git` is shared across host and container
-          mounts, so a stray worktree is cleaned with `git worktree remove`.
-          `git worktree prune` would destroy live worktrees.
+          CI on `pull_request` tests the merge of the branch into its base on
+          every push, and GitHub requires that run to pass. A local run on a
+          scratch merge repeats it, more slowly.
         verification: >-
-          `test/metadata/test_merged_tree_tests.py`: after a pass, a failure
-          and a conflict, the branch head is unchanged and no scratch worktree
-          is listed.
+          Inspection: no step of `pr-execute` or `work-epic-tasks` runs
+          `merged-tree-tests` or another test run on a scratch merge.
+      - id: PAD-18-025
+        adr:
+        - ADR-0173
+        - ADR-0179
+        priority: MUST
+        kind: process
+        statement: >-
+          A conflict check of a Pull Request against its base MUST use a trial
+          merge that moves no branch and writes no worktree.
+        rationale: >-
+          The check decides whether a merge into the branch is needed, so it
+          must leave no trace in the branch. `.git` is shared across host and
+          container mounts, and a stray worktree can only be cleaned with
+          `git worktree remove`, because `git worktree prune` would destroy
+          live worktrees.
+        verification: >-
+          Inspection: `sync-decision.sh` and `work-epic-tasks` step 4 find a
+          conflict with `git merge-tree`, and neither runs `git worktree add`.
         relationships:
-        - rel_type: extends
-          spec_id: PAD-18-024
+        - rel_type: refines
+          spec_id: PAD-18-004
       - id: PAD-18-026
         adr:
         - ADR-0179
@@ -3168,6 +3167,75 @@ groups:
         verification: >-
           Inspection: the `run-linters` skill runs `ruff check`, `ruff format`
           and `mypy`.
+      - id: PAD-18-027
+        adr:
+        - ADR-0179
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A local gate MUST NOT run pyright.
+        rationale: >-
+          pyright took a median of two minutes in each local linter step and
+          used enough memory to starve parallel test runs. CI runs it on every
+          push, and GitHub requires that run to pass.
+        verification: >-
+          Inspection: no step of `run-linters`, `create-pr` or `pr-execute`
+          runs `pyright`.
+        relationships:
+        - rel_type: constrains
+          spec_id: PAD-18-026
+      - id: PAD-18-028
+        adr:
+        - ADR-0179
+        priority: MUST
+        kind: process
+        statement: >-
+          `create-pr` MUST open an implementation Pull Request as a draft.
+        rationale: >-
+          No full suite has run on the branch when it is first pushed. The
+          draft state tells a human reviewer that CI has not yet answered.
+        verification: >-
+          Inspection: `create-pr` opens an implementation Pull Request with
+          `gh pr create --draft`.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-001
+      - id: PAD-18-029
+        adr:
+        - ADR-0179
+        priority: MUST
+        kind: process
+        statement: >-
+          An agent MUST mark a draft Pull Request ready for review only when
+          CI's latest run on its head has passed.
+        rationale: >-
+          No full suite runs locally, so a CI run is the first proof that the
+          branch works. A failed run leaves the Pull Request a draft until a fix
+          passes, never for good.
+        verification: >-
+          Inspection: `pr-ship` runs `gh pr ready` only after CI's run on the
+          current head reports success.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-028
+      - id: PAD-18-030
+        adr:
+        - ADR-0179
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          `pr-execute`'s limit on CI rounds MUST NOT count CI's first run on a
+          draft Pull Request.
+        rationale: >-
+          That run is the full-suite run that the local gate no longer makes,
+          not a round spent on a fix. Counting it would leave one round fewer
+          for fixes than before.
+        verification: >-
+          Inspection: `.agents/skills/pr-execute/REFERENCE.md` starts the CI
+          round count after CI's first run on a draft.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-028
       - id: PAD-18-031
         adr:
         - ADR-0179
