@@ -2906,11 +2906,11 @@ groups:
       sequence completes exactly 6 ordered steps (CM-14-008 through CM-14-013) and that no step
       is skipped or reordered.
     note: >-
-      Superseded by CM-22 (ADR-0041) for multi-actor deployments: in the
-      CASE_MANAGER-authoritative model the `VulnerabilityCase` is created by the
-      CASE_MANAGER rather than the receiving actor; the receiving actor remains
-      the case's `attributed_to` (CM-14-008, CP-09-001).  CM-14-001 applies only in
-      single-actor deployments where the receiving actor IS the CASE_MANAGER.
+      The CASE_MANAGER runs this sequence when it accepts a `Create(CaseProposal)`
+      (CP-09, ADR-0041), so it creates the case even when another actor received the
+      report. The report receiver stays the case's `attributed_to` (CM-14-008,
+      CP-09-001), and step 4 addresses the `Create(VulnerabilityCase)` by whether the
+      CASE_MANAGER is that receiver (CM-14-011).
     stories:
     - story_2022_012
     - story_2022_046
@@ -2992,38 +2992,6 @@ groups:
     stories:
     - story_2022_013
     - story_2022_023
-  - id: CM-14-006
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      If the reporter included an embargo proposal with their
-      `Offer(VulnerabilityReport)`, the case initialization SHOULD reconcile the
-      reporter's proposed duration against the CASE_OWNER's published embargo policy
-      (its actor default, EP-04-003) and initialize the embargo at the shorter of the
-      two durations
-    rationale: >-
-      An agreement to an embargo of N days is also an agreement to every shorter
-      embargo. Thus the shorter of the two terms is the term that both the reporter and
-      the Case Owner accepted (EP-04-003). The longer term would bind a party to terms
-      that it did not offer.
-    note: >-
-      EP-04-004 now specifies the mechanism: the reporter embeds a proposed `EmbargoEvent` in the
-      `Offer(VulnerabilityReport)` activity. This requirement is therefore reachable, and the
-      reconciliation it describes is the shortest-wins comparison of EP-04-003. Note that the
-      protocol default of EP-04-005 is not a candidate in that comparison (EP-04-006). Amended by
-      ADR-0096; see `notes/embargo-default-semantics.md` § "Reporter Embargo Proposal
-      Mechanism (EP-04-004)".
-    relationships:
-    - rel_type: uses_definition
-      spec_id: CM-14-001
-    - rel_type: uses_definition
-      spec_id: EP-04-004
-    - rel_type: uses_definition
-      spec_id: EP-04-003
-    adr:
-    - ADR-0096
-    stories:
-    - story_2022_010
   - id: CM-14-007
     priority: MUST_NOT
     kind: protocol
@@ -3133,17 +3101,36 @@ groups:
     kind: protocol
     statement: >-
       Step 4 of the case initialization sequence MUST queue a
-      `Create(VulnerabilityCase)` activity addressed to the reporter and flush the
-      outbox.
-    rationale: The reporter's system must receive and store the case object before any
-      Announce(CaseLedgerEntry) fan-out that references it.
+      `Create(VulnerabilityCase)` activity and flush the outbox. When the CASE_MANAGER
+      is the report receiver, the activity goes to the reporter (CBT-01-001).
+      Otherwise it goes to the report receiver, the CASE_OWNER, only (CM-22-006,
+      CBT-01-010).
+    rationale: >-
+      Each recipient must hold the case object before any
+      `Announce(CaseLedgerEntry)` fan-out that references it. The reporter trusts
+      only the actor it sent its report to, so the case reaches it from that actor:
+      directly when that actor is the CASE_MANAGER, and through the report
+      receiver's introduction when it is not (ADR-0132).
     relationships:
     - rel_type: part_of
       spec_id: CM-14-001
+    - rel_type: uses_definition
+      spec_id: CBT-01-001
+    - rel_type: uses_definition
+      spec_id: CBT-01-010
+    - rel_type: uses_definition
+      spec_id: CM-22-006
     adr:
     - ADR-0119
-    verification: Integration tests in `test/demo/` confirm that step 4 queues
-      `Create(VulnerabilityCase)` addressed to the reporter and flushes the outbox.
+    - ADR-0132
+    verification: >-
+      `test_case_manager_create_is_addressed_to_the_owner_only` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts that a
+      CASE_MANAGER that did not receive the report addresses the `Create` to the
+      report receiver only, and `test_accept_and_create_are_queued_before_any_ledger_fanout`
+      asserts it is queued before any ledger fan-out. The prototype has no path on
+      which the report receiver is its own CASE_MANAGER, so the reporter branch is
+      not exercised.
     stories:
     - story_2022_012
     - story_2022_038
@@ -6182,9 +6169,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST address that `Create(VulnerabilityCase)` (CP-09-011) to the
-      report receiver, the CASE_OWNER, only. The report receiver introduces the
-      CASE_MANAGER to the reporter (CBT-01-001, ADR-0132).
+      When the CASE_MANAGER is not the report receiver, it MUST address that
+      `Create(VulnerabilityCase)` (CP-09-011) to the report receiver, the CASE_OWNER,
+      only. The report receiver introduces the CASE_MANAGER to the reporter
+      (CBT-01-001, ADR-0132).
     rationale: >-
       The report receiver proposed the case and owns it. The reporter has not yet met
       the CASE_MANAGER, so the report receiver introduces it (ADR-0132), and a `Create`
