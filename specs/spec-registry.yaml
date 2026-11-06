@@ -973,9 +973,9 @@ groups:
     kind: project
     statement: >-
       `spec-coverage` MUST put each `protocol` and `foundation` requirement in one of
-      three states and report the count of each. A requirement is verified when no
-      strict `xfail` holds at least one of its marked tests. It is xfail-only when a
-      strict `xfail` holds each of its marked tests. It is untested when no
+      three states and report the count of each. A requirement is verified when at
+      least one of its marked tests runs with no strict `xfail` on it. It is xfail-only
+      when a strict `xfail` holds each of its marked tests. It is untested when no
       `@pytest.mark.spec` marker names it. The coverage figure counts verified
       requirements only.
     rationale: >-

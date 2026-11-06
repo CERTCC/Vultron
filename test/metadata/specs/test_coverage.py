@@ -557,6 +557,26 @@ class TestCoverageStates:
         )
         assert states == {"CVG-01-001": _V}
 
+    def test_an_unplaced_marker_beside_a_placed_xfail_is_verified(
+        self, tmp_path
+    ):
+        """A passing test the reader cannot place still verifies."""
+        states = _states(
+            tmp_path,
+            1,
+            test_a=(
+                "import pytest\n"
+                "@pytest.mark.spec('CVG-01-001')\n"
+                "@pytest.mark.xfail(strict=True, reason='r')\n"
+                "def test_gap(): pass\n"
+                "def make():\n"
+                "    @pytest.mark.spec('CVG-01-001')\n"
+                "    def test_inner(): pass\n"
+                "    return test_inner\n"
+            ),
+        )
+        assert states == {"CVG-01-001": _V}
+
     @pytest.mark.spec("SR-05-005")
     def test_the_growth_guard_set_is_the_untested_set(self, tmp_path):
         """An xfail-only requirement has a marker, so the guard ignores it."""
@@ -666,6 +686,38 @@ class TestJsonOutput:
     def test_the_same_tree_writes_the_same_bytes(self, tmp_path, monkeypatch):
         first = self._run(tmp_path, monkeypatch, tmp_path / "a.json")
         assert first == self._run(tmp_path, monkeypatch, tmp_path / "b.json")
+
+    def test_xfails_sort_by_test_then_reason_with_none_first(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        spec_dir = _protocol_specs(tmp_path, 1)
+        test_dir = tmp_path / "test"
+        test_dir.mkdir()
+        (test_dir / "test_order.py").write_text(
+            "import pytest\n"
+            "@pytest.mark.spec('CVG-01-001')\n"
+            "@pytest.mark.xfail(strict=True, reason='')\n"
+            "@pytest.mark.xfail(strict=True, reason='b')\n"
+            "@pytest.mark.xfail(strict=True)\n"
+            "def test_a(): pass\n"
+        )
+        out = tmp_path / "order.json"
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "spec-coverage",
+                str(spec_dir),
+                str(test_dir),
+                "--json",
+                str(out),
+            ],
+        )
+        main()
+        doc = json.loads(out.read_text(encoding="utf-8"))
+        reasons = [t["reason"] for t in doc["requirements"][0]["xfail_tests"]]
+        assert reasons == [None, "", "b"]
+        assert "      (no reason)\n" in capsys.readouterr().out
 
     def test_without_json_no_file_is_written(self, tmp_path, monkeypatch):
         spec_dir = _protocol_specs(tmp_path, 1)

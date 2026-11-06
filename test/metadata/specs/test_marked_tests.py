@@ -166,3 +166,110 @@ def test_a_file_that_does_not_parse_raises_naming_it():
     with pytest.raises(SyntaxError) as raised:
         marked_cases_in("broken.py", "@pytest.mark.spec('A')\ndef (:\n")
     assert raised.value.filename == "broken.py"
+
+
+def test_a_conditional_xfail_counts_as_holding():
+    """The report errs toward listing a gap: a condition is not evaluated."""
+    assert _view(
+        "@pytest.mark.spec('A')\n"
+        "@pytest.mark.xfail(sys.platform == 'win32', reason='w', strict=True)\n"
+        "def test_a(): pass\n"
+    ) == {("t.py::test_a", frozenset({"A"}), ("w",))}
+
+
+def test_an_unconditional_skip_holds_like_an_xfail():
+    view = _view(
+        "@pytest.mark.spec('A')\n"
+        "@pytest.mark.skip(reason='later')\n"
+        "def test_a(): pass\n"
+        "@pytest.mark.spec('B')\n"
+        "@pytest.mark.skip('positional')\n"
+        "def test_b(): pass\n"
+        "@pytest.mark.spec('C')\n"
+        "@pytest.mark.skip\n"
+        "def test_c(): pass\n"
+    )
+    assert view == {
+        ("t.py::test_a", frozenset({"A"}), ("skip: later",)),
+        ("t.py::test_b", frozenset({"B"}), ("skip: positional",)),
+        ("t.py::test_c", frozenset({"C"}), ("skip:",)),
+    }
+
+
+def test_an_empty_parameter_list_holds_like_a_skip():
+    assert _view(
+        "@pytest.mark.spec('A')\n"
+        "@pytest.mark.parametrize('x', [])\n"
+        "def test_a(x): pass\n"
+    ) == {
+        ("t.py::test_a", frozenset({"A"}), ("skip: got empty parameter set",))
+    }
+
+
+def test_only_the_last_pytestmark_counts_and_its_parametrize_is_an_axis():
+    view = _view(
+        "pytestmark = pytest.mark.xfail(strict=True, reason='overwritten')\n"
+        "pytestmark = [pytest.mark.spec('M'), pytest.mark.parametrize('x', [\n"
+        "    pytest.param(1, marks=pytest.mark.xfail(strict=True, reason='p')),\n"
+        "    2,\n"
+        "])]\n"
+        "def test_a(x): pass\n"
+    )
+    assert view == {
+        ("t.py::test_a", frozenset({"M"}), ("p",)),
+        ("t.py::test_a", frozenset({"M"}), ()),
+    }
+
+
+def test_literal_param_ids_name_the_case():
+    view = _view(
+        "@pytest.mark.parametrize('x', [\n"
+        "    pytest.param(1, id='one', marks=pytest.mark.spec('A')),\n"
+        "])\n"
+        "@pytest.mark.parametrize('y', [\n"
+        "    pytest.param(1, id='gap', marks=pytest.mark.xfail(strict=True)),\n"
+        "    pytest.param(2, marks=pytest.mark.spec('B')),\n"
+        "])\n"
+        "def test_a(x, y): pass\n"
+    )
+    assert view == {
+        ("t.py::test_a[one-gap]", frozenset({"A"}), (None,)),
+        ("t.py::test_a", frozenset({"A", "B"}), ()),
+    }
+
+
+def test_async_tests_set_marks_and_set_or_generator_arguments_are_read():
+    view = _view(
+        "@pytest.mark.spec('A')\n"
+        "@pytest.mark.parametrize('x', {\n"
+        "    pytest.param(v, marks={pytest.mark.xfail(strict=True, reason='s')})\n"
+        "    for v in VALUES\n"
+        "})\n"
+        "async def test_a(x): pass\n"
+        "@pytest.mark.spec('B')\n"
+        "@pytest.mark.parametrize('x', (\n"
+        "    pytest.param(v, marks=pytest.mark.xfail(strict=True, reason='g'))\n"
+        "    for v in VALUES\n"
+        "))\n"
+        "def test_b(x): pass\n"
+    )
+    assert view == {
+        ("t.py::test_a", frozenset({"A"}), ("s",)),
+        ("t.py::test_b", frozenset({"B"}), ("g",)),
+    }
+
+
+def test_a_spec_call_the_reader_cannot_place_gets_an_unheld_case():
+    view = _view(
+        "@pytest.mark.spec('A')\n"
+        "@pytest.mark.xfail(strict=True, reason='r')\n"
+        "def test_a(): pass\n"
+        "def make():\n"
+        "    @pytest.mark.spec('A', 'B')\n"
+        "    def test_inner(): pass\n"
+        "    return test_inner\n"
+    )
+    assert view == {
+        ("t.py::test_a", frozenset({"A"}), ("r",)),
+        ("t.py", frozenset({"A", "B"}), ()),
+    }

@@ -251,7 +251,9 @@ def _xfail_tests(cases: Iterable[MarkedCase]) -> tuple[XfailTest, ...]:
     }
     return tuple(
         XfailTest(test=test, reason=reason, issues=issue_refs(reason))
-        for test, reason in sorted(found, key=lambda t: (t[0], t[1] or ""))
+        for test, reason in sorted(
+            found, key=lambda t: (t[0], t[1] is not None, t[1] or "")
+        )
     )
 
 
@@ -269,8 +271,9 @@ def classify_requirements(
         cases: The marked test cases
             (:func:`~vultron.metadata.specs.marked_tests.marked_cases_in`).
             A marked ID is xfail-only when it has cases and a strict
-            ``xfail`` holds each one; otherwise it is verified, including a
-            marker the AST reader cannot place in a test.
+            ``xfail`` holds each one; otherwise it is verified. A marker
+            the AST reader cannot place in a test, or one only the regex
+            sees, so counts as verified.
     """
     by_id: dict[str, list[MarkedCase]] = {}
     for case in cases:

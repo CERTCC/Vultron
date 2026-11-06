@@ -27,12 +27,20 @@ their cross product.
 
 Every ``xfail`` counts as strict. TB-17-001 requires ``strict=True`` on each
 one, and ``xfail_strict = true`` in ``pyproject.toml`` makes an omitted
-``strict`` strict at run time, so the reader does not inspect ``strict``.
+``strict`` strict at run time, so the reader does not inspect ``strict``. An
+``xfail`` with a condition counts as holding wherever it applies: the report
+errs toward listing a gap. Two things that stop a case running count like an
+``xfail`` too, because no passing run comes of them: an unconditional
+``mark.skip`` (its reason prefixed ``skip:``) and a ``parametrize`` whose
+literal argument list is empty.
+
+As pytest does, only the last ``pytestmark`` assignment of a module or class
+counts, and a ``parametrize`` inside it adds an axis like a decorator.
 
 Loose reading, as for the TB-17-001 ratchet: the reader reads names, not
 values. It does not see a marker bound to a variable first (``xf =
-pytest.mark.xfail`` then ``@xf``), a mark inherited from a base class, or an
-``xfail`` condition. A ``parametrize`` argument list it cannot read (a call, a
+pytest.mark.xfail`` then ``@xf``), a mark inherited from a base class, or a
+``skipif``. A ``parametrize`` argument list it cannot read (a call, a
 name) counts as one parameter set with no marks. A comprehension counts as the
 parameter sets its element can produce, both branches of a conditional
 expression included.
@@ -55,11 +63,13 @@ class _Marks:
 
     spec_ids: frozenset[str] = frozenset()
     xfail_reasons: tuple[str | None, ...] = ()
+    param_ids: tuple[str, ...] = ()
 
     def __or__(self, other: _Marks) -> _Marks:
         return _Marks(
             self.spec_ids | other.spec_ids,
             self.xfail_reasons + other.xfail_reasons,
+            self.param_ids + other.param_ids,
         )
 
 
@@ -77,12 +87,14 @@ class MarkedCase:
     """One way a marked test runs: its spec IDs and the xfails that hold it.
 
     Attributes:
-        test: ``path::Class::function``, the test as pytest names it, without
-            the parameter ID.
+        test: ``path::Class::function``, the test as pytest names it. When
+            each parameter set of the case has a literal ``id=``, the IDs
+            follow in brackets, joined by ``-``, as pytest joins them.
         spec_ids: Spec IDs the case carries.
         xfail_reasons: The ``reason`` of each ``xfail`` marker that applies,
-            ``None`` where the reason is not a string the reader can resolve.
-            Empty when no ``xfail`` applies, so the case runs to pass or fail.
+            ``None`` where the reason is not a string the reader can resolve,
+            and of each skip the module docstring names. Empty when none
+            applies, so the case runs to pass or fail.
     """
 
     test: str
@@ -102,12 +114,31 @@ def issue_refs(reason: str | None) -> tuple[int, ...]:
     return tuple(sorted({int(n) for n in _ISSUE_REF_RE.findall(reason)}))
 
 
-def _names(node: ast.expr) -> str:
-    return ast.unparse(node)
+def dotted_name(node: ast.expr) -> str:
+    """``a.b.c`` for an attribute chain on a name; ``""`` for anything else."""
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return ""
+    parts.append(node.id)
+    return ".".join(reversed(parts))
 
 
 def _is_mark(node: ast.expr, name: str) -> bool:
-    return _names(node).endswith(f"mark.{name}")
+    return dotted_name(node).endswith(f"mark.{name}")
+
+
+def spec_call_ids(node: ast.AST) -> frozenset[str]:
+    """The string IDs a ``mark.spec(...)`` call names; empty for any other node."""
+    if not (isinstance(node, ast.Call) and _is_mark(node.func, "spec")):
+        return frozenset()
+    return frozenset(
+        arg.value
+        for arg in node.args
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+    )
 
 
 def _resolve_str(node: ast.expr, constants: Mapping[str, str]) -> str | None:
@@ -173,26 +204,25 @@ def _marks_of(node: ast.expr, constants: Mapping[str, str]) -> _Marks:
         return found
     if isinstance(node, ast.Attribute) and _is_mark(node, "xfail"):
         return _Marks(xfail_reasons=(None,))
+    if isinstance(node, ast.Attribute) and _is_mark(node, "skip"):
+        return _Marks(xfail_reasons=("skip:",))
     if not isinstance(node, ast.Call):
         return _Marks()
     if _is_mark(node.func, "spec"):
-        return _Marks(
-            spec_ids=frozenset(
-                arg.value
-                for arg in node.args
-                if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
-            )
-        )
-    if _is_mark(node.func, "xfail"):
-        reason = next(
-            (k.value for k in node.keywords if k.arg == "reason"), None
-        )
-        return _Marks(
-            xfail_reasons=(
-                None if reason is None else _resolve_str(reason, constants),
-            )
-        )
-    return _Marks()
+        return _Marks(spec_ids=spec_call_ids(node))
+    is_skip = _is_mark(node.func, "skip")
+    if not (is_skip or _is_mark(node.func, "xfail")):
+        return _Marks()
+    reason_node = next(
+        (k.value for k in node.keywords if k.arg == "reason"),
+        node.args[0] if is_skip and node.args else None,
+    )
+    reason = (
+        None if reason_node is None else _resolve_str(reason_node, constants)
+    )
+    if is_skip:
+        reason = "skip:" if reason is None else f"skip: {reason}"
+    return _Marks(xfail_reasons=(reason,))
 
 
 def _param_variants(
@@ -203,12 +233,20 @@ def _param_variants(
         return _param_variants(node.body, constants) + _param_variants(
             node.orelse, constants
         )
-    if isinstance(node, ast.Call) and _names(node.func).endswith("param"):
-        marks = next(
-            (k.value for k in node.keywords if k.arg == "marks"), None
-        )
-        return [_Marks() if marks is None else _marks_of(marks, constants)]
+    if isinstance(node, ast.Call) and dotted_name(node.func).endswith("param"):
+        keywords = {k.arg: k.value for k in node.keywords}
+        marks = keywords.get("marks")
+        found = _Marks() if marks is None else _marks_of(marks, constants)
+        param_id = keywords.get("id")
+        if isinstance(param_id, ast.Constant) and isinstance(
+            param_id.value, str
+        ):
+            found |= _Marks(param_ids=(param_id.value,))
+        return [found]
     return [_Marks()]
+
+
+_EMPTY_PARAMETER_SET = _Marks(xfail_reasons=("skip: got empty parameter set",))
 
 
 def _parametrize_axis(
@@ -228,7 +266,7 @@ def _parametrize_axis(
             variant
             for element in argvalues.elts
             for variant in _param_variants(element, constants)
-        ]
+        ] or [_EMPTY_PARAMETER_SET]
     elif isinstance(argvalues, (ast.ListComp, ast.GeneratorExp, ast.SetComp)):
         variants = _param_variants(argvalues.elt, constants)
     else:
@@ -243,7 +281,7 @@ def _scope_from(
     constants: Mapping[str, str],
 ) -> _Scope:
     marks, axes = parent.marks, list(parent.axes)
-    for decorator in decorators:
+    for decorator in _flattened(decorators):
         if isinstance(decorator, ast.Call) and _is_mark(
             decorator.func, "parametrize"
         ):
@@ -254,9 +292,19 @@ def _scope_from(
     return _Scope(marks, tuple(axes), qualname)
 
 
+def _flattened(exprs: Iterable[ast.expr]) -> Iterator[ast.expr]:
+    """*exprs*, with each list or tuple of marks opened into its elements."""
+    for expr in exprs:
+        if isinstance(expr, (ast.List, ast.Tuple)):
+            yield from _flattened(expr.elts)
+        else:
+            yield expr
+
+
 def _pytestmark(body: Iterable[ast.stmt]) -> list[ast.expr]:
-    """The value of each ``pytestmark`` assignment in a module or class body."""
-    return [value for name, value in _bindings(body) if name == "pytestmark"]
+    """The last ``pytestmark`` value of a module or class body, as pytest reads it."""
+    values = [value for name, value in _bindings(body) if name == "pytestmark"]
+    return values[-1:]
 
 
 def _cases_in(
@@ -283,8 +331,15 @@ def _cases_in(
                 marks = test.marks
                 for param_marks in combination:
                     marks |= param_marks
-                if marks.spec_ids:
-                    yield MarkedCase(name, marks.spec_ids, marks.xfail_reasons)
+                if not marks.spec_ids:
+                    continue
+                named = bool(combination) and all(
+                    c.param_ids for c in combination
+                )
+                suffix = f"[{'-'.join(marks.param_ids)}]" if named else ""
+                yield MarkedCase(
+                    name + suffix, marks.spec_ids, marks.xfail_reasons
+                )
 
 
 def marked_cases_in(path: str, source: str) -> list[MarkedCase]:
@@ -296,7 +351,9 @@ def marked_cases_in(path: str, source: str) -> list[MarkedCase]:
 
     Returns:
         One :class:`MarkedCase` per test and distinct combination of
-        parameter marks, for tests that carry at least one spec ID.
+        parameter marks, for tests that carry at least one spec ID, and one
+        case named *path*, held by no xfail, for the IDs of ``mark.spec``
+        calls the reader cannot place in a test.
 
     Raises:
         SyntaxError: *source* does not parse; the error names *path*.
@@ -306,4 +363,42 @@ def marked_cases_in(path: str, source: str) -> list[MarkedCase]:
     tree = ast.parse(source, filename=path)
     constants = _module_constants(tree)
     module = _scope_from(_Scope(), None, _pytestmark(tree.body), constants)
-    return list(dict.fromkeys(_cases_in(path, tree.body, module, constants)))
+    cases = list(dict.fromkeys(_cases_in(path, tree.body, module, constants)))
+    unplaced = _unplaced_spec_ids(tree)
+    if unplaced:
+        cases.append(MarkedCase(path, unplaced, ()))
+    return cases
+
+
+def _mark_sites(body: Iterable[ast.stmt]) -> Iterator[ast.expr]:
+    """Every decorator and ``pytestmark`` value the reader places marks from."""
+    yield from (
+        value for name, value in _bindings(body) if name == "pytestmark"
+    )
+    for stmt in body:
+        if isinstance(
+            stmt, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            yield from stmt.decorator_list
+        if isinstance(stmt, ast.ClassDef):
+            yield from _mark_sites(stmt.body)
+
+
+def _unplaced_spec_ids(tree: ast.Module) -> frozenset[str]:
+    """IDs of ``mark.spec`` calls outside every place the reader reads.
+
+    Such a marker (in a factory function, under an ``if``) still marks a
+    test pytest may run, so it gets a case no xfail holds: the report never
+    calls a requirement xfail-only on the strength of the markers it can see
+    while a passing one it cannot see exists.
+    """
+    placed = {
+        id(node) for site in _mark_sites(tree.body) for node in ast.walk(site)
+    }
+    return frozenset().union(
+        *(
+            spec_call_ids(node)
+            for node in ast.walk(tree)
+            if id(node) not in placed
+        )
+    )
