@@ -19,7 +19,6 @@ import pytest
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.errors import VultronActivityConstructionError
-from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     is_ledger_request,
@@ -148,14 +147,25 @@ def test_an_inbound_number_survives_the_parse() -> None:
     assert parse_activity(body).sender_sequence == 7
 
 
+@pytest.mark.spec("SYNC-21-017")
 @pytest.mark.parametrize("number", ["two", "2", 0, -3, 1.5, True])
-def test_an_inbound_number_that_is_no_positive_integer_is_refused(
+def test_an_inbound_number_that_is_no_positive_integer_is_set_aside(
     number: object,
 ) -> None:
+    """The parse edge sets the number aside; the evidence keeps it.
+
+    A malformed number is the CASE_MANAGER's to refuse, with a notice naming
+    the number it expects, after its door and sender guards (SYNC-21-017,
+    SYNC-21-023), so the activity parses as one that carries no number, and
+    the received body keeps the value as it arrived (VM-08-002).
+    """
     body = json.loads(
         _note().model_dump_json(by_alias=True, exclude_none=True)
     )
     body["senderSequence"] = number
 
-    with pytest.raises(VultronParseValidationError, match="senderSequence"):
-        parse_activity(body)
+    parsed = parse_activity(body)
+
+    assert parsed.sender_sequence is None
+    assert parsed.received_evidence is not None
+    assert parsed.received_evidence["senderSequence"] == number

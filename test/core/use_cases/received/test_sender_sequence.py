@@ -685,6 +685,51 @@ def test_a_repeat_is_found_by_id_before_its_number() -> None:
         )
 
 
+@pytest.mark.spec("SYNC-21-018")
+@pytest.mark.spec("SYNC-21-024")
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.parametrize("refusal", ["late", "reused", "missing"])
+def test_a_resent_refused_number_is_refused_again_with_no_second_notice(
+    refusal: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A repeat of an activity refused for its number changes nothing and is
+    not answered again: its first refusal notice answered it (CLP-05-006,
+    ID-04-004).  The resend meets the receipt stub the refusal left, so
+    intake finds it as one seen before (SYNC-21-018)."""
+    net = _network(f"resend-{refusal}")
+    held = _numbered(_note_body(net, "held"), 2)
+    refused = _note_body(net, refusal)
+    manager_dl = net.stores[MANAGER]
+    net.receive(MANAGER, held)
+    if refusal == "late":
+        refused = _numbered(refused, 1)
+        _wait_out_holds(net, monkeypatch)
+    elif refusal == "reused":
+        refused = _numbered(refused, 2)
+    else:
+        refused.pop("senderSequence", None)
+    net.receive(MANAGER, refused)
+    assert_refusal_notice(
+        manager_dl,
+        manager=MANAGER,
+        refused_id=refused["id"],
+        asserter=OWNER,
+        reason="",
+        case_id=net.case_id,
+    )
+    # The notice leaves the outbox, as a delivered one does.
+    net.lose(MANAGER, to=OWNER, type_="Reject")
+    entries_before = len(ledger_entries(manager_dl, net.case_id))
+
+    net.receive(MANAGER, refused)
+
+    assert_no_refusal_notice(
+        manager_dl, manager=MANAGER, refused_id=refused["id"]
+    )
+    assert len(ledger_entries(manager_dl, net.case_id)) == entries_before
+    assert _note_of(refused) not in _committed_notes(net)
+
+
 @pytest.mark.spec("SYNC-21-020")
 def test_sequence_state_lives_in_the_datalayer() -> None:
     net = _network("stored")

@@ -4774,7 +4774,10 @@ groups:
       `test_a_repeat_is_found_by_id_before_its_number` in
       `test/core/use_cases/received/test_sender_sequence.py` redelivers a held note
       and a judged note and asserts each is committed once, in send order, with no
-      refusal notice.
+      refusal notice; `test_a_resent_refused_number_is_refused_again_with_no_second_notice`
+      resends a note refused as late, reused or unnumbered after its notice has left
+      the outbox, and asserts it is refused again with no second notice and no
+      ledger entry (CLP-05-006).
     stories:
     - story_2026_059
   - id: SYNC-21-019

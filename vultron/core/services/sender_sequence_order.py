@@ -90,8 +90,9 @@ class SequenceStanding(StrEnum):
     """A repeat of an activity already judged in order, which the tree
     answers as any repeat (ID-02-001, ADR-0151)."""
     REPEAT_REFUSED = "repeat-refused"
-    """A repeat of an activity refused for its number, or judged before a
-    later one: refused again, with no notice (CLP-05-006, SYNC-21-024)."""
+    """A repeat of an activity refused for its number (late, reused or
+    missing), or judged before a later one: refused again, with no notice
+    (CLP-05-006, SYNC-21-024)."""
     LATE = "late"
     """Below the next expected number: refused with a notice (SYNC-21-014)."""
     REUSED = "reused"
@@ -163,7 +164,9 @@ def classify_sender_sequence(
     before (*redelivery*) whose number is past is a judged repeat when the
     ledger records it (*ledgered*) or it is the activity last judged in
     order, and is otherwise refused again with no notice, so a late activity
-    is never applied however it arrives (SYNC-21-024).
+    is never applied however it arrives (SYNC-21-024).  A repeat of one
+    refused for a missing or reused number is refused again with no notice
+    too: the first refusal's notice answered it (CLP-05-006).
 
     Args:
         order: The sender's order record.
@@ -173,11 +176,16 @@ def classify_sender_sequence(
         redelivery: Whether this receiver had already archived the activity.
         ledgered: Whether the case ledger records the activity.
     """
+    if number is not None and _held_by_id(order, activity_id) is not None:
+        return SequenceStanding.HELD_REPEAT
+    reused = any(held.number == number for held in order.held)
+    if redelivery and (number is None or reused):
+        # Refused for its number when it first came, with the notice that
+        # answered it; a repeat is not answered again (CLP-05-006).
+        return SequenceStanding.REPEAT_REFUSED
     if number is None:
         return SequenceStanding.MISSING
-    if _held_by_id(order, activity_id) is not None:
-        return SequenceStanding.HELD_REPEAT
-    if any(held.number == number for held in order.held):
+    if reused:
         return SequenceStanding.REUSED
     if number < order.next_expected:
         if not redelivery:

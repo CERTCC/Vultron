@@ -69,6 +69,9 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.ledger_position_stage import (
     LEDGER_POSITION_GATE_NAME,
 )
+from vultron.core.behaviors.sync.sender_sequence_stage import (
+    SENDER_SEQUENCE_GATE_NAME,
+)
 from vultron.errors import VultronWiringError
 
 CASE_ID = "https://example.org/cases/case-factory-gate-001"
@@ -77,6 +80,9 @@ POST_CLOSE = "CaseOpenToExternalWrites"
 ADDRESSEE = "ActivityAddressedToReceiverNode"
 CLOCK_GATE = "ClockDecisionsIfCaseManager"
 POSITION_GATE = LEDGER_POSITION_GATE_NAME
+#: The sender-sequence stage every case tree with a sender guard takes, after
+#: the ledger position answer and before the clock decisions (SYNC-21-023).
+SEQUENCE_GATE = SENDER_SEQUENCE_GATE_NAME
 #: The case-wide clock decision every case tree with a sender guard takes.
 END_TIME = "EmbargoEndTimeDecision"
 #: The stage a commit tree's guards sit in, with the refusal notice (CLP-02-005).
@@ -550,12 +556,13 @@ class TestRefusalEffects:
             ADDRESSEE,
             "SenderIsCaseManagerNode",
             POSITION_GATE,
+            SEQUENCE_GATE,
             CLOCK_GATE,
             "PreconditionGuardStage",
             COMMIT,
             "Replica",
         ]
-        stage = tree.children[6]
+        stage = tree.children[7]
         assert isinstance(stage, PreconditionGuardStage)
         assert list(stage.guards.children) == [guard]
         gates = [
@@ -985,6 +992,7 @@ class TestClockDecisionStage:
             ADDRESSEE,
             "SenderIsCaseManagerNode",
             POSITION_GATE,
+            SEQUENCE_GATE,
             "ClockDecisionsIfCaseManager",
             STAGE,
             COMMIT,
@@ -1007,6 +1015,7 @@ class TestClockDecisionStage:
             ADDRESSEE,
             "SenderIsCaseManagerNode",
             POSITION_GATE,
+            SEQUENCE_GATE,
             "ClockDecisionsIfCaseManager",
             "PreconditionGuardStage",
             COMMIT,
@@ -1033,7 +1042,7 @@ class TestClockDecisionStage:
             **_sender_args(),
         )
 
-        gate = tree.children[5]
+        gate = tree.children[6]
         assert isinstance(gate, CaseManagerGate)
         stage = gate.gated_branch
         assert isinstance(stage, ClockDecisionStage)
@@ -1118,6 +1127,7 @@ class TestClockDecisionStage:
             ADDRESSEE,
             "SenderIsCaseManagerNode",
             POSITION_GATE,
+            SEQUENCE_GATE,
             CLOCK_GATE,
             STAGE,
             COMMIT,

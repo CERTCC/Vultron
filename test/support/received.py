@@ -186,14 +186,22 @@ def stamped(
     its sender numbers (SYNC-21-001): with *at*, in step with the receiver
     when the receiver is the case's CASE_MANAGER
     (:func:`in_step_sender_sequence`), and otherwise as the test's
-    in-process sender numbers it (:func:`test_sender_number`).
+    in-process sender numbers it (:func:`test_sender_number`).  An activity
+    a test built already stating a position (a full-case Invite reply states
+    the replier's, CM-11-034) is numbered too when *at* is given and it
+    carries no number: its sender's adapter numbers whatever position it
+    states (SYNC-21-001).  Without *at* it is left as it is, as a sealed body
+    carries the number its sender gave it, or none.
     """
-    if activity.ledger_position is not None or object_states_its_own_position(
-        activity
-    ):
-        # Stamped by its sender already, as a sealed body is: it carries the
-        # number its sender gave it, or none.
+    if object_states_its_own_position(activity):
         return activity
+    if activity.ledger_position is not None:
+        if at is None or activity.sender_sequence is not None:
+            return activity
+        number = in_step_sender_sequence(at, activity)
+        if number is None:
+            return activity
+        return stamp_sender_sequence(activity, number)
     positioned = _positioned(activity, at=at)
     if positioned.sender_sequence is not None:
         return positioned
