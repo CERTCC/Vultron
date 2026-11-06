@@ -30,7 +30,7 @@ from test.support.received import (
     received_event,
     received_record,
 )
-from test.support.signing import resigned
+from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -1141,7 +1141,7 @@ def test_an_invite_naming_no_embargo_gets_a_processing_fault():
     """An Invite with no embargo is received but not understood: a fault."""
     net = _Network("https://example.org/cases/relay-replay-no-embargo")
     _, body = _pxa_invite_body(net, MANAGER, OWNER, "no-embargo")
-    event = received_event(parse_activity(body)).model_copy(
+    event = received_event(parse_activity(signed_body(body))).model_copy(
         update={"receiving_actor_id": OWNER, "object_": None}
     )
 

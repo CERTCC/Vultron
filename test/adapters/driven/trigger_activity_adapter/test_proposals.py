@@ -23,6 +23,7 @@ from test.support.received import (
     archive_received,
     case_stub,
 )
+from test.support.signing import signed_body
 from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.semantic_registry import extract_event
@@ -171,17 +172,19 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         offer = rm_submit_report_activity(
             report, to=_VENDOR, actor=self._FINDER
         )
-        body = {
-            **offer.model_dump(
-                mode="json",
-                by_alias=True,
-                exclude_none=True,
-                serialize_as_any=True,
-            ),
-            "cc": ["https://example.org/actors/watcher"],
-            "endTime": "2031-01-01T00:00:00+00:00",
-            "x-reporterNote": "please hurry",
-        }
+        body = signed_body(
+            {
+                **offer.model_dump(
+                    mode="json",
+                    by_alias=True,
+                    exclude_none=True,
+                    serialize_as_any=True,
+                ),
+                "cc": ["https://example.org/actors/watcher"],
+                "endTime": "2031-01-01T00:00:00+00:00",
+                "x-reporterNote": "please hurry",
+            }
+        )
         archive_delivered(dl, body)
 
         _, blob = adapter.create_case_proposal(

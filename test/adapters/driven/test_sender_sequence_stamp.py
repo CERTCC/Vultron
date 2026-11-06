@@ -30,6 +30,7 @@ from test.core.use_cases.received._ledger_network import (
     OWNER,
     LedgerNetwork,
 )
+from test.support.signing import resigned
 from vultron.adapters.driven.sender_sequence_stamp import with_outbound_stamps
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -246,7 +247,9 @@ def _notice_body(
 def test_a_notice_that_only_moves_the_count_is_applied() -> None:
     net = _network("notice-applied")
     # An id with no pending assertion, so only the count can move.
-    refused = {**_note_body(net, "refused"), "id": f"{net.case_id}/unpending"}
+    refused = resigned(
+        _note_body(net, "refused"), id=f"{net.case_id}/unpending"
+    )
 
     result = net.receive(OWNER, _notice_body(net, refused, 7))
 
@@ -256,7 +259,9 @@ def test_a_notice_that_only_moves_the_count_is_applied() -> None:
 @pytest.mark.spec("SYNC-21-007")
 def test_a_stale_notice_with_nothing_to_close_is_skipped() -> None:
     net = _network("notice-stale")
-    refused = {**_note_body(net, "refused"), "id": f"{net.case_id}/unpending"}
+    refused = resigned(
+        _note_body(net, "refused"), id=f"{net.case_id}/unpending"
+    )
     for _ in range(3):
         allocate_sender_sequence(net.stores[OWNER], net.case_id, OWNER)
 

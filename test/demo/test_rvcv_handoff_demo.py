@@ -1345,18 +1345,13 @@ def _otc_create_actor(client, base_api: str, slug: str, name: str) -> str:
 
 
 def _otc_post_inbox(client, actor_slug: str, activity) -> None:
-    from test.support.received import stamped
+    from test.support.received import delivered_body
+    from test.support.signing import post_delivered
 
-    # Stamped as the sender's adapter stamps a case activity (SYNC-18-001).
-    resp = client.post(
-        f"/api/v2/actors/{actor_slug}/inbox/",
-        content=stamped(activity).model_dump_json(
-            by_alias=True, exclude_none=True
-        ),
-        headers={"Content-Type": "application/json"},
-    )
-    assert resp.status_code == 202, (
-        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    # Stamped as the sender's adapter stamps a case activity (SYNC-18-001)
+    # and signed by its author (SIG-01-001).
+    post_delivered(
+        client, f"/api/v2/actors/{actor_slug}/inbox/", delivered_body(activity)
     )
 
 

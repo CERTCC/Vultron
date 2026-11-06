@@ -71,8 +71,13 @@ def _entries(net: LedgerNetwork) -> list[CaseLedgerEntry]:
 def at_replica(
     net: LedgerNetwork, body: dict[str, Any], replica: str, **kwargs: Any
 ) -> Scenario:
-    """A scenario delivering the CASE_MANAGER's sealed *body* to *replica*."""
-    stamped = net.stamp(body, receiver=replica)
+    """A scenario delivering the CASE_MANAGER's sealed *body* to *replica*.
+
+    Signed by its author unless it is the body as sealed
+    (:meth:`LedgerNetwork.delivered_body`), so an altered copy carries a
+    valid proof.
+    """
+    stamped = net.delivered_body(body, receiver=replica)
     return Scenario(
         dl=net.stores[replica],
         event=received_event(
