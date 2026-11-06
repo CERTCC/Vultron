@@ -9,7 +9,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import extract_stamped, stamped
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.dimensions import (
     VfDimension,
 )
@@ -156,6 +156,37 @@ def test_extract_intent_case_pass_through_fields():
     assert c is not None
     assert c.published == now
     assert c.updated == now
+
+
+@pytest.mark.spec("AKM-02-004")
+def test_extract_reads_inline_reports_from_their_wire_name():
+    """A delivered case carrying its report inline under
+    ``vulnerabilityReports`` names that report (#6046)."""
+    from test.support.received import received_event
+    from vultron.core.models.report import VulnerabilityReport
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    report = VulnerabilityReport(
+        id_="https://example.org/reports/r-inline", name="FDR", content="x"
+    )
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, vulnerability_reports=[report]
+    )
+    activity = as_Create(actor="https://example.org/alice", object_=case)
+    event = received_event(activity)
+
+    body = event.received_body()
+    [carried] = body["object"]["vulnerabilityReports"]
+    assert carried["id"] == report.id_
+    assert "vulnerability_reports" not in body["object"]
+    c = cast(Any, event).case
+    assert c is not None
+    assert [_as_id(r) for r in c.vulnerability_reports] == [report.id_]
 
 
 def test_extract_refuses_a_case_object_naming_no_owner():

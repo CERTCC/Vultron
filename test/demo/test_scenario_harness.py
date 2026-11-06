@@ -484,23 +484,26 @@ class TestDecidingRole:
                     "vendor-after-answer", "report-fix-ready", by=VENDOR
                 )
 
-    def test_records_stored_under_field_names_are_read_too(
-        self, _devlogs
-    ) -> None:
+    def test_a_snake_case_key_is_not_read(self, _devlogs) -> None:
+        """The store serves AS2 names only, so a snake_case key names no
+        field and the step fails as for a missing one (#6046)."""
         client = _CaseActorStore(
             records={
                 "urn:case": {
-                    "actor_participant_index": {
+                    "actorParticipantIndex": {
                         VENDOR: "urn:participant:vendor"
                     },
                     "vulnerability_reports": [
-                        {"id": "urn:report", "attributed_to": REPORTER}
+                        {"id": "urn:report", "attributedTo": REPORTER}
                     ],
                 },
-                "urn:participant:vendor": {"case_roles": ["vendor"]},
+                "urn:participant:vendor": {"caseRoles": ["vendor"]},
             }
         )
-        self._run(client)
+        with pytest.raises(
+            DemoScenarioStepError, match="has no list of reports"
+        ):
+            self._run(client)
 
     def test_an_inline_report_without_an_author_is_read_by_id(
         self, _devlogs
