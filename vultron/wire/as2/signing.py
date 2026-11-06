@@ -56,6 +56,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 )
 
 from vultron.core.models._helpers import format_timestamp, now_utc
+from vultron.core.models.multikey import MULTIKEY_TYPE, Multikey
 from vultron.wire.as2.errors import (
     VultronMultikeyError,
     VultronProofInvalidError,
@@ -149,6 +150,25 @@ def seeded_signing_key(actor_id: str) -> SigningKey:
         raise ValueError("a seeded key needs a non-empty actor id")
     private = Ed25519PrivateKey.from_private_bytes(_seed_for(actor_id))
     return SigningKey(private, key_id_for(actor_id))
+
+
+def published_multikey(key: SigningKey, controller: str) -> Multikey:
+    """The ``Multikey`` *controller*'s profile lists for *key*.
+
+    The entry an actor publishes under ``assertionMethod`` (ENC-01-002): the
+    key id its proofs name, its controller and its public half only.  The
+    private key never enters it (ENC-01-007).
+
+    Raises:
+        ValueError: *key*'s id is not a fragment of *controller*'s id, so the
+            profile could not list it (pydantic's ``ValidationError``).
+    """
+    return Multikey(
+        id_=key.key_id,
+        type_=MULTIKEY_TYPE,
+        controller=controller,
+        public_key_multibase=key.public_key_multibase,
+    )
 
 
 def _seed_for(actor_id: str) -> bytes:
@@ -501,6 +521,7 @@ __all__ = [
     "key_id_for",
     "load_json",
     "proof_verification_method",
+    "published_multikey",
     "seeded_signing_key",
     "sign",
     "verify",
