@@ -18,7 +18,7 @@ includes after every other actor route.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Any, cast
+from typing import cast
 
 from fastapi import (
     APIRouter,
@@ -33,14 +33,9 @@ from vultron.adapters.driving.fastapi.deps import (
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
-    _actor_class_for_record,
-    _find_actor_record,
+    published_profile,
 )
 from vultron.adapters.utils import full_object_id, strip_id_prefix
-from vultron.core.models.actor import (
-    endpoint_uri,
-    hosted_endpoints,
-)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
@@ -71,34 +66,15 @@ def get_actor_profile(
 ):
     """Returns an actor's discovery profile.
 
-    Includes actor metadata (name, type), inbox URL, outbox URL, and any
-    other ActivityStreams profile fields present on the actor.  Intended
-    for use by remote systems discovering how to interact with this actor.
-    The `inbox` and `outbox` fields are returned as URL strings, not
-    embedded collection objects.
+    Includes actor metadata (name, type), inbox URL, outbox URL, the
+    ``Multikey`` that verifies the actor's proofs under ``assertionMethod``
+    (ENC-01-002), and any other ActivityStreams profile fields present on
+    the actor.  Intended for use by remote systems discovering how to
+    interact with this actor, so it needs no proof or signature
+    (SIG-02-002).  The `inbox` and `outbox` fields are returned as URL
+    strings, not embedded collection objects.
     """
-    actor_record = _find_actor_record(datalayer, actor_id)
-    if not actor_record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
-        )
-
-    actor_cls = _actor_class_for_record(actor_record)
-    as_actor = cast(
-        Any, actor_cls.model_validate(actor_record.get("data_", {}))
-    )
-    profile = as_actor.model_dump(
-        mode="json", by_alias=True, exclude_none=True
-    )
-    # The actor this node hosts publishes the endpoints this node routes for
-    # it, which a record created before it stated them may lack (ISSUE-3616).
-    own = hosted_endpoints(as_actor.id_)
-    for field_name in ("inbox", "outbox"):
-        profile[field_name] = (
-            endpoint_uri(getattr(as_actor, field_name, None))
-            or own[field_name]
-        )
-    return AS2JSONResponse(profile)
+    return AS2JSONResponse(published_profile(datalayer, actor_id))
 
 
 @router.get(
@@ -171,18 +147,9 @@ def get_action_rules(
 def get_actor(actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)):
     """Returns an Actor by actor_id.
 
-    Accepts either a canonical actor ID or the actor's surrogate key.
+    Accepts either a canonical actor ID or the actor's surrogate key.  The
+    actor's id dereferences to the same profile ``/profile`` serves, so a
+    verifier that fetches the document a proof's key id names finds the key
+    there (SIG-02-001).
     """
-    actor = _find_actor_record(datalayer, actor_id)
-    if not actor:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
-        )
-
-    cls = _actor_class_for_record(actor)
-    data = actor.get("data_", {})
-    return AS2JSONResponse(
-        cls.model_validate(data).model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        )
-    )
+    return AS2JSONResponse(published_profile(datalayer, actor_id))

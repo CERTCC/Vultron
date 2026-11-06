@@ -35,12 +35,17 @@ from vultron.core.ports.datalayer import DataLayer
 
 @contextmanager
 def served_store(
-    dl: DataLayer, actor_id: str, name: str
+    dl: DataLayer, actor_id: str, name: str, actor: CoreActor | None = None
 ) -> Iterator[tuple[TestClient, RecordingEmitter]]:
-    """Serve *dl*, the store of actor *actor_id*, with a real app."""
+    """Serve *dl*, the store of actor *actor_id*, with a real app.
+
+    The store's actor record is *actor* when given, else a bare actor named
+    *name* with its hosted endpoints.
+    """
     dl.create(
         object_to_record(
-            CoreActor(
+            actor
+            or CoreActor(
                 id_=actor_id,
                 name=name,
                 inbox=f"{actor_id}/inbox",

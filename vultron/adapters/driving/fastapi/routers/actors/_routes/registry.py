@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import Literal, cast
+from typing import Any, Literal, cast
 from urllib.parse import urlsplit
 
 from fastapi import (
@@ -36,12 +36,12 @@ from vultron.adapters.driving.fastapi.deps import (
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
-    _ACTOR_RECORD_TYPES,
     _ACTOR_TYPE_MAP,
     _actor_class_for_record,
     _find_actor_record,
     _find_actor_record_by_id,
     _resolve_actor_or_404,
+    profile_of_record,
 )
 from vultron.adapters.utils import strip_id_prefix
 from vultron.config import get_config
@@ -84,26 +84,20 @@ def get_actors(http_request: Request):
     read (DL-07-007, DL-07-011).
     """
     db_url = node_db_url_template(http_request)
-    objects: list[AnyActor] = []
+    profiles: list[dict[str, Any]] = []
     for actor_id in actor_hosts.hosted_actor_ids(
         db_url, node_base_url(http_request)
     ):
         actor_dl = get_datalayer(actor_id, db_url=db_url)
-        for t in _ACTOR_RECORD_TYPES:
-            rec = actor_dl.get(t, actor_id)
-            if isinstance(rec, dict):
-                cls = _actor_class_for_record(rec)
-                objects.append(cls.model_validate(rec.get("data_", {})))
-                break
+        record = _find_actor_record(actor_dl, actor_id)
+        if record is not None:
+            # Each hosted actor is listed as the profile it publishes, key
+            # included (ENC-01-002), not as its bare stored record.
+            profiles.append(profile_of_record(record))
 
-    logger.debug("get_actors: found %d hosted actor(s)", len(objects))
+    logger.debug("get_actors: found %d hosted actor(s)", len(profiles))
 
-    return AS2JSONResponse(
-        [
-            o.model_dump(mode="json", by_alias=True, exclude_none=True)
-            for o in objects
-        ]
-    )
+    return AS2JSONResponse(profiles)
 
 
 class ActorCreateRequest(BaseModel):

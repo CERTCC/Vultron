@@ -24,6 +24,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.enums import VultronActorType
+from vultron.core.models.multikey import Multikey
 
 
 def endpoint_uri(endpoint: Any) -> str | None:
@@ -49,6 +50,11 @@ def endpoint_uri(endpoint: Any) -> str | None:
         return None
     raw = getattr(endpoint, "id_", None) or getattr(endpoint, "id", None) or ""
     return str(raw).strip() or None
+
+
+def _no_keys(keys: list[Multikey]) -> bool:
+    """Leave ``assertionMethod`` out of a dump that would carry no key."""
+    return not keys
 
 
 class CoreActor(CoreObject):
@@ -100,6 +106,55 @@ class CoreActor(CoreObject):
             " the profile (EP-01-001)."
         ),
     )
+
+    assertion_method: list[Multikey] = Field(
+        default_factory=list,
+        exclude_if=_no_keys,
+        description=(
+            "The public keys that verify this actor's proofs, each a"
+            " Multikey whose controller is this actor (ENC-01-002). The"
+            " actor this node hosts publishes its own when its profile is"
+            " served; a held copy of a peer's profile keeps the peer's."
+        ),
+    )
+
+    @field_validator("assertion_method", mode="before")
+    @classmethod
+    def _one_key_as_a_list(cls, v: Any) -> Any:
+        """Read a single key object as a one-key list.
+
+        JSON-LD lets a profile state one ``assertionMethod`` entry without a
+        list around it, and FEP-8b32 examples do; both forms name the same
+        keys.
+        """
+        if isinstance(v, (dict, Multikey)):
+            return [v]
+        return v
+
+    @model_validator(mode="after")
+    def _keys_belong_to_this_actor(self) -> Self:
+        """Refuse a profile that lists another actor's key, or one key twice.
+
+        A verifier takes an author's key only from the author's profile
+        (SIG-02-001), so every key listed there must be controlled by the
+        profile's own actor; a key controlled by someone else would let that
+        actor sign as this one.  A key id listed twice could resolve to two
+        different public keys.
+        """
+        problems = [
+            f"assertionMethod key {key.id_!r} is controlled by"
+            f" {key.controller!r}, not by the profile's actor {self.id_!r}"
+            for key in self.assertion_method
+            if key.controller != self.id_
+        ]
+        key_ids = [key.id_ for key in self.assertion_method]
+        problems.extend(
+            f"assertionMethod lists key {key_id!r} more than once"
+            for key_id in sorted({k for k in key_ids if key_ids.count(k) > 1})
+        )
+        if problems:
+            raise ValueError("; ".join(problems) + " (ENC-01-002, SIG-02-001)")
+        return self
 
     @field_validator("embargo_policy", mode="before")
     @classmethod
