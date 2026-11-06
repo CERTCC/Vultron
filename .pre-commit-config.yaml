@@ -152,7 +152,7 @@ repos:
         # caught there, and test_committed_site_artifacts_are_in_sync on one
         # that changes vultron/ or test/; locally, no staged-file pattern matches a
         # deletion.
-        files: ^(docs/.*\.md|mkdocs\.yml|specs/.*\.yaml|test/.*\.py|vultron/metadata/docs/.*\.py|vultron/metadata/specs/(registry|schema|coverage|marked_tests)\.py|vultron/metadata/specs/schema/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
+        files: ^(docs/.*\.md|mkdocs\.yml|specs/.*\.yaml|test/.*\.py|vultron/metadata/docs/.*\.py|vultron/metadata/specs/(registry|coverage|marked_tests)\.py|vultron/metadata/specs/schema/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
         pass_filenames: false
 
       - id: docs-threads

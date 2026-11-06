@@ -169,15 +169,47 @@ class TestRenderFragment:
 
     def test_groups_held_requirements_by_the_issues_cited(self, tmp_path):
         xfail_only, _ = _sections(_fragment(_checkout(tmp_path)))
-        assert _subsections(xfail_only) == {
-            f"Tracked by {_link(11)}": [_gap(2), _gap(3)],
-            f"Tracked by {_link(11)} and {_link(12)}": [_gap(4)],
-            "No issue cited": [_gap(5)],
-        }
+        # A list, not a dict, so the order is checked too: groups citing an
+        # issue first, in issue-number order, and the uncited group last.
+        assert list(_subsections(xfail_only).items()) == [
+            (f"Tracked by {_link(11)}", [_gap(2), _gap(3)]),
+            (f"Tracked by {_link(11)} and {_link(12)}", [_gap(4)]),
+            ("No issue cited", [_gap(5)]),
+        ]
 
     def test_groups_untested_requirements_by_catalog_page(self, tmp_path):
         _, untested = _sections(_fragment(_checkout(tmp_path)))
         assert _subsections(untested) == {"Vultron Protocol": [_gap(6)]}
+
+    def test_untested_groups_follow_catalog_order(self, tmp_path):
+        """``ASK`` sorts before ``VP`` but its page comes after in the
+        placement table, so the order shown is the catalog's."""
+        root = _checkout(tmp_path)
+        ask = {
+            **_SPEC_FILE,
+            "id": "ASK",
+            "title": "Asks",
+            "groups": [
+                {
+                    "id": "ASK-01",
+                    "title": "Asks",
+                    "specs": [
+                        {
+                            **_SPEC_FILE["groups"][0]["specs"][0],
+                            "id": "ASK-01-001",
+                        }
+                    ],
+                }
+            ],
+        }
+        (root / "specs" / "protocol-asks.yaml").write_text(
+            yaml.safe_dump(ask, sort_keys=False), encoding="utf-8"
+        )
+        _, untested = _sections(_fragment(root))
+        assert list(_subsections(untested).items()) == [
+            ("Vultron Protocol", [_gap(6)]),
+            ("Case Management", ["ASK-01-001"]),
+        ]
 
     def test_labels_the_untested_section_plainly(self, tmp_path):
         _, untested = _sections(_fragment(_checkout(tmp_path)))
@@ -193,6 +225,21 @@ class TestRenderFragment:
         )
         assert "No requirement is in this state." in xfail_only
         assert len(_ids(untested)) == 6
+
+    def test_an_empty_untested_section_says_so(self, tmp_path):
+        tests = (
+            _TESTS
+            + f'''
+
+@{_SPEC}("{_gap(6)}")
+def test_six():
+    pass
+'''
+        )
+        xfail_only, untested = _sections(_fragment(_checkout(tmp_path, tests)))
+        assert "No requirement is in this state." in untested
+        assert _ids(untested) == []
+        assert len(_ids(xfail_only)) == 4
 
     def test_three_cited_issues_read_as_a_list(self, tmp_path):
         tests = _TESTS.replace("needs #12 and #11", "needs #13, #12 and #11")
