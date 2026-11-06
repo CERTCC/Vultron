@@ -32,7 +32,7 @@ Read the [Open Questions](open_questions.md) first: if your question is already 
 The maintainers reply on the issue.
 A change that alters how the protocol works is recorded as a decision record before it is made, so the reason for it stays on file.
 These records are reached from [Working on This Implementation](../about/project_record.md).
-A protocol change appears in a later version of the specification; [Versioning](../reference/versioning.md) explains how versions are numbered.
+A protocol change appears in a later draft of the specification; the specification's [Revision Log](../reference/vultron-spec/revision-log.md) explains how drafts are numbered and records what changed in each.
 
 ## If you want to make the change yourself
 

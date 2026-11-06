@@ -32,6 +32,7 @@ from test.support.case_manager import (
 )
 from test.support.embargo_register import activate
 from test.support.received import TEST_SENDER_POSITION
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_object_fetch import ObjectFetchResult
 from vultron.adapters.driving.fastapi import (
@@ -122,30 +123,34 @@ def _revision(
     case_id: str, revision: EmbargoEvent, n: int = 1
 ) -> dict[str, Any]:
     """The CASE_MANAGER's ``Announce`` of a revision, carried inline."""
-    return {
-        "type": "Announce",
-        "id": f"https://example.org/activities/announce-{n}",
-        "published": _PUBLISHED,
-        "actor": CASE_MANAGER_ID,
-        "object": _body(revision),
-        "context": case_id,
-        "to": [_REPLICA],
-        "ledgerPosition": _POSITION,
-    }
+    return signed_body(
+        {
+            "type": "Announce",
+            "id": f"https://example.org/activities/announce-{n}",
+            "published": _PUBLISHED,
+            "actor": CASE_MANAGER_ID,
+            "object": _body(revision),
+            "context": case_id,
+            "to": [_REPLICA],
+            "ledgerPosition": _POSITION,
+        }
+    )
 
 
 def _bare_accept(case_id: str, object_id: str) -> dict[str, Any]:
     """An activity no pattern matches while its ``object`` is a bare id."""
-    return {
-        "type": "Accept",
-        "id": "https://example.org/activities/accept-1",
-        "published": _PUBLISHED,
-        "actor": CASE_MANAGER_ID,
-        "object": object_id,
-        "context": case_id,
-        "to": [_REPLICA],
-        "ledgerPosition": _POSITION,
-    }
+    return signed_body(
+        {
+            "type": "Accept",
+            "id": "https://example.org/activities/accept-1",
+            "published": _PUBLISHED,
+            "actor": CASE_MANAGER_ID,
+            "object": object_id,
+            "context": case_id,
+            "to": [_REPLICA],
+            "ledgerPosition": _POSITION,
+        }
+    )
 
 
 def _replica_missing_its_active_embargo() -> tuple[
@@ -439,6 +444,7 @@ def test_a_proposers_profile_is_handed_to_the_proposal_and_never_stored():
             "target": _CASE_ACTOR,
         },
     }
+    payload = signed_body(payload)
     fetcher = _FakeFetcher(
         {_REPLICA: ObjectFetchResult(_body(profile), None, 1)}
     )

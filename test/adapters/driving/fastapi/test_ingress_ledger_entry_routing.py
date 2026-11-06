@@ -29,6 +29,7 @@ ran.  See issues #1324, #1447, #1472.
 
 import pytest
 
+from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
@@ -77,7 +78,9 @@ def _make_announce_body() -> dict:
         actor="https://example.org/actors/case-actor",
         to=["https://example.org/actors/finder"],
     )
-    return announce.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return signed_body(
+        announce.model_dump(mode="json", by_alias=True, exclude_none=True)
+    )
 
 
 def test_ingress_routes_ledger_entry_without_prestoring_entry(
