@@ -398,10 +398,10 @@ outside the ledger".
   dropped as a redelivery (CM-18-003, IE-10-001).
 - **Order one sender's assertions by its `senderSequence`, never by arrival.** Both
   assertions carry the same `ledgerPosition`, so only the sender's per-case number
-  tells the CASE_MANAGER which came first (SYNC-21, ADR-0178). Until it is built,
-  two that conflict are recorded in arrival order: an Accept and a Reject of one
-  Invite (#5202), or an assertion and the sender's own Leave (#5203). Do not fix
-  either with a sender-side gate; the record rejects that option.
+  tells the CASE_MANAGER which came first (SYNC-21, ADR-0178). It orders an Accept
+  and a Reject of one Invite (#5202), and an assertion and the sender's own Leave
+  of the case or the embargo (#5203). Do not add a sender-side gate for either;
+  the record rejects that option.
 - **Expect the relayed Invite before its emission entry.** The CASE_MANAGER commits
   each emission after queueing it (SYNC-09-002), so the steady state delivers the
   Invite first; the replica arm must not need its emission entry.

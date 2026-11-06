@@ -3966,10 +3966,9 @@ groups:
       observe the order one sender sent two messages in, so that order is lost unless
       the decision does not need it.
     note: >-
-      The last sentence covers one sender's changed embargo answer: CM-13-005 and
-      CM-18-003 record a changed `Accept` or `Reject` of one Invite as it arrives, so
-      two answers sent back to back are recorded in arrival order until the CASE_MANAGER
-      can tell which was sent last (#5202).
+      The last sentence covers one sender's changed embargo answer (#5202) and an
+      assertion followed by the sender's own Leave (#5203). The CASE_MANAGER tells
+      which was sent last by the sender's `senderSequence` (SYNC-21-008, ADR-0178).
     relationships:
     - rel_type: uses_definition
       spec_id: CLP-14-001
@@ -3980,8 +3979,8 @@ groups:
       `test/core/use_cases/received/test_arrival_order.py` delivers an embargo
       revision's proposal entry, its relayed `Invite(EmbargoEvent)` and the Invite's
       emission entry to a participant in every order and asserts one final case file,
-      one proposal index and one answer; its strict-`xfail` tests reproduce each order
-      dependency still open.
+      one proposal index and one answer. Its other tests deliver each order dependency
+      the arrival-order audit found in either order and assert one outcome.
     stories:
     - story_2026_059
   - id: SYNC-19-002
