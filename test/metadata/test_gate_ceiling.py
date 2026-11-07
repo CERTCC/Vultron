@@ -12,20 +12,24 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Every agent gate command and the CI test job run under a wall-clock ceiling.
+"""Three rules over the commands written for agents, and the CI test job.
 
 A per-test ``signal`` timeout cannot reach a C call that holds the GIL or a
 stuck xdist controller, so the outer ceiling is the only thing that ends such
 a run (TB-14-005, #4809).  The printed ``targeted-tests --pytest`` command is
 pinned in ``test_targeted_tests.py``; this module pins the written commands
 an agent copies and the CI test job, and the ``timeout-minutes`` cap on every
-job in every workflow (TB-14-006).
+job in every workflow (TB-14-006).  A heavy command queues on the per-host
+lock (#5947).  And none of these commands builds a checkout the agent does
+not commit, which is where a test run on a scratch merge would have to live
+(PAD-18-024).
 
 Human developer how-to pages under ``docs/developer/`` are out of scope: stock
 macOS has no ``timeout`` binary.
 """
 
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -257,6 +261,115 @@ def test_skill_heavy_command_queues_on_the_heavy_check_lock(
         f"{rel_path} runs heavy command(s) outside `{_LOCK}` "
         "(#5947):\n" + "\n".join(f"  {line}" for line in unlocked)
     )
+
+
+# --- No test run on a scratch merge (PAD-18-024) ----------------------------
+
+#: Every throwaway checkout an agent is told to make, with why it is allowed.
+#: `work-epic-tasks` step 4 reads a pushed PR's head when the PR's own
+#: worktree is gone; it merges nothing into that checkout and runs no test
+#: there, so no scratch merge lives in it (PAD-18-009, PAD-18-025).
+_SCRATCH_CHECKOUT_EXEMPTIONS = {
+    ".agents/skills/work-epic-tasks/SKILL.md": [
+        "git fetch origin <head_ref> && git worktree add --detach "
+        "/tmp/wt-<issue> FETCH_HEAD",
+    ],
+}
+
+
+def _scratch_checkout_corpus() -> list[Path]:
+    """Where this arm looks: the agent docs, plus the scripts they call.
+
+    ``sync-decision.sh`` holds one of the two conflict checks PAD-18-025
+    constrains, so a shell script is as much a place an agent builds a
+    checkout as a skill's fenced command is.
+    """
+    return _agent_files() + sorted(
+        (_REPO_ROOT / ".agents" / "skills").glob("**/*.sh")
+    )
+
+
+def _runnable_lines(path: Path) -> list[str]:
+    """The lines of *path* an agent runs: a script's statements, or a
+    Markdown file's frontmatter ``commands:`` and fenced blocks."""
+    text = path.read_text(encoding="utf-8")
+    if path.suffix == ".sh":
+        return [
+            line
+            for line in text.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    return _code_lines(text)
+
+
+def _scratch_checkouts(lines: Iterable[str]) -> list[str]:
+    """The given lines that build a checkout nothing commits to.
+
+    Keyed on the act PAD-18-024 forbids rather than on the name of any one
+    command, so a runner re-added under a new name is still caught. It can
+    miss a scratch merge built another way (a clone, a script outside
+    :func:`_scratch_checkout_corpus`); it invents nothing, because every hit
+    is a line an agent is told to run.
+    """
+    return [line.strip() for line in lines if "worktree add" in line]
+
+
+def test_detector_reads_a_scratch_checkout_only_from_runnable_code(
+    tmp_path: Path,
+) -> None:
+    line = "git worktree add --detach /tmp/x HEAD"
+    doc = tmp_path / "SKILL.md"
+    doc.write_text(f"Never run `{line}`.\n\n```bash\n{line}\n```\n")
+    script = tmp_path / "s.sh"
+    script.write_text(f"# never: {line}\n{line}\n")
+
+    assert _scratch_checkouts(_runnable_lines(doc)) == [line]
+    assert _scratch_checkouts(_runnable_lines(script)) == [line]
+
+
+def test_the_scratch_checkout_corpus_holds_both_shapes() -> None:
+    found = {
+        str(p.relative_to(_REPO_ROOT)) for p in _scratch_checkout_corpus()
+    }
+
+    assert {
+        ".agents/skills/work-epic-tasks/SKILL.md",
+        ".agents/skills/shared/sync-decision.sh",
+    } <= found
+
+
+@pytest.mark.spec("PAD-18-024")
+def test_only_a_declared_agent_command_builds_a_scratch_checkout() -> None:
+    found = {
+        str(path.relative_to(_REPO_ROOT)): lines
+        for path in _scratch_checkout_corpus()
+        if (lines := _scratch_checkouts(_runnable_lines(path)))
+    }
+
+    assert found == _SCRATCH_CHECKOUT_EXEMPTIONS, (
+        "An agent is told to build a checkout it does not commit. A test run "
+        "in one is a scratch-merge run, which PAD-18-024 forbids: CI tests "
+        "the merge on every push. Add the command to "
+        "`_SCRATCH_CHECKOUT_EXEMPTIONS` with why it merges and tests nothing, "
+        f"or remove it.\n  found: {found}"
+    )
+
+
+@pytest.mark.spec("PAD-18-025")
+@pytest.mark.parametrize(
+    "rel_path",
+    [
+        ".agents/skills/shared/sync-decision.sh",
+        ".agents/skills/work-epic-tasks/SKILL.md",
+    ],
+)
+def test_the_conflict_check_is_a_trial_merge(rel_path: str) -> None:
+    # The compliant form that replaced the scratch merge, so this arm stays
+    # non-empty: both conflict checks ask git for a merge that writes no
+    # worktree and moves no branch.
+    text = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
+
+    assert "git merge-tree" in text
 
 
 def _python_app_jobs() -> dict[str, object]:
