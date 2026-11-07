@@ -1295,29 +1295,3 @@ groups:
       spec_id: VM-10-001
     - rel_type: uses_definition
       spec_id: VM-01-014
-  - id: VM-10-007
-    lint_suppress:
-    - phantom_path_ref
-    priority: MUST
-    kind: project
-    statement: >-
-      The generated message examples MUST be published at
-      `ns/<wire version>/examples/`, the same versioned path as the context document,
-      and at no other path.
-    rationale: >-
-      An example shows a wire shape, and wire shapes carry the wire version
-      (ADR-0106). One versioned home lets a peer find the context, the schemas, and the
-      examples together, and a wire-version bump moves all of them at once. The old
-      unversioned example URLs are not kept, since a second URL would hide the version
-      (ADR-0181).
-    verification: >-
-      Tests marked `VM-10-007` in `test/architecture/test_vocab_examples_current.py`
-      assert that the committed examples directory is
-      `docs/ns/<wire version>/examples/` and that `docs/reference/examples/` holds no
-      example; the existing tests there compare every committed example with a fresh
-      generation.
-    adr:
-    - ADR-0181
-    relationships:
-    - rel_type: uses_definition
-      spec_id: VM-10-001
