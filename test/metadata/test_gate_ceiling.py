@@ -318,8 +318,18 @@ def test_skill_heavy_command_queues_on_the_heavy_check_lock(
 #: on one launcher: a pattern matching only `uv run pyright` would miss
 #: `uvx pyright`, `-m pyright`, a `make` recipe's bare `pyright`, and the
 #: escaped `\"$G\" pyright` a skill's YAML `commands:` key has to write (#5535).
-#: `pyrightconfig.json` and a `# pyright: ignore[...]` pragma are not calls.
-_PYRIGHT_TOOL = re.compile(r"(?<![\w./-])pyright(?![\w:])")
+#:
+#: The boundaries carry the near misses, and they split by character class
+#: rather than by "is this punctuation". Before the name, a word character or
+#: a hyphen means it is part of a longer name — `lint-pyright`, `_pyright`,
+#: `mypyright` — so neither may precede it; a `/` or `.` may, because that is
+#: how a path *invokes* it (`/usr/local/bin/pyright`, `./pyright`). After the
+#: name, a word character, a colon, a `/` or a `.` means the token keeps
+#: going, so it is a longer name, a pragma or a path *to* something called
+#: pyright, never a call: `pyrightconfig.json`, `# pyright: ignore[...]`,
+#: `docs/pyright.md`, `tools/pyright/`. Each of those eight forms has its own
+#: control in `test_detector_tells_a_pyright_call_from_a_mention`.
+_PYRIGHT_TOOL = re.compile(r"(?<![\w-])pyright(?![\w:./])")
 
 #: The copy-pasteable form, wherever it is written: prose that spells a command
 #: out is prose an agent copies from, fence or no fence.
@@ -425,12 +435,27 @@ def test_detector_tells_a_pyright_call_from_a_mention() -> None:
     # `_PYRIGHT_TOOL`'s own boundaries, exercised *in the code set* so that
     # pattern is the thing under test. The prose cases above never reach it:
     # prose is not a code line, and the two fenced ones are `#` comments that
-    # `_uncommented` strips, so all of them hold with `_PYRIGHT_TOOL`
+    # `_uncommented` strips, so every one of them held with `_PYRIGHT_TOOL`
     # broadened to a bare `pyright` — they guard `_PYRIGHT_LAUNCHED` alone.
+    # Both arms below run in a fence and in a script, the two ways a line
+    # reaches the code set.
+    for call in (
+        "/usr/local/bin/pyright vultron/",  # a path that invokes it
+        "./pyright vultron/",
+        "./pyright",  # no arguments, so nothing follows the name
+    ):
+        assert _pyright_calls(fenced % call), f"missed a path call: {call}"
+        assert _pyright_calls(call, suffix=".sh"), (
+            f"missed a path call in a script: {call}"
+        )
     for boundary in (
-        "cp pyrightconfig.json /tmp/",  # a trailing word character
-        "gh run view --job lint-pyright",  # a leading hyphen
-        "pyright: ignore",  # a trailing colon
+        "cp pyrightconfig.json /tmp/",  # a word character follows
+        "pyright: ignore",  # a colon follows
+        "cat docs/pyright.md",  # a path *to* a file so named: a dot follows
+        "ls tools/pyright/",  # a directory so named: a slash follows
+        "gh run view --job lint-pyright",  # a hyphen precedes
+        "x = _pyright",  # an underscore precedes
+        "echo mypyright",  # a word character precedes
     ):
         assert not _pyright_calls(fenced % boundary), (
             f"flagged a near miss in a fence: {boundary}"
