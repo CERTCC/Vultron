@@ -117,6 +117,19 @@ branch that changes a workflow, and that blocks the push. Lint the workflow
 another way, then rerun with `--skip actionlint` and say in the PR body how it
 was linted (PAD-18-021).
 
+The way that works here is the PyPI wheel, which ships the compiled binary, so
+it needs no Go toolchain and no Go download server:
+
+```bash
+uvx --from actionlint-py actionlint -no-color -oneline
+```
+
+No path arguments, as CI's job runs it: it finds every workflow itself. The
+wheel builds in a second or two and the lint takes about one. `shellcheck` is
+not installed, so `run:`-block shellcheck is the one part only CI's job covers;
+say that in the PR body beside the `--skip actionlint` (#5949). This is a
+one-off tool run, not a dependency: do not add it to `pyproject.toml`.
+
 ## Push With `git push -u origin HEAD`, Never to a Token URL
 
 The credential helper (`!/usr/local/bin/gh auth git-credential`) works here, so

@@ -87,7 +87,7 @@ uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytes
     The `_AllSkipGuard` in that directory's `conftest.py` (DEMOCI-10-017) fails a session in which every test skipped, so CI invokes one harness file at a time rather than the whole directory.
   - Demo CI integration tests run against Docker Compose and are not part of `uv run pytest`.
   - Content signing (ADR-0164) is pinned by strict-`xfail` tests that turn green when signing and verification land: `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` and `test/core/use_cases/received/test_signed_ledger_entries.py`.
-  - TB-14-006 requires a `timeout-minutes` cap on every job in every workflow, but `test/metadata/test_gate_ceiling.py` still checks only `python-app.yml`, and most other workflows have uncapped jobs (see `CONCERNS.md`).
+  - TB-14-006 requires a `timeout-minutes` cap on every job in every workflow, and `test_every_workflow_job_has_a_timeout` in `test/metadata/test_gate_ceiling.py` now checks all of them, skipping only a job that calls a reusable workflow.
   - The pytest-timeout unit tier is 30 s (raised from 5 s in #2270; integration tier 120 s, sized in #5188).
     `timeout_method = "signal"` fails only the test that trips, and the run goes on to its summary.
     `--max-worker-restart=0` in `addopts` fails the run when an xdist worker dies, instead of hanging it.
