@@ -269,6 +269,9 @@ def test_skill_heavy_command_queues_on_the_heavy_check_lock(
 #: `work-epic-tasks` step 4 reads a pushed PR's head when the PR's own
 #: worktree is gone; it merges nothing into that checkout and runs no test
 #: there, so no scratch merge lives in it (PAD-18-009, PAD-18-025).
+# permanent: PAD-18-009 — the merger has to read the head it is about to
+# merge, so this checkout never retires; what PAD-18-024 forbids is a test
+# run in one, which is why the entry records that this one runs none.
 _SCRATCH_CHECKOUT_EXEMPTIONS = {
     ".agents/skills/work-epic-tasks/SKILL.md": [
         "git fetch origin <head_ref> && git worktree add --detach "
