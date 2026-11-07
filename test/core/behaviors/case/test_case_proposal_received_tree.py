@@ -558,7 +558,8 @@ class TestEmitCreateVulnerabilityCaseNode:
 
         ``@context`` comes only from a by-alias dump of a ``CoreObject``, and the
         rendering is JSON-mode, so both mark the body as the port's.  It must
-        also revalidate to the activity that was queued.
+        also revalidate to the activity that was queued, once the outbox's
+        proof is set aside as the parser sets it aside (MV-11-003).
         """
         from vultron.core.models.activity import VultronCreateCaseActivity
 
@@ -568,7 +569,10 @@ class TestEmitCreateVulnerabilityCaseNode:
         body = _queued_create(dl)
         assert "@context" in body
         assert isinstance(body.get("published"), str)
-        activity = VultronCreateCaseActivity.model_validate(body)
+        assert "proof" in body
+        activity = VultronCreateCaseActivity.model_validate(
+            {key: value for key, value in body.items() if key != "proof"}
+        )
         assert activity.context == case_id
         assert activity.actor == _CASE_ACTOR_URI
 
@@ -2112,8 +2116,14 @@ class TestADR0041LedgerEntries:
             "add_participant_status_to_participant entries must be present (AC-4)"
         )
 
-    def test_add_case_status_uses_vendor_actor(self, make_payload):
-        """add_case_status_to_case must use vendor URI as actor (not CaseActor)."""
+    @pytest.mark.spec("SIG-05-005")
+    def test_add_case_status_is_signed_by_the_case_actor(self, make_payload):
+        """The genesis add_case_status_to_case names its signer as actor.
+
+        The CaseActor builds and signs the record, so it is the ``actor``;
+        the vendor that set the genesis status is the status's
+        ``attributed_to`` (SIG-05-004, SIG-05-005).
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
@@ -2130,16 +2140,8 @@ class TestADR0041LedgerEntries:
         assert cs_entries, "add_case_status_to_case entry must be present"
         for entry in cs_entries:
             snapshot = getattr(entry, "payload_snapshot", {})
-            actor = snapshot.get("actor", "")
-            assert actor != _CASE_ACTOR_URI, (
-                "add_case_status_to_case must NOT use CaseActor as actor"
-                " — the vendor set the genesis status, so the vendor URI is"
-                " the correct provenance (the guard checks the signature, not"
-                " its author, so it would not have caught this)"
-            )
-            assert actor == _VENDOR_URI, (
-                f"add_case_status_to_case actor must be vendor URI, got {actor!r}"
-            )
+            assert snapshot.get("actor") == _CASE_ACTOR_URI
+            assert snapshot["object"]["attributedTo"] == _VENDOR_URI
 
 
 class TestCM18007InitLedgerEntries:
@@ -2573,9 +2575,7 @@ class TestADR0041GenesisCommitFailure:
         case = self._case_with_no_entries(make_payload, dl, monkeypatch)
         fail_commits(monkeypatch, proposal_ledger)
 
-        node = CommitNativeLedgerEntriesNode(
-            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
-        )
+        node = CommitNativeLedgerEntriesNode(report_id=_REPORT_URI)
         node.datalayer = dl
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
@@ -2625,9 +2625,7 @@ class TestADR0041GenesisCommitFailure:
         _seed_report(dl)
         case = self._case_with_no_entries(make_payload, dl, monkeypatch)
 
-        node = CommitNativeLedgerEntriesNode(
-            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
-        )
+        node = CommitNativeLedgerEntriesNode(report_id=_REPORT_URI)
         node.datalayer = dl
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
@@ -2790,9 +2788,7 @@ class TestADR0041GenesisCommitFailure:
         monkeypatch.setattr(
             proposal_ledger, "create_commit_log_entry_tree", _accept
         )
-        node = CommitNativeLedgerEntriesNode(
-            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
-        )
+        node = CommitNativeLedgerEntriesNode(report_id=_REPORT_URI)
         node.datalayer = dl
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
@@ -2833,9 +2829,7 @@ class TestADR0041GenesisCommitFailure:
         monkeypatch.setattr(
             proposal_ledger, "create_commit_log_entry_tree", _accept
         )
-        node = CommitNativeLedgerEntriesNode(
-            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
-        )
+        node = CommitNativeLedgerEntriesNode(report_id=_REPORT_URI)
         node.datalayer = dl
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
@@ -2854,9 +2848,7 @@ class TestADR0041GenesisCommitFailure:
             CommitNativeLedgerEntriesNode,
         )
 
-        node = CommitNativeLedgerEntriesNode(
-            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
-        )
+        node = CommitNativeLedgerEntriesNode(report_id=_REPORT_URI)
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,

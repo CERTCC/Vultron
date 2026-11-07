@@ -63,11 +63,11 @@ class _FaultMixin:
         The activity id is derived from the failed activity and failure
         class, so a redelivery of the same failed activity emits nothing new
         and returns the id of the fault its first delivery sent (ID-04-004).
-        The sealed body is written before the queue append, so a sealed fault
-        that is no longer pending may have been delivered or may never have
-        been queued; the queue cannot say which.  It is queued again under the
-        same id and body, which the receiver deduplicates, so a crash between
-        the two writes never loses the NACK (ID-04-005).
+        The store, seal and queue append are one transaction.  A sealed fault
+        that is no longer pending may have been delivered; the queue cannot
+        say so.  It is queued again under the same id and body, which the
+        receiver deduplicates, so a redelivery never loses the NACK
+        (ID-04-005).
 
         Returns:
             The activity ID.
@@ -93,18 +93,22 @@ class _FaultMixin:
             to=to,
             id_=fault_id,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            # A crash between the create and the seal leaves the activity
-            # stored but unsealed; the derived id makes the retry hit it.
-            logger.info(
-                "ProcessingFault %s is already stored; sealing and queueing"
-                " it (ID-04-005)",
-                fault_id,
-            )
-        activity_id, _body = _seal(self._dl, activity)
-        self._dl.outbox_append(activity_id)
+        # One transaction: sealing signs the body (SIG-01-001), and a body
+        # that cannot be signed fails again on every retry, so it must leave
+        # no stored, unsealed fault behind.
+        with self._dl.transaction():
+            try:
+                self._dl.create(activity)
+            except VultronAlreadyExistsError:
+                # Stored by an earlier build under the derived id; seal and
+                # queue it as it stands.
+                logger.info(
+                    "ProcessingFault %s is already stored; sealing and"
+                    " queueing it (ID-04-005)",
+                    fault_id,
+                )
+            activity_id, _body = _seal(self._dl, activity)
+            self._dl.outbox_append(activity_id)
         logger.debug(
             "Emitted Create(ProcessingFault) activity=%s"
             " actor=%s failed_activity=%s failure_class=%s to=%s",

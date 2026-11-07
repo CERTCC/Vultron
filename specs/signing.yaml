@@ -29,8 +29,9 @@ groups:
       `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_sent_activity_carries_its_authors_proof`
       and
       `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_ledger_announce_carries_the_case_managers_proof`
-      check the sealed bodies a participant and the CASE_MANAGER send.
-    tracking_issue: '#5382'
+      check the sealed bodies a participant and the CASE_MANAGER send;
+      `test/demo/test_sealed_body_wire.py::TestTheWireCarriesTheSealedBody::test_every_delivered_body_carries_its_senders_proof`
+      verifies every body the in-process router delivers.
     adr:
     - ADR-0164
     stories:
@@ -51,7 +52,6 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_sent_proof_names_the_cryptosuite_and_the_authors_key`
       checks the proof on a participant's sealed body.
-    tracking_issue: '#5382'
     relationships:
     - rel_type: extends
       spec_id: SIG-01-001
@@ -198,7 +198,6 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_ledger_snapshot_keeps_the_senders_proof`
       commits a participant's signed activity and reads the relayed snapshot.
-    tracking_issue: '#5382'
     adr:
     - ADR-0164
     stories:
@@ -281,5 +280,44 @@ groups:
       `test/architecture/test_signing_helper_module.py::test_one_module_calls_the_signing_primitives`
       lists the modules under `vultron/` and `test/` that import the Ed25519 or JCS
       primitives.
+    adr:
+    - ADR-0164
+  - id: SIG-05-004
+    priority: MUST
+    kind: project
+    statement: >-
+      An actor's outbox MUST refuse an activity whose `actor` names another actor,
+      before signing or storing anything.
+    rationale: >-
+      An actor holds only its own private key, so it signs only its own messages. Seeded
+      keys (SIG-05-001) are guessable by design, so any code could compute any actor's
+      key; the prototype keeps an actor from signing for another in code instead: only
+      the owning actor's outbox calls the signer for that actor. Real per-actor secret
+      keys are ENC-01-001.
+    verification: >-
+      `test/adapters/test_outbox_sealed_body.py::test_seal_refuses_an_activity_another_actor_wrote`
+      seals an activity naming another actor and checks nothing is signed or stored.
+    adr:
+    - ADR-0164
+  - id: SIG-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      An activity's `actor` MUST be the actor that signs it; when another actor
+      initiated it, that initiator is carried in `attributed_to`, which is absent when
+      the actor is the initiator.
+    rationale: >-
+      A proof names its signer's key, and a receiver reads the author's key from the
+      `actor` (SIG-02-001), so an `actor` that is not the signer is a claim the
+      signer cannot back with its own key. The maintainer's rule: actor is always the
+      signing actor; `attributed_to` is the actor who initiated the thing, set only
+      when that initiator differs from the actor, since a copy of the actor is
+      redundant. This
+      supersedes ADR-0041 on one point: the CASE_MANAGER's genesis
+      `add_case_status_to_case` entry names the CASE_MANAGER as `actor`, and the case
+      owner that set the status stays in the status's `attributed_to`.
+    verification: >-
+      `test/core/behaviors/case/test_case_proposal_received_tree.py::TestADR0041LedgerEntries::test_add_case_status_is_signed_by_the_case_actor`
+      checks the genesis case-status entry's `actor` and the status's `attributedTo`.
     adr:
     - ADR-0164

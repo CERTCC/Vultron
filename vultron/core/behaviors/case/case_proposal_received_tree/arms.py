@@ -210,7 +210,6 @@ def create_case_from_proposal_act(
             # receiver's system must hold the case object before any
             # Announce(CaseLedgerEntry) fan-out that references it.
             CommitNativeLedgerEntriesNode(
-                owner_uri=proposer_uri,
                 report_id=report_id,
                 offer_id=offer_id,
                 offer_actor_id=offer_actor_id,

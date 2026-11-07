@@ -15,10 +15,14 @@
 
 """Outbound documents cite AS2 and the Vultron JSON-LD context (VM-10-001).
 
-The body the outbox seals and delivers is ``dump_outbound_body``'s text, so
-that is what these tests read.  Every activity the vocab examples build is
-rendered; they cover each verb a ``SEMANTIC_REGISTRY`` pattern matches and
-every outbound activity shape the protocol uses (#5168, #6006).
+The outbox seals and delivers ``dump_outbound_body``'s text signed
+(``signed_outbound_body``, SIG-01-001).  Most tests here read the unsigned
+dump, the context the activity itself declares; signing only appends the
+data-integrity context to the top level, which
+``test_signing_only_appends_the_data_integrity_context`` pins for the sealed
+body.  Every activity the vocab examples build is rendered; they cover each
+verb a ``SEMANTIC_REGISTRY`` pattern matches and every outbound activity
+shape the protocol uses (#5168, #6006).
 """
 
 import json
@@ -26,7 +30,10 @@ from typing import Any
 
 import pytest
 
-from vultron.adapters.outbox_sealed_body import dump_outbound_body
+from vultron.adapters.outbox_sealed_body import (
+    dump_outbound_body,
+    signed_outbound_body,
+)
 from vultron.core.models.base.context import DEFAULT_JSONLD_CONTEXT
 from vultron.core.models.report import VulnerabilityReport
 from vultron.semantic_registry import SEMANTIC_REGISTRY
@@ -220,3 +227,39 @@ def test_a_signed_outbound_body_lists_every_context_and_parses():
     ]
     signing.verify(signed, key.public_key_multibase)
     assert parse_activity(signed).context_ == signed["@context"]
+
+
+def _signed_example(example: str) -> dict[str, Any]:
+    """The sealed (signed) body of the example built by *example*."""
+    [build] = [b for b, _filename in EXAMPLES if b.__name__ == example]
+    activity = build()
+    # Signed as its own author's outbox signs it (SIG-05-004).
+    author = signing.author_of(json.loads(dump_outbound_body(activity)))
+    signed: dict[str, Any] = json.loads(signed_outbound_body(activity, author))
+    return signed
+
+
+@pytest.mark.spec("VM-10-001")
+@pytest.mark.spec("SIG-01-001")
+@pytest.mark.parametrize("example", _EXAMPLE_NAMES)
+def test_signing_only_appends_the_data_integrity_context(example: str):
+    """The sealed body keeps the activity's own context list, first.
+
+    Signing adds the data-integrity context after it at the top level, and
+    the proof restates that context, as FEP-8b32 shows.  Nested objects are
+    left as the activity built them.
+    """
+    unsigned = _BODIES[example]
+    signed = _signed_example(example)
+
+    assert signed["@context"] == [
+        *_DEFAULT_CONTEXT,
+        signing.DATA_INTEGRITY_CONTEXT,
+    ]
+    proof = signed.pop("proof")
+    assert proof["@context"] == signed["@context"]
+    signed_nested = [obj.get("@context") for obj in _nested_objects(signed)]
+    unsigned_nested = [
+        obj.get("@context") for obj in _nested_objects(unsigned)
+    ]
+    assert signed_nested == unsigned_nested

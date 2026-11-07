@@ -25,7 +25,9 @@ canonical forms of the proof options and of the document.  Public keys are
 **Seeded keys make no security claim.**  :func:`seeded_signing_key` computes a
 prototype actor's key pair from a fixed seed tied to its actor id
 (SIG-05-001), so proofs repeat across runs.  Anyone who knows the scheme can
-compute any actor's private key: never deploy seeded keys.  Verification never
+compute any actor's private key: never deploy seeded keys.  So the code
+holds the line the keys cannot: an actor's outbox signs only that actor's own
+messages (:func:`sign_as_author`, SIG-05-004).  Verification never
 derives a key from a seed (SIG-05-002); it takes the published
 ``publicKeyMultibase`` from the author's profile.
 
@@ -57,7 +59,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 
 from vultron.core.models._helpers import format_timestamp, now_utc
 from vultron.core.models.multikey import MULTIKEY_TYPE, Multikey
+from vultron.primitives import normalise_actor_id
 from vultron.wire.as2.errors import (
+    VultronForeignAuthorError,
     VultronMultikeyError,
     VultronProofInvalidError,
     VultronUnsignableJsonError,
@@ -67,6 +71,9 @@ logger = logging.getLogger(__name__)
 
 #: The JSON-LD context that defines the proof terms (FEP-8b32).
 DATA_INTEGRITY_CONTEXT = "https://w3id.org/security/data-integrity/v2"
+#: The JSON-LD context that defines the key terms an actor profile publishes:
+#: ``assertionMethod``, ``Multikey``, ``controller``, ``publicKeyMultibase``.
+MULTIKEY_CONTEXT = "https://w3id.org/security/multikey/v1"
 PROOF_TYPE = "DataIntegrityProof"
 CRYPTOSUITE = "eddsa-jcs-2022"
 PROOF_PURPOSE = "assertionMethod"
@@ -142,9 +149,13 @@ def seeded_signing_key(actor_id: str) -> SigningKey:
     """The prototype key pair for *actor_id*, computed from a fixed seed.
 
     The same actor id gives the same key in every process and store
-    (SIG-05-001).  This makes **no security claim**: anyone who knows the
-    scheme can compute the private key.  Only the key's owner calls this;
-    a verifier reads the published key instead (SIG-05-002).
+    (SIG-05-001).  This makes **no security claim**: the scheme is guessable
+    by design (ADR-0164 prototype; real per-actor secret keys are #1184), so
+    anyone who knows it can compute any actor's private key.  The guarantee
+    is in the code instead: only the owning actor's outbox signs for that
+    actor, through :func:`sign_as_author`, which refuses a document another
+    actor wrote (SIG-05-004).  A verifier reads the published key instead
+    (SIG-05-002).
     """
     if not actor_id:
         raise ValueError("a seeded key needs a non-empty actor id")
@@ -300,16 +311,16 @@ def canonicalize(value: Any) -> bytes:
         ) from error
 
 
-def _with_data_integrity_context(context: Any) -> list[Any]:
-    """*context* as a list that includes the data-integrity context."""
-    if context is None:
-        entries: list[Any] = []
-    elif isinstance(context, list):
-        entries = list(context)
-    else:
-        entries = [context]
-    if DATA_INTEGRITY_CONTEXT not in entries:
-        entries.append(DATA_INTEGRITY_CONTEXT)
+def with_context(context: Any, entry: str) -> list[Any]:
+    """*context* as a list that ends with *entry* unless it already has it.
+
+    A single context becomes a list, an absent one a list of *entry* alone,
+    and the existing entries keep their order, so whatever default
+    ``@context`` the document had stays first.
+    """
+    entries = _context_entries(context)
+    if entry not in entries:
+        entries.append(entry)
     return entries
 
 
@@ -363,8 +374,8 @@ def sign(
         )
 
     unsecured = copy.deepcopy(dict(document))
-    unsecured["@context"] = _with_data_integrity_context(
-        unsecured.get("@context")
+    unsecured["@context"] = with_context(
+        unsecured.get("@context"), DATA_INTEGRITY_CONTEXT
     )
     proof_config: dict[str, Any] = {
         "@context": copy.deepcopy(unsecured["@context"]),
@@ -382,6 +393,77 @@ def sign(
         key.key_id,
     )
     return {**unsecured, "proof": {**proof_config, "proofValue": proof_value}}
+
+
+def author_of(document: Mapping[str, Any]) -> str:
+    """The actor id whose key signs *document*: its ``actor``.
+
+    The ``actor`` may be an id or an inline object with one.
+
+    Raises:
+        VultronUnsignableJsonError: *document* names no actor, so there is
+            no author to sign it.
+    """
+    actor = document.get("actor")
+    if isinstance(actor, Mapping):
+        actor = actor.get("id")
+    if not isinstance(actor, str) or not actor:
+        raise VultronUnsignableJsonError(
+            f"{document.get('id', 'a document without an id')} names no "
+            "actor to sign it"
+        )
+    return actor
+
+
+def sign_as_author(
+    document: Mapping[str, Any],
+    *,
+    owner_id: str,
+    created: datetime | str | None = None,
+) -> dict[str, Any]:
+    """*document* signed with its author's own seeded key (:func:`sign`).
+
+    For the author's own outbox only.  *owner_id* is the actor whose store
+    and outbox are signing; the document's ``actor`` must name that same
+    actor, differing at most by a trailing slash, or nothing is signed
+    (SIG-05-004).  The proof is made with the owner's key and names the
+    owner's key id.
+
+    The seed scheme is guessable by design (ADR-0164; real per-actor secret
+    keys are #1184), so any code could compute any actor's key.  The
+    guarantee is in the code instead: only the owning actor's outbox calls
+    the signer, and only for that actor.  A verifier reads the published
+    key instead (SIG-05-002).
+
+    Raises:
+        VultronUnsignableJsonError: *document* names no actor
+            (:func:`author_of`), or :func:`sign` refuses it.
+        VultronForeignAuthorError: *document*'s ``actor`` is not *owner_id*.
+    """
+    owner = require_own_document(document, owner_id)
+    return sign(document, seeded_signing_key(owner), created=created)
+
+
+def require_own_document(document: Mapping[str, Any], owner_id: str) -> str:
+    """Return *owner_id*, normalised, when *document* is that actor's own.
+
+    The ``actor`` of *document* (:func:`author_of`) and *owner_id* are
+    compared without a trailing slash (OID-01-006).
+
+    Raises:
+        VultronUnsignableJsonError: *document* names no actor.
+        VultronForeignAuthorError: *owner_id* is empty, or the document's
+            ``actor`` names another actor (SIG-05-004).
+    """
+    author = author_of(document)
+    owner = normalise_actor_id(owner_id) if owner_id else ""
+    if not owner or normalise_actor_id(author) != owner:
+        raise VultronForeignAuthorError(
+            f"{document.get('id', 'a document without an id')} is written by"
+            f" '{author}', not by '{owner_id}' whose outbox is sealing it; an"
+            " actor signs only its own messages (SIG-05-004)"
+        )
+    return owner
 
 
 def proof_verification_method(document: Mapping[str, Any]) -> str:
@@ -512,9 +594,11 @@ __all__ = [
     "CRYPTOSUITE",
     "DATA_INTEGRITY_CONTEXT",
     "KEY_FRAGMENT",
+    "MULTIKEY_CONTEXT",
     "PROOF_PURPOSE",
     "PROOF_TYPE",
     "SigningKey",
+    "author_of",
     "canonicalize",
     "decode_public_key_multibase",
     "encode_public_key_multibase",
@@ -522,7 +606,10 @@ __all__ = [
     "load_json",
     "proof_verification_method",
     "published_multikey",
+    "require_own_document",
     "seeded_signing_key",
     "sign",
+    "sign_as_author",
     "verify",
+    "with_context",
 ]

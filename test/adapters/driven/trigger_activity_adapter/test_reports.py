@@ -26,6 +26,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 _ACTOR = "https://example.org/actors/reporter"
+#: The actor whose store the adapter writes to (SIG-05-004).
+STORE_OWNER = _ACTOR
 _COORDINATOR = "https://example.org/actors/coordinator"
 _CASE_ID = "https://example.org/cases/case-001"
 
@@ -187,9 +189,10 @@ class TestSubmitReport:
         dl.delete = original_delete
 
 
+@pytest.mark.parametrize("store_owner", [_COORDINATOR])
 class TestCloseReport:
     def test_returns_id_and_dict(self, adapter, dl):
-        offer_id = _make_offer(adapter, dl)
+        offer_id, _ = _received_offer(dl)
 
         reject_id, reject_dict = adapter.close_report(
             offer_id=offer_id,
@@ -202,7 +205,7 @@ class TestCloseReport:
         assert isinstance(reject_dict, str)
 
     def test_persists_reject_activity(self, adapter, dl):
-        offer_id = _make_offer(adapter, dl)
+        offer_id, _ = _received_offer(dl)
 
         reject_id, _ = adapter.close_report(
             offer_id=offer_id,
@@ -213,9 +216,10 @@ class TestCloseReport:
         assert dl.read(reject_id) is not None
 
 
+@pytest.mark.parametrize("store_owner", [_COORDINATOR])
 class TestInvalidateReport:
     def test_returns_id_and_dict(self, adapter, dl):
-        offer_id = _make_offer(adapter, dl)
+        offer_id, _ = _received_offer(dl)
 
         activity_id, activity_dict = adapter.invalidate_report(
             offer_id=offer_id,
@@ -227,7 +231,7 @@ class TestInvalidateReport:
         assert isinstance(activity_dict, str)
 
     def test_persists_tentative_reject_activity(self, adapter, dl):
-        offer_id = _make_offer(adapter, dl)
+        offer_id, _ = _received_offer(dl)
 
         activity_id, _ = adapter.invalidate_report(
             offer_id=offer_id,
@@ -362,6 +366,7 @@ _REPLIES = [
 ]
 
 
+@pytest.mark.parametrize("store_owner", [_COORDINATOR])
 class TestReplyToReceivedOffer:
     """A reply reads the received Offer from its archive (DL-06-006)."""
 

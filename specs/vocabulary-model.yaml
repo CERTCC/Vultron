@@ -1134,10 +1134,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Outbound Vultron wire messages MUST set the top-level `@context` to the list
+      Outbound Vultron wire messages MUST set the top-level `@context` to exactly the
+      list `["https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"]`, AS2 first, or, for a
+      signed message (SIG-01-001), to exactly
       `["https://www.w3.org/ns/activitystreams",
-      "https://certcc.github.io/Vultron/ns/context.jsonld"]`, with the ActivityStreams
-      namespace first.
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"]`: the data-integrity context is
+      the third and final entry, and no other context is added.
     rationale: >-
       Derived from ADR-0069 (docs/adr/0069-vultron-namespace-uri.md). AS2 Core §2.1 asks
       every producer to reference the ActivityStreams namespace in `@context`, and an
@@ -1149,11 +1153,17 @@ groups:
       URI alone hides the AS2 reference from a plain-JSON receiver.
     verification: >-
       Tests marked `VM-10-001` in `test/adapters/test_outbound_vultron_context.py`
-      render one sealed outbound body per activity verb that a `SEMANTIC_REGISTRY`
-      pattern matches and assert its top-level `@context` is the two-entry list, and
-      that a core or wire object dumped on its own carries the list.
+      render one outbound body per activity verb that a `SEMANTIC_REGISTRY` pattern
+      matches, before signing, and assert its top-level `@context` is the two-entry
+      list, and that a core or wire object dumped on its own carries the list.
+      `test_signing_only_appends_the_data_integrity_context` asserts that each sealed,
+      signed body's top-level `@context` equals exactly the three-entry list
+      (SIG-01-001).
     adr:
     - ADR-0069
+    relationships:
+    - rel_type: uses_definition
+      spec_id: SIG-01-001
     stories:
     - story_2022_039
   - id: VM-10-002

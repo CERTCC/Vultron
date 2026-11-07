@@ -61,7 +61,7 @@ NODES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
     ),
     "case status snapshot": lambda: EmitCaseStatusUpdateNode(case_id=_CASE),
     "case creation entries": lambda: CommitNativeLedgerEntriesNode(
-        owner_uri=_ACTOR, report_id=None
+        report_id=None
     ),
 }
 

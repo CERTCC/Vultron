@@ -50,17 +50,15 @@ TEST_PROOF_CREATED = "2026-01-01T00:00:00Z"
 def author_of(body: Mapping[str, Any]) -> str:
     """The actor id that signs *body*: its ``actor``, as an id or an object.
 
+    The outbox finds the author the same way (:func:`signing.author_of`).
+
     Raises:
         ValueError: *body* names no actor, so the test must name the author.
     """
-    actor = body.get("actor")
-    if isinstance(actor, Mapping):
-        actor = actor.get("id")
-    if not isinstance(actor, str) or not actor:
-        raise ValueError(
-            "the body names no actor to sign it; pass author= explicitly"
-        )
-    return actor
+    try:
+        return signing.author_of(body)
+    except ValueError as error:
+        raise ValueError(f"{error}; pass author= explicitly") from error
 
 
 def signed_body(

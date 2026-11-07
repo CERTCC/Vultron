@@ -25,7 +25,6 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.errors import (
     VultronActivityConstructionError,
-    VultronAlreadyExistsError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -54,7 +53,6 @@ from ._base import (
     _case_for_wire,
     _create_and_seal,
     _require_bootstrap_inline,
-    _seal,
     _to_wire,
     _to_wire_object,
 )
@@ -318,12 +316,8 @@ class _CasesMixin:
             context=context_id,
             to=to,
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "announce_vulnerability_case: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)[0]
+        # One transaction, so a body that cannot be signed leaves no stored,
+        # unsealed Announce behind (SIG-01-001).
+        return _create_and_seal(
+            self._dl, activity, "announce_vulnerability_case"
+        )[0]

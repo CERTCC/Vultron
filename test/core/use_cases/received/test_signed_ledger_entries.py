@@ -13,12 +13,11 @@
 """Sent activities carry their author's proof, and the ledger keeps it (SIG).
 
 Each test has a participant or the CASE_MANAGER send an ``Add(Note)`` built by
-the sender's own trigger adapter, as its outbox would seal it, and moves it
-between stores only as that sealed body (ADR-0164).  Nothing signs yet, so
-each test of a proof the sender or a replica makes is a strict ``xfail``
-naming the Task that turns it green; that Task replaces it with a passing
-test.  The ledger snapshot is the body as received (VM-08-003), so a sender's
-proof already survives the commit, and that test passes today.
+the sender's own trigger adapter, as its outbox seals it, and moves it between
+stores only as that sealed body (ADR-0164).  The outbox signs every body
+before sealing it (#5382), so each sealed body verifies by its author's
+published key.  Nothing verifies on receipt yet, so the replica refusal test
+is a strict ``xfail`` naming the Task that turns it green.
 """
 
 import json
@@ -27,19 +26,28 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import ledger_entries
-from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.errors import VultronError
+from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 from ._ledger_network import MANAGER, OWNER, LedgerNetwork
 
 CASE_ID = "https://example.org/cases/case-signed-entries"
-_NOT_SIGNED = "the outbox does not sign activities yet. Tracked by #5382."
+
+
+def _published_key(actor_id: str) -> str:
+    """The key *actor_id*'s profile publishes (``signing.published_multikey``).
+
+    The profile route is what a verifier reads (SIG-02-001); here the test
+    reads the same value without serving the profile.
+    """
+    key = signing.seeded_signing_key(actor_id)
+    return signing.published_multikey(key, actor_id).public_key_multibase
 
 
 def _note_body(
@@ -82,7 +90,6 @@ def _owner_note_entries(net: LedgerNetwork) -> list[Any]:
     ]
 
 
-@pytest.mark.xfail(strict=True, reason=f"SIG-01-001: {_NOT_SIGNED}")
 @pytest.mark.spec("SIG-01-001")
 def test_a_sent_activity_carries_its_authors_proof():
     net = LedgerNetwork(CASE_ID)
@@ -93,7 +100,6 @@ def test_a_sent_activity_carries_its_authors_proof():
     assert body["proof"].get("verificationMethod", "").startswith(f"{OWNER}#")
 
 
-@pytest.mark.xfail(strict=True, reason=f"SIG-01-001: {_NOT_SIGNED}")
 @pytest.mark.spec("SIG-01-001")
 def test_a_ledger_announce_carries_the_case_managers_proof():
     net = LedgerNetwork(CASE_ID)
@@ -110,10 +116,6 @@ def test_a_ledger_announce_carries_the_case_managers_proof():
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=("SIG-01-002: the outbox makes no proof yet. Tracked by #5382."),
-)
 @pytest.mark.spec("SIG-01-002")
 def test_a_sent_proof_names_the_cryptosuite_and_the_authors_key():
     net = LedgerNetwork(CASE_ID)
@@ -128,18 +130,59 @@ def test_a_sent_proof_names_the_cryptosuite_and_the_authors_key():
     assert proof.get("proofValue", "").startswith("z")
 
 
+@pytest.mark.spec("SIG-01-001")
+def test_a_sent_proof_verifies_by_the_authors_published_key():
+    net = LedgerNetwork(CASE_ID)
+
+    body = _owner_note(net, "https://example.org/notes/signed-6")
+
+    signing.verify(body, _published_key(OWNER))
+    assert signing.DATA_INTEGRITY_CONTEXT in body["@context"]
+
+
+@pytest.mark.spec("SIG-01-001")
+def test_a_ledger_announce_verifies_by_the_case_managers_published_key():
+    net = LedgerNetwork(CASE_ID)
+    body = _owner_note(net, "https://example.org/notes/signed-7")
+    _commit(net, body)
+
+    signing.verify(_announce_of(net, body["id"]), _published_key(MANAGER))
+
+
 @pytest.mark.spec("SIG-04-001")
 @pytest.mark.spec("VM-08-003")
 def test_a_ledger_snapshot_keeps_the_senders_proof():
+    """The relayed snapshot is the sender's sealed body, proof unchanged."""
     net = LedgerNetwork(CASE_ID)
-    # Signed through the test helper, so the check does not wait on the
-    # outbox signing (SIG-01-001 has its own test).
-    body = resigned(_owner_note(net, "https://example.org/notes/signed-4"))
+    body = _owner_note(net, "https://example.org/notes/signed-4")
     _commit(net, body)
 
     snapshot = _announce_of(net, body["id"])["object"]["payloadSnapshot"]
 
-    assert snapshot.get("proof") == body["proof"]
+    assert snapshot == body
+    signing.verify(snapshot, _published_key(OWNER))
+
+
+@pytest.mark.spec("SIG-04-001")
+def test_a_snapshots_proof_survives_the_stores_rekeying():
+    """A stored entry, read back after a restart, keeps a proof that verifies.
+
+    The store rewrites ``id_``/``type_``/``context_`` keys at every nesting
+    level on write (``_rekey_wire_identity``); the proof and the body it
+    covers must come back as they were sealed.
+    """
+    net = LedgerNetwork(CASE_ID)
+    body = _owner_note(net, "https://example.org/notes/signed-8")
+    _commit(net, body)
+
+    [entry] = [
+        entry
+        for entry in ledger_entries(net.reopen(MANAGER), CASE_ID)
+        if entry.payload_snapshot.get("id") == body["id"]
+    ]
+
+    assert entry.payload_snapshot == body
+    signing.verify(entry.payload_snapshot, _published_key(OWNER))
 
 
 @pytest.mark.xfail(

@@ -40,7 +40,7 @@ from typing import Any
 
 import pytest
 
-from test.support.received import archive_delivered, archive_received
+from test.support.received import archive_delivered
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -110,20 +110,23 @@ _NOT_AN_ACTIVITY = frozenset(
 
 
 class _World:
-    """A seeded store and the ids the recipes need."""
+    """One seeded store per actor, and the ids the recipes need.
 
-    def __init__(self, dl: SqliteDataLayer) -> None:
-        self.dl = dl
-        self.adapter = TriggerActivityAdapter(dl)
+    An outbox signs only its own actor's activities (SIG-05-004), so each
+    recipe sends through the store of the actor it sends as
+    (:meth:`adapter_as`).  Every store holds the same seeded objects, and an
+    activity one actor sends that another answers is delivered to the
+    answerer's store, as its inbox would archive it.
+    """
+
+    def __init__(self) -> None:
+        self._stores: dict[str, SqliteDataLayer] = {}
         self.case_id: str = "https://example.org/cases/audit-case"
         self.vendor = as_Service(id_=_PEER, name="Vendor")
-        dl.create(self.vendor)
         self.report = as_VulnerabilityReport(name="CVE-2026-1", content="PoC")
-        dl.create(self.report)
         self.participant = as_CaseParticipant(
             context=self.case_id, attributed_to=_PEER
         )
-        dl.create(self.participant)
         # The case names its participant and report by id, as a stored case
         # does; a case put on the wire carries them inline: the participant
         # because its receiver cannot hold it (CBT-01-007), the report because
@@ -136,13 +139,12 @@ class _World:
             case_participants=[str(self.participant.id_)],
             vulnerability_reports=[str(self.report.id_)],
         )
-        dl.create(self.case)
         self.status = ParticipantStatus(context=self.case_id)
-        dl.create(self.status)
         self.embargo = as_EmbargoEvent(
             context=self.case_id, end_time=days_from_now_utc(45)
         )
-        dl.create(self.embargo)
+        self.dl = self.store(_ACTOR)
+        self.adapter = self.adapter_as(_ACTOR)
         note_id, _ = self.adapter.create_note(
             name="n",
             content="c",
@@ -150,6 +152,53 @@ class _World:
             attributed_to=_ACTOR,
         )
         self.note_id = note_id
+
+    def store(self, actor_id: str) -> SqliteDataLayer:
+        """*actor_id*'s own store, seeded on first use."""
+        if actor_id not in self._stores:
+            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+            self._stores[actor_id] = dl
+            for seeded in (
+                self.vendor,
+                self.report,
+                self.participant,
+                self.case,
+                self.status,
+                self.embargo,
+            ):
+                dl.create(seeded)
+            if actor_id != _ACTOR:
+                note = self.dl.read(self.note_id, raise_on_missing=True)
+                assert note is not None
+                dl.create(note)
+        return self._stores[actor_id]
+
+    def adapter_as(self, actor_id: str) -> TriggerActivityAdapter:
+        """The adapter over *actor_id*'s own store: it sends as that actor."""
+        return TriggerActivityAdapter(self.store(actor_id))
+
+    def sealed_by(self, activity_id: str) -> tuple[SqliteDataLayer, Any]:
+        """The one store that sealed *activity_id*, and its sealed body."""
+        found = [
+            (dl, sealed)
+            for dl in self._stores.values()
+            if (sealed := read_sealed_body(dl, activity_id)) is not None
+        ]
+        assert len(found) == 1, (
+            f"{activity_id} sealed in {len(found)} stores, not one"
+        )
+        return found[0]
+
+    def deliver(self, sender: str, activity_id: str, holder: str) -> None:
+        """Archive *sender*'s sealed *activity_id* in *holder*'s store."""
+        sealed = read_sealed_body(self.store(sender), activity_id)
+        assert sealed is not None
+        archive_delivered(self.store(holder), sealed.body)
+
+    def close(self) -> None:
+        for dl in self._stores.values():
+            dl.clear_all()
+            dl.close()
 
     def consent_row(self, state: EmbargoConsentState) -> EmbargoConsent:
         """The participant's consent row for the seeded embargo."""
@@ -159,13 +208,15 @@ class _World:
 
     # -- prerequisites other recipes build on ----------------------------------
 
-    def offer_id(self) -> str:
-        offer_id, _ = self.adapter.submit_report(
+    def offer_id(self, holder: str = _ACTOR) -> str:
+        """The finder's report Offer, as *holder* received it."""
+        offer_id, _ = self.adapter_as(_PEER).submit_report(
             report_id=str(self.report.id_),
             actor=_PEER,
             to=_ACTOR,
             target=_ACTOR,
         )
+        self.deliver(_PEER, offer_id, holder)
         return offer_id
 
     def invite_id(self) -> str:
@@ -173,7 +224,7 @@ class _World:
         invite_id, _ = self.adapter.invite_actor_to_case(
             invitee_id=_PEER, case_id=self.case_id, actor=_ACTOR, to=[_PEER]
         )
-        archive_received(self.dl, self.dl.read(invite_id))
+        self.deliver(_ACTOR, invite_id, _PEER)
         return invite_id
 
     def full_case_invite_id(self) -> str:
@@ -186,16 +237,18 @@ class _World:
             ledger_log_index=3,
             ledger_entry_hash="ab" * 32,
         )
-        archive_received(self.dl, self.dl.read(invite_id))
+        self.deliver(_ACTOR, invite_id, _PEER)
         return invite_id
 
     def recommendation_id(self) -> str:
-        rec_id, _ = self.adapter.suggest_actor_to_case(
+        """The peer's recommendation, as the coordinator received it."""
+        rec_id, _ = self.adapter_as(_PEER).suggest_actor_to_case(
             recommended_id=_PEER,
             case_id=self.case_id,
             actor=_PEER,
             to=[_ACTOR],
         )
+        self.deliver(_PEER, rec_id, _ACTOR)
         return rec_id
 
     def cp_offer_id(self) -> str:
@@ -212,17 +265,20 @@ class _World:
         archive_delivered(self.dl, body)
         return cp_id
 
-    def proposal_id(self) -> str:
+    def proposal_id(self, holder: str = _ACTOR) -> str:
+        """The coordinator's embargo Invite, as *holder* holds it."""
         proposal_id, _ = self.adapter.propose_embargo(
             embargo_id=str(self.embargo.id_),
             case_id=self.case_id,
             actor=_ACTOR,
             to=[_PEER],
         )
+        if holder != _ACTOR:
+            self.deliver(_ACTOR, proposal_id, holder)
         return proposal_id
 
     def case_proposal(self) -> dict[str, Any]:
-        _, blob = self.adapter.create_case_proposal(
+        _, blob = self.adapter_as(_PEER).create_case_proposal(
             actor=_PEER,
             report_id=str(self.report.id_),
             case_actor_id=_CASE_ACTOR,
@@ -239,7 +295,7 @@ class _World:
         )
         # The transferee answers the Offer it received, as delivered
         # (DL-06-006, ADR-0148).
-        archive_delivered(self.dl, blob)
+        archive_delivered(self.store(_PEER), blob)
         return offer_id
 
     def ownership_proposal_id(self) -> str:
@@ -257,7 +313,9 @@ class _World:
         # and the reports it holds (AKM-02-004) as objects; the adapter
         # persists it unchanged (CP-05-005), so the audit hands it the shape
         # production does.
-        stored = self.dl.read(self.case_id, raise_on_missing=True)
+        stored = self.store(_CASE_ACTOR).read(
+            self.case_id, raise_on_missing=True
+        )
         assert stored is not None
         # The case rides on the activity and the whole graph renders once
         # (VM-10-005, #6046).
@@ -284,7 +342,7 @@ RECIPES: dict[str, Recipe] = {
         note_id=w.note_id, case_id=w.case_id, actor=_ACTOR, to=[_PEER]
     ),
     # reports
-    "submit_report": lambda w: w.adapter.submit_report(
+    "submit_report": lambda w: w.adapter_as(_PEER).submit_report(
         report_id=str(w.report.id_), actor=_PEER, to=_ACTOR, target=_ACTOR
     ),
     "validate_report": lambda w: w.adapter.validate_report(
@@ -322,68 +380,76 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id, actor=_ACTOR, close_sender=_PEER
     ),
     # The genesis entry is the creation's own Create, read back (ADR-0157).
-    "record_case_created": lambda w: w.adapter.record_case_created(
-        create_activity_id=w.adapter.create_case(
+    "record_case_created": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_case_created(
+        create_activity_id=w.adapter_as(_CASE_ACTOR).create_case(
             case_id=w.case_id, actor=_CASE_ACTOR, to=[_PEER]
         )[0]
     ),
-    "record_report_added_to_case": lambda w: (
-        w.adapter.record_report_added_to_case(
-            report_id=str(w.report.id_),
-            case_id=w.case_id,
-            actor=_CASE_ACTOR,
-            offer_id=w.offer_id(),
-            offer_actor_id=_PEER,
-        )
+    "record_report_added_to_case": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_report_added_to_case(
+        report_id=str(w.report.id_),
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
+        offer_id=w.offer_id(holder=_CASE_ACTOR),
+        offer_actor_id=_PEER,
     ),
-    "record_participant_status_added": lambda w: (
-        w.adapter.record_participant_status_added(
-            status=w.status,
-            participant=w.participant,
-            case_id=w.case_id,
-            actor=_CASE_ACTOR,
-        )
+    "record_participant_status_added": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_participant_status_added(
+        status=w.status,
+        participant=w.participant,
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
     ),
-    "record_case_status_added": lambda w: w.adapter.record_case_status_added(
+    "record_case_status_added": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_case_status_added(
         status=w.case.current_status, case_id=w.case_id, actor=_CASE_ACTOR
     ),
-    "record_case_participant_created": lambda w: (
-        w.adapter.record_case_participant_created(
-            participant=w.participant, case_id=w.case_id, actor=_CASE_ACTOR
-        )
+    "record_case_participant_created": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_case_participant_created(
+        participant=w.participant, case_id=w.case_id, actor=_CASE_ACTOR
     ),
-    "record_case_participant_updated": lambda w: (
-        w.adapter.record_case_participant_updated(
-            participant=w.participant,
-            case_id=w.case_id,
-            actor=_CASE_ACTOR,
-            cause_id=_CAUSE_ID,
-        )
+    "record_case_participant_updated": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_case_participant_updated(
+        participant=w.participant,
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
+        cause_id=_CAUSE_ID,
     ),
-    "record_embargo_event_created": lambda w: (
-        w.adapter.record_embargo_event_created(
-            embargo=w.embargo, case_id=w.case_id, actor=_CASE_ACTOR
-        )
+    "record_embargo_event_created": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_embargo_event_created(
+        embargo=w.embargo, case_id=w.case_id, actor=_CASE_ACTOR
     ),
-    "record_embargo_consent_created": lambda w: (
-        w.adapter.record_embargo_consent_created(
-            row=w.consent_row(EmbargoConsentState.UNINVITED),
-            case_id=w.case_id,
-            actor=_CASE_ACTOR,
-        )
+    "record_embargo_consent_created": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_embargo_consent_created(
+        row=w.consent_row(EmbargoConsentState.UNINVITED),
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
     ),
-    "record_embargo_consent_updated": lambda w: (
-        w.adapter.record_embargo_consent_updated(
-            row=w.consent_row(EmbargoConsentState.AGREED),
-            case_id=w.case_id,
-            actor=_CASE_ACTOR,
-            cause_id=_CAUSE_ID,
-        )
+    "record_embargo_consent_updated": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_embargo_consent_updated(
+        row=w.consent_row(EmbargoConsentState.AGREED),
+        case_id=w.case_id,
+        actor=_CASE_ACTOR,
+        cause_id=_CAUSE_ID,
     ),
-    "record_case_owner_updated": lambda w: w.adapter.record_case_owner_updated(
+    "record_case_owner_updated": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_case_owner_updated(
         case=w.case, actor=_CASE_ACTOR, cause_id=_CAUSE_ID
     ),
-    "record_case_announced": lambda w: w.adapter.record_case_announced(
+    "record_case_announced": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).record_case_announced(
         case_id=w.case_id,
         actor=_CASE_ACTOR,
         object_id=w.case_id,
@@ -396,24 +462,28 @@ RECIPES: dict[str, Recipe] = {
             case_id=w.case_id, actor=_ACTOR, context_id=w.case_id, to=[_PEER]
         )
     ),
-    "create_case_proposal": lambda w: w.adapter.create_case_proposal(
+    "create_case_proposal": lambda w: w.adapter_as(_PEER).create_case_proposal(
         actor=_PEER,
         report_id=str(w.report.id_),
         case_actor_id=_CASE_ACTOR,
         to=[_CASE_ACTOR],
     ),
-    "reject_case_proposal": lambda w: w.adapter.reject_case_proposal(
+    "reject_case_proposal": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).reject_case_proposal(
         actor=_CASE_ACTOR, proposal=w.case_proposal(), to=[_PEER]
     ),
-    "accept_case_proposal": lambda w: w.adapter.accept_case_proposal(
+    "accept_case_proposal": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).accept_case_proposal(
         actor=_CASE_ACTOR,
         proposal=w.case_proposal(),
         to=[_PEER],
         result=w.case_id,
     ),
-    "emit_prepared_create_case": lambda w: w.adapter.emit_prepared_create_case(
-        w.prepared_create_case()
-    ),
+    "emit_prepared_create_case": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).emit_prepared_create_case(w.prepared_create_case()),
     # embargo
     "propose_embargo": lambda w: w.adapter.propose_embargo(
         embargo_id=str(w.embargo.id_),
@@ -421,14 +491,14 @@ RECIPES: dict[str, Recipe] = {
         actor=_ACTOR,
         to=[_PEER],
     ),
-    "accept_embargo": lambda w: w.adapter.accept_embargo(
-        proposal_id=w.proposal_id(),
+    "accept_embargo": lambda w: w.adapter_as(_PEER).accept_embargo(
+        proposal_id=w.proposal_id(holder=_PEER),
         case_id=w.case_id,
         actor=_PEER,
         to=[_ACTOR],
     ),
-    "reject_embargo": lambda w: w.adapter.reject_embargo(
-        proposal_id=w.proposal_id(),
+    "reject_embargo": lambda w: w.adapter_as(_PEER).reject_embargo(
+        proposal_id=w.proposal_id(holder=_PEER),
         case_id=w.case_id,
         actor=_PEER,
         to=[_ACTOR],
@@ -478,10 +548,10 @@ RECIPES: dict[str, Recipe] = {
         to=[_PEER],
         roles=["vendor"],
     ),
-    "accept_case_invite": lambda w: w.adapter.accept_case_invite(
+    "accept_case_invite": lambda w: w.adapter_as(_PEER).accept_case_invite(
         invite_id=w.invite_id(), actor=_PEER
     ),
-    "reject_case_invite": lambda w: w.adapter.reject_case_invite(
+    "reject_case_invite": lambda w: w.adapter_as(_PEER).reject_case_invite(
         invite_id=w.invite_id(), actor=_PEER
     ),
     "invite_actor_to_full_case": lambda w: w.adapter.invite_actor_to_full_case(
@@ -492,27 +562,33 @@ RECIPES: dict[str, Recipe] = {
         ledger_log_index=3,
         ledger_entry_hash="ab" * 32,
     ),
-    "accept_full_case_invite": lambda w: w.adapter.accept_full_case_invite(
+    "accept_full_case_invite": lambda w: w.adapter_as(
+        _PEER
+    ).accept_full_case_invite(
         invite_id=w.full_case_invite_id(),
         actor=_PEER,
         ledger_log_index=3,
         ledger_entry_hash="ab" * 32,
     ),
-    "tentative_reject_full_case_invite": lambda w: (
-        w.adapter.tentative_reject_full_case_invite(
-            invite_id=w.full_case_invite_id(),
-            actor=_PEER,
-            ledger_log_index=3,
-            ledger_entry_hash="ab" * 32,
-        )
-    ),
-    "reject_full_case_invite": lambda w: w.adapter.reject_full_case_invite(
+    "tentative_reject_full_case_invite": lambda w: w.adapter_as(
+        _PEER
+    ).tentative_reject_full_case_invite(
         invite_id=w.full_case_invite_id(),
         actor=_PEER,
         ledger_log_index=3,
         ledger_entry_hash="ab" * 32,
     ),
-    "suggest_actor_to_case": lambda w: w.adapter.suggest_actor_to_case(
+    "reject_full_case_invite": lambda w: w.adapter_as(
+        _PEER
+    ).reject_full_case_invite(
+        invite_id=w.full_case_invite_id(),
+        actor=_PEER,
+        ledger_log_index=3,
+        ledger_entry_hash="ab" * 32,
+    ),
+    "suggest_actor_to_case": lambda w: w.adapter_as(
+        _PEER
+    ).suggest_actor_to_case(
         recommended_id=_PEER, case_id=w.case_id, actor=_PEER, to=[_ACTOR]
     ),
     "offer_actor_to_case": lambda w: w.adapter.offer_actor_to_case(
@@ -568,13 +644,13 @@ RECIPES: dict[str, Recipe] = {
             to=[_PEER],
         )
     ),
-    "add_participant_status_to_participant": lambda w: (
-        w.adapter.add_participant_status_to_participant(
-            status_id=str(w.status.id_),
-            participant_id=str(w.participant.id_),
-            actor=_PEER,
-            to=[_ACTOR],
-        )
+    "add_participant_status_to_participant": lambda w: w.adapter_as(
+        _PEER
+    ).add_participant_status_to_participant(
+        status_id=str(w.status.id_),
+        participant_id=str(w.participant.id_),
+        actor=_PEER,
+        to=[_ACTOR],
     ),
     "offer_case_participant_role": lambda w: (
         w.adapter.offer_case_participant_role(
@@ -585,27 +661,27 @@ RECIPES: dict[str, Recipe] = {
             to=[_CASE_ACTOR],
         )
     ),
-    "accept_case_participant_role": lambda w: (
-        w.adapter.accept_case_participant_role(
-            offer_id="https://example.org/offers/role-1",
-            case_id=w.case_id,
-            role=CVDRole.CASE_MANAGER,
-            target_actor_id=_CASE_ACTOR,
-            vendor_id=_ACTOR,
-            actor=_CASE_ACTOR,
-            to=[_ACTOR],
-        )
+    "accept_case_participant_role": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).accept_case_participant_role(
+        offer_id="https://example.org/offers/role-1",
+        case_id=w.case_id,
+        role=CVDRole.CASE_MANAGER,
+        target_actor_id=_CASE_ACTOR,
+        vendor_id=_ACTOR,
+        actor=_CASE_ACTOR,
+        to=[_ACTOR],
     ),
-    "reject_case_participant_role": lambda w: (
-        w.adapter.reject_case_participant_role(
-            offer_id="https://example.org/offers/role-2",
-            case_id=w.case_id,
-            role=CVDRole.CASE_MANAGER,
-            target_actor_id=_CASE_ACTOR,
-            vendor_id=_ACTOR,
-            actor=_CASE_ACTOR,
-            to=[_ACTOR],
-        )
+    "reject_case_participant_role": lambda w: w.adapter_as(
+        _CASE_ACTOR
+    ).reject_case_participant_role(
+        offer_id="https://example.org/offers/role-2",
+        case_id=w.case_id,
+        role=CVDRole.CASE_MANAGER,
+        target_actor_id=_CASE_ACTOR,
+        vendor_id=_ACTOR,
+        actor=_CASE_ACTOR,
+        to=[_ACTOR],
     ),
     "propose_case_ownership_transfer": lambda w: (
         w.adapter.propose_case_ownership_transfer(
@@ -620,15 +696,15 @@ RECIPES: dict[str, Recipe] = {
             case_id=w.case_id, transferee_id=_PEER, actor=_ACTOR, to=[_PEER]
         )
     ),
-    "accept_case_ownership_transfer": lambda w: (
-        w.adapter.accept_case_ownership_transfer(
-            offer_id=w.ownership_offer_id(), actor=_PEER, to=[_ACTOR]
-        )
+    "accept_case_ownership_transfer": lambda w: w.adapter_as(
+        _PEER
+    ).accept_case_ownership_transfer(
+        offer_id=w.ownership_offer_id(), actor=_PEER, to=[_ACTOR]
     ),
-    "reject_case_ownership_transfer": lambda w: (
-        w.adapter.reject_case_ownership_transfer(
-            offer_id=w.ownership_offer_id(), actor=_PEER, to=[_ACTOR]
-        )
+    "reject_case_ownership_transfer": lambda w: w.adapter_as(
+        _PEER
+    ).reject_case_ownership_transfer(
+        offer_id=w.ownership_offer_id(), actor=_PEER, to=[_ACTOR]
     ),
     "withdraw_case_ownership_transfer": lambda w: (
         w.adapter.withdraw_case_ownership_transfer(
@@ -666,10 +742,9 @@ def _port_methods() -> set[str]:
 
 @pytest.fixture
 def world():
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
-    yield _World(dl)
-    dl.clear_all()
-    dl.close()
+    world = _World()
+    yield world
+    world.close()
 
 
 def test_every_port_activity_method_has_a_recipe():
@@ -689,10 +764,7 @@ def test_the_activity_is_sealed_complete(world, method):
     else:
         activity_id, blob = result, None
 
-    sealed = read_sealed_body(world.dl, activity_id)
-    assert sealed is not None, (
-        f"{method} did not seal a body for {activity_id}"
-    )
+    _store, sealed = world.sealed_by(activity_id)
     if blob is not None:
         assert sealed.body == blob, f"{method} returned a blob it did not seal"
 
@@ -805,7 +877,7 @@ def test_invite_roles_survive_into_the_sealed_body(world):
 
 @pytest.mark.spec("CM-16-003")
 def test_suggested_roles_survive_into_the_sealed_body(world):
-    _, blob = world.adapter.suggest_actor_to_case(
+    _, blob = world.adapter_as(_PEER).suggest_actor_to_case(
         recommended_id=_PEER,
         case_id=world.case_id,
         actor=_PEER,
@@ -881,7 +953,9 @@ def test_an_actor_the_sender_does_not_hold_travels_as_a_reference(
     world, method
 ):
     """Only a URI is held for the delegate, so it travels as id and type."""
-    assert world.dl.read(_CASE_ACTOR) is None
+    # Neither sender holds the delegate's record.
+    assert world.store(_ACTOR).read(_CASE_ACTOR) is None
+    assert world.store(_CASE_ACTOR).read(_CASE_ACTOR) is None
     _, blob = RECIPES[method](world)
     actor = _carried(blob, _ROLE_DELEGATE_PATHS[method])
     actor.pop("@context", None)

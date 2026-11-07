@@ -59,5 +59,16 @@ class VultronUnsignableJsonError(VultronProofError, ValueError):
     """
 
 
+class VultronForeignAuthorError(VultronProofError):
+    """Raised when an outbox is asked to sign an activity another actor wrote.
+
+    An actor holds only its own private key, so it signs only its own
+    messages (SIG-05-004).  The activity's ``actor`` must be the actor whose
+    store and outbox are sealing it; any other author is refused before
+    anything is signed or stored.  Not a ``ValueError``: it is a wiring
+    defect, not a malformed body, so no validation handler absorbs it.
+    """
+
+
 class VultronMultikeyError(VultronProofError, ValueError):
     """Raised when a ``Multikey`` value is not a base58btc Ed25519 key."""

@@ -196,3 +196,56 @@ def test_a_posted_case_activity_is_sealed_with_the_actors_tail(
         "logIndex": EMPTY_LEDGER_LOG_INDEX,
         "entryHash": case.genesis_hash,
     }
+
+
+@pytest.mark.spec("SIG-01-001")
+def test_a_posted_activity_that_cannot_be_signed_is_refused_422(
+    actor_dl, monkeypatch
+) -> None:
+    """The signer's refusal is the client's content, so 422; nothing is kept."""
+    from vultron.adapters import outbox_sealed_body
+    from vultron.wire.as2.errors import VultronUnsignableJsonError
+
+    def _refuse(_activity: object, _owner_id: str) -> str:
+        raise VultronUnsignableJsonError("value cannot be canonicalized")
+
+    monkeypatch.setattr(outbox_sealed_body, "signed_outbound_body", _refuse)
+    actor, dl = actor_dl
+    case = _case_with_manager(dl, actor)
+    note = _note_to_manager(case, actor, "unsignable")
+
+    response = _post(dl, actor, note, monkeypatch)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["error"] == "ValidationError"
+    assert dl.read(note.id_) is None
+    assert read_sealed_body_dict(dl, note.id_) is None
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_a_posted_activity_another_actor_wrote_is_refused_400(
+    actor_dl, monkeypatch
+) -> None:
+    """An outbox signs only its own actor's activities: a foreign one is 400.
+
+    Nothing is stored, sealed or queued, and no key is computed for the
+    foreign author.
+    """
+    from vultron.wire.as2 import signing
+
+    computed: list[str] = []
+    monkeypatch.setattr(signing, "seeded_signing_key", computed.append)
+    actor, dl = actor_dl
+    case = _case_with_manager(dl, actor)
+    foreign = _note_to_manager(case, actor, "foreign").model_copy(
+        update={"actor": _MANAGER}
+    )
+
+    response = _post(dl, actor, foreign, monkeypatch)
+
+    assert response.status_code == 400, response.text
+    assert computed == []
+    assert dl.read(foreign.id_) is None
+    assert read_sealed_body_dict(dl, foreign.id_) is None
+    assert dl.outbox_list() == []

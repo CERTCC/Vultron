@@ -24,6 +24,7 @@ CaseActor; the CaseActor emits the Invite (ADR-0109).  Then:
   sealed, byte for byte — the ledger snapshot on the emitting side is that
   same body decoded (pinned at unit level in
   ``test_actor_and_announce_nodes``), so the two agree;
+- every delivered body carries its sender's proof, which verifies (SIG-01-001);
 - the wire carries the enriched case stub — the ``activeEmbargo`` CM-17-002
   requires for informed consent, which the old re-read-and-dehydrate delivery
   path collapsed to a bare URI (#2624).
@@ -41,6 +42,7 @@ import json
 import re
 from collections.abc import Iterator, Mapping
 from typing import Any
+from urllib.parse import urlparse
 
 import pytest
 
@@ -57,9 +59,34 @@ from vultron.demo.in_process import (
     create_isolated_actor_app,
 )
 from vultron.demo.utils import DataLayerClient, seed_peer
+from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
 _UNSAFE_IN_HOST = re.compile(r"[^a-z0-9-]+")
+
+
+def _served_key(topo: _Topology, body: Mapping[str, Any]) -> str:
+    """The key the proof names, read from the author's served profile.
+
+    A plain GET of the author's profile on its own node (SIG-02-001,
+    SIG-02-002), so the test verifies against the published key, not one it
+    derives.
+    """
+    author = signing.author_of(body)
+    method = signing.proof_verification_method(body)
+    [node] = [
+        app
+        for app in (topo.ca_host, topo.owner, topo.invitee)
+        if author.startswith(f"{app.base_url}/")
+    ]
+    response = node.client.get(urlparse(author).path)
+    assert response.status_code == 200, response.text
+    [key] = [
+        entry
+        for entry in response.json().get("assertionMethod", [])
+        if isinstance(entry, dict) and entry.get("id") == method
+    ]
+    return str(key["publicKeyMultibase"])
 
 
 class _RecordingRouter(InProcessRouter):
@@ -146,6 +173,27 @@ class TestTheWireCarriesTheSealedBody:
         assert delivered["id"] == invite_id
         assert delivered["actor"] == topo.ca_actor_id
         assert delivered["context"] == case_id
+
+    @pytest.mark.spec("SIG-01-001")
+    def test_every_delivered_body_carries_its_senders_proof(
+        self, recorded_topology
+    ):
+        """The router relays the sealed body, so the proof crosses with it.
+
+        The owner's Offer and the CaseActor's Invite both arrive signed, each
+        verifying by its sender's published key (#5382).
+        """
+        topo, router = recorded_topology
+        case_id = "urn:uuid:sealed-body-signed"
+        _bootstrap(topo, case_id)
+
+        _invite(topo, case_id)
+
+        bodies = [json.loads(body) for _, body, _ in router.delivered]
+        senders = {signing.author_of(body) for body in bodies}
+        assert {topo.owner_actor_id, topo.ca_actor_id} <= senders, senders
+        for body in bodies:
+            signing.verify(body, _served_key(topo, body))
 
     def test_the_wire_carries_the_enriched_case_stub(self, recorded_topology):
         """CM-17-002 reaches the wire: the collapsed-stub defect (#2624) is gone."""

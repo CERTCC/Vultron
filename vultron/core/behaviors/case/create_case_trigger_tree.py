@@ -255,9 +255,7 @@ def create_case_trigger_bt(
     ]
     if queue_for_delivery:
         act.append(UpdateActorOutbox())
-    act.append(
-        CommitNativeLedgerEntriesNode(owner_uri=actor_id, report_id=report_id)
-    )
+    act.append(CommitNativeLedgerEntriesNode(report_id=report_id))
     return py_trees.composites.Sequence(
         name="CreateCaseTriggerBT",
         memory=False,

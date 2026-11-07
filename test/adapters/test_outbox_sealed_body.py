@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Sealing an outbound activity's body (VM-08-003).
+"""Sealing an outbound activity's body (VM-08-003), signed (SIG-01-001).
 
 Module under test: ``vultron/adapters/outbox_sealed_body.py``.
 """
@@ -32,6 +32,12 @@ from vultron.adapters.outbox_sealed_body import (
     sealed_body_id,
 )
 from vultron.errors import VultronValidationError
+from vultron.wire.as2 import signing
+from vultron.wire.as2.errors import (
+    VultronForeignAuthorError,
+    VultronProofInvalidError,
+    VultronUnsignableJsonError,
+)
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -49,29 +55,139 @@ def dl():
     _dl.close()
 
 
-def _invite():
+def _invite(actor: str = _ACTOR):
     case = as_VulnerabilityCase(
         name="CVE-2026-0001",
         stub_summary="RCE in widget for stub test",
         attributed_to=_ACTOR,
     )
     return rm_invite_to_case_activity(
-        invitee=_INVITEE, target=case, actor=_ACTOR, to=[_INVITEE]
+        invitee=_INVITEE, target=case, actor=actor, to=[_INVITEE]
     )
 
 
+def _published_key(actor_id: str) -> str:
+    key = signing.seeded_signing_key(actor_id)
+    return signing.published_multikey(key, actor_id).public_key_multibase
+
+
+def _unsigned(body: dict) -> dict:
+    """*body* as it was before signing: no proof, its own ``@context``."""
+    unsigned = {k: v for k, v in body.items() if k != "proof"}
+    unsigned["@context"] = [
+        entry
+        for entry in body["@context"]
+        if entry != signing.DATA_INTEGRITY_CONTEXT
+    ]
+    if len(unsigned["@context"]) == 1:
+        [unsigned["@context"]] = unsigned["@context"]
+    return unsigned
+
+
 @pytest.mark.spec("VM-08-003")
-def test_seal_stores_the_exact_factory_dump(dl):
-    """The sealed text is the factory object's own dump, byte for byte."""
+def test_seal_stores_the_factory_dump_with_its_proof(dl):
+    """The sealed text is the factory object's own dump, signed, and stored."""
     invite = _invite()
 
     body = seal_outbound_body(dl, invite)
 
-    assert body == invite.model_dump_json(**OUTBOUND_DUMP_KWARGS)
+    assert _unsigned(json.loads(body)) == json.loads(
+        invite.model_dump_json(**OUTBOUND_DUMP_KWARGS)
+    )
     stored = dl.read(sealed_body_id(invite.id_))
     assert isinstance(stored, SealedOutboundBody)
     assert stored.activity_id == invite.id_
     assert stored.body == body
+
+
+@pytest.mark.spec("SIG-01-001")
+@pytest.mark.spec("SIG-01-002")
+def test_the_sealed_body_carries_its_authors_proof(dl):
+    """The seal is signed with the actor's key, and the proof verifies."""
+    body = json.loads(seal_outbound_body(dl, _invite()))
+
+    proof = body["proof"]
+    assert proof["type"] == signing.PROOF_TYPE
+    assert proof["cryptosuite"] == signing.CRYPTOSUITE
+    assert proof["proofPurpose"] == signing.PROOF_PURPOSE
+    assert proof["verificationMethod"] == signing.key_id_for(_ACTOR)
+    assert body["@context"][-1] == signing.DATA_INTEGRITY_CONTEXT
+    signing.verify(body, _published_key(_ACTOR))
+
+
+@pytest.mark.spec("SIG-01-003")
+def test_the_sealed_proof_covers_the_nested_objects(dl):
+    """Changing the inline case stub after sealing breaks the proof."""
+    body = json.loads(seal_outbound_body(dl, _invite()))
+    body["target"]["name"] = "changed after sealing"
+
+    with pytest.raises(VultronProofInvalidError):
+        signing.verify(body, _published_key(_ACTOR))
+
+
+def test_seal_refuses_an_activity_naming_no_actor(dl):
+    """An activity with no ``actor`` has no author to sign it, so no seal."""
+    invite = _invite().model_copy(update={"actor": None})
+
+    with pytest.raises(VultronUnsignableJsonError, match="names no actor"):
+        seal_outbound_body(dl, invite)
+    assert read_sealed_body(dl, invite.id_) is None
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_seal_refuses_an_activity_another_actor_wrote(dl, monkeypatch):
+    """An actor's store never signs or seals an activity naming another actor.
+
+    The refusal comes before the signer computes any key and before the
+    store is read or written.
+    """
+    foreign = _invite(actor=_INVITEE)
+    computed: list[str] = []
+    monkeypatch.setattr(signing, "seeded_signing_key", computed.append)
+
+    with pytest.raises(VultronForeignAuthorError, match="SIG-05-004"):
+        seal_outbound_body(dl, foreign)
+    assert computed == [], "no key was computed for the foreign author"
+    assert read_sealed_body(dl, foreign.id_) is None
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_seal_refuses_an_inline_actor_naming_another_actor(dl):
+    """An inline ``actor`` object is read by its id, and refused the same way."""
+    foreign = _invite().model_copy(update={"actor": {"id": _INVITEE}})
+
+    with pytest.raises(VultronForeignAuthorError):
+        seal_outbound_body(dl, foreign)
+    assert read_sealed_body(dl, foreign.id_) is None
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_seal_accepts_the_owner_spelled_with_a_trailing_slash(dl):
+    """``…/coordinator/`` is the store's own actor, signed with its own key."""
+    invite = _invite(actor=f"{_ACTOR}/")
+
+    body = json.loads(seal_outbound_body(dl, invite))
+
+    assert body["proof"]["verificationMethod"] == signing.key_id_for(_ACTOR)
+    signing.verify(body, _published_key(_ACTOR))
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_sign_as_author_refuses_a_foreign_author():
+    """The signer itself refuses a document its owner did not write."""
+    document = {"id": "urn:uuid:x", "actor": _INVITEE}
+
+    with pytest.raises(VultronForeignAuthorError):
+        signing.sign_as_author(document, owner_id=_ACTOR)
+
+
+@pytest.mark.spec("SIG-05-004")
+def test_sign_as_author_refuses_an_empty_owner():
+    """No owner is no one to sign as, never every actor."""
+    with pytest.raises(VultronForeignAuthorError):
+        signing.sign_as_author(
+            {"id": "urn:uuid:x", "actor": _ACTOR}, owner_id=""
+        )
 
 
 @pytest.mark.spec("VM-08-003")
@@ -95,7 +211,7 @@ def test_seal_is_write_once_per_activity_id(dl):
     # A re-emission under the same id, dumped differently.
     reissued = invite.model_copy(update={"summary": "changed"})
     second = seal_outbound_body(dl, reissued)
-    assert second == first
+    assert second == first, "the first body and its proof stand"
     assert read_sealed_body(dl, invite.id_).body == first  # type: ignore[union-attr]
 
 

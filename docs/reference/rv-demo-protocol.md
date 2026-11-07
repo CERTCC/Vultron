@@ -422,7 +422,7 @@ A case status follows a participant status only when it changes the case's EM or
 | 1 | `create_embargo_event` | Case Actor (the default embargo, in full) | 1 |
 | 2 | `add_report_to_case` | Case Actor | 1 |
 | 3–7 | `create_case_participant`, `add_participant_status_to_participant` | Case Actor (each of the three participant records as it was created, then the Case Actor's own `VALID` and `ACCEPTED`) | 1 |
-| 8 | `add_case_status_to_case` | Vendor (initial case status, `EM.ACTIVE`) | 1 |
+| 8 | `add_case_status_to_case` | Case Actor (the Vendor's initial case status, `EM.ACTIVE`, that it recorded) | 1 |
 | 9 | `validate_report` | Vendor | 1 |
 | 10 | `add_participant_status_to_participant` | Case Actor (the Vendor's `VALID` it recorded) | 1 |
 | 11 | `engage_case` | Vendor | 1 |
