@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import fcntl
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -24,8 +25,11 @@ from test.support.git_repo import git, init_git_repo
 from vultron.metadata.planning import ci_mirror
 from vultron.metadata.planning.ci_mirror import _run
 from vultron.metadata.planning.ci_mirror._registry import (
+    EXCLUSIONS,
     MIRROR_CHECKS,
     RUN_IF_CHANGED,
+    SITE_READER_PREFIX,
+    SITE_READERS,
     CheckContext,
     MirrorCheck,
     markdownlint_command,
@@ -48,6 +52,7 @@ from vultron.metadata.planning.ci_mirror._workflows import (
     PullRequestTrigger,
     WorkflowStep,
     matches_filter,
+    pull_request_steps,
 )
 from vultron.metadata.planning.heavy_lock import HEAVY_LOCK, HEAVY_LOCK_SCRIPT
 
@@ -215,19 +220,163 @@ def test_a_builder_with_nothing_to_read_is_not_triggered():
     assert _plan(check).status is CheckStatus.NOT_TRIGGERED
 
 
-_GUARD = next(c for c in MIRROR_CHECKS if c.id == "guard-tests")
+#: Every CI step PAD-18-023 makes CI's, by the exclusion key that names it.
+#: All of them, not a representative of each kind: the five built-site readers
+#: are one kind, and pinning one left the other four covered by nothing, so a
+#: reader moved back into the mirror with its exclusion deleted passed both
+#: this test and the parity test. Named, not counted: a renamed CI step must
+#: fail here, and the parity test (PAD-18-022) refuses a key naming no step,
+#: so neither can go stale unnoticed.
+_CI_OWNED_STEPS = (
+    "python-app.yml::lint-pyright::Type-check with pyright",
+    "spec-check.yml::spec-tests::Run spec_corpus pytest suite",
+    "guard-tests.yml::guard-tests::Run the guard tests",
+    "docs-build-check.yml::docs-build-check::Build Site > Build Site",
+    *(SITE_READER_PREFIX + label for label in SITE_READERS),
+)
 
 
 @pytest.mark.spec("PAD-18-023")
-@pytest.mark.parametrize("changed", [(), ("docs/page.md",), ("notes/x.md",)])
-def test_the_guard_tests_run_on_every_diff(changed):
-    context = CheckContext({"base": "main", "pr": ""}, changed, Path("."))
+def test_the_pin_covers_every_built_site_reader() -> None:
+    """Non-vacuity: the pin is built from the registry's own label list, so a
+    sixth reader joins it without an edit here — and a shortened list cannot
+    quietly drop one.
+    """
+    pinned = {s for s in _CI_OWNED_STEPS if s.startswith(SITE_READER_PREFIX)}
+    assert pinned == {
+        k for k in EXCLUSIONS if k.startswith(SITE_READER_PREFIX)
+    }
+    assert len(pinned) == len(SITE_READERS) >= 5
 
-    [planned] = plan([_GUARD], {}, {}, context, base="main")
 
-    assert planned.status is None
-    assert planned.argv is not None
-    assert "-m" in planned.argv and "" in planned.argv
+@pytest.mark.spec("PAD-18-023")
+@pytest.mark.parametrize("step", _CI_OWNED_STEPS)
+def test_the_mirror_leaves_cis_expensive_checks_to_ci(step: str) -> None:
+    """None is mirrored, and each exclusion names CI as its owner."""
+    assert step not in {c.step for c in MIRROR_CHECKS}
+    reason = EXCLUSIONS[step]
+    assert "CI" in reason, reason
+    assert "PAD-18-023" in reason, reason
+
+
+#: Diffs a command builder is probed with: Markdown alone and a lint config,
+#: the two branches ``markdownlint_command`` has. A builder's command is as
+#: much a command as a literal one.
+_PROBE_DIFFS = (("AGENTS.md",), (".markdownlint-cli2.yaml",))
+
+
+def _resolved_commands() -> dict[str, tuple[str, ...]]:
+    """Every check's command text, however the registry spells it.
+
+    A check with no ``command`` runs its CI step's own ``run:`` script
+    (``_run._argv``), which is exactly where a forbidden invocation would
+    hide. Reading only the tuple-valued commands inspected one of the 26
+    (#5535), and ``MirrorCheck.command`` is typed ``Sequence[str]``, so a
+    list literal — the natural form — was skipped too.
+    """
+    steps = pull_request_steps(REPO_ROOT)
+    resolved: dict[str, tuple[str, ...]] = {}
+    for check in MIRROR_CHECKS:
+        if check.command is None:
+            step = steps.get(check.step) if check.step else None
+            assert step is not None and step.run is not None, (
+                f"{check.id}: no command and no step run: script"
+            )
+            resolved[check.id] = (step.run,)
+        elif callable(check.command):
+            builder = check.command
+            resolved[check.id] = tuple(
+                " ".join(argv)
+                for diff in _PROBE_DIFFS
+                if (argv := builder(CheckContext({}, diff, REPO_ROOT)))
+                is not None
+            )
+        else:
+            resolved[check.id] = (" ".join(check.command),)
+    return resolved
+
+
+#: What PAD-18-023 forbids a mirror command, as patterns over its text.
+#: Not the bare word ``pytest``: two mirror checks run one named test file
+#: apiece (``story-page-shape``, ``docs-path-ratchet``), which is cheap and
+#: allowed. What PAD-18-023 names is a *suite*, and both of the ones it names
+#: are marker-selected — ``-m ""`` for the full tiers, ``-m spec_corpus`` for
+#: the spec corpus — so marker selection is the bar.
+_FORBIDDEN_COMMAND = (
+    ("pyright", re.compile(r"(?<![\w./-])pyright(?![\w:])")),
+    ("a marker-selected pytest suite", re.compile(r"pytest\b.*\s-m\s")),
+    ("the site build", re.compile(r"mkdocs\s+build|mkdocs-build-strict\.sh")),
+)
+
+
+@pytest.mark.spec("PAD-18-023")
+def test_no_mirror_check_runs_pyright_a_pytest_suite_or_the_site_build() -> (
+    None
+):
+    """The commands too, not only the step keys: PAD-18-027 is about pyright
+    wherever it is spelled, and the two pytest suites and the site build were
+    the mirror's own commands as much as a verbatim CI step.
+    """
+    offenders = {
+        f"{check_id}: {label}": line.strip()
+        for check_id, commands in _resolved_commands().items()
+        for command in commands
+        for line in command.splitlines()
+        for label, pattern in _FORBIDDEN_COMMAND
+        if pattern.search(line)
+    }
+
+    assert not offenders, offenders
+
+
+@pytest.mark.spec("PAD-18-023")
+def test_the_command_scan_reads_every_check() -> None:
+    """Non-vacuity: a scan that resolved nothing would find no offender."""
+    resolved = _resolved_commands()
+
+    assert set(resolved) == {c.id for c in MIRROR_CHECKS}
+    assert all(resolved.values()), [k for k, v in resolved.items() if not v]
+    # All three spellings reach the scan: a step's own `run:`, a literal
+    # command, and a builder's output.
+    assert "uv run ruff check" in resolved["ruff-check"][0]
+    assert "uv run mypy" in resolved["mypy"][0]
+    assert all("markdownlint" in c for c in resolved["markdownlint"])
+    assert len(resolved["markdownlint"]) == len(_PROBE_DIFFS)
+
+
+@pytest.mark.spec("PAD-18-023")
+@pytest.mark.parametrize(
+    "command",
+    [
+        "uv run pyright vultron/",
+        "uvx pyright",
+        'uv run pytest -m "" -n auto test/',
+        'uv run pytest -m "" -n auto test/architecture/test_x.py',
+        "uv run pytest -m spec_corpus",
+        "mkdocs build --strict",
+        ".github/scripts/mkdocs-build-strict.sh",
+    ],
+)
+def test_the_forbidden_command_patterns_catch_each_form(command: str) -> None:
+    """A detector that matched none of these would pass over a real breach."""
+    assert any(p.search(command) for _, p in _FORBIDDEN_COMMAND), command
+
+
+@pytest.mark.spec("PAD-18-023")
+@pytest.mark.parametrize(
+    "command",
+    [
+        "uv run pytest test/metadata/docs/test_story_pages.py -q -n 0",
+        "uv run pytest test/architecture/test_codebase_docs_paths.py",
+        "PYTHONPATH='' uv run docs-site --check",
+        "bash .agents/skills/shared/run-if-changed.sh mypy vultron/",
+    ],
+)
+def test_the_forbidden_command_patterns_allow_a_cheap_check(
+    command: str,
+) -> None:
+    """And one that matched these would red on the mirror as it stands."""
+    assert not [lbl for lbl, p in _FORBIDDEN_COMMAND if p.search(command)]
 
 
 def test_markdownlint_reads_the_branchs_present_markdown(tmp_path: Path):
@@ -432,13 +581,21 @@ def test_list_plans_without_running(repo: Path, capsys):
     git(repo, "add", ".")
     git(repo, "commit", "-q", "-m", "b")
 
-    # The throwaway repository has no workflows, so every check that names a
-    # CI step is a stale-registry block, and --list says so in its exit.
+    # The throwaway repository has no workflows, so every check is a
+    # stale-registry block, and --list says so in its exit. Every registry
+    # check names a CI step now that PAD-18-023 retired the guard-test check,
+    # the one that named none; the PLAN row is covered below.
     assert ci_mirror.main(["--no-fetch", "--list"]) == 1
     out = capsys.readouterr().out
-    assert "PLAN guard-tests would run" in out
     assert "FAIL ruff-check its CI step" in out
     assert out.rstrip().endswith("mirror exit: 1")
+
+
+def test_list_prints_plan_for_a_check_that_would_run(capsys):
+    rows = ci_mirror._planned_rows([_plan(MirrorCheck("lint", _KEY))])
+
+    assert ci_mirror.print_report(rows, as_json=False) == 0
+    assert "PLAN lint would run" in capsys.readouterr().out
 
 
 def test_the_console_script_is_installed():
@@ -503,8 +660,9 @@ def test_list_json_reports_every_check(repo: Path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["exit"] == 1
     statuses = {c["id"]: c["status"] for c in payload["checks"]}
-    assert statuses["guard-tests"] == "PLAN"
-    assert "PASS" not in statuses.values()
+    # The throwaway repository has no workflows, so every check reports the
+    # stale registry rather than a plan.
+    assert set(statuses.values()) == {"FAIL"}
     assert {c["id"] for c in payload["checks"]} == {
         c.id for c in MIRROR_CHECKS
     }
@@ -700,11 +858,15 @@ def slots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return locks
 
 
-def test_the_heavy_checks_are_the_ones_that_load_the_container():
-    # Named, not counted: each starts many processes or uses much memory.
-    heavy = {c.id for c in MIRROR_CHECKS if c.heavy}
+def test_no_registry_check_declares_itself_heavy():
+    """PAD-18-023 made every check that loaded the container CI's.
 
-    assert heavy == {"pyright", "guard-tests", "spec-corpus", "site-build"}
+    pyright, the spec-corpus suite, the guard tests and the site build were
+    the four. The ``heavy`` field and its locking stay for a CI step cheap
+    enough to mirror and heavy enough to queue; this fails on the next check
+    that declares it, so adding one is a decision somebody makes (#5947).
+    """
+    assert {c.id for c in MIRROR_CHECKS if c.heavy} == set()
 
 
 def test_a_heavy_check_takes_a_slot_then_its_own_timeout():
@@ -731,19 +893,22 @@ def test_a_light_check_plans_no_slot():
     assert HEAVY_LOCK_SCRIPT not in planned.argv
 
 
-def test_a_memoized_heavy_check_takes_its_slot_inside_its_memo():
-    # A memo hit skips without waiting behind another slot's suite.
-    [pyright] = [c for c in MIRROR_CHECKS if c.id == "pyright"]
-    assert not callable(pyright.command) and pyright.command is not None
+def test_locking_a_memoized_command_goes_inside_its_memo():
+    # A memo hit skips without waiting behind another slot's suite. No
+    # registry check declares `heavy` since PAD-18-023, so the subject is the
+    # registry's one remaining memoized command rather than a hand-built
+    # argv, which could drift from the shape `_memoized` really produces.
+    [mypy] = [c for c in MIRROR_CHECKS if c.id == "mypy"]
+    assert not callable(mypy.command) and mypy.command is not None
 
-    argv = locked(pyright.command, 900, which=_found)
+    argv = locked(mypy.command, 900, which=_found)
 
     cut = argv.index("--") + 1
     assert argv[:2] == ("bash", RUN_IF_CHANGED)
     assert argv[cut:] == (
         *_LOCK_PREFIX,
         *_with_timeout(900),
-        *("uv", "run", "pyright"),
+        *("uv", "run", "mypy"),
     )
 
 

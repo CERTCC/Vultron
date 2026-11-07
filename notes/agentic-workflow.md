@@ -96,7 +96,12 @@ enough files exhausts it; a turn-capped stop looks like a finish. Before
 dispatching, batch by subsystem (`behaviors/`, then `use_cases/`, …) and script
 the mechanical substitution (`sed`, a codemod), keeping the agent for edge cases
 and type-checker fallout. Afterwards, verify the end state yourself:
-uncommitted files, remaining occurrences, `pyright` (ISSUE-2490).
+uncommitted files, remaining occurrences, and the type checkers (ISSUE-2490).
+`mypy` is the local one; pyright's findings come from CI's `lint-pyright` job,
+because no local gate runs it (PAD-18-027). A by-hand pyright run while chasing
+a migration's fallout is a developer's own choice, not a gate, so this note
+does not spell the command — an agent-facing file that writes it out is a file
+an agent copies from (`test_no_local_gate_runs_pyright`).
 
 ---
 

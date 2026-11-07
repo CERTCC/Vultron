@@ -42,10 +42,15 @@ that claims one-sidedness for all of them stops anyone looking
   miss a test run or a merge reached through a wrapper this module does not
   name.  No agent-facing file holds such a wrapper today.
 
+It also pins which tools those commands may run: a heavy one queues on the
+per-host lock (#5947), and pyright does not run locally at all, because CI
+owns it (PAD-18-026, PAD-18-027).
+
 Human developer how-to pages under ``docs/developer/`` are out of scope: stock
 macOS has no ``timeout`` binary.
 """
 
+import ast
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -61,16 +66,19 @@ _REPO_ROOT = Path(__file__).parents[2]
 
 _CEILING = " ".join(GATE_CEILING)
 
-# Files an agent reads for the gate command to run.
+# Files an agent reads for the gate command to run. `**/AGENTS.md` rather than
+# one glob per path depth: four hand-rolled levels left ten nested AGENTS.md
+# files scanned by nothing. The skills' scripts and the Makefile count too —
+# each is somewhere a gate command does live.
 _AGENT_GLOBS = (
-    "AGENTS.md",
-    "*/AGENTS.md",
-    "*/*/AGENTS.md",
-    "*/*/*/AGENTS.md",
+    "**/AGENTS.md",
     ".agents/skills/**/*.md",
+    ".agents/skills/**/*.sh",
+    ".agents/skills/**/*.py",
     ".github/copilot-instructions.md",
     "docs/reference/codebase/*.md",
     "notes/*.md",
+    "Makefile",
 )
 
 _EXCLUDED_PARTS = (".git", "plan", "node_modules", ".venv", "wip_notes")
@@ -111,10 +119,17 @@ def test_discovery_finds_the_gate_bearing_files() -> None:
     assert {
         "AGENTS.md",
         "test/AGENTS.md",
+        # Four levels deep: `**/AGENTS.md` reaches it, a per-depth glob list
+        # stopped short of it.
+        "vultron/core/behaviors/case/nodes/participant/AGENTS.md",
         ".agents/skills/run-tests/SKILL.md",
+        # A gate command lives in a skill's scripts as much as in its prose.
+        ".agents/skills/shared/run-if-changed.sh",
+        ".agents/skills/shared/run-heavy.py",
         ".github/copilot-instructions.md",
         "docs/reference/codebase/TESTING.md",
         "notes/testing-pitfalls.md",
+        "Makefile",
     } <= found
 
 
@@ -246,21 +261,38 @@ def _skill_files() -> list[Path]:
     return sorted((_REPO_ROOT / ".agents" / "skills").glob("**/*.md"))
 
 
+#: The skills that still write a heavy command, so the scan below has a
+#: subject. `run-linters` left when PAD-18-027 made pyright CI's, and
+#: `pr-execute` when PAD-18-024 dropped the scratch-merge test run: between
+#: them those two removals took every heavy command that skill had. Only
+#: `build-docs` is left, and a scan over an empty set would pass having read
+#: nothing (#5535), which is what the arm below exists to refuse.
+#: Annotated `tuple[str, ...]` on purpose. Left to inference this is a
+#: `tuple[Literal[...]]` of known length, so a type checker folds the guard
+#: below into a constant and reports it as an assert that cannot fire
+#: (pyright `reportAssertAlwaysTrue`). Widening the declared type keeps the
+#: guard's runtime meaning exactly: empty the tuple and it still fires.
+_SKILLS_WITH_HEAVY_COMMANDS: tuple[str, ...] = (
+    ".agents/skills/build-docs/SKILL.md",
+)
+
+
 def test_discovery_finds_the_skills_with_heavy_commands() -> None:
     found = {str(p.relative_to(_REPO_ROOT)) for p in _skill_files()}
-    assert {
-        ".agents/skills/build-docs/SKILL.md",
-        ".agents/skills/run-linters/SKILL.md",
-        ".agents/skills/pr-execute/SKILL.md",
-    } <= found
+
+    assert _SKILLS_WITH_HEAVY_COMMANDS, (
+        "No skill writes a heavy command, so the scan below has no subject. "
+        "Delete it and `_HEAVY_COMMAND` with it, or restore the entry."
+    )
+    assert set(_SKILLS_WITH_HEAVY_COMMANDS) <= found
 
 
-@pytest.mark.parametrize("skill", ["build-docs", "run-linters", "pr-execute"])
+@pytest.mark.parametrize("rel_path", _SKILLS_WITH_HEAVY_COMMANDS)
 def test_the_heavy_command_scan_sees_each_skills_heavy_commands(
-    skill: str,
+    rel_path: str,
 ) -> None:
     # A code form _code_lines missed would pass the scan having read nothing.
-    text = (_REPO_ROOT / ".agents/skills" / skill / "SKILL.md").read_text()
+    text = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
     assert any(_HEAVY_COMMAND.search(line) for line in _code_lines(text))
 
 
@@ -278,6 +310,238 @@ def test_skill_heavy_command_queues_on_the_heavy_check_lock(
         f"{rel_path} runs heavy command(s) outside `{_LOCK}` "
         "(#5947):\n" + "\n".join(f"  {line}" for line in unlocked)
     )
+
+
+# --- The local linter step: ruff and mypy, never pyright (PAD-18-026/027) ---
+
+#: The tool named in a command, however it is launched. Keyed on the tool, not
+#: on one launcher: a pattern matching only `uv run pyright` would miss
+#: `uvx pyright`, `-m pyright`, a `make` recipe's bare `pyright`, and the
+#: escaped `\"$G\" pyright` a skill's YAML `commands:` key has to write (#5535).
+#:
+#: The boundaries carry the near misses, and they split by character class
+#: rather than by "is this punctuation". Before the name, a word character or
+#: a hyphen means it is part of a longer name — `lint-pyright`, `_pyright`,
+#: `mypyright` — so neither may precede it; a `/` or `.` may, because that is
+#: how a path *invokes* it (`/usr/local/bin/pyright`, `./pyright`). After the
+#: name, a word character, a colon, a `/` or a `.` means the token keeps
+#: going, so it is a longer name, a pragma or a path *to* something called
+#: pyright, never a call: `pyrightconfig.json`, `# pyright: ignore[...]`,
+#: `docs/pyright.md`, `tools/pyright/`. Each of those eight forms has its own
+#: control in `test_detector_tells_a_pyright_call_from_a_mention`.
+_PYRIGHT_TOOL = re.compile(r"(?<![\w-])pyright(?![\w:./])")
+
+#: The copy-pasteable form, wherever it is written: prose that spells a command
+#: out is prose an agent copies from, fence or no fence.
+_PYRIGHT_LAUNCHED = re.compile(
+    r"(?:uv run|uvx|uv tool run)\s+(?:[-\w./]+\s+)*?pyright(?![\w:])"
+)
+
+
+def _uncommented(line: str) -> str:
+    """*line* up to its `#`: a comment inside a fence names the tool, never runs it."""
+    return line.split("#", 1)[0]
+
+
+def _python_code_lines(text: str) -> list[str]:
+    """*text*'s lines, less its docstrings.
+
+    A module that names the tool in its own prose does not run it, the same
+    allowance Markdown prose gets. A ``["pyright"]`` argv is *not* excluded:
+    only a docstring is, never every string literal.
+    """
+    lines = text.splitlines()
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:  # pragma: no cover - the corpus parses
+        return lines
+    prose: set[int] = set()
+    holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    for node in ast.walk(tree):
+        if not isinstance(node, holders) or not node.body:
+            continue
+        first = node.body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+            and first.end_lineno is not None
+        ):
+            prose.update(range(first.lineno, first.end_lineno + 1))
+    return [line for n, line in enumerate(lines, 1) if n not in prose]
+
+
+def _executable_lines(text: str, suffix: str) -> list[str]:
+    """The lines of *text* an agent runs, by what kind of file it is.
+
+    A Markdown file's code is its fences and its frontmatter ``commands:``
+    key. A file that is *not* Markdown — a skill's ``.sh`` or ``.py``, the
+    ``Makefile`` — is code throughout, bar a Python docstring. Asking
+    ``_code_lines`` for those returned nothing, which left the
+    launcher-agnostic half of the pyright detector dead on all 32 of them,
+    including the ``make`` recipe its own comment names (#3156, #5535).
+    """
+    if suffix == ".md":
+        return _code_lines(text)
+    if suffix == ".py":
+        return _python_code_lines(text)
+    return text.splitlines()
+
+
+def _pyright_calls(text: str, *, suffix: str = ".md") -> list[str]:
+    """Lines of *text* that call pyright: any launcher in code, spelled out anywhere."""
+    code = set(_executable_lines(text, suffix))
+    return [
+        line.strip()
+        for line in text.splitlines()
+        if _PYRIGHT_LAUNCHED.search(_uncommented(line))
+        or (line in code and _PYRIGHT_TOOL.search(_uncommented(line)))
+    ]
+
+
+def test_detector_tells_a_pyright_call_from_a_mention() -> None:
+    fenced = "\n".join(["```bash", "%s", "```"])
+    for command in (
+        "uv run pyright",
+        "uv run python .agents/skills/shared/run-heavy.py uv run pyright",
+        '"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright',
+        "uvx pyright",
+        "uv tool run pyright",
+    ):
+        assert _pyright_calls(command), f"missed outside a fence: {command}"
+    # Launchers that need the code-line scan: no `uv run` to key on.
+    for command in (
+        "pyright vultron/ test/",
+        "\tpyright",
+        "python -m pyright",
+    ):
+        assert _pyright_calls(fenced % command), (
+            f"missed in a fence: {command}"
+        )
+    # The YAML `commands:` key a skill's harness runs, escaped quotes and all.
+    frontmatter = '---\ncommands:\n  - "\\"$G\\" pyright vultron/ -- uv run pyright"\n---\n'
+    assert _pyright_calls(frontmatter), "missed the commands: key"
+    for prose in (
+        "pyright runs in CI only (PAD-18-027)",
+        "read its findings off CI's `Lint (pyright)` job",
+        "a stranded `# pyright: ignore[...]`",
+        "pyrightconfig.json is an input of CI's pyright job",
+        "CI's `lint-pyright` job owns it",
+        # A comment inside a fence names the tool; it does not run it.
+        fenced % "# pyright is the second pass, and runs in CI",
+        fenced % "uv run mypy  # not pyright: that is CI's",
+    ):
+        assert not _pyright_calls(prose), f"flagged prose: {prose}"
+    # `_PYRIGHT_TOOL`'s own boundaries, exercised *in the code set* so that
+    # pattern is the thing under test. The prose cases above never reach it:
+    # prose is not a code line, and the two fenced ones are `#` comments that
+    # `_uncommented` strips, so every one of them held with `_PYRIGHT_TOOL`
+    # broadened to a bare `pyright` — they guard `_PYRIGHT_LAUNCHED` alone.
+    # Both arms below run in a fence and in a script, the two ways a line
+    # reaches the code set.
+    for call in (
+        "/usr/local/bin/pyright vultron/",  # a path that invokes it
+        "./pyright vultron/",
+        "./pyright",  # no arguments, so nothing follows the name
+    ):
+        assert _pyright_calls(fenced % call), f"missed a path call: {call}"
+        assert _pyright_calls(call, suffix=".sh"), (
+            f"missed a path call in a script: {call}"
+        )
+    for boundary in (
+        "cp pyrightconfig.json /tmp/",  # a word character follows
+        "pyright: ignore",  # a colon follows
+        "cat docs/pyright.md",  # a path *to* a file so named: a dot follows
+        "ls tools/pyright/",  # a directory so named: a slash follows
+        "gh run view --job lint-pyright",  # a hyphen precedes
+        "x = _pyright",  # an underscore precedes
+        "echo mypyright",  # a word character precedes
+    ):
+        assert not _pyright_calls(fenced % boundary), (
+            f"flagged a near miss in a fence: {boundary}"
+        )
+        assert not _pyright_calls(boundary, suffix=".sh"), (
+            f"flagged a near miss in a script: {boundary}"
+        )
+
+
+def test_detector_reads_a_non_markdown_file_as_code_throughout() -> None:
+    """A `.sh`, a `.py` and the `Makefile` have no fence to look inside.
+
+    32 of the corpus's 260 files are one of those three, and asking
+    ``_code_lines`` for their code returned nothing — so every launcher but
+    ``uv run``/``uvx``/``uv tool run`` went unseen there, including the
+    ``make`` recipe ``_PYRIGHT_TOOL``'s own comment names (#3156).
+    """
+    for suffix, script in (
+        ("", "pyright:\n\tpyright vultron/ test/\n"),  # a Makefile recipe
+        (".sh", "#!/bin/bash\npyright vultron/\n"),
+        (".sh", "#!/bin/bash\nnpx pyright\n"),
+        (".sh", "python -m pyright\n"),
+        (".py", 'subprocess.run(["pyright", "vultron/"], check=True)\n'),
+    ):
+        assert _pyright_calls(script, suffix=suffix), (
+            f"missed in a {suffix or 'Makefile'}: {script!r}"
+        )
+    # The same text read as Markdown is prose, and must not be flagged there.
+    assert not _pyright_calls("pyright:\n\tpyright vultron/ test/\n")
+    # A comment names the tool, and so does a module's own docstring; neither
+    # runs it. A docstring is the only string a `.py` read excludes.
+    for suffix, benign in (
+        ("", "# No pyright target: CI's Lint (pyright) job owns pyright.\n"),
+        (".sh", "#!/bin/bash\nuv run mypy  # pyright is CI's\n"),
+        (".py", '"""Sizes a pyright run or a site build."""\nx = 1\n'),
+        (".py", 'def f():\n    """pyright is CI\'s."""\n    return 1\n'),
+    ):
+        assert not _pyright_calls(benign, suffix=suffix), (
+            f"flagged a mention in a {suffix or 'Makefile'}: {benign!r}"
+        )
+
+
+@pytest.mark.spec("PAD-18-027")
+@pytest.mark.parametrize(
+    "rel_path",
+    [str(p.relative_to(_REPO_ROOT)) for p in _agent_files()],
+)
+def test_no_local_gate_runs_pyright(rel_path: str) -> None:
+    """CI's `lint-pyright` job owns pyright; no local gate may run it.
+
+    It took a median of two minutes in each local linter step and enough
+    memory to starve a parallel test run, and the required `CI gate` refuses
+    a merge until CI's job is green (PAD-18-027, #3156).
+
+    The bar is the written command, not the word: an agent-instruction file
+    that spells a pyright call out is a file an agent copies from, whatever the
+    surrounding prose says, and inside a code line any launcher counts. Prose
+    that names CI as pyright's owner is the wording this project wants, so it
+    passes. A developer how-to under ``docs/developer/`` may spell the command
+    for a by-hand run, and is out of this module's scope.
+    """
+    path = _REPO_ROOT / rel_path
+    found = _pyright_calls(
+        path.read_text(encoding="utf-8"), suffix=path.suffix
+    )
+    assert not found, (
+        f"{rel_path} runs pyright locally (PAD-18-027):\n"
+        + "\n".join(f"  {line}" for line in found)
+    )
+
+
+@pytest.mark.spec("PAD-18-026")
+def test_the_linter_skill_runs_ruff_and_mypy() -> None:
+    # The other half of the rule: dropping pyright must not leave the step
+    # with nothing, which `test_no_local_gate_runs_pyright` alone would pass.
+    code = "\n".join(
+        _code_lines(
+            (_REPO_ROOT / ".agents/skills/run-linters/SKILL.md").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+
+    assert "uv run ruff check" in code
+    assert "uv run ruff format" in code
+    assert "uv run mypy" in code
 
 
 # --- No test run on a scratch merge (PAD-18-024) ----------------------------

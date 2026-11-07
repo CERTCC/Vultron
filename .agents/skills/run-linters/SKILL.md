@@ -1,7 +1,7 @@
 ---
 id: "run-linters"
 title: "Run repository linters"
-description: "Run the canonical set of linters used by maintainers: ruff (lint and format), mypy, and pyright."
+description: "Run the canonical set of linters used by maintainers: ruff (lint and format) and mypy."
 author: "CERTCC / Vultron"
 tags:
   - linting
@@ -9,7 +9,7 @@ tags:
   - dev-workflow
 shell: "zsh"
 commands:
-  - "G=.agents/skills/shared/run-if-changed.sh; uv run ruff check --fix && uv run ruff format && uv run ruff check && \"$G\" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy && \"$G\" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright"
+  - "G=.agents/skills/shared/run-if-changed.sh; uv run ruff check --fix && uv run ruff format && uv run ruff check && \"$G\" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy"
 inputs:
   - name: repo_root
     description: "Repository root where the command will be executed"
@@ -21,20 +21,26 @@ outputs:
 
 # Skill: Run Linters
 
-ruff runs directly: a whole-tree pass takes about a second, so a fingerprint
-lookup would cost a real share of the work it saves (ADR-0094). mypy and pyright
-are routed through the shared `run-if-changed.sh` guard, which skips a tool when
-its inputs (the `vultron/`+`test/` sources, that tool's config file, and
-`uv.lock`) are unchanged since its last successful run.
+The linter step is ruff and mypy (PAD-18-026). ruff runs directly: a whole-tree
+pass takes about a second, so a fingerprint lookup would cost a real share of
+the work it saves (ADR-0094). mypy is routed through the shared
+`run-if-changed.sh` guard, which skips it when its inputs (the
+`vultron/`+`test/` sources, `.mypy.ini`, and `uv.lock`) are unchanged since its
+last successful run.
 
 ```bash
 uv run ruff check --fix
 uv run ruff format
 uv run ruff check
 G=.agents/skills/shared/run-if-changed.sh
-"$G" mypy    vultron/ test/ .mypy.ini          uv.lock -- uv run mypy
-"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright
+"$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy
 ```
+
+**pyright is CI's, not this skill's** (PAD-18-027). It took a median of two
+minutes in each local step and enough memory to starve a parallel test run,
+while CI's `lint-pyright` job answers in 81–149 s and the required `CI gate`
+refuses a merge until it is green. Do not add it back here or to any other
+local gate.
 
 ## Constraints
 
@@ -43,9 +49,10 @@ G=.agents/skills/shared/run-if-changed.sh
   and the pre-commit hook cover.
 - The second `ruff check` runs after `ruff format` because the formatter can
   rewrap a line and move an inline `# noqa` off the line it suppresses.
-- Run mypy and pyright **after** formatting for the same reason: a wrapped line
-  can strand a `# type: ignore[...]` or `# pyright: ignore[...]` on the wrong
-  line (see `notes/codebase-structure.md`).
+- Run mypy **after** formatting for the same reason: a wrapped line can strand
+  a `# type: ignore[...]` on the wrong line (see
+  `notes/codebase-structure.md`). The same hazard applies to a
+  `# pyright: ignore[...]`, which CI's pyright job reports.
 - C901 enforces the complexity gate (`max-complexity = 10`); a function over
   CC=10 is a hard failure (IMPLTS-07-008).
 - RUF100 reports an unused `# noqa`. When your change fixes a baselined finding,

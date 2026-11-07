@@ -1,12 +1,16 @@
 # The one check a ruleset can require on main (#5942, Epic #5941).
 #
-# Every other CI workflow has `paths` filters, so a docs-only or spec-only pull
-# request never starts most of them, and a ruleset requiring one of their jobs
-# would leave it waiting for a status that never arrives. This workflow has no
-# `paths` filter: it runs on every pull request to main, waits for every other
-# check on the head commit, and passes only when all of them passed or were
-# skipped. The logic is in .github/scripts/ci_gate.py; its verdict rules are
-# those of .agents/skills/shared/wait-for-ci.sh.
+# Nearly every other CI workflow has `paths` filters, so a docs-only or
+# spec-only pull request never starts most of them, and a ruleset requiring one
+# of their jobs would leave it waiting for a status that never arrives. This
+# workflow has no `paths` filter: it runs on every pull request to main, waits
+# for every other check on the head commit, and passes only when all of them
+# passed or were skipped. The logic is in .github/scripts/ci_gate.py; its
+# verdict rules are those of .agents/skills/shared/wait-for-ci.sh.
+#
+# guard-tests.yml is the other unfiltered pull-request workflow, for the same
+# reason read the other way round: a skip there would leave the guard tests
+# unrun on the pull request shapes they exist to police (PAD-18-023).
 #
 # The gate judges once per pull-request event. A re-run or a dispatched run
 # on the head commit after it finished is not judged: re-run the `CI gate`

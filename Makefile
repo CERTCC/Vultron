@@ -57,10 +57,9 @@ mypy:  ## Run mypy for type checking
 	# edit $(PROJECT_HOME)/.mypy.ini to configure mypy options
 	uv run mypy
 
-# pyright static type checking
-.PHONY: pyright
-pyright:  ## Run pyright for static type checking
-	uv run pyright
+# No `pyright` target: CI's `Lint (pyright)` job owns pyright and no local gate
+# runs it (PAD-18-027). `lint` below never depended on it. A by-hand run is
+# still available; docs/developer/how-to/run-linters-and-formatters.md says how.
 
 # run all linters
 .PHONY: lint

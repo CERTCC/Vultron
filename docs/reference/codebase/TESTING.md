@@ -58,6 +58,7 @@ uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytes
 | Architecture boundary | Yes | Import graph enforcement, write-site and ordering ratchets | `test/architecture/` using AST/import scanning |
 | Spec compliance | Yes | Any test with `@pytest.mark.spec("ID")` | Spec IDs validated against `SpecRegistry` at collection |
 | API contract | Yes | Trigger/demo route set and response keys | `test/adapters/driving/fastapi/test_trigger_registry_routes.py` and `test_trigger_routes_contract.py` (TRIG-12-007, TRIG-12-001, TRIG-12-002) |
+| Guard set | Yes | The limit- and agreement-enforcing tests whose inputs are Markdown, `specs/`, `AGENTS.md` or `notes/` | `.github/workflows/guard-tests.yml`, which runs them on every pull request with no `paths` filter, because `python-app.yml`'s filter lists none of those inputs (PAD-18-023); the local mirror no longer runs them, and `test/ci/test_guard_tests_workflow.py` pins the list |
 | E2E (demo CI) | Yes | Multi-actor demo via Docker Compose | `.github/workflows/demo-integration.yml`, matrix from `.github/demo-scenarios.json`; separate from the pytest suite |
 | Demo UI (`ui/`) | Lint and build only | ESLint and `tsc -b && vite build` | `.github/workflows/ui.yml`; `ui/package.json` declares no test script |
 | Docker config | Yes | Compose file validity + env-var wiring | `test/docker/test_compose_env_vars.py`, `test/docker/test_docker_compose_config.sh`, `test/demo/test_multi_actor_compose.py` |
@@ -86,7 +87,7 @@ uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytes
     The `_AllSkipGuard` in that directory's `conftest.py` (DEMOCI-10-017) fails a session in which every test skipped, so CI invokes one harness file at a time rather than the whole directory.
   - Demo CI integration tests run against Docker Compose and are not part of `uv run pytest`.
   - Content signing (ADR-0164) is pinned by strict-`xfail` tests that turn green when signing and verification land: `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` and `test/core/use_cases/received/test_signed_ledger_entries.py`.
-  - TB-14-006 requires a `timeout-minutes` cap on every job in every workflow, but `test/metadata/test_gate_ceiling.py` still checks only `python-app.yml`, and most other workflows have uncapped jobs (see `CONCERNS.md`).
+  - TB-14-006 requires a `timeout-minutes` cap on every job in every workflow, and `test_every_workflow_job_has_a_timeout` in `test/metadata/test_gate_ceiling.py` now checks all of them, skipping only a job that calls a reusable workflow.
   - The pytest-timeout unit tier is 30 s (raised from 5 s in #2270; integration tier 120 s, sized in #5188).
     `timeout_method = "signal"` fails only the test that trips, and the run goes on to its summary.
     `--max-worker-restart=0` in `addopts` fails the run when an xdist worker dies, instead of hanging it.
@@ -115,6 +116,7 @@ uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytes
 - `test/ci/invariants/universal_harness.py`
 - `test/ci/invariants/test_diagnostic_map_sync.py`
 - `.github/workflows/python-app.yml`
+- `.github/workflows/guard-tests.yml`
 - `.github/workflows/demo-integration.yml`
 - `.github/workflows/ui.yml`
 - `test/metadata/test_gate_ceiling.py`

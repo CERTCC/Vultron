@@ -1,7 +1,7 @@
 """Run a heavy local check in one of this host's heavy-check slots (#5947).
 
 Every slot container on a host shares the CPUs and memory of one Docker VM,
-and each ``pytest -n auto``, pyright run or site build sizes itself to its own
+and each ``pytest -n auto`` or site build sizes itself to its own
 container without seeing the others. This script caps how many such commands
 run at once on the host: it holds one of N slot lock files while the command
 runs, and waits while all N are taken.

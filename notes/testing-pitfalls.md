@@ -172,6 +172,18 @@ case update that follows it, and the rebuild check in
 `test/demo/_helpers.py` runs on the half-finished case. Diagnose the timeout;
 the rebuild error is its consequence, not a second defect (#5188).
 
+#### A Timeout Trip With No Assertion In Its Traceback Is Someone Else's Memory
+
+Two heavy local runs together exhaust the container's memory, and the suite is
+the one that reports it: its markdown-rendering and AST-scanning tests trip
+`pytest-timeout` and show as failures, while the command that took the memory
+exits with no output at all. A trip with no assertion in its traceback, in a
+test that does not touch the diff, is the signature. Re-run that test alone
+before believing it (#3156). Every heavy local check takes a per-host slot
+([devcontainer-tooling](devcontainer-tooling.md) § "Run Every Heavy Local
+Check Through the Per-Host Lock"), which caps how many share the host but does
+not stop one agent starting two at once, so still run them in turn.
+
 #### A Count of Events in a Wall-Clock Window Is Not a Concurrency Proof
 
 Do not prove that work runs off the event loop by counting loop ticks in a fixed

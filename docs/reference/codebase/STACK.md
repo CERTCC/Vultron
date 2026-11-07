@@ -54,7 +54,7 @@ It has no backend; it reads JSON exported from the Python side (`export-demo-sta
 |------|---------|----------|
 | ruff | Linter, formatter and import sorter (>=0.16.9; line-length 79, max complexity 10; ADR-0094). Replaced black, flake8 and isort; scope is declared in `[tool.ruff]`, so every caller runs it bare | `pyproject.toml` `[tool.ruff]`, `[dependency-groups].dev` |
 | mypy | Static type checking (>=2.3.0) over `vultron` and `test` | `.mypy.ini`, `[dependency-groups].dev` |
-| pyright | Static type checking (>=1.1.411, `basic` mode, second pass) over `vultron` and `test` | `pyrightconfig.json`, `[dependency-groups].dev` |
+| pyright | Static type checking (>=1.1.411, `basic` mode, second pass) over `vultron` and `test`, in CI only (PAD-18-027) | `pyrightconfig.json`, `[dependency-groups].dev` |
 | pre-commit | Git hook runner (>=4.6.2); hooks include codespell, actionlint, markdownlint-cli2, frontmatter validators, generated-artifact sync checks, ruff and spec-lint | `.pre-commit-config.yaml`, `[dependency-groups].dev` |
 | codespell | Spelling floor for docs (en-GB to en-US only) | `pyproject.toml` `[tool.codespell]`, `.pre-commit-config.yaml` |
 | pytest | Test runner (>=9.1.1) | `pyproject.toml` `[dependency-groups].dev` |
@@ -81,9 +81,8 @@ uv run python .agents/skills/shared/run-heavy.py uv run pytest -m "" -n auto --t
 uv run ruff format
 uv run ruff check
 
-# Type-check
+# Type-check (pyright is the second pass, and runs in CI only, PAD-18-027)
 uv run mypy
-uv run python .agents/skills/shared/run-heavy.py uv run pyright
 
 # Build package
 uv build
