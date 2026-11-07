@@ -42,7 +42,8 @@ uv run mypy
 Run it after formatting, never before.
 The formatter can wrap a line that ends in a `# type: ignore` or `# pyright: ignore`, which leaves the pragma on a different line from the code it suppressed.
 
-pyright is the second type checker, and CI's `Lint (pyright)` job is where the project runs it: it costs about two minutes and enough memory to disturb a parallel test run, so no local gate runs it (PAD-18-027).
+pyright is the second type checker, and CI's `Lint (pyright)` job is where the project runs it.
+No local gate runs it, because it costs about two minutes and enough memory to disturb a parallel test run (PAD-18-027).
 Read its findings off that job.
 You may still run `uv run pyright` by hand when you are chasing a type error mypy does not report.
 
