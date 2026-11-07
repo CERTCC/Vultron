@@ -3984,8 +3984,12 @@ groups:
       (`test_manager_teardown_is_addressed_to_the_others_only`, trigger and
       cascade), `test/core/use_cases/triggers/embargo/test_terminate.py`
       (`test_manager_terminate_queues_nothing_addressed_to_itself`) and
-      `test/core/use_cases/triggers/embargo/test_end_time_termination.py` (the
-      end-time tests that call `_assert_full_cascade`) assert that a teardown the
+      `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
+      (`test_lazy_check_ends_an_embargo_whose_end_time_has_passed`,
+      `test_sentinel_request_ends_the_embargo_at_its_end_time`,
+      `test_racing_lazy_check_and_sentinel_commit_one_termination` and
+      `test_an_early_request_after_the_end_time_ends_it_at_its_end_time`, each
+      through `_assert_full_cascade`) assert that a teardown the
       CASE_MANAGER starts sends its own `Remove(EmbargoEvent)` to the other
       participants and never to itself.
     adr:

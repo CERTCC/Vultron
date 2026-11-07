@@ -127,7 +127,8 @@ The activity that tells the other participants depends on which actor started th
   Its own `Remove(EmbargoEvent)` is then the notice, and it sends that activity to every other active participant.
   No `Announce(EmbargoEvent)` follows it.
 
-On both paths, the CASE_MANAGER also sends a direct `Remove(EmbargoEvent)` notice to each signatory the ledger fan-out does not reach.
+When the teardown comes before the embargo's end time, on either path, the CASE_MANAGER also sends a direct `Remove(EmbargoEvent)` notice to each signatory the ledger fan-out does not reach.
+A teardown at the end time sends no such notice, because every signatory already knows the end time.
 No message is sent for consent, because none is written.
 
 ```python exec="true" idprefix=""
