@@ -153,8 +153,11 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
             "a package build takes about 30 s and reads only the build "
             "configuration; a source change cannot fail it"
         ),
-        # `uv build` unpacks the sdist into the repository root while it
-        # runs, which a concurrent tree walk (the AGENTS.md ratchet) collects.
+        # `uv build` unpacks the sdist into the repository root while it runs,
+        # which a concurrent tree walk collects. The walk that used to catch
+        # it was the AGENTS.md ratchet, inside the guard-test check PAD-18-023
+        # retired; the mirror still runs two — `markdownlint` over `**/*.md`
+        # when a lint config changed, and `docs-path-ratchet`.
         alone=True,
     ),
     MirrorCheck("spec-lint", f"{_SPEC}::spec-lint::Run spec-lint"),

@@ -298,6 +298,11 @@ def test_no_local_gate_runs_pyright(rel_path: str) -> None:
     It took a median of two minutes in each local linter step and enough
     memory to starve a parallel test run, and the required `CI gate` refuses
     a merge until CI's job is green (PAD-18-027, #3156).
+
+    The bar is the written command, not the word: an agent-instruction file
+    that spells `uv run pyright` out is a file an agent copies from, whatever
+    the surrounding prose says. A developer how-to under ``docs/developer/``
+    may spell it, and is out of this module's scope.
     """
     text = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
     found = [

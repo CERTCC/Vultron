@@ -44,6 +44,7 @@ Scope lives in the config, never in the invocation (**IMPLTS-07-021**): a scope
 passed as arguments is duplicated at every call site and drifts. `pyright`
 (`pyrightconfig.json`) and `mypy` (`.mypy.ini`) declare their own scope the same
 way, so invoke them bare too; naming a package narrows the gate by accident.
+`pyright`'s only gate is CI's `lint-pyright` job (PAD-18-027).
 
 The pre-commit hook is the one caller that passes paths, and it does not choose
 them: pre-commit appends the staged filenames, and `force-exclude = true` makes
@@ -202,8 +203,9 @@ already clean; individual rules are the dial for taking on new debt.
 
 - The ruff pre-commit hook runs **directly**, not through
   `.agents/skills/shared/run-if-changed.sh`: a whole-tree run takes about a
-  second, so memoization costs a real share of the work it saves. `mypy` and
-  `pyright` keep the wrapper.
+  second, so memoization costs a real share of the work it saves. `mypy` keeps
+  the wrapper. `pyright` has no local gate to memoize: CI's `lint-pyright` job
+  runs it (PAD-18-027).
 - `ruff check` is cheap; run it repeatedly while editing.
 - **Read `ruff check` before you `--fix`.** The tree is held at zero findings, so
   a bare `--fix` normally rewrites only files you touched. When it reports a

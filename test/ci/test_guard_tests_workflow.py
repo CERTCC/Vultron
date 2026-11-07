@@ -35,26 +35,46 @@ _WORKFLOW = WORKFLOWS_DIR / "guard-tests.yml"
 #: runs; this names it so a renamed step fails here too, with the reason.
 _EXCLUSION_KEY = "guard-tests.yml::guard-tests::Run the guard tests"
 
-#: Guards whose only inputs are files no CI pytest path filter lists, so each
-#: is a reason this job exists rather than an incidental member. Named, not
-#: counted: a rename must fail here rather than quietly shrink the subject set
-#: (#5535).
+#: How many tests the job runs. A fixed floor, not `len()` of the list below:
+#: a floor derived from the thing it guards shrinks with it (#5535).
+_GUARD_TEST_COUNT = 13
+
+#: Guards with an input that **no** CI job running pytest reaches, so each is a
+#: reason this job exists rather than an incidental member. Derived against two
+#: things per workflow, not one: its `pull_request` paths **and** its pytest
+#: selector. Named, not counted: a rename must fail here rather than quietly
+#: shrink the subject set (#5535).
+#:
+#: Deliberately absent, because CI does reach them: the two `specs/**` guards
+#: (`test_spec_statement_guard.py`, `test_spec_kind_ratchet.py`) are
+#: `spec_corpus`-marked and `spec-check.yml` lists `specs/**` and runs
+#: `pytest -m spec_corpus`; `test_python_app_test_parts.py` reads
+#: `.github/workflows/`, which `python-app.yml` itself lists; the Python half
+#: of `test_line_length_ratchet.py` rides `**/*.py` and its spec half is
+#: `spec_corpus`-marked; `test_vocab_examples_current.py` reads
+#: `docs/reference/examples/**`, which `python-app.yml` lists; and
+#: `test_btnd07_structure.py` reads `vultron/**`.
 _INPUTS_NO_SUITE_REACHES = (
-    # Reads every AGENTS.md.
+    # Reads every AGENTS.md. The root one matches no pytest workflow's paths
+    # (`vultron/**` and `test/**` happen to catch the nested ones).
     "test/metadata/test_agents_md_size_ratchet.py",
-    # Reads the skills' Markdown.
+    # Reads `.agents/skills/**/*.md` and `notes/*.md`; the pytest workflows
+    # list only `.agents/**/*.py` and `.agents/**/*.sh`.
     "test/metadata/test_gate_ceiling.py",
-    # Read specs/.
-    "test/architecture/test_spec_statement_guard.py",
-    "test/architecture/test_spec_kind_ratchet.py",
-    # Reads docs/adr/ and the notes and specs that cite a record.
+    # Reads `docs/adr/`, which no pytest workflow lists; `adr-lifecycle.yml`
+    # triggers on it and runs no pytest.
     "test/metadata/test_adr_back_edges.py",
+    # Scans `notes/` as well as specs/, vultron/ and test/.
     "test/metadata/test_no_decision_record_part_citations.py",
-    # Read docs/ pages.
+    # Compares the committed `docs/reference/messages/_occasions/` fragments
+    # with a fresh generation. `docs-build-check.yml` triggers on `docs/**`
+    # and runs no pytest; the pytest workflows list neither path.
+    "test/metadata/test_msm_occasions.py",
+    # Read `docs/**/*.md`. The pytest workflows list only
+    # `docs/reference/examples/**`, `docs/reference/codebase/**` and
+    # `docs/reference/user_stories/**`.
     "test/metadata/docs/test_page_frontmatter.py",
     "test/metadata/docs/test_level_order.py",
-    # Reads .github/workflows/, which names no Python symbol.
-    "test/ci/test_python_app_test_parts.py",
 )
 
 
@@ -105,10 +125,10 @@ def test_the_job_runs_both_test_tiers_in_parallel() -> None:
 
 
 @pytest.mark.spec("PAD-18-023")
-def test_the_job_names_tests_at_all() -> None:
+def test_the_job_names_every_guard_test() -> None:
     # A command with no paths would run the whole suite, or nothing, and
-    # every per-path test below would pass having checked none.
-    assert len(_guard_paths()) >= len(_INPUTS_NO_SUITE_REACHES)
+    # `test_every_guard_test_exists` would pass having collected none.
+    assert len(_guard_paths()) == _GUARD_TEST_COUNT
 
 
 @pytest.mark.spec("PAD-18-023")
@@ -124,9 +144,10 @@ def test_every_guard_test_exists(path: str) -> None:
 @pytest.mark.parametrize("path", _INPUTS_NO_SUITE_REACHES)
 def test_the_job_keeps_the_guards_no_other_check_reaches(path: str) -> None:
     assert path in _guard_paths(), (
-        f"{path} reads inputs no CI pytest path filter lists, so dropping it "
-        "from guard-tests.yml leaves it running on no pull request "
-        "(PAD-18-023)"
+        f"{path} has an input no CI job running pytest reaches, so dropping "
+        "it from guard-tests.yml leaves it running on no pull request. Before "
+        "removing it, check both halves for every workflow: its "
+        "`pull_request` paths and its pytest selector (PAD-18-023)"
     )
 
 
