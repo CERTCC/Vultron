@@ -192,21 +192,25 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5131](https://github.com/CERTCC/Vultron/issues/5131) and [#5911](https://github.com/CERTCC/Vultron/issues/5911)
+### Tracked by [#5131](https://github.com/CERTCC/Vultron/issues/5131) and [#6090](https://github.com/CERTCC/Vultron/issues/6090)
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
-    "CSAF-01-001",
-    "CSAF-01-002",
     "CSAF-01-003",
+    "CSAF-02-005",
+    "CSAF-02-006",
+))
+```
+
+### Tracked by [#5131](https://github.com/CERTCC/Vultron/issues/5131) and [#6091](https://github.com/CERTCC/Vultron/issues/6091)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
     "CSAF-02-001",
     "CSAF-02-002",
     "CSAF-02-003",
-    "CSAF-02-004",
-    "CSAF-02-005",
-    "CSAF-02-006",
-    "CSAF-02-007",
     "CSAF-03-001",
     "CSAF-03-002",
     "CSAF-03-003",
@@ -217,7 +221,19 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5132](https://github.com/CERTCC/Vultron/issues/5132)
+### Tracked by [#5131](https://github.com/CERTCC/Vultron/issues/5131) and [#6092](https://github.com/CERTCC/Vultron/issues/6092)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CSAF-01-001",
+    "CSAF-01-002",
+    "CSAF-02-004",
+    "CSAF-02-007",
+))
+```
+
+### Tracked by [#5132](https://github.com/CERTCC/Vultron/issues/5132) and [#6093](https://github.com/CERTCC/Vultron/issues/6093)
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout

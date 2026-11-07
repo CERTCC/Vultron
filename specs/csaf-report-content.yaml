@@ -39,6 +39,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6092'
   - id: CSAF-01-002
     priority: MUST
     kind: protocol
@@ -59,6 +60,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6092'
   - id: CSAF-01-003
     priority: MUST
     kind: protocol
@@ -76,6 +78,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6090'
 - id: CSAF-02
   title: The Sender's Statement at the Initial Report
   specs:
@@ -99,6 +102,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6091'
   - id: CSAF-02-002
     priority: MUST_NOT
     kind: protocol
@@ -121,6 +125,7 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CSAF-02-001
+    tracking_issue: '#6091'
   - id: CSAF-02-003
     priority: MUST
     kind: protocol
@@ -140,6 +145,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6091'
   - id: CSAF-02-004
     priority: SHOULD
     kind: protocol
@@ -157,6 +163,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6092'
   - id: CSAF-02-005
     priority: MUST_NOT
     kind: protocol
@@ -174,6 +181,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6090'
   - id: CSAF-02-006
     priority: MUST_NOT
     kind: protocol
@@ -191,6 +199,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6090'
   - id: CSAF-02-007
     priority: SHOULD_NOT
     kind: protocol
@@ -207,6 +216,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6092'
 - id: CSAF-03
   title: Case Inputs From the Initial Report
   specs:
@@ -233,6 +243,7 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CSAF-02-001
+    tracking_issue: '#6091'
   - id: CSAF-03-002
     priority: MUST
     kind: protocol
@@ -254,6 +265,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6091'
   - id: CSAF-03-003
     priority: MUST
     kind: protocol
@@ -272,6 +284,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6091'
   - id: CSAF-03-004
     priority: MUST
     kind: protocol
@@ -291,6 +304,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6091'
   - id: CSAF-03-005
     priority: MUST
     kind: protocol
@@ -308,6 +322,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6091'
   - id: CSAF-03-006
     priority: SHOULD
     kind: protocol
@@ -325,6 +340,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6091'
   - id: CSAF-03-007
     priority: MUST
     kind: protocol
@@ -347,6 +363,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6091'
   - id: CSAF-03-008
     priority: SHOULD
     kind: protocol
@@ -366,6 +383,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6093'
   - id: CSAF-03-009
     priority: SHOULD
     kind: protocol
@@ -384,6 +402,7 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
+    tracking_issue: '#6093'
 - id: CSAF-04
   title: Receiving and Sending CSAF in This Codebase
   specs:
@@ -400,6 +419,7 @@ groups:
     verification: >-
       A receive-path test attaches a schema-valid and a schema-invalid CSAF document and
       reads the stored verdict and its errors.
+    tracking_issue: '#6090'
   - id: CSAF-04-002
     priority: MUST_NOT
     kind: project
@@ -416,6 +436,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CSAF-04-001
+    tracking_issue: '#6090'
   - id: CSAF-04-003
     priority: MUST
     kind: project
@@ -430,6 +451,7 @@ groups:
       A receive-path test attaches a schema-invalid document with one malformed and one
       readable claim field and checks that the readable one is applied and the skip is
       logged at INFO.
+    tracking_issue: '#6090'
   - id: CSAF-04-004
     priority: MUST
     kind: project
@@ -444,6 +466,7 @@ groups:
     verification: >-
       A receive-path test reads the stored record and checks one value of each outcome:
       applied, overridden and display only.
+    tracking_issue: '#6090'
   - id: CSAF-04-005
     priority: MUST_NOT
     kind: project
@@ -458,6 +481,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CSAF-04-004
+    tracking_issue: '#6090'
   - id: CSAF-04-006
     priority: MUST
     kind: project
@@ -472,6 +496,7 @@ groups:
     verification: >-
       A receive-path test attaches a document whose vulnerabilities differ in P, X or A
       and reads the stored case-split signal.
+    tracking_issue: '#6091'
   - id: CSAF-04-007
     priority: MUST
     kind: project
@@ -486,6 +511,7 @@ groups:
     verification: >-
       A receive-path test attaches a document with two affected vendors and reads the
       stored candidate-parties signal.
+    tracking_issue: '#6091'
   - id: CSAF-04-008
     priority: MUST_NOT
     kind: project
@@ -503,6 +529,7 @@ groups:
       spec_id: CSAF-04-006
     - rel_type: extends
       spec_id: CSAF-04-007
+    tracking_issue: '#6091'
   - id: CSAF-04-009
     priority: MUST
     kind: project
@@ -516,6 +543,7 @@ groups:
     verification: >-
       A trigger test posts a schema-invalid document and one of another category and
       checks the 422 body names each fault.
+    tracking_issue: '#6092'
   - id: CSAF-04-010
     priority: MUST
     kind: project
@@ -529,6 +557,7 @@ groups:
     verification: >-
       A trigger test posts a CSAF document with no report name, summary or proposed
       embargo end and reads them on the sent Offer.
+    tracking_issue: '#6092'
 - id: CSAF-05
   title: Following the CSAF 2.1 Draft
   specs:
@@ -547,6 +576,7 @@ groups:
     verification: >-
       A test checks that the crosswalk version include and the pinned local copy name
       the same commit.
+    tracking_issue: '#6089'
   - id: CSAF-05-002
     priority: MUST
     kind: project
@@ -559,6 +589,7 @@ groups:
     verification: >-
       The regeneration script reads only the pinned local copy; the test of CSAF-05-003
       runs it with network access disabled.
+    tracking_issue: '#6089'
   - id: CSAF-05-003
     priority: MUST
     kind: project
@@ -571,6 +602,7 @@ groups:
     verification: >-
       A test regenerates the models into a temporary directory and compares them with
       the committed models.
+    tracking_issue: '#6089'
   - id: CSAF-05-004
     priority: MUST_NOT
     kind: project
@@ -584,6 +616,7 @@ groups:
     verification: >-
       A test checks that no test module reads a path under the CSAF Technical
       Committee's test data.
+    tracking_issue: '#6089'
   - id: CSAF-05-005
     priority: MUST
     kind: process
@@ -599,6 +632,7 @@ groups:
       A test of the job's comparison script feeds it two schema revisions that differ
       only in a description and two that differ in a property, and checks that only the
       second reports a change.
+    tracking_issue: '#6094'
   - id: CSAF-05-006
     priority: MUST_NOT
     kind: process
@@ -614,6 +648,7 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CSAF-05-005
+    tracking_issue: '#6094'
   - id: CSAF-05-007
     priority: MUST
     kind: process
@@ -629,3 +664,4 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CSAF-05-005
+    tracking_issue: '#6094'

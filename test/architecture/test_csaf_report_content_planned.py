@@ -46,8 +46,12 @@ from vultron.core.use_cases.triggers.request_bodies.report import (
     SubmitReportRequest,
 )
 
-_TRACKED = "Tracked by #5911 (source #5131)."
-_RECORDS = "Waits on #5132 (vulnerability records on a case)."
+_SEND = "Tracked by #6092 (source #5131)."
+_RECEIVE = "Tracked by #6090 (source #5131)."
+_CASE = "Tracked by #6091 (source #5131)."
+_RECORDS = (
+    "Tracked by #6093, which waits on #5132 (vulnerability records on a case)."
+)
 
 
 def _sender_attaches_csaf() -> bool:
@@ -73,7 +77,7 @@ def _case_has(field: str) -> bool:
 @pytest.mark.spec("CSAF-01-001")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-01-001: the sender attaches no CSAF Document yet. {_TRACKED}",
+    reason=f"CSAF-01-001: the sender attaches no CSAF Document yet. {_SEND}",
 )
 def test_a_sender_carries_csaf_as_an_attached_document():
     assert _sender_attaches_csaf()
@@ -82,7 +86,7 @@ def test_a_sender_carries_csaf_as_an_attached_document():
 @pytest.mark.spec("CSAF-01-002")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-01-002: no CSAF Document is sent, so none has a mediaType. {_TRACKED}",
+    reason=f"CSAF-01-002: no CSAF Document is sent, so none has a mediaType. {_SEND}",
 )
 def test_the_csaf_document_is_labelled_application_json():
     assert _sender_attaches_csaf()
@@ -91,7 +95,7 @@ def test_the_csaf_document_is_labelled_application_json():
 @pytest.mark.spec("CSAF-01-003")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-01-003: no receiver recognizes CSAF 2.1 yet. {_TRACKED}",
+    reason=f"CSAF-01-003: no receiver recognizes CSAF 2.1 yet. {_RECEIVE}",
 )
 def test_a_receiver_recognizes_csaf_by_schema_and_version():
     assert _csaf_reader_exists()
@@ -100,7 +104,7 @@ def test_a_receiver_recognizes_csaf_by_schema_and_version():
 @pytest.mark.spec("CSAF-02-001")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-02-001: no receiver fills gaps from CSAF yet. {_TRACKED}",
+    reason=f"CSAF-02-001: no receiver fills gaps from CSAF yet. {_CASE}",
 )
 def test_the_initial_report_may_fill_gaps_from_csaf():
     assert _report_claims_exist()
@@ -109,7 +113,7 @@ def test_the_initial_report_may_fill_gaps_from_csaf():
 @pytest.mark.spec("CSAF-02-002")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-02-002: no CSAF reading exists to limit yet. {_TRACKED}",
+    reason=f"CSAF-02-002: no CSAF reading exists to limit yet. {_CASE}",
 )
 def test_csaf_outside_the_initial_report_changes_no_case_data():
     assert _report_claims_exist()
@@ -118,7 +122,7 @@ def test_csaf_outside_the_initial_report_changes_no_case_data():
 @pytest.mark.spec("CSAF-02-003")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-02-003: no CSAF value competes with a Vultron field yet. {_TRACKED}",
+    reason=f"CSAF-02-003: no CSAF value competes with a Vultron field yet. {_CASE}",
 )
 def test_a_vultron_field_beats_the_csaf_value():
     assert _report_claims_exist()
@@ -127,7 +131,7 @@ def test_a_vultron_field_beats_the_csaf_value():
 @pytest.mark.spec("CSAF-02-004")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-02-004: the sender fills no field from CSAF yet. {_TRACKED}",
+    reason=f"CSAF-02-004: the sender fills no field from CSAF yet. {_SEND}",
 )
 def test_a_sender_fills_vultron_fields_that_agree_with_its_csaf():
     assert _sender_attaches_csaf()
@@ -136,7 +140,7 @@ def test_a_sender_fills_vultron_fields_that_agree_with_its_csaf():
 @pytest.mark.spec("CSAF-02-005")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-02-005: no CSAF value is read yet. {_TRACKED}",
+    reason=f"CSAF-02-005: no CSAF value is read yet. {_RECEIVE}",
 )
 def test_an_omitted_csaf_field_or_schema_default_is_no_statement():
     assert _report_claims_exist()
@@ -145,7 +149,7 @@ def test_an_omitted_csaf_field_or_schema_default_is_no_statement():
 @pytest.mark.spec("CSAF-02-006")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-02-006: no receiver reads CSAF leniently yet. {_TRACKED}",
+    reason=f"CSAF-02-006: no receiver reads CSAF leniently yet. {_RECEIVE}",
 )
 def test_a_broken_csaf_attachment_never_refuses_the_report():
     assert _csaf_reader_exists()
@@ -154,7 +158,7 @@ def test_a_broken_csaf_attachment_never_refuses_the_report():
 @pytest.mark.spec("CSAF-02-007")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-02-007: the sender checks no CSAF document yet. {_TRACKED}",
+    reason=f"CSAF-02-007: the sender checks no CSAF document yet. {_SEND}",
 )
 def test_a_sender_does_not_attach_schema_invalid_csaf():
     assert _sender_attaches_csaf()
@@ -163,7 +167,7 @@ def test_a_sender_does_not_attach_schema_invalid_csaf():
 @pytest.mark.spec("CSAF-03-001")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-03-001: no disclosure date becomes an embargo end yet. {_TRACKED}",
+    reason=f"CSAF-03-001: no disclosure date becomes an embargo end yet. {_CASE}",
 )
 def test_a_future_disclosure_date_proposes_the_embargo_end():
     assert _report_claims_exist()
@@ -172,7 +176,7 @@ def test_a_future_disclosure_date_proposes_the_embargo_end():
 @pytest.mark.spec("CSAF-03-002")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-03-002: no disclosure date is read yet. {_TRACKED}",
+    reason=f"CSAF-03-002: no disclosure date is read yet. {_CASE}",
 )
 def test_the_earliest_future_disclosure_date_wins():
     assert _report_claims_exist()
@@ -181,7 +185,7 @@ def test_the_earliest_future_disclosure_date_wins():
 @pytest.mark.spec("CSAF-03-003")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-03-003: no past disclosure date sets P yet. {_TRACKED}",
+    reason=f"CSAF-03-003: no past disclosure date sets P yet. {_CASE}",
 )
 def test_a_past_disclosure_date_states_the_vul_is_public():
     assert _report_claims_exist()
@@ -190,7 +194,7 @@ def test_a_past_disclosure_date_states_the_vul_is_public():
 @pytest.mark.spec("CSAF-03-004")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-03-004: no SSVC Exploitation value is read yet. {_TRACKED}",
+    reason=f"CSAF-03-004: no SSVC Exploitation value is read yet. {_CASE}",
 )
 def test_ssvc_exploitation_poc_sets_x_and_active_sets_a():
     assert _report_claims_exist()
@@ -199,7 +203,7 @@ def test_ssvc_exploitation_poc_sets_x_and_active_sets_a():
 @pytest.mark.spec("CSAF-03-005")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-03-005: no exploitation date is read yet. {_TRACKED}",
+    reason=f"CSAF-03-005: no exploitation date is read yet. {_CASE}",
 )
 def test_a_first_known_exploitation_date_sets_a():
     assert _report_claims_exist()
@@ -208,7 +212,7 @@ def test_a_first_known_exploitation_date_sets_a():
 @pytest.mark.spec("CSAF-03-006")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-03-006: a case takes no name from its report yet. {_TRACKED}",
+    reason=f"CSAF-03-006: a case takes no name from its report yet. {_CASE}",
 )
 def test_a_case_starts_with_its_reports_name_and_summary():
     assert _report_claims_exist()
@@ -217,7 +221,7 @@ def test_a_case_starts_with_its_reports_name_and_summary():
 @pytest.mark.spec("CSAF-03-007")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-03-007: no CSAF title or summary note is read yet. {_TRACKED}",
+    reason=f"CSAF-03-007: no CSAF title or summary note is read yet. {_CASE}",
 )
 def test_a_missing_name_and_summary_come_from_the_csaf_document():
     assert _report_claims_exist()

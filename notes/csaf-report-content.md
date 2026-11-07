@@ -3,7 +3,15 @@ title: "CSAF Documents in Reports: Implementation Plan"
 status: active
 kind: plan
 tracks:
+  - "#6089"
+  - "#6090"
+  - "#6091"
+  - "#6092"
+  - "#6093"
+  - "#6094"
+  - "#6101"
   - "#5911"
+  - "#6100"
 description: >
   How this codebase carries, checks and reads a CSAF 2.1 document attached to a
   VulnerabilityReport: the module layout, the two-stage parse with generated
