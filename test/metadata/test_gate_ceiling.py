@@ -267,7 +267,14 @@ def _skill_files() -> list[Path]:
 #: them those two removals took every heavy command that skill had. Only
 #: `build-docs` is left, and a scan over an empty set would pass having read
 #: nothing (#5535), which is what the arm below exists to refuse.
-_SKILLS_WITH_HEAVY_COMMANDS = (".agents/skills/build-docs/SKILL.md",)
+#: Annotated `tuple[str, ...]` on purpose. Left to inference this is a
+#: `tuple[Literal[...]]` of known length, so a type checker folds the guard
+#: below into a constant and reports it as an assert that cannot fire
+#: (pyright `reportAssertAlwaysTrue`). Widening the declared type keeps the
+#: guard's runtime meaning exactly: empty the tuple and it still fires.
+_SKILLS_WITH_HEAVY_COMMANDS: tuple[str, ...] = (
+    ".agents/skills/build-docs/SKILL.md",
+)
 
 
 def test_discovery_finds_the_skills_with_heavy_commands() -> None:
@@ -415,6 +422,22 @@ def test_detector_tells_a_pyright_call_from_a_mention() -> None:
         fenced % "uv run mypy  # not pyright: that is CI's",
     ):
         assert not _pyright_calls(prose), f"flagged prose: {prose}"
+    # `_PYRIGHT_TOOL`'s own boundaries, exercised *in the code set* so that
+    # pattern is the thing under test. The prose cases above never reach it:
+    # prose is not a code line, and the two fenced ones are `#` comments that
+    # `_uncommented` strips, so all of them hold with `_PYRIGHT_TOOL`
+    # broadened to a bare `pyright` — they guard `_PYRIGHT_LAUNCHED` alone.
+    for boundary in (
+        "cp pyrightconfig.json /tmp/",  # a trailing word character
+        "gh run view --job lint-pyright",  # a leading hyphen
+        "pyright: ignore",  # a trailing colon
+    ):
+        assert not _pyright_calls(fenced % boundary), (
+            f"flagged a near miss in a fence: {boundary}"
+        )
+        assert not _pyright_calls(boundary, suffix=".sh"), (
+            f"flagged a near miss in a script: {boundary}"
+        )
 
 
 def test_detector_reads_a_non_markdown_file_as_code_throughout() -> None:
