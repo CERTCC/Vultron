@@ -114,6 +114,10 @@ Write the status file, then run up to the agent cap at once. Per task:
    | `BEHIND`, or overlap lists files | Update on GitHub and wait on the new head (block below). Exit `0`: merge. Exit `1`: re-run `pr-ship` with the failure as input. Exit `2` (timeout): wait again; never merge before green |
    | Neither | Merge |
 
+   A draft never reaches this step: `pr-verify` withholds `READY-TO-MERGE`
+   from one (`PR-IS-DRAFT`), and GitHub refuses to merge it. `pr-ship` marks
+   the draft ready once CI's run on its head passes (PAD-18-029).
+
    Merge the head that CI passed on, and only that head:
 
    ```bash

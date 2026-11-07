@@ -51,7 +51,7 @@ stakeholder_type: [project-contributor]
 
 | Area | Why fragile | Churn signal | Safe change strategy |
 |------|-------------|-------------|----------------------|
-| `vultron/demo/scenario/rvcv_handoff_demo.py` | Demo exercises many layers; any layer change can break it | Among the highest-churn production files over 90 days (counted as `fvcv_handoff_demo.py` before the Finder-to-Reporter rename) | Run `uv run pytest -m integration` before touching demo scenarios |
+| `vultron/demo/scenario/rvcv_handoff_demo.py` | Demo exercises many layers; any layer change can break it | Among the highest-churn production files over 90 days (counted as `fvcv_handoff_demo.py` before the Finder-to-Reporter rename) | Run the targeted gate before touching demo scenarios; its `-m ""` keeps the selected demo tests in (PAD-18-011) |
 | `vultron/demo/scenario/rccv_handoff_demo.py`, `rvcv_extension_demo.py`, `rcvcv_demo/`, `rccv_extension_demo.py` | Companion multi-actor scenarios that co-evolve | Each among the highest-churn production files over 90 days | Run demo integration tests after scenario changes |
 | `vultron/demo/helpers/polling/` | Causal-polling helpers shared by every scenario; the largest module in `vultron/` before its split | Highest churn in production source over 90 days | Run `test/demo_unit/test_polling_helpers.py` and the demo suite |
 | `vultron/core/behaviors/case/case_proposal_received_tree/` | Case proposal BT tree under active development (embargo initialization, MS-12 tree) | Among the highest-churn production files over 90 days | Verify BT spec IDs and run case-proposal tests |

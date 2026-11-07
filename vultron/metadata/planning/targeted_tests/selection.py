@@ -1,4 +1,4 @@
-"""Select the targeted test set for a set of changed paths, or the full suite."""
+"""Select the targeted test set for a set of changed paths."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ METADATA_TESTS = "test/metadata/"
 ALWAYS_SELECTED = (ARCHITECTURE_TESTS, METADATA_TESTS)
 
 
-#: Repository-root files that configure every test run (PAD-18-003).
+#: Repository-root files that configure every test run (PAD-18-012).
 SHARED_CONFIG_FILES = ("pyproject.toml", "uv.lock")
 
 
@@ -68,8 +68,8 @@ PYTEST_BASE = under_heavy_lock(
 
 
 @dataclass(frozen=True)
-class FullSuiteTrigger:
-    """A changed path that sends the gate to the full suite, and why."""
+class UnboundedPath:
+    """A changed path no targeted set bounds, and why (PAD-18-012)."""
 
     path: str
     reason: str
@@ -77,59 +77,51 @@ class FullSuiteTrigger:
 
 @dataclass
 class Selection:
-    """The local gate for one branch diff."""
+    """The local gate for one branch diff.
+
+    Every selection is a file list: no diff sends the gate to the full unit
+    and integration suites, whatever paths it touches (PAD-18-003).
+    """
 
     tests: list[str] = field(default_factory=list)
-    triggers: list[FullSuiteTrigger] = field(default_factory=list)
-    #: Changed paths that neither escalated nor selected any test.
+    #: Changed paths whose reach the selection cannot bound (PAD-18-012).
+    #: Reported, never acted on: CI's required full run covers them.
+    unbounded: list[UnboundedPath] = field(default_factory=list)
+    #: Changed paths that selected no test at all.
     unmapped: list[str] = field(default_factory=list)
 
-    @property
-    def full(self) -> bool:
-        """Whether the diff needs the full unit and integration suites."""
-        return bool(self.triggers)
 
+def shared_infrastructure(path: str) -> UnboundedPath | None:
+    """Why no targeted set bounds *path* (PAD-18-012), or ``None``.
 
-def conflict_suite_trigger(path: str) -> FullSuiteTrigger | None:
-    """Why a conflicted *path* needs the full suite, or ``None``.
+    Shared test infrastructure is ``conftest.py``,
+    :data:`SHARED_CONFIG_FILES`, :data:`PACKAGE_ROOT`, and the test-support
+    files — fixtures, factories, helpers, data files: anything under
+    ``test/`` that is not itself a ``test_*.py`` file. Tests reach these in
+    ways no import records: a fixture by parameter name, a data file by
+    path, a configuration key by every run reading it. Those under
+    :data:`ALWAYS_SELECTED` are the exception: those directories are always
+    selected whole, and a test elsewhere that imports one of their helpers
+    is selected through the index (:func:`build_index`).
 
-    The subset of :func:`full_suite_trigger` that applies after a conflict
-    merge (``--paths``): files that configure every test run, whose effect no
-    import or mirror lookup can bound. A conflict anywhere else is gated by
-    its importers and mirror tests; CI runs the rest on the push
-    (PAD-18-003, PAD-18-015).
+    The answer is a report, not a verdict. The gate still runs the set it
+    can select plus :data:`ALWAYS_SELECTED`, and CI's required full run
+    covers the reach beyond it (PAD-18-003, PAD-18-012).
     """
     name = PurePosixPath(path).name
     if name == "conftest.py":
-        return FullSuiteTrigger(path, "conftest.py (shared test fixtures)")
+        return UnboundedPath(path, "conftest.py (shared test fixtures)")
     if path in SHARED_CONFIG_FILES:
-        return FullSuiteTrigger(path, "test configuration or dependencies")
+        return UnboundedPath(path, "test configuration or dependencies")
     if path == PACKAGE_ROOT:
-        return FullSuiteTrigger(path, "package root (runs on every import)")
-    return None
-
-
-def full_suite_trigger(path: str) -> FullSuiteTrigger | None:
-    """Why *path* needs the full suite (PAD-18-003), or ``None``.
-
-    Test-support files — fixtures, factories, helpers, data files: anything
-    under ``test/`` that is not itself a ``test_*.py`` file — escalate because
-    tests reach them in ways no import records: a fixture by parameter name,
-    a data file by path. Those under :data:`ALWAYS_SELECTED` are the
-    exception: those directories are always selected whole, and a test
-    elsewhere that imports one of their helpers is selected through the
-    index (:func:`build_index`).
-    """
-    shared = conflict_suite_trigger(path)
-    if shared is not None:
-        return shared
+        return UnboundedPath(path, "package root (runs on every import)")
     if (
         path.startswith(TEST_PREFIX)
         and not path.startswith(ALWAYS_SELECTED)
         and not _is_test_file(path)
         and not path.endswith(_INERT_TEST_SUFFIXES)
     ):
-        return FullSuiteTrigger(
+        return UnboundedPath(
             path, "test support file (fixture, factory, helper, or data)"
         )
     return None
@@ -141,9 +133,13 @@ def select_tests(
     tests: dict[str, TestFile],
     exists: Callable[[str], bool],
     old_source: Callable[[str], str | None] = _no_history,
-    trigger: Callable[[str], FullSuiteTrigger | None] = full_suite_trigger,
 ) -> Selection:
-    """The targeted set for a branch diff, or the triggers that forbid one.
+    """The targeted set for a branch diff.
+
+    The set is always the always-selected directories plus whatever the
+    import index maps: no path escalates it to the full suite
+    (PAD-18-003). A path whose reach the index cannot bound is reported in
+    :attr:`Selection.unbounded` instead, and CI covers it (PAD-18-012).
 
     Args:
         paths: Every path the branch diff changes, of any type.
@@ -153,24 +149,22 @@ def select_tests(
         exists: Whether a repository-relative path exists in the work tree.
         old_source: A changed file's source at the merge base, or ``None``
             when it did not exist there.
-        trigger: The escalation rule: :func:`full_suite_trigger` for a
-            branch diff, :func:`conflict_suite_trigger` for ``--paths``.
     """
     selection = Selection()
     paths = sorted(set(paths))
-    for path in paths:
-        escalation = trigger(path)
-        if escalation is not None:
-            selection.triggers.append(escalation)
-    if selection.full:
-        return selection
+    selection.unbounded = [
+        found
+        for found in (shared_infrastructure(p) for p in paths)
+        if found is not None
+    ]
+    reported = {u.path for u in selection.unbounded}
     selected: set[str] = set()
     mapped: set[str] = set()
     for change in changes:
-        found = _tests_for(change, tests, exists, old_source)
-        if found or change.path.startswith(TEST_PREFIX):
+        found_tests = _tests_for(change, tests, exists, old_source)
+        if found_tests or change.path.startswith(TEST_PREFIX):
             mapped.add(change.path)
-        selected.update(found)
+        selected.update(found_tests)
     selection.tests = [
         *ALWAYS_SELECTED,
         *sorted(t for t in selected if not t.startswith(ALWAYS_SELECTED)),
@@ -179,6 +173,7 @@ def select_tests(
         p
         for p in paths
         if p not in mapped
+        and p not in reported
         and not (
             p.startswith(TEST_PREFIX) and p.endswith(_INERT_TEST_SUFFIXES)
         )
@@ -192,10 +187,12 @@ def pytest_argv(selection: Selection) -> list[str]:
 
     ``-m ""`` replaces the ``-m 'not integration'`` in ``addopts``: pytest
     keeps the last ``-m``, so marker-bearing tests among the selected files
-    are not deselected (PAD-18-011). The full suite is the same command with
-    no paths. It runs in a heavy-check slot, then under :data:`GATE_CEILING`.
+    are not deselected (PAD-18-011). The command always carries the selected
+    paths: a path-free one would run the whole suite, which no local gate
+    does (PAD-18-003). It runs in a heavy-check slot, then under
+    :data:`GATE_CEILING`.
     """
-    return list(PYTEST_BASE) + ([] if selection.full else selection.tests)
+    return list(PYTEST_BASE) + selection.tests
 
 
 def overlap(branch: Iterable[str], base: Iterable[str]) -> list[str]:

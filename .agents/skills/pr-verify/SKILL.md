@@ -150,7 +150,11 @@ cannot be ready to merge no matter what those checks find.
      execute's last check: re-run `/pr-execute`, which clears it.
    - `PR-IS-DRAFT` — report the `needs_rebase=` line: whether the
      `needs-rebase` label is still attached. `unknown` means the labels could
-     not be read: say so, never report it as absent.
+     not be read: say so, never report it as absent. Every implementation PR
+     opens as a draft (PAD-18-028), so a draft here means the transition that
+     was owed did not happen: `pr-execute`'s CI-green step marks it ready once
+     CI's run on the head passes (PAD-18-029). Name that step as the remedy —
+     with `needs_rebase=true`, the sync has to land first.
    - `note=blocked` — note it in the comment (missing required review, etc.).
      It does *not* block the verdict: it is a repo policy state a human
      resolves, not a defect in the PR.

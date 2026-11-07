@@ -26,10 +26,9 @@ documentation structure guidance.
   lookup. `DispatchNode` maps the verdict onto `InboxOutcome.status`.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
 <!-- markdownlint-disable-next-line MD013 -->
-- Tests: `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)`
-  — run once; read `exit:` first. Never end a gate command with a pipe: a pipeline
-  exits with its last stage's status, so a killed run reads as success. See
-  `.agents/skills/run-tests/SKILL.md`.
+- Tests: one gate, always targeted — `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?; [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)`
+  — run once; read `exit:` first; never end a gate command with a pipe. No local
+  gate runs the whole suite; CI does, and GitHub requires it (PAD-18-003/008).
 
 Quick gotchas: specific patterns before general; always `rehydrate()` before
 pattern matching; persist with `dl.save(obj)`; return 202 immediately
@@ -196,11 +195,12 @@ entry vs. both.
 
 1. `run-linters` — ruff (lint + format) and mypy pass; pyright is CI's
    (PAD-18-026/027). Supersedes `format-code`: run it alone.
-2. `run-tests` — **before a PR's first push only**, in `create-pr`: unit and
-   integration suites; read `exit:` (PAD-18-001/008). Later fix commits: linters
-   plus `targeted-tests`, which escalates to `-m ""` itself (PAD-18-002/003). A
-   base overlap runs no local test (PAD-18-024). Every push, first or later,
-   runs `prepush-ci-mirror` last, CI's cheap checks (PAD-18-021/023, ADR-0173).
+2. `run-tests` — every local gate is linters plus `targeted-tests`, never the
+   whole suite: the first push (PAD-18-001/008), a fix commit (PAD-18-002/003),
+   a conflict merge (PAD-18-012/015). Read `exit:`. An overlap runs no local test
+   (PAD-18-024). Every push runs `prepush-ci-mirror` last (PAD-18-021/023,
+   ADR-0173). An implementation PR opens as a draft; `pr-ship` marks it ready
+   once CI's run on its head passes (PAD-18-028/029).
 3. `build-docs` if `docs/` modified; `check-docs-sync` runs regardless (PD-03-008)
 4. `commit` skill — include Co-authored-by trailer
 

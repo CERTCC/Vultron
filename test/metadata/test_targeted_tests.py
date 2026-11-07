@@ -7,7 +7,7 @@ PAD-18-009, PAD-18-011, PAD-18-012, PAD-18-015, PAD-18-019.
 import json
 import shlex
 import sys
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import pytest
 
@@ -19,11 +19,10 @@ from vultron.metadata.planning.targeted_tests import (
     GATE_CEILING,
     METADATA_TESTS,
     build_index,
-    conflict_suite_trigger,
-    full_suite_trigger,
     overlap,
     pytest_argv,
     select_tests,
+    shared_infrastructure,
     widen_index,
 )
 from vultron.metadata.specs.backstop import (
@@ -105,7 +104,6 @@ def _select(
 @pytest.mark.spec("PAD-18-002")
 def test_selects_importers_mirror_and_architecture():
     selection = _select(["vultron/a/mod.py"], [_change()])
-    assert not selection.full
     assert selection.tests == [
         *ALWAYS_SELECTED,
         "test/a/test_mod.py",
@@ -175,7 +173,6 @@ def test_non_python_only_diff_selects_just_architecture():
     selection = _select(
         ["docs/index.md", "specs/x.yaml", "test/AGENTS.md"], []
     )
-    assert not selection.full
     assert selection.tests == list(ALWAYS_SELECTED)
     assert selection.unmapped == ["docs/index.md", "specs/x.yaml"]
 
@@ -358,7 +355,6 @@ def test_architecture_helper_selects_importers_outside_the_directory():
         path="test/architecture/_corpus.py", source="", lines=None
     )
     selection = _select([change.path], [change], tests)
-    assert not selection.full
     assert selection.tests == [
         *ALWAYS_SELECTED,
         "test/y/test_corpus_user.py",
@@ -447,20 +443,33 @@ def test_pytest_argv_enables_the_integration_marker():
 
 
 # ---------------------------------------------------------------------------
-# Escalation (PAD-18-003)
+# No escalation (PAD-18-003, PAD-18-012)
 # ---------------------------------------------------------------------------
 
-FULL_PATHS = [
-    "conftest.py",
-    "test/conftest.py",
-    "test/core/behaviors/conftest.py",
-    "test/architecture/conftest.py",
-    "pyproject.toml",
-    "uv.lock",
-    "vultron/__init__.py",
-    "test/support/case_owner.py",
-    "test/core/behaviors/case/nodes/revision_relay_fixtures.py",
-    "test/adapters/driven/golden/wire_render_core_vocab.json",
+#: One path per arm of :func:`shared_infrastructure`, with the reason that
+#: arm gives. A disjunction is only constrained by a control on the arm that
+#: fires, so each arm is named here with its own expected answer: five
+#: `conftest.py` paths would leave the other three arms unread (#6097).
+SHARED_INFRASTRUCTURE_PATHS = [
+    ("conftest.py", "conftest.py (shared test fixtures)"),
+    ("test/conftest.py", "conftest.py (shared test fixtures)"),
+    ("test/core/behaviors/conftest.py", "conftest.py (shared test fixtures)"),
+    ("test/architecture/conftest.py", "conftest.py (shared test fixtures)"),
+    ("pyproject.toml", "test configuration or dependencies"),
+    ("uv.lock", "test configuration or dependencies"),
+    ("vultron/__init__.py", "package root (runs on every import)"),
+    (
+        "test/support/case_owner.py",
+        "test support file (fixture, factory, helper, or data)",
+    ),
+    (
+        "test/core/behaviors/case/nodes/revision_relay_fixtures.py",
+        "test support file (fixture, factory, helper, or data)",
+    ),
+    (
+        "test/adapters/driven/golden/wire_render_core_vocab.json",
+        "test support file (fixture, factory, helper, or data)",
+    ),
 ]
 
 #: One path under each layer PAD-18-003 escalated on before ADR-0143.
@@ -474,21 +483,42 @@ INTEGRATION_BEARING_PATHS = [
 ]
 
 
-@pytest.mark.spec("PAD-18-003")
-@pytest.mark.parametrize("path", FULL_PATHS)
-def test_shared_infrastructure_escalates(path):
+@pytest.mark.spec("PAD-18-012")
+@pytest.mark.parametrize("path,reason", SHARED_INFRASTRUCTURE_PATHS)
+def test_shared_infrastructure_is_reported_with_its_reason(path, reason):
+    """Each arm of the classifier answers with its own reason."""
+    found = shared_infrastructure(path)
+    assert found is not None, path
+    assert found.reason == reason
+
+
+@pytest.mark.spec("PAD-18-003", "PAD-18-012")
+@pytest.mark.parametrize("path", [p for p, _ in SHARED_INFRASTRUCTURE_PATHS])
+def test_shared_infrastructure_still_gets_the_selectable_set(path):
+    """It reports the path and runs what it can select, never the suite."""
     selection = _select(["vultron/a/mod.py", path], [_change()])
-    assert selection.full
-    assert selection.tests == []
-    assert [t.path for t in selection.triggers] == [path]
+    assert [u.path for u in selection.unbounded] == [path]
+    assert selection.tests[: len(ALWAYS_SELECTED)] == list(ALWAYS_SELECTED)
+    assert "test/x/test_uses_changed.py" in selection.tests
+    # Reported once, under `unbounded`, not a second time as unmapped.
+    assert path not in selection.unmapped
+
+
+@pytest.mark.spec("PAD-18-003")
+@pytest.mark.parametrize("path", [p for p, _ in SHARED_INFRASTRUCTURE_PATHS])
+def test_no_path_makes_the_gate_command_run_the_whole_suite(path):
+    """The command always carries paths, so it never means `-m "" ` alone."""
+    selection = _select(["vultron/a/mod.py", path], [_change()])
+    argv = pytest_argv(selection)
+    assert argv[-len(selection.tests) :] == selection.tests
+    assert argv[-1] != ""
 
 
 @pytest.mark.spec("PAD-18-012")
 @pytest.mark.parametrize("path", INTEGRATION_BEARING_PATHS)
-def test_integration_bearing_path_does_not_escalate(path):
+def test_integration_bearing_path_is_gated_by_its_importers(path):
     """ADR-0143: the layer's importers gate it; CI runs the rest."""
     selection = _select(["vultron/a/mod.py", path], [_change()])
-    assert not selection.full
     assert "test/x/test_uses_changed.py" in selection.tests
 
 
@@ -504,7 +534,6 @@ def test_integration_bearing_change_selects_its_importers():
         }
     )
     selection = _select([path], [_change(None, path)], tests)
-    assert not selection.full
     assert selection.tests == [*ALWAYS_SELECTED, "test/x/test_tree.py"]
     assert pytest_argv(selection)[-3:] == selection.tests
 
@@ -514,9 +543,9 @@ def test_metadata_helper_is_covered_by_the_whole_directory():
     """A helper under test/metadata/ runs with its directory, not alone."""
     path = f"{METADATA_TESTS}specs/_helpers.py"
     selection = _select([path], [])
-    assert not selection.full
     assert selection.tests == list(ALWAYS_SELECTED)
     assert selection.unmapped == []
+    assert selection.unbounded == []
 
 
 @pytest.mark.spec("PAD-18-012")
@@ -534,15 +563,8 @@ def test_metadata_helper_is_covered_by_the_whole_directory():
         "specs/parallel-development.yaml",
     ],
 )
-def test_ordinary_paths_do_not_escalate(path):
-    assert full_suite_trigger(path) is None
-
-
-@pytest.mark.spec("PAD-18-003")
-def test_full_pytest_argv_has_no_paths():
-    selection = _select(["uv.lock"], [])
-    argv = pytest_argv(selection)
-    assert argv[-2:] == ["-m", ""]
+def test_ordinary_paths_are_not_shared_infrastructure(path):
+    assert shared_infrastructure(path) is None
 
 
 @pytest.mark.spec("TB-14-005")
@@ -561,36 +583,17 @@ def test_pytest_argv_runs_under_the_wall_clock_ceiling(changed):
 # Conflict-merge gate (PAD-18-015)
 # ---------------------------------------------------------------------------
 
-CONFLICT_FULL_PATHS = [
-    "conftest.py",
-    "test/conftest.py",
-    "pyproject.toml",
-    "uv.lock",
-    "vultron/__init__.py",
-]
-
 
 @pytest.mark.spec("PAD-18-015")
-@pytest.mark.parametrize("path", CONFLICT_FULL_PATHS)
-def test_conflict_gate_escalates_on_shared_configuration(path):
-    assert conflict_suite_trigger(path) is not None
-    assert full_suite_trigger(path) == conflict_suite_trigger(path)
-
-
-@pytest.mark.spec("PAD-18-015")
-@pytest.mark.parametrize(
-    "path",
-    [
-        p
-        for p in FULL_PATHS
-        if p not in CONFLICT_FULL_PATHS
-        and PurePosixPath(p).name != "conftest.py"
-    ],
-)
-def test_conflict_gate_does_not_escalate_on_fix_commit_triggers(path):
-    """Test-support paths are CI's after a merge."""
-    assert full_suite_trigger(path) is not None
-    assert conflict_suite_trigger(path) is None
+@pytest.mark.parametrize("path", [p for p, _ in SHARED_INFRASTRUCTURE_PATHS])
+def test_conflict_gate_runs_no_suite_for_shared_infrastructure(path):
+    """A conflicted shared file is reported; the gate stays a file list."""
+    selection = select_tests([path], [], TESTS, lambda p: True)
+    assert [u.path for u in selection.unbounded] == [path]
+    assert selection.tests == list(ALWAYS_SELECTED)
+    assert pytest_argv(selection)[-len(ALWAYS_SELECTED) :] == list(
+        ALWAYS_SELECTED
+    )
 
 
 @pytest.mark.spec("PAD-18-015")
@@ -607,9 +610,7 @@ def test_conflict_gate_selects_importers_of_an_integration_path():
         [_change(None, path)],
         tests,
         lambda p: True,
-        trigger=conflict_suite_trigger,
     )
-    assert not selection.full
     assert selection.tests == [*ALWAYS_SELECTED, "test/x/test_adapter.py"]
 
 
@@ -754,20 +755,21 @@ def test_cli_pytest_line_is_runnable(git_repo, monkeypatch, capsys):
     assert argv[-3:] == [*ALWAYS_SELECTED, "test/a/test_mod.py"]
 
 
-@pytest.mark.spec("PAD-18-003")
-def test_cli_reports_full_with_trigger(git_repo, monkeypatch, capsys):
-    (git_repo / "test" / "conftest.py").write_text("import pytest\n")
-    assert _main(monkeypatch, "--base", "main") == 0
-    out = capsys.readouterr().out.splitlines()
-    assert out[0] == "full"
-    assert out[1].startswith("test/conftest.py: ")
-
-
-@pytest.mark.spec("PAD-18-003")
-def test_cli_escalation_is_keyed_on_the_branch_diff(
+@pytest.mark.spec("PAD-18-003", "PAD-18-012")
+def test_cli_prints_the_selectable_set_for_shared_infrastructure(
     git_repo, monkeypatch, capsys
 ):
-    """A fix commit on top of a conftest.py change still escalates."""
+    """A `conftest.py` change prints a file list, never the word `full`."""
+    (git_repo / "test" / "conftest.py").write_text("import pytest\n")
+    assert _main(monkeypatch, "--base", "main") == 0
+    captured = capsys.readouterr()
+    assert captured.out.splitlines() == list(ALWAYS_SELECTED)
+    assert "no targeted set bounds test/conftest.py" in captured.err
+
+
+@pytest.mark.spec("PAD-18-003", "PAD-18-012")
+def test_cli_gate_is_keyed_on_the_branch_diff(git_repo, monkeypatch, capsys):
+    """A fix commit on top of a conftest.py change is gated by both."""
     (git_repo / "test" / "conftest.py").write_text("import pytest\n")
     git(git_repo, "add", ".")
     git(git_repo, "commit", "-q", "-m", "conftest")
@@ -775,20 +777,21 @@ def test_cli_escalation_is_keyed_on_the_branch_diff(
     git(git_repo, "commit", "-q", "-am", "fix")
     assert _main(monkeypatch, "--base", "main", "--json") == 0
     data = json.loads(capsys.readouterr().out)
-    assert data["mode"] == "full"
-    assert data["triggers"][0]["path"] == "test/conftest.py"
-    assert data["tests"] == []
-    assert data["pytest"][-2:] == ["-m", ""]
+    assert [u["path"] for u in data["unbounded"]] == ["test/conftest.py"]
+    assert data["tests"] == [*ALWAYS_SELECTED, "test/a/test_mod.py"]
+    assert data["pytest"][-len(data["tests"]) :] == data["tests"]
 
 
-@pytest.mark.spec("PAD-18-003")
-def test_cli_pytest_full_names_trigger_on_stderr(
+@pytest.mark.spec("PAD-18-003", "PAD-18-012")
+def test_cli_pytest_for_shared_config_still_carries_paths(
     git_repo, monkeypatch, capsys
 ):
+    """`pyproject.toml` alone yields the always-selected directories."""
     _edit(git_repo / "pyproject.toml", "name='x'", "name='y'")
     assert _main(monkeypatch, "--base", "main", "--pytest") == 0
     captured = capsys.readouterr()
-    assert shlex.split(captured.out)[-2:] == ["-m", ""]
+    argv = shlex.split(captured.out)
+    assert argv[-len(ALWAYS_SELECTED) :] == list(ALWAYS_SELECTED)
     assert "pyproject.toml" in captured.err
 
 
@@ -859,17 +862,19 @@ def test_cli_paths_ignores_the_branch_diff(git_repo, monkeypatch, capsys):
 
 
 @pytest.mark.spec("PAD-18-015")
-def test_cli_paths_escalates_on_shared_configuration(
+def test_cli_paths_runs_no_suite_for_shared_configuration(
     git_repo, monkeypatch, capsys
 ):
+    """A conflicted `pyproject.toml` still gets a path-bearing command."""
     assert _main(monkeypatch, "--paths", "pyproject.toml", "--pytest") == 0
     captured = capsys.readouterr()
-    assert shlex.split(captured.out)[-2:] == ["-m", ""]
+    argv = shlex.split(captured.out)
+    assert argv[-len(ALWAYS_SELECTED) :] == list(ALWAYS_SELECTED)
     assert "pyproject.toml" in captured.err
 
 
 @pytest.mark.spec("PAD-18-015")
-def test_cli_paths_does_not_escalate_on_integration_paths(
+def test_cli_paths_gates_an_integration_path_by_its_importers(
     git_repo, monkeypatch, capsys
 ):
     adapter = git_repo / "vultron" / "adapters"
@@ -883,7 +888,7 @@ def test_cli_paths_does_not_escalate_on_integration_paths(
         == 0
     )
     data = json.loads(capsys.readouterr().out)
-    assert data["mode"] == "targeted"
+    assert data["unbounded"] == []
     assert data["tests"] == [*ALWAYS_SELECTED, "test/a/test_port.py"]
     assert data["pytest"][-3:] == [*ALWAYS_SELECTED, "test/a/test_port.py"]
 

@@ -31,33 +31,33 @@ needs_integration = any(
 )
 ```
 
-## Test Suite Execution
+## Test Gate Execution
 
-### Unit Tests Only (default)
+### One Gate, Always Targeted
 
-<!-- markdownlint-disable-next-line MD013 -->
-**Command**: `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; timeout -k 30 1800 uv run pytest --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)`
+The gate is the test files `targeted-tests` derives from the diff, plus
+`test/architecture/` and `test/metadata/` (PAD-18-002). No scope escalates it
+to the whole suite (PAD-18-003), and no local gate runs one (PAD-18-008,
+PAD-18-015): CI runs both suites on every push, and GitHub's required
+`CI gate` refuses the merge until that run passes.
 
-**When**: Changes are localized (single module, no core/demo/adapter impact)
+**Command**:
 
-**Expected output**: Summary of passed/failed tests
+```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
+gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
+```
 
-### Full Suite (unit + integration)
+**When**: every fix commit, and the conflict-merge case with
+`--paths <conflicted files>` instead of `--base` (PAD-18-015).
 
-**Commands**:
+**Expected output**: the selected files' pass/fail summary. Paths reported on
+stderr as `no test maps to` or `no targeted set bounds` are CI's; that is
+expected, not an error.
 
-<!-- markdownlint-disable MD013 -->
-1. `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; timeout -k 30 1800 uv run pytest --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)` (all unit tests)
-2. `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -40 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)` (integration test suite)
-<!-- markdownlint-enable MD013 -->
-
-**When**: Demo, adapters, behavior trees, or use-cases modified
-
-**Expected output**: Full test summary from both suites
-
-Full pytest output is written to `"$logs-unit.log"` (and
-`"$logs-integration.log"` for the integration suite). **Never re-run the test suite
-to get more output** — grep or read those files instead.
+Full pytest output is written to `"$logs-gate.log"`. **Never re-run the gate
+to get more output** — grep or read that file instead.
 
 ## Interpreting Test Results
 

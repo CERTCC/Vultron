@@ -19,7 +19,8 @@ start; execute either resolves each item or records why it was skipped.
 
 Execute's exit criterion is **CI green**: it does not hand off to pr-verify until
 the branch is conflict-free against its base, the local gate passes, and all CI
-checks have completed successfully (or the 4-iteration cap is reached).
+checks have completed successfully (or the cap of four counted iterations is
+reached; CI's first run on a draft is not counted, PAD-18-030).
 
 After a PR's first push, CI is the full-suite authority (ADR-0126). Execute
 therefore merges the base only when the PR conflicts with it (PAD-18-004,
@@ -211,8 +212,18 @@ Do not mark a comment resolved unless the code actually addresses it.
 ### Phase 5 — CI Loop
 
 This phase owns syncing, testing, pushing, and CI wait. It loops until CI is
-green or the cap is reached. **Maximum 4 iterations.** One iteration = one
-Sync (when needed) → Test → Push → Wait cycle.
+green or the cap is reached. **Maximum 4 counted iterations.** One iteration =
+one Sync (when needed) → Test → Push → Wait cycle.
+
+**CI's first run on a draft is not counted** (PAD-18-030). An implementation
+PR opens as a draft (PAD-18-028) and no full suite has run on it; CI's first
+run is that suite, not a round spent on a fix. So when the PR is a draft and
+no CI run on its head has been judged yet, the iteration that waits for that
+run does not consume one of the four. Keep the count explicitly: start it at
+zero, and increment it only when the iteration applied a fix in Step 1 or
+Step 3. A draft PR that needs no fix therefore reaches green with the count
+still at zero, and a draft PR whose first CI run is red still has all four
+rounds for the fixes. Record the counted figure, not the number of loops.
 
 #### Step 1 — Apply CI fixes
 
@@ -361,19 +372,21 @@ guess and do not push:
 
 #### Step 3 — Run the local gate
 
-The gate is the linters plus a **targeted test set**, never a bare full-suite
-run by default. Which set depends on what this iteration changed:
+The gate is the linters plus a **targeted test set**. No scope escalates it
+to the full suite, whatever paths the diff touches (PAD-18-003). Which set
+depends on what this iteration changed:
 
 - **Fix commits** (Phase 2 fixes, CI fixes): the targeted set for the branch
-  diff (PAD-18-002), escalating to the full suite only on PAD-18-003's
-  shared test infrastructure.
+  diff (PAD-18-002).
 - **A Step 2 conflict merge and nothing else**: the tests for the conflicted
   files only (PAD-18-015). Pass the paths Step 2 recorded in
   `conflicts_resolved` as `targeted-tests --paths <file>...`. Each counts as
-  wholly changed, and only shared test configuration (`conftest.py`,
-  `pyproject.toml`, `uv.lock`, `vultron/__init__.py`) sends it to the full
-  suite: the merge changed no other line the PR wrote, and CI runs the full
-  suite on the push.
+  wholly changed. A conflicted shared file (`conftest.py`, `pyproject.toml`,
+  `uv.lock`, `vultron/__init__.py`, a test fixture, factory, helper or data
+  file) is reported as one no targeted set bounds, and the gate is still the
+  set it could select plus `test/architecture/` and `test/metadata/`
+  (PAD-18-012): the merge changed no other line the PR wrote, and CI runs
+  both suites on the push.
 - **A Step 2 merge that resolved no conflict, and nothing else**
   (`sync-with-main.sh` exit `0`: GitHub's `CONFLICTING` was stale, or
   `merge-tree` and `git merge` disagreed): the linters alone. The merge
@@ -406,18 +419,21 @@ logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set pe
 PYTHONPATH= uv run targeted-tests <scope> > "$logs-targeted.txt"; rc=$?; cat "$logs-targeted.txt"; echo "exit: $rc"; (exit $rc)
 ```
 
-Read the first line of `"$logs-targeted.txt"`:
+`"$logs-targeted.txt"` holds the gate's file list, one path per line, always
+beginning with `test/architecture/` and `test/metadata/`. Two kinds of note
+go to stderr, and neither is an error:
 
-- **A test path** — the gate is the targeted set. Paths printed on stderr as
-  `no test maps to` are left to CI; that is expected, not an error.
-- **`full`** — the scope touches shared test infrastructure (PAD-18-003);
-  each following line names the path and reason. The gate is the full suite
-  with every marker enabled. An integration-bearing path alone never
-  produces `full` (ADR-0143).
+- `no test maps to <paths>` — nothing in the index reaches them; CI covers
+  them.
+- `no targeted set bounds <path>: <reason>` — shared test infrastructure,
+  whose reach no index can see. The gate is still the set it could select
+  plus the always-selected directories, and CI's required full run covers
+  the rest (PAD-18-003, PAD-18-012). An integration-bearing path is gated by
+  its importers like any other (ADR-0143).
 
-Run the command `targeted-tests --pytest` prints for whichever mode it chose.
-It carries `-m ""` so integration-marked tests among the selected files are
-not deselected by the `addopts` default:
+Run the command `targeted-tests --pytest` prints. It carries `-m ""` so
+integration-marked tests among the selected files are not deselected by the
+`addopts` default (PAD-18-011), and it always names paths:
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
@@ -426,13 +442,10 @@ gate=$(PYTHONPATH= uv run targeted-tests <scope> --pytest); rc=$?
 ```
 
 **Add the CI failure being fixed when it is outside the set.**
-`targeted-tests` cannot see CI (PAD-18-013). If the gate is a targeted set
-(the first line of `"$logs-targeted.txt"` is a test path) and the
-iteration's input includes a CI test failure whose test file is not one of
-those paths (and is not under a listed directory), append that file to the
-gate, not the full suite: CI runs everything else on the push. A `full` gate
-already runs every test; appending a path to it would narrow it to that one
-file, so leave it as printed.
+`targeted-tests` cannot see CI (PAD-18-013). If the iteration's input
+includes a CI test failure whose test file is not one of the printed paths
+(and is not under a listed directory), append that file to the gate, not the
+full suite: CI runs everything else on the push.
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
@@ -447,10 +460,11 @@ A piped form would report 0 for a killed run and this step would push it.
 — **do not re-run the test suite for more output**.
 
 **Count every gate run** for the execute summary's `Suite runs:` line
-(PAD-18-006, PAD-18-016): a run of the full suite (any escalation) adds one to
-`suite_runs.full`; a targeted run, of either scope, adds one to
-`suite_runs.targeted`. Single-test
-re-runs while debugging a failure are not gate runs and are not counted.
+(PAD-18-006, PAD-18-016): a targeted run, of either scope, adds one to
+`suite_runs.targeted`. `suite_runs.full` stays at zero — no gate can produce
+a full local run (PAD-18-003, PAD-18-008, PAD-18-015) — and the field stays
+because merged comments and velocity reporting parse it. Single-test re-runs
+while debugging a failure are not gate runs and are not counted.
 
 If tests fail: fix branch-owned failures per [REFERENCE.md](REFERENCE.md)
 § "Test Failure Rules", commit, then **re-run Step 2's checks**. Return to the
@@ -535,19 +549,28 @@ green run as a pass (#3902).
    after this point is caught by `pr-verify`'s live merge-state gate or by the
    merger's pre-merge check (PAD-18-009, PAD-18-018), which re-runs `pr-ship`.
 
-2. If the PR is a draft with a `needs-rebase` label, undraft it:
+2. **Mark the PR ready for review** (PAD-18-029). `wait-for-ci.sh` exited 0,
+   which means every check on this exact head commit finished and passed, so
+   the condition PAD-18-029 sets is met — and once it is met the transition
+   is owed, not optional: a green draft may not be left a draft.
 
    ```bash
    gh pr ready <number>
 
-   gh pr edit <number> --remove-label needs-rebase
+   gh pr edit <number> --remove-label needs-rebase   # only if it carries one
    ```
+
+   `gh pr ready` changes no commit, so it does not invalidate the run that
+   just passed. Record `undrafted: true` when this ran. If `gh pr ready`
+   fails, stop and report it: `pr-verify` withholds `READY-TO-MERGE` from a
+   draft (`PR-IS-DRAFT`) and GitHub refuses to merge one, so a PR left as a
+   draft here cannot merge at all.
 
 3. Record `final_ci_status: "passing"`. Populate the `merge_state` block from
    this `merge-state.sh` call and the Step 2 decision.
 4. Exit the loop.
 
-**On iteration 4 failure (eject)**:
+**On the fourth counted iteration's failure (eject)**:
 
 Record `final_ci_status: "failing"`. List the unresolved CI failures. Run
 `merge-state.sh <number>` and populate the `merge_state` block. Exit the loop.

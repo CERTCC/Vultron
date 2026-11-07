@@ -81,7 +81,7 @@ pipeline exits with its last stage's status. Never end a gate command with a
 pipe. Redirect, capture `$?` at once, then re-raise it:
 
 ```bash
-timeout -k 30 1800 uv run pytest --tb=short > /tmp/unit.log 2>&1; rc=$?; tail -5 /tmp/unit.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest test/architecture/ --tb=short > /tmp/gate.log 2>&1; rc=$?; tail -5 /tmp/gate.log; echo "exit: $rc"; (exit $rc)
 ```
 
 - **`rc=$?` directly after the redirected command**: anything in between,

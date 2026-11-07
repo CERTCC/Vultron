@@ -13,23 +13,23 @@ stakeholder_type: [project-contributor]
 - **Type checking in tests**: mypy (`.mypy.ini` packages `vultron, test`) and pyright (`pyrightconfig.json` includes `test`) both cover `test/` in CI
 
 ```bash
+# The local gate, in every pipeline phase that has one: the test files
+# `targeted-tests` derives from the diff. No local gate runs the whole suite
+# (PAD-18-003, PAD-18-008, PAD-18-015) — CI runs both, as parallel parts over
+# disjoint slices of test/ (TB-11-002), and GitHub's required `CI gate`
+# refuses the merge until that run passes.
+# Gate form: redirect, read the exit line (never end a gate command with a pipe)
+gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > /tmp/last-test-run.log 2>&1; rc=$?; tail -20 /tmp/last-test-run.log; }; echo "exit: $rc"; (exit $rc)
+
 # Unit tests only (default — integration excluded)
 uv run pytest --tb=short
-
-# All tests (unit + integration) on xdist workers. CI runs this command as
-# parallel parts, each over a disjoint slice of test/ (TB-11-002), so one
-# round ends with the slowest part rather than the sum.
-# (-n auto is sized to the container's cgroup limits by test/conftest.py)
-uv run python .agents/skills/shared/run-heavy.py uv run pytest -m "" -n auto --tb=short
 
 # Integration tests only
 uv run pytest -m integration
 
 # Specific test file
 uv run pytest test/test_config.py --tb=short
-
-# Gate form: redirect, read the exit line (never end a gate command with a pipe)
-uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 ### 2) Test Layout

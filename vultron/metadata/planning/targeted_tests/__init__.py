@@ -12,14 +12,13 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The local test gate for a pushed Pull Request (``targeted-tests``).
 
-After a Pull Request's first push, CI is the full-suite authority (ADR-0126,
-ADR-0138); a fix commit is gated locally by a *targeted* set derived from the
-branch diff. This command derives that set, or says the diff needs the full
-suite, derives the narrower gate after a conflict merge, and answers the "did
-the base touch my files?" question that decides whether the merger refreshes
-the Pull Request on GitHub before merging it::
+CI is the full-suite authority (ADR-0126, ADR-0138, ADR-0179); every local
+test gate is a *targeted* set derived from a diff. This command derives that
+set for the branch diff, derives the narrower gate after a conflict merge,
+and answers the "did the base touch my files?" question that decides whether
+the merger refreshes the Pull Request on GitHub before merging it::
 
-    targeted-tests                     # file list, or `full` + its triggers
+    targeted-tests                     # the file list
     targeted-tests --pytest            # the pytest command line to run
     targeted-tests --json
     targeted-tests --overlap           # files changed on both sides
@@ -27,15 +26,13 @@ the Pull Request on GitHub before merging it::
 
 Output contract (stable; pipeline skills parse it):
 
-- **Selection mode** (default) exits 0 and prints either the targeted set,
-  one path per line (``test/architecture/`` and ``test/metadata/`` are always
-  among them), or the
-  word ``full`` on the first line followed by one ``<path>: <reason>`` line
-  per path that forced the full suite. ``--pytest`` prints instead a single
-  runnable command line; it carries ``-m ""`` to override the
-  ``-m 'not integration'`` default in ``addopts``, so integration-marked tests
-  among the selected files still run (PAD-18-011). ``--json`` prints
-  ``{"mode", "tests", "triggers", "unmapped", "pytest"}``.
+- **Selection mode** (default) exits 0 and prints the targeted set, one path
+  per line (``test/architecture/`` and ``test/metadata/`` are always among
+  them). ``--pytest`` prints instead a single runnable command line; it
+  carries ``-m ""`` to override the ``-m 'not integration'`` default in
+  ``addopts``, so integration-marked tests among the selected files still
+  run (PAD-18-011), and it always carries the selected paths. ``--json``
+  prints ``{"tests", "unbounded", "unmapped", "pytest"}``.
 - **Overlap mode** (``--overlap``) prints the paths the base changed since
   the merge base that this branch also changes, one per line, and exits 1
   when there are any and 0 when there are none (PAD-18-009). ``--json``
@@ -43,12 +40,9 @@ Output contract (stable; pipeline skills parse it):
 - **Paths mode** (``--paths``) prints the same selection output for the
   named files instead of the branch diff: the gate after resolving a merge
   conflict, run on the conflicted files (PAD-18-015). Each file counts as
-  wholly changed, since both sides edited it, and only
-  :func:`conflict_suite_trigger` paths force the full suite: CI runs the full
-  suite on the push, so the test-support trigger that guards a fix commit
-  is not repeated here (PAD-18-003). ``--base`` is
-  not read. A conflicted non-Python file under ``test/`` (a data file) maps
-  to no test and is named on stderr like any other unmapped path.
+  wholly changed, since both sides edited it. ``--base`` is not read. A
+  conflicted non-Python file under ``test/`` (a data file) maps to no test
+  and is named on stderr like any other unmapped path.
 - Exit 2 is a setup error (not a repository, unknown base ref).
 
 Changed paths no rule maps to a test (a docs page, a script outside
@@ -56,20 +50,27 @@ Changed paths no rule maps to a test (a docs page, a script outside
 is never mistaken for a clean one. The command does not fetch: run
 ``git fetch origin`` first so ``--base`` is current.
 
-**The branch diff is the key** (PAD-18-003): the merge base with ``--base``
-against the working tree, so a fix commit landing on top of an earlier
-``conftest.py`` change still escalates, and uncommitted and untracked work
-counts. Overlap mode reads the same branch side on purpose: the gate runs
-before a push, so work not yet committed is about to be part of the PR.
+**The branch diff is the key**: the merge base with ``--base`` against the
+working tree, so a fix commit landing on top of an earlier change is gated
+by both, and uncommitted and untracked work counts. Overlap mode reads the
+same branch side on purpose: the gate runs before a push, so work not yet
+committed is about to be part of the PR.
 
-Escalation is for shared test infrastructure only (PAD-18-003, PAD-18-012): files whose
-effect no import or mirror lookup can bound. A change to an integration-bearing
-layer (``vultron/core/behaviors/``, ``vultron/adapters/``, …) is gated by its
-importers like any other change, integration-marked ones included; the reach
-beyond them is CI's, which runs the full suite on the push faster than a slot
-does (ADR-0143). "Full" means the pytest suite with every marker enabled; the
-docker-driven scripts under ``integration_tests/`` are not pytest tests and
-stay CI's to run.
+**No path escalates the gate** (PAD-18-003). A local run of the full unit and
+integration suites takes longer than CI's run of both, which GitHub requires
+before the merge, so there is nothing to gain by waiting for the slower of
+two runs that give the same answer. Shared test infrastructure —
+``conftest.py``, ``pyproject.toml``, ``uv.lock``, ``vultron/__init__.py``,
+and the test fixtures, factories, helpers and data files outside the
+always-selected directories — is the one path shape no targeted set bounds,
+because tests reach it by fixture name, by file path or by every run reading
+it. Such a path is *reported* on stderr and in ``unbounded``, and the gate
+still runs the set it can select plus the always-selected directories
+(PAD-18-012). A change to an integration-bearing layer
+(``vultron/core/behaviors/``, ``vultron/adapters/``, …) is gated by its
+importers like any other change, integration-marked ones included
+(ADR-0143). The docker-driven scripts under ``integration_tests/`` are not
+pytest tests and stay CI's to run.
 
 **Hub and monolith demotion do not apply.** ``spec-backstop`` demotes a symbol
 imported by more than ``HUB_THRESHOLD`` test files, and a test file marking
@@ -98,7 +99,7 @@ Requirements: specs/parallel-development.yaml PAD-18-002, PAD-18-003,
 PAD-18-004, PAD-18-009, PAD-18-011 to PAD-18-015, PAD-18-019.
 
 Submodules, by concern: ``index`` (the source-to-test import index),
-``selection`` (the targeted set, the full-suite triggers and the pytest
+``selection`` (the targeted set, the unbounded-path report and the pytest
 command) and ``cli`` (the command line).
 """
 
@@ -112,11 +113,10 @@ from vultron.metadata.planning.targeted_tests.selection import (
     GATE_CEILING,
     METADATA_TESTS,
     branch_overlap,
-    conflict_suite_trigger,
-    full_suite_trigger,
     overlap,
     pytest_argv,
     select_tests,
+    shared_infrastructure,
 )
 
 __all__ = [
@@ -125,11 +125,10 @@ __all__ = [
     "METADATA_TESTS",
     "branch_overlap",
     "build_index",
-    "conflict_suite_trigger",
-    "full_suite_trigger",
     "main",
     "overlap",
     "pytest_argv",
     "select_tests",
+    "shared_infrastructure",
     "widen_index",
 ]

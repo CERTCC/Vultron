@@ -30,7 +30,8 @@ gh pr create --repo CERTCC/Vultron \
 > git add <resolved files> && git commit --no-edit
 > git push
 > \`\`\`
-> Then convert this draft PR to ready for review.
+> `pr-ship` marks the draft ready once CI's run on the resolved head
+> passes (PAD-18-029).
 
 <original PR body below>
 

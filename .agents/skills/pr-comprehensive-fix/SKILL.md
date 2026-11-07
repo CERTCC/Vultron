@@ -66,13 +66,18 @@ If proceeding, invoke sub-skills in order:
 
 **Checkpoint**: Code fixed locally. Stop and let user review if needed.
 
-### Step 3: Re-Run Full Test Suite
+### Step 3: Re-Run the Local Gate
 
-Based on Step 1 decision point:
+There is one gate and it is targeted: the test files `targeted-tests` derives
+from the diff. No local gate runs the whole suite (PAD-18-003, PAD-18-008,
+PAD-18-015); CI runs both on every push. See
+[`../run-tests/SKILL.md`](../run-tests/SKILL.md) § "The Targeted Gate".
 
-<!-- markdownlint-disable-next-line MD013 -->
-- **Unit only**: `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; timeout -k 30 1800 uv run pytest --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)`
-- **Full (unit + integration)**: Run both unit and integration test suites
+```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
+gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
+```
 
 If tests fail:
 

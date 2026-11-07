@@ -8,28 +8,37 @@ tags:
   - ci
 shell: "zsh"
 commands:
-  - 'log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)'
+  - 'logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?; [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)'
 inputs:
   - name: repo_root
     description: "Repository root"
     default: "."
 outputs:
   - name: pytest_summary
-    description: "The last 5 lines of pytest output (summary and short failure traces)"
+    description: "The last 20 lines of pytest output (summary and short failure traces)"
   - name: exit_code
     description: "pytest's own exit status, printed as `exit: N` and returned as the command's status"
 ---
 
 # Skill: Run Tests
 
-| Suite | Command |
-|---|---|
-| Unit (default) | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
-| Integration | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
-| All | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
+**There is one local gate, and it is targeted.** Every local test gate — a
+Pull Request's first push, a fix commit, a conflict merge — runs the test set
+`targeted-tests` derives from a diff (PAD-18-001, PAD-18-002, PAD-18-015). No
+local gate runs the whole unit or integration suite: CI runs both on every
+push, faster than a 2-CPU slot does, and GitHub's required `CI gate` refuses
+the merge until that run passes (PAD-18-003, PAD-18-008, ADR-0179). The gate
+command is in § "The Targeted Gate" below.
 
-The shape is always the same: **redirect, capture `$?` immediately, tail the log,
-print the code last, then re-raise it.** `rc=$?` must come directly after the
+| Run | Command |
+|---|---|
+| The gate (every local gate) | see § "The Targeted Gate" |
+| One file, while writing it | `uv run pytest <path> -n 0` |
+| The whole suite | CI's, not yours. `.github/workflows/python-app.yml` runs it on every push; a human can run it from [docs/developer/how-to/run-tests.md](../../../docs/developer/how-to/run-tests.md) |
+
+The shape of every gate command is the same: **redirect, capture `$?`
+immediately, tail the log, print the code last, then re-raise it.** `rc=$?`
+must come directly after the
 redirected command — any other command in between overwrites `$?`. The trailing
 `(exit $rc)` is what makes the whole statement carry pytest's status, so the
 command is safe to chain or to use as a gate.
@@ -60,47 +69,21 @@ so the table above holds, plus one row:
 |---|---|
 | `exit: 75` and `run-heavy: gave up after 3600s` | No test ran: no slot came free within the wrapper's wait limit. Find the holders the wait line names before rerunning. |
 
-`-n auto` runs the suite on `pytest-xdist` workers. `test/conftest.py` sizes
+`-n auto` runs the selected files on `pytest-xdist` workers. `test/conftest.py` sizes
 `auto` to the container's cgroup CPU and memory limits
 (`test/support/xdist_workers.py`): a worktree slot is capped by `SLOT_CPUS`
 and `SLOT_MEMORY` (`start-dev.sh`), while `nproc` reports every host core, and
 twelve workers in a 2-CPU, 6 GiB slot were OOM-killed mid-run. Set
 `PYTEST_XDIST_AUTO_NUM_WORKERS` to override. Drop `-n auto` (or pass `-n 0`)
-for a targeted single-file run, where starting workers costs more than it
-saves.
+for a single-file run while writing it, where starting workers costs more
+than it saves.
 
-## Pre-PR Validation (create-pr only)
+## The Targeted Gate
 
-The full local gate runs **exactly once per tree state**, before a Pull
-Request's first push, in `create-pr` Phase 3 (PAD-18-001, PAD-18-008): it is
-re-run only after a fix changes the tree. A skill that hands off to
-`create-pr` runs the linters and does not run these suites itself; it may run
-the specific test files it is writing or changing while it works. The gate is
-both suites:
-
-```bash
-logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)
-uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -5 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)
-```
-
-Run the block as one shell command, so `logs` is set for each line. The
-log names carry the worktree's directory name because parallel sessions
-share `/tmp`: a fixed name lets one session read, or overwrite, another
-session's run.
-
-The first command covers the unit suite (integration tests excluded by
-`addopts = "-m 'not integration'"`). The second explicitly runs the
-integration suite. Both must pass; a branch that only breaks integration
-tests must not reach a non-draft PR. A PR that changes no Python is gated by
-the linters and the CI mirror, with no suite run, and its `Suite runs:` full
-count starts at zero (PAD-18-006).
-
-## After the First Push (targeted gate)
-
-Once a PR is pushed, CI runs the full suite on every push (ADR-0126). A local
-fix commit is gated by the linters plus the **targeted set** for the branch
-diff (PAD-18-002), not by the full suite:
+Every local test gate is this command. `targeted-tests` derives the set from
+a diff: the test files that import a changed symbol, the mirror test file of
+each changed module, each changed test file, and always `test/architecture/`
+and `test/metadata/` (PAD-18-002).
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
@@ -109,25 +92,44 @@ gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
 [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 ```
 
-The printed command starts with `run-heavy.py`, so the gate takes a slot like
-the suites above. The set always includes `test/architecture/` and `test/metadata/`.
-`targeted-tests` escalates to the full suite itself (its `--pytest` output
-becomes `pytest -m ""`) only when the branch diff touches shared test
-infrastructure; an integration-bearing path is gated by its importers, and
-CI runs the rest (PAD-18-003, PAD-18-012, ADR-0143). It cannot see CI: when the
-fix is for a CI failure in a test outside a printed targeted set, append that
-test's file to the printed command rather than running the full suite
-(PAD-18-013). Never append
-to a `full` command: it runs every test, and a path would narrow it to one
-file. `pr-execute`
-Phase 5 Step 3 is the canonical caller.
+The printed command starts with `run-heavy.py`, so the gate takes one of the
+host's heavy-check slots, and then runs under the wall-clock ceiling. It
+carries `-m ""`, so integration-marked tests among the selected files are not
+deselected by the `addopts` default (PAD-18-011).
+
+Where it runs, with the scope each one passes:
+
+| Gate | Scope | Rule |
+|---|---|---|
+| A PR's first push, in `create-pr` Phase 3 | `--base origin/main` | PAD-18-001 |
+| A fix commit, in `pr-execute` Phase 5 Step 3 | `--base origin/<base>` | PAD-18-002 |
+| A conflict merge | `--paths <conflicted files>` | PAD-18-015 |
+
+A skill that hands off to `create-pr` runs the linters and no suite of its
+own (PAD-18-017); it may run the specific test files it is writing while it
+works. A PR that changes no Python is gated by the linters and the CI mirror,
+with no test run at all, and its `Suite runs:` counts both start at zero
+(PAD-18-006, PAD-18-010, PAD-18-016).
+
+**No scope escalates it.** Whatever paths the diff touches, the printed
+command names files (PAD-18-003). When the diff includes shared test
+infrastructure — `conftest.py`, `pyproject.toml`, `uv.lock`,
+`vultron/__init__.py`, or a test fixture, factory, helper or data file —
+`targeted-tests` names that path on stderr as one no targeted set bounds, and
+the gate is the set it could select plus the always-selected directories
+(PAD-18-012). CI's required full run covers the reach beyond it. An
+integration-bearing path is gated by its importers like any other
+(ADR-0143).
+
+`targeted-tests` cannot see CI: when the fix is for a CI failure in a test
+outside the printed set, append that test's file to the printed command
+(PAD-18-013).
 
 ## Constraints
 
 - Run exactly once per validation cycle; do not use `-q` or change output formatting.
-- Do not change `tail -5` in the pre-PR commands above. A command that tails a
-  longer window (the targeted gate and `pr-execute` use `-20`) may do so, but
-  must keep the rest of the shape intact.
+- Keep the gate command's shape. A command may tail a longer window than the
+  gate's `-20`, but must keep the rest intact.
 - **Never end a validation command with a pipe.** A pipeline exits with its
   *last* stage's status, so `… | tail`, `… | tee … | tail`, `… | head`, and
   `… | wc` all report 0 no matter how pytest exited — a killed or failed run
@@ -146,12 +148,10 @@ Phase 5 Step 3 is the canonical caller.
   passing-looking tail above a non-zero `exit:`. Trust the code.
 - `filterwarnings = ["error"]` in `pyproject.toml` — warnings are test errors; fix root
   cause, do not suppress.
-- Integration tests are excluded from the default interactive run; always run
-  `-m integration` explicitly in pre-PR validation, and keep the targeted
-  gate's `-m ""` so integration-marked tests in the set still run.
+- Integration tests are excluded from the default interactive run by
+  `addopts = "-m 'not integration'"`. Keep the gate's `-m ""` so
+  integration-marked tests among the selected files still run (PAD-18-011).
 - Treat all failures as branch-owned by default; clean-base proof is required before
   classifying as pre-existing.
-- **Never re-run the test suite to get more output.** Full pytest output is
-  written to `"$log"` (or `"$logs-unit.log"` /
-  `"$logs-integration.log"` when both suites run, `"$logs-gate.log"`
-  for the targeted gate). Read or grep those files instead.
+- **Never re-run the gate to get more output.** Full pytest output is written
+  to `"$logs-gate.log"`. Read or grep that file instead.
