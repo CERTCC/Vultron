@@ -270,6 +270,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0177 A Requirement a Statement Cites With No Relationship Is Listed in `see_also`, With a Reason](0177-a-cited-requirement-with-no-relationship-is-listed-in-see-also.md) *(provisional)*
 - [ADR-0180 The Case Owner Adds an Embargo to the Case, and Each Owner Decision Points at the Proposal It Answers](0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md) *(revision 2)* *(provisional)* — partially supersedes 0122-per-embargo-participant-consent.md
 - [ADR-0181 Wire Artifacts Publish Under the Versioned Namespace, and Type Schemas Are Informative](0181-wire-artifacts-publish-under-the-versioned-namespace-and-type-schemas-are-informative.md) *(provisional)*
+- [ADR-0184 A CSAF Document Travels as a Report Attachment and Speaks for the Sender Only at the First Report](0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md) *(provisional)*
 
 ## Proposed ADRs
 

@@ -192,6 +192,7 @@ adr/0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-po
 adr/0181-wire-artifacts-publish-under-the-versioned-namespace-and-type-schemas-are-informative.md
 adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md
 adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md
+adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
@@ -626,6 +627,8 @@ reference/user_stories/story_2026_095.md
 reference/user_stories/story_2026_096.md
 reference/user_stories/story_2026_097.md
 reference/user_stories/story_2026_098.md
+reference/user_stories/story_2026_099.md
+reference/user_stories/story_2026_100.md
 reference/user_stories/table.md
 reference/user_stories/traceability.md
 reference/versioning.md
