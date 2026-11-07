@@ -86,8 +86,8 @@ stop one agent running both at once, so still run them in turn.
 ## Run Every Heavy Local Check Through the Per-Host Lock
 
 A command that starts many processes or uses much memory runs through
-`uv run python .agents/skills/shared/run-heavy.py`: `pytest -n auto`, `pyright`,
-the site build and `merged-tree-tests`. Every slot container on a host shares
+`uv run python .agents/skills/shared/run-heavy.py`: `pytest -n auto`,
+`pyright` and the site build. Every slot container on a host shares
 one Docker VM, and each such command sizes itself to its own container without
 seeing the others, so concurrent runs end in memory kills and per-test timeouts
 (#5947). The 6-CPU slot cap is a ceiling, not a reserved share (ADR-0143); the
