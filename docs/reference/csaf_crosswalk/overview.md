@@ -66,7 +66,7 @@ A CSAF document can relate to a Vultron case in three ways:
 | Relation | In Vultron |
 |---|---|
 | [A CSAF document replaces the case](#a-csaf-document-does-not-replace-the-case) | Not used. |
-| [A CSAF document travels inside the case](#a-csaf-document-can-travel-inside-a-case) | Used today. A report can carry a CSAF document, and a participant can read it and use it. The participant reads the content as claims by the sender, and the content changes the case only through Vultron's own activities. |
+| [A CSAF document travels inside the case](#a-csaf-document-can-travel-inside-a-case) | Specified, not yet built. A report carries a CSAF document as an attachment. When the report is first offered, the receiver can fill the inputs of the new case from it, and a CSAF document that arrives later changes no case data. |
 | [The case produces a CSAF document](#a-case-can-produce-a-csaf-document) | Planned. |
 
 ### A CSAF document does not replace the case
@@ -88,21 +88,23 @@ Vultron becomes necessary when more parties, an embargo, or a disagreement make 
 
 ### A CSAF document can travel inside a case
 
-A participant can send a CSAF document as the content of a Vultron report, for example `Offer(VulnerabilityReport)` with the CSAF document in `content`.
+A participant can send a CSAF document as an attachment of a Vultron report.
+The document is a `Document` in the `attachment` of the `VulnerabilityReport` in `Offer(VulnerabilityReport)`, with the media type `application/json`.
+The report keeps its own text in `content`, and it can carry other files beside the CSAF document.
 The CSAF 2.1 [Vulnerability Report profile](https://github.com/oasis-tcs/csaf/blob/29b1e27aa126b820cbd6eee1830ca27ef02793d1/csaf_2.1/prose/edit/src/profiles.md){:target="_blank"} is made for this use.
 That profile "SHALL be used to exchange a vulnerability report during the Coordinated Vulnerability Disclosure (CVD) process", and its Traffic Light Protocol (TLP) label SHOULD be `TLP:AMBER`.
 
-Some fields of such a document describe the process, for example `involvement`, `disclosure_date`, the TLP label, and the Stakeholder-Specific Vulnerability Categorization (SSVC) exploitation value.
-This crosswalk proposes three rules for those fields:
+Some fields of such a document describe the process, for example `disclosure_date` and the Stakeholder-Specific Vulnerability Categorization (SSVC) exploitation value.
+[ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md) and the [CSAF requirements](../vultron-spec/requirements/messages.md) give four rules for such a document:
 
-1. A receiving participant SHOULD read these fields as claims by the sender.
-2. A receiving participant MUST NOT change the case state from the document content, except through Vultron's own activities.
-3. A receiving participant MAY make the change from a claim to an activity automatic.
+1. The receiver reads the document as the statement of the sender only when it arrives with the first offer of a report, before a case exists for the report, and only when its category is `csaf_vulnerability_report`.
+2. A value in a Vultron field of the offer or the report counts before the value for the same thing in the CSAF document.
+3. A CSAF document that arrives at any other time changes no case data, because it can be a projection or a draft advisory that describes the case.
+4. The receiver does not refuse a report because of its CSAF document.
 
-For example, a `disclosure_date` in a received report can cause an embargo proposal with that date.
+For example, a future `disclosure_date` in the first report becomes the proposed end of the embargo when the offer proposes none.
 The proposal then goes through the normal embargo process, and the case ledger records the result.
-These rules are proposals for Vultron, not current requirements.
-The [concept mapping](concept_mapping.md#content-objects) gives them as "Vultron could" rows, and issue [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} tracks them.
+Issue [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} planned these rules, and Epic [#5911](https://github.com/CERTCC/Vultron/issues/5911){:target="_blank"} tracks their implementation.
 
 ### A case can produce a CSAF document
 
@@ -209,7 +211,7 @@ The links go to the detailed rows.
 <tr markdown="1">
 <td markdown="span">[Content objects](concept_mapping.md#content-objects)</td>
 <td markdown="span">Close</td>
-<td markdown="span">Vultron could add vulnerability records to the case, with CSAF or Common Vulnerabilities and Exposures (CVE) content. Vultron could read process fields in a received CSAF document as claims. See [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} and [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"}.</td>
+<td markdown="span">Vultron could add vulnerability records to the case, with CSAF or Common Vulnerabilities and Exposures (CVE) content. Vultron reads the fields of a CSAF document that arrives with the first offer of a report ([ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)). See [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} and [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"}.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[Distribution and tracking](concept_mapping.md#distribution-and-tracking)</td>
