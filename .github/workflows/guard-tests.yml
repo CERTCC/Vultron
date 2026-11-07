@@ -79,6 +79,7 @@ jobs:
           test/metadata/test_agents_md_size_ratchet.py
           test/metadata/test_adr_back_edges.py
           test/metadata/test_gate_ceiling.py
+          test/metadata/test_draft_pr_wiring.py
           test/metadata/test_no_decision_record_part_citations.py
           test/metadata/test_msm_occasions.py
           test/metadata/docs/test_page_frontmatter.py

@@ -37,7 +37,7 @@ _EXCLUSION_KEY = "guard-tests.yml::guard-tests::Run the guard tests"
 
 #: How many tests the job runs. A fixed floor, not `len()` of the list below:
 #: a floor derived from the thing it guards shrinks with it (#5535).
-_GUARD_TEST_COUNT = 13
+_GUARD_TEST_COUNT = 14
 
 #: Guards with an input that **no** CI job running pytest reaches, so each is a
 #: reason this job exists rather than an incidental member. Derived against two
@@ -61,6 +61,10 @@ _INPUTS_NO_SUITE_REACHES = (
     # Reads `.agents/skills/**/*.md` and `notes/*.md`; the pytest workflows
     # list only `.agents/**/*.py` and `.agents/**/*.sh`.
     "test/metadata/test_gate_ceiling.py",
+    # Reads four skills' `SKILL.md` and `REFERENCE.md` and nothing else, so
+    # the pull request most likely to break it — one that edits only those
+    # files — is exactly the one no pytest workflow starts on (#5948).
+    "test/metadata/test_draft_pr_wiring.py",
     # Reads `docs/adr/`, which no pytest workflow lists; `adr-lifecycle.yml`
     # triggers on it and runs no pytest.
     "test/metadata/test_adr_back_edges.py",
