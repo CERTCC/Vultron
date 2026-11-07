@@ -119,7 +119,16 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 **After a teardown.**
 The termination's own ledger entry, fanned out as `Announce(CaseLedgerEntry)`, records the end.
-The CASE_MANAGER then sends `Announce(EmbargoEvent)` to every other active participant, and a direct `Remove(EmbargoEvent)` notice to each signatory the ledger fan-out does not reach.
+The activity that tells the other participants depends on which actor started the teardown:
+
+- **A received `Remove(EmbargoEvent)`.** The Case Owner sends the CASE_MANAGER a `Remove(EmbargoEvent)` before the embargo's end time.
+  The CASE_MANAGER tears the embargo down and then sends `Announce(EmbargoEvent)` to every other active participant.
+- **A teardown the CASE_MANAGER starts.** The CASE_MANAGER ends the embargo itself, by its own decision, at the end time, or in the P/X/A cascade of [§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate).
+  Its own `Remove(EmbargoEvent)` is then the notice, and it sends that activity to every other active participant.
+  No `Announce(EmbargoEvent)` follows it.
+
+When the teardown comes before the embargo's end time, on either path, the CASE_MANAGER also sends a direct `Remove(EmbargoEvent)` notice to each signatory the ledger fan-out does not reach.
+A teardown at the end time sends no such notice, because every signatory already knows the end time.
 No message is sent for consent, because none is written.
 
 ```python exec="true" idprefix=""
