@@ -711,8 +711,13 @@ def test_an_ending_notice_carries_no_other_case_content(
         assert body["to"] == [recipient]
         assert not body.get("cc") and not body.get("bto")
         assert _as_id(body["object"]) == embargo_id
+        # The proof is the sender's signature, not carried case content.
         carried = _typed_objects(
-            {key: value for key, value in body.items() if key != "type"}
+            {
+                key: value
+                for key, value in body.items()
+                if key not in ("type", "proof")
+            }
         )
         assert carried == ["EmbargoEvent"], carried
         assert not _CASE_CONTENT_TYPES & set(carried)

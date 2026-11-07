@@ -12,20 +12,47 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Every agent gate command and the CI test job run under a wall-clock ceiling.
+"""The rules over the commands written for agents, and over the CI test job.
 
 A per-test ``signal`` timeout cannot reach a C call that holds the GIL or a
 stuck xdist controller, so the outer ceiling is the only thing that ends such
 a run (TB-14-005, #4809).  The printed ``targeted-tests --pytest`` command is
 pinned in ``test_targeted_tests.py``; this module pins the written commands
 an agent copies and the CI test job, and the ``timeout-minutes`` cap on every
-job in every workflow (TB-14-006).
+job in every workflow (TB-14-006).  A heavy command queues on the per-host
+lock (#5947).  No command runs a test on a merge in a checkout the agent does
+not commit, which is where a scratch merge has to live (PAD-18-024), and the
+conflict check that replaced one asks git for a trial merge (PAD-18-025).
+
+Loose readings here, with the direction each is loose in, because a docstring
+that claims one-sidedness for all of them stops anyone looking
+(``notes/architecture-ratchet-corpus.md``):
+
+- ``_BUILDS_A_CHECKOUT`` matches ``worktree add``, the way such a checkout is
+  built, rather than the test run that is the act itself.  It **misses** one
+  built another way -- a clone, or ``git worktree`` split over a backslash
+  continuation -- and one in a shell script outside
+  :func:`_scratch_checkout_corpus` (``.github/scripts``, the repository root,
+  ``.devcontainer``) or in a module outside :func:`_tooling_modules`.
+  Markdown prose and inline code are missed on purpose: reading them would
+  **invent** a violation out of a sentence forbidding one.  It can still
+  invent from a Python docstring, or from a shell line that only prints the
+  command, both of which read as runnable here.
+- ``_RUNS_A_TEST`` and ``_REWRITES_THE_WORKTREE`` match command names, so they
+  miss a test run or a merge reached through a wrapper this module does not
+  name.  No agent-facing file holds such a wrapper today.
+
+It also pins which tools those commands may run: a heavy one queues on the
+per-host lock (#5947), and pyright does not run locally at all, because CI
+owns it (PAD-18-026, PAD-18-027).
 
 Human developer how-to pages under ``docs/developer/`` are out of scope: stock
 macOS has no ``timeout`` binary.
 """
 
+import ast
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -39,16 +66,19 @@ _REPO_ROOT = Path(__file__).parents[2]
 
 _CEILING = " ".join(GATE_CEILING)
 
-# Files an agent reads for the gate command to run.
+# Files an agent reads for the gate command to run. `**/AGENTS.md` rather than
+# one glob per path depth: four hand-rolled levels left ten nested AGENTS.md
+# files scanned by nothing. The skills' scripts and the Makefile count too —
+# each is somewhere a gate command does live.
 _AGENT_GLOBS = (
-    "AGENTS.md",
-    "*/AGENTS.md",
-    "*/*/AGENTS.md",
-    "*/*/*/AGENTS.md",
+    "**/AGENTS.md",
     ".agents/skills/**/*.md",
+    ".agents/skills/**/*.sh",
+    ".agents/skills/**/*.py",
     ".github/copilot-instructions.md",
     "docs/reference/codebase/*.md",
     "notes/*.md",
+    "Makefile",
 )
 
 _EXCLUDED_PARTS = (".git", "plan", "node_modules", ".venv", "wip_notes")
@@ -89,10 +119,17 @@ def test_discovery_finds_the_gate_bearing_files() -> None:
     assert {
         "AGENTS.md",
         "test/AGENTS.md",
+        # Four levels deep: `**/AGENTS.md` reaches it, a per-depth glob list
+        # stopped short of it.
+        "vultron/core/behaviors/case/nodes/participant/AGENTS.md",
         ".agents/skills/run-tests/SKILL.md",
+        # A gate command lives in a skill's scripts as much as in its prose.
+        ".agents/skills/shared/run-if-changed.sh",
+        ".agents/skills/shared/run-heavy.py",
         ".github/copilot-instructions.md",
         "docs/reference/codebase/TESTING.md",
         "notes/testing-pitfalls.md",
+        "Makefile",
     } <= found
 
 
@@ -121,7 +158,7 @@ _LOCKED_PREFIX = f"{_LOCK} {_CEILING} "
 #: A heavy command on a line of a skill's code: one that starts many processes
 #: or uses much memory.
 _HEAVY_COMMAND = re.compile(
-    r"uv run pyright|mkdocs build|mkdocs-build-strict\.sh|merged-tree-tests"
+    r"uv run pyright|mkdocs build|mkdocs-build-strict\.sh"
 )
 
 
@@ -193,7 +230,7 @@ def test_detector_reads_only_the_code_an_agent_runs() -> None:
             "```bash",
             '"$G" pyright vultron/ -- uv run pyright',
             f'"$G" pyright vultron/ -- {_LOCK} uv run pyright',
-            f"{_LOCK} timeout -k 30 1800 uv run merged-tree-tests",
+            f"{_LOCKED_PREFIX}.github/scripts/mkdocs-build-strict.sh",
             "```",
             "uv run pyright",
         ]
@@ -224,21 +261,38 @@ def _skill_files() -> list[Path]:
     return sorted((_REPO_ROOT / ".agents" / "skills").glob("**/*.md"))
 
 
+#: The skills that still write a heavy command, so the scan below has a
+#: subject. `run-linters` left when PAD-18-027 made pyright CI's, and
+#: `pr-execute` when PAD-18-024 dropped the scratch-merge test run: between
+#: them those two removals took every heavy command that skill had. Only
+#: `build-docs` is left, and a scan over an empty set would pass having read
+#: nothing (#5535), which is what the arm below exists to refuse.
+#: Annotated `tuple[str, ...]` on purpose. Left to inference this is a
+#: `tuple[Literal[...]]` of known length, so a type checker folds the guard
+#: below into a constant and reports it as an assert that cannot fire
+#: (pyright `reportAssertAlwaysTrue`). Widening the declared type keeps the
+#: guard's runtime meaning exactly: empty the tuple and it still fires.
+_SKILLS_WITH_HEAVY_COMMANDS: tuple[str, ...] = (
+    ".agents/skills/build-docs/SKILL.md",
+)
+
+
 def test_discovery_finds_the_skills_with_heavy_commands() -> None:
     found = {str(p.relative_to(_REPO_ROOT)) for p in _skill_files()}
-    assert {
-        ".agents/skills/build-docs/SKILL.md",
-        ".agents/skills/run-linters/SKILL.md",
-        ".agents/skills/pr-execute/SKILL.md",
-    } <= found
+
+    assert _SKILLS_WITH_HEAVY_COMMANDS, (
+        "No skill writes a heavy command, so the scan below has no subject. "
+        "Delete it and `_HEAVY_COMMAND` with it, or restore the entry."
+    )
+    assert set(_SKILLS_WITH_HEAVY_COMMANDS) <= found
 
 
-@pytest.mark.parametrize("skill", ["build-docs", "run-linters", "pr-execute"])
+@pytest.mark.parametrize("rel_path", _SKILLS_WITH_HEAVY_COMMANDS)
 def test_the_heavy_command_scan_sees_each_skills_heavy_commands(
-    skill: str,
+    rel_path: str,
 ) -> None:
     # A code form _code_lines missed would pass the scan having read nothing.
-    text = (_REPO_ROOT / ".agents/skills" / skill / "SKILL.md").read_text()
+    text = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
     assert any(_HEAVY_COMMAND.search(line) for line in _code_lines(text))
 
 
@@ -255,6 +309,503 @@ def test_skill_heavy_command_queues_on_the_heavy_check_lock(
     assert not unlocked, (
         f"{rel_path} runs heavy command(s) outside `{_LOCK}` "
         "(#5947):\n" + "\n".join(f"  {line}" for line in unlocked)
+    )
+
+
+# --- The local linter step: ruff and mypy, never pyright (PAD-18-026/027) ---
+
+#: The tool named in a command, however it is launched. Keyed on the tool, not
+#: on one launcher: a pattern matching only `uv run pyright` would miss
+#: `uvx pyright`, `-m pyright`, a `make` recipe's bare `pyright`, and the
+#: escaped `\"$G\" pyright` a skill's YAML `commands:` key has to write (#5535).
+#:
+#: The boundaries carry the near misses, and they split by character class
+#: rather than by "is this punctuation". Before the name, a word character or
+#: a hyphen means it is part of a longer name — `lint-pyright`, `_pyright`,
+#: `mypyright` — so neither may precede it; a `/` or `.` may, because that is
+#: how a path *invokes* it (`/usr/local/bin/pyright`, `./pyright`). After the
+#: name, a word character, a colon, a `/` or a `.` means the token keeps
+#: going, so it is a longer name, a pragma or a path *to* something called
+#: pyright, never a call: `pyrightconfig.json`, `# pyright: ignore[...]`,
+#: `docs/pyright.md`, `tools/pyright/`. Each of those eight forms has its own
+#: control in `test_detector_tells_a_pyright_call_from_a_mention`.
+_PYRIGHT_TOOL = re.compile(r"(?<![\w-])pyright(?![\w:./])")
+
+#: The copy-pasteable form, wherever it is written: prose that spells a command
+#: out is prose an agent copies from, fence or no fence.
+_PYRIGHT_LAUNCHED = re.compile(
+    r"(?:uv run|uvx|uv tool run)\s+(?:[-\w./]+\s+)*?pyright(?![\w:])"
+)
+
+
+def _uncommented(line: str) -> str:
+    """*line* up to its `#`: a comment inside a fence names the tool, never runs it."""
+    return line.split("#", 1)[0]
+
+
+def _python_code_lines(text: str) -> list[str]:
+    """*text*'s lines, less its docstrings.
+
+    A module that names the tool in its own prose does not run it, the same
+    allowance Markdown prose gets. A ``["pyright"]`` argv is *not* excluded:
+    only a docstring is, never every string literal.
+    """
+    lines = text.splitlines()
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:  # pragma: no cover - the corpus parses
+        return lines
+    prose: set[int] = set()
+    holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    for node in ast.walk(tree):
+        if not isinstance(node, holders) or not node.body:
+            continue
+        first = node.body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+            and first.end_lineno is not None
+        ):
+            prose.update(range(first.lineno, first.end_lineno + 1))
+    return [line for n, line in enumerate(lines, 1) if n not in prose]
+
+
+def _executable_lines(text: str, suffix: str) -> list[str]:
+    """The lines of *text* an agent runs, by what kind of file it is.
+
+    A Markdown file's code is its fences and its frontmatter ``commands:``
+    key. A file that is *not* Markdown — a skill's ``.sh`` or ``.py``, the
+    ``Makefile`` — is code throughout, bar a Python docstring. Asking
+    ``_code_lines`` for those returned nothing, which left the
+    launcher-agnostic half of the pyright detector dead on all 32 of them,
+    including the ``make`` recipe its own comment names (#3156, #5535).
+    """
+    if suffix == ".md":
+        return _code_lines(text)
+    if suffix == ".py":
+        return _python_code_lines(text)
+    return text.splitlines()
+
+
+def _pyright_calls(text: str, *, suffix: str = ".md") -> list[str]:
+    """Lines of *text* that call pyright: any launcher in code, spelled out anywhere."""
+    code = set(_executable_lines(text, suffix))
+    return [
+        line.strip()
+        for line in text.splitlines()
+        if _PYRIGHT_LAUNCHED.search(_uncommented(line))
+        or (line in code and _PYRIGHT_TOOL.search(_uncommented(line)))
+    ]
+
+
+def test_detector_tells_a_pyright_call_from_a_mention() -> None:
+    fenced = "\n".join(["```bash", "%s", "```"])
+    for command in (
+        "uv run pyright",
+        "uv run python .agents/skills/shared/run-heavy.py uv run pyright",
+        '"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright',
+        "uvx pyright",
+        "uv tool run pyright",
+    ):
+        assert _pyright_calls(command), f"missed outside a fence: {command}"
+    # Launchers that need the code-line scan: no `uv run` to key on.
+    for command in (
+        "pyright vultron/ test/",
+        "\tpyright",
+        "python -m pyright",
+    ):
+        assert _pyright_calls(fenced % command), (
+            f"missed in a fence: {command}"
+        )
+    # The YAML `commands:` key a skill's harness runs, escaped quotes and all.
+    frontmatter = '---\ncommands:\n  - "\\"$G\\" pyright vultron/ -- uv run pyright"\n---\n'
+    assert _pyright_calls(frontmatter), "missed the commands: key"
+    for prose in (
+        "pyright runs in CI only (PAD-18-027)",
+        "read its findings off CI's `Lint (pyright)` job",
+        "a stranded `# pyright: ignore[...]`",
+        "pyrightconfig.json is an input of CI's pyright job",
+        "CI's `lint-pyright` job owns it",
+        # A comment inside a fence names the tool; it does not run it.
+        fenced % "# pyright is the second pass, and runs in CI",
+        fenced % "uv run mypy  # not pyright: that is CI's",
+    ):
+        assert not _pyright_calls(prose), f"flagged prose: {prose}"
+    # `_PYRIGHT_TOOL`'s own boundaries, exercised *in the code set* so that
+    # pattern is the thing under test. The prose cases above never reach it:
+    # prose is not a code line, and the two fenced ones are `#` comments that
+    # `_uncommented` strips, so every one of them held with `_PYRIGHT_TOOL`
+    # broadened to a bare `pyright` — they guard `_PYRIGHT_LAUNCHED` alone.
+    # Both arms below run in a fence and in a script, the two ways a line
+    # reaches the code set.
+    for call in (
+        "/usr/local/bin/pyright vultron/",  # a path that invokes it
+        "./pyright vultron/",
+        "./pyright",  # no arguments, so nothing follows the name
+    ):
+        assert _pyright_calls(fenced % call), f"missed a path call: {call}"
+        assert _pyright_calls(call, suffix=".sh"), (
+            f"missed a path call in a script: {call}"
+        )
+    for boundary in (
+        "cp pyrightconfig.json /tmp/",  # a word character follows
+        "pyright: ignore",  # a colon follows
+        "cat docs/pyright.md",  # a path *to* a file so named: a dot follows
+        "ls tools/pyright/",  # a directory so named: a slash follows
+        "gh run view --job lint-pyright",  # a hyphen precedes
+        "x = _pyright",  # an underscore precedes
+        "echo mypyright",  # a word character precedes
+    ):
+        assert not _pyright_calls(fenced % boundary), (
+            f"flagged a near miss in a fence: {boundary}"
+        )
+        assert not _pyright_calls(boundary, suffix=".sh"), (
+            f"flagged a near miss in a script: {boundary}"
+        )
+
+
+def test_detector_reads_a_non_markdown_file_as_code_throughout() -> None:
+    """A `.sh`, a `.py` and the `Makefile` have no fence to look inside.
+
+    32 of the corpus's 260 files are one of those three, and asking
+    ``_code_lines`` for their code returned nothing — so every launcher but
+    ``uv run``/``uvx``/``uv tool run`` went unseen there, including the
+    ``make`` recipe ``_PYRIGHT_TOOL``'s own comment names (#3156).
+    """
+    for suffix, script in (
+        ("", "pyright:\n\tpyright vultron/ test/\n"),  # a Makefile recipe
+        (".sh", "#!/bin/bash\npyright vultron/\n"),
+        (".sh", "#!/bin/bash\nnpx pyright\n"),
+        (".sh", "python -m pyright\n"),
+        (".py", 'subprocess.run(["pyright", "vultron/"], check=True)\n'),
+    ):
+        assert _pyright_calls(script, suffix=suffix), (
+            f"missed in a {suffix or 'Makefile'}: {script!r}"
+        )
+    # The same text read as Markdown is prose, and must not be flagged there.
+    assert not _pyright_calls("pyright:\n\tpyright vultron/ test/\n")
+    # A comment names the tool, and so does a module's own docstring; neither
+    # runs it. A docstring is the only string a `.py` read excludes.
+    for suffix, benign in (
+        ("", "# No pyright target: CI's Lint (pyright) job owns pyright.\n"),
+        (".sh", "#!/bin/bash\nuv run mypy  # pyright is CI's\n"),
+        (".py", '"""Sizes a pyright run or a site build."""\nx = 1\n'),
+        (".py", 'def f():\n    """pyright is CI\'s."""\n    return 1\n'),
+    ):
+        assert not _pyright_calls(benign, suffix=suffix), (
+            f"flagged a mention in a {suffix or 'Makefile'}: {benign!r}"
+        )
+
+
+@pytest.mark.spec("PAD-18-027")
+@pytest.mark.parametrize(
+    "rel_path",
+    [str(p.relative_to(_REPO_ROOT)) for p in _agent_files()],
+)
+def test_no_local_gate_runs_pyright(rel_path: str) -> None:
+    """CI's `lint-pyright` job owns pyright; no local gate may run it.
+
+    It took a median of two minutes in each local linter step and enough
+    memory to starve a parallel test run, and the required `CI gate` refuses
+    a merge until CI's job is green (PAD-18-027, #3156).
+
+    The bar is the written command, not the word: an agent-instruction file
+    that spells a pyright call out is a file an agent copies from, whatever the
+    surrounding prose says, and inside a code line any launcher counts. Prose
+    that names CI as pyright's owner is the wording this project wants, so it
+    passes. A developer how-to under ``docs/developer/`` may spell the command
+    for a by-hand run, and is out of this module's scope.
+    """
+    path = _REPO_ROOT / rel_path
+    found = _pyright_calls(
+        path.read_text(encoding="utf-8"), suffix=path.suffix
+    )
+    assert not found, (
+        f"{rel_path} runs pyright locally (PAD-18-027):\n"
+        + "\n".join(f"  {line}" for line in found)
+    )
+
+
+@pytest.mark.spec("PAD-18-026")
+def test_the_linter_skill_runs_ruff_and_mypy() -> None:
+    # The other half of the rule: dropping pyright must not leave the step
+    # with nothing, which `test_no_local_gate_runs_pyright` alone would pass.
+    code = "\n".join(
+        _code_lines(
+            (_REPO_ROOT / ".agents/skills/run-linters/SKILL.md").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+
+    assert "uv run ruff check" in code
+    assert "uv run ruff format" in code
+    assert "uv run mypy" in code
+
+
+# --- No test run on a scratch merge (PAD-18-024) ----------------------------
+
+#: A pinned exemption set, not a ratchet: every throwaway checkout an agent is
+#: told to make, with why it is allowed, so an entry is not read as open debt
+#: (ARCH-18-005). `work-epic-tasks` step 4 reads a pushed PR's head when the
+#: PR's own worktree is gone. What it may not do there is run a test on a
+#: merge, which :func:`test_a_declared_scratch_checkout_runs_no_test` checks
+#: rather than take on trust (PAD-18-009, PAD-18-024).
+# permanent: PAD-18-009 — the merger has to read the head it is about to
+# merge, so this checkout never retires.
+_SCRATCH_CHECKOUT_EXEMPTIONS = {
+    ".agents/skills/work-epic-tasks/SKILL.md": [
+        "git fetch origin <head_ref> && git worktree add --detach "
+        "/tmp/wt-<issue> FETCH_HEAD",
+    ],
+}
+
+#: A line that runs tests. `targeted-tests` is absent on purpose: it selects
+#: and prints, and PAD-18-025's own verification rests on it running none.
+_RUNS_A_TEST = re.compile(r"\bpytest\b|\beval \"\$gate\"")
+
+#: A merge that writes a worktree, as `git merge-tree` does not (PAD-18-025).
+_REWRITES_THE_WORKTREE = re.compile(r"\bgit merge\b(?!-tree)")
+
+#: ``worktree add``, however it is spelled: a shell command, or the argv items
+#: of a :mod:`subprocess` call, where the two words are separate strings. The
+#: deleted runner used the second form (``merged_tree.py`` on the base), so a
+#: matcher that read only the first would not see it come back.
+_BUILDS_A_CHECKOUT = re.compile(r"\bworktree\b[\s,\"']+add\b")
+
+
+def _scratch_checkout_corpus() -> list[Path]:
+    """Where the command arms look: the agent docs, plus the scripts they call.
+
+    ``sync-decision.sh`` holds one of the two conflict checks PAD-18-025
+    constrains, so a shell script is as much a place an agent builds a
+    checkout as a skill's fenced command is. A checkout built by the tooling
+    rather than by a written command is asked about separately, by
+    :func:`test_no_tooling_module_builds_a_checkout`.
+    """
+    return _agent_files() + sorted(
+        (_REPO_ROOT / ".agents" / "skills").glob("**/*.sh")
+    )
+
+
+def _tooling_modules() -> list[Path]:
+    """Every module behind a console script an agent runs.
+
+    ``vultron/metadata/`` is where they all live
+    (``vultron/metadata/AGENTS.md``), which is where the runner this arm
+    replaced kept its scratch worktree.
+    """
+    return sorted((_REPO_ROOT / "vultron" / "metadata").glob("**/*.py"))
+
+
+def _runnable_lines(path: Path) -> list[str]:
+    """The lines of *path* an agent runs: a script's or module's statements,
+    or a Markdown file's frontmatter ``commands:`` and fenced blocks."""
+    text = path.read_text(encoding="utf-8")
+    if path.suffix in {".sh", ".py"}:
+        return [
+            line
+            for line in text.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    return _code_lines(text)
+
+
+def _command_blocks(path: Path) -> list[list[str]]:
+    """The runnable lines of *path*, grouped as an agent meets them.
+
+    One group per fenced block in Markdown, so a line can be read against the
+    others it runs beside; a script or module is one group.
+    """
+    text = path.read_text(encoding="utf-8")
+    if path.suffix in {".sh", ".py"}:
+        return [_runnable_lines(path)]
+    blocks: list[list[str]] = []
+    fenced = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            if fenced:
+                blocks.append([])
+        elif fenced:
+            blocks[-1].append(line)
+    return [block for block in blocks if block]
+
+
+def _scratch_checkouts(lines: Iterable[str]) -> list[str]:
+    """The given lines that build a checkout nothing commits to.
+
+    Keyed on ``worktree add``, the way one is built, rather than on the name
+    of any runner, so a runner re-added under a new name is still caught. See
+    this module's docstring for what the reading misses and where it can
+    invent.
+    """
+    return [line.strip() for line in lines if _BUILDS_A_CHECKOUT.search(line)]
+
+
+def test_detector_reads_a_scratch_checkout_only_from_runnable_code(
+    tmp_path: Path,
+) -> None:
+    line = "git worktree add --detach /tmp/x HEAD"
+    doc = tmp_path / "SKILL.md"
+    doc.write_text(f"Never run `{line}`.\n\n```bash\n{line}\n```\n")
+    script = tmp_path / "s.sh"
+    script.write_text(f"# never: {line}\n{line}\n")
+
+    assert _scratch_checkouts(_runnable_lines(doc)) == [line]
+    assert _scratch_checkouts(_runnable_lines(script)) == [line]
+
+
+def test_detector_reads_a_test_run_beside_the_checkout_that_holds_it(
+    tmp_path: Path,
+) -> None:
+    doc = tmp_path / "SKILL.md"
+    doc.write_text(
+        "```bash\ngit worktree add --detach /tmp/x HEAD\n```\n\n"
+        "```bash\nuv run pytest -n auto\n```\n"
+    )
+
+    blocks = [b for b in _command_blocks(doc) if _scratch_checkouts(b)]
+
+    # One block per fence, so a test run in a *different* block is not read
+    # as running in the checkout.
+    assert blocks == [["git worktree add --detach /tmp/x HEAD"]]
+    assert not [ln for ln in blocks[0] if _RUNS_A_TEST.search(ln)]
+    assert _RUNS_A_TEST.search("uv run pytest -n auto")
+    assert not _RUNS_A_TEST.search("uv run targeted-tests --overlap")
+    assert _REWRITES_THE_WORKTREE.search("git merge origin/main --no-commit")
+    assert not _REWRITES_THE_WORKTREE.search("git merge-tree --write-tree")
+
+
+def test_the_scratch_checkout_corpus_holds_every_shape() -> None:
+    found = {
+        str(p.relative_to(_REPO_ROOT)) for p in _scratch_checkout_corpus()
+    }
+    tooling = {str(p.relative_to(_REPO_ROOT)) for p in _tooling_modules()}
+
+    assert {
+        ".agents/skills/work-epic-tasks/SKILL.md",
+        ".agents/skills/shared/sync-decision.sh",
+    } <= found
+    assert {
+        "vultron/metadata/planning/ci_mirror/_run.py",
+        "vultron/metadata/planning/targeted_tests/selection.py",
+    } <= tooling
+
+
+def test_detector_reads_a_checkout_from_either_spelling() -> None:
+    # The deleted runner passed argv items, so the two words were separate
+    # strings on separate lines; a written command has them adjacent.
+    assert _BUILDS_A_CHECKOUT.search("git worktree add --detach /tmp/x HEAD")
+    assert _BUILDS_A_CHECKOUT.search("git worktree  add --detach /tmp/x HEAD")
+    assert _BUILDS_A_CHECKOUT.search('"worktree",\n            "add",')
+    assert not _BUILDS_A_CHECKOUT.search("git worktree remove --force /tmp/x")
+    assert not _BUILDS_A_CHECKOUT.search("adds a detached scratch worktree")
+
+
+@pytest.mark.spec("PAD-18-024")
+def test_no_tooling_module_builds_a_checkout() -> None:
+    """No console script an agent runs builds a checkout of its own.
+
+    The deleted runner built one here rather than in a written command, so a
+    guard that read only the skills would not see it come back. Read over the
+    whole module, because the argv items can sit on separate lines.
+    """
+    offenders = {}
+    for path in _tooling_modules():
+        joined = "\n".join(_runnable_lines(path))
+        if hits := _BUILDS_A_CHECKOUT.findall(joined):
+            offenders[str(path.relative_to(_REPO_ROOT))] = len(hits)
+
+    assert offenders == {}, (
+        "A module behind a console script builds a checkout the agent does "
+        "not commit. Running tests on a merge in one is what PAD-18-024 "
+        "forbids, and CI tests that merge on every push. Use "
+        "`git merge-tree` for a conflict check (PAD-18-025).\n"
+        f"  found: {offenders}"
+    )
+
+
+@pytest.mark.spec("PAD-18-024")
+def test_only_a_declared_agent_command_builds_a_scratch_checkout() -> None:
+    found = {
+        str(path.relative_to(_REPO_ROOT)): lines
+        for path in _scratch_checkout_corpus()
+        if (lines := _scratch_checkouts(_runnable_lines(path)))
+    }
+
+    assert found == _SCRATCH_CHECKOUT_EXEMPTIONS, (
+        "An agent is told to build a checkout it does not commit. A test run "
+        "in one is a scratch-merge run, which PAD-18-024 forbids: CI tests "
+        "the merge on every push. Add the command to "
+        "`_SCRATCH_CHECKOUT_EXEMPTIONS` with why it merges and tests nothing, "
+        f"or remove it.\n  found: {found}"
+    )
+
+
+@pytest.mark.spec("PAD-18-024")
+def test_a_declared_scratch_checkout_runs_no_test() -> None:
+    """Being declared exempt buys the checkout, never a test run in it.
+
+    The act PAD-18-024 forbids is the test run, so the exemption above is
+    conditional: each block that builds such a checkout is read for a test
+    run and for a merge that writes the worktree it was built in.
+    """
+    examined: list[str] = []
+    offenders: dict[str, list[str]] = {}
+    for path in _scratch_checkout_corpus():
+        rel = str(path.relative_to(_REPO_ROOT))
+        for block in _command_blocks(path):
+            if not _scratch_checkouts(block):
+                continue
+            examined.append(rel)
+            offenders.setdefault(rel, []).extend(
+                line.strip()
+                for line in block
+                if _RUNS_A_TEST.search(line)
+                or _REWRITES_THE_WORKTREE.search(line)
+            )
+
+    assert examined, (
+        "No block builds a checkout the agent does not commit, so this arm "
+        "has no subject. Either the declared exemption left "
+        "`_SCRATCH_CHECKOUT_EXEMPTIONS` — delete this arm with it — or the "
+        "detector stopped reading it."
+    )
+    assert not any(offenders.values()), (
+        "A checkout the agent does not commit runs a test, or takes a merge "
+        "that writes it. That is the scratch-merge run PAD-18-024 forbids: "
+        "CI tests the merge of the branch with its base on every push. Use "
+        "`git merge-tree` for a conflict check (PAD-18-025) and leave the "
+        f"testing to CI.\n  found: { {k: v for k, v in offenders.items() if v} }"
+    )
+
+
+@pytest.mark.spec("PAD-18-025")
+@pytest.mark.parametrize(
+    "rel_path",
+    [
+        ".agents/skills/shared/sync-decision.sh",
+        ".agents/skills/work-epic-tasks/SKILL.md",
+    ],
+)
+def test_the_conflict_check_is_a_trial_merge(rel_path: str) -> None:
+    # The compliant form that replaced the scratch merge, so this arm stays
+    # non-empty: both conflict checks ask git for a merge that writes no
+    # worktree and moves no branch. Read from the runnable lines, so a
+    # mention in a comment or in prose cannot stand in for the call.
+    lines = _runnable_lines(_REPO_ROOT / rel_path)
+
+    assert [line for line in lines if "git merge-tree" in line], (
+        f"{rel_path} runs no `git merge-tree`. A conflict check must use a "
+        "trial merge that moves no branch and writes no worktree "
+        "(PAD-18-025)."
+    )
+    assert not [
+        line.strip() for line in lines if _REWRITES_THE_WORKTREE.search(line)
+    ], (
+        f"{rel_path} checks for a conflict with a merge that writes the worktree."
     )
 
 

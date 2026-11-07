@@ -58,6 +58,18 @@ def conflict_http_exception(
     )
 
 
+def unsignable_http_exception(message: str) -> HTTPException:
+    """A 422 for a body the outbox's signer refuses (EH-05-001).
+
+    For the outbox POST only: the client must change the content, and the
+    server is not at fault.  Ingress answers an uncanonicalizable body as
+    #5386 decides, so :func:`translate_domain_errors` does not map it.
+    """
+    return _error_http_exception(
+        status.HTTP_422_UNPROCESSABLE_CONTENT, "ValidationError", message
+    )
+
+
 def translate_domain_errors(exc: Exception) -> HTTPException:
     """Convert a domain exception to an appropriate HTTPException."""
     if isinstance(exc, VultronNotFoundError):

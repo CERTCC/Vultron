@@ -134,4 +134,5 @@ Under this layout they would live at `ns/v1/schema/messages/`.
 Whether they are needed at all is an open Idea, #6065.
 The layout itself is built by #6064, after the wire-versioned context path (#3653).
 
-Generated spec requirements: `vocabulary-model.yaml` VM-10-006, VM-10-007.
+Generated spec requirements: `vocabulary-model.yaml` VM-10-006.
+The requirement for the versioned examples path, and the matching DEMOCI-02-021 path-filter change, land with the move itself in #6064, so the specs keep naming the path the examples occupy until then.

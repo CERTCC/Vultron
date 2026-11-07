@@ -1,9 +1,8 @@
-"""The push gates call the CI mirror, and the merged-tree run, before they push.
+"""The push gates call the CI mirror before they push.
 
 PAD-18-021: `create-pr` runs `prepush-ci-mirror` before its first push, and
-`pr-execute` before each push. PAD-18-024: `pr-execute` runs
-`merged-tree-tests` on an overlap verdict. A skill is prose, so these tests
-pin where the commands sit relative to the push step.
+`pr-execute` before each push. A skill is prose, so these tests pin where the
+command sits relative to the push step.
 """
 
 from __future__ import annotations
@@ -48,26 +47,13 @@ def test_pr_execute_runs_the_mirror_before_each_push():
     assert 'echo "exit: $rc"' in gate
 
 
-@pytest.mark.spec("PAD-18-024")
-def test_pr_execute_tests_the_merged_tree_on_an_overlap():
-    gate = _section(
-        _text("pr-execute"),
-        "#### Step 3 — Run the local gate",
-        "#### Step 4 — Push",
-    )
-    merged = _section(gate, "**Merged-tree tests", "**The CI mirror")
-
-    assert "`deferred`" in merged
-    assert "uv run merged-tree-tests --base <base_ref>" in merged
-    assert "git worktree remove" in merged
-
-
 @pytest.mark.spec("PAD-18-021")
 @pytest.mark.parametrize("skill", ["create-pr", "pr-execute"])
-def test_the_type_checkers_share_the_mirrors_memo(skill: str):
-    # The mirror runs mypy and pyright through run-if-changed.sh; a bare run
-    # just before it would leave no record and type-check the tree twice.
+def test_the_type_checker_shares_the_mirrors_memo(skill: str):
+    # The mirror runs mypy through run-if-changed.sh; a bare run just before
+    # it would leave no record and type-check the tree twice. pyright is no
+    # longer either one's business (PAD-18-027).
     text = _text(skill)
 
     assert "uv run ruff check && uv run mypy" not in text
-    assert '"$G" pyright vultron/ test/ pyrightconfig.json uv.lock' in text
+    assert '"$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy' in text

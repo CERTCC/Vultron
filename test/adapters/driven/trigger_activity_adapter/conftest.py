@@ -20,14 +20,26 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 
+#: The store's actor when a test module declares no ``STORE_OWNER``.
+DEFAULT_STORE_OWNER = "https://test.example/api/v2/actors/test-actor"
+
 
 @pytest.fixture
-def dl():
-    """In-memory SQLite DataLayer for adapter tests."""
-    _dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
+def store_owner(request: pytest.FixtureRequest) -> str:
+    """The actor whose store ``dl`` is, and so the only actor it signs for.
+
+    An outbox signs only its own actor's activities (SIG-05-004), so a test
+    sends as the store's owner.  A module sets ``STORE_OWNER``; a test that
+    sends as another actor overrides it with
+    ``@pytest.mark.parametrize("store_owner", [actor_id])``.
+    """
+    return getattr(request.module, "STORE_OWNER", DEFAULT_STORE_OWNER)
+
+
+@pytest.fixture
+def dl(store_owner: str):
+    """In-memory SQLite DataLayer for adapter tests, owned by *store_owner*."""
+    _dl = SqliteDataLayer("sqlite:///:memory:", actor_id=store_owner)
     yield _dl
     _dl.clear_all()
     _dl.close()

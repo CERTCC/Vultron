@@ -24,6 +24,7 @@ Spec: notes/multi-actor-architecture.md §4 G6,
       specs/multi-actor-demo.yaml DEMOMA-01-002, specs/outbox.yaml OX-12-009.
 """
 
+from collections.abc import Iterator
 from urllib.parse import urlparse
 
 import pytest
@@ -59,6 +60,23 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 _CONTAINER_BASE = "http://finder:7999/api/v2"
 _ACTOR_UUID = "aaaabbbb-0000-0000-0000-000000000001"
 _ACTOR_ID = f"{_CONTAINER_BASE}/actors/{_ACTOR_UUID}"
+
+
+@pytest.fixture
+def dl() -> Iterator[SqliteDataLayer]:
+    """The store of the hosted actor the route tests post to.
+
+    Its inbox answers a refused post with a fault, which its outbox signs as
+    the store's own actor (SIG-05-004), so the store is that actor's.
+    """
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+
+    instance = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=canonical_actor_uri(_ACTOR_UUID)
+    )
+    yield instance
+    instance.clear_all()
+    instance.close()
 
 
 def _derive_inbox_url(actor_id: str) -> str:

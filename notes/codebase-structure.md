@@ -161,9 +161,11 @@ not `requests`). See `docker/docker-compose.yml`.
 
 When `ruff format` wraps a long line, an end-of-line `# type: ignore` or `# pyright:
 ignore` stays on the statement's last line, away from the expression it suppressed; the
-error returns and the pragma reports as unused. Re-run mypy and pyright after every
-format pass (the `run-linters` order does), and move the pragma onto the line carrying
-the flagged argument. A file-level `# pyright: reportGeneralTypeIssues=false` is
+error returns and the pragma reports as unused. Re-run mypy after every format pass
+(the `run-linters` order does), and move the pragma onto the line carrying the flagged
+argument. A stranded `# pyright: ignore[...]` is reported by CI's `lint-pyright` job,
+the only place pyright runs (PAD-18-027), so a local pass cannot catch that half.
+A file-level `# pyright: reportGeneralTypeIssues=false` is
 acceptable only for a Pydantic subclass that intentionally narrows an optional base
 field to required (see `vultron/wire/as2/vocab/objects/case_proposal.py`).
 

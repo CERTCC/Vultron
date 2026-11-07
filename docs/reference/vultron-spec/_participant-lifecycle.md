@@ -55,23 +55,37 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 The protocol solves this with a **case stub**: a minimal stand-in for the case that carries enough for the invitee to decide, and no vulnerability detail.
 The stub is its own object, of type `VulnerabilityCaseStub`, and is not the case.
-It carries exactly these fields:
+A sender's stub carries exactly the required fields and, while an embargo is in force, the embargo fields.
+
+Every stub carries these required fields:
 
 - `id`: the stub's own identifier, which is the case's identifier with `/stub` appended.
   A receiver never derives the case from it.
 - `type`: `VulnerabilityCaseStub`.
   A receiver tells a stub from a case by its `type` alone.
 - `caseId`: the identifier of the case the stub stands for.
+- `summary`: required human-readable context saying what the invitee is being asked to join.
+  The sender chooses it.
+  It may be the case name, or a deliberately less revealing string.
+  The case name itself can be sensitive to share with an actor not yet bound by the embargo.
+  A receiver refuses a stub without a `summary` ([MV-10-001](requirements/messages.md#mv-10-001)).
+
+A stub carries these fields only while an embargo is in force:
+
 - `activeEmbargo` and `caseStatus`: present whenever an embargo is in force, that is, while the embargo state is `ACTIVE` or `REVISE`.
   They state the embargo terms the invitee would agree to by accepting: the embargo in force and the case's embargo state.
   The `caseStatus` also carries its `published` time, as every case status does, and a receiver refuses one without it ([CLP-15-010](requirements/ledger-replication.md#clp-15-010)).
   During a revision the stub carries the embargo in force, never the open revision, which the invitee receives after joining.
   The stub may carry the embargo inline or name it by an identifier the invitee can ask the inviter to resolve.
   The reference implementation always carries the full embargo inline, because it does not build that lookup.
-- `summary`: required human-readable context saying what the invitee is being asked to join.
-  The sender chooses it.
-  It may be the case name, or a deliberately less revealing string.
-  The case name itself can be sensitive to share with an actor not yet bound by the embargo.
+
+The sender sets no other field.
+The reference implementation's stub object does accept more on receipt, all optional:
+
+- `published` and `updated`: the times the stub itself was created and last changed.
+- The generic ActivityStreams object fields it inherits, such as `name` and `content`.
+
+The reference implementation sets none of these on a stub it sends.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-013", "CM-11-037", "CM-11-038", "CM-17-010", "CM-17-020", "CM-17-021", "CM-17-022", "CM-17-023", "CM-17-002", "CM-17-013", "CM-17-014", "EP-09-011", "MV-10-001"))

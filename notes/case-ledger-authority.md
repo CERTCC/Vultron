@@ -394,7 +394,12 @@ second copy (CLP-07-013). Order:
    carrying the record as created (roles, consent rows, its first status), then
    `add_participant_status_to_participant` for each later status (the
    CASE_MANAGER's VALID, ACCEPTED; CM-23-007) — actor CASE_MANAGER
-5. `add_case_status_to_case` — actor **vendor URI**
+5. `add_case_status_to_case` — actor CASE_MANAGER; the vendor that set the
+   genesis status stays in the status's `attributed_to`
+
+An entry's `actor` is always the actor that signs it; `attributed_to` names
+the actor that initiated the thing only when that is another actor, and is
+absent otherwise, since it would repeat the `actor` (SIG-05-005).
 
 Each later snapshot is the CASE_MANAGER's factory-built activity, sealed and
 committed verbatim: the `record_*` methods of `TriggerActivityPort`

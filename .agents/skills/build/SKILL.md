@@ -340,9 +340,10 @@ later) are separate decisions. Apply
    ```bash
    G=.agents/skills/shared/run-if-changed.sh
    uv run ruff check --fix && uv run ruff format
-   uv run ruff check && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
-     && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright
+   uv run ruff check && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy
    ```
+
+   ruff and mypy, never pyright: CI owns it (PAD-18-026, PAD-18-027).
 
    Do **not** run `pytest` here. The full local unit and integration suites run
    exactly once before the first push, in `create-pr` Phase 3, adjacent to the

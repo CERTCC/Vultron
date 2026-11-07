@@ -354,12 +354,13 @@ def run_in_session(
     cwd: Path,
     env: Mapping[str, str],
     out: IO[str],
-    timeout: float | None,
+    timeout: float,
 ) -> int | None:
     """Run *argv* in its own process group; ``None`` when it timed out.
 
     On a timeout the whole group is ended (:func:`_end_groups`), so a
     grandchild (an xdist worker, a site build) cannot keep running past it.
+    Every check has a ceiling, so there is no wait-forever caller to admit.
     """
     with _RUNNING_GUARD:
         if _STOPPING.is_set():

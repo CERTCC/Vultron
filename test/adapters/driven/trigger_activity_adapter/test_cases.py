@@ -56,6 +56,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
+#: The actor whose store the adapter writes to (SIG-05-004).
+STORE_OWNER = _ACTOR
 _PEER = "https://example.org/actors/vendor"
 _CONTEXT_ID = "https://example.org/contexts/ctx-001"
 
@@ -525,6 +527,29 @@ def _make_owned_case(dl) -> as_VulnerabilityCase:
 
 
 class TestAnnounceVulnerabilityCase:
+    @pytest.mark.spec("SIG-01-001")
+    def test_a_body_that_cannot_be_signed_leaves_nothing_stored(
+        self, adapter, dl, monkeypatch
+    ):
+        """Sealing signs the body, so a refused signature stores no Announce."""
+        from vultron.adapters import outbox_sealed_body
+        from vultron.wire.as2.errors import VultronUnsignableJsonError
+
+        def _refuse(_activity, _owner_id):
+            raise VultronUnsignableJsonError("value cannot be canonicalized")
+
+        monkeypatch.setattr(
+            outbox_sealed_body, "signed_outbound_body", _refuse
+        )
+        case = _make_owned_case(dl)
+
+        with pytest.raises(VultronUnsignableJsonError):
+            adapter.announce_vulnerability_case(
+                case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+            )
+
+        assert dl.list_objects("Announce") == []
+
     def test_returns_activity_id(self, adapter, dl):
         case = _make_case(dl)
 

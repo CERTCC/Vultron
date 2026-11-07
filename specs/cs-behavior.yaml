@@ -1654,6 +1654,8 @@ groups:
     rationale: >-
       If the P and X bits were set in two steps, the participant would pass through
       the ephemeral state ···pX·, which cannot exist as a stable state (C-15).
+      The write is the exception CSB-17-002 names, and it loses no ordering:
+      ···pX· has one forced successor (CSB-17-012), so a replay recovers X, then P.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_ephemeral_pxa_pXa_promoted_before_write`) confirms a pXa status is stored
@@ -1674,6 +1676,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CSB-13-001
+    - rel_type: supersedes
+      spec_id: CSB-17-002
+    - rel_type: supersedes
+      spec_id: CSB-17-008
     stories:
     - story_2022_018
     - story_2022_081
@@ -2589,6 +2595,9 @@ groups:
     kind: protocol
     statement: >-
       A CS transition MUST change exactly one of the six CS dimensions.
+      The one exception is a compound transition, as in CSB-13-006.
+      It applies an event together with the forced successor of the ephemeral
+      state (CSB-17-003) that the event would enter.
     rationale: >-
       CS events are irreversible and are observed one at a time; a compound
       state change of Hamming distance greater than one conflates two distinct
@@ -2600,6 +2609,10 @@ groups:
       A unit test confirms that the transition validator accepts exactly the 58 valid
       single-event transitions and rejects all multi-dimension, reversal, and
       VFD-prerequisite-skip cases.
+      `test_ephemeral_pxa_pXa_promoted_before_write` and
+      `test_ephemeral_vP_promotes_vf_when_writing_pxa` in
+      `test/core/use_cases/triggers/case/test_add_participant_status.py` confirm the
+      exception: a write that would enter pX or vP stores its forced form.
     testable: true
     preconditions:
     - description: A (source, destination) pair of compound CS states
@@ -2639,6 +2652,8 @@ groups:
         permits is preserved via the opt-in described in step 1.
     - rel_type: constrains
       spec_id: CSB-16-002
+    - rel_type: uses_definition
+      spec_id: CSB-17-003
     adr:
     - ADR-0060
 
@@ -2831,6 +2846,8 @@ groups:
     statement: >-
       A CS transition that changes two or more dimensions at once, that
       reverses a dimension, or that skips a VFD prerequisite MUST be rejected.
+      The compound transition of CSB-13-006 is exempt from the multi-dimension
+      form only.
     rationale: >-
       Each of the three prohibited forms conflates or reorders distinct causal
       events; rejecting them enforces the one-event-at-a-time and monotonicity

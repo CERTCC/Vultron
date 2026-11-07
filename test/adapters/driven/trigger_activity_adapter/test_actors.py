@@ -52,6 +52,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
+#: The actor whose store the adapter writes to (SIG-05-004).
+STORE_OWNER = _ACTOR
 _INVITEE = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/case-001"
 #: A receiver refuses a stub with no summary at parse (MV-10-001), so the
@@ -240,6 +242,7 @@ class TestInviteActorToCase:
         assert json.loads(activity_dict).get("attributedTo") == owner
 
 
+@pytest.mark.parametrize("store_owner", [_INVITEE])
 class TestAcceptCaseInvite:
     def _make_invite(self, dl) -> str:
         invitee = as_Service(id_=_INVITEE, name="Vendor")
@@ -664,6 +667,7 @@ def _make_role_case(dl):
     return case
 
 
+@pytest.mark.parametrize("store_owner", [_CASE_ACTOR])
 class TestAcceptCaseParticipantRole:
     """Tests for accept_case_participant_role adapter method (ADR-0039)."""
 
@@ -702,6 +706,7 @@ class TestAcceptCaseParticipantRole:
         assert dl.read(activity_id) is not None
 
 
+@pytest.mark.parametrize("store_owner", [_CASE_ACTOR])
 class TestRejectCaseParticipantRole:
     """Tests for reject_case_participant_role adapter method (ADR-0039)."""
 
@@ -743,6 +748,7 @@ class TestRejectCaseParticipantRole:
 @pytest.mark.parametrize(
     "method", ["accept_case_participant_role", "reject_case_participant_role"]
 )
+@pytest.mark.parametrize("store_owner", [_CASE_ACTOR])
 def test_role_offer_answer_keeps_a_caller_supplied_id(adapter, dl, method):
     """A deterministic id survives the adapter, so a retry rebuilds it."""
     from vultron.enums.roles import CVDRole
@@ -800,6 +806,7 @@ class TestAnswerReceivedOwnershipOffer:
     @pytest.mark.spec("DL-06-006")
     @pytest.mark.spec("DL-06-004")
     @pytest.mark.parametrize(("method", "verb"), _OWNERSHIP_ANSWERS)
+    @pytest.mark.parametrize("store_owner", [_INVITEE])
     def test_a_forward_held_only_as_received_is_answered(
         self, adapter, dl, method, verb
     ):
@@ -849,6 +856,7 @@ class TestAnswerReceivedOwnershipOffer:
 
     @pytest.mark.spec("CM-21-015")
     @pytest.mark.spec("CM-21-036")
+    @pytest.mark.parametrize("store_owner", [_OWNER])
     def test_the_owner_withdraws_the_proposal_it_sent(self, adapter, dl):
         """The owner's own proposal is held under its own id, and read there;
         the Undo names the proposal (ADR-0148)."""
@@ -870,6 +878,7 @@ class TestAnswerReceivedOwnershipOffer:
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-21-016")
     @pytest.mark.spec("CM-21-025")
+    @pytest.mark.parametrize("store_owner", [_OWNER])
     def test_the_proposal_nests_the_offer_it_asks_for(self, adapter, dl):
         case = _make_case(dl)
         deadline = FAR_FUTURE  # far-future; tests date round-trip, not a specific value

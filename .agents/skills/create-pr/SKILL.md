@@ -108,7 +108,7 @@ Docs: pending check-docs-sync
 ## Verification
 
 - All N unit tests pass (M new)
-- ruff, mypy, pyright clean
+- ruff and mypy clean
 ```
 
 Under `## Specs`, paste the `manifest` file's contents verbatim: Phase 3b
@@ -237,11 +237,11 @@ Run the appropriate suite based on PR type:
 
 ```bash
 # Linters only — no Python changed. Each tool reads its scope from config.
-# mypy and pyright go through run-if-changed.sh, so Phase 3c reuses the pass.
+# ruff and mypy, never pyright: that is CI's (PAD-18-026, PAD-18-027).
+# mypy goes through run-if-changed.sh, so Phase 3c reuses the pass.
 G=.agents/skills/shared/run-if-changed.sh
 uv run ruff check && uv run ruff format --check
-"$G" mypy    vultron/ test/ .mypy.ini          uv.lock -- uv run mypy
-"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright
+"$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy
 ```
 
 If any linter fails, fix the failure, stage, and amend the relevant commit
@@ -252,8 +252,7 @@ before proceeding. Do not open a PR with lint failures.
 ```bash
 G=.agents/skills/shared/run-if-changed.sh
 uv run ruff check --fix && uv run ruff format
-uv run ruff check && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
-  && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright
+uv run ruff check && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
 uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)
 uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -5 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)
@@ -311,23 +310,28 @@ in `## Spec amended`) pass at this stage; the caller's final-stage run after
 
 ### 3c — CI mirror (every PR type)
 
-Run CI's pull-request checks on the whole branch diff, last, right before the
-push (PAD-18-021). The suites above do not cover them. The mirror runs CI's
-docs, spec, ADR, Markdown and workflow checks, plus the limit-enforcing guard
-tests (PAD-18-023), on whatever PR type this is. The tree must be clean:
-commit every fix from Phases 3 and 3b first.
+Run CI's cheap pull-request checks on the whole branch diff, last, right before
+the push (PAD-18-021). The suites above do not cover them. The mirror runs CI's
+generated-file sync, front matter, ADR index, spec-lint, Markdown and workflow
+checks — the ones that answer in a few minutes — on whatever PR type this is.
+It runs none of CI's expensive checks: pyright, the spec-corpus suite, the
+guard tests and the site build are CI's, and the required `CI gate` judges the
+jobs that run them (PAD-18-023, PAD-18-031). The tree must be clean: commit
+every fix from Phases 3 and 3b first.
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
 timeout -k 30 5400 uv run prepush-ci-mirror --base main > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
 ```
 
-Do not wrap the mirror in `run-heavy.py`. Its heavy checks (pyright, the two
-pytest sets, the site build) each take a per-host heavy-check slot themselves:
-each waits up to 1200 s for a slot, then runs under its own `--timeout`
-(1200 s). The 5400-second ceiling is a backstop above that, for a mirror whose
-heavy checks all queue; a SIGTERM from it stops every running check, so none
-keeps its slot (#5947).
+Do not wrap the mirror in `run-heavy.py`. No check it still runs is heavy
+enough to need a per-host slot — PAD-18-023 made all four of those CI's — so
+wrapping it would only make this step queue behind another agent's suite for
+nothing. The honest run is a few minutes. The 5400-second ceiling stays a
+backstop well above that: each check runs under its own `--timeout` (1200 s)
+over `--jobs 4`, so a run where several hang needs room above the sum of their
+trips before the ceiling is what ends it. A SIGTERM from the ceiling stops
+every running check (#5947).
 
 Read the `exit:` line. `0` lets the push go. `1` means a `FAIL`, `NO-VERDICT`
 or `UNAVAILABLE` line: fix each `FAIL` (its `log:` path holds the output), commit,

@@ -1,0 +1,85 @@
+# The guard tests, on every pull request, whatever it changed (PAD-18-023).
+#
+# These tests police limits and cross-file agreements whose inputs are not
+# Python: AGENTS.md sizes, the skills' Markdown, `specs/`, `notes/`, the ADR
+# index, docs front matter. `python-app.yml`'s `pull_request` filter lists no
+# glob for any of those, so its partitioned suite never starts on a pull
+# request made only of them, and PAD-18-010 gives such a pull request no local
+# suite either. `prepush-ci-mirror` used to carry them; PAD-18-023 moved them
+# here, and this job is why that move leaves no gap (PAD-18-031).
+#
+# No `paths` filter, on purpose. The guard set exists because the mapping from
+# a changed file to the test that polices it is exactly what cannot be relied
+# on for these tests (see the `rationale` of PAD-18-023 and #5580). A path
+# filter would have to be the union of every guard's inputs and would fall
+# behind the next guard added; an unfiltered trigger cannot. It also means the
+# `CI gate` always has a real verdict here rather than a skip, which is what
+# PAD-18-031 asks of a check a local gate dropped. The job costs about two
+# minutes and runs beside the slower workflows, so it adds no wall-clock.
+#
+# CISEC-05 (notify-failure) does not apply: this workflow runs only on pull
+# requests, never on a push to main or a schedule, as `ci-gate.yml` does. Every
+# merge into `main` passes through a pull request this job gated, so `main`
+# cannot go red here on a merge.
+#
+# Reference: specs/parallel-development.yaml PAD-18-010, PAD-18-023,
+# PAD-18-031; specs/testability.yaml TB-14-006.
+
+name: "Guard Tests"
+
+# No `workflow_dispatch`. `GITHUB_BASE_REF` is set on `pull_request` alone, and
+# the merge-base growth guards here skip without it — all-skipped exits 0 and
+# reports green. The gate keeps only the newest run per workflow, so a dispatch
+# on the branch would replace the real verdict with that empty one. "Re-run
+# jobs" on the pull request's own run re-runs this with the event intact.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard-tests:
+    name: Guard Tests (pytest)
+    runs-on: ubuntu-latest
+    # The same set took 94 s in the local mirror. Cap at 10 min so a hang
+    # fails in minutes instead of holding a runner until GitHub's 6-h
+    # default (TB-14-006).
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: the pull-request-only growth guards here (the line
+          # length ratchet, the AGENTS.md size ratchet) compare against the
+          # merge base with origin/$GITHUB_BASE_REF and skip when a shallow
+          # clone has none (SR-05-005, MS-12-007, #4315).
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Run the guard tests
+        # -m "": the unit and integration tiers both, as the mirror ran them.
+        # -n auto: one xdist worker per runner CPU, sized by test/conftest.py
+        # from the cgroup limits (test/support/xdist_workers.py).
+        # The list is pinned by test/ci/test_guard_tests_workflow.py, which
+        # fails when a path here names no file.
+        run: >-
+          uv run pytest -m "" -n auto --tb=short
+          test/architecture/test_line_length_ratchet.py
+          test/architecture/test_spec_statement_guard.py
+          test/architecture/test_spec_kind_ratchet.py
+          test/architecture/test_vocab_examples_current.py
+          test/ci/test_python_app_test_parts.py
+          test/core/behaviors/test_btnd07_structure.py
+          test/metadata/test_agents_md_size_ratchet.py
+          test/metadata/test_adr_back_edges.py
+          test/metadata/test_gate_ceiling.py
+          test/metadata/test_no_decision_record_part_citations.py
+          test/metadata/test_msm_occasions.py
+          test/metadata/docs/test_page_frontmatter.py
+          test/metadata/docs/test_level_order.py

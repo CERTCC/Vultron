@@ -37,6 +37,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 _VENDOR = "https://example.org/actors/vendor"
+#: The actor whose store the adapter writes to (SIG-05-004).
+STORE_OWNER = _VENDOR
 _CASE_ACTOR = "https://example.org/actors/case-actor"
 
 

@@ -23,6 +23,8 @@ from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 _ACTOR = "https://example.org/actors/reporter"
+#: The actor whose store the adapter writes to (SIG-05-004).
+STORE_OWNER = _ACTOR
 _CASE_ID = "https://example.org/cases/case-001"
 
 

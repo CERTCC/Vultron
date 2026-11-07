@@ -54,7 +54,9 @@ pre-commit failures.
   docs, notes and `plan/history/` is never rewritten.
 - Use `markdownlint-cli2` for Markdown.
 - Formatting can rewrap a line and strand an inline pragma. `run-linters` runs
-  `ruff check`, mypy and pyright after formatting; use it before committing.
+  `ruff check` and mypy after formatting; use it before committing. A stranded
+  `# pyright: ignore[...]` is reported by CI's pyright job, which is the only
+  place pyright runs (PAD-18-027).
 
 ## Rationale
 

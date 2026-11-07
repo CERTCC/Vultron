@@ -389,12 +389,13 @@ Run the linters first, as their own command, and stop on a non-zero
 ```bash
 G=.agents/skills/shared/run-if-changed.sh
 uv run ruff check && uv run ruff format --check \
-  && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
-  && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run python .agents/skills/shared/run-heavy.py uv run pyright; rc=$?; echo "lint exit: $rc"; (exit $rc)
+  && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy; rc=$?; echo "lint exit: $rc"; (exit $rc)
 ```
 
-mypy and pyright run through `run-if-changed.sh`, so the mirror below reuses
-their pass instead of type-checking the tree a second time.
+ruff and mypy, never pyright: CI's `lint-pyright` job owns it and the required
+`CI gate` refuses a merge until it is green (PAD-18-026, PAD-18-027). mypy runs
+through `run-if-changed.sh`, so the mirror below reuses its pass instead of
+type-checking the tree a second time.
 
 Then derive the set. `<scope>` is `--base origin/<base_ref>` for the
 branch-diff set, or `--paths <conflicted files>` after a conflict merge alone:
@@ -460,29 +461,14 @@ push failing code.
 After tests pass, run the xfail ratchet per [REFERENCE.md](REFERENCE.md)
 § "xfail Ratchet".
 
-**Merged-tree tests, when the base overlaps** (PAD-18-024). If this
-iteration's Step 2 verdict was `no-merge` with `merge_reason` `deferred`, the
-base changed files this PR also changes. CI will test the two merged, and a
-fix that passes on the branch alone can fail there. Test the merge first,
-without merging the base into the branch (PAD-18-004 is unchanged):
-
-```bash
-logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run merged-tree-tests --base <base_ref> > "$logs-merged-tree.txt" 2>&1; rc=$?; cat "$logs-merged-tree.txt"; echo "exit: $rc"; (exit $rc)
-```
-
-The command merges `origin/<base_ref>` into a scratch worktree and runs there
-the tests `targeted-tests --paths` selects for the files both sides changed,
-each counted as wholly changed, as after a conflict merge. It never selects
-for the whole branch diff, which would escalate to the full suite (ADR-0173).
-It removes the worktree with `git worktree remove`, even when `timeout` stops
-it (exit `143`). It never runs `prune`, and the PR branch does not move
-(PAD-18-025). Exit `0`:
-the merge passes, or nothing overlaps now. Exit `1`: a test fails on the
-merged tree. It is a branch-owned failure under the same Test Failure Rules:
-fix it on the branch, commit, and rerun. Exit `3`: the base no longer merges
-cleanly, so return to Step 2, whose checks now call for the merge. Exit `2`
-is a setup error, never a pass. A run adds one to `suite_runs.targeted`.
+**An overlap runs no test here** (PAD-18-024). When this iteration's Step 2
+verdict was `no-merge` with `merge_reason` `deferred`, the base changed files
+this PR also changes. Step 2 recorded those paths and nothing else is owed:
+CI on the push tests this branch merged into its base, and the merger
+refreshes the PR on GitHub right before merging it (PAD-18-019). Do not merge
+the base in to test the combination (PAD-18-004), and do not run tests on a
+scratch merge of the two — the local run only repeats what CI already gates,
+more slowly.
 
 **The CI mirror, before every push** (PAD-18-021). Run it last, on the
 committed tree, with the PR number so the checks that read the PR run too:

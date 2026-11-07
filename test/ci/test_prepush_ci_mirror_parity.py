@@ -15,7 +15,6 @@ import pytest
 
 from vultron.metadata.planning.ci_mirror import (
     EXCLUSIONS,
-    GUARD_TESTS,
     MIRROR_CHECKS,
     parity_problems,
 )
@@ -34,15 +33,6 @@ def test_every_pull_request_step_is_mirrored_or_excluded():
 def test_the_registry_mirrors_something():
     # A parse that found no workflow would make the parity check vacuous.
     assert sum(1 for c in MIRROR_CHECKS if c.step is not None) >= 20
-
-
-@pytest.mark.spec("PAD-18-023")
-@pytest.mark.parametrize("path", GUARD_TESTS)
-def test_every_guard_test_exists(path: str):
-    assert (REPO_ROOT / path).is_file(), (
-        f"{path} is a mirror guard test but does not exist; a rename left the "
-        "guard set pointing at nothing"
-    )
 
 
 def _workflow(root: Path, name: str, body: str) -> None:

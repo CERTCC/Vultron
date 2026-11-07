@@ -26,7 +26,12 @@ from test.adapters.driving.fastapi._redelivery import served_store
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.core.models.actor import VultronOrganization, hosted_endpoints
+from vultron.core.models.actor import (
+    CoreActor,
+    VultronOrganization,
+    hosted_endpoints,
+)
+from vultron.core.models.base.context import VULTRON_CONTEXT_URI
 from vultron.core.models.multikey import Multikey
 from vultron.wire.as2 import signing
 
@@ -71,6 +76,25 @@ def test_an_unsigned_get_returns_the_profile_with_its_key(tmp_path: Path):
     assert key.get("controller") == actor_id
     assert str(key.get("id", "")).startswith(f"{actor_id}#")
     assert str(key.get("publicKeyMultibase", "")).startswith("z")
+
+
+@pytest.mark.spec("ENC-01-002")
+def test_the_profile_context_defines_the_key_terms(tmp_path: Path):
+    """The Multikey context follows the profile's own, which stays first.
+
+    The Vultron context defines no ``assertionMethod``, ``Multikey``,
+    ``controller`` or ``publicKeyMultibase``, so a JSON-LD-expanding verifier
+    would drop the key without it.
+    """
+    profile = _profile(tmp_path / "context.db", "profile-key-context")
+
+    context = profile["@context"]
+    assert isinstance(context, list), context
+    assert context[-1] == signing.MULTIKEY_CONTEXT
+    assert context.count(signing.MULTIKEY_CONTEXT) == 1
+    assert VULTRON_CONTEXT_URI in context[:-1]
+    # A list context still validates as the core actor a peer stores.
+    assert CoreActor.model_validate(profile).context_ == context
 
 
 @pytest.mark.spec("SIG-05-001")

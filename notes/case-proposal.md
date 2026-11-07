@@ -85,7 +85,8 @@ the general form of each is in [bt-pitfalls](bt-pitfalls.md).
    redelivery, and no state "declined, nothing queued" exists (CLP-07-015).
 
 A refusal has no channel for a reason or cause, so the `Reject` carries no `summary`
-and an unreachable backend reads as a permanent decline (#3446).
+and an unreachable backend reads as a permanent decline (#3446). ADR-0183 decides
+the fix (#6076, #6077).
 
 The decision records name the actor owed the answer `proposer_uri`. A row
 carrying the former `vendor_uri` key is refused as an unknown key

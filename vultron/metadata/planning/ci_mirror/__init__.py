@@ -14,9 +14,11 @@
 
 About one PR in seven spent a push and a CI round on something CI found that
 needs no suite run: an overlong line, a line ceiling, a link, an ADR epoch
-(#5580). This command runs, on the whole branch diff, every check a
-``pull_request`` run of ``.github/workflows/`` would run, except the full
-suites and the container demos::
+(#5580). This command runs, on the whole branch diff, the checks of a
+``pull_request`` run of ``.github/workflows/`` that answer in seconds to a
+couple of minutes. It leaves the full suites, the container demos, pyright,
+the spec-corpus suite, the guard tests and the site build to CI, which the
+required ``CI gate`` judges (PAD-18-023, PAD-18-031)::
 
     prepush-ci-mirror                 # run, against origin/main
     prepush-ci-mirror --base B        # another base branch
@@ -44,7 +46,7 @@ satisfied another way, and must say how in the PR.
 Every CI step is either mirrored here or excluded with a reason
 (``_registry.py``); ``test/ci/test_prepush_ci_mirror_parity.py`` fails on one
 that is neither. Requirements: specs/parallel-development.yaml PAD-18-021 to
-PAD-18-025.
+PAD-18-023 and PAD-18-031.
 """
 
 from __future__ import annotations
@@ -65,7 +67,6 @@ from vultron.metadata.planning.ci_mirror._parity import (
 )
 from vultron.metadata.planning.ci_mirror._registry import (
     EXCLUSIONS,
-    GUARD_TESTS,
     MIRROR_CHECKS,
     CheckContext,
     MirrorCheck,
@@ -94,7 +95,6 @@ from vultron.metadata.specs.backstop import (
 
 __all__ = [
     "EXCLUSIONS",
-    "GUARD_TESTS",
     "MIRROR_CHECKS",
     "CheckResult",
     "MirrorCheck",

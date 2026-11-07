@@ -32,4 +32,4 @@ Please note: Pull request submissions are subject to our
 <!-- For PRs that modify .py files. Include actual test count + new tests added.
      Delete this section for docs-only PRs. -->
 - All N unit tests pass (M new)
-- ruff, mypy, pyright clean
+- ruff and mypy clean (pyright is CI's `Lint (pyright)` job, PAD-18-027)

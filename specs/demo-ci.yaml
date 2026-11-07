@@ -526,25 +526,22 @@ groups:
         kind: project
         statement: >-
           Both the push and pull_request triggers of
-          `.github/workflows/python-app.yml` MUST include the committed message
-          examples directory, `docs/ns/<wire version>/examples/**` (VM-10-007), in
-          their paths filter.
+          `.github/workflows/python-app.yml` MUST include
+          `docs/reference/examples/**` in their paths filter.
         rationale: >-
-          The committed vocab examples are an input to
-          `test/architecture/test_vocab_examples_current.py`, which compares each one
-          byte for byte with a fresh generation. They are the only such input
+          The committed vocab examples under `docs/reference/examples/` are an input
+          to `test/architecture/test_vocab_examples_current.py`, which compares each
+          one byte for byte with a fresh generation. They are the only such input
           that lives outside `vultron/` and `test/`, so without this entry a pull
           request that hand-edits or half-regenerates an example and nothing else
           matches no path filter and runs no test at all — the same failure mode
           DEMOCI-02-016 exists to prevent for `uv.lock` (#4506, #5776).
         verification: >-
           `test/ci/test_python_app_path_filter.py::test_python_app_workflow_runs_on_a_committed_example_change`
-          asserts the examples directory is in both path filters.
+          asserts `docs/reference/examples/**` is in both path filters.
         relationships:
           - rel_type: extends
             spec_id: DEMOCI-02-016
-          - rel_type: uses_definition
-            spec_id: VM-10-007
 
       - id: DEMOCI-02-017
         priority: MUST

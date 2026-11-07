@@ -27,8 +27,9 @@ applyTo: "**/*.py"
   enforces ruff formatting via a pre-commit hook.
 - **Linting**: Run `uv run ruff check` (no path arguments — the scope lives in
   `pyproject.toml`) to catch style and correctness issues before opening a PR.
-- **Type Checking**: Use `mypy` or `pyright` for static typing checks. Prefer
-  explicit types and avoid `Any` unless justified.
+- **Type Checking**: Run `uv run mypy` for static typing checks; pyright's
+  findings come from CI's `Lint (pyright)` job, its only gate (PAD-18-027).
+  Prefer explicit types and avoid `Any` unless justified.
 
 ### Tests & Test Workflow
 

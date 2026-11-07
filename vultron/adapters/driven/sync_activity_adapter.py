@@ -58,6 +58,7 @@ from vultron.wire.as2.factories import (
     read_ledger_position_activity,
     reject_log_entry_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
@@ -271,9 +272,7 @@ class SyncActivityAdapter:
         read = read_ledger_position_activity(
             case_id, ledger_position, actor=actor_id, to=to
         )
-        self._dl.save(read)
-        seal_outbound_body(self._dl, read)
-        add_activity_to_outbox(actor_id, read.id_, self._dl)
+        self._save_seal_and_queue(actor_id, read)
         logger.info(
             "sync adapter: queued Read(CaseLedgerEntry) '%s' for entry '%s'"
             " to %s",
@@ -328,16 +327,27 @@ class SyncActivityAdapter:
         # holds no case yet states none, and the CASE_MANAGER replays it from
         # genesis (SYNC-15-015).
         reject = with_sender_ledger_position(self._dl, build())
-        self._dl.save(reject)
-        seal_outbound_body(self._dl, reject)
-        # ``self._dl`` selects the queue; *actor_id* is passed for the log label
-        # only (see ``add_activity_to_outbox``).  It no longer guards against a
-        # shared or differently-scoped DataLayer — there is no unscoped store to
-        # guard against under ADR-0073 — and it must not be read as doing so.
-        add_activity_to_outbox(actor_id, reject.id_, self._dl)
+        self._save_seal_and_queue(actor_id, reject)
         logger.info(
             "sync adapter: queued %s '%s' → %s", label, reject.id_, reject.to
         )
+
+    def _save_seal_and_queue(
+        self, actor_id: str, activity: as_Activity
+    ) -> None:
+        """Store *activity*, seal its signed body and queue it, all or none.
+
+        One transaction, so a body that cannot be signed or sealed leaves no
+        stored activity and no queued id behind (SIG-01-001, VM-08-003).
+        ``self._dl`` selects the queue; *actor_id* is passed for the log label
+        only (see ``add_activity_to_outbox``).  It no longer guards against a
+        shared or differently-scoped DataLayer — there is no unscoped store to
+        guard against under ADR-0073 — and it must not be read as doing so.
+        """
+        with self._dl.transaction():
+            self._dl.save(activity)
+            seal_outbound_body(self._dl, activity)
+            add_activity_to_outbox(actor_id, activity.id_, self._dl)
 
     def _pending_announce_index(self) -> dict[str, set[str]]:
         """``entry id → recipients`` for every ``Announce`` still queued here.
@@ -412,9 +422,7 @@ class SyncActivityAdapter:
             actor=actor_id,
             to=to,
         )
-        self._dl.save(announce)
-        seal_outbound_body(self._dl, announce)
-        add_activity_to_outbox(actor_id, announce.id_, self._dl)
+        self._save_seal_and_queue(actor_id, announce)
         logger.debug(
             "sync adapter: queued Announce(CaseLedgerEntry) '%s' → %s",
             announce.id_,

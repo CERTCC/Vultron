@@ -54,7 +54,9 @@ a merge; see [testing-pitfalls.md](testing-pitfalls.md).
 
 ## Integration-Marker Tests (pytest node IDs)
 
-None at present.
+| Test node ID | Issue | Last blocked |
+|---|---|---|
+| `test/demo/test_invite_actor_demo.py::test_demo[invite_reject]` — replayed `AnnounceLogEntry` refused under the `localhost:7999` actor id | #6085 | 2026-11-06 |
 
 ## CI / Demo Integration Jobs (job name granularity)
 

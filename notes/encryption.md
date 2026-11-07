@@ -7,7 +7,6 @@ tracks:
   - "#1184"
   - "#2841"
   - "#3477"
-  - "#5382"
   - "#5385"
   - "#5386"
 description: >
@@ -75,6 +74,18 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   keys, storage and rotation are #1184 (ENC-01-001, ENC-01-004 to ENC-01-006).
   A `SigningKey` exports no private key and shows only its public half, so
   logging one discloses nothing (ENC-01-007).
+- **An outbox signs only its own actor's messages** (SIG-05-004). The seed
+  scheme is guessable by design, so any code could compute any actor's key;
+  the guarantee is that only the owning actor's outbox calls the signer for
+  that actor. `seal_outbound_body` passes its store's `actor_id` (DL-07-004)
+  to `sign_as_author`, which refuses an activity whose `actor` names anyone
+  else with `VultronForeignAuthorError` before signing or storing. Never
+  sign through a store that is not the author's, and never add a fallback.
+- **`actor` is the signer; `attributed_to` is the initiator** (SIG-05-005).
+  An actor that sends on another's behalf, such as the CASE_MANAGER recording
+  a status the case owner set, names itself as `actor` and carries the owner
+  in `attributed_to`. When the actor initiated it, leave `attributed_to` out:
+  it would only repeat the `actor`.
 - **One module signs and verifies** (SIG-05-003): `vultron/wire/as2/signing.py`,
   the way `vultron.wire.as2.factories` owns outbound construction. Tests sign
   through a shared test helper built on it, never by hand. A verifier passes it
@@ -116,9 +127,14 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   record per delivery; the received evidence keeps it (SIG-04-001). Verification
   reads the raw body before the parser (#5386), so nothing needs it parsed.
 - **Sign before the body is sealed.** The sealed body is final (OX-07-001), so
-  the outbox signs the activity immediately before sealing it. The delivered
-  body, the ledger snapshot and the relayed `Announce` then hold the same bytes
-  (VM-08-003).
+  `seal_outbound_body` signs it as its author, the activity's `actor`
+  (`signed_outbound_body` in `vultron/adapters/outbox_sealed_body.py`). The
+  delivered body, the ledger snapshot and the relayed `Announce` then hold the
+  same bytes (VM-08-003). Sign nowhere else: a relay signs its own `Announce`
+  at its own seal, and never touches the nested snapshot's proof.
+- **`dump_outbound_body` is the unsigned dump.** A test that builds a delivery
+  from it sends no proof, so once verification is on (#5386) it signs it
+  through `test/support/signing.py`, or reads the sealed body instead.
 - **The proof survives the store.** A sender's `proof` reaches the ledger
   snapshot because the snapshot is the body as received (SIG-04-001). Check it
   survives the store's wire-identity rekeying (`_rekey_wire_identity` in
@@ -127,6 +143,15 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   JSON-shape checks and before the parser (SIG-03-003). The pre-parsed
   `as_Activity` ingress path has no body to verify and goes when verification
   lands (#5386).
+- **An uncanonicalizable body fails at the CASE_MANAGER's seal until #5386.**
+  A received body holding an integer beyond ±(2^53 - 1) cannot be signed, so
+  the `Announce(CaseLedgerEntry)` carrying its snapshot fails to seal and the
+  commit tree fails without a named refusal. A sender's outbox cannot sign
+  such a body either, so the verification stage should refuse it at ingress.
+- **The parser drops `proof` from what it parses.** Only the ledger snapshot
+  keeps the received body, so an activity a receiver re-embeds from its parsed
+  copy carries no original proof. A relay that must carry an author's proof
+  takes it from the received evidence (SIG-04-001).
 - **A failed proof raises `VultronProofVerificationError`** (EH-03-005), which
   `translate_domain_errors` answers 422 as `ProofVerificationError`, not 401:
   the proof is content, not an HTTP credential. `signing.verify` raises its
@@ -185,11 +210,11 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   concrete actor types keep it. The fetch adapter refuses a profile typed
   `"Actor"` with a `VultronActorProfileFetchError` naming the generic type, not
   saying the actor published no key; the resolver logs it.
-- **The profile's `@context` lacks the key terms.** It is the Vultron context
-  alone, which defines no `assertionMethod`, `Multikey`, `controller` or
-  `publicKeyMultibase`, so a JSON-LD-expanding verifier drops them. Add
-  `https://w3id.org/security/multikey/v1` to the served profile in #5382: the
-  core actor's `@context` is already `JsonLdContext`, so a list is accepted.
+- **The served profile's `@context` defines the key terms.** The Vultron
+  context defines no `assertionMethod`, `Multikey`, `controller` or
+  `publicKeyMultibase`, so `profile_of_record` appends
+  `signing.MULTIKEY_CONTEXT` to the dumped `@context`, after whatever default
+  the actor has; a JSON-LD-expanding verifier drops the key without it.
 
 ## Encryption principles
 
