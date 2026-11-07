@@ -29,6 +29,7 @@ Human developer how-to pages under ``docs/developer/`` are out of scope: stock
 macOS has no ``timeout`` binary.
 """
 
+import ast
 import re
 from pathlib import Path
 from typing import Any
@@ -294,9 +295,54 @@ def _uncommented(line: str) -> str:
     return line.split("#", 1)[0]
 
 
-def _pyright_calls(text: str) -> list[str]:
+def _python_code_lines(text: str) -> list[str]:
+    """*text*'s lines, less its docstrings.
+
+    A module that names the tool in its own prose does not run it, the same
+    allowance Markdown prose gets. A ``["pyright"]`` argv is *not* excluded:
+    only a docstring is, never every string literal.
+    """
+    lines = text.splitlines()
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:  # pragma: no cover - the corpus parses
+        return lines
+    prose: set[int] = set()
+    holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    for node in ast.walk(tree):
+        if not isinstance(node, holders) or not node.body:
+            continue
+        first = node.body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+            and first.end_lineno is not None
+        ):
+            prose.update(range(first.lineno, first.end_lineno + 1))
+    return [line for n, line in enumerate(lines, 1) if n not in prose]
+
+
+def _executable_lines(text: str, suffix: str) -> list[str]:
+    """The lines of *text* an agent runs, by what kind of file it is.
+
+    A Markdown file's code is its fences and its frontmatter ``commands:``
+    key. A file that is *not* Markdown — a skill's ``.sh`` or ``.py``, the
+    ``Makefile`` — is code throughout, bar a Python docstring. Asking
+    ``_code_lines`` for those returned nothing, which left the
+    launcher-agnostic half of the pyright detector dead on all 32 of them,
+    including the ``make`` recipe its own comment names (#3156, #5535).
+    """
+    if suffix == ".md":
+        return _code_lines(text)
+    if suffix == ".py":
+        return _python_code_lines(text)
+    return text.splitlines()
+
+
+def _pyright_calls(text: str, *, suffix: str = ".md") -> list[str]:
     """Lines of *text* that call pyright: any launcher in code, spelled out anywhere."""
-    code = set(_code_lines(text))
+    code = set(_executable_lines(text, suffix))
     return [
         line.strip()
         for line in text.splitlines()
@@ -340,6 +386,39 @@ def test_detector_tells_a_pyright_call_from_a_mention() -> None:
         assert not _pyright_calls(prose), f"flagged prose: {prose}"
 
 
+def test_detector_reads_a_non_markdown_file_as_code_throughout() -> None:
+    """A `.sh`, a `.py` and the `Makefile` have no fence to look inside.
+
+    32 of the corpus's 260 files are one of those three, and asking
+    ``_code_lines`` for their code returned nothing — so every launcher but
+    ``uv run``/``uvx``/``uv tool run`` went unseen there, including the
+    ``make`` recipe ``_PYRIGHT_TOOL``'s own comment names (#3156).
+    """
+    for suffix, script in (
+        ("", "pyright:\n\tpyright vultron/ test/\n"),  # a Makefile recipe
+        (".sh", "#!/bin/bash\npyright vultron/\n"),
+        (".sh", "#!/bin/bash\nnpx pyright\n"),
+        (".sh", "python -m pyright\n"),
+        (".py", 'subprocess.run(["pyright", "vultron/"], check=True)\n'),
+    ):
+        assert _pyright_calls(script, suffix=suffix), (
+            f"missed in a {suffix or 'Makefile'}: {script!r}"
+        )
+    # The same text read as Markdown is prose, and must not be flagged there.
+    assert not _pyright_calls("pyright:\n\tpyright vultron/ test/\n")
+    # A comment names the tool, and so does a module's own docstring; neither
+    # runs it. A docstring is the only string a `.py` read excludes.
+    for suffix, benign in (
+        ("", "# No pyright target: CI's Lint (pyright) job owns pyright.\n"),
+        (".sh", "#!/bin/bash\nuv run mypy  # pyright is CI's\n"),
+        (".py", '"""Sizes a pyright run or a site build."""\nx = 1\n'),
+        (".py", 'def f():\n    """pyright is CI\'s."""\n    return 1\n'),
+    ):
+        assert not _pyright_calls(benign, suffix=suffix), (
+            f"flagged a mention in a {suffix or 'Makefile'}: {benign!r}"
+        )
+
+
 @pytest.mark.spec("PAD-18-027")
 @pytest.mark.parametrize(
     "rel_path",
@@ -359,7 +438,10 @@ def test_no_local_gate_runs_pyright(rel_path: str) -> None:
     passes. A developer how-to under ``docs/developer/`` may spell the command
     for a by-hand run, and is out of this module's scope.
     """
-    found = _pyright_calls((_REPO_ROOT / rel_path).read_text(encoding="utf-8"))
+    path = _REPO_ROOT / rel_path
+    found = _pyright_calls(
+        path.read_text(encoding="utf-8"), suffix=path.suffix
+    )
     assert not found, (
         f"{rel_path} runs pyright locally (PAD-18-027):\n"
         + "\n".join(f"  {line}" for line in found)

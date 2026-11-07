@@ -41,10 +41,11 @@ uv run ruff format         # or --check
 ```
 
 Scope lives in the config, never in the invocation (**IMPLTS-07-021**): a scope
-passed as arguments is duplicated at every call site and drifts. `pyright`
-(`pyrightconfig.json`) and `mypy` (`.mypy.ini`) declare their own scope the same
-way, so invoke them bare too; naming a package narrows the gate by accident.
-`pyright`'s only gate is CI's `lint-pyright` job (PAD-18-027).
+passed as arguments is duplicated at every call site and drifts. `mypy`
+(`.mypy.ini`) declares its own scope the same way, so invoke it bare too;
+naming a package narrows the gate by accident. `pyright`
+(`pyrightconfig.json`) does the same in CI's `lint-pyright` job, its only
+gate (PAD-18-027).
 
 The pre-commit hook is the one caller that passes paths, and it does not choose
 them: pre-commit appends the staged filenames, and `force-exclude = true` makes

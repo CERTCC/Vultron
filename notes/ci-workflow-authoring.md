@@ -55,8 +55,8 @@ workflow, or to a local composite action one calls, fails
 `vultron/metadata/planning/ci_mirror/_registry.py`. Add a `MirrorCheck`, which
 runs the step's own `run:` script when it needs no GitHub expression. Or add an
 `EXCLUSIONS` entry saying why it is CI's — it cannot run locally, or it answers
-no sooner there than here. PAD-18-023 names five of the second kind: pyright,
-the spec-corpus suite, the guard tests, the site build and the checks that read
+no sooner there than here. PAD-18-023 names the second kind: pyright, the
+spec-corpus suite, the guard tests, the site build and the checks that read
 the built site. Without an entry either way the mirror would silently fall
 behind CI, the gap it closes (PAD-18-022, ADR-0173).
 

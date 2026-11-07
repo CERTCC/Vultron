@@ -95,6 +95,22 @@ _DOCS = "docs-build-check.yml::docs-build-check::"
 _SITE = _DOCS + "Check site publication > "
 _UI = "ui.yml::ui::"
 
+#: The ``Check site publication`` steps that read the built site, by their
+#: step label. Named here rather than inline in :data:`EXCLUSIONS` so a test
+#: can pin every one of them against this list: pinning a representative left
+#: four of the five covered by nothing (PAD-18-023).
+SITE_READERS = (
+    "Check withheld artifacts are unpublished",
+    "Check published URLs still resolve",
+    "Check internal references resolve",
+    "Check reading-path boxes",
+    "Check every built page is recorded",
+)
+
+#: The step-key prefix :data:`SITE_READERS` labels hang off, so a test can
+#: rebuild the exclusion keys without restating the workflow and job.
+SITE_READER_PREFIX = _SITE
+
 _MARKDOWN_CONFIGS = (".markdownlint-cli2.yaml", ".markdownlint-cli2.jsonc")
 
 
@@ -313,13 +329,7 @@ EXCLUSIONS: Mapping[str, str] = {
             "CI's docs-build-check job owns it: it reads the built site, "
             "which the mirror no longer builds (PAD-18-023)"
         )
-        for label in (
-            "Check withheld artifacts are unpublished",
-            "Check published URLs still resolve",
-            "Check internal references resolve",
-            "Check reading-path boxes",
-            "Check every built page is recorded",
-        )
+        for label in SITE_READERS
     },
     "verification-debt-owners.yml::open-owners": (
         "the job runs only off pull_request (its if: excludes the event)"

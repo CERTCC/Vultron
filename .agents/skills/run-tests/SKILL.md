@@ -132,8 +132,8 @@ Phase 5 Step 3 is the canonical caller.
   *last* stage's status, so `… | tail`, `… | tee … | tail`, `… | head`, and
   `… | wc` all report 0 no matter how pytest exited — a killed or failed run
   reads as success. This applies to every gate command (`pytest`, `mkdocs
-  build --strict`, `ruff`, `mypy`, `pyright`, `markdownlint`), not just
-  pytest, and to the bare `2>&1 | tail -5` form as much as to `tee | tail`.
+  build --strict`, `ruff`, `mypy`, `markdownlint`), not just pytest, and to
+  the bare `2>&1 | tail -5` form as much as to `tee | tail`.
   Redirect, capture `$?`, then re-raise it:
 
   ```bash

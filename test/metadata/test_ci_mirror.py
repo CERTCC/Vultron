@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import fcntl
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -27,6 +28,8 @@ from vultron.metadata.planning.ci_mirror._registry import (
     EXCLUSIONS,
     MIRROR_CHECKS,
     RUN_IF_CHANGED,
+    SITE_READER_PREFIX,
+    SITE_READERS,
     CheckContext,
     MirrorCheck,
     markdownlint_command,
@@ -49,6 +52,7 @@ from vultron.metadata.planning.ci_mirror._workflows import (
     PullRequestTrigger,
     WorkflowStep,
     matches_filter,
+    pull_request_steps,
 )
 from vultron.metadata.planning.heavy_lock import HEAVY_LOCK, HEAVY_LOCK_SCRIPT
 
@@ -216,18 +220,33 @@ def test_a_builder_with_nothing_to_read_is_not_triggered():
     assert _plan(check).status is CheckStatus.NOT_TRIGGERED
 
 
-#: The five checks PAD-18-023 makes CI's, each by the CI step that runs it,
-#: as the registry's exclusion keys spell them. Named, not counted: a renamed
-#: CI step must fail here, and the parity test (PAD-18-022) refuses a key
-#: naming no step, so neither can go stale unnoticed.
+#: Every CI step PAD-18-023 makes CI's, by the exclusion key that names it.
+#: All of them, not a representative of each kind: the five built-site readers
+#: are one kind, and pinning one left the other four covered by nothing, so a
+#: reader moved back into the mirror with its exclusion deleted passed both
+#: this test and the parity test. Named, not counted: a renamed CI step must
+#: fail here, and the parity test (PAD-18-022) refuses a key naming no step,
+#: so neither can go stale unnoticed.
 _CI_OWNED_STEPS = (
     "python-app.yml::lint-pyright::Type-check with pyright",
     "spec-check.yml::spec-tests::Run spec_corpus pytest suite",
     "guard-tests.yml::guard-tests::Run the guard tests",
     "docs-build-check.yml::docs-build-check::Build Site > Build Site",
-    "docs-build-check.yml::docs-build-check::"
-    "Check site publication > Check internal references resolve",
+    *(SITE_READER_PREFIX + label for label in SITE_READERS),
 )
+
+
+@pytest.mark.spec("PAD-18-023")
+def test_the_pin_covers_every_built_site_reader() -> None:
+    """Non-vacuity: the pin is built from the registry's own label list, so a
+    sixth reader joins it without an edit here — and a shortened list cannot
+    quietly drop one.
+    """
+    pinned = {s for s in _CI_OWNED_STEPS if s.startswith(SITE_READER_PREFIX)}
+    assert pinned == {
+        k for k in EXCLUSIONS if k.startswith(SITE_READER_PREFIX)
+    }
+    assert len(pinned) == len(SITE_READERS) >= 5
 
 
 @pytest.mark.spec("PAD-18-023")
@@ -240,20 +259,124 @@ def test_the_mirror_leaves_cis_expensive_checks_to_ci(step: str) -> None:
     assert "PAD-18-023" in reason, reason
 
 
-@pytest.mark.spec("PAD-18-023")
-def test_no_mirror_check_runs_pyright_or_a_pytest_suite() -> None:
-    """The commands too, not only the step keys: PAD-18-027 is about pyright
-    wherever it is spelled, and the two pytest sets were the mirror's own
-    commands rather than a verbatim CI step.
+#: Diffs a command builder is probed with: Markdown alone and a lint config,
+#: the two branches ``markdownlint_command`` has. A builder's command is as
+#: much a command as a literal one.
+_PROBE_DIFFS = (("AGENTS.md",), (".markdownlint-cli2.yaml",))
+
+
+def _resolved_commands() -> dict[str, tuple[str, ...]]:
+    """Every check's command text, however the registry spells it.
+
+    A check with no ``command`` runs its CI step's own ``run:`` script
+    (``_run._argv``), which is exactly where a forbidden invocation would
+    hide. Reading only the tuple-valued commands inspected one of the 26
+    (#5535), and ``MirrorCheck.command`` is typed ``Sequence[str]``, so a
+    list literal — the natural form — was skipped too.
     """
-    commands = [
-        " ".join(c.command)
-        for c in MIRROR_CHECKS
-        if isinstance(c.command, tuple)
-    ]
-    offenders = [c for c in commands if "pyright" in c or "pytest" in c]
+    steps = pull_request_steps(REPO_ROOT)
+    resolved: dict[str, tuple[str, ...]] = {}
+    for check in MIRROR_CHECKS:
+        if check.command is None:
+            step = steps.get(check.step) if check.step else None
+            assert step is not None and step.run is not None, (
+                f"{check.id}: no command and no step run: script"
+            )
+            resolved[check.id] = (step.run,)
+        elif callable(check.command):
+            builder = check.command
+            resolved[check.id] = tuple(
+                " ".join(argv)
+                for diff in _PROBE_DIFFS
+                if (argv := builder(CheckContext({}, diff, REPO_ROOT)))
+                is not None
+            )
+        else:
+            resolved[check.id] = (" ".join(check.command),)
+    return resolved
+
+
+#: What PAD-18-023 forbids a mirror command, as patterns over its text.
+#: Not the bare word ``pytest``: two mirror checks run one named test file
+#: apiece (``story-page-shape``, ``docs-path-ratchet``), which is cheap and
+#: allowed. What PAD-18-023 names is a *suite*, and both of the ones it names
+#: are marker-selected — ``-m ""`` for the full tiers, ``-m spec_corpus`` for
+#: the spec corpus — so marker selection is the bar.
+_FORBIDDEN_COMMAND = (
+    ("pyright", re.compile(r"(?<![\w./-])pyright(?![\w:])")),
+    ("a marker-selected pytest suite", re.compile(r"pytest\b.*\s-m\s")),
+    ("the site build", re.compile(r"mkdocs\s+build|mkdocs-build-strict\.sh")),
+)
+
+
+@pytest.mark.spec("PAD-18-023")
+def test_no_mirror_check_runs_pyright_a_pytest_suite_or_the_site_build() -> (
+    None
+):
+    """The commands too, not only the step keys: PAD-18-027 is about pyright
+    wherever it is spelled, and the two pytest suites and the site build were
+    the mirror's own commands as much as a verbatim CI step.
+    """
+    offenders = {
+        f"{check_id}: {label}": line.strip()
+        for check_id, commands in _resolved_commands().items()
+        for command in commands
+        for line in command.splitlines()
+        for label, pattern in _FORBIDDEN_COMMAND
+        if pattern.search(line)
+    }
 
     assert not offenders, offenders
+
+
+@pytest.mark.spec("PAD-18-023")
+def test_the_command_scan_reads_every_check() -> None:
+    """Non-vacuity: a scan that resolved nothing would find no offender."""
+    resolved = _resolved_commands()
+
+    assert set(resolved) == {c.id for c in MIRROR_CHECKS}
+    assert all(resolved.values()), [k for k, v in resolved.items() if not v]
+    # All three spellings reach the scan: a step's own `run:`, a literal
+    # command, and a builder's output.
+    assert "uv run ruff check" in resolved["ruff-check"][0]
+    assert "uv run mypy" in resolved["mypy"][0]
+    assert all("markdownlint" in c for c in resolved["markdownlint"])
+    assert len(resolved["markdownlint"]) == len(_PROBE_DIFFS)
+
+
+@pytest.mark.spec("PAD-18-023")
+@pytest.mark.parametrize(
+    "command",
+    [
+        "uv run pyright vultron/",
+        "uvx pyright",
+        'uv run pytest -m "" -n auto test/',
+        'uv run pytest -m "" -n auto test/architecture/test_x.py',
+        "uv run pytest -m spec_corpus",
+        "mkdocs build --strict",
+        ".github/scripts/mkdocs-build-strict.sh",
+    ],
+)
+def test_the_forbidden_command_patterns_catch_each_form(command: str) -> None:
+    """A detector that matched none of these would pass over a real breach."""
+    assert any(p.search(command) for _, p in _FORBIDDEN_COMMAND), command
+
+
+@pytest.mark.spec("PAD-18-023")
+@pytest.mark.parametrize(
+    "command",
+    [
+        "uv run pytest test/metadata/docs/test_story_pages.py -q -n 0",
+        "uv run pytest test/architecture/test_codebase_docs_paths.py",
+        "PYTHONPATH='' uv run docs-site --check",
+        "bash .agents/skills/shared/run-if-changed.sh mypy vultron/",
+    ],
+)
+def test_the_forbidden_command_patterns_allow_a_cheap_check(
+    command: str,
+) -> None:
+    """And one that matched these would red on the mirror as it stands."""
+    assert not [lbl for lbl, p in _FORBIDDEN_COMMAND if p.search(command)]
 
 
 def test_markdownlint_reads_the_branchs_present_markdown(tmp_path: Path):
