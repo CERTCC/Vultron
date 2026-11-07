@@ -14,6 +14,7 @@ PAD-18-015): CI runs both suites on every push, and GitHub's required
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
+git fetch origin <base> || { echo "fetch failed — stop and report"; exit 1; }
 gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
 [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 ```

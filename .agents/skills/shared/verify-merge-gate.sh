@@ -11,7 +11,7 @@
 #   exit 1 (CONFLICTING), status DIRTY, or a marker hit -> MERGE-CONFLICT
 #   exit 2 (UNKNOWN after polling, or a gh error)       -> MERGE-STATE-UNKNOWN
 #   status BEHIND                                       -> BRANCH-BEHIND
-#   status DRAFT                                        -> PR-IS-DRAFT
+#   is_draft true, or status DRAFT                      -> PR-IS-DRAFT
 #   status BLOCKED, base main, `CI gate` not green      -> CI-GATE-NOT-GREEN
 #   status BLOCKED, base main, `CI gate` green          -> note only, no flag
 #   status BLOCKED, base not main                       -> note only, no flag
@@ -76,6 +76,7 @@ field() { printf '%s' "${json}" | jq -r "$1" 2>/dev/null; }
 mergeable="$(field '.mergeable // "UNKNOWN"')"
 status="$(field '.merge_state_status // "UNKNOWN"')"
 base="$(field '.base_ref // empty')"
+draft="$(field '.is_draft // false')"
 
 flags=()
 marker_hits=""
@@ -89,7 +90,15 @@ if [ "${ms}" = 1 ] || [ "${status}" = DIRTY ] || [ -n "${marker_hits}" ]; then
 fi
 [ "${ms}" = 2 ] && flags+=(MERGE-STATE-UNKNOWN)
 [ "${status}" = BEHIND ] && flags+=(BRANCH-BEHIND)
-[ "${status}" = DRAFT ] && flags+=(PR-IS-DRAFT)
+# `is_draft` is the reading that decides, not the status. GitHub sets
+# `mergeStateStatus: DRAFT` only when the draft state is the *blocking* reason;
+# a draft whose checks all pass is reported `CLEAN` with `isDraft: true`
+# (observed on PR #6104, the only open draft at the time). Keying on the status
+# alone cleared that PR, and since PAD-18-028 opens every implementation Pull
+# Request as a draft, that is the ordinary shape rather than an edge case. The
+# status is still read, because it is the stronger signal when GitHub does set
+# it and costs nothing to keep.
+{ [ "${draft}" = true ] || [ "${status}" = DRAFT ]; } && flags+=(PR-IS-DRAFT)
 
 # BLOCKED's non-bypassable cause: the `CI gate` required by `main-3` (#5945).
 # A cancelled or superseded earlier run sits on the head commit beside the live

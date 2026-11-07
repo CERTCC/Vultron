@@ -240,7 +240,7 @@ by GitHub, so check both.
 | `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (`fix-now`: execute clears it with `gh pr update-branch`, PAD-18-014) |
 | `DIRTY` | Conflicts — authoritative even if `mergeable` says otherwise | **FAIL** |
 | `BLOCKED` | A required check is not green — usually `CI gate`, required by `main-3` with no bypass actor (#5945) — or a required review is missing | **IMPROVE** (name the cause from `verify-merge-gate.sh`'s `ci_gate=` line, never a hand-rolled reading; a red gate is execute's to fix, a missing review is not) |
-| `DRAFT` | PR is a draft and cannot merge | **IMPROVE** |
+| `DRAFT` | PR is a draft **and** the draft state is what blocks the merge. Not the only draft shape: a draft whose checks all pass is `CLEAN` with `is_draft: true`, so judge a draft on `is_draft` (SKILL.md Phase 12) | **IMPROVE** |
 | `HAS_HOOKS` | Mergeable with pre-receive hooks | none |
 | `UNKNOWN` | Not yet computed | **FAIL** |
 

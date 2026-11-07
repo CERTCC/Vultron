@@ -73,7 +73,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _render_selection(selection: Selection, args: argparse.Namespace) -> str:
-    argv = pytest_argv(selection)
+    # `pytest_argv` is derived inside the two branches that print it, never
+    # ahead of them: it raises on a selection naming no test, and a raise on
+    # the file-list or `--paths` rendering would surface as a traceback
+    # rather than this CLI's documented exit status.
     if args.json:
         return json.dumps(
             {
@@ -83,12 +86,12 @@ def _render_selection(selection: Selection, args: argparse.Namespace) -> str:
                     for u in selection.unbounded
                 ],
                 "unmapped": selection.unmapped,
-                "pytest": argv,
+                "pytest": pytest_argv(selection),
             },
             indent=2,
         )
     if args.pytest:
-        return shlex.join(argv)
+        return shlex.join(pytest_argv(selection))
     return "\n".join(selection.tests)
 
 

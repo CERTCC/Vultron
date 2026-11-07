@@ -169,7 +169,13 @@ _TEST_PATH = re.compile(r"^test(/|$)|\.py(::|$)")
 #: Tokens that match :data:`_TEST_PATH` but still collect everything, so
 #: naming one would satisfy the guard's own "or name the paths" advice while
 #: changing nothing about what runs.
-_WHOLE_TREE_TOKENS = frozenset({"test", "test/", ".", "./"})
+#:
+#: Only the two that need excluding. ``.`` and ``./`` collect everything too,
+#: but they do not match :data:`_TEST_PATH` in the first place, so an entry
+#: for them would be unreachable — a listed "control" that controls nothing
+#: (#6097). They are caught because *no* token in such a command names a
+#: path; `test_a_whole_suite_gate_is_reported` pins both spellings.
+_WHOLE_TREE_TOKENS = frozenset({"test", "test/"})
 
 
 def _collects_a_path(argv: list[str]) -> bool:
@@ -237,7 +243,10 @@ def _whole_suite_gates(text: str) -> list[str]:
         # everything.
         ("uv run pytest test -n auto", True),
         ("uv run pytest test/ -n auto", True),
+        # `.` and `./` are caught by naming no path at all, not by the
+        # exclusion set, so each keeps a case of its own.
         ("uv run pytest . -n auto", True),
+        ("uv run pytest ./ -n auto", True),
         # Unparsable: fail closed rather than raise. A `pytest`-prefixed
         # launcher has no bare `pytest` token; a `-k` expression holding
         # `>` is cut mid-quote by the redirect split.
@@ -288,6 +297,31 @@ def test_no_agent_gate_runs_the_whole_suite(rel_path: str) -> None:
         "`targeted-tests` gate, or name files or directories under `test/` "
         "(naming `test/` itself is the whole tree).\n"
         + "\n".join(f"  {cmd}" for cmd in whole)
+    )
+
+
+@pytest.mark.spec("PAD-18-003", "PAD-18-008")
+def test_the_whole_suite_scan_still_has_subjects() -> None:
+    """`_REDIRECTED_GATE` must still match something in the corpus.
+
+    The scan above passes on a file with no gate in it, so a corpus where
+    the pattern matches nothing is green and reads nothing — and the two
+    siblings that share the pattern go quiet with it. Keyed on the act (a
+    redirected `pytest` gate) rather than on a count, so it does not pin a
+    number two PRs can race (#3984), but it does refuse zero
+    (`notes/architecture-ratchet-corpus.md` § "Key a Ratchet on the Act").
+    """
+    found = {
+        str(path.relative_to(_REPO_ROOT)): len(
+            _REDIRECTED_GATE.findall(path.read_text(encoding="utf-8"))
+        )
+        for path in _agent_files()
+    }
+    assert sum(found.values()), (
+        "no agent-facing file holds a redirected `pytest` gate any more, so "
+        "`_REDIRECTED_GATE` matches nothing and every scan built on it "
+        "passes having read nothing (#5535). If the gate's written shape "
+        "changed, update the pattern; do not delete the scans."
     )
 
 

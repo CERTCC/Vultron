@@ -17,13 +17,13 @@ description: >
 
 When a PR has accumulated review comments AND CI failures, the typical fix-all
 patterns can get incomplete: they address feedback but miss CI problems, or
-forget to mark comments as resolved, or skip integration tests for demo changes.
+forget to mark comments as resolved, or never run the gate at all.
 
 This skill provides a **structured, checkpoint-based workflow** that:
 
 1. **Inventories** all problems (unresolved comments + CI failures)
 2. **Fixes** code systematically (feedback + CI issues)
-3. **Tests** intelligently (unit + integration if demo/adapter changes)
+3. **Tests** with the targeted gate, whatever the diff touches (PAD-18-003)
 4. **Verifies** CI passes
 5. **Resolves** comments individually with explanations
 
@@ -75,6 +75,7 @@ PAD-18-015); CI runs both on every push. See
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
+git fetch origin <base> || { echo "fetch failed — stop and report"; exit 1; }
 gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
 [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 ```

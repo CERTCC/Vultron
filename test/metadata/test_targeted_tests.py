@@ -4,6 +4,7 @@ Requirements: specs/parallel-development.yaml PAD-18-002, PAD-18-003,
 PAD-18-009, PAD-18-011, PAD-18-012, PAD-18-015, PAD-18-019.
 """
 
+import argparse
 import json
 import shlex
 import sys
@@ -25,6 +26,7 @@ from vultron.metadata.planning.targeted_tests import (
     shared_infrastructure,
     widen_index,
 )
+from vultron.metadata.planning.targeted_tests.cli import _render_selection
 from vultron.metadata.planning.targeted_tests.selection import Selection
 from vultron.metadata.specs.backstop import (
     HUB_THRESHOLD,
@@ -505,7 +507,25 @@ def _every_selection_shape() -> list[tuple[str, Selection]]:
 
 
 #: Computed once: the decorator below reads both halves of each pair.
-_SELECTION_SHAPES = _every_selection_shape()
+_SELECTION_SHAPES: list[tuple[str, Selection]] = _every_selection_shape()
+
+
+@pytest.mark.spec("PAD-18-011")
+def test_the_selection_shape_list_is_not_empty() -> None:
+    """Unparametrized, so it still runs when the list is empty (#5535).
+
+    `test_pytest_argv_enables_the_integration_marker` is parametrized over
+    this list. An empty list collects no cases, and a run with no cases is
+    a pass — so PAD-18-011's "every selection" claim would be verified by
+    nothing. The one shape that must always be present is the ordinary
+    diff; the shared-infrastructure shapes come from
+    `SHARED_INFRASTRUCTURE_PATHS`, which has its own non-emptiness check.
+    """
+    assert _SELECTION_SHAPES, "no selection shapes to check the marker on"
+    assert any("ordinary" in name for name, _ in _SELECTION_SHAPES), (
+        "the ordinary-diff shape is gone, so the marker is checked only on "
+        f"edge cases: {[name for name, _ in _SELECTION_SHAPES]}"
+    )
 
 
 @pytest.mark.spec("PAD-18-011")
@@ -533,6 +553,37 @@ def test_an_empty_selection_has_no_gate_command():
     """
     with pytest.raises(ValueError, match="runs the whole suite"):
         pytest_argv(Selection())
+
+
+@pytest.mark.spec("PAD-18-003")
+@pytest.mark.parametrize(
+    ("flags", "expected"),
+    [({}, ""), ({"paths": ["x"]}, "")],
+    ids=["file-list", "paths"],
+)
+def test_a_rendering_that_prints_no_command_does_not_derive_one(
+    flags: dict, expected: str
+) -> None:
+    """The renderings that print no `pytest` command never build one.
+
+    `pytest_argv` raises on a selection naming no test. Deriving it ahead of
+    the output branches meant that raise reached the file-list and `--paths`
+    renderings as a traceback, instead of this CLI's documented exit status.
+    """
+    args = argparse.Namespace(json=False, pytest=False, **flags)
+    assert _render_selection(Selection(), args) == expected
+
+
+@pytest.mark.spec("PAD-18-003")
+@pytest.mark.parametrize("flag", ["json", "pytest"], ids=["json", "pytest"])
+def test_a_rendering_that_prints_the_command_still_refuses_an_empty_one(
+    flag: str,
+) -> None:
+    """The control on the other side: those two branches do derive it."""
+    args = argparse.Namespace(json=False, pytest=False)
+    setattr(args, flag, True)
+    with pytest.raises(ValueError, match="runs the whole suite"):
+        _render_selection(Selection(), args)
 
 
 @pytest.mark.spec("PAD-18-012")

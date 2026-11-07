@@ -37,9 +37,9 @@ status, so a killed run reports 0 under a passing-looking tail
 uv run pytest test/test_semantic_activity_patterns.py -v
 ```
 
-A change under `vultron/demo/` or `test/demo/` needs no full local run: that
-exception is retired, because `demo-integration.yml` runs those tests and the
-required `CI gate` judges it (PAD-18-008).
+A change under `vultron/demo/` or `test/demo/` needs no full local run: CI
+runs those tests — `demo-integration.yml` for the first, `python-app.yml`'s
+`rest` part for the second — and the required `CI gate` judges it (PAD-18-008).
 
 ---
 

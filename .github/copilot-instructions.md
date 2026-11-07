@@ -107,8 +107,11 @@ it runs both suites on every push, and GitHub's required `CI gate` refuses
 the merge until that run passes.
 
 A change under `vultron/demo/` or `test/demo/` is no exception. That standing
-requirement for a full local run is retired: `demo-integration.yml` runs
-those tests and the required `CI gate` judges it (PAD-18-008).
+requirement for a full local run is retired: CI runs those tests and the
+required `CI gate` judges the run (PAD-18-008). `demo-integration.yml` covers
+a `vultron/demo/` change; a `test/demo/` one is covered by `python-app.yml`'s
+`rest` part, since `demo-integration.yml`'s `paths` list `vultron/**` but not
+`test/demo/**`.
 
 ---
 

@@ -2973,8 +2973,11 @@ groups:
           GitHub refuses the merge until they pass. A local full run only makes
           the agent wait for an answer that CI gives sooner. This retires the
           one standing exception, a full local run for a change under
-          `vultron/demo/` or `test/demo/`: `demo-integration.yml` runs those
-          tests, and the required `CI gate` judges it.
+          `vultron/demo/` or `test/demo/`: CI runs those tests, and the
+          required `CI gate` judges the run. Which workflow depends on the
+          path — `demo-integration.yml` for `vultron/demo/`, and
+          `python-app.yml`'s `rest` part for `test/demo/`, whose `paths`
+          `demo-integration.yml` does not list.
         verification: >-
           Inspection: no gate that runs before a first push — `create-pr`'s,
           and those of the skills handing off to it (`build`, `bugfix`,

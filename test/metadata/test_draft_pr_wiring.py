@@ -34,11 +34,15 @@ What this module reads, and the direction each reading is loose in
   A transition made some other way — a `gh api` call against the
   `markPullRequestReadyForReview` mutation, say — would be **missed**. None
   exists today.
-- The `needs-rebase` arm is read twice: negatively, that the label does not
-  appear in the step before its own `gh pr edit` line, and positively, that
-  the step says the transition is owed ("owed, not optional", or "any
-  draft"). Either reading alone could be satisfied by a rewrite that moved
-  the condition past it.
+- The `needs-rebase` arm is read twice: negatively, that no code line of the
+  step mentions the label except the one that drops it (`--remove-label`),
+  and positively, that the step says the transition is owed ("owed, not
+  optional"). The negative reading used to look only at the text before the
+  first `gh pr edit`, which inspected half the step and passed a rewrite
+  that moved the label line above the ready; it now reads every code line.
+  The positive reading is prose, so it is the one arm here that is **not**
+  keyed on a command, and it would **miss** a step that says the right thing
+  while running the wrong one — which is what the negative arm is for.
 
 Requirements: specs/parallel-development.yaml PAD-18-028, PAD-18-029,
 PAD-18-030.
@@ -48,6 +52,7 @@ import re
 from pathlib import Path
 
 import pytest
+from _pytest.outcomes import Failed
 
 from test.metadata._agent_docs import code_lines
 
@@ -82,10 +87,6 @@ _CAP_STATEMENTS = re.compile(
     r"(?:4|four)[- ](?:\w+ )?iterations?", re.IGNORECASE
 )
 
-#: The same with no word between: the shape that says nothing about what is
-#: counted.
-_BARE_CAP = re.compile(r"(?:4|four)[- ]iterations?", re.IGNORECASE)
-
 
 def _ci_green_step(text: str) -> str:
     """`pr-execute`'s CI-green step, or a failure naming the heading moved."""
@@ -112,6 +113,31 @@ def test_the_files_this_module_reads_exist() -> None:
     assert _READ_FILES, "the declared file list is empty"
     missing = [str(p) for p in _READ_FILES if not p.is_file()]
     assert not missing, f"moved or renamed: {missing}"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("no headings here at all", "heading moved or was reworded"),
+        ("**On CI green**, do the thing", "eject heading moved"),
+        (
+            "**On the fourth counted iteration**\n\n**On CI green**",
+            "eject heading moved",
+        ),
+    ],
+    ids=["no-start", "no-end", "end-before-start"],
+)
+def test_the_step_locator_fails_with_a_message_it_cannot_find_the_step(
+    text: str, expected: str
+) -> None:
+    """Each `pytest.fail` branch of `_ci_green_step`, including the ordering.
+
+    A locator that raised `AttributeError` on a reworded heading, or that
+    returned a backwards slice when the eject heading sorted first, would
+    report a crash rather than the rewrite that caused it.
+    """
+    with pytest.raises(Failed, match=expected):
+        _ci_green_step(text)
 
 
 @pytest.mark.spec("PAD-18-028")
@@ -151,25 +177,35 @@ def test_the_ci_green_step_marks_any_draft_ready() -> None:
     ordinary Pull Request a draft for good.
     """
     text = _text(_PR_EXECUTE)
-    assert _PR_READY.search(text), "pr-execute never runs `gh pr ready`"
+    code = set(code_lines(text))
+    assert any(_PR_READY.search(line) for line in code), (
+        "pr-execute never runs `gh pr ready` (PAD-18-029)"
+    )
     step = _ci_green_step(text)
-    assert _PR_READY.search(step), (
+    # Only the lines an agent runs, as the module docstring says. Searching
+    # the step's raw text instead left the guard satisfied by the prose that
+    # *mentions* the command ("`gh pr ready` changes no commit", "If `gh pr
+    # ready` fails"), so deleting the command itself stayed green.
+    step_code = [line for line in step.splitlines() if line in code]
+    assert any(_PR_READY.search(line) for line in step_code), (
         "the CI-green step does not run `gh pr ready` (PAD-18-029)"
     )
-    # Negative: the label may not gate the step, before or after the command.
-    before_label_drop = step.replace("# only if it carries one", "").split(
-        "gh pr edit", 1
-    )[0]
-    assert "needs-rebase" not in before_label_drop, (
+    # Negative: the label may not gate the command, wherever in the step it
+    # sits. Reading only the text before the first `gh pr edit` inspected
+    # half the step, so moving the label line above the ready passed.
+    gating = [
+        line
+        for line in step_code
+        if "needs-rebase" in line and "--remove-label" not in line
+    ]
+    assert not gating, (
         "the CI-green step's undraft is conditioned on the `needs-rebase` "
-        "label. Every implementation Pull Request is a draft now "
+        f"label: {gating}. Every implementation Pull Request is a draft now "
         "(PAD-18-028), so the transition is owed to all of them "
         "(PAD-18-029)."
     )
     # Positive: the step has to say the transition is owed, not permitted.
-    assert any(
-        phrase in step for phrase in ("owed, not optional", "any draft")
-    ), (
+    assert "owed, not optional" in step, (
         "the CI-green step does not say the transition is owed. A step that "
         "only permits it leaves a green draft a draft (PAD-18-029)."
     )
@@ -187,21 +223,19 @@ def test_the_ci_round_cap_does_not_count_the_first_draft_run(
     makes. Counting it would leave one round fewer for fixes than before.
     """
     text = _text(path)
-    bare = _BARE_CAP.findall(text)
-    assert not bare, (
-        f"{path.name} states a cap over plain iterations: {bare}. CI's first "
-        "run on a draft is not one of them (PAD-18-030); say what the cap "
-        "counts."
-    )
     statements = _CAP_STATEMENTS.findall(text)
     assert statements, (
         f"{path.name} no longer states the cap at all; the guard would pass "
         "having read nothing (#5535)"
     )
+    # One classifier, not two: `_CAP_STATEMENTS`' middle word is optional, so
+    # it matches the bare spellings too and this assertion reds on them. A
+    # separate bare-cap regex beside it decided nothing and could only drift.
     for statement in statements:
         assert "counted" in statement, (
-            f"{path.name} states a cap that does not say what it counts: "
-            f"{statement!r} (PAD-18-030)"
+            f"{path.name} states a cap over plain iterations that does not "
+            f"say what it counts: {statement!r}. CI's first run on a draft "
+            "is not one of them (PAD-18-030)."
         )
 
 

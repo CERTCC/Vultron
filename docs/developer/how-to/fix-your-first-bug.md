@@ -249,14 +249,20 @@ pyright is not in this list: CI's `Lint (pyright)` job runs it, and no local gat
 Run the gate the pipeline runs — the test files `targeted-tests` derives from your diff:
 
 ```bash
-logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
-git fetch -q origin main || { echo "fetch failed — stop and report"; exit 1; }; gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?
-[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
+(
+  logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
+  git fetch -q origin main || { echo "fetch failed — stop and report"; exit 1; }
+  gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?
+  [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
+)
 ```
+
+Keep the outer `( … )` when you paste it.
+A failed fetch must stop the gate rather than let it run against a stale base, and inside a subshell `exit 1` ends the gate instead of closing your terminal.
 
 No local gate runs the whole unit or integration suite (PAD-18-003, PAD-18-008).
 CI runs both on your pull request, and the `CI gate` check that GitHub requires before a merge waits for them.
-That holds for a change under `vultron/demo/` or `test/demo/` too: `demo-integration.yml` runs those tests, and the gate's `-m ""` keeps a selected integration test in (PAD-18-011).
+That holds for a change under `vultron/demo/` or `test/demo/` too: CI runs those tests — `demo-integration.yml` for the first, `python-app.yml`'s `rest` part for the second — and the gate's `-m ""` keeps a selected integration test in (PAD-18-011).
 If you want the whole suite anyway, by hand, see [How to run maintainer tests](run-tests.md).
 
 Read the `exit:` line first — it is the verdict; the tail is only detail.

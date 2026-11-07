@@ -95,8 +95,11 @@ cannot be ready to merge no matter what those checks find.
    The script runs `merge-state.sh` once and applies the flag table in its
    header. `CONFLICTING`, `DIRTY` or a surviving `<<<<<<<`/`>>>>>>>` marker
    raises `MERGE-CONFLICT`, even if `mergeable` says `MERGEABLE`. `UNKNOWN`
-   raises `MERGE-STATE-UNKNOWN`, `BEHIND` raises `BRANCH-BEHIND`, and `DRAFT`
-   raises `PR-IS-DRAFT`. `BLOCKED` splits on the head commit's newest `CI gate`
+   raises `MERGE-STATE-UNKNOWN`, `BEHIND` raises `BRANCH-BEHIND`, and
+   `is_draft: true` raises `PR-IS-DRAFT` — the field, not the status, because
+   GitHub reports a draft whose checks all pass as `CLEAN` and sets
+   `mergeStateStatus: DRAFT` only when the draft state is itself the block.
+   `BLOCKED` splits on the head commit's newest `CI gate`
    run, reported as `ci_gate=`: green leaves it a note, as it always was, and
    anything else raises `CI-GATE-NOT-GREEN`. A PR onto a base the ruleset does
    not target reports `not-required` and stays a note. It prints one `verdict=`
