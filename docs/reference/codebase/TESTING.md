@@ -58,6 +58,7 @@ uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytes
 | Architecture boundary | Yes | Import graph enforcement, write-site and ordering ratchets | `test/architecture/` using AST/import scanning |
 | Spec compliance | Yes | Any test with `@pytest.mark.spec("ID")` | Spec IDs validated against `SpecRegistry` at collection |
 | API contract | Yes | Trigger/demo route set and response keys | `test/adapters/driving/fastapi/test_trigger_registry_routes.py` and `test_trigger_routes_contract.py` (TRIG-12-007, TRIG-12-001, TRIG-12-002) |
+| Guard set | Yes | 13 limit- and agreement-enforcing tests whose inputs are Markdown, `specs/`, `AGENTS.md` or `notes/` | `.github/workflows/guard-tests.yml`, which runs them on every pull request with no `paths` filter, because `python-app.yml`'s filter lists none of those inputs (PAD-18-023); the local mirror no longer runs them, and `test/ci/test_guard_tests_workflow.py` pins the list |
 | E2E (demo CI) | Yes | Multi-actor demo via Docker Compose | `.github/workflows/demo-integration.yml`, matrix from `.github/demo-scenarios.json`; separate from the pytest suite |
 | Demo UI (`ui/`) | Lint and build only | ESLint and `tsc -b && vite build` | `.github/workflows/ui.yml`; `ui/package.json` declares no test script |
 | Docker config | Yes | Compose file validity + env-var wiring | `test/docker/test_compose_env_vars.py`, `test/docker/test_docker_compose_config.sh`, `test/demo/test_multi_actor_compose.py` |
@@ -115,6 +116,7 @@ uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytes
 - `test/ci/invariants/universal_harness.py`
 - `test/ci/invariants/test_diagnostic_map_sync.py`
 - `.github/workflows/python-app.yml`
+- `.github/workflows/guard-tests.yml`
 - `.github/workflows/demo-integration.yml`
 - `.github/workflows/ui.yml`
 - `test/metadata/test_gate_ceiling.py`

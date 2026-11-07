@@ -27,10 +27,14 @@
 
 name: "Guard Tests"
 
+# No `workflow_dispatch`. `GITHUB_BASE_REF` is set on `pull_request` alone, and
+# the merge-base growth guards here skip without it — all-skipped exits 0 and
+# reports green. The gate keeps only the newest run per workflow, so a dispatch
+# on the branch would replace the real verdict with that empty one. "Re-run
+# jobs" on the pull request's own run re-runs this with the event intact.
 on:
   pull_request:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read

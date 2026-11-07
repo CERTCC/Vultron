@@ -107,11 +107,17 @@ def test_it_runs_on_every_pull_request_to_main() -> None:
     leave the guards unrun on exactly the pull requests they police
     (PAD-18-031).
     """
-    pull_request = triggers(_workflow())["pull_request"]
+    on = triggers(_workflow())
+    pull_request = on["pull_request"]
 
     assert pull_request["branches"] == ["main"]
     assert "paths" not in pull_request
     assert "paths-ignore" not in pull_request
+    # `GITHUB_BASE_REF` is set on `pull_request` alone, and the merge-base
+    # growth guards here skip without it — all-skipped is green. The gate
+    # judges only the newest run per workflow, so a dispatch on the branch
+    # would stand in for the real verdict with nothing checked.
+    assert set(on) == {"pull_request"}
 
 
 @pytest.mark.spec("PAD-18-023")

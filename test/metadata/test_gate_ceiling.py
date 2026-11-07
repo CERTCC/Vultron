@@ -43,16 +43,19 @@ _REPO_ROOT = Path(__file__).parents[2]
 
 _CEILING = " ".join(GATE_CEILING)
 
-# Files an agent reads for the gate command to run.
+# Files an agent reads for the gate command to run. `**/AGENTS.md` rather than
+# one glob per path depth: four hand-rolled levels left ten nested AGENTS.md
+# files scanned by nothing. The skills' scripts and the Makefile count too —
+# each is somewhere a gate command does live.
 _AGENT_GLOBS = (
-    "AGENTS.md",
-    "*/AGENTS.md",
-    "*/*/AGENTS.md",
-    "*/*/*/AGENTS.md",
+    "**/AGENTS.md",
     ".agents/skills/**/*.md",
+    ".agents/skills/**/*.sh",
+    ".agents/skills/**/*.py",
     ".github/copilot-instructions.md",
     "docs/reference/codebase/*.md",
     "notes/*.md",
+    "Makefile",
 )
 
 _EXCLUDED_PARTS = (".git", "plan", "node_modules", ".venv", "wip_notes")
@@ -93,10 +96,17 @@ def test_discovery_finds_the_gate_bearing_files() -> None:
     assert {
         "AGENTS.md",
         "test/AGENTS.md",
+        # Four levels deep: `**/AGENTS.md` reaches it, a per-depth glob list
+        # stopped short of it.
+        "vultron/core/behaviors/case/nodes/participant/AGENTS.md",
         ".agents/skills/run-tests/SKILL.md",
+        # A gate command lives in a skill's scripts as much as in its prose.
+        ".agents/skills/shared/run-if-changed.sh",
+        ".agents/skills/shared/run-heavy.py",
         ".github/copilot-instructions.md",
         "docs/reference/codebase/TESTING.md",
         "notes/testing-pitfalls.md",
+        "Makefile",
     } <= found
 
 
@@ -265,26 +275,69 @@ def test_skill_heavy_command_queues_on_the_heavy_check_lock(
 
 # --- The local linter step: ruff and mypy, never pyright (PAD-18-026/027) ---
 
-#: How a command runs pyright, in any of the forms the skills used before
-#: PAD-18-027: bare, inside `run-heavy.py`, or behind the memo wrapper. A
-#: mention of `pyrightconfig.json` or of a `# pyright: ignore[...]` pragma is
-#: not an invocation and does not match.
-_PYRIGHT_INVOCATION = re.compile(r'uv run pyright\b|"\$G" pyright\b')
+#: The tool named in a command, however it is launched. Keyed on the tool, not
+#: on one launcher: a pattern matching only `uv run pyright` would miss
+#: `uvx pyright`, `-m pyright`, a `make` recipe's bare `pyright`, and the
+#: escaped `\"$G\" pyright` a skill's YAML `commands:` key has to write (#5535).
+#: `pyrightconfig.json` and a `# pyright: ignore[...]` pragma are not calls.
+_PYRIGHT_TOOL = re.compile(r"(?<![\w./-])pyright(?![\w:])")
+
+#: The copy-pasteable form, wherever it is written: prose that spells a command
+#: out is prose an agent copies from, fence or no fence.
+_PYRIGHT_LAUNCHED = re.compile(
+    r"(?:uv run|uvx|uv tool run)\s+(?:[-\w./]+\s+)*?pyright(?![\w:])"
+)
 
 
-def test_detector_tells_a_pyright_invocation_from_a_mention() -> None:
+def _uncommented(line: str) -> str:
+    """*line* up to its `#`: a comment inside a fence names the tool, never runs it."""
+    return line.split("#", 1)[0]
+
+
+def _pyright_calls(text: str) -> list[str]:
+    """Lines of *text* that call pyright: any launcher in code, spelled out anywhere."""
+    code = set(_code_lines(text))
+    return [
+        line.strip()
+        for line in text.splitlines()
+        if _PYRIGHT_LAUNCHED.search(_uncommented(line))
+        or (line in code and _PYRIGHT_TOOL.search(_uncommented(line)))
+    ]
+
+
+def test_detector_tells_a_pyright_call_from_a_mention() -> None:
+    fenced = "\n".join(["```bash", "%s", "```"])
     for command in (
         "uv run pyright",
         "uv run python .agents/skills/shared/run-heavy.py uv run pyright",
         '"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright',
+        "uvx pyright",
+        "uv tool run pyright",
     ):
-        assert _PYRIGHT_INVOCATION.search(command), f"missed: {command}"
+        assert _pyright_calls(command), f"missed outside a fence: {command}"
+    # Launchers that need the code-line scan: no `uv run` to key on.
+    for command in (
+        "pyright vultron/ test/",
+        "\tpyright",
+        "python -m pyright",
+    ):
+        assert _pyright_calls(fenced % command), (
+            f"missed in a fence: {command}"
+        )
+    # The YAML `commands:` key a skill's harness runs, escaped quotes and all.
+    frontmatter = '---\ncommands:\n  - "\\"$G\\" pyright vultron/ -- uv run pyright"\n---\n'
+    assert _pyright_calls(frontmatter), "missed the commands: key"
     for prose in (
         "pyright runs in CI only (PAD-18-027)",
+        "read its findings off CI's `Lint (pyright)` job",
         "a stranded `# pyright: ignore[...]`",
         "pyrightconfig.json is an input of CI's pyright job",
+        "CI's `lint-pyright` job owns it",
+        # A comment inside a fence names the tool; it does not run it.
+        fenced % "# pyright is the second pass, and runs in CI",
+        fenced % "uv run mypy  # not pyright: that is CI's",
     ):
-        assert not _PYRIGHT_INVOCATION.search(prose), f"flagged: {prose}"
+        assert not _pyright_calls(prose), f"flagged prose: {prose}"
 
 
 @pytest.mark.spec("PAD-18-027")
@@ -300,16 +353,13 @@ def test_no_local_gate_runs_pyright(rel_path: str) -> None:
     a merge until CI's job is green (PAD-18-027, #3156).
 
     The bar is the written command, not the word: an agent-instruction file
-    that spells `uv run pyright` out is a file an agent copies from, whatever
-    the surrounding prose says. A developer how-to under ``docs/developer/``
-    may spell it, and is out of this module's scope.
+    that spells a pyright call out is a file an agent copies from, whatever the
+    surrounding prose says, and inside a code line any launcher counts. Prose
+    that names CI as pyright's owner is the wording this project wants, so it
+    passes. A developer how-to under ``docs/developer/`` may spell the command
+    for a by-hand run, and is out of this module's scope.
     """
-    text = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
-    found = [
-        line.strip()
-        for line in text.splitlines()
-        if _PYRIGHT_INVOCATION.search(line)
-    ]
+    found = _pyright_calls((_REPO_ROOT / rel_path).read_text(encoding="utf-8"))
     assert not found, (
         f"{rel_path} runs pyright locally (PAD-18-027):\n"
         + "\n".join(f"  {line}" for line in found)

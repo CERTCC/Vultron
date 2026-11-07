@@ -329,9 +329,9 @@ enough to need a per-host slot — PAD-18-023 made all four of those CI's — so
 wrapping it would only make this step queue behind another agent's suite for
 nothing. The honest run is a few minutes. The 5400-second ceiling stays a
 backstop well above that: each check runs under its own `--timeout` (1200 s)
-and there are two dozen of them over `--jobs 4`, so a run where several hang
-needs room above the sum of their trips before the ceiling is what ends it. A
-SIGTERM from the ceiling stops every running check (#5947).
+over `--jobs 4`, so a run where several hang needs room above the sum of their
+trips before the ceiling is what ends it. A SIGTERM from the ceiling stops
+every running check (#5947).
 
 Read the `exit:` line. `0` lets the push go. `1` means a `FAIL`, `NO-VERDICT`
 or `UNAVAILABLE` line: fix each `FAIL` (its `log:` path holds the output), commit,

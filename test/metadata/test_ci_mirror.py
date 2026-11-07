@@ -540,7 +540,6 @@ def test_list_json_reports_every_check(repo: Path, capsys):
     # The throwaway repository has no workflows, so every check reports the
     # stale registry rather than a plan.
     assert set(statuses.values()) == {"FAIL"}
-    assert "PASS" not in statuses.values()
     assert {c["id"] for c in payload["checks"]} == {
         c.id for c in MIRROR_CHECKS
     }
