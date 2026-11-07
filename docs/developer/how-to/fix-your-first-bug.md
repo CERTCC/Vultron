@@ -239,10 +239,10 @@ uv run ruff format
 ```bash
 uv run ruff check
 uv run mypy
-uv run pyright
 ```
 
 If any checks fail, fix them and reformat.
+pyright is not in this list: CI's `Lint (pyright)` job runs it, and no local gate does (PAD-18-027).
 
 ### 3. Run tests
 

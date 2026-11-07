@@ -31,17 +31,20 @@ uv run ruff check
 A finding the fixer could not resolve needs a hand fix.
 Do not add a `# noqa` to make it pass: a suppression needs a stated reason, and the ruleset is governed by `notes/lint-tooling.md`.
 
-## Run the type checkers
+## Run the type checker
 
 Run:
 
 ```bash
 uv run mypy
-uv run pyright
 ```
 
-Run them after formatting, never before.
+Run it after formatting, never before.
 The formatter can wrap a line that ends in a `# type: ignore` or `# pyright: ignore`, which leaves the pragma on a different line from the code it suppressed.
+
+pyright is the second type checker, and CI's `Lint (pyright)` job is where the project runs it: it costs about two minutes and enough memory to disturb a parallel test run, so no local gate runs it (PAD-18-027).
+Read its findings off that job.
+You may still run `uv run pyright` by hand when you are chasing a type error mypy does not report.
 
 ## Lint markdown separately
 

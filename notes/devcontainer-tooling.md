@@ -68,20 +68,21 @@ Run `ruff check` and `ruff format` with no path operands. Their scope is declare
 once in `[tool.ruff]` in `pyproject.toml` (IMPLTS-07-021), so a hand-picked path
 list silently diverges from what the hook and CI check. The `ruff` pre-commit
 hook checks only staged files and is fast, so a commit needs no long timeout;
-the slow linters (`mypy`, `pyright`) are not hooks and run through
-`.agents/skills/shared/run-if-changed.sh` in `run-linters`.
+`mypy` is not a hook and runs through
+`.agents/skills/shared/run-if-changed.sh` in `run-linters`. `pyright` runs in
+CI alone (PAD-18-027).
 
 ## Run Every Heavy Local Check Through the Per-Host Lock
 
 A command that starts many processes or uses much memory runs through
-`uv run python .agents/skills/shared/run-heavy.py`: `pytest -n auto`,
-the site build and `merged-tree-tests`. `pyright` is not on the list: no local
-gate runs it (PAD-18-027), and CI's `lint-pyright` job owns it. Every slot
-container on a host shares
-one Docker VM, and each such command sizes itself to its own container without
-seeing the others, so concurrent runs end in memory kills and per-test timeouts
-(#5947). The 6-CPU slot cap is a ceiling, not a reserved share (ADR-0143); the
-lock adds the missing limit on how many heavy checks run at once.
+`uv run python .agents/skills/shared/run-heavy.py`: `pytest -n auto`, the site
+build and `merged-tree-tests`. `pyright` is not on the list, because no local
+gate runs it at all — CI's `lint-pyright` job owns it (PAD-18-027). Every slot
+container on a host shares one Docker VM, and each such command sizes itself to
+its own container without seeing the others, so concurrent runs end in memory
+kills and per-test timeouts (#5947). The 6-CPU slot cap is a ceiling, not a
+reserved share (ADR-0143); the lock adds the missing limit on how many heavy
+checks run at once.
 
 - **Where it lives.** Slot lock files `heavy-<i>.lock` in
   `/home/vscode/.data/locks/`, inside the `${MAIN_NAME}-data` named volume every

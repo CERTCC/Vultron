@@ -202,7 +202,9 @@ entry vs. both.
    integration suites; read `exit:` (PAD-18-001/008). Later fix commits: linters
    plus `targeted-tests`, which escalates to `-m ""` itself (PAD-18-002/003), and
    on a base overlap `merged-tree-tests` (PAD-18-024). Every push, first or later,
-   runs `prepush-ci-mirror` last, CI's non-suite checks (PAD-18-021, ADR-0173).
+   runs `prepush-ci-mirror` last, CI's cheap checks — not pyright, the
+   spec-corpus suite, the guard tests or the site build, which are CI's
+   (PAD-18-021, PAD-18-023, ADR-0173).
 3. `build-docs` if `docs/` modified; `check-docs-sync` runs regardless (PD-03-008)
 4. `commit` skill — include Co-authored-by trailer
 
