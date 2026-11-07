@@ -2723,7 +2723,15 @@ groups:
         verification: >-
           Inspection: `pr-execute` gates each post-first-push fix with
           `targeted-tests` and runs no full suite, whatever the command
-          reports for the branch diff.
+          reports for the branch diff. Test:
+          `test/metadata/test_gate_ceiling.py::test_no_agent_gate_runs_the_whole_suite`
+          reports every redirect-and-re-raise `pytest` gate in an
+          agent-facing file (`**/AGENTS.md`, `.agents/skills/**`,
+          `notes/*.md`, `docs/reference/codebase/*.md`,
+          `.github/copilot-instructions.md`, `Makefile`) that names no path
+          narrower than the whole tree, and
+          `test/metadata/test_targeted_tests.py` checks that `pytest_argv`
+          carries paths for every selection and refuses an empty one.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-002
@@ -2971,7 +2979,11 @@ groups:
           Inspection: no gate that runs before a first push — `create-pr`'s,
           and those of the skills handing off to it (`build`, `bugfix`,
           `learn`, `plan-issue`) — runs `pytest` on the whole unit or
-          integration suite.
+          integration suite. Test:
+          `test/metadata/test_gate_ceiling.py::test_no_agent_gate_runs_the_whole_suite`
+          reads the same corpus for a gate command that collects everything,
+          and `guard-tests.yml` runs it on every pull request, including the
+          Markdown-only ones the suite's path filters miss.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-001

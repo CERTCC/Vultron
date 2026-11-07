@@ -76,9 +76,10 @@ creating it duplicates the feature. Grep the bare filename repo-wide and check
 
 When three or more related fix PRs affect the same CI suite (for example Demo
 Integration), open one `fix/<area>` integration branch off `main`, target every
-child PR at it, and run the full suite after each child merges. Merge the
-integration branch to `main` only when the suite is green. Parallel PRs to
-`main` can each confirm only their own scenario (CONCERN-2137).
+child PR at it, and let CI's run on each child's merge judge the suite. Merge
+the integration branch to `main` only when it is green. The suite here is CI's:
+no local gate runs it (PAD-18-003, PAD-18-008). Parallel PRs to `main` can each
+confirm only their own scenario (CONCERN-2137).
 
 `create-pr` always targets `main`; open a child PR with
 `gh pr create --base <integration-branch>` directly.

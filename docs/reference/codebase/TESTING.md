@@ -18,17 +18,22 @@ stakeholder_type: [project-contributor]
 # (PAD-18-003, PAD-18-008, PAD-18-015) — CI runs both, as parallel parts over
 # disjoint slices of test/ (TB-11-002), and GitHub's required `CI gate`
 # refuses the merge until that run passes.
-# Gate form: redirect, read the exit line (never end a gate command with a pipe)
-gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?
-[ "$rc" -eq 0 ] && { eval "$gate" > /tmp/last-test-run.log 2>&1; rc=$?; tail -20 /tmp/last-test-run.log; }; echo "exit: $rc"; (exit $rc)
+# Gate form: redirect, read the exit line (never end a gate command with a pipe).
+# The log name carries the worktree's directory because parallel sessions share
+# /tmp: a fixed name lets one session read, or overwrite, another's run.
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
+git fetch -q origin main || { echo "fetch failed — stop and report"; exit 1; }; gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 
+# The two commands below are CI's shape, for reading a failure by hand. Neither
+# is a local gate: no gate runs the whole suite (PAD-18-003, PAD-18-008).
 # Unit tests only (default — integration excluded)
 uv run pytest --tb=short
 
 # Integration tests only
 uv run pytest -m integration
 
-# Specific test file
+# Specific test file, while writing it
 uv run pytest test/test_config.py --tb=short
 ```
 

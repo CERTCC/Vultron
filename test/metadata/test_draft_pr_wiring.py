@@ -34,11 +34,11 @@ What this module reads, and the direction each reading is loose in
   A transition made some other way — a `gh api` call against the
   `markPullRequestReadyForReview` mutation, say — would be **missed**. None
   exists today.
-- The `needs-rebase` arm is read by asking that the undraft step not be
-  *conditioned* on that label. A rewrite that drops the label from the step
-  but reintroduces the condition in the prose around it would be missed, so
-  the arm is also read positively: the step's text has to say it marks a
-  draft ready regardless.
+- The `needs-rebase` arm is read twice: negatively, that the label does not
+  appear in the step before its own `gh pr edit` line, and positively, that
+  the step says the transition is owed ("owed, not optional", or "any
+  draft"). Either reading alone could be satisfied by a rewrite that moved
+  the condition past it.
 
 Requirements: specs/parallel-development.yaml PAD-18-028, PAD-18-029,
 PAD-18-030.
@@ -70,13 +70,38 @@ _READ_FILES: tuple[Path, ...] = (
 )
 
 #: `gh pr create` with `--draft` among its continued lines (PAD-18-028).
-_DRAFT_CREATE = re.compile(
-    r"gh pr create\b(?:[^\n]*\\\n)*[^\n]*--draft\b"
-    r"|gh pr create\b(?:[^\n]*\\\n)*?[^\n]*\\\n\s*--draft\b"
-)
+_DRAFT_CREATE = re.compile(r"gh pr create\b(?:[^\n]*\\\n)*[^\n]*--draft\b")
 
 #: The transition itself (PAD-18-029).
 _PR_READY = re.compile(r"gh pr ready\b")
+
+#: A cap on CI rounds, however it is spelled: a digit or the word, with
+#: "iteration" after it and at most one word between. Each match must say
+#: what it counts.
+_CAP_STATEMENTS = re.compile(
+    r"(?:4|four)[- ](?:\w+ )?iterations?", re.IGNORECASE
+)
+
+#: The same with no word between: the shape that says nothing about what is
+#: counted.
+_BARE_CAP = re.compile(r"(?:4|four)[- ]iterations?", re.IGNORECASE)
+
+
+def _ci_green_step(text: str) -> str:
+    """`pr-execute`'s CI-green step, or a failure naming the heading moved."""
+    start = re.search(r"\*\*On CI green[^\n]*\*\*", text)
+    if start is None:
+        pytest.fail(
+            "pr-execute's `**On CI green**` heading moved or was reworded; "
+            "the draft guard cannot find the step (PAD-18-029)"
+        )
+    end = re.search(r"\*\*On (?:the )?(?:fourth|iteration 4)", text)
+    if end is None or end.start() <= start.end():
+        pytest.fail(
+            "pr-execute's eject heading moved or was reworded; the draft "
+            "guard cannot bound the CI-green step (PAD-18-029, PAD-18-030)"
+        )
+    return text[start.start() : end.start()]
 
 
 def _text(path: Path) -> str:
@@ -92,10 +117,12 @@ def test_the_files_this_module_reads_exist() -> None:
 @pytest.mark.spec("PAD-18-028")
 def test_create_pr_opens_an_implementation_pr_as_a_draft() -> None:
     text = _text(_CREATE_PR)
-    assert _DRAFT_CREATE.search(text), (
+    code = "\n".join(code_lines(text))
+    assert _DRAFT_CREATE.search(code), (
         "create-pr's `gh pr create` call does not carry `--draft`. An "
         "implementation Pull Request opens as a draft (PAD-18-028): no full "
-        "suite has run on the branch when it is first pushed."
+        "suite has run on the branch when it is first pushed. Read from the "
+        "fenced command, not the prose: a sentence saying so is not the call."
     )
     assert "PAD-18-028" in text
 
@@ -125,17 +152,26 @@ def test_the_ci_green_step_marks_any_draft_ready() -> None:
     """
     text = _text(_PR_EXECUTE)
     assert _PR_READY.search(text), "pr-execute never runs `gh pr ready`"
-    step = text[text.index("**On CI green**") :]
-    step = step[: step.index("**On the fourth counted iteration")]
+    step = _ci_green_step(text)
     assert _PR_READY.search(step), (
         "the CI-green step does not run `gh pr ready` (PAD-18-029)"
     )
-    heading = step[: step.index("gh pr ready")]
-    assert "needs-rebase" not in heading, (
+    # Negative: the label may not gate the step, before or after the command.
+    before_label_drop = step.replace("# only if it carries one", "").split(
+        "gh pr edit", 1
+    )[0]
+    assert "needs-rebase" not in before_label_drop, (
         "the CI-green step's undraft is conditioned on the `needs-rebase` "
         "label. Every implementation Pull Request is a draft now "
         "(PAD-18-028), so the transition is owed to all of them "
         "(PAD-18-029)."
+    )
+    # Positive: the step has to say the transition is owed, not permitted.
+    assert any(
+        phrase in step for phrase in ("owed, not optional", "any draft")
+    ), (
+        "the CI-green step does not say the transition is owed. A step that "
+        "only permits it leaves a green draft a draft (PAD-18-029)."
     )
     assert "PAD-18-029" in step
 
@@ -151,11 +187,22 @@ def test_the_ci_round_cap_does_not_count_the_first_draft_run(
     makes. Counting it would leave one round fewer for fixes than before.
     """
     text = _text(path)
-    assert "counted iteration" in text, (
-        f"{path.name} states a cap without saying what it counts (PAD-18-030)"
+    bare = _BARE_CAP.findall(text)
+    assert not bare, (
+        f"{path.name} states a cap over plain iterations: {bare}. CI's first "
+        "run on a draft is not one of them (PAD-18-030); say what the cap "
+        "counts."
     )
-    bare = re.findall(r"(?<!un)(?<!not )\b4[- ]iteration cap\b", text)
-    assert not bare, f"{path.name} states a bare four-iteration cap: {bare}"
+    statements = _CAP_STATEMENTS.findall(text)
+    assert statements, (
+        f"{path.name} no longer states the cap at all; the guard would pass "
+        "having read nothing (#5535)"
+    )
+    for statement in statements:
+        assert "counted" in statement, (
+            f"{path.name} states a cap that does not say what it counts: "
+            f"{statement!r} (PAD-18-030)"
+        )
 
 
 @pytest.mark.spec("PAD-18-030")

@@ -26,7 +26,7 @@ documentation structure guidance.
   lookup. `DispatchNode` maps the verdict onto `InboxOutcome.status`.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
 <!-- markdownlint-disable-next-line MD013 -->
-- Tests: one gate, always targeted — `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?; [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)`
+- Tests: one gate, always targeted — `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; git fetch -q origin main || { echo "fetch failed — stop and report"; exit 1; }; gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?; [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)`
   — run once; read `exit:` first; never end a gate command with a pipe. No local
   gate runs the whole suite; CI does, and GitHub requires it (PAD-18-003/008).
 

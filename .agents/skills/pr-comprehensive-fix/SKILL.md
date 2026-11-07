@@ -112,21 +112,21 @@ For each unresolved comment:
 1. Inventory → approve
 2. Fix feedback (subskill) → review
 3. Fix CI (subskill) → review
-4. Run full tests → check results
+4. Run the local gate → check results
 5. Resolve comments individually → verify all addressed
 ```
 
 ### When feedback + CI failures both exist
 
 The workflow doesn't rerun tests after feedback-only (to avoid duplication),
-because Step 3 runs the full suite once both feedback and CI fixes are applied.
+because Step 3 runs the local gate once both feedback and CI fixes are applied.
 
 ### When only one type of problem exists
 
 Still follow the full workflow to ensure nothing is missed:
 
-- Feedback-only PR: Skip fix CI, still run full tests, still mark comments
-- CI-only PR: Skip fix feedback, still run full tests, verify any comments
+- Feedback-only PR: Skip fix CI, still run the gate, still mark comments
+- CI-only PR: Skip fix feedback, still run the gate, verify any comments
 
 ## Advanced Features
 

@@ -414,7 +414,7 @@ Then derive the set. `<scope>` is `--base origin/<base_ref>` for the
 branch-diff set, or `--paths <conflicted files>` after a conflict merge alone:
 
 ```bash
-git fetch origin <base_ref> || { echo "fetch failed — stop and report"; false; }
+git fetch origin <base_ref> || { echo "fetch failed — stop and report"; exit 1; }
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
 PYTHONPATH= uv run targeted-tests <scope> > "$logs-targeted.txt"; rc=$?; cat "$logs-targeted.txt"; echo "exit: $rc"; (exit $rc)
 ```
@@ -447,10 +447,14 @@ includes a CI test failure whose test file is not one of the printed paths
 (and is not under a listed directory), append that file to the gate, not the
 full suite: CI runs everything else on the push.
 
+Re-derive it in the same command. Shell state does not persist between tool
+calls (AGENTS.md § Bash), so `$gate` is empty in a block of its own and
+`eval " test/foo.py"` would try to execute the test file:
+
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-gate="$gate <failing test file>"
-eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; echo "exit: $rc"; (exit $rc)
+gate=$(PYTHONPATH= uv run targeted-tests <scope> --pytest) && gate="$gate <failing test file>"; rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 ```
 
 Read the `exit:` line, not just the tail — see `run-tests/SKILL.md` § Constraints.

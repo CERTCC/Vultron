@@ -8,7 +8,7 @@ tags:
   - ci
 shell: "zsh"
 commands:
-  - 'logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?; [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)'
+  - 'logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; git fetch -q origin main || { echo "fetch failed — stop and report"; exit 1; }; gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?; [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)'
 inputs:
   - name: repo_root
     description: "Repository root"
@@ -87,10 +87,15 @@ and `test/metadata/` (PAD-18-002).
 
 ```bash
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-git fetch origin <base> || { echo "fetch failed — stop and report"; false; }
+git fetch origin <base> || { echo "fetch failed — stop and report"; exit 1; }
 gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
 [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 ```
+
+`exit 1`, not `false`, on a failed fetch: the block has no `set -e`, so a
+`false` would let the next line derive the gate against a stale `origin/<base>`
+and the block's final `(exit $rc)` would report the gate's status — a passing
+`exit:` line over a fetch that did not happen.
 
 The printed command starts with `run-heavy.py`, so the gate takes one of the
 host's heavy-check slots, and then runs under the wall-clock ceiling. It

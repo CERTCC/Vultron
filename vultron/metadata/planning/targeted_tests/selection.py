@@ -99,17 +99,22 @@ def shared_infrastructure(path: str) -> UnboundedPath | None:
     files — fixtures, factories, helpers, data files: anything under
     ``test/`` that is not itself a ``test_*.py`` file. Tests reach these in
     ways no import records: a fixture by parameter name, a data file by
-    path, a configuration key by every run reading it. Those under
-    :data:`ALWAYS_SELECTED` are the exception: those directories are always
-    selected whole, and a test elsewhere that imports one of their helpers
-    is selected through the index (:func:`build_index`).
+    path, a configuration key by every run reading it.
+
+    Anything under :data:`ALWAYS_SELECTED` is the exception, whatever kind of
+    file it is, ``conftest.py`` included: those directories are always
+    selected whole, so the set does bound them, and a test elsewhere that
+    imports one of their helpers is selected through the index
+    (:func:`build_index`). The exclusion comes first for that reason — an arm
+    that fired ahead of it would report a path the gate already runs.
 
     The answer is a report, not a verdict. The gate still runs the set it
     can select plus :data:`ALWAYS_SELECTED`, and CI's required full run
     covers the reach beyond it (PAD-18-003, PAD-18-012).
     """
-    name = PurePosixPath(path).name
-    if name == "conftest.py":
+    if path.startswith(ALWAYS_SELECTED):
+        return None
+    if PurePosixPath(path).name == "conftest.py":
         return UnboundedPath(path, "conftest.py (shared test fixtures)")
     if path in SHARED_CONFIG_FILES:
         return UnboundedPath(path, "test configuration or dependencies")
@@ -117,7 +122,6 @@ def shared_infrastructure(path: str) -> UnboundedPath | None:
         return UnboundedPath(path, "package root (runs on every import)")
     if (
         path.startswith(TEST_PREFIX)
-        and not path.startswith(ALWAYS_SELECTED)
         and not _is_test_file(path)
         and not path.endswith(_INERT_TEST_SUFFIXES)
     ):
@@ -187,11 +191,23 @@ def pytest_argv(selection: Selection) -> list[str]:
 
     ``-m ""`` replaces the ``-m 'not integration'`` in ``addopts``: pytest
     keeps the last ``-m``, so marker-bearing tests among the selected files
-    are not deselected (PAD-18-011). The command always carries the selected
-    paths: a path-free one would run the whole suite, which no local gate
-    does (PAD-18-003). It runs in a heavy-check slot, then under
-    :data:`GATE_CEILING`.
+    are not deselected (PAD-18-011). It runs in a heavy-check slot, then
+    under :data:`GATE_CEILING`.
+
+    Raises:
+        ValueError: when *selection* names no test. A path-free command runs
+            the whole suite, which no local gate does (PAD-18-003), so an
+            empty selection has no command rather than a dangerous one.
+            :func:`select_tests` always prepends :data:`ALWAYS_SELECTED`, so
+            this is unreachable through the CLI; it is enforced here because
+            the invariant belongs to the function that would break it.
     """
+    if not selection.tests:
+        raise ValueError(
+            "a selection with no test has no gate command: a path-free "
+            "pytest call runs the whole suite, which no local gate does "
+            "(PAD-18-003)"
+        )
     return list(PYTEST_BASE) + selection.tests
 
 

@@ -41,6 +41,14 @@ that claims one-sidedness for all of them stops anyone looking
 - ``_RUNS_A_TEST`` and ``_REWRITES_THE_WORKTREE`` match command names, so they
   miss a test run or a merge reached through a wrapper this module does not
   name.  No agent-facing file holds such a wrapper today.
+- ``_REDIRECTED_GATE`` spells the launcher ``uv run pytest``, so the
+  whole-suite arm is launcher-blind the way the pyright arm deliberately is
+  not: a gate written ``uvx pytest``, ``python -m pytest`` or ``make test``
+  in the redirect-and-re-raise form is **missed**.  Widening the literal
+  would also widen the ceiling and lock arms that share it, which is why the
+  miss is declared here instead.  An unparsable command fails the other way:
+  :func:`_pytest_argv_of` returns ``None`` and the command is reported, so a
+  guard that cannot read a gate never calls it clean.
 
 It also pins which tools those commands may run: a heavy one queues on the
 per-host lock (#5947), and pyright does not run locally at all, because CI
@@ -158,16 +166,47 @@ def test_agent_gate_command_runs_under_the_ceiling(rel_path: str) -> None:
 #: a ``-k`` expression that happens to look like a path would read as one.
 _TEST_PATH = re.compile(r"^test(/|$)|\.py(::|$)")
 
+#: Tokens that match :data:`_TEST_PATH` but still collect everything, so
+#: naming one would satisfy the guard's own "or name the paths" advice while
+#: changing nothing about what runs.
+_WHOLE_TREE_TOKENS = frozenset({"test", "test/", ".", "./"})
+
+
+def _collects_a_path(argv: list[str]) -> bool:
+    """Whether *argv* names something narrower than the whole tree."""
+    return any(
+        _TEST_PATH.search(token) and token not in _WHOLE_TREE_TOKENS
+        for token in argv
+    )
+
+
+def _pytest_argv_of(command: str) -> list[str] | None:
+    """pytest's own arguments in *command*, or ``None`` when unparsable.
+
+    ``None`` fails closed: the caller reports the command rather than
+    letting an unreadable one through, and never raises — a guard that
+    exits with a traceback shows none of the message it was written to
+    show.
+    """
+    try:
+        tokens = shlex.split(command)
+        return tokens[tokens.index("pytest") + 1 :]
+    except ValueError:
+        # A `-k` expression holding `>`, cut mid-quote by the redirect
+        # split; or a `pytest`-prefixed launcher (`pytest-watch`) with no
+        # bare `pytest` token.
+        return None
+
 
 def _whole_suite_gates(text: str) -> list[str]:
     """The redirected pytest gates in *text* that collect the whole suite.
 
     A gate command is the redirect-and-re-raise form (:data:`_REDIRECTED_GATE`)
     whose status an agent reads as a pass or a fail. One that names no path
-    collects everything, which no local gate does: CI runs both suites on
-    every push and GitHub requires that run (PAD-18-003, PAD-18-008,
-    PAD-18-015). A ``--collect-only`` run executes no test, so it is not a
-    suite run.
+    narrower than the whole tree collects everything, which no local gate
+    does: CI runs both suites on every push and GitHub requires that run
+    (PAD-18-003, PAD-18-008, PAD-18-015). A ``--collect-only`` run executes
+    no test, so it is not a suite run.
 
     Whole-suite commands written *outside* this shape are missed on purpose:
     without the redirect and the re-raised status they are a reference for a
@@ -179,15 +218,10 @@ def _whole_suite_gates(text: str) -> list[str]:
         command = match.group(0).split(">", 1)[0]
         if "--collect-only" in command:
             continue
-        argv = shlex.split(command)[argv_start(command) :]
-        if not any(_TEST_PATH.search(token) for token in argv):
+        argv = _pytest_argv_of(command)
+        if argv is None or not _collects_a_path(argv):
             found.append(match.group(0))
     return found
-
-
-def argv_start(command: str) -> int:
-    """Where pytest's own arguments begin in *command*'s token list."""
-    return shlex.split(command).index("pytest") + 1
 
 
 @pytest.mark.parametrize(
@@ -198,6 +232,17 @@ def argv_start(command: str) -> int:
         ("uv run pytest -n auto --tb=short", True),
         ("uv run pytest -m integration -n auto --tb=short", True),
         ('uv run pytest -m "" -n auto --tb=short', True),
+        # The whole tree, named. Each of these satisfies a detector that
+        # asked only "does a token look like a path?", while running
+        # everything.
+        ("uv run pytest test -n auto", True),
+        ("uv run pytest test/ -n auto", True),
+        ("uv run pytest . -n auto", True),
+        # Unparsable: fail closed rather than raise. A `pytest`-prefixed
+        # launcher has no bare `pytest` token; a `-k` expression holding
+        # `>` is cut mid-quote by the redirect split.
+        ("uv run pytest-watch -n auto", True),
+        ('uv run pytest -k "a', True),
         # Path-bearing gates, which is every local gate now.
         (
             "uv run pytest -m '' -n auto test/architecture/ test/metadata/",
@@ -240,7 +285,8 @@ def test_no_agent_gate_runs_the_whole_suite(rel_path: str) -> None:
         f"{rel_path} holds a gate command that collects the whole suite. "
         "No local gate does: CI runs both suites on every push and GitHub "
         "requires that run (PAD-18-003, PAD-18-008, PAD-18-015). Use the "
-        "`targeted-tests` gate, or name the paths.\n"
+        "`targeted-tests` gate, or name files or directories under `test/` "
+        "(naming `test/` itself is the whole tree).\n"
         + "\n".join(f"  {cmd}" for cmd in whole)
     )
 
@@ -311,13 +357,22 @@ def test_a_gate_bearing_skill_runs_the_derived_command(skill: str) -> None:
     is checkable is that each of these skills reaches the gate the way the
     rules name: derive it with `targeted-tests`, then run what it printed.
     """
-    assert _GATE_BEARING_SKILLS, "the declared skill list is empty"
-    text = (_REPO_ROOT / ".agents/skills" / skill / "SKILL.md").read_text(
-        encoding="utf-8"
-    )
-    assert "targeted-tests" in text, skill
-    assert 'eval "$gate"' in text, skill
+    path = _REPO_ROOT / ".agents/skills" / skill / "SKILL.md"
+    text = path.read_text(encoding="utf-8")
+    code = "\n".join(code_lines(text))
+    assert "targeted-tests" in code, skill
+    assert 'eval "$gate"' in code, skill
     assert not _unlocked_parallel_gates(text), skill
+
+
+def test_the_gate_bearing_skill_list_is_not_empty() -> None:
+    """Its own test, not an assertion inside the parametrized body.
+
+    An empty tuple yields zero parametrized cases — one skip, exit 0 — so a
+    guard placed in that body would never run, which is the #5535 hole it
+    exists to close.
+    """
+    assert _GATE_BEARING_SKILLS
 
 
 def test_detector_reads_only_the_code_an_agent_runs() -> None:

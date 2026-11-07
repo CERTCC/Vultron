@@ -1,36 +1,5 @@
 # Testing Logic and File Detection
 
-## Detecting Integration Test Need
-
-The skill automatically analyzes which files changed in the PR to decide
-whether integration tests should be run.
-
-### Files That Trigger Integration Tests
-
-Run **full test suite (unit + integration)** if PR modifies:
-
-1. `demo/` — any demo script or orchestration file
-2. `integration_tests/` — any integration test
-3. `adapters/` — driving or driven adapters
-4. `vultron/core/behaviors/` — behavior tree logic
-5. `vultron/core/use_cases/` — use-case implementations
-6. `vultron/wire/as2/extractor/` — semantic extraction (core to message handling)
-
-### Detection Implementation
-
-```python
-changed_files = gh pr diff --name-only
-needs_integration = any(
-  f.startswith("demo/") or
-  f.startswith("integration_tests/") or
-  f.startswith("adapters/") or
-  f.startswith("vultron/core/behaviors/") or
-  f.startswith("vultron/core/use_cases/") or
-  f.startswith("vultron/wire/as2/extractor/")
-  for f in changed_files
-)
-```
-
 ## Test Gate Execution
 
 ### One Gate, Always Targeted
@@ -132,18 +101,15 @@ The skill may **stop and report** after evidence capture if:
 In these cases, the skill reports the state with linked Bug issue evidence,
 structured blockers, and explicit blocked/unblocked status.
 
-## Future Enhancement: Integrate with `build` Skill
+## No Full-Suite Escalation
 
-The same file-change detection should be used in the `build` skill to run
-integration tests before creating a PR. This would prevent PR creation with
-predictable test failures.
+The file-change detection this section used to describe — demo, adapters,
+behavior trees, use cases, the extractor — decided nothing by the time
+ADR-0143 landed, and decides nothing now: those paths are gated by their
+importers like any other (PAD-18-012). `pr-triage` still records
+`needs_integration_tests`, but only as information for a reader; no gate
+reads it (`pr-execute/REFERENCE.md`).
 
-### Proposed `build` Enhancement
-
-```text
-When creating a PR, if changed files match integration test triggers,
-run full test suite (unit + integration) before opening the PR.
-This catches demo/adapter issues early.
-```
-
-This prevents the scenario where a PR is created but immediately fails CI.
+`build` runs no suite of its own either, and never will: it hands off to
+`create-pr`, whose first-push gate is the linters plus the targeted set
+(PAD-18-001, PAD-18-008, PAD-18-017).

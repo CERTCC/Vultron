@@ -25,6 +25,7 @@ from vultron.metadata.planning.targeted_tests import (
     shared_infrastructure,
     widen_index,
 )
+from vultron.metadata.planning.targeted_tests.selection import Selection
 from vultron.metadata.specs.backstop import (
     HUB_THRESHOLD,
     FileChange,
@@ -431,17 +432,6 @@ def test_module_nothing_tests_is_unmapped():
     assert selection.unmapped == ["vultron/z.py"]
 
 
-@pytest.mark.spec("PAD-18-011")
-def test_pytest_argv_enables_the_integration_marker():
-    selection = _select(["vultron/a/mod.py"], [_change()])
-    argv = pytest_argv(selection)
-    prefix = len(_GATE_PREFIX)
-    assert argv[prefix : prefix + 3] == ["uv", "run", "pytest"]
-    marker = argv.index("-m")
-    assert argv[marker + 1] == ""
-    assert argv[-len(selection.tests) :] == selection.tests
-
-
 # ---------------------------------------------------------------------------
 # No escalation (PAD-18-003, PAD-18-012)
 # ---------------------------------------------------------------------------
@@ -454,7 +444,6 @@ SHARED_INFRASTRUCTURE_PATHS = [
     ("conftest.py", "conftest.py (shared test fixtures)"),
     ("test/conftest.py", "conftest.py (shared test fixtures)"),
     ("test/core/behaviors/conftest.py", "conftest.py (shared test fixtures)"),
-    ("test/architecture/conftest.py", "conftest.py (shared test fixtures)"),
     ("pyproject.toml", "test configuration or dependencies"),
     ("uv.lock", "test configuration or dependencies"),
     ("vultron/__init__.py", "package root (runs on every import)"),
@@ -481,6 +470,69 @@ INTEGRATION_BEARING_PATHS = [
     "vultron/core/use_cases/received/case.py",
     "vultron/wire/as2/extractor/__init__.py",
 ]
+
+
+def _every_selection_shape() -> list[tuple[str, Selection]]:
+    """One selection per shape a local gate is derived from (PAD-18-011).
+
+    The marker lives in the shared :data:`PYTEST_BASE`, so one case would
+    red on its removal — but the requirement is stated over *every* local
+    gate, and a reader of the verification should find each gate's shape
+    here rather than trust that one stands for all.
+    """
+    shapes = [
+        ("ordinary branch diff", _select(["vultron/a/mod.py"], [_change()])),
+        ("no Python changed", _select(["docs/index.md"], [])),
+        # The conflict-merge gate, derived the same way (PAD-18-015).
+        (
+            "conflict merge",
+            select_tests(
+                ["vultron/adapters/a/mod.py"],
+                [_change(None, "vultron/adapters/a/mod.py")],
+                TESTS,
+                lambda _p: True,
+            ),
+        ),
+    ]
+    shapes += [
+        (
+            f"shared infrastructure: {path}",
+            _select(["vultron/a/mod.py", path], [_change()]),
+        )
+        for path, _ in SHARED_INFRASTRUCTURE_PATHS
+    ]
+    return shapes
+
+
+#: Computed once: the decorator below reads both halves of each pair.
+_SELECTION_SHAPES = _every_selection_shape()
+
+
+@pytest.mark.spec("PAD-18-011")
+@pytest.mark.parametrize(
+    "selection",
+    [s for _, s in _SELECTION_SHAPES],
+    ids=[name for name, _ in _SELECTION_SHAPES],
+)
+def test_pytest_argv_enables_the_integration_marker(selection):
+    argv = pytest_argv(selection)
+    prefix = len(_GATE_PREFIX)
+    assert argv[prefix : prefix + 3] == ["uv", "run", "pytest"]
+    marker = argv.index("-m")
+    assert argv[marker + 1] == ""
+    assert argv[-len(selection.tests) :] == selection.tests
+
+
+@pytest.mark.spec("PAD-18-003")
+def test_an_empty_selection_has_no_gate_command():
+    """A path-free command runs the whole suite, so there is no command.
+
+    Unreachable through :func:`select_tests`, which always prepends
+    ``ALWAYS_SELECTED``; enforced where it would break rather than only
+    documented.
+    """
+    with pytest.raises(ValueError, match="runs the whole suite"):
+        pytest_argv(Selection())
 
 
 @pytest.mark.spec("PAD-18-012")
@@ -557,6 +609,10 @@ def test_metadata_helper_is_covered_by_the_whole_directory():
         "test/core/test_x.py",
         "test/architecture/_corpus.py",
         "test/metadata/specs/_helpers.py",
+        # A `conftest.py` under an always-selected directory is bounded by
+        # that directory, so it is not reported (#5948 review).
+        "test/architecture/conftest.py",
+        "test/metadata/conftest.py",
         *INTEGRATION_BEARING_PATHS,
         "test/AGENTS.md",
         "docs/index.md",
