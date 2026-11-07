@@ -784,8 +784,8 @@ def test_a_timeout_kills_the_whole_process_group(tmp_path: Path):
 def test_an_interrupt_kills_the_whole_process_group(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    # merged-tree-tests' SIGTERM unwinds through this wait; the gate's
-    # workers must not outlive it in the removed scratch worktree.
+    # An interrupt unwinds through this wait; a check's grandchildren (an
+    # xdist worker, a site build) must not outlive the mirror that started it.
     marker = tmp_path / "grandchild-survived"
     script = f"bash -c 'sleep 2 && touch {marker}' & wait"
     real_wait = subprocess.Popen.wait

@@ -161,8 +161,8 @@ Pushed PR, in pr-execute:
      merge-state.sh <pr>                              → CONFLICTING/DIRTY? BEHIND?
      git merge-tree --write-tree HEAD origin/<base>   → would conflict?
      ├── no conflict, not BEHIND → no merge into the branch (PAD-18-004);
-     │     files overlap → merged-tree-tests: the shared files' tests on a
-     │     scratch merge, worktree removed after (PAD-18-024/025)
+     │     files overlap → nothing local; CI tests the merge and the
+     │     merger refreshes the PR on GitHub (PAD-18-019/024)
      ├── BEHIND, no conflict     → gh pr update-branch; no local gate; CI re-runs
      └── conflict → sync-with-main.sh <base>  (merge, never rebase: PAD-11-001)
            ├── conflicts resolved
@@ -182,10 +182,10 @@ The merger, right before merging one PR (work-epic-tasks; PAD-18-009):
 ```
 
 Only a conflict costs an agent and a local merge; every clean merge into the
-branch is GitHub's, tested by CI (ADR-0138). An overlap costs one local run of
-the shared files' tests on a scratch merge (ADR-0173). It never selects for
-the whole branch diff, which would escalate to the full suite. Every push, of
-any kind, runs `prepush-ci-mirror` first. Check only the PR about to merge,
+branch is GitHub's, tested by CI (ADR-0138). An overlap costs no local run at
+all: CI on each push tests this branch merged into its base, so a test run on
+a scratch merge of the two would only repeat it (PAD-18-024, ADR-0179). Every
+push, of any kind, runs `prepush-ci-mirror` first. Check only the PR about to merge,
 never every open PR after a merge, and update it at most once: re-syncing on
 every movement of `main` is the loop ADR-0138 removed. A semantic conflict
 between files neither side shares is caught by CI on `main` after merge

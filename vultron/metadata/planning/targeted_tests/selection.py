@@ -206,9 +206,12 @@ def overlap(branch: Iterable[str], base: Iterable[str]) -> list[str]:
 def branch_overlap(git: GitRunner, start: str, base: str) -> list[str]:
     """Paths the branch and *base* both changed since *start*, their merge base.
 
-    The one overlap computation: ``targeted-tests --overlap`` and
-    ``merged-tree-tests`` both read it, so they agree on when a branch
-    overlaps its base.
+    ``targeted-tests --overlap`` reports these paths and nothing else
+    computes them. Two callers read that report, and neither runs a test on
+    the overlap: ``sync-decision.sh``, whose ``no-merge`` verdict with
+    ``merge_reason=deferred`` tells ``pr-execute`` the overlap is no reason
+    to merge the base in (PAD-18-004), and the merger, which refreshes the
+    Pull Request on GitHub instead (PAD-18-019).
     """
     return overlap(
         changed_paths(git, start), base_changed_paths(git, start, base)

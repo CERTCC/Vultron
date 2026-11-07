@@ -46,7 +46,7 @@ satisfied another way, and must say how in the PR.
 Every CI step is either mirrored here or excluded with a reason
 (``_registry.py``); ``test/ci/test_prepush_ci_mirror_parity.py`` fails on one
 that is neither. Requirements: specs/parallel-development.yaml PAD-18-021 to
-PAD-18-025 and PAD-18-031.
+PAD-18-023 and PAD-18-031.
 """
 
 from __future__ import annotations
