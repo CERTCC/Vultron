@@ -302,7 +302,7 @@ command's shape and how to read its outcomes.
 
 ### 3b — Pre-push body and spec gates (every PR type)
 
-Run these after the suites, on the freshened branch, immediately before the
+Run these after the gate, on the freshened branch, immediately before the
 push (PAD-20-002, PAD-20-003, PAD-20-007). Write the composed body to a file
 first; Phase 4 opens the PR from that same file.
 
@@ -341,7 +341,7 @@ in `## Spec amended`) pass at this stage; the caller's final-stage run after
 ### 3c — CI mirror (every PR type)
 
 Run CI's cheap pull-request checks on the whole branch diff, last, right before
-the push (PAD-18-021). The suites above do not cover them. The mirror runs CI's
+the push (PAD-18-021). The gate above does not cover them. The mirror runs CI's
 generated-file sync, front matter, ADR index, spec-lint, Markdown and workflow
 checks — the ones that answer in a few minutes — on whatever PR type this is.
 It runs none of CI's expensive checks: pyright, the spec-corpus suite, the
