@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Three rules over the commands written for agents, and the CI test job.
+"""The rules over the commands written for agents, and over the CI test job.
 
 A per-test ``signal`` timeout cannot reach a C call that holds the GIL or a
 stuck xdist controller, so the outer ceiling is the only thing that ends such
@@ -20,9 +20,27 @@ a run (TB-14-005, #4809).  The printed ``targeted-tests --pytest`` command is
 pinned in ``test_targeted_tests.py``; this module pins the written commands
 an agent copies and the CI test job, and the ``timeout-minutes`` cap on every
 job in every workflow (TB-14-006).  A heavy command queues on the per-host
-lock (#5947).  And none of these commands builds a checkout the agent does
-not commit, which is where a test run on a scratch merge would have to live
-(PAD-18-024).
+lock (#5947).  No command runs a test on a merge in a checkout the agent does
+not commit, which is where a scratch merge has to live (PAD-18-024), and the
+conflict check that replaced one asks git for a trial merge (PAD-18-025).
+
+Loose readings here, with the direction each is loose in, because a docstring
+that claims one-sidedness for all of them stops anyone looking
+(``notes/architecture-ratchet-corpus.md``):
+
+- ``_BUILDS_A_CHECKOUT`` matches ``worktree add``, the way such a checkout is
+  built, rather than the test run that is the act itself.  It **misses** one
+  built another way -- a clone, or ``git worktree`` split over a backslash
+  continuation -- and one in a shell script outside
+  :func:`_scratch_checkout_corpus` (``.github/scripts``, the repository root,
+  ``.devcontainer``) or in a module outside :func:`_tooling_modules`.
+  Markdown prose and inline code are missed on purpose: reading them would
+  **invent** a violation out of a sentence forbidding one.  It can still
+  invent from a Python docstring, or from a shell line that only prints the
+  command, both of which read as runnable here.
+- ``_RUNS_A_TEST`` and ``_REWRITES_THE_WORKTREE`` match command names, so they
+  miss a test run or a merge reached through a wrapper this module does not
+  name.  No agent-facing file holds such a wrapper today.
 
 Human developer how-to pages under ``docs/developer/`` are out of scope: stock
 macOS has no ``timeout`` binary.
@@ -197,8 +215,7 @@ def test_detector_reads_only_the_code_an_agent_runs() -> None:
             "```bash",
             '"$G" pyright vultron/ -- uv run pyright',
             f'"$G" pyright vultron/ -- {_LOCK} uv run pyright',
-            f"{_LOCK} timeout -k 30 1800 "
-            ".github/scripts/mkdocs-build-strict.sh",
+            f"{_LOCKED_PREFIX}.github/scripts/mkdocs-build-strict.sh",
             "```",
             "uv run pyright",
         ]
@@ -265,13 +282,14 @@ def test_skill_heavy_command_queues_on_the_heavy_check_lock(
 
 # --- No test run on a scratch merge (PAD-18-024) ----------------------------
 
-#: Every throwaway checkout an agent is told to make, with why it is allowed.
-#: `work-epic-tasks` step 4 reads a pushed PR's head when the PR's own
-#: worktree is gone; it merges nothing into that checkout and runs no test
-#: there, so no scratch merge lives in it (PAD-18-009, PAD-18-025).
+#: A pinned exemption set, not a ratchet: every throwaway checkout an agent is
+#: told to make, with why it is allowed, so an entry is not read as open debt
+#: (ARCH-18-005). `work-epic-tasks` step 4 reads a pushed PR's head when the
+#: PR's own worktree is gone. What it may not do there is run a test on a
+#: merge, which :func:`test_a_declared_scratch_checkout_runs_no_test` checks
+#: rather than take on trust (PAD-18-009, PAD-18-024).
 # permanent: PAD-18-009 — the merger has to read the head it is about to
-# merge, so this checkout never retires; what PAD-18-024 forbids is a test
-# run in one, which is why the entry records that this one runs none.
+# merge, so this checkout never retires.
 _SCRATCH_CHECKOUT_EXEMPTIONS = {
     ".agents/skills/work-epic-tasks/SKILL.md": [
         "git fetch origin <head_ref> && git worktree add --detach "
@@ -279,24 +297,49 @@ _SCRATCH_CHECKOUT_EXEMPTIONS = {
     ],
 }
 
+#: A line that runs tests. `targeted-tests` is absent on purpose: it selects
+#: and prints, and PAD-18-025's own verification rests on it running none.
+_RUNS_A_TEST = re.compile(r"\bpytest\b|\beval \"\$gate\"")
+
+#: A merge that writes a worktree, as `git merge-tree` does not (PAD-18-025).
+_REWRITES_THE_WORKTREE = re.compile(r"\bgit merge\b(?!-tree)")
+
+#: ``worktree add``, however it is spelled: a shell command, or the argv items
+#: of a :mod:`subprocess` call, where the two words are separate strings. The
+#: deleted runner used the second form (``merged_tree.py`` on the base), so a
+#: matcher that read only the first would not see it come back.
+_BUILDS_A_CHECKOUT = re.compile(r"\bworktree\b[\s,\"']+add\b")
+
 
 def _scratch_checkout_corpus() -> list[Path]:
-    """Where this arm looks: the agent docs, plus the scripts they call.
+    """Where the command arms look: the agent docs, plus the scripts they call.
 
     ``sync-decision.sh`` holds one of the two conflict checks PAD-18-025
     constrains, so a shell script is as much a place an agent builds a
-    checkout as a skill's fenced command is.
+    checkout as a skill's fenced command is. A checkout built by the tooling
+    rather than by a written command is asked about separately, by
+    :func:`test_no_tooling_module_builds_a_checkout`.
     """
     return _agent_files() + sorted(
         (_REPO_ROOT / ".agents" / "skills").glob("**/*.sh")
     )
 
 
+def _tooling_modules() -> list[Path]:
+    """Every module behind a console script an agent runs.
+
+    ``vultron/metadata/`` is where they all live
+    (``vultron/metadata/AGENTS.md``), which is where the runner this arm
+    replaced kept its scratch worktree.
+    """
+    return sorted((_REPO_ROOT / "vultron" / "metadata").glob("**/*.py"))
+
+
 def _runnable_lines(path: Path) -> list[str]:
-    """The lines of *path* an agent runs: a script's statements, or a
-    Markdown file's frontmatter ``commands:`` and fenced blocks."""
+    """The lines of *path* an agent runs: a script's or module's statements,
+    or a Markdown file's frontmatter ``commands:`` and fenced blocks."""
     text = path.read_text(encoding="utf-8")
-    if path.suffix == ".sh":
+    if path.suffix in {".sh", ".py"}:
         return [
             line
             for line in text.splitlines()
@@ -305,16 +348,36 @@ def _runnable_lines(path: Path) -> list[str]:
     return _code_lines(text)
 
 
+def _command_blocks(path: Path) -> list[list[str]]:
+    """The runnable lines of *path*, grouped as an agent meets them.
+
+    One group per fenced block in Markdown, so a line can be read against the
+    others it runs beside; a script or module is one group.
+    """
+    text = path.read_text(encoding="utf-8")
+    if path.suffix in {".sh", ".py"}:
+        return [_runnable_lines(path)]
+    blocks: list[list[str]] = []
+    fenced = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            if fenced:
+                blocks.append([])
+        elif fenced:
+            blocks[-1].append(line)
+    return [block for block in blocks if block]
+
+
 def _scratch_checkouts(lines: Iterable[str]) -> list[str]:
     """The given lines that build a checkout nothing commits to.
 
-    Keyed on the act PAD-18-024 forbids rather than on the name of any one
-    command, so a runner re-added under a new name is still caught. It can
-    miss a scratch merge built another way (a clone, a script outside
-    :func:`_scratch_checkout_corpus`); it invents nothing, because every hit
-    is a line an agent is told to run.
+    Keyed on ``worktree add``, the way one is built, rather than on the name
+    of any runner, so a runner re-added under a new name is still caught. See
+    this module's docstring for what the reading misses and where it can
+    invent.
     """
-    return [line.strip() for line in lines if "worktree add" in line]
+    return [line.strip() for line in lines if _BUILDS_A_CHECKOUT.search(line)]
 
 
 def test_detector_reads_a_scratch_checkout_only_from_runnable_code(
@@ -330,15 +393,74 @@ def test_detector_reads_a_scratch_checkout_only_from_runnable_code(
     assert _scratch_checkouts(_runnable_lines(script)) == [line]
 
 
-def test_the_scratch_checkout_corpus_holds_both_shapes() -> None:
+def test_detector_reads_a_test_run_beside_the_checkout_that_holds_it(
+    tmp_path: Path,
+) -> None:
+    doc = tmp_path / "SKILL.md"
+    doc.write_text(
+        "```bash\ngit worktree add --detach /tmp/x HEAD\n```\n\n"
+        "```bash\nuv run pytest -n auto\n```\n"
+    )
+
+    blocks = [b for b in _command_blocks(doc) if _scratch_checkouts(b)]
+
+    # One block per fence, so a test run in a *different* block is not read
+    # as running in the checkout.
+    assert blocks == [["git worktree add --detach /tmp/x HEAD"]]
+    assert not [ln for ln in blocks[0] if _RUNS_A_TEST.search(ln)]
+    assert _RUNS_A_TEST.search("uv run pytest -n auto")
+    assert not _RUNS_A_TEST.search("uv run targeted-tests --overlap")
+    assert _REWRITES_THE_WORKTREE.search("git merge origin/main --no-commit")
+    assert not _REWRITES_THE_WORKTREE.search("git merge-tree --write-tree")
+
+
+def test_the_scratch_checkout_corpus_holds_every_shape() -> None:
     found = {
         str(p.relative_to(_REPO_ROOT)) for p in _scratch_checkout_corpus()
     }
+    tooling = {str(p.relative_to(_REPO_ROOT)) for p in _tooling_modules()}
 
     assert {
         ".agents/skills/work-epic-tasks/SKILL.md",
         ".agents/skills/shared/sync-decision.sh",
     } <= found
+    assert {
+        "vultron/metadata/planning/ci_mirror/_run.py",
+        "vultron/metadata/planning/targeted_tests/selection.py",
+    } <= tooling
+
+
+def test_detector_reads_a_checkout_from_either_spelling() -> None:
+    # The deleted runner passed argv items, so the two words were separate
+    # strings on separate lines; a written command has them adjacent.
+    assert _BUILDS_A_CHECKOUT.search("git worktree add --detach /tmp/x HEAD")
+    assert _BUILDS_A_CHECKOUT.search("git worktree  add --detach /tmp/x HEAD")
+    assert _BUILDS_A_CHECKOUT.search('"worktree",\n            "add",')
+    assert not _BUILDS_A_CHECKOUT.search("git worktree remove --force /tmp/x")
+    assert not _BUILDS_A_CHECKOUT.search("adds a detached scratch worktree")
+
+
+@pytest.mark.spec("PAD-18-024")
+def test_no_tooling_module_builds_a_checkout() -> None:
+    """No console script an agent runs builds a checkout of its own.
+
+    The deleted runner built one here rather than in a written command, so a
+    guard that read only the skills would not see it come back. Read over the
+    whole module, because the argv items can sit on separate lines.
+    """
+    offenders = {}
+    for path in _tooling_modules():
+        joined = "\n".join(_runnable_lines(path))
+        if hits := _BUILDS_A_CHECKOUT.findall(joined):
+            offenders[str(path.relative_to(_REPO_ROOT))] = len(hits)
+
+    assert offenders == {}, (
+        "A module behind a console script builds a checkout the agent does "
+        "not commit. Running tests on a merge in one is what PAD-18-024 "
+        "forbids, and CI tests that merge on every push. Use "
+        "`git merge-tree` for a conflict check (PAD-18-025).\n"
+        f"  found: {offenders}"
+    )
 
 
 @pytest.mark.spec("PAD-18-024")
@@ -358,6 +480,44 @@ def test_only_a_declared_agent_command_builds_a_scratch_checkout() -> None:
     )
 
 
+@pytest.mark.spec("PAD-18-024")
+def test_a_declared_scratch_checkout_runs_no_test() -> None:
+    """Being declared exempt buys the checkout, never a test run in it.
+
+    The act PAD-18-024 forbids is the test run, so the exemption above is
+    conditional: each block that builds such a checkout is read for a test
+    run and for a merge that writes the worktree it was built in.
+    """
+    examined: list[str] = []
+    offenders: dict[str, list[str]] = {}
+    for path in _scratch_checkout_corpus():
+        rel = str(path.relative_to(_REPO_ROOT))
+        for block in _command_blocks(path):
+            if not _scratch_checkouts(block):
+                continue
+            examined.append(rel)
+            offenders.setdefault(rel, []).extend(
+                line.strip()
+                for line in block
+                if _RUNS_A_TEST.search(line)
+                or _REWRITES_THE_WORKTREE.search(line)
+            )
+
+    assert examined, (
+        "No block builds a checkout the agent does not commit, so this arm "
+        "has no subject. Either the declared exemption left "
+        "`_SCRATCH_CHECKOUT_EXEMPTIONS` — delete this arm with it — or the "
+        "detector stopped reading it."
+    )
+    assert not any(offenders.values()), (
+        "A checkout the agent does not commit runs a test, or takes a merge "
+        "that writes it. That is the scratch-merge run PAD-18-024 forbids: "
+        "CI tests the merge of the branch with its base on every push. Use "
+        "`git merge-tree` for a conflict check (PAD-18-025) and leave the "
+        f"testing to CI.\n  found: { {k: v for k, v in offenders.items() if v} }"
+    )
+
+
 @pytest.mark.spec("PAD-18-025")
 @pytest.mark.parametrize(
     "rel_path",
@@ -369,10 +529,20 @@ def test_only_a_declared_agent_command_builds_a_scratch_checkout() -> None:
 def test_the_conflict_check_is_a_trial_merge(rel_path: str) -> None:
     # The compliant form that replaced the scratch merge, so this arm stays
     # non-empty: both conflict checks ask git for a merge that writes no
-    # worktree and moves no branch.
-    text = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
+    # worktree and moves no branch. Read from the runnable lines, so a
+    # mention in a comment or in prose cannot stand in for the call.
+    lines = _runnable_lines(_REPO_ROOT / rel_path)
 
-    assert "git merge-tree" in text
+    assert [line for line in lines if "git merge-tree" in line], (
+        f"{rel_path} runs no `git merge-tree`. A conflict check must use a "
+        "trial merge that moves no branch and writes no worktree "
+        "(PAD-18-025)."
+    )
+    assert not [
+        line.strip() for line in lines if _REWRITES_THE_WORKTREE.search(line)
+    ], (
+        f"{rel_path} checks for a conflict with a merge that writes the worktree."
+    )
 
 
 def _python_app_jobs() -> dict[str, object]:

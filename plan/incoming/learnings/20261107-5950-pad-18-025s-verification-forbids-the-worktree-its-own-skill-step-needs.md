@@ -35,9 +35,10 @@ conformant skill.
 
 ## Evidence
 
-Issue #5950 removed the local scratch-merge test gate and replaced the deleted
-PAD-18-024 marker with an act-keyed guard over "a checkout the agent does not
-commit" (`test/metadata/test_gate_ceiling.py`). The guard had to carry
+Issue #5950 removed the local scratch-merge test gate. Nine markers went with
+it — four on PAD-18-024, five on PAD-18-025 — replaced by a guard over "a
+checkout the agent does not commit" and the test run in one
+(`test/metadata/test_gate_ceiling.py`). The guard had to carry
 `work-epic-tasks` step 4's `git worktree add` as a declared permanent
 exemption, citing PAD-18-009 — a set the verification's wording says should be
 empty. PR #6096. The run's instructions barred any edit to PAD-18-024 or
@@ -48,7 +49,14 @@ PAD-18-025, so the mismatch was left in place.
 Scope the verification to the conflict check, not to the step: what must hold
 is that the command answering "does this conflict?" is `git merge-tree`, and
 that no checkout an agent makes is used to run tests on a merge. The second
-half is PAD-18-024's territory and is now covered by a test, so PAD-18-025's
-verification can name the trial-merge call sites alone. Any requirement that
-forbids an *act* should say which call site performs it, because a
-whole-file-or-whole-step prohibition picks up legitimate neighbours.
+half is PAD-18-024's territory, so PAD-18-025's verification can name the
+trial-merge call sites alone. Before relying on that split, read what the
+PAD-18-024 guard actually asserts: pinning *which* files build such a checkout
+left the test run inside the one declared exemption unchecked, and the gate
+stayed green on a block that merged the base and ran `pytest` in it. Closing
+that took a second arm, over each block that builds a checkout, plus one over
+the console-script modules, because the runner being replaced built its
+worktree from argv items rather than from a written command. Any requirement
+that forbids an *act* should say which call site performs it, because a
+whole-file-or-whole-step prohibition picks up legitimate neighbours — and a
+guard for one should assert the act, not a precondition of it.
