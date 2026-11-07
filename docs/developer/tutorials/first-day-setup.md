@@ -36,7 +36,7 @@ uv sync --dev
 
 Notice that `.venv/` is created and synced.
 
-## Step 3: run the baseline maintainer test command
+## Step 3: check the checkout by running the unit suite once
 
 Run:
 
@@ -45,6 +45,9 @@ uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /
 ```
 
 Notice that the final lines report the pytest summary.
+
+This is a one-off check that your checkout works, not the gate a pull request runs.
+That gate is the targeted set — see [How to run maintainer tests](../how-to/run-tests.md).
 
 ## Step 4: run local docs with maintainer pages enabled
 

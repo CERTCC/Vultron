@@ -2688,16 +2688,23 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          The fix-commit gate of PAD-18-002 MUST select its test files with the
+          Every local gate that selects test files MUST select them with the
           integration marker enabled.
         rationale: >-
           `addopts` carries `-m 'not integration'`, which drops marker-bearing tests
           from a file list. Enabling the marker keeps those tests in the gate.
+          Stated over every gate, not the fix-commit gate alone: the first-push
+          gate selects the same way (PAD-18-001), and so does the conflict-merge
+          gate (PAD-18-015), so a rule scoped to one of the three would leave the
+          marker unspecified for the other two.
         verification: >-
-          Inspection: the command that `pr-execute` runs overrides the
-          `not integration` default.
+          Inspection: the gate command in `create-pr` Phase 3, in `pr-execute`
+          Phase 5 Step 3, and after a conflict merge overrides the
+          `not integration` default. Test: `test/metadata/test_targeted_tests.py`
+          checks that the command `pytest_argv` prints carries `-m ""` for every
+          selection, whatever the diff.
         relationships:
-        - rel_type: refines
+        - rel_type: uses_definition
           spec_id: PAD-18-002
       - id: PAD-18-003
         adr:
@@ -2716,7 +2723,15 @@ groups:
         verification: >-
           Inspection: `pr-execute` gates each post-first-push fix with
           `targeted-tests` and runs no full suite, whatever the command
-          reports for the branch diff.
+          reports for the branch diff. Test:
+          `test/metadata/test_gate_ceiling.py::test_no_agent_gate_runs_the_whole_suite`
+          reports every redirect-and-re-raise `pytest` gate in an
+          agent-facing file (`**/AGENTS.md`, `.agents/skills/**`,
+          `notes/*.md`, `docs/reference/codebase/*.md`,
+          `.github/copilot-instructions.md`, `Makefile`) that names no path
+          narrower than the whole tree, and
+          `test/metadata/test_targeted_tests.py` checks that `pytest_argv`
+          carries paths for every selection and refuses an empty one.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-002
@@ -2958,13 +2973,20 @@ groups:
           GitHub refuses the merge until they pass. A local full run only makes
           the agent wait for an answer that CI gives sooner. This retires the
           one standing exception, a full local run for a change under
-          `vultron/demo/` or `test/demo/`: `demo-integration.yml` runs those
-          tests, and the required `CI gate` judges it.
+          `vultron/demo/` or `test/demo/`: CI runs those tests, and the
+          required `CI gate` judges the run. Which workflow depends on the
+          path — `demo-integration.yml` for `vultron/demo/`, and
+          `python-app.yml`'s `rest` part for `test/demo/`, whose `paths`
+          `demo-integration.yml` does not list.
         verification: >-
           Inspection: no gate that runs before a first push — `create-pr`'s,
           and those of the skills handing off to it (`build`, `bugfix`,
           `learn`, `plan-issue`) — runs `pytest` on the whole unit or
-          integration suite.
+          integration suite. Test:
+          `test/metadata/test_gate_ceiling.py::test_no_agent_gate_runs_the_whole_suite`
+          reads the same corpus for a gate command that collects everything,
+          and `guard-tests.yml` runs it on every pull request, including the
+          Markdown-only ones the suite's path filters miss.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-001
@@ -3219,7 +3241,10 @@ groups:
           together on a Pull Request opened as a draft here.
         verification: >-
           Inspection: `create-pr` opens an implementation Pull Request with
-          `gh pr create --draft`.
+          `gh pr create --draft`. Test:
+          `test/metadata/test_draft_pr_wiring.py` checks that `create-pr`'s
+          push step carries `--draft` and that its constraints forbid opening
+          one without it.
         relationships:
         - rel_type: derives_from
           spec_id: PAD-18-008
@@ -3229,17 +3254,24 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          An agent MUST mark a draft Pull Request ready for review only when
-          CI's latest run on its head has passed.
+          An agent MUST mark a draft Pull Request ready for review when, and
+          only when, CI's latest run on its head has passed.
         rationale: >-
           No full suite runs locally, so a CI run is the first proof that the
-          branch works. A failed run leaves the Pull Request a draft until a fix
-          passes, never for good.
+          branch works, and the draft state says so until it passes. The
+          obligation runs both ways because each direction answers a different
+          failure: marked ready early, the Pull Request claims an answer nothing
+          gave; left a draft once the run passed, it claims one is still coming,
+          and GitHub refuses to merge a draft, so it cannot merge at all. A
+          failed run leaves it a draft until a fix passes, never for good.
         verification: >-
-          Inspection: `pr-ship` runs `gh pr ready` only after every CI run on
-          the head commit has finished and the newest of them passed, so a
-          cancelled or superseded run beside a live one decides nothing
-          (PAD-18-032).
+          Inspection: `pr-ship` runs `gh pr ready` when, and only when, every CI
+          run on the head commit has finished and the newest of them passed, so
+          a cancelled or superseded run beside a live one decides nothing
+          (PAD-18-032); its `pr-execute` phase runs it on the CI-green step, and
+          no step of `create-pr` runs it. Test:
+          `test/metadata/test_draft_pr_wiring.py` checks that the CI-green step
+          marks any draft ready, not only one labelled `needs-rebase`.
         relationships:
         - rel_type: derives_from
           spec_id: PAD-18-028
@@ -3259,7 +3291,10 @@ groups:
           Inspection: the CI-loop iteration cap in
           `.agents/skills/pr-execute/SKILL.md`, which holds the count, starts
           after CI's first run on a draft; `REFERENCE.md` names the same cap
-          as an eject condition.
+          as an eject condition. Test:
+          `test/metadata/test_draft_pr_wiring.py` checks that both files say
+          the cap counts iterations that applied a fix, and that neither
+          states a bare four-iteration cap.
         relationships:
         - rel_type: derives_from
           spec_id: PAD-18-028

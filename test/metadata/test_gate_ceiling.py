@@ -41,6 +41,14 @@ that claims one-sidedness for all of them stops anyone looking
 - ``_RUNS_A_TEST`` and ``_REWRITES_THE_WORKTREE`` match command names, so they
   miss a test run or a merge reached through a wrapper this module does not
   name.  No agent-facing file holds such a wrapper today.
+- ``_REDIRECTED_GATE`` spells the launcher ``uv run pytest``, so the
+  whole-suite arm is launcher-blind the way the pyright arm deliberately is
+  not: a gate written ``uvx pytest``, ``python -m pytest`` or ``make test``
+  in the redirect-and-re-raise form is **missed**.  Widening the literal
+  would also widen the ceiling and lock arms that share it, which is why the
+  miss is declared here instead.  An unparsable command fails the other way:
+  :func:`_pytest_argv_of` returns ``None`` and the command is reported, so a
+  guard that cannot read a gate never calls it clean.
 
 It also pins which tools those commands may run: a heavy one queues on the
 per-host lock (#5947), and pyright does not run locally at all, because CI
@@ -52,6 +60,7 @@ macOS has no ``timeout`` binary.
 
 import ast
 import re
+import shlex
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -59,6 +68,7 @@ from typing import Any
 import pytest
 
 from test.ci._workflows import WORKFLOWS_DIR, load_workflow, workflow_files
+from test.metadata._agent_docs import code_lines
 from vultron.metadata.planning.heavy_lock import HEAVY_LOCK_SCRIPT
 from vultron.metadata.planning.targeted_tests import GATE_CEILING
 
@@ -146,6 +156,175 @@ def test_agent_gate_command_runs_under_the_ceiling(rel_path: str) -> None:
     )
 
 
+# --- No gate runs the whole suite (PAD-18-003, PAD-18-008, PAD-18-015) ------
+
+#: A token that names something for pytest to collect: a path under ``test``,
+#: a ``.py`` file, or a ``file::test`` node id. Keyed on the *shape* of a
+#: collection argument rather than on a list of pytest's value-taking flags,
+#: because an unlisted flag's value would otherwise read as a path and let a
+#: whole-suite run through. The reading is loose in the other direction too:
+#: a ``-k`` expression that happens to look like a path would read as one.
+_TEST_PATH = re.compile(r"^test(/|$)|\.py(::|$)")
+
+#: Tokens that match :data:`_TEST_PATH` but still collect everything, so
+#: naming one would satisfy the guard's own "or name the paths" advice while
+#: changing nothing about what runs.
+#:
+#: Only the two that need excluding. ``.`` and ``./`` collect everything too,
+#: but they do not match :data:`_TEST_PATH` in the first place, so an entry
+#: for them would be unreachable — a listed "control" that controls nothing
+#: (#6097). They are caught because *no* token in such a command names a
+#: path; `test_a_whole_suite_gate_is_reported` pins both spellings.
+_WHOLE_TREE_TOKENS = frozenset({"test", "test/"})
+
+
+def _collects_a_path(argv: list[str]) -> bool:
+    """Whether *argv* names something narrower than the whole tree."""
+    return any(
+        _TEST_PATH.search(token) and token not in _WHOLE_TREE_TOKENS
+        for token in argv
+    )
+
+
+def _pytest_argv_of(command: str) -> list[str] | None:
+    """pytest's own arguments in *command*, or ``None`` when unparsable.
+
+    ``None`` fails closed: the caller reports the command rather than
+    letting an unreadable one through, and never raises — a guard that
+    exits with a traceback shows none of the message it was written to
+    show.
+    """
+    try:
+        tokens = shlex.split(command)
+        return tokens[tokens.index("pytest") + 1 :]
+    except ValueError:
+        # A `-k` expression holding `>`, cut mid-quote by the redirect
+        # split; or a `pytest`-prefixed launcher (`pytest-watch`) with no
+        # bare `pytest` token.
+        return None
+
+
+def _whole_suite_gates(text: str) -> list[str]:
+    """The redirected pytest gates in *text* that collect the whole suite.
+
+    A gate command is the redirect-and-re-raise form (:data:`_REDIRECTED_GATE`)
+    whose status an agent reads as a pass or a fail. One that names no path
+    narrower than the whole tree collects everything, which no local gate
+    does: CI runs both suites on every push and GitHub requires that run
+    (PAD-18-003, PAD-18-008, PAD-18-015). A ``--collect-only`` run executes
+    no test, so it is not a suite run.
+
+    Whole-suite commands written *outside* this shape are missed on purpose:
+    without the redirect and the re-raised status they are a reference for a
+    human, not a gate an agent's decision rests on. ``docs/developer/`` holds
+    those, and this module's corpus excludes it.
+    """
+    found = []
+    for match in _REDIRECTED_GATE.finditer(text):
+        command = match.group(0).split(">", 1)[0]
+        if "--collect-only" in command:
+            continue
+        argv = _pytest_argv_of(command)
+        if argv is None or not _collects_a_path(argv):
+            found.append(match.group(0))
+    return found
+
+
+@pytest.mark.parametrize(
+    "command,is_whole_suite",
+    [
+        # The three whole-suite shapes, one control each: a detector that
+        # keyed on the marker rather than on the paths would read only one.
+        ("uv run pytest -n auto --tb=short", True),
+        ("uv run pytest -m integration -n auto --tb=short", True),
+        ('uv run pytest -m "" -n auto --tb=short', True),
+        # The whole tree, named. Each of these satisfies a detector that
+        # asked only "does a token look like a path?", while running
+        # everything.
+        ("uv run pytest test -n auto", True),
+        ("uv run pytest test/ -n auto", True),
+        # `.` and `./` are caught by naming no path at all, not by the
+        # exclusion set, so each keeps a case of its own.
+        ("uv run pytest . -n auto", True),
+        ("uv run pytest ./ -n auto", True),
+        # Unparsable: fail closed rather than raise. A `pytest`-prefixed
+        # launcher has no bare `pytest` token; a `-k` expression holding
+        # `>` is cut mid-quote by the redirect split.
+        ("uv run pytest-watch -n auto", True),
+        ('uv run pytest -k "a', True),
+        # Path-bearing gates, which is every local gate now.
+        (
+            "uv run pytest -m '' -n auto test/architecture/ test/metadata/",
+            False,
+        ),
+        ("uv run pytest test/metadata/test_gate_ceiling.py -n 0", False),
+        ("uv run pytest -n 0 test/x/test_a.py::test_b", False),
+        # Collection is not a suite run.
+        ('uv run pytest -m "new_mark" --collect-only', False),
+    ],
+)
+def test_detector_tells_a_whole_suite_gate_from_a_targeted_one(
+    command: str, is_whole_suite: bool
+) -> None:
+    gate = (
+        f"{command} > /tmp/x.log 2>&1; rc=$?; tail -5 /tmp/x.log; "
+        'echo "exit: $rc"; (exit $rc)'
+    )
+    assert _whole_suite_gates(gate) == ([gate] if is_whole_suite else [])
+
+
+def test_detector_reads_only_pytests_own_arguments() -> None:
+    """The log name and the `tail` arguments are not collection paths."""
+    gate = (
+        'uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; '
+        'tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)'
+    )
+    assert _whole_suite_gates(gate) == [gate]
+
+
+@pytest.mark.spec("PAD-18-003", "PAD-18-008")
+@pytest.mark.parametrize(
+    "rel_path",
+    [str(p.relative_to(_REPO_ROOT)) for p in _agent_files()],
+)
+def test_no_agent_gate_runs_the_whole_suite(rel_path: str) -> None:
+    text = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
+    whole = _whole_suite_gates(text)
+    assert not whole, (
+        f"{rel_path} holds a gate command that collects the whole suite. "
+        "No local gate does: CI runs both suites on every push and GitHub "
+        "requires that run (PAD-18-003, PAD-18-008, PAD-18-015). Use the "
+        "`targeted-tests` gate, or name files or directories under `test/` "
+        "(naming `test/` itself is the whole tree).\n"
+        + "\n".join(f"  {cmd}" for cmd in whole)
+    )
+
+
+@pytest.mark.spec("PAD-18-003", "PAD-18-008")
+def test_the_whole_suite_scan_still_has_subjects() -> None:
+    """`_REDIRECTED_GATE` must still match something in the corpus.
+
+    The scan above passes on a file with no gate in it, so a corpus where
+    the pattern matches nothing is green and reads nothing — and the two
+    siblings that share the pattern go quiet with it. Keyed on the act (a
+    redirected `pytest` gate) rather than on a count, so it does not pin a
+    number two PRs can race (#3984), but it does refuse zero
+    (`notes/architecture-ratchet-corpus.md` § "Key a Ratchet on the Act").
+    """
+    found = {
+        str(path.relative_to(_REPO_ROOT)): len(
+            _REDIRECTED_GATE.findall(path.read_text(encoding="utf-8"))
+        )
+        for path in _agent_files()
+    }
+    assert sum(found.values()), (
+        "no agent-facing file holds a redirected `pytest` gate any more, so "
+        "`_REDIRECTED_GATE` matches nothing and every scan built on it "
+        "passes having read nothing (#5535). If the gate's written shape "
+        "changed, update the pattern; do not delete the scans."
+    )
+
+
 # --- The per-host heavy-check lock (#5947) ----------------------------------
 
 #: The wrapper as written in a command.
@@ -171,31 +350,9 @@ def _unlocked_parallel_gates(text: str) -> list[str]:
     ]
 
 
-def _code_lines(text: str) -> list[str]:
-    """The lines of *text* an agent runs: frontmatter ``commands:`` and fences."""
-    lines = text.splitlines()
-    code: list[str] = []
-    fenced = False
-    in_frontmatter = bool(lines) and lines[0] == "---"
-    in_commands = False
-    for index, line in enumerate(lines):
-        if in_frontmatter:
-            if index and line == "---":
-                in_frontmatter = False
-            elif not line.startswith(" "):
-                in_commands = line.startswith("commands:")
-            elif in_commands:
-                code.append(line)
-        elif line.lstrip().startswith("```"):
-            fenced = not fenced
-        elif fenced:
-            code.append(line)
-    return code
-
-
 def _unlocked_heavy_lines(text: str) -> list[str]:
     unlocked = []
-    for line in _code_lines(text):
+    for line in code_lines(text):
         match = _HEAVY_COMMAND.search(line)
         if match and _LOCK not in line[: match.start()]:
             unlocked.append(line.strip())
@@ -210,12 +367,46 @@ def test_detector_tells_a_locked_parallel_gate_from_a_bare_one() -> None:
     assert _unlocked_parallel_gates(f"{_CEILING} {serial}") == []
 
 
-def test_the_parallel_gate_scan_sees_the_skill_gates() -> None:
-    # The gates log to "$log" and "$logs-*.log"; a scan that matched only a
-    # literal /tmp/ path would pass having checked none of them.
-    for skill in ("run-tests", "create-pr"):
-        text = (_REPO_ROOT / ".agents/skills" / skill / "SKILL.md").read_text()
-        assert len(list(_REDIRECTED_GATE.finditer(text))) >= 2, skill
+#: The skills that hold a local test gate. Each runs the command
+#: `targeted-tests` prints, never one written out in its own prose
+#: (PAD-18-001, PAD-18-002, PAD-18-015). Annotated rather than left as a
+#: literal, so a non-empty check over it is a check and not a constant
+#: pyright folds away (#5535).
+_GATE_BEARING_SKILLS: tuple[str, ...] = (
+    "run-tests",
+    "create-pr",
+    "pr-execute",
+)
+
+
+@pytest.mark.spec("PAD-18-001", "PAD-18-002")
+@pytest.mark.parametrize("skill", _GATE_BEARING_SKILLS)
+def test_a_gate_bearing_skill_runs_the_derived_command(skill: str) -> None:
+    """The gate is derived, not written out, in every skill that holds one.
+
+    This replaces a count of written `uv run pytest` gates in these files.
+    There are none left to count — the lock and the ceiling now live in
+    `PYTEST_BASE`, pinned by `test_targeted_tests.py` — so a non-vacuity
+    check keyed on that count would pass having read nothing (#5535). What
+    is checkable is that each of these skills reaches the gate the way the
+    rules name: derive it with `targeted-tests`, then run what it printed.
+    """
+    path = _REPO_ROOT / ".agents/skills" / skill / "SKILL.md"
+    text = path.read_text(encoding="utf-8")
+    code = "\n".join(code_lines(text))
+    assert "targeted-tests" in code, skill
+    assert 'eval "$gate"' in code, skill
+    assert not _unlocked_parallel_gates(text), skill
+
+
+def test_the_gate_bearing_skill_list_is_not_empty() -> None:
+    """Its own test, not an assertion inside the parametrized body.
+
+    An empty tuple yields zero parametrized cases — one skip, exit 0 — so a
+    guard placed in that body would never run, which is the #5535 hole it
+    exists to close.
+    """
+    assert _GATE_BEARING_SKILLS
 
 
 def test_detector_reads_only_the_code_an_agent_runs() -> None:
@@ -291,9 +482,9 @@ def test_discovery_finds_the_skills_with_heavy_commands() -> None:
 def test_the_heavy_command_scan_sees_each_skills_heavy_commands(
     rel_path: str,
 ) -> None:
-    # A code form _code_lines missed would pass the scan having read nothing.
+    # A code form code_lines missed would pass the scan having read nothing.
     text = (_REPO_ROOT / rel_path).read_text(encoding="utf-8")
-    assert any(_HEAVY_COMMAND.search(line) for line in _code_lines(text))
+    assert any(_HEAVY_COMMAND.search(line) for line in code_lines(text))
 
 
 @pytest.mark.parametrize(
@@ -377,12 +568,12 @@ def _executable_lines(text: str, suffix: str) -> list[str]:
     A Markdown file's code is its fences and its frontmatter ``commands:``
     key. A file that is *not* Markdown — a skill's ``.sh`` or ``.py``, the
     ``Makefile`` — is code throughout, bar a Python docstring. Asking
-    ``_code_lines`` for those returned nothing, which left the
+    ``code_lines`` for those returned nothing, which left the
     launcher-agnostic half of the pyright detector dead on all 32 of them,
     including the ``make`` recipe its own comment names (#3156, #5535).
     """
     if suffix == ".md":
-        return _code_lines(text)
+        return code_lines(text)
     if suffix == ".py":
         return _python_code_lines(text)
     return text.splitlines()
@@ -469,7 +660,7 @@ def test_detector_reads_a_non_markdown_file_as_code_throughout() -> None:
     """A `.sh`, a `.py` and the `Makefile` have no fence to look inside.
 
     32 of the corpus's 260 files are one of those three, and asking
-    ``_code_lines`` for their code returned nothing — so every launcher but
+    ``code_lines`` for their code returned nothing — so every launcher but
     ``uv run``/``uvx``/``uv tool run`` went unseen there, including the
     ``make`` recipe ``_PYRIGHT_TOOL``'s own comment names (#3156).
     """
@@ -532,7 +723,7 @@ def test_the_linter_skill_runs_ruff_and_mypy() -> None:
     # The other half of the rule: dropping pyright must not leave the step
     # with nothing, which `test_no_local_gate_runs_pyright` alone would pass.
     code = "\n".join(
-        _code_lines(
+        code_lines(
             (_REPO_ROOT / ".agents/skills/run-linters/SKILL.md").read_text(
                 encoding="utf-8"
             )
@@ -609,7 +800,7 @@ def _runnable_lines(path: Path) -> list[str]:
             for line in text.splitlines()
             if line.strip() and not line.lstrip().startswith("#")
         ]
-    return _code_lines(text)
+    return code_lines(text)
 
 
 def _command_blocks(path: Path) -> list[list[str]]:

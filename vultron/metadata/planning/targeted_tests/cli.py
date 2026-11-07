@@ -14,7 +14,6 @@ from vultron.metadata.planning.targeted_tests.index import build_index
 from vultron.metadata.planning.targeted_tests.selection import (
     Selection,
     branch_overlap,
-    conflict_suite_trigger,
     pytest_argv,
     select_tests,
 )
@@ -38,7 +37,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="targeted-tests",
         description=(
             "Derive the local test gate for the branch diff (PAD-18-002, "
-            "PAD-18-003), or list the files the base and the branch both "
+            "PAD-18-012), or list the files the base and the branch both "
             "changed (PAD-18-004)."
         ),
     )
@@ -74,26 +73,25 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _render_selection(selection: Selection, args: argparse.Namespace) -> str:
-    argv = pytest_argv(selection)
+    # `pytest_argv` is derived inside the two branches that print it, never
+    # ahead of them: it raises on a selection naming no test, and a raise on
+    # the file-list or `--paths` rendering would surface as a traceback
+    # rather than this CLI's documented exit status.
     if args.json:
         return json.dumps(
             {
-                "mode": "full" if selection.full else "targeted",
                 "tests": selection.tests,
-                "triggers": [
-                    {"path": t.path, "reason": t.reason}
-                    for t in selection.triggers
+                "unbounded": [
+                    {"path": u.path, "reason": u.reason}
+                    for u in selection.unbounded
                 ],
                 "unmapped": selection.unmapped,
-                "pytest": argv,
+                "pytest": pytest_argv(selection),
             },
             indent=2,
         )
     if args.pytest:
-        return shlex.join(argv)
-    if selection.full:
-        lines = [f"{t.path}: {t.reason}" for t in selection.triggers]
-        return "\n".join(["full", *lines])
+        return shlex.join(pytest_argv(selection))
     return "\n".join(selection.tests)
 
 
@@ -125,13 +123,12 @@ def _run_selection(args: argparse.Namespace, root: Path) -> int:
 
 def _report_selection(selection: Selection, args: argparse.Namespace) -> int:
     print(_render_selection(selection, args))
-    if args.pytest and selection.full:
-        for trigger in selection.triggers:
-            print(
-                f"targeted-tests: full suite: {trigger.path}: "
-                f"{trigger.reason}",
-                file=sys.stderr,
-            )
+    for unbounded in selection.unbounded:
+        print(
+            f"targeted-tests: no targeted set bounds {unbounded.path}: "
+            f"{unbounded.reason} — CI's full run covers it",
+            file=sys.stderr,
+        )
     if selection.unmapped:
         print(
             "targeted-tests: no test maps to: "
@@ -148,7 +145,6 @@ def _run_paths(args: argparse.Namespace, root: Path) -> int:
         [c for c in changes if c.path.endswith(".py")],
         build_index(root),
         lambda p: (root / p).is_file(),
-        trigger=conflict_suite_trigger,
     )
     return _report_selection(selection, args)
 

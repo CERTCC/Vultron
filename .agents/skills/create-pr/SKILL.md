@@ -3,9 +3,10 @@ name: create-pr
 description: >
   Branch-freshening PR submission. Cherry-picks the task branch onto a fresh
   origin/main base immediately before pushing, validates (linters for docs PRs;
-  full suite for implementation PRs), and opens a PR. Called by build,
-  plan-issue, bugfix, and learn. Can also be invoked conversationally ("pr that
-  for me"). Returns the PR URL.
+  linters plus the targeted test set for implementation PRs), and opens the PR
+  — as a draft for an implementation PR. Called by build, plan-issue, bugfix,
+  and learn. Can also be invoked conversationally ("pr that for me"). Returns
+  the PR URL.
 ---
 
 # Skill: Create PR
@@ -25,7 +26,7 @@ missing from `git log origin/main..HEAD` and the current diff.
 | `type` | `docs` or `implementation` (inferred from changed files if omitted) |
 | `labels` | Space-separated label names (e.g., `"size:M specs-notes"`) |
 | `issue_number` | Issue to close (parsed from branch name if omitted; optional) |
-| `draft` | `true` to open as draft (default: `false`) |
+| `draft` | `true` to open as draft. Default: `true` for an implementation PR (PAD-18-028), `false` for a docs PR. A caller may not pass `false` for an implementation PR |
 | `manifest` | Path of the Spec manifest file `spec-backstop` resolved, e.g. `/tmp/spec-manifest-<issue>.txt` (implementation PRs) |
 
 **Returns**: the PR URL as a string. Callers own `archive-history`, and for
@@ -107,8 +108,8 @@ Docs: pending check-docs-sync
 
 ## Verification
 
-- All N unit tests pass (M new)
-- ruff and mypy clean
+- Targeted gate: N tests pass over M files (K new), `exit: 0`
+- ruff and mypy clean (the type-check second pass is CI's, PAD-18-027)
 ```
 
 Under `## Specs`, paste the `manifest` file's contents verbatim: Phase 3b
@@ -249,30 +250,59 @@ before proceeding. Do not open a PR with lint failures.
 
 **Implementation PR** (`type: implementation`):
 
+The linters, then the branch diff's **targeted test set** — never the full
+unit or integration suite (PAD-18-001, PAD-18-008). CI runs both suites on
+this push, faster than a 2-CPU slot does, and GitHub's required `CI gate`
+refuses the merge until that run passes. That is also why Phase 4 opens the
+PR as a draft (PAD-18-028).
+
 ```bash
 G=.agents/skills/shared/run-if-changed.sh
 uv run ruff check --fix && uv run ruff format
-uv run ruff check && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy
-logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
-uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)
-uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -5 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)
+uv run ruff check && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy; rc=$?; echo "lint exit: $rc"; (exit $rc)
 ```
 
-Run the block as one shell command, so `logs` is set for each line. The
-log names carry the worktree's directory name because parallel sessions
-share `/tmp`: a fixed name lets one session read, or overwrite, another
-session's run.
+ruff and mypy, never pyright: CI's `lint-pyright` job owns it and the
+required `CI gate` refuses a merge until it is green (PAD-18-026,
+PAD-18-027). A pyright finding in new code is therefore invisible here and
+arrives in CI's first round; that is expected, not a gate failure.
 
-Both suites must pass. The first pytest command covers the unit suite
-(integration tests excluded by `addopts`); the second explicitly runs the
-integration suite so demo-layer regressions are caught before the PR opens.
+Stop on a non-zero `lint exit:` — a lint failure must not be masked by the
+test step's status. Then the targeted set, over the freshened branch's diff
+with `origin/main`:
+
+```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
+git fetch origin main || { echo "fetch failed — stop and report"; exit 1; }
+gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
+```
+
+Run each block as one shell command, so `logs` is set for each line. The log
+name carries the worktree's directory name because parallel sessions share
+`/tmp`: a fixed name lets one session read, or overwrite, another session's
+run.
+
+The printed command starts with `run-heavy.py`, so the gate takes one of the
+host's heavy-check slots, and it carries `-m ""`, so integration-marked tests
+among the selected files still run (PAD-18-011). No diff escalates it: a path
+whose reach the index cannot bound — `conftest.py`, `pyproject.toml`,
+`uv.lock`, `vultron/__init__.py`, a test fixture, factory, helper or data
+file — is named on stderr, and the gate is the set it could select plus
+`test/architecture/` and `test/metadata/` (PAD-18-003, PAD-18-012). Paths
+printed as `no test maps to` are left to CI; that is expected, not an error.
+
+Read the `exit:` line, not just the tail. **This run counts as one targeted
+run** in the PR's `Suite runs:` line, and the full count stays zero
+(PAD-18-016).
 
 If any step fails, fix, re-validate, and continue. Do not open a PR with
-failing tests or lint errors.
+failing tests or lint errors. See `run-tests` § "The Targeted Gate" for the
+command's shape and how to read its outcomes.
 
 ### 3b — Pre-push body and spec gates (every PR type)
 
-Run these after the suites, on the freshened branch, immediately before the
+Run these after the gate, on the freshened branch, immediately before the
 push (PAD-20-002, PAD-20-003, PAD-20-007). Write the composed body to a file
 first; Phase 4 opens the PR from that same file.
 
@@ -311,7 +341,7 @@ in `## Spec amended`) pass at this stage; the caller's final-stage run after
 ### 3c — CI mirror (every PR type)
 
 Run CI's cheap pull-request checks on the whole branch diff, last, right before
-the push (PAD-18-021). The suites above do not cover them. The mirror runs CI's
+the push (PAD-18-021). The gate above does not cover them. The mirror runs CI's
 generated-file sync, front matter, ADR index, spec-lint, Markdown and workflow
 checks — the ones that answer in a few minutes — on whatever PR type this is.
 It runs none of CI's expensive checks: pyright, the spec-corpus suite, the
@@ -359,12 +389,26 @@ git push -u origin HEAD
 gh pr create --repo CERTCC/Vultron \
   --head "$(git branch --show-current)" \
   --base main \
+  --draft \
   --title "<title>" \
   --body-file /tmp/pr-body-<issue>.md \
   --label "<labels>"
 ```
 
 Capture and return the PR URL emitted by `gh pr create`.
+
+**`--draft` on every implementation PR** (PAD-18-028). Phase 3 ran no full
+suite, so when the branch is first pushed nothing has yet tested all of it;
+the draft state says so to a human reader, and the Issue stays
+`In Progress` until the draft is marked ready (PAD-16-008). Drop `--draft`
+only for a docs PR, which has no suite to wait for (PAD-18-010).
+
+**The draft does not stay one.** `pr-ship` marks it ready for review once
+CI's run on its head has finished and passed — that is an obligation, not an
+option, so a green PR cannot sit in draft (PAD-18-029). Report the PR as a
+draft when you return the URL, and name `pr-ship` as what moves it: a caller
+that stops here leaves the Issue `In Progress` and the PR unmergeable, since
+GitHub refuses to merge a draft.
 
 Always push with `-u` to the named remote `origin`. Without `-u` the branch
 gets no upstream, so every later bare `git push` fails ("has no upstream
@@ -375,10 +419,12 @@ URL — token included — as the branch's remote in `.git/config` (#3893).
 
 If Phase 2 exited with code `1` (cherry-pick conflict): run Phase 3 on the
 un-freshened branch first — the first-push gate applies to this push too
-(PAD-18-001), and no other skill runs the suites before it (PAD-18-017). Then
-push the branch as-is with the same `git push -u origin HEAD`, and open a draft
-PR with `needs-rebase` label per [REFERENCE.md](REFERENCE.md) § "Conflict PR
-template".
+(PAD-18-001), and no other skill runs a test of its own before it
+(PAD-18-017). Then push the branch as-is with the same
+`git push -u origin HEAD`, and add the `needs-rebase` label to the draft per
+[REFERENCE.md](REFERENCE.md) § "Conflict PR template". The PR is already a
+draft on the happy path; the label is what says *why* this one cannot be
+marked ready yet.
 
 ---
 
@@ -386,7 +432,12 @@ template".
 
 - **Never push before freshening.** The `freshen-branch.sh` step in Phase 2 is
   mandatory and must run immediately before the push in Phase 4.
-- **Never open a non-draft PR with lint failures or failing tests.**
+- **Never open a PR with lint failures or a failing targeted gate.**
+- **Never open an implementation PR without `--draft`** (PAD-18-028), and
+  never run `gh pr ready` here: nothing has tested the whole branch yet.
+  `pr-ship` marks it ready once CI's run on its head passes (PAD-18-029).
+- **Never run the full unit or integration suite** (PAD-18-008). Phase 3's
+  gate is the linters plus `targeted-tests`.
 - **Never push past a failing Phase 3b gate** (`spec-lint --changed-since`,
   `spec-backstop --manifest`, `pr-body-lint`).
 - **Never push past a failing Phase 3c mirror** (`prepush-ci-mirror`).

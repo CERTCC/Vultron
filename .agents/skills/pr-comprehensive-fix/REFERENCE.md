@@ -21,9 +21,10 @@ decision points and verification checkpoints.
 
 ## Key Decisions Made During Inventory
 
-The skill automatically detects which files changed and decides:
-
-- **Integration tests needed?** (See [TESTING-LOGIC.md](TESTING-LOGIC.md))
+The skill reads which files changed, and `targeted-tests` derives the gate
+from them. There is no integration-tests-or-not decision to make: an
+integration-bearing path is gated by its importers like any other
+(PAD-18-003, ADR-0143). See [TESTING-LOGIC.md](TESTING-LOGIC.md).
 
 ## During Code Fix Phase
 
@@ -34,12 +35,12 @@ The skill uses existing subskills:
 
 ## During Test Phase
 
-The skill runs either:
+The skill runs one gate: the targeted set `targeted-tests` derives from the
+diff, with the integration marker enabled so integration-marked tests among
+the selected files still run (PAD-18-011). No diff escalates it to the whole
+suite (PAD-18-003); CI's required full run covers the reach beyond it.
 
-- **Unit tests only** (typical case)
-- **Unit + integration** (demo/adapter changes detected)
-
-See [TESTING-LOGIC.md](TESTING-LOGIC.md) for decision criteria.
+See [TESTING-LOGIC.md](TESTING-LOGIC.md) for the command.
 
 ## During Resolution Phase
 
@@ -61,8 +62,8 @@ See [RESOLUTION-GUIDE.md](RESOLUTION-GUIDE.md) for strategies and examples.
 
 See [TESTING-LOGIC.md](TESTING-LOGIC.md) for handling test failures.
 
-## Future Enhancement
+## Where the gate runs before a PR exists
 
-The same file-change detection logic should be integrated into the `build`
-skill to run integration tests before creating a PR. This prevents PR
-creation with integration test failures.
+`create-pr` Phase 3 runs the same targeted gate on a branch's first push
+(PAD-18-001), and `build` runs no suite of its own (PAD-18-017). Nothing
+local runs the whole suite before the push (PAD-18-008).

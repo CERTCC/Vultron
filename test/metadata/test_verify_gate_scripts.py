@@ -366,6 +366,46 @@ def test_a_draft_blocks_and_reports_its_needs_rebase_label(
     assert out["needs_rebase"] == [str("needs-rebase" in labels).lower()]
 
 
+def test_a_draft_github_reports_clean_still_blocks(
+    tmp_path: Path, repo: Path
+) -> None:
+    """`isDraft` decides, not `mergeStateStatus` (PAD-18-028, PAD-18-029).
+
+    GitHub sets `mergeStateStatus: DRAFT` only when the draft state is the
+    blocking reason; a draft whose checks all pass is `CLEAN` with
+    `isDraft: true`. Keying the flag on the status alone cleared PR #6104 —
+    a draft `pr-verify` would then have called `READY-TO-MERGE`, for a Pull
+    Request GitHub refuses to merge.
+    """
+    rules = [_labels("size:L"), pr_view(status="CLEAN", is_draft=True)]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["merge_state_status"] == ["CLEAN"]
+    assert out["flag"] == ["PR-IS-DRAFT"]
+    assert out["verdict"] == ["blocks-ready"]
+    assert out["needs_rebase"] == ["false"]
+
+
+def test_a_draft_status_blocks_even_if_is_draft_is_false(
+    tmp_path: Path, repo: Path
+) -> None:
+    """The status arm's own control, so neither arm rides the other (#6097)."""
+    rules = [_labels(), pr_view(status="DRAFT", is_draft=False)]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["flag"] == ["PR-IS-DRAFT"]
+    assert out["verdict"] == ["blocks-ready"]
+
+
+def test_a_non_draft_clean_pr_raises_no_draft_flag(
+    tmp_path: Path, repo: Path
+) -> None:
+    """The negative control: neither arm fires, so the flag is not constant."""
+    rules = [pr_view(status="CLEAN", is_draft=False)]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert "flag" not in out
+    assert out["verdict"] == ["clear"]
+    assert "needs_rebase" not in out
+
+
 def test_a_draft_whose_labels_cannot_be_read_reports_unknown(
     tmp_path: Path, repo: Path
 ) -> None:

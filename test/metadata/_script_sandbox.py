@@ -73,8 +73,19 @@ def pr_view(
     status: str = "CLEAN",
     *,
     base: str = "main",
+    is_draft: bool | None = None,
 ) -> dict:
-    """A rule answering ``gh pr view --json <merge-state fields>``."""
+    """A rule answering ``gh pr view --json <merge-state fields>``.
+
+    *is_draft* defaults to ``status == "DRAFT"``, which is the shape GitHub
+    returns when the draft state is what blocks the merge. It is a separate
+    parameter because the two fields are **not** coupled in the real API: a
+    draft whose checks all pass comes back ``CLEAN`` with ``isDraft: true``
+    (observed on PR #6104). Deriving it from the status, as this helper did
+    until #5948's review, left that combination unrepresentable and the
+    ``is_draft`` arm of ``verify-merge-gate.sh`` untestable (#5945: a fake's
+    rendering of an unset value can hide a branch).
+    """
     return {
         "match": ["pr view", "mergeable"],
         "stdout": json.dumps(
@@ -82,7 +93,9 @@ def pr_view(
                 "number": 7,
                 "mergeable": mergeable,
                 "mergeStateStatus": status,
-                "isDraft": status == "DRAFT",
+                "isDraft": (status == "DRAFT")
+                if is_draft is None
+                else is_draft,
                 "baseRefName": base,
                 "headRefName": "task/7-x",
                 "state": "OPEN",

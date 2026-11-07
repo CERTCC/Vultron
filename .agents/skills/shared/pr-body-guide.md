@@ -93,8 +93,8 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
 
 ## Verification
 
-- All N unit tests pass (M new)
-- ruff and mypy clean
+- Targeted gate: N tests pass over M files (K new), `exit: 0`
+- ruff and mypy clean (the type-check second pass is CI's, PAD-18-027)
 - Self-check:   <!-- shared/pre-review-self-check.md; one result per item -->
   - Affected text: <search terms used; files updated, or "no hits">
   - Failure paths: <per write: on failure / on retry / test, or "no writes changed">
@@ -216,9 +216,12 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   and `pr-triage` treats a missing or placeholder `Docs:` line as a FAIL
   (PD-03-009). `pr-execute` refreshes the line when its fixes change described
   behavior.
-- **Verification**: required for any PR that modifies `.py` files. Include
-  the actual total test count and the number of new tests added. Tick off
-  acceptance criteria from the issue when they are listed.
+- **Verification**: required for any PR that modifies `.py` files. Report the
+  first-push gate that actually ran — the linters plus the targeted set, never
+  a full local suite (PAD-18-001, PAD-18-008) — with its test count, the number
+  of files it selected and the number of new tests added. CI's run of both
+  suites is reported by its own check, not here. Tick off acceptance criteria
+  from the issue when they are listed.
   On every implementation PR it also carries the `Self-check:` block: the four
   results of `.agents/skills/shared/pre-review-self-check.md`, one line each.
   `pr-triage` compares the block against the diff and treats a missing block
@@ -256,7 +259,8 @@ or other non-Python files.
 ### Docs-only PR rules
 
 - Closing reference goes at the **top**, before any `##` header.
-- No Verification section — no Python was changed, no test suite ran.
+- No Verification section — no Python was changed, so no test ran
+  (PAD-18-010).
 - `## Spec amended` follows the same rule as for implementation PRs: present
   exactly when a `statement:` or `priority:` is changed or removed.
 - Keep Changes concise; list meaningful files only (not `README.md` unless

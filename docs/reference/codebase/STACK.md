@@ -74,7 +74,9 @@ uv sync --dev
 uv run pytest --tb=short
 
 # Run ALL tests (unit + integration) on xdist workers. CI runs this command as
-# parallel parts, each over a disjoint slice of test/ (TB-11-002).
+# parallel parts, each over a disjoint slice of test/ (TB-11-002). Reference
+# only: no local gate runs it (PAD-18-003, PAD-18-008, PAD-18-015). The gate
+# an agent runs is `targeted-tests` — see docs/reference/codebase/TESTING.md.
 uv run python .agents/skills/shared/run-heavy.py uv run pytest -m "" -n auto --tb=short
 
 # Format and lint (ruff takes no path arguments)

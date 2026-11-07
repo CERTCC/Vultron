@@ -1,63 +1,33 @@
 # Testing Logic and File Detection
 
-## Detecting Integration Test Need
+## Test Gate Execution
 
-The skill automatically analyzes which files changed in the PR to decide
-whether integration tests should be run.
+### One Gate, Always Targeted
 
-### Files That Trigger Integration Tests
+The gate is the test files `targeted-tests` derives from the diff, plus
+`test/architecture/` and `test/metadata/` (PAD-18-002). No scope escalates it
+to the whole suite (PAD-18-003), and no local gate runs one (PAD-18-008,
+PAD-18-015): CI runs both suites on every push, and GitHub's required
+`CI gate` refuses the merge until that run passes.
 
-Run **full test suite (unit + integration)** if PR modifies:
+**Command**:
 
-1. `demo/` — any demo script or orchestration file
-2. `integration_tests/` — any integration test
-3. `adapters/` — driving or driven adapters
-4. `vultron/core/behaviors/` — behavior tree logic
-5. `vultron/core/use_cases/` — use-case implementations
-6. `vultron/wire/as2/extractor/` — semantic extraction (core to message handling)
-
-### Detection Implementation
-
-```python
-changed_files = gh pr diff --name-only
-needs_integration = any(
-  f.startswith("demo/") or
-  f.startswith("integration_tests/") or
-  f.startswith("adapters/") or
-  f.startswith("vultron/core/behaviors/") or
-  f.startswith("vultron/core/use_cases/") or
-  f.startswith("vultron/wire/as2/extractor/")
-  for f in changed_files
-)
+```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
+git fetch origin <base> || { echo "fetch failed — stop and report"; exit 1; }
+gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 ```
 
-## Test Suite Execution
+**When**: every fix commit, and the conflict-merge case with
+`--paths <conflicted files>` instead of `--base` (PAD-18-015).
 
-### Unit Tests Only (default)
+**Expected output**: the selected files' pass/fail summary. Paths reported on
+stderr as `no test maps to` or `no targeted set bounds` are CI's; that is
+expected, not an error.
 
-<!-- markdownlint-disable-next-line MD013 -->
-**Command**: `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; timeout -k 30 1800 uv run pytest --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)`
-
-**When**: Changes are localized (single module, no core/demo/adapter impact)
-
-**Expected output**: Summary of passed/failed tests
-
-### Full Suite (unit + integration)
-
-**Commands**:
-
-<!-- markdownlint-disable MD013 -->
-1. `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; timeout -k 30 1800 uv run pytest --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)` (all unit tests)
-2. `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -40 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)` (integration test suite)
-<!-- markdownlint-enable MD013 -->
-
-**When**: Demo, adapters, behavior trees, or use-cases modified
-
-**Expected output**: Full test summary from both suites
-
-Full pytest output is written to `"$logs-unit.log"` (and
-`"$logs-integration.log"` for the integration suite). **Never re-run the test suite
-to get more output** — grep or read those files instead.
+Full pytest output is written to `"$logs-gate.log"`. **Never re-run the gate
+to get more output** — grep or read that file instead.
 
 ## Interpreting Test Results
 
@@ -132,18 +102,15 @@ The skill may **stop and report** after evidence capture if:
 In these cases, the skill reports the state with linked Bug issue evidence,
 structured blockers, and explicit blocked/unblocked status.
 
-## Future Enhancement: Integrate with `build` Skill
+## No Full-Suite Escalation
 
-The same file-change detection should be used in the `build` skill to run
-integration tests before creating a PR. This would prevent PR creation with
-predictable test failures.
+The file-change detection this section used to describe — demo, adapters,
+behavior trees, use cases, the extractor — decided nothing by the time
+ADR-0143 landed, and decides nothing now: those paths are gated by their
+importers like any other (PAD-18-012). `pr-triage` still records
+`needs_integration_tests`, but only as information for a reader; no gate
+reads it (`pr-execute/REFERENCE.md`).
 
-### Proposed `build` Enhancement
-
-```text
-When creating a PR, if changed files match integration test triggers,
-run full test suite (unit + integration) before opening the PR.
-This catches demo/adapter issues early.
-```
-
-This prevents the scenario where a PR is created but immediately fails CI.
+`build` runs no suite of its own either, and never will: it hands off to
+`create-pr`, whose first-push gate is the linters plus the targeted set
+(PAD-18-001, PAD-18-008, PAD-18-017).

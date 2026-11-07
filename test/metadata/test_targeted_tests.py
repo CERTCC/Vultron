@@ -4,10 +4,11 @@ Requirements: specs/parallel-development.yaml PAD-18-002, PAD-18-003,
 PAD-18-009, PAD-18-011, PAD-18-012, PAD-18-015, PAD-18-019.
 """
 
+import argparse
 import json
 import shlex
 import sys
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import pytest
 
@@ -19,13 +20,14 @@ from vultron.metadata.planning.targeted_tests import (
     GATE_CEILING,
     METADATA_TESTS,
     build_index,
-    conflict_suite_trigger,
-    full_suite_trigger,
     overlap,
     pytest_argv,
     select_tests,
+    shared_infrastructure,
     widen_index,
 )
+from vultron.metadata.planning.targeted_tests.cli import _render_selection
+from vultron.metadata.planning.targeted_tests.selection import Selection
 from vultron.metadata.specs.backstop import (
     HUB_THRESHOLD,
     FileChange,
@@ -105,7 +107,6 @@ def _select(
 @pytest.mark.spec("PAD-18-002")
 def test_selects_importers_mirror_and_architecture():
     selection = _select(["vultron/a/mod.py"], [_change()])
-    assert not selection.full
     assert selection.tests == [
         *ALWAYS_SELECTED,
         "test/a/test_mod.py",
@@ -175,7 +176,6 @@ def test_non_python_only_diff_selects_just_architecture():
     selection = _select(
         ["docs/index.md", "specs/x.yaml", "test/AGENTS.md"], []
     )
-    assert not selection.full
     assert selection.tests == list(ALWAYS_SELECTED)
     assert selection.unmapped == ["docs/index.md", "specs/x.yaml"]
 
@@ -358,7 +358,6 @@ def test_architecture_helper_selects_importers_outside_the_directory():
         path="test/architecture/_corpus.py", source="", lines=None
     )
     selection = _select([change.path], [change], tests)
-    assert not selection.full
     assert selection.tests == [
         *ALWAYS_SELECTED,
         "test/y/test_corpus_user.py",
@@ -435,32 +434,33 @@ def test_module_nothing_tests_is_unmapped():
     assert selection.unmapped == ["vultron/z.py"]
 
 
-@pytest.mark.spec("PAD-18-011")
-def test_pytest_argv_enables_the_integration_marker():
-    selection = _select(["vultron/a/mod.py"], [_change()])
-    argv = pytest_argv(selection)
-    prefix = len(_GATE_PREFIX)
-    assert argv[prefix : prefix + 3] == ["uv", "run", "pytest"]
-    marker = argv.index("-m")
-    assert argv[marker + 1] == ""
-    assert argv[-len(selection.tests) :] == selection.tests
-
-
 # ---------------------------------------------------------------------------
-# Escalation (PAD-18-003)
+# No escalation (PAD-18-003, PAD-18-012)
 # ---------------------------------------------------------------------------
 
-FULL_PATHS = [
-    "conftest.py",
-    "test/conftest.py",
-    "test/core/behaviors/conftest.py",
-    "test/architecture/conftest.py",
-    "pyproject.toml",
-    "uv.lock",
-    "vultron/__init__.py",
-    "test/support/case_owner.py",
-    "test/core/behaviors/case/nodes/revision_relay_fixtures.py",
-    "test/adapters/driven/golden/wire_render_core_vocab.json",
+#: One path per arm of :func:`shared_infrastructure`, with the reason that
+#: arm gives. A disjunction is only constrained by a control on the arm that
+#: fires, so each arm is named here with its own expected answer: five
+#: `conftest.py` paths would leave the other three arms unread (#6097).
+SHARED_INFRASTRUCTURE_PATHS = [
+    ("conftest.py", "conftest.py (shared test fixtures)"),
+    ("test/conftest.py", "conftest.py (shared test fixtures)"),
+    ("test/core/behaviors/conftest.py", "conftest.py (shared test fixtures)"),
+    ("pyproject.toml", "test configuration or dependencies"),
+    ("uv.lock", "test configuration or dependencies"),
+    ("vultron/__init__.py", "package root (runs on every import)"),
+    (
+        "test/support/case_owner.py",
+        "test support file (fixture, factory, helper, or data)",
+    ),
+    (
+        "test/core/behaviors/case/nodes/revision_relay_fixtures.py",
+        "test support file (fixture, factory, helper, or data)",
+    ),
+    (
+        "test/adapters/driven/golden/wire_render_core_vocab.json",
+        "test support file (fixture, factory, helper, or data)",
+    ),
 ]
 
 #: One path under each layer PAD-18-003 escalated on before ADR-0143.
@@ -474,21 +474,154 @@ INTEGRATION_BEARING_PATHS = [
 ]
 
 
+def _every_selection_shape() -> list[tuple[str, Selection]]:
+    """One selection per shape a local gate is derived from (PAD-18-011).
+
+    The marker lives in the shared :data:`PYTEST_BASE`, so one case would
+    red on its removal — but the requirement is stated over *every* local
+    gate, and a reader of the verification should find each gate's shape
+    here rather than trust that one stands for all.
+    """
+    shapes = [
+        ("ordinary branch diff", _select(["vultron/a/mod.py"], [_change()])),
+        ("no Python changed", _select(["docs/index.md"], [])),
+        # The conflict-merge gate, derived the same way (PAD-18-015).
+        (
+            "conflict merge",
+            select_tests(
+                ["vultron/adapters/a/mod.py"],
+                [_change(None, "vultron/adapters/a/mod.py")],
+                TESTS,
+                lambda _p: True,
+            ),
+        ),
+    ]
+    shapes += [
+        (
+            f"shared infrastructure: {path}",
+            _select(["vultron/a/mod.py", path], [_change()]),
+        )
+        for path, _ in SHARED_INFRASTRUCTURE_PATHS
+    ]
+    return shapes
+
+
+#: Computed once: the decorator below reads both halves of each pair.
+_SELECTION_SHAPES: list[tuple[str, Selection]] = _every_selection_shape()
+
+
+@pytest.mark.spec("PAD-18-011")
+def test_the_selection_shape_list_is_not_empty() -> None:
+    """Unparametrized, so it still runs when the list is empty (#5535).
+
+    `test_pytest_argv_enables_the_integration_marker` is parametrized over
+    this list. An empty list collects no cases, and a run with no cases is
+    a pass — so PAD-18-011's "every selection" claim would be verified by
+    nothing. The one shape that must always be present is the ordinary
+    diff; the shared-infrastructure shapes come from
+    `SHARED_INFRASTRUCTURE_PATHS`, which has its own non-emptiness check.
+    """
+    assert _SELECTION_SHAPES, "no selection shapes to check the marker on"
+    assert any("ordinary" in name for name, _ in _SELECTION_SHAPES), (
+        "the ordinary-diff shape is gone, so the marker is checked only on "
+        f"edge cases: {[name for name, _ in _SELECTION_SHAPES]}"
+    )
+
+
+@pytest.mark.spec("PAD-18-011")
+@pytest.mark.parametrize(
+    "selection",
+    [s for _, s in _SELECTION_SHAPES],
+    ids=[name for name, _ in _SELECTION_SHAPES],
+)
+def test_pytest_argv_enables_the_integration_marker(selection):
+    argv = pytest_argv(selection)
+    prefix = len(_GATE_PREFIX)
+    assert argv[prefix : prefix + 3] == ["uv", "run", "pytest"]
+    marker = argv.index("-m")
+    assert argv[marker + 1] == ""
+    assert argv[-len(selection.tests) :] == selection.tests
+
+
 @pytest.mark.spec("PAD-18-003")
-@pytest.mark.parametrize("path", FULL_PATHS)
-def test_shared_infrastructure_escalates(path):
+def test_an_empty_selection_has_no_gate_command():
+    """A path-free command runs the whole suite, so there is no command.
+
+    Unreachable through :func:`select_tests`, which always prepends
+    ``ALWAYS_SELECTED``; enforced where it would break rather than only
+    documented.
+    """
+    with pytest.raises(ValueError, match="runs the whole suite"):
+        pytest_argv(Selection())
+
+
+@pytest.mark.spec("PAD-18-003")
+@pytest.mark.parametrize(
+    ("flags", "expected"),
+    [({}, ""), ({"paths": ["x"]}, "")],
+    ids=["file-list", "paths"],
+)
+def test_a_rendering_that_prints_no_command_does_not_derive_one(
+    flags: dict, expected: str
+) -> None:
+    """The renderings that print no `pytest` command never build one.
+
+    `pytest_argv` raises on a selection naming no test. Deriving it ahead of
+    the output branches meant that raise reached the file-list and `--paths`
+    renderings as a traceback, instead of this CLI's documented exit status.
+    """
+    args = argparse.Namespace(json=False, pytest=False, **flags)
+    assert _render_selection(Selection(), args) == expected
+
+
+@pytest.mark.spec("PAD-18-003")
+@pytest.mark.parametrize("flag", ["json", "pytest"], ids=["json", "pytest"])
+def test_a_rendering_that_prints_the_command_still_refuses_an_empty_one(
+    flag: str,
+) -> None:
+    """The control on the other side: those two branches do derive it."""
+    args = argparse.Namespace(json=False, pytest=False)
+    setattr(args, flag, True)
+    with pytest.raises(ValueError, match="runs the whole suite"):
+        _render_selection(Selection(), args)
+
+
+@pytest.mark.spec("PAD-18-012")
+@pytest.mark.parametrize("path,reason", SHARED_INFRASTRUCTURE_PATHS)
+def test_shared_infrastructure_is_reported_with_its_reason(path, reason):
+    """Each arm of the classifier answers with its own reason."""
+    found = shared_infrastructure(path)
+    assert found is not None, path
+    assert found.reason == reason
+
+
+@pytest.mark.spec("PAD-18-003", "PAD-18-012")
+@pytest.mark.parametrize("path", [p for p, _ in SHARED_INFRASTRUCTURE_PATHS])
+def test_shared_infrastructure_still_gets_the_selectable_set(path):
+    """It reports the path and runs what it can select, never the suite."""
     selection = _select(["vultron/a/mod.py", path], [_change()])
-    assert selection.full
-    assert selection.tests == []
-    assert [t.path for t in selection.triggers] == [path]
+    assert [u.path for u in selection.unbounded] == [path]
+    assert selection.tests[: len(ALWAYS_SELECTED)] == list(ALWAYS_SELECTED)
+    assert "test/x/test_uses_changed.py" in selection.tests
+    # Reported once, under `unbounded`, not a second time as unmapped.
+    assert path not in selection.unmapped
+
+
+@pytest.mark.spec("PAD-18-003")
+@pytest.mark.parametrize("path", [p for p, _ in SHARED_INFRASTRUCTURE_PATHS])
+def test_no_path_makes_the_gate_command_run_the_whole_suite(path):
+    """The command always carries paths, so it never means `-m "" ` alone."""
+    selection = _select(["vultron/a/mod.py", path], [_change()])
+    argv = pytest_argv(selection)
+    assert argv[-len(selection.tests) :] == selection.tests
+    assert argv[-1] != ""
 
 
 @pytest.mark.spec("PAD-18-012")
 @pytest.mark.parametrize("path", INTEGRATION_BEARING_PATHS)
-def test_integration_bearing_path_does_not_escalate(path):
+def test_integration_bearing_path_is_gated_by_its_importers(path):
     """ADR-0143: the layer's importers gate it; CI runs the rest."""
     selection = _select(["vultron/a/mod.py", path], [_change()])
-    assert not selection.full
     assert "test/x/test_uses_changed.py" in selection.tests
 
 
@@ -504,7 +637,6 @@ def test_integration_bearing_change_selects_its_importers():
         }
     )
     selection = _select([path], [_change(None, path)], tests)
-    assert not selection.full
     assert selection.tests == [*ALWAYS_SELECTED, "test/x/test_tree.py"]
     assert pytest_argv(selection)[-3:] == selection.tests
 
@@ -514,9 +646,9 @@ def test_metadata_helper_is_covered_by_the_whole_directory():
     """A helper under test/metadata/ runs with its directory, not alone."""
     path = f"{METADATA_TESTS}specs/_helpers.py"
     selection = _select([path], [])
-    assert not selection.full
     assert selection.tests == list(ALWAYS_SELECTED)
     assert selection.unmapped == []
+    assert selection.unbounded == []
 
 
 @pytest.mark.spec("PAD-18-012")
@@ -528,21 +660,18 @@ def test_metadata_helper_is_covered_by_the_whole_directory():
         "test/core/test_x.py",
         "test/architecture/_corpus.py",
         "test/metadata/specs/_helpers.py",
+        # A `conftest.py` under an always-selected directory is bounded by
+        # that directory, so it is not reported (#5948 review).
+        "test/architecture/conftest.py",
+        "test/metadata/conftest.py",
         *INTEGRATION_BEARING_PATHS,
         "test/AGENTS.md",
         "docs/index.md",
         "specs/parallel-development.yaml",
     ],
 )
-def test_ordinary_paths_do_not_escalate(path):
-    assert full_suite_trigger(path) is None
-
-
-@pytest.mark.spec("PAD-18-003")
-def test_full_pytest_argv_has_no_paths():
-    selection = _select(["uv.lock"], [])
-    argv = pytest_argv(selection)
-    assert argv[-2:] == ["-m", ""]
+def test_ordinary_paths_are_not_shared_infrastructure(path):
+    assert shared_infrastructure(path) is None
 
 
 @pytest.mark.spec("TB-14-005")
@@ -561,36 +690,17 @@ def test_pytest_argv_runs_under_the_wall_clock_ceiling(changed):
 # Conflict-merge gate (PAD-18-015)
 # ---------------------------------------------------------------------------
 
-CONFLICT_FULL_PATHS = [
-    "conftest.py",
-    "test/conftest.py",
-    "pyproject.toml",
-    "uv.lock",
-    "vultron/__init__.py",
-]
-
 
 @pytest.mark.spec("PAD-18-015")
-@pytest.mark.parametrize("path", CONFLICT_FULL_PATHS)
-def test_conflict_gate_escalates_on_shared_configuration(path):
-    assert conflict_suite_trigger(path) is not None
-    assert full_suite_trigger(path) == conflict_suite_trigger(path)
-
-
-@pytest.mark.spec("PAD-18-015")
-@pytest.mark.parametrize(
-    "path",
-    [
-        p
-        for p in FULL_PATHS
-        if p not in CONFLICT_FULL_PATHS
-        and PurePosixPath(p).name != "conftest.py"
-    ],
-)
-def test_conflict_gate_does_not_escalate_on_fix_commit_triggers(path):
-    """Test-support paths are CI's after a merge."""
-    assert full_suite_trigger(path) is not None
-    assert conflict_suite_trigger(path) is None
+@pytest.mark.parametrize("path", [p for p, _ in SHARED_INFRASTRUCTURE_PATHS])
+def test_conflict_gate_runs_no_suite_for_shared_infrastructure(path):
+    """A conflicted shared file is reported; the gate stays a file list."""
+    selection = select_tests([path], [], TESTS, lambda p: True)
+    assert [u.path for u in selection.unbounded] == [path]
+    assert selection.tests == list(ALWAYS_SELECTED)
+    assert pytest_argv(selection)[-len(ALWAYS_SELECTED) :] == list(
+        ALWAYS_SELECTED
+    )
 
 
 @pytest.mark.spec("PAD-18-015")
@@ -607,9 +717,7 @@ def test_conflict_gate_selects_importers_of_an_integration_path():
         [_change(None, path)],
         tests,
         lambda p: True,
-        trigger=conflict_suite_trigger,
     )
-    assert not selection.full
     assert selection.tests == [*ALWAYS_SELECTED, "test/x/test_adapter.py"]
 
 
@@ -754,20 +862,21 @@ def test_cli_pytest_line_is_runnable(git_repo, monkeypatch, capsys):
     assert argv[-3:] == [*ALWAYS_SELECTED, "test/a/test_mod.py"]
 
 
-@pytest.mark.spec("PAD-18-003")
-def test_cli_reports_full_with_trigger(git_repo, monkeypatch, capsys):
-    (git_repo / "test" / "conftest.py").write_text("import pytest\n")
-    assert _main(monkeypatch, "--base", "main") == 0
-    out = capsys.readouterr().out.splitlines()
-    assert out[0] == "full"
-    assert out[1].startswith("test/conftest.py: ")
-
-
-@pytest.mark.spec("PAD-18-003")
-def test_cli_escalation_is_keyed_on_the_branch_diff(
+@pytest.mark.spec("PAD-18-003", "PAD-18-012")
+def test_cli_prints_the_selectable_set_for_shared_infrastructure(
     git_repo, monkeypatch, capsys
 ):
-    """A fix commit on top of a conftest.py change still escalates."""
+    """A `conftest.py` change prints a file list, never the word `full`."""
+    (git_repo / "test" / "conftest.py").write_text("import pytest\n")
+    assert _main(monkeypatch, "--base", "main") == 0
+    captured = capsys.readouterr()
+    assert captured.out.splitlines() == list(ALWAYS_SELECTED)
+    assert "no targeted set bounds test/conftest.py" in captured.err
+
+
+@pytest.mark.spec("PAD-18-003", "PAD-18-012")
+def test_cli_gate_is_keyed_on_the_branch_diff(git_repo, monkeypatch, capsys):
+    """A fix commit on top of a conftest.py change is gated by both."""
     (git_repo / "test" / "conftest.py").write_text("import pytest\n")
     git(git_repo, "add", ".")
     git(git_repo, "commit", "-q", "-m", "conftest")
@@ -775,20 +884,21 @@ def test_cli_escalation_is_keyed_on_the_branch_diff(
     git(git_repo, "commit", "-q", "-am", "fix")
     assert _main(monkeypatch, "--base", "main", "--json") == 0
     data = json.loads(capsys.readouterr().out)
-    assert data["mode"] == "full"
-    assert data["triggers"][0]["path"] == "test/conftest.py"
-    assert data["tests"] == []
-    assert data["pytest"][-2:] == ["-m", ""]
+    assert [u["path"] for u in data["unbounded"]] == ["test/conftest.py"]
+    assert data["tests"] == [*ALWAYS_SELECTED, "test/a/test_mod.py"]
+    assert data["pytest"][-len(data["tests"]) :] == data["tests"]
 
 
-@pytest.mark.spec("PAD-18-003")
-def test_cli_pytest_full_names_trigger_on_stderr(
+@pytest.mark.spec("PAD-18-003", "PAD-18-012")
+def test_cli_pytest_for_shared_config_still_carries_paths(
     git_repo, monkeypatch, capsys
 ):
+    """`pyproject.toml` alone yields the always-selected directories."""
     _edit(git_repo / "pyproject.toml", "name='x'", "name='y'")
     assert _main(monkeypatch, "--base", "main", "--pytest") == 0
     captured = capsys.readouterr()
-    assert shlex.split(captured.out)[-2:] == ["-m", ""]
+    argv = shlex.split(captured.out)
+    assert argv[-len(ALWAYS_SELECTED) :] == list(ALWAYS_SELECTED)
     assert "pyproject.toml" in captured.err
 
 
@@ -859,17 +969,19 @@ def test_cli_paths_ignores_the_branch_diff(git_repo, monkeypatch, capsys):
 
 
 @pytest.mark.spec("PAD-18-015")
-def test_cli_paths_escalates_on_shared_configuration(
+def test_cli_paths_runs_no_suite_for_shared_configuration(
     git_repo, monkeypatch, capsys
 ):
+    """A conflicted `pyproject.toml` still gets a path-bearing command."""
     assert _main(monkeypatch, "--paths", "pyproject.toml", "--pytest") == 0
     captured = capsys.readouterr()
-    assert shlex.split(captured.out)[-2:] == ["-m", ""]
+    argv = shlex.split(captured.out)
+    assert argv[-len(ALWAYS_SELECTED) :] == list(ALWAYS_SELECTED)
     assert "pyproject.toml" in captured.err
 
 
 @pytest.mark.spec("PAD-18-015")
-def test_cli_paths_does_not_escalate_on_integration_paths(
+def test_cli_paths_gates_an_integration_path_by_its_importers(
     git_repo, monkeypatch, capsys
 ):
     adapter = git_repo / "vultron" / "adapters"
@@ -883,7 +995,7 @@ def test_cli_paths_does_not_escalate_on_integration_paths(
         == 0
     )
     data = json.loads(capsys.readouterr().out)
-    assert data["mode"] == "targeted"
+    assert data["unbounded"] == []
     assert data["tests"] == [*ALWAYS_SELECTED, "test/a/test_port.py"]
     assert data["pytest"][-3:] == [*ALWAYS_SELECTED, "test/a/test_port.py"]
 

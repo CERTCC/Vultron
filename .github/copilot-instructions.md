@@ -29,8 +29,10 @@ uv sync --dev
 # Format and lint Python sources (run before every commit)
 uv run ruff check --fix && uv run ruff format
 
-# Full test suite — run exactly once, read the last 5 lines
-log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)
+# The test gate — always targeted, run exactly once, read the `exit:` line
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
+git fetch -q origin main || { echo "fetch failed — stop and report"; exit 1; }; gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 
 # Single test file (faster feedback)
 uv run pytest test/test_semantic_activity_patterns.py -v
@@ -88,26 +90,28 @@ entries (not recording current work), **always** pass `--timestamp <ISO8601>`
 derived from `git log`/`git blame`. Never let it default to today's date — this
 produces corrupt history that requires an immutability override to fix.
 
-### Test Suite Runtime Expectations
+### Test Gate Runtime Expectations
 
-The full pytest suite can take **60–120+ seconds** to complete. Use
-`initial_wait: 180` when running `pytest` in sync mode. Long-running tests are
-normal. For faster feedback during development, run a single test file:
-`uv run pytest test/test_semantic_activity_patterns.py -v`.
+The targeted gate usually finishes in a couple of minutes. Use
+`initial_wait: 180` when running it in sync mode. For faster feedback while
+writing a test, run that one file: `uv run pytest <path> -n 0`.
 
-For the single-run rule and full test suite guidance, see **`AGENTS.md`**
+For the single-run rule and the gate's shape, see **`AGENTS.md`**
 § Agent Quickstart and § Commit Workflow.
 
-**CRITICAL — Demo/integration test requirement:** The default `pytest` run
-**omits** `@pytest.mark.integration` tests. CI always runs all tests. If **any**
-file under `vultron/demo/` or `test/demo/` was touched, you **must** run the
-full suite before committing:
+**No local gate runs the whole suite** (PAD-18-003, PAD-18-008, PAD-18-015).
+The default `pytest` run omits `@pytest.mark.integration` tests, but the gate
+command carries `-m ""`, so an integration-marked test among the selected
+files still runs (PAD-18-011). The reach beyond the selected files is CI's:
+it runs both suites on every push, and GitHub's required `CI gate` refuses
+the merge until that run passes.
 
-```bash
-log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; uv run python .agents/skills/shared/run-heavy.py timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)
-```
-
-Skipping this is how PRs end up blocked by 17-minute CI runs.
+A change under `vultron/demo/` or `test/demo/` is no exception. That standing
+requirement for a full local run is retired: CI runs those tests and the
+required `CI gate` judges the run (PAD-18-008). `demo-integration.yml` covers
+a `vultron/demo/` change; a `test/demo/` one is covered by `python-app.yml`'s
+`rest` part, since `demo-integration.yml`'s `paths` list `vultron/**` but not
+`test/demo/**`.
 
 ---
 

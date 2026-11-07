@@ -19,15 +19,16 @@ them (PAD-18-012, ADR-0143):
 - `vultron/core/use_cases/` — use-case implementations
 - `vultron/wire/as2/extractor/` — semantic extraction (a package)
 
-A fix commit's branch-diff gate reports `full` only for shared test
-infrastructure: `conftest.py`, test fixtures, factories, helpers or data files
-outside `test/architecture/` and `test/metadata/`, `pyproject.toml`,
-`uv.lock`, and `vultron/__init__.py` (PAD-18-003). The gate after a conflict
-merge (`--paths`) escalates on shared test configuration only: `conftest.py`,
-`pyproject.toml`, `uv.lock`, `vultron/__init__.py` (PAD-18-015).
+No gate reports `full`, and none runs the full suite, whatever paths the
+diff touches (PAD-18-003). Shared test infrastructure — `conftest.py`, test
+fixtures, factories, helpers or data files outside `test/architecture/` and
+`test/metadata/`, `pyproject.toml`, `uv.lock`, and `vultron/__init__.py` —
+is named on stderr as a path no targeted set bounds, and the gate is still
+the set it could select plus the always-selected directories (PAD-18-012).
+CI's required full run covers the reach beyond it.
 
 The docker-driven scripts under `integration_tests/` are not pytest tests; CI
-runs them. A local `full` gate is `pytest -m ""`, every marker enabled.
+runs them.
 
 ---
 
@@ -169,8 +170,9 @@ NEW-ISSUE finding — file a fresh tracking issue for it.
 Stop and surface to the user if:
 
 - Integration test failure with unclear root cause after causality checks
-- CI loop reaches 4 iterations with the same failure persisting (see Phase 5 eject
-  condition in SKILL.md)
+- CI loop reaches 4 counted iterations with the same failure persisting (see
+  Phase 5 eject condition in SKILL.md; CI's first run on a draft is not
+  counted, PAD-18-030)
 - Test output suggests missing context (env vars, setup, infrastructure)
 - Error suggests architectural issue (breaking change to core logic)
 - A merge conflict whose correct resolution is genuinely unclear (see
@@ -208,7 +210,7 @@ The check runs after all fixes, before the local gate. Three reasons:
 3. **The gate after a conflict merge is the conflicted files.** Each is
    treated as wholly changed (`targeted-tests --paths`), since both sides edited
    it, and its importers and mirror tests run. The rest of the merge changed no
-   line the PR wrote; CI on the push runs the full suite against the merged
+   line the PR wrote; CI on the push runs both suites against the merged
    tree. A semantic conflict between files neither side shares is not caught
    here either; CI on `main` catches it after merge (ADR-0126, ADR-0138).
 
@@ -254,8 +256,7 @@ Rules that do not bend:
   `git grep -nE '^(<<<<<<<|=======|>>>>>>>)'` must be empty.
 - **Re-run the gate after resolving**, even if it passed pre-merge: the
   tests for the conflicted files, `targeted-tests --paths <conflicted files>`
-  (PAD-18-015), escalated to the full suite when it reports `full`
-  (SKILL.md Phase 5 Step 3).
+  (PAD-18-015), never the full suite (SKILL.md Phase 5 Step 3).
 - **Never resolve a conflict you do not understand.** Abort
   (`sync-with-main.sh --abort`), record the merge-state finding as `skipped` with
   the conflicted paths and why, and stop. An honest stop beats a wrong merge.
@@ -337,8 +338,8 @@ File: `.claude/pr-{number}-execute.json`
   "integration_tests_run": true,
   "final_ci_status": "passing",  // "passing" | "failing" | "timeout"
   "suite_runs": {
-    "full": 2,          // includes create-pr's first-push run, when it ran
-    "targeted": 1
+    "full": 0,          // always 0: no gate makes a full local run
+    "targeted": 2       // includes create-pr's first-push run, when it ran
   },
   "merge_state": {
     "base_ref": "main",
@@ -432,7 +433,7 @@ diverge (indicating execute was interrupted before completion).
 | `conflicts_resolved` | Paths that had conflict markers; `[]` for a clean merge or no merge |
 | `mergeable_after_sync` | `merge-state.sh` `mergeable` from the "On CI green" (or eject) call in Phase 5 |
 | `merge_state_status_after_sync` | `mergeStateStatus` from the same call |
-| `undrafted` | `true` if execute ran `gh pr ready` and dropped `needs-rebase` |
+| `undrafted` | `true` if execute ran `gh pr ready` on CI green (PAD-18-029), dropping `needs-rebase` if the PR carried one |
 
 `merge_state` is **required**. `pr-verify` treats a missing block, a
 `conflict_free` that is not `true`, or a `merge_required: true` with a null
@@ -443,15 +444,16 @@ conflicts nor is reported `BEHIND` by GitHub is conflict-free, and a deferred
 overlap (`merge_reason: "deferred"`, `sync_commit_ref: null`) is not a merge
 that never happened.
 
-`integration_tests_run` is `true` when any gate run in Phase 5 was the full
-suite (`pytest -m ""`), which includes the integration-marked tests.
+`integration_tests_run` is `true` when a gate run in Phase 5 selected a test
+file carrying the `integration` marker. Every gate carries `-m ""`, so a
+selected integration test runs (PAD-18-011); no gate selects the whole suite.
 
 ### `suite_runs` Fields and the Suite runs count
 
 | Field | Meaning |
 |---|---|
-| `full` | Full-suite local runs this PR has cost, including `create-pr`'s first-push run **only when it ran** (PAD-18-016) |
-| `targeted` | Targeted-set gate runs this PR has cost |
+| `full` | Full-suite local runs this PR has cost. Always `0`: no gate can make one (PAD-18-003, PAD-18-008, PAD-18-015). The field stays because merged comments and velocity reporting parse it (PAD-18-016) |
+| `targeted` | Targeted-set gate runs this PR has cost, including `create-pr`'s first-push run **only when it ran** (PAD-18-016) |
 
 Derivation, so the count is cumulative across every execute run on the PR:
 
@@ -459,14 +461,14 @@ Derivation, so the count is cumulative across every execute run on the PR:
    execute comment on this PR (PR reviews and comments; take the latest).
 2. If there is one, start from its `N` and `M` — it already counts the
    first-push run, if any. If there is none, count only the runs that
-   happened: start from `full = 1, targeted = 0` when `create-pr` ran the full
-   suites before the first push (an implementation PR that changes Python, on
-   the happy path), and from `full = 0, targeted = 0` when it ran none — a
-   docs-only PR gated without a suite run (PAD-18-010, PAD-18-016). Decide from the PR
-   body's `## Verification` section and the changed files: a PR whose diff
-   changes no Python ran no first-push suite.
-3. Add each Phase 5 Step 3 gate run of this execute run: one to `full` per
-   full-suite run, one to `targeted` per targeted run.
+   happened: start from `full = 0, targeted = 1` when `create-pr` ran the
+   targeted set before the first push (an implementation PR that changes
+   Python, on the happy path), and from `full = 0, targeted = 0` when it ran
+   none — a docs-only PR gated without a test run (PAD-18-010, PAD-18-016).
+   Decide from the PR body's `## Verification` section and the changed files:
+   a PR whose diff changes no Python ran no first-push gate.
+3. Add each Phase 5 Step 3 gate run of this execute run: one to `targeted`
+   each. `full` is never incremented.
 
 `scripts/velocity.py` reads the line from the most recent PR comment or review
 that carries it (PAD-18-007), so keep it a plain line in exactly the form
@@ -499,7 +501,7 @@ commits.
 **Excursions filed and fixed**: <M> (PR closes them)
 **Deferred (you approved)**: <K>
 **Halted (inversion, awaiting you)**: <H>
-**Tests run**: targeted set / full suite (`-m ""`)
+**Tests run**: targeted set (`<N>` files)
 **CI status**: ✅ passing / ❌ failing / ⏳ timed out
 **Base sync**: ✅ merged `<base_ref>` @ `def5678` (conflicting) — <N> conflicts resolved / ✅ updated on GitHub @ `def5678` (behind) / ✅ deferred — overlaps `<base_ref>` on <paths>, merger updates before merge / ✅ not needed — no conflict, GitHub does not report `BEHIND` (being behind `<base_ref>` is fine) / ❌ conflicts unresolved
 **Docs line**: `<docs_refresh.docs_line>` — <N> pages updated by execute

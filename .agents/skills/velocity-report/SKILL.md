@@ -247,15 +247,18 @@ bad merge that breaks three workflows is one failed CI run on `main`.
 - These fields are `null` for a PR whose `pr-execute` summary carries no
   `Suite runs:` line — every PR executed before #4358 added it. Do not treat
   `null` as zero — say the data is absent.
-- The full count includes `create-pr`'s first-push run only when it ran
-  (PAD-18-006): an implementation PR whose fixes all passed the targeted gate
-  reads `1 full`, and a docs-only PR, which runs no suite, reads `0 full`.
+- The targeted count includes `create-pr`'s first-push gate only when it ran
+  (PAD-18-016): an implementation PR whose fixes all passed reads `1 targeted`,
+  and a docs-only PR, which runs no test, reads `0 targeted`.
 - The script takes the line from the PR's latest summary, since the count is
   cumulative (PAD-18-006).
-- Once populated: the ratio of `full_suite_runs` to `targeted_suite_runs`
-  shows whether the targeted-tests gate (PAD-18-002) is doing its job.
-  A high full/targeted ratio means most fix commits still run the full suite,
-  which defeats the cost reduction.
+- `full_suite_runs` reads `0` on every PR merged since ADR-0179: no local gate
+  can produce a full run (PAD-18-003, PAD-18-008, PAD-18-015). The field stays
+  because merged comments carry it and the series spans the change — a non-zero
+  figure on a PR merged after it is a pipeline defect, not a cost signal.
+  `targeted_suite_runs` is the live cost measure: read it against `ci_runs`,
+  since a PR with many targeted runs and many CI runs is iterating, not
+  over-testing.
 
 **Failed CI runs on main** (`failed_ci_runs_on_main` in `weekly_main_failures`)
 

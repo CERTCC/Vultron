@@ -345,13 +345,15 @@ later) are separate decisions. Apply
 
    ruff and mypy, never pyright: CI owns it (PAD-18-026, PAD-18-027).
 
-   Do **not** run `pytest` here. The full local unit and integration suites run
-   exactly once before the first push, in `create-pr` Phase 3, adjacent to the
-   push they guard (PAD-18-001, PAD-18-008, PAD-18-017). Running them here as well would
-   pay for the most expensive step in the pipeline twice with no change to the
-   tree in between. While implementing, run the specific test files you are
-   writing or changing (`uv run pytest <path> -n 0`) as often as you like;
-   those are development runs, not the gate.
+   Do **not** run `pytest` here. The local gate — the linters plus the
+   branch diff's targeted test set — runs once before the first push, in
+   `create-pr` Phase 3, adjacent to the push it guards (PAD-18-001,
+   PAD-18-017). No local gate runs the whole unit or integration suite
+   (PAD-18-008): CI runs both on the push, and GitHub's required `CI gate`
+   refuses the merge until that run passes. While implementing, run the
+   specific test files you are writing or changing
+   (`uv run pytest <path> -n 0`) as often as you like; those are development
+   runs, not the gate.
 
 2. **Spec backstop (blocking).** Update the Spec manifest from Phase 3 if the
    work drifted, then resolve it against the diff per `deepen-context`

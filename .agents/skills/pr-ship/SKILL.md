@@ -118,9 +118,13 @@ is a PR that is merely behind its base: the pipeline merges the base locally
 only on conflict, and clears GitHub's `BEHIND` with `gh pr update-branch`
 (PAD-18-004, PAD-18-014). File overlap is left to the merger (PAD-18-019).
 
-If the PR is a draft carrying the `needs-rebase` label, note that `create-pr`
-opened it that way because it could not freshen the branch, and that execute will
-undraft it once the sync lands.
+**A draft is the normal input.** `create-pr` opens every implementation PR as
+a draft, because no full suite has run on the branch when it is first pushed
+(PAD-18-028). `pr-execute`'s CI-green step marks it ready once CI's run on its
+head has finished and passed — that is owed, not optional, so the pipeline
+hands `pr-verify` a non-draft PR (PAD-18-029). A draft carrying the
+`needs-rebase` label is the one that needs the sync to land first, which
+execute does before that step.
 
 ### Step 2 — Gitignore Check
 
@@ -182,7 +186,26 @@ When pr-execute returns successfully, proceed immediately to Step 6.
 
 ### Step 6 — Run pr-verify
 
-Invoke the `pr-verify` skill with the PR number.
+Before invoking it, check that the PR is no longer a draft:
+
+```bash
+gh pr view <number> --json isDraft --jq .isDraft
+```
+
+If it still reads `true` and the execute artifact recorded
+`final_ci_status: "passing"`, the transition execute owed was missed — make it
+now (PAD-18-029):
+
+```bash
+gh pr ready <number>
+```
+
+This is the resume path's backstop,
+not a second decision: the condition comes from execute's recorded CI result,
+never re-derived here. If `final_ci_status` is anything else, leave the draft
+alone and let verify report `PR-IS-DRAFT`: CI has not passed on this head.
+
+Then invoke the `pr-verify` skill with the PR number.
 
 When pr-verify returns, proceed immediately to Step 7.
 

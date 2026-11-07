@@ -345,10 +345,19 @@ Also emit findings for these `merge_state_status` values even when
 - `DIRTY` — treat exactly like `CONFLICTING` above, even if `mergeable`
   disagrees; the two fields are computed separately and `DIRTY` is the stronger
   signal
-- `DRAFT` — **IMPROVE**, `fix-now`. Note whether the PR carries the
-  `needs-rebase` label, which means `create-pr` opened it as a draft *because*
-  it could not freshen the branch. That draft is only undraftable once the
-  conflict is resolved.
+A draft is judged on `is_draft`, not on this list. GitHub sets
+`merge_state_status: DRAFT` only when the draft state is what blocks the
+merge; a draft whose checks all pass comes back `CLEAN` with `is_draft:
+true`. So read the field:
+
+- `is_draft: true` (whatever the status says) — not a finding on its own.
+  `create-pr` opens every implementation PR as a draft, because no full suite
+  has run on the branch when it is first pushed (PAD-18-028), and execute
+  marks it ready on CI green (PAD-18-029). Note whether the PR carries the
+  `needs-rebase` label, which means `create-pr` could not freshen the branch:
+  that draft cannot be marked ready until the conflict is resolved. Raise
+  **IMPROVE**, `fix-now`, only for a draft whose head already has a passing CI
+  run — there the transition that was owed did not happen.
 
 Never downgrade a conflict to IMPROVE or NEW-ISSUE. Resolving it is always
 in scope for the PR that has it.

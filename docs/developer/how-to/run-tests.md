@@ -7,7 +7,29 @@ stakeholder_type: [project-contributor]
 Use this guide when you need CI-aligned test execution from a maintainer
 workflow.
 
-## Default command (maintainer baseline)
+## The automated gate is not this page
+
+No automated local gate runs the whole unit or integration suite (PAD-18-003, PAD-18-008, PAD-18-015).
+Every pipeline gate — a pull request's first push, a fix commit, a conflict merge — runs the test files `targeted-tests` derives from the diff:
+
+```bash
+(
+  logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
+  git fetch -q origin main || { echo "fetch failed — stop and report"; exit 1; }
+  gate=$(PYTHONPATH= uv run targeted-tests --base origin/main --pytest); rc=$?
+  [ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
+)
+```
+
+The outer `( … )` is there because you are pasting this into your own shell.
+A failed fetch has to stop the gate rather than let it run against a stale base, and inside a subshell `exit 1` ends the gate instead of closing your terminal.
+The subshell's status is still the gate's, so `echo $?` after it reads the same verdict an agent would read.
+
+CI runs both suites on every push, and the required `CI gate` check refuses the merge until that run passes.
+The commands below are for a human who wants the whole suite anyway — a long bisect, a local reproduction of a CI failure, a first-day check that the checkout works.
+None of them is a step a pull request waits on.
+
+## Whole-suite command (by hand)
 
 Run:
 
@@ -15,7 +37,7 @@ Run:
 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
-This is the default local maintainer command.
+This runs the unit suite by hand.
 `-n auto` runs the tests on parallel `pytest-xdist` workers, one per CPU the container may use.
 The worker count comes from the container's CPU and memory limits, not from `nproc`, so a worktree slot gets one worker per CPU it is capped at (`SLOT_CPUS`), memory permitting.
 Set `PYTEST_XDIST_AUTO_NUM_WORKERS` to choose a different count.
@@ -48,15 +70,18 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 
 Replace the test path with your target file.
 
-## Include integration tests when required
+## Include integration tests
 
-If you touched any file under `vultron/demo/` or `test/demo/`, run:
+To mirror CI's run by hand, add the marker:
 
 ```bash
 uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
-Use this to mirror CI behavior for demo/integration-sensitive changes.
+A change under `vultron/demo/` or `test/demo/` used to require this before a pull request's first push.
+That exception is retired: CI runs those tests and the required `CI gate` judges the run (PAD-18-008).
+Which workflow depends on what changed — `demo-integration.yml` for a `vultron/demo/` change, and `python-app.yml`'s `rest` part for a `test/demo/` one, because `demo-integration.yml`'s `paths` list `vultron/**` but not `test/demo/**`.
+The targeted gate covers them through their importers like any other path, and its `-m ""` keeps a selected integration test in (PAD-18-011).
 
 ## Troubleshooting
 

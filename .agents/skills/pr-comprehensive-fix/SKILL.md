@@ -17,13 +17,13 @@ description: >
 
 When a PR has accumulated review comments AND CI failures, the typical fix-all
 patterns can get incomplete: they address feedback but miss CI problems, or
-forget to mark comments as resolved, or skip integration tests for demo changes.
+forget to mark comments as resolved, or never run the gate at all.
 
 This skill provides a **structured, checkpoint-based workflow** that:
 
 1. **Inventories** all problems (unresolved comments + CI failures)
 2. **Fixes** code systematically (feedback + CI issues)
-3. **Tests** intelligently (unit + integration if demo/adapter changes)
+3. **Tests** with the targeted gate, whatever the diff touches (PAD-18-003)
 4. **Verifies** CI passes
 5. **Resolves** comments individually with explanations
 
@@ -66,13 +66,19 @@ If proceeding, invoke sub-skills in order:
 
 **Checkpoint**: Code fixed locally. Stop and let user review if needed.
 
-### Step 3: Re-Run Full Test Suite
+### Step 3: Re-Run the Local Gate
 
-Based on Step 1 decision point:
+There is one gate and it is targeted: the test files `targeted-tests` derives
+from the diff. No local gate runs the whole suite (PAD-18-003, PAD-18-008,
+PAD-18-015); CI runs both on every push. See
+[`../run-tests/SKILL.md`](../run-tests/SKILL.md) § "The Targeted Gate".
 
-<!-- markdownlint-disable-next-line MD013 -->
-- **Unit only**: `logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"; timeout -k 30 1800 uv run pytest --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)`
-- **Full (unit + integration)**: Run both unit and integration test suites
+```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"
+git fetch origin <base> || { echo "fetch failed — stop and report"; exit 1; }
+gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
+```
 
 If tests fail:
 
@@ -107,21 +113,21 @@ For each unresolved comment:
 1. Inventory → approve
 2. Fix feedback (subskill) → review
 3. Fix CI (subskill) → review
-4. Run full tests → check results
+4. Run the local gate → check results
 5. Resolve comments individually → verify all addressed
 ```
 
 ### When feedback + CI failures both exist
 
 The workflow doesn't rerun tests after feedback-only (to avoid duplication),
-because Step 3 runs the full suite once both feedback and CI fixes are applied.
+because Step 3 runs the local gate once both feedback and CI fixes are applied.
 
 ### When only one type of problem exists
 
 Still follow the full workflow to ensure nothing is missed:
 
-- Feedback-only PR: Skip fix CI, still run full tests, still mark comments
-- CI-only PR: Skip fix feedback, still run full tests, verify any comments
+- Feedback-only PR: Skip fix CI, still run the gate, still mark comments
+- CI-only PR: Skip fix feedback, still run the gate, verify any comments
 
 ## Advanced Features
 

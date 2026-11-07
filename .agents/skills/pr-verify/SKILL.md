@@ -95,8 +95,11 @@ cannot be ready to merge no matter what those checks find.
    The script runs `merge-state.sh` once and applies the flag table in its
    header. `CONFLICTING`, `DIRTY` or a surviving `<<<<<<<`/`>>>>>>>` marker
    raises `MERGE-CONFLICT`, even if `mergeable` says `MERGEABLE`. `UNKNOWN`
-   raises `MERGE-STATE-UNKNOWN`, `BEHIND` raises `BRANCH-BEHIND`, and `DRAFT`
-   raises `PR-IS-DRAFT`. `BLOCKED` splits on the head commit's newest `CI gate`
+   raises `MERGE-STATE-UNKNOWN`, `BEHIND` raises `BRANCH-BEHIND`, and
+   `is_draft: true` raises `PR-IS-DRAFT` — the field, not the status, because
+   GitHub reports a draft whose checks all pass as `CLEAN` and sets
+   `mergeStateStatus: DRAFT` only when the draft state is itself the block.
+   `BLOCKED` splits on the head commit's newest `CI gate`
    run, reported as `ci_gate=`: green leaves it a note, as it always was, and
    anything else raises `CI-GATE-NOT-GREEN`. A PR onto a base the ruleset does
    not target reports `not-required` and stays a note. It prints one `verdict=`
@@ -150,7 +153,11 @@ cannot be ready to merge no matter what those checks find.
      execute's last check: re-run `/pr-execute`, which clears it.
    - `PR-IS-DRAFT` — report the `needs_rebase=` line: whether the
      `needs-rebase` label is still attached. `unknown` means the labels could
-     not be read: say so, never report it as absent.
+     not be read: say so, never report it as absent. Every implementation PR
+     opens as a draft (PAD-18-028), so a draft here means the transition that
+     was owed did not happen: `pr-execute`'s CI-green step marks it ready once
+     CI's run on the head passes (PAD-18-029). Name that step as the remedy —
+     with `needs_rebase=true`, the sync has to land first.
    - `note=blocked` — note it in the comment (missing required review, etc.).
      It does *not* block the verdict: it is a repo policy state a human
      resolves, not a defect in the PR.

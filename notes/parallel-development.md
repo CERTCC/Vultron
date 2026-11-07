@@ -278,6 +278,15 @@ merges (PAD-17-004). The issue stays `In Review` throughout: pipeline detail
 belongs to the PR, because one bundle PR closes several issues. Without it,
 progress sits in gitignored `.claude/pr-*.json` files no other session can see.
 
+**An implementation PR is now opened as a draft** (PAD-18-028) and marked ready
+inside `pr-execute`, once CI's run on its head passes (PAD-18-029). So the
+ready transition lands *mid-pipeline*, between execute's green and verify's
+`Ready to merge` — not at open time, as it did when `create-pr` opened a
+non-draft PR. Whatever implements PAD-17-003 must therefore not overwrite a
+phase value `pr-ship` has already set: enter at `Awaiting ship` only when the
+PR has no `Ship stage` yet. Nothing writes the field today, so there is no live
+defect; this is the constraint on the implementation.
+
 ### Epics
 
 An Epic has a Schedule tier and no Status. Its progress is GitHub's sub-issue

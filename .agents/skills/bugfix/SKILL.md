@@ -243,8 +243,9 @@ Once the plan is confirmed:
 
 5. **Iterate**: run `run-linters` and the tests relevant to the fix (the
    reproduction test and its neighbors, `uv run pytest <path> -n 0`); refine
-   until they pass. Do not run the full unit or integration suite here:
-   `create-pr` runs it exactly once before the first push (PAD-18-008).
+   until they pass. Do not run the whole unit or integration suite — no local
+   gate does (PAD-18-008). `create-pr` runs the linters plus the targeted set
+   once before the first push, and CI runs both suites on that push.
    Apply branch-ownership and pre-existing-failure rules from
    `completeness-doctrine.md`. A failing check holds the PR whatever
    its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole
