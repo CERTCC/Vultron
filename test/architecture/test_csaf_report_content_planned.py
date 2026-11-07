@@ -12,14 +12,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Planned behaviour for CSAF documents in reports (ADR-0184, CSAF-01 to CSAF-03).
+"""Planned behavior for CSAF documents in reports (ADR-0184, CSAF-01 to CSAF-05).
 
 Strict-``xfail`` tests for protocol requirements written before the code that
 satisfies them exists; see ``notes/spec-authoring-rules.md`` § "Use a
 Strict ``xfail`` for Not-Yet-Implemented Specs", and
 ``notes/csaf-report-content.md`` for the planned layout.
 
-Four probes stand in for the behaviour:
+Four probes stand in for the behavior:
 
 - the submit-report request accepts a CSAF document (the sender side:
   CSAF-01-001, CSAF-01-002, CSAF-02-004, CSAF-02-007);
@@ -29,15 +29,20 @@ Four probes stand in for the behaviour:
   initial report and the case inputs it fills: CSAF-02-001 to CSAF-02-003,
   CSAF-02-005, CSAF-03-001 to CSAF-03-007);
 - the case holds vulnerability records and case references (CSAF-03-008,
-  CSAF-03-009, both waiting on #5132).
+  CSAF-03-009, both waiting on #5132);
+- the CSAF draft-watch workflow exists (CSAF-05-005 to CSAF-05-007).
+
+The project-kind requirements CSAF-04 and CSAF-05 reuse the same probes, so
+each ``verification:`` clause names a check that exists (MS-10-009).
 
 When a piece lands, its tests XPASS, ``strict=True`` fails the build, and the
-builder replaces each probe with the behavioural check the requirement's
+builder replaces each probe with the behavioral check the requirement's
 ``verification:`` names. That promotion is the point: this module is a
 ratchet, not a test of the feature.
 """
 
 from importlib.util import find_spec
+from pathlib import Path
 
 import pytest
 
@@ -49,6 +54,8 @@ from vultron.core.use_cases.triggers.request_bodies.report import (
 _SEND = "Tracked by #6092 (source #5131)."
 _RECEIVE = "Tracked by #6090 (source #5131)."
 _CASE = "Tracked by #6091 (source #5131)."
+_MODELS = "Tracked by #6089 (source #5131)."
+_WATCH = "Tracked by #6094 (source #5131)."
 _RECORDS = (
     "Tracked by #6093, which waits on #5132 (vulnerability records on a case)."
 )
@@ -67,6 +74,12 @@ def _csaf_reader_exists() -> bool:
 def _report_claims_exist() -> bool:
     """Return whether the format-neutral report-claims model exists."""
     return find_spec("vultron.core.models.report_claims") is not None
+
+
+def _watch_job_exists() -> bool:
+    """Return whether the CSAF draft-watch workflow exists."""
+    root = Path(__file__).resolve().parents[2]
+    return (root / ".github" / "workflows" / "csaf-draft-watch.yml").is_file()
 
 
 def _case_has(field: str) -> bool:
@@ -243,3 +256,156 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_record():
 )
 def test_each_csaf_reference_becomes_a_case_reference():
     assert _case_has("case_references")
+
+
+@pytest.mark.spec("CSAF-04-001")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-04-001: no CSAF schema verdict is recorded yet. {_RECEIVE}",
+)
+def test_receipt_records_a_schema_verdict():
+    assert _csaf_reader_exists()
+
+
+@pytest.mark.spec("CSAF-04-002")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-04-002: no CSAF schema verdict exists yet. {_RECEIVE}",
+)
+def test_the_verdict_never_says_valid_csaf():
+    assert _csaf_reader_exists()
+
+
+@pytest.mark.spec("CSAF-04-003")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-04-003: no lenient CSAF read exists yet. {_RECEIVE}",
+)
+def test_a_schema_invalid_document_is_read_field_by_field():
+    assert _csaf_reader_exists()
+
+
+@pytest.mark.spec("CSAF-04-004")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-04-004: no claims record is stored yet. {_RECEIVE}",
+)
+def test_the_report_keeps_a_record_of_what_its_csaf_claimed():
+    assert _report_claims_exist()
+
+
+@pytest.mark.spec("CSAF-04-005")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-04-005: no claims record exists yet. {_RECEIVE}",
+)
+def test_the_claims_record_is_never_sent():
+    assert _report_claims_exist()
+
+
+@pytest.mark.spec("CSAF-04-006")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-04-006: no case-split signal is recorded yet. {_CASE}",
+)
+def test_disagreeing_vulnerabilities_raise_a_case_split_signal():
+    assert _report_claims_exist()
+
+
+@pytest.mark.spec("CSAF-04-007")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-04-007: no candidate-parties signal is recorded yet. {_CASE}",
+)
+def test_several_affected_vendors_raise_a_candidate_parties_signal():
+    assert _report_claims_exist()
+
+
+@pytest.mark.spec("CSAF-04-008")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-04-008: no signal exists yet. {_CASE}",
+)
+def test_a_signal_never_splits_suggests_or_invites():
+    assert _report_claims_exist()
+
+
+@pytest.mark.spec("CSAF-04-009")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-04-009: submit-report takes no CSAF document yet. {_SEND}",
+)
+def test_submit_report_refuses_invalid_csaf_with_422():
+    assert _sender_attaches_csaf()
+
+
+@pytest.mark.spec("CSAF-04-010")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-04-010: submit-report takes no CSAF document yet. {_SEND}",
+)
+def test_submit_report_fills_missing_fields_from_csaf():
+    assert _sender_attaches_csaf()
+
+
+@pytest.mark.spec("CSAF-05-001")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-05-001: no pinned CSAF draft exists yet. {_MODELS}",
+)
+def test_one_pin_names_the_csaf_draft():
+    assert _csaf_reader_exists()
+
+
+@pytest.mark.spec("CSAF-05-002")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-05-002: no pinned local copy exists yet. {_MODELS}",
+)
+def test_models_come_from_the_pinned_local_copy():
+    assert _csaf_reader_exists()
+
+
+@pytest.mark.spec("CSAF-05-003")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-05-003: no generated models exist yet. {_MODELS}",
+)
+def test_regeneration_reproduces_the_committed_models():
+    assert _csaf_reader_exists()
+
+
+@pytest.mark.spec("CSAF-05-004")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-05-004: no CSAF corpus script exists yet. {_MODELS}",
+)
+def test_the_suite_never_reads_the_tc_test_documents():
+    assert _csaf_reader_exists()
+
+
+@pytest.mark.spec("CSAF-05-005")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-05-005: no CSAF draft-watch workflow exists yet. {_WATCH}",
+)
+def test_a_scheduled_job_watches_the_csaf_draft():
+    assert _watch_job_exists()
+
+
+@pytest.mark.spec("CSAF-05-006")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-05-006: no CSAF draft-watch workflow exists yet. {_WATCH}",
+)
+def test_the_watch_job_keeps_one_open_issue():
+    assert _watch_job_exists()
+
+
+@pytest.mark.spec("CSAF-05-007")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CSAF-05-007: no CSAF draft-watch workflow exists yet. {_WATCH}",
+)
+def test_the_watch_issue_names_the_fields_affected():
+    assert _watch_job_exists()

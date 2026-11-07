@@ -132,3 +132,6 @@ Measured on CSD04 with `datamodel-code-generator` 0.90 during planning:
   (CSAF-04-007). Turning a name into an actor needs a directory that does not
   exist yet; the party-discovery monitor (BT-20-003) or a human does it, through
   `suggest-actor-to-case`.
+
+The draft-watch probe in the planned-test module expects the workflow at
+`.github/workflows/csaf-draft-watch.yml`; name it so, or update the probe.
