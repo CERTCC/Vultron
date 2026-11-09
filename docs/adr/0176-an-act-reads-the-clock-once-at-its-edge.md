@@ -97,7 +97,7 @@ A call-out that blocks on an external service can break that assumption.
 When it can, a drift limit will close the gap without a second clock read: an act whose stopwatch time since its instant exceeds a budget aborts before committing and reruns with a fresh instant (#5848, after #3423).
 
 This decision covers time only.
-Generated ids have the same shape, a global that the recording harness replaces, and are left to a follow-on decision.
+Generated ids have the same shape, a global that the recording harness replaces, and are decided in [ADR-0185](0185-the-one-id-minter-draws-from-an-id-source-not-a-patched-uuid4.md).
 
 ### Consequences
 
