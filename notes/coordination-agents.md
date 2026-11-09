@@ -3,7 +3,6 @@ title: Capability Shapes Design Notes
 status: active
 kind: plan
 tracks:
-  - "#1142"
   - "#1143"
   - "#1147"
   - "#1845"
@@ -13,12 +12,13 @@ tracks:
   - "#2450"
   - "#3421"
   - "#3423"
+  - "#3426"
   - "#3427"
   - "#6078"
 description: >
   Design for the capability layer's unbuilt work: core-owned typed-port
   contracts and renamed shape base classes (#3421), the call-out latency budget
-  (#3423), open per-shape questions (#3427), composite capabilities (#1142), and
+  (#3423), open per-shape questions (#3427), the participant-suggestion port (#3426), and
   the Sentinel call-in pattern (#2450). Also routes a design question to a
   capability, an ask, or a call-in monitor, and says why Sentinel is not a fifth
   shape; the call-in and call-out surfaces themselves are defined in
@@ -187,16 +187,25 @@ Evaluator can run in either mode by deployment configuration, so a call-out poin
 must handle both. Recording each recommendation with its outcome (accepted as-is
 or overridden) is what lets an Evaluator earn promotion to auto-execute.
 
-## Composite Capabilities (#1142)
+## Participant Suggestion: One Port, Two Callers (#3426)
 
-A composite is a bounded, single-purpose workflow composing two or more shapes
-behind **one** call-out point. Worked example, Participant Discovery:
-
-1. **Retriever** — search CPE data, supply-chain graphs, product docs, the web,
-   and GitHub for affected vendors/products; output candidates with sources.
-2. **Evaluator** — winnow to a recommended notification set with rationale.
-3. **Affinity memory** — record who was notified on similar cases to bootstrap
-   future ones; bias toward over-notification.
-
-Input is case context; output is a recommended participant set. A composite is
-not an autonomous Actor managing a whole case (#2450).
+- **"Who else should be in this case?" is one driven port, not a call-out
+  capability.** A thin Retriever call-out wraps it for a tree, and a Sentinel
+  calls the same service from outside, so one adapter serves both (BT-24-001,
+  ADR-0186). A slow adapter that cannot meet the call-out budget is reachable
+  only through the Sentinel.
+- **Core narrows the case before the port sees it.** The port takes a
+  core-owned suggestion context built by one core projection, because which
+  embargoed information leaves the actor is a disclosure decision made once
+  (BT-24-002, BT-24-003). An adapter that wants more input changes that type.
+- **A suggestion is an identity with a reason.** Actor id, suggested role,
+  rationale; no timing, because the receiver schedules invites from the
+  invitee's embargo policy (BT-24-004, BT-24-006). Prefer over-suggesting
+  (BT-24-005).
+- **Name it a suggestion, not a discovery.** The answer is not definitive, and
+  "actor discovery" is the URI-to-profile seam, being renamed ActorResolution.
+- **A CSAF suggester is an adapter, not a port type.** It turns the suggestion
+  context into CSAF for an outside service; core never depends on CSAF.
+- **The demo answers from a declared table** (BT-24-007): no directory or
+  recommender service is built. Retriever-plus-Evaluator search and affinity
+  memory are implementation choices behind the port, not part of its contract.

@@ -2788,3 +2788,120 @@ groups:
         the default everywhere.
     - rel_type: supersedes
       spec_id: BT-23-007
+- id: BT-24
+  title: Participant Suggestion Port
+  description: Requirements for the one interface through which an actor asks who else should take part in a case,
+    whether the question comes from a call-out inside a tree or from a call-in Sentinel outside core (ADR-0186).
+  specs:
+  - id: BT-24-001
+    priority: MUST
+    kind: project
+    statement: >-
+      An actor that asks who else should take part in a case MUST ask through the one
+      participant-suggestion driven port, whether a call-out inside a tree or a call-in
+      Sentinel outside core asks the question.
+    rationale: >-
+      Both callers want the same answer. One port means one adapter serves both, and
+      the answer shape is stated once in core.
+    verification: >-
+      A test drives both the call-out wrapper and the Sentinel-side service against one recording adapter and asserts both reach the same port method.
+    adr:
+    - ADR-0186
+    tracking_issue: '#3426'
+    relationships:
+    - rel_type: refines
+      spec_id: BT-20-003
+    - rel_type: refines
+      spec_id: BT-20-013
+  - id: BT-24-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The participant-suggestion port MUST receive a core-owned suggestion context
+      projected from the case, not the case itself.
+    rationale: >-
+      Much of a case is under embargo. An adapter cannot pass on information it never
+      receives, so the port's signature is where the disclosure limit holds.
+    verification: >-
+      A test inspects the port Protocol signature and asserts its parameter is the suggestion context type, not a case type.
+    adr:
+    - ADR-0186
+    tracking_issue: '#3426'
+  - id: BT-24-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The projection from a case to a suggestion context MUST be defined once, in
+      core, and every caller of the participant-suggestion port MUST reach it through
+      that projection.
+    rationale: >-
+      Which case information leaves the actor is a disclosure decision. Defined once,
+      it is tested once, and widening it is a visible change to a core type rather
+      than a quiet edit inside one adapter or one caller.
+    verification: >-
+      A ratchet asserts that the only core caller of the port is the one service that applies the projection, and a test pins which case fields the projection carries.
+    adr:
+    - ADR-0186
+    tracking_issue: '#3426'
+    relationships:
+    - rel_type: depends_on
+      spec_id: BT-24-002
+  - id: BT-24-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Each suggestion the participant-suggestion port returns MUST carry an actor id,
+      a suggested `CVDRole`, and a rationale. An answer with no suggestions is valid.
+    rationale: >-
+      The id and role are what `suggest-actor-to-case` needs. The rationale lets the
+      Case Owner judge the suggestion, because a suggestion is not a definitive fact.
+    verification: >-
+      A test of the suggestion model asserts the three fields are required and that an empty answer validates.
+    adr:
+    - ADR-0186
+    tracking_issue: '#3426'
+  - id: BT-24-005
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A participant-suggestion adapter SHOULD prefer suggesting a party that turns out
+      not to be needed over omitting a party that is.
+    rationale: >-
+      In CVD an uninformed affected party is the costlier error. The Case Owner still
+      approves each suggestion, so an extra one costs a decision, not a disclosure.
+    adr:
+    - ADR-0186
+    tracking_issue: '#3426'
+  - id: BT-24-006
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A suggestion MUST NOT carry invitation timing. The actor that receives the
+      suggestions schedules each invite.
+    rationale: >-
+      The suggester answers who and why. When to invite depends on the invitee's
+      published embargo policy and the case's remaining embargo, which the receiver
+      holds and the suggester does not need.
+    verification: >-
+      A test of the suggestion model asserts it declares no time or schedule field and refuses one at construction.
+    adr:
+    - ADR-0186
+    tracking_issue: '#3426'
+  - id: BT-24-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Demo scenarios and tests that use the participant-suggestion port MUST answer it
+      with a static adapter that reads a candidate table the scenario declares.
+    rationale: >-
+      The prototype needs the port's shape, not a directory or recommender service. A
+      declared table makes the answer deterministic (BT-23-014) and keeps the demo's
+      suggested parties visible in the scenario itself.
+    verification: >-
+      A test runs the 5-party demo scenario with the static adapter and asserts the second vendor is suggested from the scenario-declared table.
+    adr:
+    - ADR-0186
+    tracking_issue: '#3426'
+    relationships:
+    - rel_type: uses_definition
+      spec_id: BT-23-014
