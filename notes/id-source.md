@@ -36,25 +36,36 @@ slice keeps.
 - **The application factory installs nothing.** The system source is the
   default, because `create_app()` must not change process-wide state
   (ARCH-16-001).
-- **The install lives beside the minter.** It sits in `vultron/core/models/`, so
-  the docs-example generator in the wire layer can reach it (ARCH-22-001).
+- **The port lives beside the minter, not in `vultron/core/ports/`.** Its
+  Protocol, the system source and the scoped install sit in `vultron/core/models/`,
+  because the docs-example generator in the wire layer supplies a source and the
+  wire layer may not import `vultron.core.ports` (ARCH-22-001).
 - **An install restores, and does not nest.** The previous source comes back on
   exit and on an exception; a second install inside an active one fails, because
   the two runs would silently share one stream of ids.
 - **Exemptions shrink, never grow.** Each slice removes its own entry from
-  `NON_ID_RANDOM_UUID_EXEMPTIONS` in the same PR (ARCH-18-002); the database-name
-  entry stays, because that draw names no object.
+  `NON_ID_RANDOM_UUID_EXEMPTIONS` in the same PR, because the exact-set assert in
+  `test_no_function_but_the_shared_minter_draws_a_random_uuid` fails on an entry
+  that no longer draws (OID-01-004); the database-name entry stays, because that
+  draw names no object.
+- **A test that observes the minter through `uuid4` moves to the port.** A test
+  that replaces or calls `uuid.uuid4` to watch the minter checks nothing once the
+  minter draws from the id source, so the slice that changes the draw rewrites it.
 
 ## Slices, in order
 
 1. **Foundation** (#6114). The id-source port and system source, the minter
    drawing from the installed source, the scoped install, the architecture test's
    minter site moved to the system source, and the OID-01 rule that cites
-   ADR-0185.
+   ADR-0185. `test/core/models/test_embargo_apply.py` stops patching
+   `helpers_ids.uuid.uuid4` to prove nothing is minted and installs a refusing
+   id source instead.
 2. **Recordings** (#6116). `deterministic_run()` installs `SeededUuid4` through
    the port and drops its `sys.modules` sweep; every recording is regenerated
-   once. It may share that regeneration with #5760, which moves the recording
-   clock to its port.
+   once. `test/demo_unit/test_determinism.py` drops its tests of the sweep, and
+   `test/adapters/driving/fastapi/routers/test_datalayer_read_mints_nothing.py`
+   reads the next seeded ids through `new_object_id`, not `uuid.uuid4()`. It may
+   share that regeneration with #5760, which moves the recording clock to its port.
 3. **Docs examples** (#6117). `_example_scope()` installs `_ScopedIds` through
    the port; the example corpus does not change.
 

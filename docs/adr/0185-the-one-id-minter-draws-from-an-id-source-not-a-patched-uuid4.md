@@ -62,11 +62,13 @@ The decision has five parts.
 
 - **Ids are minted anywhere, through the one minter.** Any code may mint a new object id, but only by calling the one minter, directly or through an `id_` default factory.
   No code under `vultron/` draws a random UUID for an object id any other way, and no code replaces the standard library's draw.
-- **The minter draws from an id source.** The id source is a port with one operation, which returns a fresh version-4 UUID.
+- **The minter draws from an id source.** The id source is a port with one operation, which returns the next version-4 UUID.
   The system id source implements it with `uuid.uuid4`, and is the one function in `vultron/` that draws a random UUID for an object id.
+  A reproducible run's source returns ids that repeat from run to run, such as a seeded sequence; it still returns a different id on every call within one run.
+  The port's Protocol, the system source and the scoped install live beside the minter in `vultron.core.models`, not in `vultron.core.ports`, because the docs-example generator in the wire layer must supply a source and the wire layer may not import `vultron.core.ports` (ARCH-22-001).
 - **The system source is the default, and the application factory installs nothing.** The system source is the correct source for every run except a run that must repeat byte for byte.
   The application factory does not install an id source, because it must not change process-wide state (ARCH-16-001).
-- **A reproducible run replaces the source for a block.** A run that needs repeatable ids installs its source through one scoped install that lives beside the minter, so the wire layer can reach it.
+- **A reproducible run replaces the source for a block.** A run that needs repeatable ids installs its source through the scoped install.
   The install restores the previous source when the block ends, also when the block raises.
   An install while another install is active fails, because two reproducible runs in one block would take each other's ids without anyone seeing it.
   The installed source is process-wide, as the patch is today: in-process recordings run several nodes in one process, and they draw from one seeded stream.
@@ -78,7 +80,7 @@ The decision has five parts.
 - Good: a recording's ids depend only on the objects the scenario mints, so a refactor of tree shape no longer changes a recording.
 - Good: py_trees draws real ids again, so seeded draws no longer collide in its client registry.
 - Good: the recording harness drops its sweep of every loaded module, and the docs-example generator drops its patch of the `uuid` module.
-- Good: the change is confined to the minter, the two reproducible runs and the architecture test; no model, node or test fixture changes.
+- Good: the change is confined to the minter, the two reproducible runs, the architecture test and the few tests that replace or call `uuid.uuid4` to observe the minter; no model, node or shared test fixture changes.
 - Neutral: the id source is process-wide state; a thread that mints while a reproducible run's install is active takes one of its ids.
   This is true of today's patch, and both reproducible runs are single-threaded or draw in a fixed order.
 - Neutral: an object built and discarded still takes an id from the source, so a code change that mints more objects moves the later ids of a recording.
