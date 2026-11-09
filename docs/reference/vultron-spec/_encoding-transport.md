@@ -136,7 +136,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 !!! note "The reference implementation posts plain JSON"
     The reference implementation delivers with `Content-Type: application/json`, and its inbox does not yet refuse other media types.
-    These requirements are listed in [Known Gaps](known-gaps.md).
+    HTTP-01-003 and HTTP-01-004 are listed in [Known Gaps](known-gaps.md).
 
 {% include-markdown "./_oq-transport-status-codes.md" %}
 

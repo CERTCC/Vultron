@@ -20,6 +20,7 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx2 as httpx
 import pytest
 
 from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
@@ -35,11 +36,27 @@ BODY = json.dumps(
     }
 )
 
-#: The two media types a Vultron inbox accepts (HTTP-01-001, HTTP-01-002).
+#: The two media types a Vultron inbox accepts (HTTP-01-001, HTTP-01-002),
+#: as (media type, ``profile`` parameter) pairs.
 ACTIVITYSTREAMS_MEDIA_TYPES = {
-    "application/activity+json",
-    'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+    ("application/activity+json", None),
+    ("application/ld+json", "https://www.w3.org/ns/activitystreams"),
 }
+
+
+def _media_type(content_type: str) -> tuple[str, str | None]:
+    """The media type and its ``profile`` parameter, normalized.
+
+    Case, spacing and quoting do not change a media type, so a correct header
+    written another way still matches.
+    """
+    media_type, *params = (part.strip() for part in content_type.split(";"))
+    profile = None
+    for param in params:
+        name, _, value = param.partition("=")
+        if name.strip().lower() == "profile":
+            profile = value.strip().strip('"')
+    return media_type.lower(), profile
 
 
 @pytest.mark.spec("HTTP-01-004")
@@ -53,16 +70,23 @@ ACTIVITYSTREAMS_MEDIA_TYPES = {
     ),
 )
 def test_delivery_posts_an_activitystreams_media_type() -> None:
-    """A delivery POST names one of the two ActivityStreams media types."""
+    """A delivery POST names one of the two ActivityStreams media types.
+
+    The request is caught at ``send``, after the client merges its own default
+    headers in, so a header set on the client counts as well as one set on
+    the call.
+    """
     adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
     response = MagicMock()
     response.status_code = 202
     response.raise_for_status = MagicMock()
 
-    with patch("httpx2.AsyncClient.post", new_callable=AsyncMock) as post:
-        post.return_value = response
+    with patch("httpx2.AsyncClient.send", new_callable=AsyncMock) as send:
+        send.return_value = response
         asyncio.run(adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI]))
 
-    post.assert_called_once()
-    content_type = post.call_args.kwargs["headers"]["Content-Type"]
-    assert content_type in ACTIVITYSTREAMS_MEDIA_TYPES
+    send.assert_called_once()
+    request = send.call_args.args[0]
+    assert isinstance(request, httpx.Request)
+    content_type = request.headers.get("content-type", "")
+    assert _media_type(content_type) in ACTIVITYSTREAMS_MEDIA_TYPES

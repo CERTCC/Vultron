@@ -167,8 +167,8 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 The CASE_MANAGER never fills a reference in.
 The entry hash covers the snapshot and nothing outside it.
-It is computed over the RFC 8785 JSON Canonicalization Scheme (JCS) serialization of that content ([§5.2 Serialization](layers.md#52-serialization)), so every replica hashes the same bytes for it.
 A filled-in snapshot would thus record the CASE_MANAGER's reconstruction, not what was sent.
+The entry hash is computed over the RFC 8785 JSON Canonicalization Scheme (JCS) serialization of the content it covers ([§5.2 Serialization](layers.md#52-serialization)), so every replica hashes the same bytes for it.
 How a message carries an object inline or by reference is specified at [§5.2 Serialization](layers.md#52-serialization).
 
 ### 10.5 Claims and Canonical Status

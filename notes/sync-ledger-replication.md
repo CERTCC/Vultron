@@ -113,12 +113,12 @@ everything after the last hash a participant reports.
 ## Canonical Serialization
 
 The hashed form must be fixed **before** entries are signed; changing it later
-invalidates every chain. It needs deterministic key order, one stable Unicode
-normalization, an explicit field set (signatures and cache fields excluded), and
-no optional whitespace. [RFC 8785 (JCS)](https://www.rfc-editor.org/rfc/rfc8785)
-is required (SYNC-01-008); the current serializer is not JCS, and its strict
-`xfail` names the gap, #3659. Leaf
-hashes must stay valid if the chain later becomes a Merkle tree (SYNC-01-005).
+invalidates every chain. It needs deterministic key order, an explicit field set
+(signatures and cache fields excluded), and no optional whitespace.
+[RFC 8785 (JCS)](https://www.rfc-editor.org/rfc/rfc8785) is required
+(SYNC-01-008); the current serializer is not JCS, and its strict `xfail` names
+the gap, #3659. Leaf hashes must stay valid if the chain later becomes a Merkle
+tree (SYNC-01-005).
 
 ## Every Case Activity States Its Sender's Ledger Position (SYNC-18)
 

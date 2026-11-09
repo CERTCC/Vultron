@@ -71,11 +71,11 @@ groups:
       application/activity+json` or `Content-Type: application/ld+json;
       profile="https://www.w3.org/ns/activitystreams"`.
     rationale: >-
-      ActivityPub requires a POST to an inbox to use the JSON-LD media type with the
-      ActivityStreams profile. Every Vultron inbox accepts `application/activity+json`
-      as well (HTTP-01-001, HTTP-01-002), so Vultron lets a sender use either form,
-      and the rule is Vultron's own. A receiver that refuses other media types
-      (HTTP-01-003) refuses a delivery sent as plain `application/json`.
+      ActivityPub requires a POST to an inbox to use the `ld+json` ActivityStreams
+      profile. Every Vultron inbox also accepts `application/activity+json`
+      (HTTP-01-001, HTTP-01-002), so Vultron lets a sender use either form. That is
+      looser than ActivityPub, so the rule is Vultron's own. A receiver that refuses
+      other media types (HTTP-01-003) refuses plain `application/json`.
     verification: >-
       No check covers this yet: the delivery adapter posts with `Content-Type:
       application/json` (#3660).
