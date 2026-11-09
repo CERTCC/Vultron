@@ -156,10 +156,17 @@ RUN git -C /app rev-parse --verify --quiet refs/remotes/origin/main >/dev/null \
     # slots that saturated the host. The graph is now built once, centrally, via
     # `start-dev.sh --build-graph` and mounted read-only. See README-DEV.md.
     && rm -f /app/.git/hooks/post-commit /app/.git/hooks/post-checkout \
-    # Ship a writable graphify-out so start-dev.sh can mount the shared graph.json
-    # read-only INTO it while the query flow's scratch (.vocab.txt, memory/) still
-    # writes locally. Created here so the later `chown -R vscode:vscode /app` owns it.
-    && mkdir -p /app/graphify-out
+    # Ship a writable graphify-out whose graph files are symlinks into the shared
+    # graph directory that start-dev.sh mounts read-only at /graphify-shared. A
+    # symlink is resolved on every open, so a host rebuild (which replaces
+    # graph.json by rename) is visible in a running slot; a single-file bind mount
+    # stays pinned to the replaced inode. The query flow's scratch (.vocab.txt,
+    # memory/) still writes locally. Created here so the later
+    # `chown -R vscode:vscode /app` owns the directory.
+    && mkdir -p /app/graphify-out \
+    && for f in graph.json manifest.json .graphify_root .graphify_python; do \
+        ln -s "/graphify-shared/$f" "/app/graphify-out/$f"; \
+    done
 
 # Create non-root developer user matching the VS Code devcontainer convention
 RUN groupadd --gid 1000 vscode \

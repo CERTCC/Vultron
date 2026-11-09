@@ -160,7 +160,8 @@ if [ "$BUILD_GRAPH" = true ]; then
     '
     echo ""
     echo "Shared graph updated at $SHARED_GRAPH"
-    echo "Restart any running slots to pick it up."
+    echo "Slots created with the directory mount see it now; restart older slots"
+    echo "(remove and recreate them) to switch them to the directory mount."
     exit 0
 fi
 
@@ -246,22 +247,19 @@ DOCKER_ARGS=(
     -w "$WORKSPACE"
 )
 
-# Knowledge graph: mount the heavy artifacts read-only from the single shared
-# build. The image ships a writable, vscode-owned /app/graphify-out, so the
-# query flow's disposable scratch (.vocab.txt, memory/) still writes there and
-# is discarded on teardown — but graph.json is read-only, so a slot physically
-# cannot rebuild or corrupt the shared graph. Mounts are added only if the graph
-# exists; otherwise the slot starts graph-less and queries fall back gracefully.
-if [ -f "$SHARED_GRAPH/graph.json" ]; then
-    DOCKER_ARGS+=(-v "$SHARED_GRAPH/graph.json:/app/graphify-out/graph.json:ro")
-    for _gf in .graphify_python manifest.json .graphify_root; do
-        if [ -e "$SHARED_GRAPH/$_gf" ]; then
-            DOCKER_ARGS+=(-v "$SHARED_GRAPH/$_gf:/app/graphify-out/$_gf:ro")
-        fi
-    done
-else
+# Knowledge graph: mount the shared build DIRECTORY read-only at
+# /graphify-shared. The image's /app/graphify-out holds symlinks into it (see
+# docker/Dockerfile), so the query flow's disposable scratch (.vocab.txt,
+# memory/) still writes locally, while graph.json is read-only and a slot
+# physically cannot rebuild or corrupt the shared graph. Mount the directory,
+# never the files: a single-file bind mount pins the inode it started with, so a
+# `--build-graph` run (which replaces graph.json by rename) was invisible to
+# running slots, which kept reading the replaced file. With no graph yet the
+# symlinks dangle and queries fall back gracefully.
+DOCKER_ARGS+=(-v "$SHARED_GRAPH:/graphify-shared:ro")
+if [ ! -f "$SHARED_GRAPH/graph.json" ]; then
     echo "NOTE: no shared graph at $SHARED_GRAPH — run './start-dev.sh --build-graph' to build it."
-    echo "      This slot starts without a knowledge graph."
+    echo "      Running slots see the graph as soon as the build finishes."
 fi
 
 # Mount user-level skills read-only if present on the host
