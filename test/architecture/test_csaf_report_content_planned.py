@@ -44,7 +44,6 @@ from test.architecture import _corpus
 
 _SEND = "Tracked by #6092 (source #5131)."
 _CASE = "Tracked by #6091 (source #5131)."
-_WATCH = "Tracked by #6094 (source #5131)."
 _RECORDS = (
     "Tracked by #6093, which waits on #5132 (vulnerability records on a case)."
 )
@@ -328,36 +327,3 @@ def test_the_suite_never_reads_the_tc_test_documents() -> None:
     assert readers == [], (
         f"CSAF-05-004: these test modules name the CSAF TC test data: {readers}"
     )
-
-
-@pytest.mark.spec("CSAF-05-005")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-05-005: no CSAF draft-watch workflow exists yet. {_WATCH}",
-)
-def test_a_scheduled_job_watches_the_csaf_draft(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-05-006")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-05-006: no CSAF draft-watch workflow exists yet. {_WATCH}",
-)
-def test_the_watch_job_keeps_one_open_issue(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-05-007")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-05-007: no CSAF draft-watch workflow exists yet. {_WATCH}",
-)
-def test_the_watch_issue_names_the_fields_affected(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)

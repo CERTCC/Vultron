@@ -3,6 +3,7 @@
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -138,7 +139,10 @@ class TestDeferCaseRMTransitionViaBT:
         )
         before = set(self.dl.outbox_list())
         SvcDeferCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         updated = self.dl.read(self.vendor_participant.id_)
@@ -190,6 +194,7 @@ class TestDeferCaseRMTransitionViaBT:
                     actor_id=self.vendor.id_, case_id=self.case.id_
                 ),
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
         assert set(self.dl.outbox_list()) == before
@@ -212,6 +217,7 @@ class TestDeferCaseRMTransitionViaBT:
                     actor_id=self.vendor.id_, case_id=case_solo.id_
                 ),
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
         assert set(self.dl.outbox_list()) == before
@@ -226,6 +232,7 @@ class TestDeferCaseRMTransitionViaBT:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_defer_case_not_found_raises_error(self):
@@ -238,6 +245,7 @@ class TestDeferCaseRMTransitionViaBT:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_defer_case_rm_not_updated_when_no_participant(self):
@@ -277,4 +285,5 @@ class TestDeferCaseRMTransitionViaBT:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()

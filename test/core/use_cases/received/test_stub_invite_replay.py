@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import pytest
 
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -99,6 +100,7 @@ def _the_owner_invites_the_joiner(
         trigger_activity=TriggerActivityAdapter(owner_dl),
         sync_port=SyncActivityAdapter(owner_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
     new = [i for i in owner_dl.outbox_list() if i not in before]
     assert new, "the owner queued nothing"

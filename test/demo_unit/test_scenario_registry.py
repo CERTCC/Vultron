@@ -39,7 +39,9 @@ from pathlib import Path
 import pytest
 
 from test.demo_unit._scenario_imports import imported_names, names_a_scenario
+from test.support.scenario_specs import fixture_spec
 from vultron.demo import cli
+from vultron.demo.helpers.story import choose, story
 from vultron.demo.scenario import rv_demo
 from vultron.demo.scenario.registry import (
     MODULE_SUFFIX,
@@ -62,6 +64,13 @@ _REGISTRY_SOURCES = tuple(sorted((_SCENARIO_DIR / "registry").glob("*.py")))
 _PATH = (
     ("reporter-whom-to-tell", "vendor"),
     ("vendor-after-answer", "report-fix-ready"),
+)
+
+#: A story walking :data:`_PATH`. Required on a spec, so every fixture spec
+#: below carries this one; the story's content does not matter to these tests.
+_STORY = story(
+    choose("reporter-whom-to-tell", "vendor", by="reporter"),
+    choose("vendor-after-answer", "report-fix-ready", by="vendor"),
 )
 
 
@@ -330,6 +339,7 @@ def test_scenario_spec_rejects_malformed_fields(
         "feature": "Something",
         "in_pr_set": True,
         "path": _PATH,
+        "story": _STORY,
     }
     fields[field] = value
     with pytest.raises(DemoScenarioRegistryError):
@@ -351,6 +361,7 @@ def test_scenario_spec_rejects_non_boolean_in_pr_set() -> None:
             feature="Something",
             in_pr_set=1,  # type: ignore[arg-type]
             path=_PATH,
+            story=_STORY,
         )
 
 
@@ -361,13 +372,14 @@ def test_derived_paths_follow_the_documented_conventions() -> None:
     differ, and a renderer or harness generator that applied one rule to all
     three would still pass a same-shaped check on an unhyphenated scenario.
     """
-    spec = ScenarioSpec(
+    spec = fixture_spec(
         name="rvcv-handoff",
         label="RVCV-handoff",
         participants="Reporter + Vendor1 → Coordinator + Vendor2",
         feature="Case-ownership transfer to coordinator",
         in_pr_set=True,
         path=_PATH,
+        story=_STORY,
     )
     assert spec.demo_path == "vultron/demo/scenario/rvcv_handoff_demo.py"
     assert (

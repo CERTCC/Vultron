@@ -37,7 +37,6 @@ dependencies = [
     "markdown-exec>=1.12.3",
     "mkdocs-autorefs>=1.4.3",
     "mkdocs-include-markdown-plugin>=7.3.0",
-    "mkdocs-material-extensions>=1.3.1",
     "mkdocs-material>=9.7.7",
     "mkdocs-print-site-plugin>=2.8",
     "mkdocs-redirects>=1.2.3",
@@ -47,12 +46,14 @@ dependencies = [
     "networkx>=3.5",
     "pandas>=3.0.5",
     "pathspec>=0.12.1",
-    "pydantic[email]==2.14.2",
+    "pydantic[email]==2.14.3",
     "py-trees>=2.6.0",
+    # Never imported: networkx 3.x computes nx.pagerank() with scipy, and
+    # vultron/core/case_states/hypercube/model.py calls it. Nothing else in
+    # uv.lock pulls scipy in, so this line is what installs it.
     "scipy>=1.18.0",
     "uvicorn>=0.52.3",
     "click>=8.4.2",
-    "griffelib>=2.1.0",
     "transitions>=0.9.3",
     "sqlmodel>=0.0.39",
     "pyyaml>=6.0",
@@ -122,6 +123,7 @@ theme-gate="vultron.metadata.planning.theme_fit.gate:main"
 theme-labels="vultron.metadata.planning.theme_labels:main"
 csaf-models="vultron.metadata.csaf.regenerate:main"
 csaf-corpus="vultron.metadata.csaf.corpus:main"
+csaf-draft-watch="vultron.metadata.csaf.draft_watch:main"
 
 
 [project.urls]
@@ -384,11 +386,6 @@ markers = [
     "case_ledger_invariants: marks tests as case-ledger invariant harness tests (require devlogs/ JSONL artifacts; skip when absent)",
     "executes_as(actor_id): the actor whose identity the test's behavior tree runs under; store fixtures open that actor's store (ADR-0073)",
     "spec_corpus: marks tests that load actual specs/ YAML files; run on specs/** path changes via spec-check.yml",
-]
-
-[tool.uv.workspace]
-members = [
-    "help",
 ]
 
 [dependency-groups]

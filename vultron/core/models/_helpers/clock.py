@@ -77,7 +77,7 @@ def now_utc() -> datetime:
 def now_utc_after(latest: datetime | None) -> datetime:
     """Return ``now_utc()``, or one microsecond after *latest* if later.
 
-    For a stamp that must sort strictly after *latest* (CS-13-002): when the
+    For a stamp that must sort strictly after *latest* (CM-29-005): when the
     clock has not passed *latest* (two reads in one clock tick, or a *latest*
     from a peer whose clock runs ahead), the result is *latest* plus the
     smallest step a stored time can show.  The bump is returned in UTC

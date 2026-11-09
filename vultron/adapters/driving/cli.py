@@ -17,6 +17,7 @@ import sys
 import click
 
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
@@ -62,7 +63,9 @@ def deliver(actor_id: str, activity_json) -> None:
     if not isinstance(rehydrated, as_Activity):
         click.echo("Rehydrated object is not an activity.", err=True)
         sys.exit(1)
-    handle_inbox_item(actor_id=actor_id, obj=rehydrated, dl=dl)
+    handle_inbox_item(
+        actor_id=actor_id, obj=rehydrated, dl=dl, clock=SystemClock()
+    )
     click.echo("Activity delivered.")
 
 

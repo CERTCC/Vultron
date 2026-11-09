@@ -30,6 +30,7 @@ from test.support.embargo_register import (
 )
 from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -116,7 +117,10 @@ def test_non_manager_trigger_asks_and_writes_no_em_state(
     )
 
     result = SvcProposeEmbargoUseCase(
-        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+        finder_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        clock=SystemClock(),
     ).execute()
 
     updated = cast(VulnerabilityCase, finder_dl.read(case.id_))
@@ -154,6 +158,7 @@ def _propose(
             actor_id=actor_id, case_id=case_id, end_time=end_time
         ),
         trigger_activity=TriggerActivityAdapter(dl),
+        clock=SystemClock(),
     ).execute()
 
 
@@ -236,6 +241,7 @@ def _answer_or_teardown(
             ),
             trigger_activity=factory,
             wire_render_port=render,
+            clock=SystemClock(),
         ).execute()
     if kind == "reject":
         return SvcRejectEmbargoUseCase(
@@ -245,12 +251,14 @@ def _answer_or_teardown(
             ),
             trigger_activity=factory,
             wire_render_port=render,
+            clock=SystemClock(),
         ).execute()
     return SvcTerminateEmbargoUseCase(
         dl,
         TerminateEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
         trigger_activity=factory,
         wire_render_port=render,
+        clock=SystemClock(),
     ).execute()
 
 
@@ -300,6 +308,7 @@ def test_non_manager_revision_asks_and_writes_no_em_state(
             end_time=datetime.now(tz=UTC) + timedelta(days=30),
         ),
         trigger_activity=TriggerActivityAdapter(finder_dl),
+        clock=SystemClock(),
     ).execute()
 
     updated = cast(VulnerabilityCase, finder_dl.read(case.id_))
@@ -345,6 +354,7 @@ def test_non_manager_propose_on_exited_case_is_refused_locally(
             finder_dl,
             request,
             trigger_activity=TriggerActivityAdapter(finder_dl),
+            clock=SystemClock(),
         ).execute()
 
     assert finder_dl.outbox_list() == []
@@ -387,6 +397,7 @@ def test_non_manager_propose_resolves_the_manager_before_storing_terms(
             finder_dl,
             request,
             trigger_activity=TriggerActivityAdapter(finder_dl),
+            clock=SystemClock(),
         ).execute()
 
     assert finder_dl.list_objects("EmbargoEvent") == []

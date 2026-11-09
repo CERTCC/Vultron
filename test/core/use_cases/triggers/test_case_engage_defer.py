@@ -29,6 +29,7 @@ Failure semantics (documented by design):
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -177,7 +178,10 @@ class TestEngageCaseRMTransitionViaBT:
             case_id=self.case.id_,
         )
         SvcEngageCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         updated = self.dl.read(self.vendor_participant.id_)
@@ -210,6 +214,7 @@ class TestEngageCaseRMTransitionViaBT:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
 
@@ -252,7 +257,10 @@ class TestDeferCaseRMTransitionViaBT:
             case_id=self.case.id_,
         )
         SvcDeferCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         updated = self.dl.read(self.vendor_participant.id_)
@@ -303,6 +311,7 @@ class TestAddNoteToCaseViaBT:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # The returned note should be non-None (BT created it)
@@ -330,6 +339,7 @@ class TestAddNoteToCaseViaBT:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None, "Expected activity dict in result"

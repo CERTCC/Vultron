@@ -45,12 +45,14 @@ import logging
 
 import py_trees
 
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge.act_instant import open_act
 from vultron.core.behaviors.embargo.manage_embargo_tree import (
     create_manage_embargo_tree,
 )
@@ -192,16 +194,18 @@ def _run_embargo_full_tree(n_ticks: int = N_TICKS) -> None:
         wire_render_port=As2WireRenderAdapter(),
     )
 
+    clock = SystemClock()
     for tick in range(1, n_ticks + 1):
         reset_blackboard()
         tree = create_manage_embargo_tree(
             case_id=_DEMO_CASE_ID,
             call_out=EMBARGO_STOCHASTIC,
         )
-        result = bridge.execute_with_setup(
-            tree,
-            actor_id=_DEMO_ACTOR_ID,
-        )
+        # Each tick is one act: lock, one clock read, one run (ADR-0176).
+        with open_act(clock) as at:
+            result = bridge.execute_with_setup(
+                tree, actor_id=_DEMO_ACTOR_ID, at=at
+            )
         for node in tree.iterate():
             if not isinstance(node, py_trees.composites.Composite):
                 _log_outcome(node, tick)

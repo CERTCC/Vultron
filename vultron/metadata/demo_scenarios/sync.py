@@ -12,11 +12,15 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Generate and check the committed demo scenario artifacts (DEMOCI-11-005).
 
-Three artifacts are generated from the scenario registry and committed:
+Four artifacts are generated from the scenario registry and committed:
 
 - ``.github/demo-scenarios.json`` — whole file. It stays committed because the
   ``scenarios`` job in ``demo-integration.yml`` resolves the CI matrix with
   ``jq`` immediately after checkout, in a job with no Python environment.
+- ``vultron/demo/scenario/plots.json`` — whole file: every scenario's
+  flattened story, so a reordered fragment fails this check instead of
+  surfacing on the next recordings run (:mod:`.plots`, DEMOCI-11-034,
+  DEMOCI-11-035).
 - ``test/ci/README-case-log-ratchet.md`` — the table between the markers.
 - ``vultron/demo/scenario/README.md`` — the table between the markers.
 
@@ -59,6 +63,10 @@ from vultron.demo.scenario.registry import (
     discover_scenarios,
 )
 from vultron.metadata.base import repo_root
+from vultron.metadata.demo_scenarios.plots import (
+    PLOT_MANIFEST,
+    plot_manifest_json,
+)
 from vultron.metadata.demo_scenarios.prose_checks import consistency_problems
 from vultron.metadata.demo_scenarios.render import (
     render_page,
@@ -141,6 +149,13 @@ ARTIFACTS: tuple[Artifact, ...] = (
         desired=lambda specs, _current: scenario_matrix_json(specs),
         whole_file=True,
     ),
+    Artifact(
+        path=PLOT_MANIFEST,
+        desired=lambda specs, _current: plot_manifest_json(
+            specs, WRITE_COMMAND
+        ),
+        whole_file=True,
+    ),
     _marker_artifact(HARNESS_README, "harnesses"),
     _marker_artifact(SCENARIO_README, "subcommands"),
 )
@@ -162,6 +177,17 @@ def desired_contents(
             splice into.
         ValueError: If a marker-block artifact's markers are missing or
             malformed.
+        DemoStoryError: If a story holds an item the plot manifest cannot
+            name (:mod:`.plots`, DEMOCI-11-034). It is raised from the demo
+            layer and left to propagate as a traceback, from here through
+            :func:`stale_artifacts`, :func:`write_artifacts` and
+            :func:`main`: neither ``--check`` nor ``--write`` can say
+            anything about a manifest that cannot be rendered at all, and
+            this module may not catch it by name — ``vultron/metadata/``
+            raises and handles no ``VultronError`` (MS-17-006), and a
+            blanket ``except`` is forbidden (CS-23-001). The demo layer's
+            message names the scenario, the item and the remedy, and the
+            traceback adds the source of the fragment.
     """
     base = root or repo_root()
     resolved = discover_scenarios() if specs is None else specs
@@ -205,7 +231,12 @@ def stale_artifacts(
     root: Path | None = None,
     specs: tuple[ScenarioSpec, ...] | None = None,
 ) -> list[str]:
-    """Return the repo-relative paths whose committed contents are stale."""
+    """Return the repo-relative paths whose committed contents are stale.
+
+    Raises:
+        FileNotFoundError, ValueError, DemoStoryError: As
+            :func:`desired_contents`.
+    """
     base = root or repo_root()
     return [path for _target, path, _desired in _out_of_date(base, specs)]
 
@@ -235,7 +266,12 @@ def write_artifacts(
     root: Path | None = None,
     specs: tuple[ScenarioSpec, ...] | None = None,
 ) -> list[str]:
-    """Rewrite every stale artifact in place; return the paths written."""
+    """Rewrite every stale artifact in place; return the paths written.
+
+    Raises:
+        FileNotFoundError, ValueError, DemoStoryError: As
+            :func:`desired_contents`.
+    """
     base = root or repo_root()
     written: list[str] = []
     for target, path, desired in _out_of_date(base, specs):
@@ -325,6 +361,7 @@ __all__ = [
     "END_MARKER",
     "HARNESS_README",
     "MATRIX_JSON",
+    "PLOT_MANIFEST",
     "SCENARIO_README",
     "WRITE_COMMAND",
     "Artifact",

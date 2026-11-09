@@ -19,11 +19,19 @@ with its own DataLayer and dispatcher — no shared module-level state.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import itertools
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 
 from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.adapters.driving.fastapi.app import create_app
+from vultron.core.models._helpers import (
+    IdSource,
+    install_id_source,
+    new_object_id,
+)
 
 
 @pytest.fixture
@@ -236,3 +244,28 @@ def test_reset_clears_only_the_serving_nodes_stores(two_nodes):
     assert vendor_a in resp.json()["n_items"]
     assert [_store_count(app_a, i) for i in ids_a] == [0, 0]
     assert {i: _store_count(app_b, i) for i in ids_b} == counts_b
+
+
+def _marked_ids() -> IdSource:
+    """An id source whose UUIDs all carry a marker no random draw has."""
+    drawn = itertools.count(1)
+    return lambda: uuid.UUID(int=(0xA11 << 96) | next(drawn), version=4)
+
+
+def _is_marked(id_: str) -> bool:
+    return uuid.UUID(id_.removeprefix("urn:uuid:")).int >> 96 & 0xFFF == 0xA11
+
+
+@pytest.mark.spec("OID-01-011")
+def test_create_app_installs_no_id_source():
+    """Neither create_app() nor its lifespan replaces the id source (ARCH-16-001).
+
+    Inside an install, ids still come from the installed source after the app
+    starts; outside one, the slot is still free, so a later install succeeds.
+    """
+    with install_id_source(_marked_ids()):
+        with TestClient(create_app(docs_url=None, openapi_url=None)):
+            assert _is_marked(new_object_id())
+    with TestClient(create_app(docs_url=None, openapi_url=None)):
+        with install_id_source(_marked_ids()):
+            assert _is_marked(new_object_id())

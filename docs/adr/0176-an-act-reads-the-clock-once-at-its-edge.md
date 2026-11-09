@@ -1,9 +1,12 @@
 ---
-status: proposed
+status: accepted-provisional
+status_override: >-
+  Rewritten in place before release to match the slice-1 build (user
+  decision, 2026-11-09, PR #6137).
 date: 2026-11-03
 created: 2026-11-03
-updated: 2026-11-04
-revision: 2
+updated: 2026-11-09
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; issues #5676, #5591, #5649, #5650, #5651, #5652, #5757,
@@ -71,9 +74,10 @@ The decision has seven parts.
   The arrival time stays its own recorded fact.
   The held activity itself is replayed as it arrived; only the decision time is new.
   Each replayed activity is an act of its own, even when its replay runs inside the processing of the activity that released it: it reads its own instant, and a replay nested in another act does not inherit that act's instant.
-- **Trees read the instant from the tree run.** The bridge's outermost run of an act will take the act's instant as a required argument and place it in the run's shared state, beside the data layer and the leadership check.
-  A nested tree run will take no instant and inherit it, as it inherits the leadership check, so a nested run sees the same instant as the act that started it; a nested run with no instant to inherit fails.
-  A node will read the instant when it ticks and fail if it is absent.
+- **Trees read the instant from the tree run.** The bridge's outermost run of an act takes the act's instant and places it in the run's shared state, beside the data layer and the leadership check.
+  A nested tree run takes no instant and inherits it, as it inherits the leadership check, so a nested run sees the same instant as the act that started it; a nested run handed an instant of its own fails.
+  A run with no instant to inherit carries none, and a node in it that reads the instant fails when it ticks, as an internal error; the run is never given a clock reading instead.
+  The failure sits at the reader, not the bridge, because most trees read no time.
   Tree builders and node constructors take no time.
 - **Core code takes time, never reads it.** Below the act's edge, a helper or model that needs time takes it as a required argument.
   A domain model has no field whose default reads the clock, including an object this process authors (see More Information for ADR-0103).
