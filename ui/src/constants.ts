@@ -32,10 +32,10 @@ const VENDOR_COLOR_PALETTE = [
 
 // Base colors for non-vendor participants
 const BASE_PARTICIPANT_COLORS = {
-  finder: '#e3f2fd',      // Light blue
-  caseactor: '#fff3e0',   // Light orange
+  reporter: '#e3f2fd',      // Light blue
+  casemanager: '#fff3e0',   // Light orange
   coordinator: '#e0f7fa', // Light teal — a real coordinator participant, kept
-                          // visually distinct from the caseactor recorder's orange.
+                          // visually distinct from the casemanager recorder's orange.
 }
 
 // Generate participant colors dynamically
@@ -91,13 +91,13 @@ const VENDOR_NODE_COLORS = [
 ]
 
 const BASE_NODE_COLORS = {
-  finder: {
+  reporter: {
     decision: '#1976D2',        // Dark blue for decisions
     decisionHover: '#1565C0',   // Darker blue on hover
     consequence: '#BBDEFB',     // Light blue for consequences
     consequenceHover: '#90CAF9' // Slightly darker on hover
   },
-  caseactor: {
+  casemanager: {
     decision: '#F57C00',        // Dark orange for decisions
     decisionHover: '#E65100',   // Darker orange on hover
     consequence: '#FFE0B2',     // Light orange for consequences
@@ -134,11 +134,11 @@ export function getVendorNodeColors(vendorNumber: number): {
 }
 
 export const PARTICIPANT_ROLES = {
-  finder: 'FINDER, REPORTER',
+  reporter: 'REPORTER',
   vendor: 'VENDOR, CASE_OWNER',
   vendor2: 'VENDOR',
-  caseactor: 'COORDINATOR, CASE_MANAGER (virtual)',
-  // A real coordinator participant (distinct from the virtual caseactor recorder),
+  casemanager: 'CASE_MANAGER',
+  // A real coordinator participant (distinct from the virtual casemanager recorder),
   // 2026-07 coordinator scenarios. Its actual CVD role varies by scenario
   // (COORDINATOR in fvcv-extension; CASE_OWNER in fcv/fccv-extension), so the
   // static label is generic; the movable per-cvdRole label is deferred handoff work.

@@ -266,6 +266,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
         "ui-install", _UI + "Install dependencies", group="ui", tool="npm"
     ),
     MirrorCheck("ui-lint", _UI + "Lint", group="ui", tool="npm"),
+    MirrorCheck("ui-test", _UI + "Test", group="ui", tool="npm"),
     MirrorCheck("ui-build", _UI + "Build", group="ui", tool="npm"),
 )
 

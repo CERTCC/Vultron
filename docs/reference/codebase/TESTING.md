@@ -65,7 +65,7 @@ uv run pytest test/test_config.py --tb=short
 | API contract | Yes | Trigger/demo route set and response keys | `test/adapters/driving/fastapi/test_trigger_registry_routes.py` and `test_trigger_routes_contract.py` (TRIG-12-007, TRIG-12-001, TRIG-12-002) |
 | Guard set | Yes | The limit- and agreement-enforcing tests whose inputs are Markdown, `specs/`, `AGENTS.md` or `notes/` | `.github/workflows/guard-tests.yml`, which runs them on every pull request with no `paths` filter, because `python-app.yml`'s filter lists none of those inputs (PAD-18-023); the local mirror no longer runs them, and `test/ci/test_guard_tests_workflow.py` pins the list |
 | E2E (demo CI) | Yes | Multi-actor demo via Docker Compose | `.github/workflows/demo-integration.yml`, matrix from `.github/demo-scenarios.json`; separate from the pytest suite |
-| Demo UI (`ui/`) | Lint and build only | ESLint and `tsc -b && vite build` | `.github/workflows/ui.yml`; `ui/package.json` declares no test script |
+| Demo UI (`ui/`) | Lint, unit tests of pure modules, and build | ESLint, Vitest (`npm test`, `src/**/*.test.ts`) and `tsc -b && vite build` | `.github/workflows/ui.yml`; `ui/vite.config.ts` |
 | Docker config | Yes | Compose file validity + env-var wiring | `test/docker/test_compose_env_vars.py`, `test/docker/test_docker_compose_config.sh`, `test/demo/test_multi_actor_compose.py` |
 
 ### 4) Mocking and Isolation Strategy

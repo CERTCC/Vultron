@@ -20,6 +20,13 @@ import * as inviteActions from './actions/inviteActions'
 import * as ownershipActions from './actions/ownershipActions'
 import * as externalActionHandlers from './actions/externalActions'
 
+// The simulation's own participant ids for its non-vendor lanes, mapped to the
+// shared palette keys in constants.ts (which use the Log Replay lane ids).
+const SIM_COLOR_KEYS: Partial<Record<string, keyof typeof NODE_COLORS>> = {
+  finder: 'reporter',
+  caseactor: 'casemanager',
+}
+
 function App() {
   const [demoState, setDemoState] = useState<DemoState>(() => {
     const participants = new Map<string, ParticipantState>()
@@ -28,8 +35,8 @@ function App() {
     participants.set('finder', {
       id: 'finder',
       name: 'Finder',
-      role: PARTICIPANT_ROLES.finder,
-      color: PARTICIPANT_COLORS.finder,
+      role: PARTICIPANT_ROLES.reporter,
+      color: PARTICIPANT_COLORS.reporter,
       rmState: 'START',
       vfdState: 'vfd',
       embargoAccepted: false,
@@ -60,8 +67,8 @@ function App() {
     participants.set('caseactor', {
       id: 'caseactor',
       name: 'Case Actor',
-      role: PARTICIPANT_ROLES.caseactor,
-      color: PARTICIPANT_COLORS.caseactor,
+      role: PARTICIPANT_ROLES.casemanager,
+      color: PARTICIPANT_COLORS.casemanager,
       rmState: 'N/A',
       vfdState: 'N/A',
       embargoAccepted: false,
@@ -257,7 +264,7 @@ function App() {
         })
       }
     }
-  }, [demoState.timelineEvents.length])
+  }, [demoState.timelineEvents])
 
   // Undo handler
   const handleUndo = useCallback(() => {
@@ -277,8 +284,8 @@ function App() {
     participants.set('finder', {
       id: 'finder',
       name: 'Finder',
-      role: PARTICIPANT_ROLES.finder,
-      color: PARTICIPANT_COLORS.finder,
+      role: PARTICIPANT_ROLES.reporter,
+      color: PARTICIPANT_COLORS.reporter,
       rmState: 'START',
       vfdState: 'vfd',
       embargoAccepted: false,
@@ -305,8 +312,8 @@ function App() {
     participants.set('caseactor', {
       id: 'caseactor',
       name: 'Case Actor',
-      role: PARTICIPANT_ROLES.caseactor,
-      color: PARTICIPANT_COLORS.caseactor,
+      role: PARTICIPANT_ROLES.casemanager,
+      color: PARTICIPANT_COLORS.casemanager,
       rmState: 'N/A',
       vfdState: 'N/A',
       embargoAccepted: false,
@@ -938,9 +945,9 @@ function App() {
                       const vendorNumber = parseInt(participant.id.split('-')[1], 10)
                       colors = getVendorNodeColors(vendorNumber)
                     } else {
-                      // Use base colors for non-vendor participants (finder, caseactor)
-                      const colorKey = participant.id as keyof typeof NODE_COLORS
-                      colors = NODE_COLORS[colorKey] || NODE_COLORS.finder
+                      // Use base colors for non-vendor participants. The simulation keeps
+                      // its own participant ids; SIM_COLOR_KEYS maps them to the palette.
+                      colors = NODE_COLORS[SIM_COLOR_KEYS[participant.id] ?? 'reporter']
                     }
 
                     if (isDecision) {

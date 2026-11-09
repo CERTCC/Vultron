@@ -1,7 +1,8 @@
-# Lint and build the ui/ visualization demo (React 19 + TypeScript + Vite).
+# Lint, test and build the ui/ visualization demo (React 19 + TypeScript + Vite).
 # Separate from python-app.yml: distinct toolchain (Node/npm), path-filtered to
-# ui/** so Python-only changes do not spin up a Node runner. Closes the AC-4
-# decision for the demo-UI landing (PR #3754).
+# ui/** and the generators of its committed artifacts, so other Python changes
+# do not spin up a Node runner. Closes the AC-4 decision for the demo-UI landing
+# (PR #3754).
 
 name: UI
 
@@ -11,11 +12,23 @@ on:
     paths:
       - ui/**
       - .github/workflows/ui.yml
+      # The generators of the committed ui/src/data/ artifacts and recordings
+      # the UI imports. A change there can break the UI's build or tests with no
+      # ui/ edit, until the regenerated artifact lands (#4728).
+      - vultron/core/states/**
+      - vultron/semantic_registry/**
+      - vultron/demo/scenario/**
+      - vultron/metadata/demo_scenarios/**
   pull_request:
     branches: [ "main" ]
     paths:
       - ui/**
       - .github/workflows/ui.yml
+      # The generators of the UI's committed artifacts; see the push filter.
+      - vultron/core/states/**
+      - vultron/semantic_registry/**
+      - vultron/demo/scenario/**
+      - vultron/metadata/demo_scenarios/**
   workflow_dispatch:
 
 permissions:
@@ -48,6 +61,8 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Test
+        run: npm test
       - name: Build
         run: npm run build
 

@@ -1028,7 +1028,7 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
   newState = updateParticipant(newState, vendorId, { hasRepliedToCurrentNote: true })
 
   // Only this vendor is marked as having replied; the case-level
-  // hasPendingFinderNote flag stays true so the other participants keep their
+  // hasPendingReporterNote flag stays true so the other participants keep their
   // reply option until they each reply (or the Finder asks a new question).
   // Phase is intentionally left unchanged.
 

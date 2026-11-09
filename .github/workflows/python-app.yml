@@ -58,6 +58,11 @@ on:
       # (CISEC-05-017, CISEC-05-018, CISEC-05-020) and the build-site step
       # order never ran on a pull request that edited only an action.
       - '.github/actions/**'
+      # The demo drift tests under test/metadata/demo_scenarios/ compare the
+      # committed ui/ artifacts and recordings with a fresh export, so a pull
+      # request that edits only them must run those tests (#4728).
+      - ui/src/data/**
+      - ui/src/recordings/**
   pull_request:
     branches: [ "main" ]
     paths:
@@ -98,6 +103,9 @@ on:
       # (CISEC-05-017, CISEC-05-018, CISEC-05-020) and the build-site step
       # order never ran on a pull request that edited only an action.
       - '.github/actions/**'
+      # The demo drift tests read these; see the push filter.
+      - ui/src/data/**
+      - ui/src/recordings/**
   workflow_dispatch:
 
 permissions:

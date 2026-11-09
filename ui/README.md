@@ -1,7 +1,7 @@
 # Vultron UI Demo
 
 Interactive visualization of the Vultron Coordinated Vulnerability Disclosure
-(CVD) protocol. Each participant (Finder, Vendor(s), Case Actor) gets a
+(CVD) protocol. Each participant (Reporter, Vendor(s), CASE_MANAGER) gets a
 horizontal **swimlane**; time flows left→right; protocol events appear as
 **nodes** in the lanes. The goal is communication and teaching — making the
 abstract CVD state machines legible.
@@ -77,6 +77,7 @@ multi-actor log folders.
 - `npm run build` — type-check and build for production (`tsc -b && vite build`)
 - `npm run preview` — preview the production build locally
 - `npm run lint` — run ESLint
+- `npm test` — run the Vitest unit tests once (`npm run test:watch` to watch)
 
 ## Understanding the Visualization
 
@@ -114,7 +115,8 @@ Case Actor lanes; inviting a vendor adds a lane).
 
 - React 19 + TypeScript
 - Vite (build tool)
-- [@xyflow/react](https://reactflow.dev/) — interactive node-based visualization
+- SVG timeline, drawn directly (no graph library)
+- [Vitest](https://vitest.dev/) — unit tests (`npm test`)
 
 ## Architecture
 
@@ -134,7 +136,7 @@ Case Actor lanes; inviting a vendor adds a lane).
 ### Source of truth
 
 Both modes defer the protocol's states and transitions to a committed artifact,
-`data/json/protocol_states.json` at the **repository root** (not under `ui/`),
+[`src/data/protocol_states.json`](src/data/protocol_states.json),
 generated from the authoritative Python state machines by
 `uv run export-demo-states`
 ([vultron/metadata/demo_scenarios/export_states.py](../vultron/metadata/demo_scenarios/export_states.py)).

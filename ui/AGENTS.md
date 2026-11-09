@@ -7,7 +7,7 @@
 ## 1. What this project is
 
 A swimlane-timeline demo of the Vultron Coordinated Vulnerability Disclosure
-(CVD) protocol. Each participant (Finder, Vendor(s), Case Actor) gets a
+(CVD) protocol. Each participant (Reporter, Vendor(s), CASE_MANAGER) gets a
 horizontal **lane**; time flows left→right; protocol events are **nodes** in the
 lanes. The goal is communication and teaching, not production fidelity. Stack:
 **React 19 + TypeScript + Vite**, SVG timeline, no backend — all client-side.
@@ -30,6 +30,7 @@ npm install    # if ui/node_modules is absent or package.json changed
 npm run dev    # Vite dev server; prints a localhost URL
 npm run build  # tsc + vite build
 npm run lint   # eslint
+npm test       # vitest, one run (not watch); `npm run test:watch` to watch
 ```
 
 Nothing Python is needed at runtime: the demo imports the committed
@@ -77,7 +78,8 @@ values on `DemoState`. Do not model EM or PXA per-participant.
 - **`caseLedgerParser.ts`** — `parseCaseLedger()` yields one `CaseLedgerEntry`
   per line; `normalizeLedger()` **dedups by `entryHash` and sorts by `logIndex`**
   (NOT `receivedAt` — entries can share a wall-clock second). `actorUrlToLaneId()`
-  maps actor URLs to lanes (`case-actor` first, then `finder`, `coordinator`, `vendor-N`).
+  maps actor URLs to lanes (`case-actor` URLs to `casemanager` first, then
+  `reporter`, `coordinator`, `vendor-N`).
 - **`caseLedgerMapper.ts`** — `buildTimelineFromCaseLedger()` pre-scans to fix
   lane order, then walks entries in `logIndex` order holding a **shadow protocol
   state**. The log records **state SNAPSHOTS, not transitions**, so the mapper
@@ -114,6 +116,14 @@ diff whose path was guessed). A clean single legal step gets none.
 ## 7. Tooling and log locations
 
 - `node_modules/.bin` tools (eslint, tsc, vite) run via `npm run *`; `jq` reads `*.jsonl`.
+- **Unit tests** are Vitest (`npm test`, which is `vitest run`; CI runs it after
+  lint). A test is `src/**/*.test.ts` beside its module, imports `describe` /
+  `it` / `expect` from `vitest` (no globals), and runs in the Node environment, so
+  it covers pure modules only: component tests would need Testing Library and
+  jsdom, which are not approved. Vite's pipeline runs the tests, so a fixture
+  ledger loads with a `?raw` import as `App-logreplay.tsx` does. `tsc -b`
+  type-checks the tests under `strict` with the app; `vite build` never bundles
+  them.
 - **Two log locations — do not confuse them:**
   - **`ui/src/recordings/`** — GENERATED, COMMITTED recordings the "Load …"
     buttons import via `?raw`. In-tree, so a fresh clone builds. One dir per
@@ -182,11 +192,13 @@ export a scraped copy.
 
 - `App-multivendor.tsx` / `App-logreplay.tsx` — the two modes, imported only by
   `DemoSelector.tsx`.
-- `src/actions/*.ts` + `src/state/actionFilters.ts` — Multi-Vendor handlers and
-  filters (imported only by `App-multivendor.tsx`).
+- `src/actions/*.ts`, `src/state/actionFilters.ts` and `src/state/stateUpdaters.ts`
+  — Multi-Vendor handlers, filters and state updaters (imported only by
+  `App-multivendor.tsx` and the handlers).
 - `src/utils/caseLedger*.ts` — the Log Replay parser and mapper.
 - `src/semanticRegistry.ts` — the ledger vocabulary (§9), read by the Log
   Replay mapper.
-- **Shared (a change here affects both modes):** `protocol.ts`,
-  `participantHelpers.ts`, `stateUpdaters.ts`, `constants.ts`, `types.ts`,
-  `components/`.
+- **Shared (a change here affects both modes):** `protocol.ts`, `constants.ts`,
+  `types.ts`, `components/` (`ActorPanel`, `AnimatedNode`) and
+  `state/participantHelpers.ts` (Log Replay uses only `getActiveLanes`).
+- `src/**/*.test.ts` — Vitest unit tests, next to the module they test (§7).

@@ -65,12 +65,12 @@ export function getVendorByIndex(state: DemoState, index: number): ParticipantSt
   return state.participants.get(`vendor-${index}`)
 }
 
-export function getFinder(state: DemoState): ParticipantState | undefined {
-  return state.participants.get('finder')
+export function getReporter(state: DemoState): ParticipantState | undefined {
+  return state.participants.get('reporter')
 }
 
-export function getCaseActor(state: DemoState): ParticipantState | undefined {
-  return state.participants.get('caseactor')
+export function getCaseManager(state: DemoState): ParticipantState | undefined {
+  return state.participants.get('casemanager')
 }
 
 export function getTotalLaneCount(state: DemoState): number {
