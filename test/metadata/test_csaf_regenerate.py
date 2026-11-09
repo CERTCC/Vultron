@@ -119,6 +119,17 @@ def test_an_unpinned_remote_reference_is_refused_not_fetched(
         stage_pinned_copy(source, tmp_path / "staging", pin)
 
 
+@pytest.mark.parametrize("ref", ["unlisted.json", "../../../outside.json#/x"])
+def test_a_relative_reference_outside_the_pin_is_refused(
+    copy_with_pin: tuple[Path, CsafPin], tmp_path: Path, ref: str
+) -> None:
+    source, pin = copy_with_pin
+    _add_ref(source, pin, ref)
+
+    with pytest.raises(UnpinnedReferenceError, match="does not list"):
+        stage_pinned_copy(source, tmp_path / "staging", pin)
+
+
 def test_staging_rewrites_remote_references_to_staged_files(
     copy_with_pin: tuple[Path, CsafPin], tmp_path: Path
 ) -> None:
@@ -195,6 +206,39 @@ def test_writing_refuses_to_delete_a_module_it_did_not_write(
         write_models({"__init__.py": "a\n"}, tmp_path)
 
     assert sorted(p.name for p in tmp_path.iterdir()) == ["hand_written.py"]
+
+
+def test_writing_refuses_to_overwrite_a_module_it_did_not_write(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(ForeignModuleError, match="__init__"):
+        write_models({"__init__.py": "a\n"}, tmp_path)
+
+    assert (tmp_path / "__init__.py").read_text(encoding="utf-8") == "x = 1\n"
+
+
+def test_a_single_module_from_the_generator_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(regenerate, "generate", lambda *_a, **_k: "x = 1\n")
+
+    with pytest.raises(TypeError, match="package was expected"):
+        render_models()
+
+
+def test_generated_text_ruff_cannot_clean_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        regenerate, "generate", lambda *_a, **_k: {("broken.py",): "def (:\n"}
+    )
+
+    with pytest.raises(
+        RuntimeError, match=r"left findings in generated broken\.py"
+    ):
+        render_models()
 
 
 @pytest.mark.usefixtures("small_render")

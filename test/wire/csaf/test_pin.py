@@ -13,14 +13,16 @@
 """The one pin record of the CSAF 2.1 draft and its pinned local copy (CSAF-05-001)."""
 
 import json
-import posixpath
 import re
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from vultron.metadata.csaf.regenerate import schema_refs
+from vultron.metadata.csaf.regenerate import (
+    resolve_relative_ref,
+    schema_refs,
+)
 from vultron.wire.csaf.pin import (
     PIN_PATH,
     PINNED_COPY_DIR,
@@ -79,11 +81,7 @@ def test_every_reference_in_the_copy_is_pinned() -> None:
             if "://" in target:
                 remote.add(target)
             elif target:
-                relative.add(
-                    posixpath.normpath(
-                        posixpath.join(posixpath.dirname(local), target)
-                    )
-                )
+                relative.add(resolve_relative_ref(target, local))
 
     assert remote, "the CSAF schema references other schemas by URL"
     assert remote <= set(pin.sources)

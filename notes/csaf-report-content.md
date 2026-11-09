@@ -100,9 +100,9 @@ tasks reuse them rather than add a second path.
   `vultron.metadata.csaf.regenerate`, or `uv run csaf-models` with `--source`,
   `--pin`, `--output` and `--check`. It returns the package as text, so the
   draft-watch job (#6094) can generate from an upstream checkout and diff without
-  writing. A URL
-  the pin does not map raises `UnpinnedReferenceError`; the generator runs with
-  remote references refused, so nothing is ever fetched.
+  writing. A URL the pin does not map, or a relative reference to a file it does
+  not list, raises `UnpinnedReferenceError`; the generator runs with remote
+  references refused, so nothing is ever fetched.
 - **Pydantic drops some schema constraints.** No `pattern` on a URL or UUID field,
   no `min_length` on a URL, so a `purls` entry is not checked against its
   `^pkg:` pattern. Stage 1 can pass a document the schema rejects there, which is

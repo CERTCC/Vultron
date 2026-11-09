@@ -31,13 +31,19 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Iterable, Sequence
 from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from vultron.metadata.file_loading import load_yaml, validate
+from vultron.metadata.file_loading import (
+    MetadataLoadError,
+    display_path,
+    read_utf8,
+    validate,
+)
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
 
 #: Where the CSAF Technical Committee keeps its test documents in its repository.
@@ -130,9 +136,17 @@ def run_corpus(
             expected shape; the error names the file.
     """
     index = clone / TESTCASES_FILE
-    cases = validate(
-        _TestCases, load_yaml(index, root=clone), path=index, root=clone
-    )
+    shown = display_path(index, clone)
+    try:
+        data = json.loads(read_utf8(index, shown))
+    except json.JSONDecodeError as exc:
+        raise MetadataLoadError(
+            f"JSON parse error: {exc.msg}",
+            path=shown,
+            line=exc.lineno,
+            column=exc.colno,
+        ) from exc
+    cases = validate(_TestCases, data, path=index, root=clone)
     data_dir = clone / TEST_DATA_DIR
     counts: dict[str, GroupCounts] = {}
     for case in cases.tests:
@@ -163,7 +177,7 @@ def _line(group: str, c: GroupCounts) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     """Print the per-group report for ``--clone``; exit 2 when it has no index."""
     parser = argparse.ArgumentParser(
-        prog="csaf-corpus", description=__doc__.split("\n\n")[0]
+        prog="csaf-corpus", description=(__doc__ or "").split("\n\n")[0]
     )
     parser.add_argument(
         "--clone",

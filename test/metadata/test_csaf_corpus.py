@@ -116,6 +116,23 @@ def test_main_refuses_a_directory_without_the_index(
     assert "testcases.json" in capsys.readouterr().err
 
 
+def test_a_tab_indented_index_is_read_as_json(clone: Path) -> None:
+    index = clone / TESTCASES_FILE
+    expected = run_corpus(clone)
+    index.write_text(
+        json.dumps(json.loads(index.read_bytes()), indent="\t"), "utf-8"
+    )
+
+    assert run_corpus(clone) == expected
+
+
+def test_an_index_that_is_not_json_names_its_file(clone: Path) -> None:
+    (clone / TESTCASES_FILE).write_text('{"tests": [', "utf-8")
+
+    with pytest.raises(MetadataLoadError, match=r"testcases\.json:1:"):
+        run_corpus(clone)
+
+
 def test_a_malformed_index_names_its_file(clone: Path) -> None:
     (clone / TESTCASES_FILE).write_text('{"tests": [{"id": 1}]}', "utf-8")
 

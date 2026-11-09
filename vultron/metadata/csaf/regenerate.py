@@ -45,7 +45,8 @@ from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 
 try:
-    from datamodel_code_generator import DataModelType, InputFileType, generate
+    from datamodel_code_generator import InputFileType, generate
+    from datamodel_code_generator.enums import DataModelType
     from datamodel_code_generator.format import Formatter, PythonVersion
 except ImportError as exc:  # pragma: no cover - only without the dev group
     raise ImportError(
@@ -118,12 +119,23 @@ def _header(pin: CsafPin) -> str:
     )
 
 
+def resolve_relative_ref(target: str, origin: str) -> str:
+    """Return the copy path a relative ``$ref`` *target* in *origin* names."""
+    return posixpath.normpath(
+        posixpath.join(posixpath.dirname(origin), target)
+    )
+
+
 def _rewrite_ref(ref: str, origin: str, location: str, pin: CsafPin) -> str:
     """Return *ref*, read in the pinned file *origin*, as seen from *location*.
 
     A same-document reference (``#/...``) is returned unchanged. Any other
     reference is resolved to a path inside the pinned local copy, through the
     pin record for a URL, and made relative to the staged file *location*.
+
+    Raises:
+        UnpinnedReferenceError: the reference names a URL the pin does not
+            map, or a relative path that is not a file the pin lists.
     """
     target, hash_mark, fragment = ref.partition("#")
     if not target:
@@ -136,9 +148,12 @@ def _rewrite_ref(ref: str, origin: str, location: str, pin: CsafPin) -> str:
                 f"{origin}: $ref {target!r} names no file in the pin record"
             ) from None
     else:
-        local = posixpath.normpath(
-            posixpath.join(posixpath.dirname(origin), target)
-        )
+        local = resolve_relative_ref(target, origin)
+        if local not in pin.sources.values():
+            raise UnpinnedReferenceError(
+                f"{origin}: $ref {target!r} resolves to {local!r}, "
+                "which the pin record does not list"
+            )
     staged = _staged_location(local, pin)
     relative = posixpath.relpath(staged, posixpath.dirname(location) or ".")
     return f"{relative}{hash_mark}{fragment}"
@@ -288,16 +303,17 @@ def write_models(models: Mapping[str, str], output: Path) -> list[str]:
     """Make *output* hold exactly *models*; return the paths that changed.
 
     Raises:
-        ForeignModuleError: *output* holds a ``.py`` file that *models* does not
-            name and that does not start with :data:`GENERATED_MARKER`. Nothing
-            is written, so a mistaken ``--output`` never deletes real code.
+        ForeignModuleError: a ``.py`` file in *output* that this call would
+            overwrite or delete does not start with :data:`GENERATED_MARKER`.
+            Nothing is written, so a mistaken ``--output`` never replaces or
+            deletes real code.
     """
     changed = stale_models(models, output)
-    extra = [path for path in changed if path not in models]
     foreign = [
         path
-        for path in extra
-        if not (output / path)
+        for path in changed
+        if (output / path).is_file()
+        and not (output / path)
         .read_text(encoding="utf-8")
         .startswith(GENERATED_MARKER)
     ]
@@ -315,7 +331,7 @@ def write_models(models: Mapping[str, str], output: Path) -> list[str]:
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="csaf-models", description=__doc__.split("\n\n")[0]
+        prog="csaf-models", description=(__doc__ or "").split("\n\n")[0]
     )
     parser.add_argument(
         "--source",
