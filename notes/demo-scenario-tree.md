@@ -428,11 +428,12 @@ vendor-first half, whose Reporter tells a Vendor.
   fragment names, read without running anything, and drift-fails on any change in
   order (DEMOCI-11-034, DEMOCI-11-035). `TestSharedPrefixes` compares two *committed*
   recordings with each other, so a reordered shared fragment moves both alike and
-  still passes it. Until the base-versus-head job is built, run
-  `export-demo-recordings --report-changes` from a clean tree in any PR that edits a
-  fragment, and read the composed fragments' checks against the base by hand. Run it
-  once: the first run overwrites the committed files, so a second compares them with
-  themselves (#5589).
+  still passes it. Until the base-versus-head job is built (#6026), run the comparison
+  by hand in any PR that edits a fragment: `uv run compare-demo-runs --write <dir>` on
+  the base commit and again on the head, then `uv run compare-demo-runs --base <dir>
+  --head <dir>`. It reads both traces, so it needs no clean tree, overwrites no
+  committed file, and no longer leaves the composed fragments' checks to be read
+  against the base by hand (#5589).
 - **The plot renders as a story a domain expert can read.** Every fragment the
   manifest names opens its docstring with one sentence in CVD domain terms, with no
   code identifier, helper or container (DEMOCI-11-065, DEMOCI-11-066). Each narrative

@@ -50,11 +50,23 @@ keeps one "Refresh the demo recordings" Task open (exit status 3).  A PR
 whose change needs current recordings, a UI change for example, regenerates
 them itself.
 
+A run also leaves a **check tree**, which nothing commits: every
+``demo_step``, ``demo_check`` and ``demo_gate`` it entered, nested as they
+ran, with each node's outcome and the cast members whose containers it read
+(:mod:`vultron.demo.utils.check_tree`, DEMOCI-11-056).  A recording holds the
+run's acts, so a check moved out of its gate leaves it byte-identical
+(#5596); the check tree is the other half of the evidence that a
+consolidation change moved no verdict (DEMOMA-17-002).  :mod:`.traces` is its
+normal form and the files a run is written as, and :mod:`.compare` compares a
+scenario's base and head runs on both traces (DEMOCI-11-055).
+
 The package is grouped by concern: :mod:`.topology` reads the container
 layout, :mod:`.runner` hosts the nodes and runs a scenario, :mod:`.ledgers`
 reads the run's ledger dump and step marks and checks the replicas,
 :mod:`.layout` owns the committed files, :mod:`.prefix` is the shared-prefix
-check, and :mod:`.cli` is the ``export-demo-recordings`` command.
+check, :mod:`.traces` normalizes a run's two traces, :mod:`.selection` reads
+the ``--scenario`` option, and :mod:`.cli` and :mod:`.compare` are the
+``export-demo-recordings`` and ``compare-demo-runs`` commands.
 
 Usage::
 
@@ -62,4 +74,7 @@ Usage::
     uv run export-demo-recordings --scenario rv   # one scenario
     uv run export-demo-recordings --check         # the recorded set only
     uv run export-demo-recordings --report-changes  # exit 3 if any changed
+    uv run compare-demo-runs                      # record twice, compare
+    uv run compare-demo-runs --write runs/base    # record one side
+    uv run compare-demo-runs --base runs/base --head runs/head
 """

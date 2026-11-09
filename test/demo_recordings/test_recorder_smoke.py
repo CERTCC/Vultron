@@ -32,6 +32,7 @@ import json
 import pytest
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.demo.helpers.cast import ALL_SLOTS
 from vultron.demo.recordings.runner import record_scenario
 from vultron.demo.scenario.registry import discover_scenarios
 
@@ -45,8 +46,9 @@ _SMOKE_SCENARIO = "rv"
 def test_the_recorder_records_a_scenario():
     spec = next(s for s in discover_scenarios() if s.name == _SMOKE_SCENARIO)
 
-    recording = record_scenario(spec)
+    run = record_scenario(spec)
 
+    recording = run.recording
     entries = [
         CaseLedgerEntry.model_validate(json.loads(line))
         for line in recording.entries
@@ -58,3 +60,24 @@ def test_the_recorder_records_a_scenario():
     assert [(m.branch_point, m.choice) for m in recording.steps] == list(
         spec.path
     )
+    # The same run left a check tree, which nothing commits (DEMOCI-11-056).
+    # Its shape is tested in test/demo_unit/; what a real run adds is that the
+    # three context managers and the routed client really are the only paths,
+    # so every node carries a label and a gate or step that polled a container
+    # names the cast member it read (DEMOCI-11-057).
+    nodes = list(_walk(run.checks))
+    assert nodes, "the run entered no demo_step, demo_check or demo_gate"
+    assert all(node.label for node in nodes)
+    assert {name for node in nodes for name in node.reads} <= {
+        slot.name for slot in ALL_SLOTS
+    }
+    assert any(node.reads for node in nodes), (
+        "no check was attributed a container read"
+    )
+
+
+def _walk(tree):
+    """Every node of *tree*, parents before children."""
+    for node in tree:
+        yield node
+        yield from _walk(node.children)

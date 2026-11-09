@@ -42,6 +42,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
+from urllib.parse import urlparse
 
 from vultron.demo.utils import CASE_ACTOR_SLUG
 from vultron.enums.roles import CVDRole
@@ -199,11 +200,32 @@ def slot_for(base_url: str) -> ContainerSlot | None:
     return None
 
 
+def cast_member_name(base_url: str) -> str:
+    """The cast member at *base_url*, by the best name available.
+
+    :func:`slot_for`'s answer where it has one, otherwise the URL's host name,
+    which may name no actor at all.  The one definition of "which cast member
+    is at this address", shared by the ledger dump's route key and the check
+    tree's read attribution (CS-22-001), both of which need an answer rather
+    than an exception: a dump runs during teardown, and a read attributed to
+    nothing would make the check tree quietly incomplete.
+
+    A caller that must distinguish the two answers calls :func:`slot_for`
+    first, as :func:`~vultron.demo.helpers.ledger_dump.dump._route_key` does to
+    log which one it got.
+    """
+    slot = slot_for(base_url)
+    if slot is not None:
+        return slot.name
+    return urlparse(base_url).hostname or base_url or "unresolved-actor"
+
+
 __all__ = [
     "ALL_SLOTS",
     "CASE_ACTOR",
     "CAST",
     "CAST_SIZE",
+    "cast_member_name",
     "CHARACTER_SLOTS",
     "CONTAINER_PORT",
     "COORDINATOR_SLOT",
