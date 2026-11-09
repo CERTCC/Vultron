@@ -259,12 +259,17 @@ def _make_lifespan(*, configure_globals: bool = True):
             if configure_globals
             else None
         )
+        # Exposed, as the outbox monitor is, so a test harness that serves
+        # actors under another base URL than the configured one can stop
+        # it: the timer works on the configured node's actor ids.
+        application.state.sender_sequence_hold_timer = hold_timer
 
         yield {SHUTDOWN_STATE_KEY: ledger_stream_shutdown}
 
         ledger_stream_shutdown.set()
         undo_shutdown_hook()
         await finish_sender_sequence_hold_timer(hold_timer)
+        application.state.sender_sequence_hold_timer = None
         await finish_ledger_position_statements(position_statements)
         await finish_startup_inbox_replay(startup_replay)
 

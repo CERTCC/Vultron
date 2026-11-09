@@ -42,6 +42,7 @@ from vultron.adapters.driving.fastapi.inbox_verification import (
     ProfileKeyProofVerifier,
     decode_inbox_body,
 )
+from vultron.core.models.actor import CoreActor
 from vultron.core.ports.proof_verification import ProofVerificationPort
 from vultron.errors import VultronProofVerificationError
 from vultron.wire.as2 import signing
@@ -308,6 +309,8 @@ def test_an_embedded_profile_reaches_storage_without_its_keys():
     activity = FastAPIIngressAdapter(dl).parse(body)
 
     assert activity is not None
-    record = object_to_record(activity.actor)
+    actor = activity.actor
+    assert isinstance(actor, CoreActor), type(actor)
+    record = object_to_record(actor)
     assert "assertionMethod" not in json.dumps(record.model_dump(mode="json"))
     assert "assertion_method" not in json.dumps(record.model_dump(mode="json"))

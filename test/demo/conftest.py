@@ -406,6 +406,25 @@ def client():
         monitor = getattr(api_app.state, "outbox_monitor", None)
         if monitor is not None:
             monitor.stop()
+        # The sender-sequence hold timer drains every hosted actor's inbox
+        # queue each quarter of the hold wait (SYNC-21-011), under the
+        # *configured* node's actor ids (``localhost:7999``), while these
+        # tests host actors under ``http://testserver``.  Both ids open one
+        # store, so a tick during a module longer than the interval pops an
+        # entry the test's own drain was due to replay, and the addressee
+        # door refuses it under the wrong id (#6085).  No demo test waits on
+        # a hold's expiry; the timer is covered by its own tests.
+        hold_timer = getattr(api_app.state, "sender_sequence_hold_timer", None)
+        if hold_timer is not None:
+            # The timer's event belongs to the app's event loop.
+            portal = test_client.portal
+            assert portal is not None, "TestClient entered without a portal"
+            portal.call(hold_timer.stop.set)
+
+            async def _timer_ended() -> None:
+                await hold_timer.task
+
+            portal.call(_timer_ended)
         # Build a router that routes deliveries back to the single app and
         # drops anything sent to external fictional URLs.
         router = InProcessRouter()

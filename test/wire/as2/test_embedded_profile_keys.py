@@ -76,7 +76,9 @@ def test_an_inline_sender_profile_is_parsed_without_its_keys(key_field: str):
 def test_an_embedded_peer_profile_is_parsed_without_its_keys():
     activity = parse_activity(_body(object=_profile(PEER)))
 
-    assert getattr(activity.object_, "assertion_method", []) == []
+    peer = getattr(activity, "object_", None)
+    assert isinstance(peer, CoreActor), type(peer)
+    assert peer.assertion_method == []
 
 
 @pytest.mark.spec("SIG-02-004")
