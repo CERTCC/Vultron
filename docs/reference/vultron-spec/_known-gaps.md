@@ -6,6 +6,18 @@ Each requirement below has tests, and every one of them is held by a strict expe
 So a test shows that `main` does not yet meet the requirement.
 The requirements are grouped by the issues that the held tests cite.
 
+### Tracked by [#1184](https://github.com/CERTCC/Vultron/issues/1184)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ENC-01-001",
+    "ENC-01-004",
+    "ENC-01-005",
+    "ENC-01-006",
+))
+```
+
 ### Tracked by [#2883](https://github.com/CERTCC/Vultron/issues/2883)
 
 ```python exec="true" idprefix=""
@@ -268,6 +280,15 @@ from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "SIG-03-001",
     "SIG-04-002",
+))
+```
+
+### Tracked by [#5388](https://github.com/CERTCC/Vultron/issues/5388)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ENC-02-002",
 ))
 ```
 
@@ -805,12 +826,7 @@ print(requirement_callout(
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
-    "ENC-01-001",
-    "ENC-01-004",
-    "ENC-01-005",
-    "ENC-01-006",
     "ENC-02-001",
-    "ENC-02-002",
     "IE-11-002",
 ))
 ```

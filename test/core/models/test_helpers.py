@@ -23,7 +23,6 @@ use_cases/.
 
 import ast
 from datetime import UTC, datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 
@@ -495,54 +494,8 @@ def test_require_future_aware_compares_against_now_utc(
         require_future_aware(_PINNED)
 
 
-# --- CS-13-002 ratchet: every application clock read goes through now_utc --
-
-_VULTRON = Path(__file__).resolve().parents[3] / "vultron"
-# Repo tooling (history, ADR and spec CLIs), not the CVD prototype CS-13 scopes.
-_CLOCK_EXEMPT = _VULTRON / "metadata"
-_CLOCK_CALLS = {"now", "utcnow", "today"}
-_CLOCK_TYPES = {"datetime", "date"}
-
-
-def _direct_clock_reads(path: Path) -> list[str]:
-    tree = ast.parse(path.read_text(), filename=str(path))
-    allowed: set[int] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == "now_utc":
-            allowed.update(id(n) for n in ast.walk(node))
-    reads = []
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and id(node) not in allowed
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr in _CLOCK_CALLS
-            and (
-                (
-                    isinstance(node.func.value, ast.Name)
-                    and node.func.value.id in _CLOCK_TYPES
-                )
-                or (
-                    isinstance(node.func.value, ast.Attribute)
-                    and node.func.value.attr in _CLOCK_TYPES
-                )
-            )
-        ):
-            reads.append(f"{path.relative_to(_VULTRON.parent)}:{node.lineno}")
-    return reads
-
-
-def test_application_code_reads_the_clock_only_through_now_utc() -> None:
-    """CS-13-002: no ``datetime.now()`` outside ``now_utc`` itself."""
-    reads = [
-        read
-        for path in sorted(_VULTRON.rglob("*.py"))
-        if not path.is_relative_to(_CLOCK_EXEMPT)
-        for read in _direct_clock_reads(path)
-    ]
-    assert reads == [], (
-        "read the clock through now_utc() (CS-13-002):\n" + "\n".join(reads)
-    )
+# CS-13-002 (time enters only through the act clock) is checked by
+# test/architecture/test_clock_reads_at_act_edge.py (ADR-0176).
 
 
 @pytest.mark.spec("DUR-06-004")

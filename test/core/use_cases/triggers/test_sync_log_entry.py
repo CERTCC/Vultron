@@ -32,6 +32,7 @@ import pytest
 
 from test.support.ledger_labels import registry_label
 from test.support.trigger_results import recipient_ids
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -113,6 +114,7 @@ def _run(dl: SqliteDataLayer, request: SyncLogEntryTriggerRequest):
         sync_port=SyncActivityAdapter(dl),
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
 

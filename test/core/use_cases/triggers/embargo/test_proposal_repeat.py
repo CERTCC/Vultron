@@ -25,6 +25,7 @@ from typing import cast
 import pytest
 
 from test.support.ledger import committed_semantic_types
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -73,6 +74,7 @@ def _propose(dl: SqliteDataLayer, actor_id: str, case_id: str, end_time):
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
 
@@ -85,6 +87,7 @@ def _revise(dl: SqliteDataLayer, actor_id: str, case_id: str, end_time):
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
 

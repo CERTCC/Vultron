@@ -20,6 +20,7 @@ directly as the requester (a fallback an earlier, now retired, requirement allow
 
 import pytest
 
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.use_cases.triggers.actor import (
@@ -47,4 +48,6 @@ def test_delegated_trigger_fails_when_no_case_manager_holds_the_role() -> None:
     )
 
     with pytest.raises(VultronNotFoundError, match="CASE_MANAGER"):
-        SvcOfferCaseOwnershipTransferUseCase(dl, request).execute()
+        SvcOfferCaseOwnershipTransferUseCase(
+            dl, request, clock=SystemClock()
+        ).execute()

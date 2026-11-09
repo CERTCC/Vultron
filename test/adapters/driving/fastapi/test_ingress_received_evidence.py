@@ -31,6 +31,7 @@ from py_trees.common import Status
 
 from test.support.received import archive_received, intake_received
 from test.support.signing import resigned, signed_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -253,6 +254,7 @@ def _assert_refused_through_the_inbox(
             FastAPIIngressAdapter(dl=dl, staging=staging),
             dispatch_adp,
             queue,
+            clock=SystemClock(),
         )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -465,6 +467,7 @@ def test_the_same_body_under_a_refused_id_is_routed_on_its_own(
         FastAPIIngressAdapter(dl=dl, staging=staging),
         dispatch_adp,
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
+        clock=SystemClock(),
     )
 
     assert outcome.status is InboxOutcomeStatus.PROCESSED

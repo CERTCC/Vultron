@@ -32,6 +32,7 @@ from test.support.case_manager import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -123,6 +124,7 @@ class TestSvcAddObjectToCaseUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
     def test_add_object_to_case_happy_path(self):
@@ -143,6 +145,7 @@ class TestSvcAddObjectToCaseUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # Verify activity was queued in outbox
@@ -361,6 +364,7 @@ class TestSvcAddObjectToCaseUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_add_object_to_case_raises_when_case_not_found(self):
@@ -382,6 +386,7 @@ class TestSvcAddObjectToCaseUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_add_object_to_case_raises_when_object_not_found(self):
@@ -397,6 +402,7 @@ class TestSvcAddObjectToCaseUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_add_object_to_case_activity_queued_in_delivery_queue(self):
@@ -417,6 +423,7 @@ class TestSvcAddObjectToCaseUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # Verify activity ID is in result
@@ -453,6 +460,7 @@ class TestSvcAddObjectToCaseUseCase:
             self.dl,
             request1,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # Add second object
@@ -465,6 +473,7 @@ class TestSvcAddObjectToCaseUseCase:
             self.dl,
             request2,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # Verify both activities were queued

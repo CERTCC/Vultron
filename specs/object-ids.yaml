@@ -202,6 +202,51 @@ groups:
     - ADR-0164
     stories:
     - story_2022_034
+  - id: OID-01-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The object id minter MUST draw every new id from the installed id source.
+    rationale: >-
+      A run that needs repeatable ids then replaces one id source for a block, through
+      one scoped install, instead of patching `uuid.uuid4` for the whole process. The
+      system id source is the default because `create_app()` installs nothing
+      (ARCH-16-001).
+    verification: >-
+      Tests marked `OID-01-011` in `test/core/models/test_id_source.py` confirm that the
+      minter and both `id_` default factories draw from an installed source, and that
+      the scoped install restores the previous source on exit and on an exception and
+      refuses to nest; a test in `test/adapters/driving/fastapi/test_app_isolation.py`
+      confirms that `create_app()` installs no id source.
+      `test/architecture/test_single_object_id_minter.py` confirms that no code under
+      `vultron/` names the system id source except the slot that holds it as the
+      default, so nothing draws past an installed source.
+    relationships:
+    - rel_type: refines
+      spec_id: OID-01-004
+    adr:
+    - ADR-0185
+  - id: OID-01-012
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Code under `vultron/` other than the system id source MUST NOT draw a random UUID
+      for an object id or replace the `uuid` module's draw.
+    rationale: >-
+      A replacement of `uuid.uuid4` reaches every caller of it, py_trees included, so a
+      reproducible run's ids would depend on how many tree nodes it built. The two runs
+      that still patch the draw, `deterministic_run` and `_example_scope`, are listed
+      exemptions until #6116 and #6117 move them to the scoped install (OID-01-011).
+    verification: >-
+      `test/architecture/test_single_object_id_minter.py` confirms that
+      `vultron.core.models._helpers.ids.system_id_source` is the one function under
+      `vultron/` that names `uuid1` or `uuid4`, a patch target included, except the
+      listed exemptions.
+    relationships:
+    - rel_type: refines
+      spec_id: OID-01-004
+    adr:
+    - ADR-0185
 - id: OID-02
   title: DataLayer Handling
   specs:

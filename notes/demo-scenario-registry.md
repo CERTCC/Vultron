@@ -36,8 +36,9 @@ related_notes:
 # Demo Scenario Registry — Self-Registration, Derived Paths, and the Generate-vs-Check Split
 
 Each demo module declares itself with `@scenario`
-(`vultron/demo/scenario/registry/`), and every scenario table, the CI matrix
-and the CLI derive from that one source (ADR-0098, DEMOCI-11). The renderers,
+(`vultron/demo/scenario/registry/`), and every scenario table, the CI matrix,
+the plot manifest and the CLI derive from that one source (ADR-0098,
+DEMOCI-11). The renderers,
 checks and the `--check`/`--write` dumper live in
 `vultron/metadata/demo_scenarios/` (`uv run demo-scenarios`); the
 `demo-scenarios-sync` pre-commit hook runs `--check`. This note records what the
@@ -197,6 +198,7 @@ Route each consumer by what it is:
 |---|---|---|
 | `docs/` pages (`docs/topics/scenarios/index.md`, `docs/tutorials/container_demos.md`) | build-time render (DEMOCI-11-009) | Inside the mkdocs tree, so `markdown-exec` calls the renderer and nothing is committed; mind the link form (below) |
 | `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
+| `vultron/demo/scenario/plots.json` | generate + `--check` | Built by importing the stories, so a reordered fragment fails a PR check instead of the next recordings run (DEMOCI-11-034) |
 | `test/ci/README-case-log-ratchet.md`, `vultron/demo/scenario/README.md` | generate + `--check` | Outside the mkdocs tree, read raw, so an include directive would render literally |
 | `notes/` scenario tables | check in place (DEMOCI-11-042/007) | Rows interleave hand-written columns; a generator would have to write cells nobody wrote |
 | `vultron/demo/cli/` sub-commands | built at import time (DEMOCI-11-011) | No committed copy at all |

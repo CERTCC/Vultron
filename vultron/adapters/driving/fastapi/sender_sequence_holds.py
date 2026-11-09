@@ -38,6 +38,7 @@ from functools import partial
 from typing import cast
 
 from vultron.adapters.driven import actor_hosts
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_handler import (
     queue_due_held_activities,
@@ -46,8 +47,9 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_actor_work_then_replay,
 )
 from vultron.config.app import get_config
-from vultron.core.models._helpers import now_utc
+from vultron.core.behaviors.bridge.act_instant import open_act
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
 from vultron.core.services.sender_sequence_order import (
@@ -57,23 +59,31 @@ from vultron.core.services.sender_sequence_order import (
 logger = logging.getLogger(__name__)
 
 
-def _end_expired_holds_into(actor_dl: DataLayer, ended: list[int]) -> None:
+def _end_expired_holds_into(
+    actor_dl: DataLayer, clock: ClockPort, ended: list[int]
+) -> None:
     """:func:`end_expired_holds`, appending its count to *ended*."""
-    ended.append(end_expired_holds(actor_dl))
+    ended.append(end_expired_holds(actor_dl, clock))
 
 
-def end_expired_holds(actor_dl: DataLayer) -> int:
+def end_expired_holds(actor_dl: DataLayer, clock: ClockPort) -> int:
     """End the holds in *actor_dl* whose wait has passed; queue what is due.
 
     The wait is ``ledger.sender_sequence_hold_seconds`` (SYNC-21-021).  Each
     ended hold's activities are queued on the actor's inbox in number order,
     for the caller to replay (SYNC-21-013).  Returns how many holds ended.
+
+    The sweep is one act (ADR-0176): it takes the tree lock, then reads
+    *clock* once, and judges every hold against that instant.  The replay
+    of what it releases is not part of it; each replayed activity is an act
+    of its own.
     """
-    count = end_expired_sender_sequence_holds(
-        cast(CasePersistence, actor_dl),
-        now_utc(),
-        get_config().ledger.sender_sequence_hold,
-    )
+    with open_act(clock) as at:
+        count = end_expired_sender_sequence_holds(
+            cast(CasePersistence, actor_dl),
+            at,
+            get_config().ledger.sender_sequence_hold,
+        )
     if count:
         logger.info(
             "Ended %d sender-sequence hold(s) whose wait passed for actor"
@@ -104,6 +114,7 @@ async def end_hosted_expired_holds(
         The number of holds ended across every hosted actor.
     """
     total = 0
+    clock = SystemClock()
     for actor_id in actor_hosts.hosted_actor_ids():
         try:
             actor_dl = get_datalayer(actor_id)
@@ -113,7 +124,7 @@ async def end_hosted_expired_holds(
                 actor_id,
                 None,
                 emitter,
-                partial(_end_expired_holds_into, actor_dl, ended),
+                partial(_end_expired_holds_into, actor_dl, clock, ended),
             )
             total += sum(ended)
         except Exception:

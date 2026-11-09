@@ -58,12 +58,14 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "actor_id": _URI,
         "reason": "processing_error",
         "total_attempts": 1,
+        "recorded_at": "2026-10-29T00:00:00Z",
     },
     "OutboxDeadLetterEntry": {
         "activity_id": _URI,
         "actor_id": _URI,
         "reason": "unreachable",
         "total_attempts": 3,
+        "recorded_at": "2026-10-29T00:00:00Z",
     },
     "GenesisRejectRecord": {
         "case_id": f"{_URI}/case",

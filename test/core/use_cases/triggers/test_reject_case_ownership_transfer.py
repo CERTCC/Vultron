@@ -31,6 +31,7 @@ import pytest
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import archive_received
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -101,6 +102,7 @@ def _execute(dl: Any, actor_id: str, offer_id: str):
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
 

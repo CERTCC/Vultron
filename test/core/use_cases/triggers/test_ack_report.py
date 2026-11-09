@@ -22,6 +22,7 @@ from collections.abc import Iterator
 import pytest
 
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -91,6 +92,7 @@ class _Fixture:
                 note=note,
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
     def add_case(self) -> None:

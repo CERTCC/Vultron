@@ -32,6 +32,7 @@ from pydantic import ValidationError
 
 from test.support.embargo_register import activate
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -254,6 +255,7 @@ class TestSvcValidateReportUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         assert set(self.dl.outbox_list()) - before
@@ -287,6 +289,7 @@ class TestSvcValidateReportUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         updated = self.dl.read(vendor_participant_id)
@@ -310,6 +313,7 @@ class TestSvcValidateReportUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
@@ -327,6 +331,7 @@ class TestSvcValidateReportUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
         after = set(self.dl.outbox_list())
         new_ids = after - before
@@ -367,6 +372,7 @@ class TestSvcValidateReportUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_validate_report_raises_when_offer_not_found(self):
@@ -380,6 +386,7 @@ class TestSvcValidateReportUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_validate_report_raises_when_offer_record_missing(self):
@@ -398,6 +405,7 @@ class TestSvcValidateReportUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_validate_report_requires_trigger_activity_port(self):
@@ -411,6 +419,7 @@ class TestSvcValidateReportUseCase:
                 self.dl,
                 request,
                 trigger_activity=None,
+                clock=SystemClock(),
             ).execute()
 
     @pytest.mark.spec("TRIG-07-001")
@@ -424,6 +433,7 @@ class TestSvcValidateReportUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -437,7 +447,7 @@ class TestSvcValidateReportUseCase:
         )
         ta = TriggerActivityAdapter(self.dl)
         SvcValidateReportUseCase(
-            self.dl, request, trigger_activity=ta
+            self.dl, request, trigger_activity=ta, clock=SystemClock()
         ).execute()
 
         vendor_participant_id = self.case.actor_participant_index[
@@ -450,7 +460,7 @@ class TestSvcValidateReportUseCase:
         # Second call: CheckRMStateValid short-circuits before TransitionRMtoValid;
         # participant_statuses list must not grow.
         SvcValidateReportUseCase(
-            self.dl, request, trigger_activity=ta
+            self.dl, request, trigger_activity=ta, clock=SystemClock()
         ).execute()
 
         p2 = self.dl.read(vendor_participant_id)
@@ -531,6 +541,7 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -549,6 +560,7 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
@@ -563,6 +575,7 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_invalidate_report_raises_when_offer_not_found(self):
@@ -575,6 +588,7 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
 
@@ -609,6 +623,7 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -628,6 +643,7 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
@@ -643,6 +659,7 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         assert activity_of(result).get("type") == "Reject"
@@ -667,6 +684,7 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
         assert set(self.dl.outbox_list()) == before
 
@@ -683,6 +701,7 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_reject_report_raises_when_offer_not_found(self):
@@ -697,6 +716,7 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
 
@@ -723,6 +743,7 @@ class TestSvcRejectReportOnACase(_ReportTriggerBase):
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
         assert set(self.dl.outbox_list()) == before
         link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
@@ -772,6 +793,7 @@ class TestReportTriggersRefuseAnActorNotSentTheOffer(_ReportTriggerBase):
                 self.dl,
                 request_cls(actor_id=joiner.id_, offer_id=self.offer.id_),
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
         assert "full-case Invite" in str(excinfo.value)
@@ -816,6 +838,7 @@ class TestSvcSubmitReportUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # Confirm the report object ID is readable from the DataLayer
@@ -842,6 +865,7 @@ class TestSvcSubmitReportUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         offer_dict = result.offer or {}
@@ -867,6 +891,7 @@ class TestSvcSubmitReportUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         assert result.offer is not None
@@ -888,6 +913,7 @@ class TestSvcSubmitReportUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
@@ -905,6 +931,7 @@ class TestSvcSubmitReportUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
         after = set(self.dl.outbox_list())
         new_ids = after - before
@@ -943,6 +970,7 @@ class TestSvcSubmitReportUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_submit_report_requires_trigger_activity_port(self):
@@ -958,6 +986,7 @@ class TestSvcSubmitReportUseCase:
                 self.dl,
                 request,
                 trigger_activity=None,
+                clock=SystemClock(),
             ).execute()
 
     def test_submit_report_idempotent_on_duplicate_report(self):
@@ -970,10 +999,10 @@ class TestSvcSubmitReportUseCase:
         )
         ta = TriggerActivityAdapter(self.dl)
         r1 = SvcSubmitReportUseCase(
-            self.dl, request, trigger_activity=ta
+            self.dl, request, trigger_activity=ta, clock=SystemClock()
         ).execute()
         r2 = SvcSubmitReportUseCase(
-            self.dl, request, trigger_activity=ta
+            self.dl, request, trigger_activity=ta, clock=SystemClock()
         ).execute()
         # Both calls return a valid offer
         assert r1.offer is not None
@@ -1020,6 +1049,7 @@ class TestSubmitReportProposedEmbargo:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
     @pytest.mark.spec("EP-04-014")

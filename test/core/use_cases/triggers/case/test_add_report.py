@@ -29,6 +29,7 @@ from test.support.case_manager import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -113,6 +114,7 @@ class TestSvcAddReportToCaseUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
     def test_add_report_to_case_happy_path(self):
@@ -133,6 +135,7 @@ class TestSvcAddReportToCaseUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # Verify activity was queued in outbox
@@ -201,6 +204,7 @@ class TestSvcAddReportToCaseUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_add_report_to_case_raises_when_report_wrong_type(self):
@@ -224,6 +228,7 @@ class TestSvcAddReportToCaseUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_add_report_to_case_raises_when_case_not_found(self):
@@ -245,6 +250,7 @@ class TestSvcAddReportToCaseUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_add_report_to_case_activity_queued_in_delivery_queue(self):
@@ -265,6 +271,7 @@ class TestSvcAddReportToCaseUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # Verify activity ID is in result
@@ -298,6 +305,7 @@ class TestSvcAddReportToCaseUseCase:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # Verify the result structure (should match SvcAddObjectToCaseUseCase result)
@@ -328,6 +336,7 @@ class TestSvcAddReportToCaseUseCase:
             self.dl,
             request1,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # Add second report
@@ -340,6 +349,7 @@ class TestSvcAddReportToCaseUseCase:
             self.dl,
             request2,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         # Verify both activities were queued

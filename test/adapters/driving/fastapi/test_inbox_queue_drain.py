@@ -801,7 +801,7 @@ def test_the_startup_replay_drains_under_the_actor_lock_off_the_loop(
 
     seen: dict[str, Any] = {}
 
-    def _drain(*_args: Any) -> None:
+    def _drain(*_args: Any, **_kwargs: Any) -> None:
         seen["thread"] = threading.get_ident()
         seen["locked"] = io._get_actor_lock(_RECEIVER).locked()
 
