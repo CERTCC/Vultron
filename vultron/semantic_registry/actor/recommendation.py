@@ -133,8 +133,9 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Offer case participant",
                 description=(
                     "Forwards the recommendation as a proposed participant "
-                    "record, carrying the original recommendation's ID and the"
-                    " default roles it assigned."
+                    "record, carrying the original recommendation's ID, the"
+                    " default roles it assigned, and the recommender's reason"
+                    " as its content."
                 ),
                 example="offer_case_participant",
                 howto=HowToGuide.SUGGEST_ACTOR,

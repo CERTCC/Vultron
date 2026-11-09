@@ -2,7 +2,7 @@
 
 !!! info "Offer case participant"
 
-    Forwards the recommendation as a proposed participant record, carrying the original recommendation's ID and the default roles it assigned.
+    Forwards the recommendation as a proposed participant record, carrying the original recommendation's ID, the default roles it assigned, and the recommender's reason as its content.
 
     - **When…** the CASE_MANAGER presents a suggested actor to the Case Owner
     - **Send:** `Offer(CaseParticipant)[target=VulnerabilityCase]`
