@@ -21,12 +21,11 @@ import json
 import logging
 import pathlib
 from typing import Any
-from urllib.parse import urlparse
 
 import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
-from vultron.demo.helpers.cast import slot_for
+from vultron.demo.helpers.cast import cast_member_at
 from vultron.demo.helpers.ledger_dump.layout import (
     LEDGER_FILE_SUFFIX,
     ActorLedgerRecord,
@@ -71,34 +70,27 @@ def replica_route_key(client: DataLayerClient) -> str:
         The route key to read the ledger under.
     """
     if not client.actor_id:
-        slot = slot_for(client.base_url)
+        slot, name = cast_member_at(client.base_url)
         if slot is None:
             # Not a cast container, so nothing says which actor it hosts.  The
             # host name is the last guess available, and the WARNING is the
             # only notice the dump will give before it reports an empty ledger.
-            # An address with no host name at all leaves nothing to guess, so
-            # the key is the address itself: an empty key would read as "no
-            # actor" and hide which client the dump could not place.
-            host = (
-                urlparse(client.base_url).hostname
-                or client.base_url
-                or "unresolved-actor"
-            )
             logger.warning(
                 "ledger dump: client for %s is unbound and addresses no cast"
                 " container, so its route key falls back to the host name"
                 " %r, which may name no actor (ADR-0073, DEMOCI-11-020)",
                 client.base_url,
-                host,
+                name,
             )
-            return host
-        logger.debug(
-            "ledger dump: client for %s is unbound, falling back to the slug"
-            " of the actor cast container %r hosts (ADR-0073, DEMOCI-11-020)",
-            client.base_url,
-            slot.name,
-        )
-        return slot.name
+        else:
+            logger.debug(
+                "ledger dump: client for %s is unbound, falling back to the"
+                " slug of the actor cast container %r hosts (ADR-0073,"
+                " DEMOCI-11-020)",
+                client.base_url,
+                name,
+            )
+        return name
     return strip_id_prefix(client.actor_id)
 
 

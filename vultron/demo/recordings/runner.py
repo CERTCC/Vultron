@@ -49,6 +49,7 @@ from vultron.demo.determinism import (
     reset_blackboard,
 )
 from vultron.demo.helpers.actor_roles import ActorRole
+from vultron.demo.helpers.cast import cast_member_name
 from vultron.demo.in_process import (
     InProcessRouter,
     create_isolated_actor_app,
@@ -61,8 +62,14 @@ from vultron.demo.recordings.ledgers import (
     read_step_marks,
 )
 from vultron.demo.recordings.topology import ContainerTopology, load_topology
+from vultron.demo.recordings.traces import ScenarioRun
 from vultron.demo.scenario.registry import ScenarioSpec
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.check_tree import (
+    CheckTree,
+    note_container_read,
+    recording_checks,
+)
 from vultron.errors import DemoRecordingError
 
 
@@ -81,7 +88,21 @@ class _Nodes:
     def call(
         self, client: DataLayerClient, method: str, path: str, **kwargs: Any
     ) -> Any:
-        """Stand in for :meth:`DataLayerClient.call`, routed by host."""
+        """Stand in for :meth:`DataLayerClient.call`, routed by host.
+
+        Every replica read of an in-process run passes through here, so this
+        is where a read is attributed to the ``demo_step``, ``demo_check`` or
+        ``demo_gate`` it was made inside (DEMOCI-11-057).  The subject is the
+        cast member whose container the call hits, which is what EDF-06-002
+        constrains and what no static pass could resolve: a gate predicate is
+        handed a session, not a container name.
+
+        Only a ``GET`` counts.  DEMOCI-11-057 asks which containers a check
+        *read*, and a trigger or an inbox post is an act, not a read: counting
+        one would put a cast member in ``reads`` that the step wrote to.  An
+        act redirected to another container moves the ledger instead, which is
+        the trace that sees it.
+        """
         url = f"{client.base_url}{path}"
         parsed = urlparse(url)
         node = self.clients.get(_node_base(url))
@@ -90,6 +111,8 @@ class _Nodes:
                 f"no in-process container serves {url!r}; the scenario "
                 "addressed a host its ROLES do not name."
             )
+        if method.upper() == "GET":
+            note_container_read(cast_member_name(client.base_url))
         kwargs.pop("timeout", None)
         target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
         response = node.request(method.upper(), target, **kwargs)
@@ -188,10 +211,35 @@ def _one_row_at_a_time(
     return serial_deliver_batch
 
 
+@dataclass(frozen=True)
+class RecordedRun:
+    """What one in-process run of a scenario leaves behind.
+
+    Attributes:
+        recording: The committed artifact: the canonical ledger and the step
+            marks (:mod:`.layout`).
+        checks: The check tree of the same run.  It is **not** committed: no
+            pull request regenerates a recording (#3901), and the
+            base-versus-head comparison records both sides itself.
+    """
+
+    recording: Recording
+    checks: CheckTree
+
+    @property
+    def traces(self) -> ScenarioRun:
+        """The two traces a base-versus-head comparison reads."""
+        return ScenarioRun(
+            self.recording.scenario,
+            ledger=self.recording.ledger,
+            checks=self.checks,
+        )
+
+
 def record_scenario(
     spec: ScenarioSpec, topology: ContainerTopology | None = None
-) -> Recording:
-    """Run *spec* in this process and return its recording.
+) -> RecordedRun:
+    """Run *spec* in this process and return its recording and check tree.
 
     Args:
         spec: The registered scenario to run.
@@ -200,8 +248,9 @@ def record_scenario(
 
     Returns:
         The canonical ledger, as JSONL, once every replica the scenario's
-        ledger dump names has been checked against it, and the ledger tail at
-        each declared step of its path.
+        ledger dump names has been checked against it, the ledger tail at
+        each declared step of its path, and the check tree of the run
+        (DEMOCI-11-056).
 
     Raises:
         DemoRecordingError: When the scenario's ROLES name an unknown container
@@ -230,6 +279,7 @@ def record_scenario(
             # siblings draw the same ids for a shared opening
             # (DEMOCI-11-025, DEMOCI-11-018).
             deterministic_run(seed=TREE_RECORDING_SEED),
+            recording_checks() as checks,
             _scenario_nodes(bases, topology) as nodes,
             patch.dict(os.environ, {"DEVLOGS_DIR": devlogs}),
             patch.object(demo_inbox, "DEFAULT_WAIT_SECONDS", 0.0),
@@ -253,8 +303,13 @@ def record_scenario(
                     f"{role.param_stem}_url": url for role, url in urls.items()
                 },
             )
+        # Read after the capture has left, so a node the run never closed
+        # fails here rather than being reported as a half tree.
+        tree = checks.tree()
         ledger = canonical_ledger(
             spec.name, read_dump(Path(devlogs), spec.name)
         )
         steps = read_step_marks(Path(devlogs), spec.name, spec.path)
-    return Recording(spec.name, ledger=ledger, steps=steps)
+    return RecordedRun(
+        Recording(spec.name, ledger=ledger, steps=steps), checks=tree
+    )

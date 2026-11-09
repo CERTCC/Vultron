@@ -1,4 +1,11 @@
-"""Demo failure accumulator and the step/check/gate context managers (DEMOCI-01)."""
+"""Demo failure accumulator and the step/check/gate context managers (DEMOCI-01).
+
+The three context managers are also the one place a node of a run's **check
+tree** is entered and left, when the recorder has installed a capture
+(:mod:`vultron.demo.utils.check_tree`, DEMOCI-11-056).  The capture is off by
+default, so a scenario run outside the recorder logs and behaves exactly as it
+did.
+"""
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -16,7 +23,14 @@
 import logging
 from collections.abc import Generator
 from contextlib import contextmanager
+from dataclasses import dataclass
 
+from vultron.demo.utils.check_tree import (
+    CheckKind,
+    CheckOutcome,
+    enter_check,
+    leave_check,
+)
 from vultron.errors import DemoFailureError
 
 # One logger for the whole package, so log records keep its name.
@@ -82,28 +96,62 @@ def _note_accumulated_failures(exc: BaseException) -> None:
             exc.add_note(failure)
 
 
+@dataclass(frozen=True, slots=True)
+class _Marks:
+    """How one of the three context managers announces itself in the log.
+
+    One record per kind, rather than five arguments repeated at each of the
+    three call sites, so a kind is named once (CS-22-001).
+    """
+
+    #: Logged at INFO on entry.
+    start: str
+    #: Logged at INFO on a clean exit.
+    on_pass: str
+    #: Logged at ERROR, with the exception, when the body raised.
+    on_fail: str
+    #: Opens the message appended to the failure accumulator.
+    prefix: str
+
+
+_MARKS: dict[CheckKind, _Marks] = {
+    CheckKind.STEP: _Marks("🚥", "🟢", "🔴", "STEP FAILED"),
+    CheckKind.CHECK: _Marks("📋", "✅", "❌", "CHECK FAILED"),
+    CheckKind.GATE: _Marks("🚧", "🔓", "🔒", "GATE FAILED"),
+}
+
+
 @contextmanager
 def _demo_accumulate(
-    description: str,
-    start: str,
-    on_pass: str,
-    on_fail: str,
-    prefix: str,
+    kind: CheckKind, description: str
 ) -> Generator[None, None, None]:
     """Shared try/except/log backbone for demo context managers.
 
-    Logs *start* on entry, *on_pass* on clean exit, *on_fail* + exc on
-    exception.  Exceptions are caught, logged, appended to
+    Logs *kind*'s start mark on entry, its pass mark on clean exit, its fail
+    mark + exc on exception.  Exceptions are caught, logged, appended to
     ``_demo_failures`` as ``"<prefix>: <description> — <exc>"``, and
     suppressed so callers continue after the block.
+
+    This is also where a node of the run's check tree is entered and left,
+    when a capture is installed (DEMOCI-11-056,
+    :mod:`vultron.demo.utils.check_tree`).  The outcome starts out
+    ``FAILED`` and is promoted on the clean path, so a ``BaseException`` the
+    block does not catch — a timeout or an interrupt — closes the node as
+    failed rather than as passed.
     """
-    logger.info("%s %s", start, description)
+    marks = _MARKS[kind]
+    logger.info("%s %s", marks.start, description)
+    enter_check(kind, description)
+    outcome = CheckOutcome.FAILED
     try:
         yield
-        logger.info("%s %s", on_pass, description)
+        logger.info("%s %s", marks.on_pass, description)
+        outcome = CheckOutcome.PASSED
     except Exception as exc:
-        logger.exception("%s %s", on_fail, description)
-        _demo_failures.append(f"{prefix}: {description} — {exc}")
+        logger.exception("%s %s", marks.on_fail, description)
+        _demo_failures.append(f"{marks.prefix}: {description} — {exc}")
+    finally:
+        leave_check(outcome)
 
 
 @contextmanager
@@ -116,7 +164,7 @@ def demo_step(description: str) -> Generator[None, None, None]:
     Call ``assert_demo_success()`` at the end of the scenario to surface
     accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
-    with _demo_accumulate(description, "🚥", "🟢", "🔴", "STEP FAILED"):
+    with _demo_accumulate(CheckKind.STEP, description):
         yield
 
 
@@ -130,7 +178,7 @@ def demo_check(description: str) -> Generator[None, None, None]:
     Call ``assert_demo_success()`` at the end of the scenario to surface
     accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
-    with _demo_accumulate(description, "📋", "✅", "❌", "CHECK FAILED"):
+    with _demo_accumulate(CheckKind.CHECK, description):
         yield
 
 
@@ -167,5 +215,5 @@ def demo_gate(description: str) -> Generator[None, None, None]:
 
     See DEMOCI-01-007, EDF-06-005, ADR-0058.
     """
-    with _demo_accumulate(description, "🚧", "🔓", "🔒", "GATE FAILED"):
+    with _demo_accumulate(CheckKind.GATE, description):
         yield
