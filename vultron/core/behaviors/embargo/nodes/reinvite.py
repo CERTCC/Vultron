@@ -62,7 +62,8 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
 
     A late ``Accept`` named an embargo the case can no longer answer, so the
     manager asks the accepter about the case's terms instead (EMB-17-003).
-    The re-invite is a relay (ADR-0152): the frame is the relay's — stamp a fresh deadline (ASK-03-004, CM-28-012), build, queue,
+    The re-invite is a relay (ADR-0152): the frame is the relay's — stamp
+    a fresh deadline (ASK-03-004, CM-28-012), build, queue,
     commit once queued (ADR-0119), apply PEC ``INVITE`` and record the
     deadline (CM-18-003, CM-28-013) — with ``attributedTo`` naming the
     embargo's proposer, read from the case's ledger
