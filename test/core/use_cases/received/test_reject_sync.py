@@ -97,6 +97,7 @@ def _make_reject_event(
         ledger_position=peer_position(last_accepted_hash),
         actor=actor,
         to=to or [CASE_ACTOR_URI],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     return cast(RejectLogEntryReceivedEvent, received_event(activity))
 
@@ -113,6 +114,7 @@ class TestRejectLogEntryPattern:
             wire_entry,
             ledger_position=peer_position("a" * 64),
             actor=PARTICIPANT_URI,
+            in_reply_to="https://example.org/activities/prompting-announce",
         )
         event = received_event(activity)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
@@ -146,7 +148,11 @@ class TestRejectLogEntryPattern:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry0.model_dump(mode="json")
         )
-        activity = reject_log_entry_activity(wire_entry, actor=PARTICIPANT_URI)
+        activity = reject_log_entry_activity(
+            wire_entry,
+            actor=PARTICIPANT_URI,
+            in_reply_to="https://example.org/activities/prompting-announce",
+        )
         event = received_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.last_accepted_hash == ""

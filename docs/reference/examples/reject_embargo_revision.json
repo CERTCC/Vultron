@@ -7,6 +7,7 @@
   "id": "urn:uuid:f928d8ab-7019-4574-914a-1b6b377eac24",
   "name": "https://vultron.example/organizations/vendorco Reject https://vultron.example/organizations/vendorco Invite Embargo for VendorCo Case #20260601",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "inReplyTo": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_proposals/2",
   "to": "https://vultron.example/cases/1/participants",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {

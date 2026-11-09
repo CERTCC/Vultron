@@ -19,6 +19,7 @@ from typing import ClassVar
 from pydantic import Field
 
 from vultron.primitives import NonEmptyString
+from vultron.wire.as2.vocab.activities.base import RepliesToObject
 from vultron.wire.as2.vocab.activities.case.named_case import NamedCase
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -97,7 +98,7 @@ class _ProposeCaseOwnershipTransferActivity(as_Offer):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
 
-class _AcceptCaseOwnershipTransferActivity(as_Accept):
+class _AcceptCaseOwnershipTransferActivity(RepliesToObject, as_Accept):
     """The actor is accepting an offer to transfer ownership of the case.
 
     - object_: the _OfferCaseOwnershipTransferActivity being accepted (inline
@@ -109,7 +110,7 @@ class _AcceptCaseOwnershipTransferActivity(as_Accept):
     )
 
 
-class _RejectCaseOwnershipTransferActivity(as_Reject):
+class _RejectCaseOwnershipTransferActivity(RepliesToObject, as_Reject):
     """The actor is rejecting an offer to transfer ownership of the case.
 
     - object_: the _OfferCaseOwnershipTransferActivity being rejected (inline

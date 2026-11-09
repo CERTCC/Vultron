@@ -187,6 +187,7 @@ def test_genesis_reject_from_an_admitted_peer_seeds_the_case(
         ),
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     sync_port = MagicMock(spec=SyncActivityPort)

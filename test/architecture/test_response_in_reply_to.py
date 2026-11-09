@@ -22,12 +22,8 @@ validator would pass it.  This ratchet finds every ``as_Accept``, ``as_Reject``,
 ``_RESPONSES_BY_MEANING`` whose verb is not an answer.  It builds each one
 again from its vocab example with ``inReplyTo`` removed, and checks the
 result.  A class that refuses the body because ``inReplyTo`` is missing also
-meets RF-08-003.
-
-The classes that do not meet the rule yet are listed by name in
-``_KNOWN_GAP``, owned by #5641.  The ratchet fails when a listed class starts to
-meet the rule, so that the record does not go stale, and when a class that is
-not listed does not meet it.
+meets RF-08-003.  Every class meets the rule, so a new one that does not
+fails here.
 """
 
 import importlib
@@ -66,27 +62,6 @@ _RESPONSE_BASES = (
 #: ``Add`` of the embargo to the case (ADR-0180), yet it decides the proposal
 #: an ``Invite(EmbargoEvent)`` made, and names that Invite in ``inReplyTo``.
 _RESPONSES_BY_MEANING: tuple[type[Any], ...] = (_ActivateEmbargoActivity,)
-
-# Response classes that build with no ``inReplyTo`` today.
-# owner: #5641
-_KNOWN_GAP = frozenset(
-    {
-        "_AcceptActorRecommendationActivity",
-        "_RejectActorRecommendationActivity",
-        "_AcceptCaseParticipantOfferActivity",
-        "_RejectCaseParticipantOfferActivity",
-        "_RmValidateReportActivity",
-        "_RmInvalidateReportActivity",
-        "_RmCloseReportActivity",
-        "_AcceptCaseParticipantRoleActivity",
-        "_RejectCaseParticipantRoleActivity",
-        "_AcceptCaseOwnershipTransferActivity",
-        "_RejectCaseOwnershipTransferActivity",
-        "_EmAcceptEmbargoActivity",
-        "_EmRejectEmbargoActivity",
-        "_RejectLogEntryActivity",
-    }
-)
 
 
 def _response_classes() -> dict[str, type[Any]]:
@@ -146,7 +121,7 @@ def test_the_scan_finds_the_response_classes() -> None:
     assert "_RmAcceptInviteToCaseActivity" in _CLASSES
     assert "_EmAcceptEmbargoActivity" in _CLASSES
     assert "_ActivateEmbargoActivity" in _CLASSES
-    assert set(_CLASSES) >= _KNOWN_GAP, sorted(_KNOWN_GAP - set(_CLASSES))
+    assert "_RejectLogEntryActivity" in _CLASSES
 
 
 def test_every_response_class_has_a_sample() -> None:
@@ -158,18 +133,10 @@ def test_every_response_class_has_a_sample() -> None:
 @pytest.mark.spec("RF-08-003")
 @pytest.mark.spec("VAM-05-008")
 @pytest.mark.spec("VAM-05-009")
-@pytest.mark.parametrize("name", sorted(set(_CLASSES) - _KNOWN_GAP))
+@pytest.mark.parametrize("name", sorted(_CLASSES))
 def test_a_response_built_without_in_reply_to_names_what_it_answers(
     name: str,
 ) -> None:
     assert _names_what_it_answers(_CLASSES[name], _SAMPLES[name]), (
         f"{name} builds with no inReplyTo (RF-08-002, RF-08-003)"
-    )
-
-
-@pytest.mark.parametrize("name", sorted(_KNOWN_GAP))
-def test_a_known_gap_class_still_builds_without_in_reply_to(name: str) -> None:
-    """The record stays current: a fixed class leaves ``_KNOWN_GAP`` (#5641)."""
-    assert not _names_what_it_answers(_CLASSES[name], _SAMPLES[name]), (
-        f"{name} now sets inReplyTo; remove it from _KNOWN_GAP (#5641)"
     )

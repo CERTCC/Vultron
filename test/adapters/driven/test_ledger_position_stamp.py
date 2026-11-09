@@ -155,6 +155,7 @@ def test_a_genesis_replay_request_needs_the_case_it_names(dl) -> None:
             copy_tail_hash="ab" * 32,
             actor_id=_ACTOR,
             to=["https://example.org/users/manager"],
+            in_reply_to="https://example.org/activities/prompting-announce",
         )
 
     assert list(dl.outbox_list()) == []
@@ -170,6 +171,7 @@ def test_a_genesis_replay_request_states_the_empty_chain(dl) -> None:
         copy_tail_hash="ab" * 32,
         actor_id=_ACTOR,
         to=["https://example.org/users/manager"],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
 
     (reject_id,) = dl.outbox_list()
