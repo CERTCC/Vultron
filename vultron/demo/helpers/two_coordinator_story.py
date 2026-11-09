@@ -213,7 +213,7 @@ def dump_two_coordinator_ledgers(state: StoryState) -> None:
 
 
 def c2_is_seeded(state: StoryState) -> None:
-    """Seed and seat C2, this pair's one character actor.
+    """C2 is ready to be invited to the case.
 
     ``seed_containers_rccv`` creates C2 and registers every actor as a peer of
     the other three (DEMOMA-13-001, DEMOMA-14-001); the three the shared

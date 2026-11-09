@@ -292,10 +292,11 @@ def both_vendors_report_the_fix_ready(state: StoryState) -> None:
 
 
 def reporter_publishes_and_the_embargo_collapses(state: StoryState) -> None:
-    """The Reporter publishes; CS.P ends the embargo with nobody terminating it.
+    """The Reporter publishes, and that alone ends the embargo.
 
-    The collapse is the protocol's own consequence of the P-transition
-    (DEMOMA-21-014): this fragment never calls ``terminate_embargo``.
+    Public awareness collapses the embargo as the protocol's own consequence
+    of the P-transition (``CS.P``, DEMOMA-21-014); nobody terminates it and
+    this fragment never calls ``terminate_embargo``.
     """
     reports_published(state, REPORTER)
 

@@ -76,6 +76,7 @@ from vultron.metadata.demo_scenarios.plots import (
 from vultron.metadata.demo_scenarios.stories import (
     DECIDING_ROLE_LABELS,
     STORY_HEADING,
+    STORY_SECTION,
     choice_line,
     include_directive,
     missing_story_includes,
@@ -235,11 +236,25 @@ class TestStoryShape:
         """
         assert set(DECIDING_ROLE_LABELS) == set(CVDRole)
 
-    @pytest.mark.spec("DEMOCI-11-068")
-    def test_every_deciding_role_in_the_table_renders(self) -> None:
-        """Every branch point in the table can be rendered as a story line."""
-        for branch_point in BRANCH_POINTS.values():
-            assert DECIDING_ROLE_LABELS[branch_point.role]
+    @pytest.mark.spec("DEMOCI-11-013", "DEMOCI-11-068")
+    def test_every_branch_point_in_the_table_renders_its_own_label(
+        self,
+    ) -> None:
+        """Each branch point renders with the role and label the table holds.
+
+        The exhaustiveness test above cannot make this assertion: it pins the
+        label map against ``CVDRole``, not the line a real branch point
+        renders as.
+        """
+        for identifier, branch_point in BRANCH_POINTS.items():
+            for choice in branch_point.choices:
+                line = choice_line(
+                    choose(identifier, choice.id, by=_DECIDED_BY)
+                )
+                assert line == (
+                    f"{DECIDING_ROLE_LABELS[branch_point.role]} decides: "
+                    f"{choice.label}"
+                ), identifier
 
     @pytest.mark.spec("DEMOCI-11-067")
     def test_the_story_names_the_command_that_rewrites_it(self) -> None:
@@ -376,14 +391,41 @@ class TestStoryDrift:
         """
         monkeypatch.setattr(sync, "repo_root", lambda: story_root)
         monkeypatch.setattr(sync, "discover_scenarios", lambda: ())
-        monkeypatch.setattr(sync, "consistency_problems", lambda *_args: [])
-        monkeypatch.setattr(sync, "missing_derived_paths", lambda *_args: [])
 
         with pytest.raises(SystemExit) as raised:
             sync.main(["--check"])
 
         assert raised.value.code == 1
-        assert "empty" in capsys.readouterr().err
+        # The refusal is the whole output: with no scenario every declared
+        # artifact also compares stale, and four lines pointing at a
+        # regeneration that would make the tree worse is misdirection.
+        assert capsys.readouterr().err == f"[ERROR] {sync.EMPTY_REGISTRY}\n"
+
+    @pytest.mark.spec("DEMOCI-11-069")
+    def test_write_refuses_an_empty_registry(
+        self,
+        story_root: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The writer refuses it too, rather than emptying every artifact.
+
+        An empty registry renders the CI matrix as ``[]``, the plot manifest
+        with no scenario and both README tables as header rows, and leaves
+        every committed story orphaned — all of it reported as success.
+        """
+        committed = (story_root / sync.MATRIX_JSON).read_text(encoding="utf-8")
+        monkeypatch.setattr(sync, "repo_root", lambda: story_root)
+        monkeypatch.setattr(sync, "discover_scenarios", lambda: ())
+
+        with pytest.raises(SystemExit) as raised:
+            sync.main(["--write"])
+
+        assert raised.value.code == 1
+        assert capsys.readouterr().err == f"[ERROR] {sync.EMPTY_REGISTRY}\n"
+        assert (story_root / sync.MATRIX_JSON).read_text(
+            encoding="utf-8"
+        ) == committed
 
 
 @pytest.fixture
@@ -439,7 +481,7 @@ class TestNarrativePages:
 
         assert len(reported) == 1, reported
         assert reported[0].startswith(f"{spec.narrative_path} ends with ")
-        assert f"'{STORY_HEADING}' section" in reported[0]
+        assert f"'{STORY_SECTION}' section" in reported[0]
 
     @pytest.mark.spec("DEMOCI-11-067")
     def test_a_story_placed_before_the_narrative_is_reported(
@@ -462,8 +504,10 @@ class TestNarrativePages:
 
         reported = missing_story_includes(page_root)
 
-        assert len(reported) == 1
-        assert spec.narrative_path in reported[0]
+        assert reported == [
+            f"{spec.narrative_path} ends with '## Unobservable edges', not "
+            f"with a '{STORY_SECTION}' section"
+        ]
 
     @pytest.mark.spec("DEMOCI-11-067")
     def test_a_section_with_no_include_is_reported(
@@ -482,7 +526,7 @@ class TestNarrativePages:
         reported = missing_story_includes(page_root)
 
         assert reported == [
-            f"{spec.narrative_path}'s '{STORY_HEADING}' section does not "
+            f"{spec.narrative_path}'s '{STORY_SECTION}' section does not "
             f"include {story_path(spec.name)}"
         ]
 
@@ -510,8 +554,77 @@ class TestNarrativePages:
 
         assert reported == [
             f"{spec.narrative_path} ends with '(no heading)', not with a "
-            f"'{STORY_HEADING}' section"
+            f"'{STORY_SECTION}' section"
         ]
+
+    @pytest.mark.spec("DEMOCI-11-067")
+    def test_a_story_heading_nested_in_the_narrative_is_reported(
+        self, page_root: Path
+    ) -> None:
+        """A ``###`` heading is a subsection of the narrative, not a section.
+
+        This is the "spliced in among the narrative's own steps" case the
+        check exists for, and the level is the only thing that tells it from
+        a well-placed section.
+        """
+        spec = discover_scenarios()[0]
+        target = page_root / spec.narrative_path
+        target.write_text(
+            target.read_text(encoding="utf-8").replace(
+                STORY_SECTION, f"### {STORY_HEADING}"
+            ),
+            encoding="utf-8",
+        )
+
+        reported = missing_story_includes(page_root)
+
+        assert reported == [
+            f"{spec.narrative_path} ends with '### {STORY_HEADING}', not "
+            f"with a '{STORY_SECTION}' section"
+        ]
+
+    @pytest.mark.spec("DEMOCI-11-067")
+    def test_a_directive_shown_in_a_code_block_is_not_an_include(
+        self, page_root: Path
+    ) -> None:
+        """A page that documents the directive includes nothing.
+
+        The fenced form renders as text, so the story never appears.
+        """
+        spec = discover_scenarios()[0]
+        target = page_root / spec.narrative_path
+        target.write_text(
+            target.read_text(encoding="utf-8").replace(
+                include_directive(spec.name),
+                f"```markdown\n{include_directive(spec.name)}\n```",
+            ),
+            encoding="utf-8",
+        )
+
+        reported = missing_story_includes(page_root)
+
+        assert reported == [
+            f"{spec.narrative_path}'s '{STORY_SECTION}' section does not "
+            f"include {story_path(spec.name)}"
+        ]
+
+    @pytest.mark.spec("DEMOCI-11-067")
+    def test_a_trailing_bare_heading_does_not_hide_the_story(
+        self, page_root: Path
+    ) -> None:
+        """A heading with nothing under it is not where the story is.
+
+        Without the skip, appending one empty section to a page would make
+        the check report every page as missing its story.
+        """
+        spec = discover_scenarios()[0]
+        target = page_root / spec.narrative_path
+        target.write_text(
+            target.read_text(encoding="utf-8") + "\n## See also\n",
+            encoding="utf-8",
+        )
+
+        assert missing_story_includes(page_root) == []
 
     @pytest.mark.spec("DEMOCI-11-067")
     @pytest.mark.parametrize(

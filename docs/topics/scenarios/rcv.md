@@ -147,7 +147,4 @@ The Vendor and the Reporter leave first; the Coordinator, the Case Owner, leaves
 
 ## The story as the code tells it
 
-This is the plot of the scenario as the demo code composes it, generated from that code.
-It is here so a reader can check the narrative above against what the demo actually runs; where the two disagree, the narrative is the one written independently, so read it as the claim and this as the evidence.
-
 {% include-markdown "./_rcv-story.md" %}

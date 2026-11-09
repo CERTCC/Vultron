@@ -154,7 +154,7 @@ def unseated_coordinator_and_vendor2(
 
 
 def the_coordinator_and_vendor2_are_seeded(state: StoryState) -> None:
-    """Seed and seat the Coordinator and Vendor2.
+    """The Coordinator and Vendor2 are ready to be invited to the case.
 
     ``seed_containers_rvcv`` creates both and registers every actor as a peer
     of the other three (DEMOMA-10-001, DEMOMA-11-001); the two the shared

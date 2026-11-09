@@ -85,6 +85,16 @@ from vultron.metadata.generated_files import stale_paths, write_generated
 #: Command that regenerates every artifact, quoted in every failure message.
 WRITE_COMMAND = "uv run demo-scenarios --write"
 
+#: The one finding of a run that discovered no scenario at all (DF-09-009).
+#: A module constant so the test that pins the refusal reads the same string
+#: the CLI prints, rather than a substring of it.
+EMPTY_REGISTRY = (
+    "the scenario registry is empty, so there is nothing to generate or "
+    "compare; an empty target set is a failure, not a pass (DF-09-009). "
+    "Check that the scenario modules under vultron/demo/scenario/ still "
+    "import (DEMOCI-11-002)."
+)
+
 #: Opening marker of a generated table. Carries the regeneration command so a
 #: reader who found the table by grep, not by reading this module, still learns
 #: that hand-editing it will be reverted. Two lines, so neither runs past the
@@ -322,6 +332,18 @@ def main(argv: list[str] | None = None) -> None:
         for entry in missing_derived_paths(root, specs)
     ]
 
+    # Whichever mode: an empty registry ends the run before anything is
+    # compared or written. On --check every per-scenario artifact, each
+    # narrative page's generated story included, would be checked against
+    # nothing and the gate would pass over the whole set; on --write the four
+    # declared artifacts would be rewritten empty and every committed story
+    # orphaned, with exit 0 (DF-09-009). Discovery is a pkgutil walk
+    # (DEMOCI-11-002), so an empty result means the walk imported nothing.
+    # Reported alone, because every other finding of such a run is noise.
+    if not specs:
+        print(f"[ERROR] {EMPTY_REGISTRY}", file=sys.stderr)
+        sys.exit(1)
+
     if args.write:
         if problems:
             for problem in problems:
@@ -336,20 +358,6 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     # --check
-    #
-    # An empty registry is reported as its own failure rather than as a clean
-    # tree: every per-scenario artifact, including each narrative page's
-    # generated story, would then be checked against nothing and the gate
-    # would pass over the whole set (DF-09-009). Discovery is a pkgutil walk
-    # (DEMOCI-11-002), so an empty result means the walk imported nothing.
-    if not specs:
-        problems.append(
-            "the scenario registry is empty, so this gate compared no "
-            "scenario's artifacts with anything; an empty target set is a "
-            "failure, not a pass (DF-09-009). Check that the scenario "
-            "modules under vultron/demo/scenario/ still import "
-            "(DEMOCI-11-002)."
-        )
     #
     # Only name --write as the remedy when it would actually run: it
     # short-circuits on any missing derived path and writes nothing, so
@@ -385,6 +393,7 @@ if __name__ == "__main__":
 __all__ = [
     "ARTIFACTS",
     "BEGIN_MARKER",
+    "EMPTY_REGISTRY",
     "END_MARKER",
     "HARNESS_README",
     "MATRIX_JSON",

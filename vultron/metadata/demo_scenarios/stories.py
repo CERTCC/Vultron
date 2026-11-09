@@ -77,12 +77,32 @@ from vultron.metadata.demo_scenarios.narrative_pages import (
     NARRATIVE_DIR,
     narrative_dir,
 )
-from vultron.metadata.markdown_tables import iter_sections
+from vultron.metadata.markdown_tables import MarkdownSection, iter_sections
 
 #: Heading the generated story sits under on every narrative page.  One
 #: spelling, read by the renderer that writes it and by the check that looks
 #: for it, so the two cannot disagree (DEMOCI-11-067).
 STORY_HEADING = "The story as the code tells it"
+
+#: The whole heading line a narrative page carries it as.  The level is part
+#: of what :func:`missing_story_includes` asks — a ``###`` nested inside the
+#: last narrative section is not a section of its own — so the two live
+#: together.
+STORY_SECTION = f"## {STORY_HEADING}"
+
+#: The prose between the heading and the numbered list, generated rather than
+#: hand-written on each page.  Eleven hand-copied copies of it would be the
+#: one part of the section that could drift page to page with nothing to catch
+#: it, the heading and the directive both being machine-written (CS-22-001,
+#: DF-10-002).  One whole sentence per line (SG-38).
+PREAMBLE = (
+    "This is the plot of the scenario as the demo code composes it, "
+    "generated from that code.\n"
+    "It is here so a reader can check the narrative above against what the "
+    "demo actually runs; where the two disagree, the narrative is the one "
+    "written independently, so read it as the claim and this as the "
+    "evidence."
+)
 
 #: How a deciding role is written in a story line.  Declared per member rather
 #: than derived from the value, because ``"cve_numbering_authority".title()``
@@ -189,6 +209,8 @@ def render_story(
         "fragment's opening sentence, and re-run the command.\n"
         "-->\n"
         "\n"
+        f"{PREAMBLE}\n"
+        "\n"
         f"{numbered}\n"
     )
 
@@ -218,19 +240,41 @@ def story_fragments(
 _STORY_GLOB = "_*-story.md"
 
 
-def _last_section_with_content(text: str) -> tuple[str, str] | None:
-    """Return the last non-empty section of *text* as ``(heading, body)``.
+def _last_section_with_content(text: str) -> MarkdownSection | None:
+    """Return the last section of *text* that holds anything, or ``None``.
 
     Document order, so "last" is what a reader reaches last.  A section whose
     body is only blank lines is skipped: a bare heading is not where the story
-    is, and treating it as the last section would let one hide the real
-    answer.
+    is, and a trailing one would otherwise hide the real answer.
     """
     for section in reversed(iter_sections(text)):
-        body = "\n".join(line for _number, line in section.lines)
-        if body.strip():
-            return section.heading, body
+        if any(line.strip() for _number, line in section.lines):
+            return section
     return None
+
+
+def _unfenced_body(section: MarkdownSection) -> str:
+    """Return *section*'s body with its fenced code blocks dropped.
+
+    A page that *documents* the include directive in a code block under the
+    story heading would otherwise satisfy the check while including nothing.
+    """
+    return "\n".join(
+        line for number, line in section.lines if number not in section.fenced
+    )
+
+
+def _section_label(section: MarkdownSection | None) -> str:
+    """Return how *section*'s heading is written, for a message.
+
+    With its hashes, because the level is part of what the check asks: a
+    ``### The story as the code tells it`` nested under the last narrative
+    section is the "spliced in among the narrative's own steps" case, and a
+    message naming only the text would read as though the heading were right.
+    """
+    if section is None or not section.heading:
+        return "(no heading)"
+    return f"{'#' * section.level} {section.heading}"
 
 
 def missing_story_includes(
@@ -266,16 +310,15 @@ def missing_story_includes(
         if not page.is_file():
             continue
         last = _last_section_with_content(page.read_text(encoding="utf-8"))
-        heading = "" if last is None else last[0]
-        body = "" if last is None else last[1]
-        if heading != STORY_HEADING:
+        if last is None or (last.heading, last.level) != (STORY_HEADING, 2):
             problems.append(
-                f"{spec.narrative_path} ends with {heading or '(no heading)'!r}"
-                f", not with a '{STORY_HEADING}' section"
+                f"{spec.narrative_path} ends with "
+                f"{_section_label(last)!r}, not with a "
+                f"'{STORY_SECTION}' section"
             )
-        elif include_directive(spec.name) not in body:
+        elif include_directive(spec.name) not in _unfenced_body(last):
             problems.append(
-                f"{spec.narrative_path}'s '{STORY_HEADING}' section does not "
+                f"{spec.narrative_path}'s '{STORY_SECTION}' section does not "
                 f"include {story_path(spec.name)}"
             )
     return problems
@@ -309,7 +352,9 @@ def orphan_story_fragments(
 
 __all__ = [
     "DECIDING_ROLE_LABELS",
+    "PREAMBLE",
     "STORY_HEADING",
+    "STORY_SECTION",
     "choice_line",
     "include_directive",
     "missing_story_includes",

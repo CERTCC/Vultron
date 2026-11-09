@@ -271,6 +271,7 @@ sense the docs actually use.
 *[VEX]: Vulnerability Exploitability eXchange
 *[VF]: Vendor aware, Fix ready — the vendor fix path dimensions
 *[VFD]: Vendor aware, Fix ready, fix Deployed — the vendor-path case state dimensions
+*[VFd]: Vendor aware, Fix ready, fix not yet Deployed — a vendor-path case state in vfd notation
 *[VINCE]: Vulnerability Information and Coordination Environment
 *[VM]: Vulnerability Management
 *[VMs]: Virtual Machines

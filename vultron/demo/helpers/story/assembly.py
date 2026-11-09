@@ -26,7 +26,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from vultron.demo.helpers.cast import CASE_ACTOR, CAST
+from vultron.demo.helpers.cast import ALL_SLOTS
 from vultron.demo.scenario.branch_points import validate_path
 from vultron.demo.scenario.tree import PathStep
 from vultron.errors import DemoStoryError
@@ -103,12 +103,14 @@ def fragment_name(fragment: object, *, scenario: str) -> str:
     return f"{module}.{qualname}"
 
 
-#: Every cast container name: the five actor slots and the dedicated CaseActor
-#: slot (:mod:`vultron.demo.helpers.cast`).  A container is *where* a step
-#: runs, never what it does, so naming one in a fragment's opening sentence
-#: tells a reader of the story nothing about the case (DEMOCI-11-066).
-_CONTAINER_NAMES: frozenset[str] = frozenset(
-    slot.name for slot in (*CAST, CASE_ACTOR)
+#: Every word that names a container rather than the case: each container's
+#: own slug, read from :data:`~vultron.demo.helpers.cast.ALL_SLOTS` so a sixth
+#: slot cannot be added without joining this check, and the bare word
+#: ``container`` itself.  A container is *where* a step runs, never what it
+#: does, so naming one in a fragment's opening sentence tells a reader of the
+#: story nothing about the case (DEMOCI-11-066).
+_CONTAINER_WORDS: frozenset[str] = frozenset(
+    [*(slot.name for slot in ALL_SLOTS), "container", "containers"]
 )
 
 #: A code identifier spelled as words joined by underscores:
@@ -117,6 +119,45 @@ _CONTAINER_NAMES: frozenset[str] = frozenset(
 #: note" and "the Case Owner" — so it is the mechanical signal that a
 #: docstring opened in code rather than in domain terms (DEMOCI-11-066).
 _IDENTIFIER_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b")
+
+#: A code identifier spelled in dotted notation: ``CS.P``, ``EM.ACTIVE``,
+#: ``CVDRole.COORDINATOR``.  One side has to start with a capital, which is
+#: what keeps a sentence's own full stop out of it: ``"Acme Inc. engages"``
+#: has a space after the stop and does not match, and a lowercase pair such
+#: as ``e.g`` is not a name.
+_DOTTED_RE = re.compile(
+    r"\b(?:[A-Z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*"
+    r"|[A-Za-z][A-Za-z0-9_]*\.[A-Z][A-Za-z0-9_]*)\b"
+)
+
+#: A demo milestone marker opening the sentence: ``M1:``, ``M2:``.  The
+#: markers are the harness's own bookkeeping for which checkpoint a run
+#: reached; they say nothing to the CVD reader the story is rendered for
+#: (DEMOCI-11-065), so they belong in the docstring's body.
+_MILESTONE_RE = re.compile(r"^M\d+:")
+
+#: Punctuation that may close a sentence after its full stop, stripped before
+#: the full-stop test so a quoted or parenthesised ending is not refused.
+_CLOSERS = "\"'’”)]"
+
+#: Abbreviations whose own full stop is not the end of a sentence.  Kept short
+#: and extended only when a real fragment needs one: every entry weakens the
+#: one-sentence check for every sentence.
+_ABBREVIATIONS: tuple[str, ...] = (
+    "e.g.",
+    "i.e.",
+    "etc.",
+    "cf.",
+    "vs.",
+    "Inc.",
+    "Ltd.",
+    "Co.",
+)
+
+#: A sentence ending followed by more text: the signal that the summary holds
+#: more than one sentence.  Covers ``?`` and ``!`` as well as the full stop,
+#: because a question a step asks is still a whole sentence.
+_SENTENCE_BREAK_RE = re.compile(r"[.!?]\s+\S")
 
 
 def _opening_paragraph(fragment: object) -> str:
@@ -138,20 +179,34 @@ def _opening_paragraph(fragment: object) -> str:
     return " ".join(summary)
 
 
+def _holds_two_sentences(sentence: str) -> bool:
+    """Whether *sentence* ends one sentence and starts another.
+
+    The abbreviations of :data:`_ABBREVIATIONS` are blanked out first, so
+    their full stops are not read as endings and the author is not told to
+    move a remainder that does not exist.
+    """
+    scanned = sentence
+    for abbreviation in _ABBREVIATIONS:
+        scanned = scanned.replace(abbreviation, "_" * len(abbreviation))
+    return _SENTENCE_BREAK_RE.search(scanned) is not None
+
+
 def _sentence_violations(sentence: str) -> list[str]:
     """Return every way *sentence* is not one sentence in CVD domain terms.
 
     Every violation is reported, not the first: the sentence is refused as a
     unit, so an author told one reason at a time gains nothing from the round
-    trip (EH-07-001).
+    trip (EH-07-001).  Each kind is reported once however often it occurs, so
+    a sentence naming one identifier twice does not print the same line twice.
     """
     violations: list[str] = []
-    if not sentence.endswith("."):
+    if not sentence.rstrip(_CLOSERS).endswith("."):
         violations.append(
             "it does not end in a full stop, so where the sentence ends is a "
             "guess"
         )
-    if ". " in sentence:
+    if _holds_two_sentences(sentence):
         violations.append(
             "it holds more than one sentence; the opening sentence is the "
             "whole of what a story shows for the step, so put the rest in "
@@ -161,15 +216,24 @@ def _sentence_violations(sentence: str) -> list[str]:
         violations.append(
             "it holds a backtick, which marks code rather than domain prose"
         )
+    if _MILESTONE_RE.match(sentence):
+        violations.append(
+            "it opens with a demo milestone marker, which is the harness's "
+            "bookkeeping rather than anything the case did; move it to the "
+            "docstring's body"
+        )
     violations.extend(
         f"it names the code identifier {match!r}"
-        for match in _IDENTIFIER_RE.findall(sentence)
+        for match in sorted(
+            set(_IDENTIFIER_RE.findall(sentence))
+            | set(_DOTTED_RE.findall(sentence))
+        )
     )
     lowered = sentence.lower()
     violations.extend(
-        f"it names the cast container {name!r}"
-        for name in sorted(_CONTAINER_NAMES)
-        if re.search(rf"\b{re.escape(name)}\b", lowered)
+        f"it names the container {word!r}"
+        for word in sorted(_CONTAINER_WORDS)
+        if re.search(rf"\b{re.escape(word)}\b", lowered)
     )
     return violations
 
@@ -184,7 +248,8 @@ def fragment_sentence(fragment: object, *, scenario: str) -> str:
 
     What "a code identifier" is read as, which DEMOCI-11-066 leaves wider
     than the check: a backtick, a name spelled as words joined by
-    underscores, and a cast container slug.  A *requirement or decision id*
+    underscores or in dotted notation, a demo milestone marker, and any word
+    that names a container rather than the case.  A *requirement or decision id*
     in parentheses — ``(CSB-15-002)``, ``(DEMOMA-14-004)`` — is a citation,
     not a code identifier, and is left alone: the narrative pages these
     sentences render into cite requirements in prose themselves, and the

@@ -752,6 +752,38 @@ def _fragment_with_two_sentences(state: StoryState) -> None:
     """The Vendor validates the report. Then it engages the case."""
 
 
+def _fragment_with_two_sentences_split_on_a_question(
+    state: StoryState,
+) -> None:
+    """Does the Vendor accept? It accepts and triages the report."""
+
+
+def _fragment_with_two_sentences_split_on_an_exclamation(
+    state: StoryState,
+) -> None:
+    """The embargo holds! The Vendor keeps the fix unreleased."""
+
+
+def _fragment_naming_dotted_code(state: StoryState) -> None:
+    """The Reporter publishes; CS.P ends the embargo."""
+
+
+def _fragment_naming_the_container_word(state: StoryState) -> None:
+    """The Vendor's container holds the authoritative case."""
+
+
+def _fragment_with_a_milestone_marker(state: StoryState) -> None:
+    """M1: the Reporter and the Vendor are seated."""
+
+
+def _fragment_with_an_abbreviation(state: StoryState) -> None:
+    """The Vendor, Acme Inc. of Pittsburgh, engages the case."""
+
+
+def _fragment_ending_in_a_quote(state: StoryState) -> None:
+    '''The Vendor answers "the embargo holds."'''
+
+
 def _fragment_with_a_backtick(state: StoryState) -> None:
     """The fix being ready leaves the embargo in force (``EM.ACTIVE``)."""
 
@@ -807,22 +839,41 @@ class TestFragmentSentences:
             (_fragment_with_no_docstring, "has no docstring"),
             (_fragment_with_no_full_stop, "does not end in a full stop"),
             (_fragment_with_two_sentences, "more than one sentence"),
+            (
+                _fragment_with_two_sentences_split_on_a_question,
+                "more than one sentence",
+            ),
+            (
+                _fragment_with_two_sentences_split_on_an_exclamation,
+                "more than one sentence",
+            ),
             (_fragment_with_a_backtick, "holds a backtick"),
             (_fragment_naming_an_identifier, "'CASE_OWNER'"),
-            (_fragment_naming_a_container, "cast container 'actor1'"),
+            (_fragment_naming_dotted_code, "'CS.P'"),
+            (_fragment_naming_a_container, "container 'actor1'"),
             (
                 _fragment_naming_the_case_actor_container,
-                "cast container 'case-actor'",
+                "container 'case-actor'",
             ),
+            (
+                _fragment_naming_the_container_word,
+                "container 'container'",
+            ),
+            (_fragment_with_a_milestone_marker, "milestone marker"),
         ],
         ids=[
             "no-docstring",
             "no-full-stop",
             "two-sentences",
+            "two-sentences-question",
+            "two-sentences-exclamation",
             "backtick",
             "identifier",
+            "dotted-identifier",
             "actor-container",
             "case-actor-container",
+            "container-word",
+            "milestone-marker",
         ],
     )
     def test_a_sentence_that_is_not_domain_prose_is_refused(
@@ -838,6 +889,32 @@ class TestFragmentSentences:
 
         assert "rv" in str(raised.value)
 
+    @pytest.mark.spec("DEMOCI-11-065")
+    @pytest.mark.parametrize(
+        "fragment",
+        [_fragment_with_an_abbreviation, _fragment_ending_in_a_quote],
+        ids=["abbreviation", "closing-quote"],
+    )
+    def test_a_legitimate_single_sentence_is_not_refused(
+        self, fragment: Callable[[StoryState], None]
+    ) -> None:
+        """Neither an abbreviation's full stop nor a closing quote is an end.
+
+        Both were false refusals, and the message then told the author to
+        move a remainder into the docstring's body that was not there.
+        """
+        assert fragment_sentence(fragment, scenario="rv").startswith(
+            "The Vendor"
+        )
+
+    @pytest.mark.spec("EH-07-001")
+    def test_one_identifier_named_twice_is_reported_once(self) -> None:
+        """A kind of violation is reported once, however often it occurs."""
+        with pytest.raises(DemoStoryError) as raised:
+            fragment_sentence(_fragment_repeating_an_identifier, scenario="rv")
+
+        assert str(raised.value).count("'add_note'") == 1
+
     @pytest.mark.spec("DEMOCI-11-066")
     def test_every_violation_of_one_sentence_is_reported(self) -> None:
         """One message names all of them, not only the first (EH-07-001).
@@ -852,7 +929,7 @@ class TestFragmentSentences:
         assert "does not end in a full stop" in reported
         assert "holds a backtick" in reported
         assert "'CASE_OWNER'" in reported
-        assert "cast container 'actor0'" in reported
+        assert "container 'actor0'" in reported
 
     @pytest.mark.spec("DEMOCI-11-065")
     def test_a_fragment_with_no_stable_name_is_refused(self) -> None:
@@ -890,3 +967,7 @@ class TestFragmentSentences:
 
 def _bad_in_every_way(state: StoryState) -> None:
     """The ``advisory`` is published by actor0, as CASE_OWNER"""
+
+
+def _fragment_repeating_an_identifier(state: StoryState) -> None:
+    """The add_note step repeats add_note."""
