@@ -105,6 +105,14 @@ class TestScopedIds:
         )
 
 
+def _assert_the_install_is_released() -> None:
+    """The minter draws fresh ids again, and the install slot is free."""
+    assert new_object_id() != _ids_drawn("alpha", 1)[0]
+    marker = uuid.UUID(int=0, version=4)
+    with install_id_source(lambda: marker):
+        assert new_object_id() == f"urn:uuid:{marker}"
+
+
 class TestScopeInstallsItsIdSource:
     """The ids come through the minter's install, not a ``uuid`` patch.
 
@@ -127,12 +135,12 @@ class TestScopeInstallsItsIdSource:
     def test_the_system_source_is_back_after_the_scope(self) -> None:
         with _example_scope("alpha"):
             pass
-        assert new_object_id() != _ids_drawn("alpha", 1)[0]
+        _assert_the_install_is_released()
 
     def test_the_system_source_is_back_after_a_raise(self) -> None:
         with pytest.raises(RuntimeError), _example_scope("alpha"):
             raise RuntimeError("boom")
-        assert new_object_id() != _ids_drawn("alpha", 1)[0]
+        _assert_the_install_is_released()
 
     def test_a_scope_inside_another_install_is_refused(self) -> None:
         """Two streams of ids in one block would take each other's ids."""
