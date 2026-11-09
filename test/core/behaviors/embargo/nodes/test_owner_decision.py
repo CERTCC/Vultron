@@ -15,7 +15,7 @@
 
 """The case owner's decision on an embargo proposal (nodes/owner_decision.py).
 
-``Accept(EmbargoEvent)[target=VulnerabilityCase]`` activates and
+``Add(EmbargoEvent)[target=VulnerabilityCase]`` activates and
 ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects (ADR-0122).  The guards
 refuse a
 decision before the commit; the lifecycle nodes write ``STRICT``; the send
@@ -376,10 +376,10 @@ class TestActivationCommitFaults:
         assert untouched.active_embargo_id == active_id
         assert untouched.proposed_embargo_ids == [revision_id]
 
-    def test_carry_overs_with_no_received_accept_raise(
+    def test_carry_overs_with_no_received_activation_raise(
         self, dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
     ):
-        """A received activation's carry-overs name the received Accept as
+        """A received activation's carry-overs name the received Add as
         their cause; with none on ``/activity`` the tree is miswired."""
         from vultron.core.services.embargo_lifecycle import (
             ActivationDecision,
@@ -557,21 +557,34 @@ def _run(dl: SqliteDataLayer, tree, *, factory=None):
     )
 
 
+#: The relayed Invite the owner's replica received and is answering.
+INVITE_ID = f"{CASE_ID}/embargo_proposals/relayed"
+
+
 def _send(accept: bool) -> SendOwnerEmbargoDecisionNode:
     return SendOwnerEmbargoDecisionNode(
-        case_id=CASE_ID, embargo_id=EMBARGO_ID, accept=accept
+        case_id=CASE_ID,
+        embargo_id=EMBARGO_ID,
+        invite_id=INVITE_ID,
+        accept=accept,
     )
 
 
 class TestSendOwnerEmbargoDecisionNode:
     @pytest.mark.spec("PCR-08-001")
+    @pytest.mark.spec("RF-08-001")
+    @pytest.mark.spec("MSM-07-008")
     @pytest.mark.parametrize(
-        ("accept", "type_"), [(True, "Accept"), (False, "Reject")]
+        ("accept", "type_"), [(True, "Add"), (False, "Reject")]
     )
     def test_queues_the_decision_on_the_embargo_to_the_case_manager(
         self, accept: bool, type_: str
     ):
-        """The object is the EmbargoEvent itself and the target the case."""
+        """The object is the EmbargoEvent itself and the target the case.
+
+        Activation is an ``Add`` (ADR-0180), and both decisions name the
+        Invite the owner received in ``inReplyTo``.
+        """
         dl = _owner_store()
 
         result = _run(dl, _send(accept))
@@ -585,6 +598,7 @@ class TestSendOwnerEmbargoDecisionNode:
         assert queued.to == [MANAGER]
         assert _as_id(queued.object_) == EMBARGO_ID
         assert _as_id(queued.target) == CASE_ID
+        assert queued.in_reply_to == INVITE_ID
 
     @pytest.mark.parametrize(
         ("accept", "called", "not_called"),
@@ -605,6 +619,7 @@ class TestSendOwnerEmbargoDecisionNode:
         assert result.status == Status.SUCCESS
         getattr(factory, called).assert_called_once_with(
             embargo_id=EMBARGO_ID,
+            proposal_id=INVITE_ID,
             case_id=CASE_ID,
             actor=OWNER,
             to=[MANAGER],

@@ -2197,9 +2197,9 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      The Case Owner MAY accept or reject an open revision at any time, without waiting for
-      any other participant to answer the revision Invite. The owner's
-      `Accept(EmbargoEvent)[target=VulnerabilityCase]` activates the revision and the owner's
+      The Case Owner MAY activate or reject an open revision at any time, without waiting
+      for any other participant to answer the revision Invite. The owner's
+      `Add(EmbargoEvent)[target=VulnerabilityCase]` activates the revision and the owner's
       `Reject(EmbargoEvent)[target=VulnerabilityCase]` keeps the prior terms
       (MSM-07-008, MSM-07-009);
       either is committed as a ledger entry and decides the embargo. The owner's `Accept` or
@@ -2229,6 +2229,7 @@ groups:
     adr:
     - ADR-0113
     - ADR-0122
+    - ADR-0180
     stories:
     - story_2026_087
     relationships:

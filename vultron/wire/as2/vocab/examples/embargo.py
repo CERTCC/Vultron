@@ -35,6 +35,7 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Add,
     as_Announce,
     as_Create,
     as_Invite,
@@ -302,12 +303,16 @@ def reject_embargo_revision() -> as_Reject:
     )
 
 
-def activate_embargo() -> as_Accept:
-    """EA: the case owner's activation of the proposed embargo (ADR-0122)."""
+def activate_embargo() -> as_Add:
+    """EA: the case owner's activation of the proposed embargo (ADR-0180).
+
+    ``inReplyTo`` names the ``Invite(EmbargoEvent)`` that proposed it.
+    """
     _case = case()
     _vendor = vendor()
     activity = activate_embargo_activity(
         embargo_event(),
+        in_reply_to=propose_embargo().id_,
         actor=_vendor.id_,
         target=_case.id_,
         context=_case.id_,
@@ -316,11 +321,16 @@ def activate_embargo() -> as_Accept:
 
 
 def reject_embargo_proposal() -> as_Reject:
-    """ER: the case owner's rejection of the proposed embargo (ADR-0122)."""
+    """ER: the case owner's rejection of the proposed embargo (ADR-0122).
+
+    ``inReplyTo`` names the ``Invite(EmbargoEvent)`` that proposed it
+    (ADR-0180).
+    """
     _case = case()
     _vendor = vendor()
     activity = reject_embargo_proposal_activity(
         embargo_event(),
+        in_reply_to=propose_embargo().id_,
         actor=_vendor.id_,
         target=_case.id_,
         context=_case.id_,
@@ -328,7 +338,7 @@ def reject_embargo_proposal() -> as_Reject:
     return activity
 
 
-def activate_embargo_revision() -> as_Accept:
+def activate_embargo_revision() -> as_Add:
     """EC: the case owner's activation of a proposed revision (MSM-02-005).
 
     The revision replaces the active embargo in the same register step.
@@ -336,6 +346,7 @@ def activate_embargo_revision() -> as_Accept:
     _case = case()
     return activate_embargo_activity(
         embargo_event(120),
+        in_reply_to=propose_embargo_revision().id_,
         actor=vendor().id_,
         target=_case.id_,
         context=_case.id_,
@@ -351,6 +362,7 @@ def reject_embargo_revision_proposal() -> as_Reject:
     _case = case()
     return reject_embargo_proposal_activity(
         embargo_event(120),
+        in_reply_to=propose_embargo_revision().id_,
         actor=vendor().id_,
         target=_case.id_,
         context=_case.id_,

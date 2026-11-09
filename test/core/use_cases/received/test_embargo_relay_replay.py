@@ -25,6 +25,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.owner_decision import owner_decision_body
 from test.support.received import (
     assert_held_only_as_received,
     received_event,
@@ -107,24 +108,26 @@ def _propose(net: _Network, suffix: str, days: int) -> str:
 def _owner_decides(
     net: _Network, embargo_id: str, *, accept: bool = True
 ) -> Any:
-    """The owner gets its relayed Invite and decides the proposal (ADR-0122).
+    """The owner gets its relayed Invite and decides the proposal (ADR-0180).
 
     A revision is the owner's to answer (EP-09-006), so its replica holds
     the Invite; the owner then sends its decision for the case —
-    ``Accept`` or ``Reject`` of the embargo itself — to the CASE_MANAGER.
+    ``Add`` or ``Reject`` of the embargo itself, naming that Invite in
+    ``inReplyTo`` — to the CASE_MANAGER.
     """
     for _type, verdict in net.deliver(MANAGER, to=OWNER, type_="Invite"):
         assert verdict.disposition is HandlerDisposition.APPLIED, (
             verdict.reason
         )
-    adapter = TriggerActivityAdapter(net.stores[OWNER])
-    build = (
-        adapter.activate_embargo if accept else adapter.reject_embargo_proposal
+    _, body = owner_decision_body(
+        net.stores[OWNER],
+        net.case_id,
+        embargo_id,
+        owner=OWNER,
+        manager=MANAGER,
+        accept=accept,
     )
-    _, sealed = build(
-        embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
-    )
-    return net.receive(MANAGER, json.loads(sealed))
+    return net.receive(MANAGER, body)
 
 
 def _owner_answers(net: _Network, embargo_id: str) -> None:

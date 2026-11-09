@@ -136,7 +136,7 @@ def test_rcv_embargo_events_recorded_in_order(
     The earliest entry of each type must precede the latest entry of the next:
     the proposal and its relayed invitations share one type, so the check is
     on the first and last of each rather than on a single entry.  The owner's
-    activation is its own type, ``Accept(EmbargoEvent)[target=VulnerabilityCase]``
+    activation is its own type, ``Add(EmbargoEvent)[target=VulnerabilityCase]``
     (ADR-0122), so this proves the owner decided after the Vendor consented
     (EP-09-006) and before the embargo ended; the participants' consent rows
     are asserted by the scenario (DEMOMA-20-009, signatories on the

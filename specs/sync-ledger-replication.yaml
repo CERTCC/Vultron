@@ -176,6 +176,30 @@ groups:
     stories:
     - story_2026_023
     - story_2022_089
+  - id: SYNC-01-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `CaseLedgerEntry`'s hash MUST be computed over the RFC 8785 (JCS)
+      serialization of the content it covers, payload snapshot included.
+    rationale: >-
+      Every receiver recomputes an entry's hash and refuses a mismatch (SYNC-03-006,
+      SYNC-03-012). A peer built in another language reproduces the hash only if the
+      bytes it hashes are fixed by a published rule, not by one serializer's
+      behavior. JCS is that rule: it fixes key order, number form and string escaping,
+      and the signing cryptosuite already uses it (SIG-01-002).
+    verification: >-
+      No check covers this yet: the reference implementation hashes Python's
+      `json.dumps(sort_keys=True, separators=(",", ":"))` form, which escapes
+      non-ASCII text and writes `9.0` where JCS writes `9` (#3659).
+      `test/core/models/test_case_ledger.py::TestCaseLedgerEntry::test_entry_hash_is_over_the_jcs_serialization`
+      is a strict `xfail` until it does.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-01-003
+    stories:
+    - story_2026_023
+    - story_2022_089
   - id: SYNC-01-004
     priority: MUST
     kind: protocol

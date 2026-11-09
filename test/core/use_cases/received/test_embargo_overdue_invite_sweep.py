@@ -35,6 +35,10 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import activate, propose, reject
 from test.support.ledger import is_consent_row_update
+from test.support.owner_decision import (
+    seeded_activation,
+    seeded_proposal_rejection,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -77,10 +81,8 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    activate_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
-    reject_embargo_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -97,13 +99,13 @@ _FUTURE = datetime.now(tz=UTC) + timedelta(days=7)
 
 _DECISIONS = [
     pytest.param(
-        activate_embargo_activity,
+        seeded_activation,
         ActivateEmbargoOnCaseReceivedUseCase,
         "activate_embargo_on_case",
         id="activate",
     ),
     pytest.param(
-        reject_embargo_proposal_activity,
+        seeded_proposal_rejection,
         RejectEmbargoProposalOnCaseReceivedUseCase,
         "reject_embargo_proposal_on_case",
         id="reject-proposal",

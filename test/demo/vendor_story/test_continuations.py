@@ -46,6 +46,12 @@ from vultron.demo.helpers.notes import (
 from vultron.demo.helpers.vendor_story import (
     continuations as vendor_continuations,
 )
+from vultron.demo.utils.check_tree import (
+    CheckKind,
+    recording_checks,
+    walk,
+)
+from vultron.demo.utils.failures import demo_failures
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -55,20 +61,27 @@ pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
 
 @contextlib.contextmanager
 def _recording_checks() -> Iterator[list[str]]:
-    """Stub the continuations' ``demo_check`` and collect its labels.
+    """Record the continuations' ``demo_check`` labels, through the real one.
 
     Each milestone's label is the *caller's* — a scenario numbers its own
     milestones — so the labels are what a test of a shared continuation can
-    pin, and a mock that only swallows them would prove nothing.
+    pin.  Recorded rather than stubbed with a ``nullcontext``: that stub lets
+    an assertion inside the block propagate, so the test passes while proving
+    nothing, which is the shape ``vultron/demo/AGENTS.md`` § "Gate Each Step
+    on Its Cause" rule 8 names.  The recorder keeps the real
+    accumulate-and-continue behaviour (DEMOCI-01-003, DEMOCI-01-010) and
+    reports the same labels (DEMOCI-11-056).
+
+    The list fills as the block leaves, so read it after the ``with``.
     """
     labels: list[str] = []
-
-    def _check(label: str):
-        labels.append(label)
-        return contextlib.nullcontext()
-
-    with patch.object(vendor_continuations, "demo_check", side_effect=_check):
+    with recording_checks() as recorder:
         yield labels
+    labels.extend(
+        node.label
+        for node in walk(recorder.tree())
+        if node.kind is CheckKind.CHECK
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +143,38 @@ class TestRequiredParticipantsArePresent:
 
 class TestTheFixReadyReachedTheReporter:
     """One copy of the check every scenario of the family makes twice."""
+
+    @pytest.mark.spec("DEMOCI-01-003", "DEMOCI-01-010")
+    def test_a_failed_milestone_is_recorded_and_the_rest_still_run(self):
+        """What the `nullcontext` stub hid (#6127).
+
+        A `demo_check` records its failure and lets execution continue; under
+        the stub the assertion propagated out of the block instead, so a test
+        of a continuation passed while proving nothing.
+        """
+        state = family_state()
+
+        with (
+            patch.object(
+                vendor_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(
+                vendor_continuations,
+                "verify_fix_ready",
+                side_effect=AssertionError("the fix never landed"),
+            ) as milestone,
+            _recording_checks() as labels,
+        ):
+            family.the_fix_ready_reached_the_reporter(
+                state, milestones=("M4", "M5")
+            )
+
+        assert labels == ["M4", "M5"], "the second milestone was skipped"
+        assert milestone.call_count == 2
+        assert [failure.split(":")[0] for failure in demo_failures()] == [
+            "CHECK FAILED",
+            "CHECK FAILED",
+        ]
 
     @pytest.mark.spec("DEMOMA-17-002")
     def test_each_milestone_label_repeats_the_same_check(self):

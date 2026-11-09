@@ -62,5 +62,6 @@ a merge; see [testing-pitfalls.md](testing-pitfalls.md).
 
 | Job name | Issue | Last blocked |
 |---|---|---|
+| `Tests (pytest) rest` — a worker segfaults when the per-test store disposal closes a SQLite connection the sender-sequence hold timer is reading through | #6148 | 2026-11-09 |
 | `rcvv-embargo Demo Integration` — `Vendor2 received the full-case Invite` gate times out while Vendor2's replica replays the backfill | #4424 | 2026-10-12 |
 | `rcvv-embargo Invariant Harness` | #4424 | 2026-10-12 |

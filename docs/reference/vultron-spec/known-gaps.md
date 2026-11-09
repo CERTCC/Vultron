@@ -18,6 +18,7 @@ When the tests show that `main` meets all of a requirement, the requirement leav
 
 The page has three sections.
 The first lists the requirements that a test shows `main` does not yet meet, with the issues that track the work.
+Their rows in the [Requirements Catalog](requirements/index.md), and every callout of them, carry the marker "Not yet in the reference implementation".
 The second lists the requirements that `main` meets only in part.
 Some of their tests pass, but at least one test is held as an expected failure or a skip, and the section names the issues that track the held part.
 

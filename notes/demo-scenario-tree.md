@@ -418,21 +418,42 @@ vendor-first half, whose Reporter tells a Vendor.
   10 ms on every read, so one added `now_utc()` call shifts every later timestamp, and
   one extra id draw shifts every later id; neither is a change in what the scenario
   does. A byte comparison would fail on both, which is why comparing a fresh run with
-  the committed files was rejected.
+  the committed files was rejected. A cast actor's URI is left spelled out: it is
+  derived from a fixed container address (DEMOCI-11-020), so it never shifts, and a
+  diff that still names `actor1` is one a person can read. **Dropping timestamps costs
+  coverage**: a time the protocol *derives* reads the same as one the clock minted, so
+  an embargo's `startTime` and `endTime`, an invite's `rsvpDeadline` and the embargo
+  name that quotes them all go with the clock. A change to the default embargo window
+  or the RSVP window therefore compares equal, and the gate is not a check on those
+  constants.
 - **A deliberate verdict change takes the `demo-verdict-change` label.** It belongs in
   its own change (DEMOMA-17-004); the label passes the job, and the job still prints
   the diff to its summary, so the opt-out shows what it admits (DEMOCI-11-063,
-  DEMOCI-11-064). The comparison fails on an empty scenario set (DEMOCI-11-062,
-  DF-09-009).
+  DEMOCI-11-064). The two halves are declared separately: `compare-demo-runs` takes
+  `--allow-difference`, which prints every difference and exits zero, and the job
+  passes that flag exactly when the pull request carries the label (#6026). A
+  difference exits 4 rather than 1, so an opt-out keyed on "non-zero" cannot excuse a
+  crashed recorder as a deliberate change. The comparison fails on an empty scenario
+  set (DEMOCI-11-062, DF-09-009).
 - **The plot manifest catches a reorder for free.** It lists each story's choices and
   fragment names, read without running anything, and drift-fails on any change in
   order (DEMOCI-11-034, DEMOCI-11-035). `TestSharedPrefixes` compares two *committed*
   recordings with each other, so a reordered shared fragment moves both alike and
-  still passes it. Until the base-versus-head job is built, run
-  `export-demo-recordings --report-changes` from a clean tree in any PR that edits a
-  fragment, and read the composed fragments' checks against the base by hand. Run it
-  once: the first run overwrites the committed files, so a second compares them with
-  themselves (#5589).
+  still passes it. Until the base-versus-head job is built (#6026), run the comparison
+  by hand in any PR that edits a fragment: `uv run compare-demo-runs --write
+  /tmp/runs/base` on the base commit and `--write /tmp/runs/head` on the head, then
+  `uv run compare-demo-runs --base /tmp/runs/base --head /tmp/runs/head`. **Two
+  directories, outside the repository**: one name in both positions makes the head
+  write overwrite the base and the comparison compare a directory with itself, which
+  reports every scenario unchanged — the silent pass of #5589 again, so the command
+  refuses it. It reads both traces, so it needs no clean tree and overwrites no
+  committed file, and nothing is left to be read against the base by hand. Step-mark
+  drift stays the scheduled `demo-recordings` run's business: a mark can move to a
+  different ledger tail with the ledger unchanged, and the comparison *compares*
+  neither the marks nor the committed files. It does still **read** the marks — a run
+  that leaves none, or leaves them out of its declared path's order, fails
+  `record_scenario` outright (exit 1, a crashed recorder), so that is the one kind of
+  step-mark defect the comparison does report.
 - **The plot renders as a story a domain expert can read.** Every fragment the
   manifest names opens its docstring with one sentence in CVD domain terms, with no
   code identifier, helper or container (DEMOCI-11-065, DEMOCI-11-066). Each narrative

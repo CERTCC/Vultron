@@ -280,7 +280,8 @@ def test_owner_answer_to_first_proposal_does_not_depend_on_its_entry(
         # One in-memory store per actor id: close it before the next order.
         dl.close()
 
-    assert answers[False] == ["Accept"]
+    # The owner's acceptance is its activation for the case (ADR-0180).
+    assert answers[False] == ["Add"]
     assert answers[True] == answers[False]
 
 

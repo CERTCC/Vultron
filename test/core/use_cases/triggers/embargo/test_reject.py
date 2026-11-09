@@ -152,6 +152,8 @@ def test_each_deliberate_reject_is_a_new_activity(
 
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("VAM-05-009")
+@pytest.mark.spec("RF-08-001")
 def test_manager_reject_embargo_commits_the_decision(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -180,6 +182,8 @@ def test_manager_reject_embargo_commits_the_decision(
     assert activity["type"] == "Reject"
     assert activity["object"]["id"] == embargo_id
     assert activity["target"] == case.id_
+    # The decision names the Invite the trigger resolved (ADR-0180).
+    assert activity["inReplyTo"] == proposal_id
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.NONE
     assert updated.proposed_embargo_ids == []

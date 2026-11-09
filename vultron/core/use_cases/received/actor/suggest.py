@@ -121,6 +121,11 @@ class OfferActorToCaseReceivedUseCase:
             offer_content = None
         elif not isinstance(offer_content, str) or not offer_content.strip():
             offer_content = None
+        # Fall back to ``summary`` when no ``content`` is present (CM-16-005).
+        if offer_content is None:
+            offer_summary = getattr(request.activity, "summary", None)
+            if isinstance(offer_summary, str) and offer_summary.strip():
+                offer_content = offer_summary
 
         suggested_roles = getattr(request.activity, "suggested_roles", None)
         if suggested_roles is not None and not isinstance(

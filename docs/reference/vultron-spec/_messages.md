@@ -201,7 +201,8 @@ A participant proposes or answers terms by writing to the CASE_MANAGER, which as
 !!! warning "A revision proposal and an initial proposal are the same activity"
     Embargo Revision Proposal (`EV`), Embargo Revision Rejection (`EJ`) and Embargo Revision Acceptance (`EC`) share their wire activities with Embargo Proposal (`EP`), Embargo Proposal Rejection (`ER`) and Embargo Proposal Acceptance (`EA`).
     The activity does not encode the difference.
-    `EA` and `EC` are both the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`, and `ER` and `EJ` are both its `Reject(EmbargoEvent)[target=VulnerabilityCase]`.
+    `EA` and `EC` are both the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`, which adds the embargo to the case, and `ER` and `EJ` are both its `Reject(EmbargoEvent)[target=VulnerabilityCase]`.
+    Each of the four names the `Invite(EmbargoEvent)` that proposed the embargo in `inReplyTo`.
     `ER` is also the CASE_MANAGER's `Reject(Invite(EmbargoEvent))` that abandons a proposal.
     A participant's `Accept` or `Reject` of the `Invite` it was sent is its own consent, carries no shorthand, and moves no embargo state (MSM-02-010).
 

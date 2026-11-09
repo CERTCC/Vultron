@@ -196,26 +196,46 @@ class TestOfferActorToCaseReceivedUseCase:
         assert [getattr(q, "to", None) for q in offers] == [[local_actor_id]]
 
     @pytest.mark.spec("CM-16-020")
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "CM-16-020: the forwarded Offer(CaseParticipant) does not carry "
-            "the recommender's reason yet. Tracked by #5642."
-        ),
+    @pytest.mark.spec("CM-16-005")
+    @pytest.mark.parametrize(
+        ("reason_fields", "expected"),
+        [
+            pytest.param(
+                {"content": "This vendor maintains the affected library."},
+                "This vendor maintains the affected library.",
+                id="content",
+            ),
+            pytest.param(
+                {"summary": "Coordinator has expertise in this vul class."},
+                "Coordinator has expertise in this vul class.",
+                id="summary-when-no-content",
+            ),
+            pytest.param(
+                {
+                    "content": "This vendor maintains the affected library.",
+                    "summary": "Short summary.",
+                },
+                "This vendor maintains the affected library.",
+                id="content-over-summary",
+            ),
+        ],
     )
     def test_offer_actor_to_case_forwards_the_recommenders_reason(
-        self, make_payload, seed_case_manager
+        self, make_payload, seed_case_manager, reason_fields, expected
     ):
-        """The recommender's reason reaches the Case Owner as ``content``."""
+        """The recommender's reason reaches the Case Owner as ``content``.
+
+        The reason is the Offer(Actor)'s ``content``, or its ``summary`` when
+        it has no content (CM-16-005).
+        """
         dl, _, case_id = self._setup_dl(seed_case_manager)
-        reason = "This vendor maintains the affected library."
         activity = recommend_actor_activity(
             as_Actor(id_="https://example.org/actors/vendor-new"),
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
             to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
-            content=reason,
+            **reason_fields,
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
@@ -234,7 +254,7 @@ class TestOfferActorToCaseReceivedUseCase:
             if str(getattr(dl.read(a), "type_", "")) == "Offer"
         ]
         assert len(forwarded) == 1
-        assert reason in str(getattr(forwarded[0], "content", None) or "")
+        assert getattr(forwarded[0], "content", None) == expected
 
     @pytest.mark.spec("CM-23-018")
     def test_offer_actor_to_case_from_a_closed_recommender_is_refused(

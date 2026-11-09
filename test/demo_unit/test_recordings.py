@@ -100,6 +100,11 @@ def _stub_recording(name: str) -> Recording:
     return Recording(name, f"{name}\n", ())
 
 
+def _stub_run(name: str) -> runner.RecordedRun:
+    """What a stubbed ``record_scenario`` of *name* returns: no check tree."""
+    return runner.RecordedRun(_stub_recording(name), checks=())
+
+
 def _ledger_files() -> list[Path]:
     return sorted(RECORDINGS_DIR.glob("*/*.jsonl")) + sorted(
         SYNTHETIC_DIR.glob("*.jsonl")
@@ -605,7 +610,7 @@ class TestCli:
         monkeypatch.setattr(
             cli,
             "record_scenario",
-            lambda spec, _topology: _stub_recording(spec.name),
+            lambda spec, _topology: _stub_run(spec.name),
         )
         result = CliRunner().invoke(cli.main, ["--scenario", "rv"])
         assert result.exit_code == 0, result.output
@@ -628,7 +633,7 @@ class TestCli:
         monkeypatch.setattr(
             cli,
             "record_scenario",
-            lambda spec, _topology: _stub_recording(spec.name),
+            lambda spec, _topology: _stub_run(spec.name),
         )
         for name in ("rv", "rvv"):
             write_recording(_stub_recording(name))
@@ -671,7 +676,7 @@ class TestCli:
         monkeypatch.setattr(
             cli,
             "record_scenario",
-            lambda spec, _topology: _stub_recording(spec.name),
+            lambda spec, _topology: _stub_run(spec.name),
         )
         result = CliRunner().invoke(cli.main, [])
         assert result.exit_code == 0, result.output
