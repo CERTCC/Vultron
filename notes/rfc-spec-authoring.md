@@ -8,8 +8,9 @@ description: >
   pages, annex pages, Open Questions, hidden full.md) and the fragments each
   page includes, the full.md in-page link rewrite, fragment kinds and naming,
   annex embedding, the section citation convention, normative text rendered
-  from the YAML (callouts and the Requirements Catalog), source treatment, STE
-  style, and the DAG-first authoring workflow.
+  from the YAML (callouts and the Requirements Catalog) and the generated
+  not-yet-implemented marker on their rows, source treatment, STE style, and
+  the DAG-first authoring workflow.
 related_notes:
   - notes/documentation-strategy.md
   - notes/rfc-review-rubric.md
@@ -365,6 +366,14 @@ Rules for the narrative around them:
   holding either tier fails `test_real_placement_table_is_sound` until it is
   placed on a catalog page; the requirement files carry no placement field.
   `render_catalog_page` in `docs_render/pages.py` renders a page by its key.
+- **Implementation status is generated, never written.** The catalog row and
+  every callout of an xfail-only requirement carry the "Not yet in the
+  reference implementation" marker, linking the issues its holds cite; the
+  renderers read it from `spec-coverage`'s states at build time, so it drops
+  when the test passes (DF-12-021). Do not label a requirement's status by
+  hand, and never write prose beside its callout saying `main` does it
+  (DF-12-022). A partly-met requirement is unmarked and listed only on the
+  known-gaps page.
 - **Renderers learn their page.** The renderers learn the page they print on
   from the `exec_page.py` hook, so a fragment shared by several pages links
   correctly on each, in-page on `full.md`.

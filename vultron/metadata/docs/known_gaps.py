@@ -63,6 +63,7 @@ from vultron.metadata.specs.coverage import (
     RequirementCoverage,
     compute_implementer_coverage,
 )
+from vultron.metadata.specs.docs_render.rows import ISSUE_URL, issue_links
 from vultron.metadata.specs.registry import SpecRegistry
 
 #: ``docs/``-relative path of the page that includes the fragment.
@@ -70,9 +71,6 @@ PAGE = "reference/vultron-spec/known-gaps.md"
 
 #: Repository-relative path of the generated fragment.
 FRAGMENT_PATH = "docs/reference/vultron-spec/_known-gaps.md"
-
-#: Where an issue number cited by an ``xfail`` reason links.
-ISSUE_URL = "https://github.com/CERTCC/Vultron/issues/{number}"
 
 XFAIL_ONLY_HEADING = "## Requirements a test shows `main` does not yet meet"
 PARTLY_MET_HEADING = "## Requirements a test shows `main` meets only in part"
@@ -131,20 +129,6 @@ def _callout(spec_ids: Iterable[str]) -> list[str]:
     ]
 
 
-def cited_issues(requirement: RequirementCoverage) -> tuple[int, ...]:
-    """The issue numbers the holds on *requirement*'s tests cite, sorted."""
-    return tuple(
-        sorted({n for test in requirement.xfail_tests for n in test.issues})
-    )
-
-
-def _issue_links(issues: tuple[int, ...]) -> str:
-    links = [f"[#{n}]({ISSUE_URL.format(number=n)})" for n in issues]
-    if len(links) <= 2:
-        return " and ".join(links)
-    return ", ".join(links[:-1]) + f", and {links[-1]}"
-
-
 def _by_issues(
     requirements: Iterable[RequirementCoverage],
 ) -> dict[tuple[int, ...], list[str]]:
@@ -152,7 +136,7 @@ def _by_issues(
     number order."""
     groups: dict[tuple[int, ...], list[str]] = {}
     for requirement in requirements:
-        groups.setdefault(cited_issues(requirement), []).append(requirement.id)
+        groups.setdefault(requirement.cited_issues, []).append(requirement.id)
     return {
         issues: sorted(ids)
         for issues, ids in sorted(
@@ -209,7 +193,7 @@ def _held_groups(
     for requirement in held:
         catalog_location(requirement.id, registry, pages)
     return {
-        (f"Tracked by {_issue_links(issues)}" if issues else _NO_ISSUE): ids
+        (f"Tracked by {issue_links(issues)}" if issues else _NO_ISSUE): ids
         for issues, ids in _by_issues(held).items()
     }
 
@@ -279,7 +263,6 @@ __all__ = [
     "UNTESTED_HEADING",
     "UNTESTED_LABEL",
     "XFAIL_ONLY_HEADING",
-    "cited_issues",
     "known_gaps_fragment",
     "render_fragment",
 ]

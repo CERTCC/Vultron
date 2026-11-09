@@ -30,6 +30,13 @@ variable rather than a module global, because the per-kind requirement pages'
 exec blocks purge ``vultron`` modules from ``sys.modules`` before they import;
 ``markdown-exec`` passes ``MKDOCS_CONFIG_DIR`` to its blocks the same way.
 
+An ``on_pre_build`` hook likewise records a fresh build id in
+:data:`EXEC_BUILD_ENV`, so a renderer can compute what one build shares, such
+as the not-yet-implemented markers read from the whole ``test/`` tree
+(DF-12-021), once per build instead of checking the tree on every call.
+``mkdocs serve`` runs the hook before each rebuild, so an edit reaches the next
+one.
+
 Registered under ``hooks:`` in ``mkdocs.yml``. MkDocs loads a hook by file
 path, so this module imports only the standard library and MkDocs itself.
 """
@@ -37,6 +44,7 @@ path, so this module imports only the standard library and MkDocs itself.
 from __future__ import annotations
 
 import os
+import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -48,6 +56,21 @@ EXEC_PAGE_ENV = "VULTRON_DOCS_PAGE"
 """Holds the ``docs/``-relative source path of the page being rendered."""
 
 
+EXEC_BUILD_ENV = "VULTRON_DOCS_BUILD"
+"""Holds an id unique to the build in progress; unset outside a build."""
+
+
+def on_pre_build(*, config: MkDocsConfig) -> None:
+    """Record a new build id, so per-build caches start empty.
+
+    The id is the monotonic clock, raised past the id still recorded when the
+    clock has not ticked since (a coarse clock), so each build's id differs.
+    """
+    previous = os.environ.get(EXEC_BUILD_ENV, "")
+    floor = int(previous) + 1 if previous.isdigit() else 0
+    os.environ[EXEC_BUILD_ENV] = str(max(time.monotonic_ns(), floor))
+
+
 def on_pre_page(page: Page, *, config: MkDocsConfig, files: Files) -> Page:
     """Record *page* as the page whose exec blocks run next."""
     os.environ[EXEC_PAGE_ENV] = page.file.src_uri
@@ -55,8 +78,9 @@ def on_pre_page(page: Page, *, config: MkDocsConfig, files: Files) -> Page:
 
 
 def on_post_build(*, config: MkDocsConfig) -> None:
-    """Forget the last page, so nothing outside the build reads it."""
+    """Forget the last page and the build, so nothing outside it reads them."""
     os.environ.pop(EXEC_PAGE_ENV, None)
+    os.environ.pop(EXEC_BUILD_ENV, None)
 
 
 def on_build_error(*, error: Exception) -> None:
@@ -66,6 +90,14 @@ def on_build_error(*, error: Exception) -> None:
     next build must not start with the failed one's page recorded.
     """
     os.environ.pop(EXEC_PAGE_ENV, None)
+    os.environ.pop(EXEC_BUILD_ENV, None)
 
 
-__all__ = ["EXEC_PAGE_ENV", "on_build_error", "on_post_build", "on_pre_page"]
+__all__ = [
+    "EXEC_BUILD_ENV",
+    "EXEC_PAGE_ENV",
+    "on_build_error",
+    "on_post_build",
+    "on_pre_build",
+    "on_pre_page",
+]

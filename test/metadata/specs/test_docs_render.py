@@ -1367,6 +1367,9 @@ def test_renderers_default_to_the_repository_registry(monkeypatch):
 
     monkeypatch.setenv(EXEC_PAGE_ENV, _CALLOUT_PAGE)
     monkeypatch.setattr(docs_render, "_registry_cache", {})
+    # The markers scan the whole test tree; test_not_yet_implemented_marker.py
+    # covers that default.
+    monkeypatch.setattr(docs_render, "_docs_not_yet_implemented", lambda: {})
     md = requirement_callout("VM-10-001")
     assert "[`VM-10-001`](../requirements/messages/#vm-10-001)" in md
     [cached] = docs_render._registry_cache.values()
