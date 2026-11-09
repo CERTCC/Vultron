@@ -122,11 +122,6 @@ _SEED_FRAGMENTS = (_PROP_CLASS, f".{_KEEP}(", f".{_READ}(")
 
 _FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
 
-#: How deep a chain of local aliases is followed before giving up.  A loop
-#: over a local tuple of props is two hops; nothing in the tree is deeper.
-_ALIAS_DEPTH = 8
-
-
 # ---------------------------------------------------------------------------
 # What the scan finds
 # ---------------------------------------------------------------------------
@@ -387,10 +382,13 @@ def _resolve(
     named_parameters: set[str] = set(outright & parameters)
     through_alias: set[str] = set()
     frontier: set[str] = set((outright & aliased) - parameters)
+    #: Followed to a fixed point rather than to a depth cap.  A cap would make
+    #: a chain longer than it read as unkept, which is the one direction this
+    #: scan must not err in: it would fail correct code.  ``seen`` grows by the
+    #: whole frontier each round and is bounded by the alias map, so the loop
+    #: terminates on a cyclic binding as well as an acyclic one.
     seen: set[str] = set(frontier)
-    for _ in range(_ALIAS_DEPTH):
-        if not frontier:
-            break
+    while frontier:
         reached = frozenset(
             source for name in frontier for source in aliases.get(name, ())
         )
@@ -1358,3 +1356,35 @@ def test_a_prop_in_a_package_init_is_enumerated() -> None:
     assert [found.where for found in sites.declarations] == [
         "vultron/demo/helpers/vendor_story/__init__.py::ENGAGED_CASE"
     ]
+
+
+def test_a_long_alias_chain_and_a_cyclic_one_both_resolve() -> None:
+    """The alias reading follows a chain to its end, and survives a cycle.
+
+    It runs to a fixed point rather than to a depth cap, because a cap would
+    report a prop beyond it as kept by nobody — failing correct code, the one
+    direction this scan must not err in.  A cyclic binding is the reason the
+    fixed point is bounded by the alias map rather than by the chain.
+    """
+    chain = "".join(f"    step_{n} = step_{n - 1}\n" for n in range(1, 24))
+    sites = _planted(
+        (
+            "helpers/coordinated_embargo_story.py",
+            (
+                "DEEP: StoryProp[str] = StoryProp('deep', str)\n"
+                "\n"
+                "def keep_it(state: StoryState) -> None:\n"
+                "    step_0 = DEEP\n"
+                f"{chain}"
+                "    loop_a = loop_b\n"
+                "    loop_b = loop_a\n"
+                f"    state.keep(step_{23}, value)\n"
+                "    state.keep(loop_a, value)\n"
+                "\n"
+                "def read_it(state: StoryState) -> None:\n"
+                "    state.kept(DEEP)\n"
+            ),
+        ),
+    )
+    assert sites.aliased_keeps & sites.constants == {"DEEP"}
+    assert sites.without_a_keeper() == []
