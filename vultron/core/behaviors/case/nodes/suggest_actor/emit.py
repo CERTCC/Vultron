@@ -170,6 +170,10 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
     The original offer ID is carried in the ``origin`` field so the Case Owner
     can trace the causal chain (CM-16-004).
 
+    When ``offer_content`` is provided, it is forwarded as the ``content``
+    of the transformed ``Offer(CaseParticipant)`` so the Case Owner can
+    decide on the suggestion with the recommender's evidence (CM-16-020).
+
     Reads ``suggested_roles_{recommendation_id_segment}`` from the blackboard
     (namespaced per BTND-03-004); falls back to ``[CVDRole.VENDOR]`` when the
     key is absent.
@@ -186,6 +190,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
         recommender_id: str,
         recommended_id: str,
         case_id: str,
+        offer_content: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -193,6 +198,9 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
         self.recommender_id = recommender_id
         self.recommended_id = recommended_id
         self.case_id = case_id
+        self.offer_content = (
+            (offer_content.strip() or None) if offer_content else None
+        )
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -257,6 +265,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
             origin=self.recommendation_id,
             to=[owner_id],
             roles=roles,
+            content=self.offer_content,
             id_=offer_case_participant_id(
                 self.actor_id, self.case_id, self.recommendation_id
             ),

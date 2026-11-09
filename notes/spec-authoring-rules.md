@@ -35,7 +35,8 @@ related_specs:
   - specs/actor-knowledge-model.yaml (AKM-05-003, the inline-object ruling)
   - specs/http-protocol.yaml (HTTP-03, the status-code ruling)
   - specs/inbox-endpoint.yaml (IE-07-001, IE-07-002, IE-11-001)
-  - specs/diataxis-requirements.yaml (DF-12-020, the known-gaps drift check)
+  - specs/diataxis-requirements.yaml (DF-12-020, the known-gaps drift check;
+    DF-12-021, the not-yet-implemented marker)
 related_notes:
   - notes/specs-vs-adrs.md
   - notes/actor-knowledge-model.md
@@ -408,6 +409,10 @@ f-string of module string constants, which the reader resolves.
 Adding or removing the `xfail` changes the requirement's state, so regenerate
 the known-gaps fragment with `uv run docs-site --write` in the same PR; a stale
 fragment fails CI (DF-12-020).
+The same state puts the "Not yet in the reference implementation" marker on
+the requirement's catalog row and callouts, and the build drops it when the
+`xfail` goes, so cite the tracking issue as `#N` in the reason: the marker
+links it (DF-12-021).
 
 ---
 

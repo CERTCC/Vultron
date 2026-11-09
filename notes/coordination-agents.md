@@ -13,16 +13,16 @@ tracks:
   - "#3421"
   - "#3423"
   - "#3426"
-  - "#3427"
   - "#6078"
+  - "#6147"
 description: >
   Design for the capability layer's unbuilt work: core-owned typed-port
   contracts and renamed shape base classes (#3421), the call-out latency budget
-  (#3423), open per-shape questions (#3427), the participant-suggestion port (#3426), and
-  the Sentinel call-in pattern (#2450). Also routes a design question to a
-  capability, an ask, or a call-in monitor, and says why Sentinel is not a fifth
-  shape; the call-in and call-out surfaces themselves are defined in
-  call-out-configuration.md.
+  (#3423), the read-first Retriever guard (#6147), the participant-suggestion
+  port (#3426), and the Sentinel call-in pattern (#2450). Also routes a design
+  question to a capability, an ask, or a call-in monitor, and says why Sentinel
+  is not a fifth shape; the call-in and call-out surfaces themselves are
+  defined in call-out-configuration.md.
 related_notes:
   - notes/bt-integration.md
   - notes/agentic-workflow.md
@@ -31,6 +31,7 @@ related_notes:
 related_specs:
   - specs/behavior-tree-node-design.yaml
   - specs/behavior-tree-integration.yaml
+  - specs/case-ledger-processing.yaml
 relevant_packages:
   - vultron/core/behaviors/call_out
   - vultron/demo/fuzzer
@@ -164,14 +165,26 @@ All four shapes share one convention: synchronous, in-process,
 - **Evaluator** — receives case context and the decision; returns a structured
   answer that routes the BT. SSVC decision points (decision point + enumerated
   answers) are a natural input/output schema.
-- **Retriever** — returns external facts. Should not re-query a fact already in
-  the DataLayer; caching is also how a slow lookup meets the BT-18-015 budget.
-  Caching and staleness policy is open (#3427).
+- **Retriever** — returns external facts. Where the case or the actor's own
+  store already holds the fact, the tree reads it there and does not call the
+  Retriever: a repeat call costs budget and can contradict the case
+  (#6147). Any cache of external data belongs to the capability
+  implementation, which alone knows how fast its source changes, so where the
+  cache lives, how long an entry stays fresh and what clears it are its choice;
+  the call-out seam provides none (BT-18-029). A stale answer is the
+  implementation's wrong answer, like any other. Caching is also how a slow
+  lookup meets the BT-18-015 budget.
 - **Composer** — produces a content artifact (notification body, advisory draft)
   written to its output port; it does not steer control flow unless it fails.
-  Auto-send versus human review is deployment policy. Open (#3427): which nodes
-  consult a Composer, how it relates to `vultron/core/behaviors/note/`, and
-  whether reusing prior advisory text makes it a composite with a Retriever.
+  Auto-send versus human review is deployment policy. A tree that carries
+  content its caller supplied consults no Composer: the note trees under
+  `vultron/core/behaviors/note/` take `note_content` from the trigger, and an
+  actor that wants a drafted note drafts it before it calls the trigger. A
+  Composer sits only at a step where the tree itself produces the artifact, such
+  as `DraftAdvisoryArtifact`, `ReviseAdvisoryDraft`, `CreateFix` and `AssignId`
+  (BT-18-030). Reusing prior advisory text is that Composer's own choice, not a
+  composite with a Retriever: a composite exists only when the protocol needs
+  the parts as separate answers.
 - **Actuator** — causes an external side effect (e.g. `OnEmbargoExit`,
   `InjectParticipant`, `RemoveRecipient` hooks) and answers yes, no or error
   like every backend (ADR-0183). It acts on one target per call, keyed on an id
@@ -186,6 +199,15 @@ Auto-execute versus advisory (human confirms) is orthogonal to shape: one
 Evaluator can run in either mode by deployment configuration, so a call-out point
 must handle both. Recording each recommendation with its outcome (accepted as-is
 or overridden) is what lets an Evaluator earn promotion to auto-execute.
+
+A capability's output never enters the case ledger as itself. The ledger holds
+acts and case-file changes, not an actor's own observability content or a
+decision that changes nothing (CLP-07-001, CLP-07-004, CLP-07-013), so a verdict
+reaches it only through the act or change it leads to. The recommendation
+records above, and the rationale behind a verdict, stay in the actor's own
+store; otherwise one actor's private triage would replicate to every
+participant. An actor that wants others to see its reasoning sends it, for
+example as a Note.
 
 ## Participant Suggestion: One Port, Two Callers (#3426)
 
@@ -216,3 +238,5 @@ or overridden) is what lets an Evaluator earn promotion to auto-execute.
 - **The demo answers from a declared table** (BT-24-007): no directory or
   recommender service is built. Retriever-plus-Evaluator search and affinity
   memory are implementation choices behind the port, not part of its contract.
+  Affinity memory is the adapter's own store, under the same rule as a
+  Retriever cache (BT-18-029), and never enters the case ledger.
