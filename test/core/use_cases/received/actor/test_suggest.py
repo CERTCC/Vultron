@@ -229,6 +229,42 @@ class TestOfferActorToCaseReceivedUseCase:
         assert len(forwarded) == 1
         assert reason in str(getattr(forwarded[0], "content", None) or "")
 
+    @pytest.mark.spec("CM-16-020")
+    @pytest.mark.spec("CM-16-005")
+    def test_offer_actor_to_case_forwards_summary_when_no_content(
+        self, make_payload, seed_case_manager
+    ):
+        """When the Offer(Actor) carries ``summary`` but no ``content``, the
+        forwarded Offer(CaseParticipant) carries the summary as ``content``."""
+        dl, _, case_id = self._setup_dl(seed_case_manager)
+        reason = "Coordinator has expertise in this vulnerability class."
+        activity = recommend_actor_activity(
+            as_Actor(id_="https://example.org/actors/vendor-new"),
+            target=_case_ref(case_id),
+            actor=self._RECOMMENDER_ID,
+            to=[TEST_ACTOR_ID],
+            suggested_roles=["vendor"],
+            summary=reason,
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
+
+        result = OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
+
+        forwarded = [
+            dl.read(a)
+            for a in dl.outbox_list()
+            if str(getattr(dl.read(a), "type_", "")) == "Offer"
+        ]
+        assert len(forwarded) == 1
+        assert reason in str(getattr(forwarded[0], "content", None) or "")
+
     @pytest.mark.spec("CM-23-018")
     def test_offer_actor_to_case_from_a_closed_recommender_is_refused(
         self, make_payload, seed_case_manager
