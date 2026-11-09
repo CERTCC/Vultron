@@ -22,6 +22,8 @@ import pytest
 
 from vultron.metadata.csaf import regenerate
 from vultron.metadata.csaf.regenerate import (
+    GENERATED_MARKER,
+    ForeignModuleError,
     UnpinnedReferenceError,
     render_models,
     stage_pinned_copy,
@@ -174,7 +176,7 @@ def test_a_hand_edit_and_a_stray_module_are_stale(tmp_path: Path) -> None:
 def test_writing_makes_the_package_hold_exactly_the_models(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "stray.py").write_text("x\n", encoding="utf-8")
+    (tmp_path / "stray.py").write_text(f"{GENERATED_MARKER}\n", "utf-8")
     models = {"__init__.py": "a\n"}
 
     changed = write_models(models, tmp_path)
@@ -182,6 +184,33 @@ def test_writing_makes_the_package_hold_exactly_the_models(
     assert changed == ["__init__.py", "stray.py"]
     assert sorted(p.name for p in tmp_path.iterdir()) == ["__init__.py"]
     assert write_models(models, tmp_path) == []
+
+
+def test_writing_refuses_to_delete_a_module_it_did_not_write(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "hand_written.py").write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(ForeignModuleError, match="hand_written"):
+        write_models({"__init__.py": "a\n"}, tmp_path)
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["hand_written.py"]
+
+
+@pytest.mark.usefixtures("small_render")
+def test_main_reports_a_foreign_module_and_exits_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "hand_written.py").write_text("x = 1\n", encoding="utf-8")
+
+    assert regenerate.main(["--output", str(tmp_path)]) == 2
+    assert "hand_written" in capsys.readouterr().err
+
+
+def test_every_generated_module_starts_with_the_marker(
+    offline_models: dict[str, str],
+) -> None:
+    assert all(t.startswith(GENERATED_MARKER) for t in offline_models.values())
 
 
 @pytest.fixture

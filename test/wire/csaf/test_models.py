@@ -15,7 +15,7 @@
 import pytest
 from pydantic import ValidationError
 
-from test.wire.csaf._documents import minimal_csaf_document
+from test.wire.csaf._documents import minimal_csaf_document, section
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
 
 
@@ -40,10 +40,7 @@ def test_the_models_reject_a_schema_invalid_document(
     path: tuple[str, ...], value: str
 ) -> None:
     data = minimal_csaf_document()
-    node = data
-    for key in path[:-1]:
-        node = node[key]
-    node[path[-1]] = value
+    section(data, *path[:-1])[path[-1]] = value
 
     with pytest.raises(ValidationError):
         CommonSecurityAdvisoryFramework.model_validate(data)

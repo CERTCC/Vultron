@@ -15,7 +15,8 @@
 - ``schemas/`` is the pinned local copy of the CSAF 2.1 draft's schema and of
   every schema it references, byte for byte as published (CSAF-05-002).
 - ``pin.json`` records that copy's source repository, commit and draft stage
-  once; :mod:`vultron.wire.csaf.pin` reads it (CSAF-05-001).
+  once, with each file's URL and SHA-256 digest; :mod:`vultron.wire.csaf.pin`
+  reads it (CSAF-05-001).
 - ``models/`` holds the Pydantic models generated from the copy, whose root is
   ``CommonSecurityAdvisoryFramework``. Never edit them by hand: run
   ``uv run csaf-models`` (CSAF-05-003).

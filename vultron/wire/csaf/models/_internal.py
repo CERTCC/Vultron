@@ -57,7 +57,14 @@ class SharingGroup(BaseModel):
         str | None,
         Field(
             description="Contains a human-readable name for the sharing group.",
-            examples=["Customer A", "ISAC members", "NIS2 regulated important entities in Germany, sector water", "Pre-Sharing group for advisory discussion", "Users of Product A", "US Federal Civilian Authorities"],
+            examples=[
+                "Customer A",
+                "ISAC members",
+                "NIS2 regulated important entities in Germany, sector water",
+                "Pre-Sharing group for advisory discussion",
+                "Users of Product A",
+                "US Federal Civilian Authorities",
+            ],
             min_length=1,
             title="Sharing Group Name",
         ),
@@ -87,7 +94,10 @@ class Tlp(BaseModel):
         AnyUrl | None,
         Field(
             description="Provides a URL where to find the textual description of the TLP version which is used in this document. Default is the URL to the definition by FIRST.",
-            examples=["https://www.us-cert.gov/tlp", "https://www.bsi.bund.de/SharedDocs/Downloads/DE/BSI/Kritis/Merkblatt_TLP.pdf"],
+            examples=[
+                "https://www.us-cert.gov/tlp",
+                "https://www.bsi.bund.de/SharedDocs/Downloads/DE/BSI/Kritis/Merkblatt_TLP.pdf",
+            ],
             title="URL of TLP version",
         ),
     ] = "https://www.first.org/tlp/"
@@ -108,7 +118,11 @@ class Distribution(BaseModel):
         str | None,
         Field(
             description="Provides a textual description of additional constraints.",
-            examples=["Copyright 2021, Example Company, All Rights Reserved.", "Distribute freely.", "Share only on a need-to-know-basis only."],
+            examples=[
+                "Copyright 2021, Example Company, All Rights Reserved.",
+                "Distribute freely.",
+                "Share only on a need-to-know-basis only.",
+            ],
             min_length=1,
             title="Textual description",
         ),
@@ -247,7 +261,11 @@ class Cwe(BaseModel):
         str,
         Field(
             description="Holds the full name of the weakness as given in the CWE specification.",
-            examples=["Cross-Site Request Forgery (CSRF)", "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')", "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"],
+            examples=[
+                "Cross-Site Request Forgery (CSRF)",
+                "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+                "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')",
+            ],
             min_length=1,
             pattern="^[^\\s\\-_\\.](.*[^\\s\\-_\\.])?$",
             title="Weakness name",
@@ -267,7 +285,9 @@ class Cwe(BaseModel):
 class Label1(StrEnum):
     component_not_present = "component_not_present"
     inline_mitigations_already_exist = "inline_mitigations_already_exist"
-    vulnerable_code_cannot_be_controlled_by_adversary = "vulnerable_code_cannot_be_controlled_by_adversary"
+    vulnerable_code_cannot_be_controlled_by_adversary = (
+        "vulnerable_code_cannot_be_controlled_by_adversary"
+    )
     vulnerable_code_not_in_execute_path = "vulnerable_code_not_in_execute_path"
     vulnerable_code_not_present = "vulnerable_code_not_present"
 
@@ -713,7 +733,16 @@ class MinimalDecisionPointValue(BaseModel):
         str,
         Field(
             description="A short, non-empty string identifier for the object. Keys must start with an alphanumeric, contain only alphanumerics and `_`, and end with an alphanumeric.(`T*` is explicitly grandfathered in as a valid key, but should not be used for new objects.)",
-            examples=["E", "A", "SI", "L", "M", "H", "Mixed_case_OK", "alph4num3ric"],
+            examples=[
+                "E",
+                "A",
+                "SI",
+                "L",
+                "M",
+                "H",
+                "Mixed_case_OK",
+                "alph4num3ric",
+            ],
             min_length=1,
             pattern="^(([a-zA-Z0-9])|([a-zA-Z0-9][a-zA-Z0-9_]*[a-zA-Z0-9])|(T\\*))$",
             title="Key",
@@ -737,7 +766,12 @@ class Selection(BaseModel):
         str,
         Field(
             description="The namespace of the SSVC object.",
-            examples=["ssvc", "cisa", "x_example.test#test//.example.test#private-extension", "ssvc/de-DE/.example.organization#reference-arch-1"],
+            examples=[
+                "ssvc",
+                "cisa",
+                "x_example.test#test//.example.test#private-extension",
+                "ssvc/de-DE/.example.organization#reference-arch-1",
+            ],
             max_length=1000,
             min_length=3,
             pattern="^(x_([a-z]|[0-9])(((([a-z]|[0-9])|-)){0,61}([a-z]|[0-9]))?(\\.([a-z]|[0-9])(((([a-z]|[0-9])|-)){0,61}([a-z]|[0-9]))?)+#(([a-z]|[0-9]))+((\\.|-)(([a-z]|[0-9]))+)*|[a-z]([a-z]|[0-9])(((\\.|-))?(([a-z]|[0-9]))+)+(#(([a-z]|[0-9]))+((\\.|-)(([a-z]|[0-9]))+)*)?)((/|/(([a-zA-Z]{2,3}(-[a-zA-Z]{3}(-[a-zA-Z]{3}){0,2})?|[a-zA-Z]{4,8})(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?(-(([a-zA-Z0-9]){5,8}|[0-9]([a-zA-Z0-9]){3}))*(-[0-9A-WY-Za-wy-z](-([a-zA-Z0-9]){2,8})+)*(-[xX](-([a-zA-Z0-9]){2,8})+)?|[xX](-([a-zA-Z0-9]){2,8})+|i-default|i-mingo))((/((([a-zA-Z]{2,3}(-[a-zA-Z]{3}(-[a-zA-Z]{3}){0,2})?|[a-zA-Z]{4,8})(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?(-(([a-zA-Z0-9]){5,8}|[0-9]([a-zA-Z0-9]){3}))*(-[0-9A-WY-Za-wy-z](-([a-zA-Z0-9]){2,8})+)*(-[xX](-([a-zA-Z0-9]){2,8})+)?|[xX](-([a-zA-Z0-9]){2,8})+|i-default|i-mingo)|\\.([a-z]|[0-9])(((([a-z]|[0-9])|-)){0,61}([a-z]|[0-9]))?(\\.([a-z]|[0-9])(((([a-z]|[0-9])|-)){0,61}([a-z]|[0-9]))?)+#(([a-z]|[0-9]))+((\\.|-)(([a-z]|[0-9]))+)*|\\.(([a-z]|[0-9])(((([a-z]|[0-9])|-)){0,61}([a-z]|[0-9]))?(\\.([a-z]|[0-9])(((([a-z]|[0-9])|-)){0,61}([a-z]|[0-9]))?)+|([a-z]|[0-9])(((([a-z]|[0-9])|-)){0,61}([a-z]|[0-9]))?(\\.([a-z]|[0-9])(((([a-z]|[0-9])|-)){0,61}([a-z]|[0-9]))?)+#(([a-z]|[0-9]))+((\\.|-)(([a-z]|[0-9]))+)*)\\$(([a-zA-Z]{2,3}(-[a-zA-Z]{3}(-[a-zA-Z]{3}){0,2})?|[a-zA-Z]{4,8})(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?(-(([a-zA-Z0-9]){5,8}|[0-9]([a-zA-Z0-9]){3}))*(-[0-9A-WY-Za-wy-z](-([a-zA-Z0-9]){2,8})+)*(-[xX](-([a-zA-Z0-9]){2,8})+)?|[xX](-([a-zA-Z0-9]){2,8})+|i-default|i-mingo)))+)?)?$",
@@ -748,7 +782,16 @@ class Selection(BaseModel):
         str,
         Field(
             description="A short, non-empty string identifier for the object. Keys must start with an alphanumeric, contain only alphanumerics and `_`, and end with an alphanumeric.(`T*` is explicitly grandfathered in as a valid key, but should not be used for new objects.)",
-            examples=["E", "A", "SI", "L", "M", "H", "Mixed_case_OK", "alph4num3ric"],
+            examples=[
+                "E",
+                "A",
+                "SI",
+                "L",
+                "M",
+                "H",
+                "Mixed_case_OK",
+                "alph4num3ric",
+            ],
             min_length=1,
             pattern="^(([a-zA-Z0-9])|([a-zA-Z0-9][a-zA-Z0-9_]*[a-zA-Z0-9])|(T\\*))$",
             title="Key",
@@ -772,7 +815,10 @@ class Selection(BaseModel):
         list[MinimalDecisionPointValue],
         Field(
             description="A list of selected value keys from the decision point values.",
-            examples=[[{"key": "N"}, {"key": "Y"}], [{"key": "A"}, {"key": "B"}, {"key": "C"}]],
+            examples=[
+                [{"key": "N"}, {"key": "Y"}],
+                [{"key": "A"}, {"key": "B"}, {"key": "C"}],
+            ],
             min_length=1,
             title="Values",
         ),
@@ -816,7 +862,9 @@ class AcknowledgmentsTItem(BaseModel):
         str | None,
         Field(
             description="SHOULD represent any contextual details the document producers wish to make known about the acknowledgment or acknowledged parties.",
-            examples=["First analysis of Coordinated Multi-Stream Attack (CMSA)"],
+            examples=[
+                "First analysis of Coordinated Multi-Stream Attack (CMSA)"
+            ],
             min_length=1,
             title="Summary of the acknowledgment",
         ),
@@ -878,7 +926,9 @@ class ContactT(BaseModel):
         str | None,
         Field(
             description="Contains details regarding ways to reach the party, e.g. through web sites, phone numbers, and postal mail addresses.",
-            examples=["Example Company can be reached at tel:+493023125232, or via our website at https://www.example.com/contact."],
+            examples=[
+                "Example Company can be reached at tel:+493023125232, or via our website at https://www.example.com/contact."
+            ],
             min_length=1,
             title="Contact Details",
         ),
@@ -887,7 +937,12 @@ class ContactT(BaseModel):
         EmailStr | None,
         Field(
             description="Contains the email address that can be used to reach the party.",
-            examples=["productcert@example.net", "psirt@example.com", "reporter@securityresearcher.example", "vulnerability@coordinator.example"],
+            examples=[
+                "productcert@example.net",
+                "psirt@example.com",
+                "reporter@securityresearcher.example",
+                "vulnerability@coordinator.example",
+            ],
             min_length=6,
             title="Email",
         ),
@@ -896,7 +951,12 @@ class ContactT(BaseModel):
         AnyUrl | None,
         Field(
             description="Contains a URL pointing to a public OpenPGP key valid for the email of party provided in the sibling property `email`.",
-            examples=["https://coordinator.example/.well-known/openpgpkey/hu/nxdcs8npc6mn3xyfpcbiqhcu9s357r5m?l=vulnerability", "https://example.net/.well-known/openpgpkey/hu/euwmpyfh4rzf8ymbqhjjhrirgib4dyfs?l=productcert", "https://openpgpkey.securityresearcher.example/.well-known/openpgpkey/securityresearcher.example/hu/enudbakzkbdym3ymwjy9pcxztka75f73?l=reporter", "https://psirt.example.com/security/openpgp/latest"],
+            examples=[
+                "https://coordinator.example/.well-known/openpgpkey/hu/nxdcs8npc6mn3xyfpcbiqhcu9s357r5m?l=vulnerability",
+                "https://example.net/.well-known/openpgpkey/hu/euwmpyfh4rzf8ymbqhjjhrirgib4dyfs?l=productcert",
+                "https://openpgpkey.securityresearcher.example/.well-known/openpgpkey/securityresearcher.example/hu/enudbakzkbdym3ymwjy9pcxztka75f73?l=reporter",
+                "https://psirt.example.com/security/openpgp/latest",
+            ],
             title="Public OpenPGP Key URL",
         ),
     ] = None
@@ -904,7 +964,11 @@ class ContactT(BaseModel):
         AnyUrl | None,
         Field(
             description="Contains a URL that can be used to reach the party.",
-            examples=["https://www.example.com/psirt/contact", "https://www.example.net/psirt/report-a-vulnerability--expert-form", "https://www.example.org/.well-known/security.txt"],
+            examples=[
+                "https://www.example.com/psirt/contact",
+                "https://www.example.net/psirt/report-a-vulnerability--expert-form",
+                "https://www.example.org/.well-known/security.txt",
+            ],
             title="Contact URL",
         ),
     ] = None
@@ -928,7 +992,12 @@ class EntityGroupIdT(RootModel[str]):
         str,
         Field(
             description="Contains a token required to identify a group of entities uniquely in the context of the current document so that it can be referred to from other parts in the document.",
-            examples=["EGID-0001", "EGID-CERTs", "EGID-Coordinators", "EGID-vendors"],
+            examples=[
+                "EGID-0001",
+                "EGID-CERTs",
+                "EGID-Coordinators",
+                "EGID-vendors",
+            ],
             min_length=6,
             pattern="^EGID-[0-9A-Za-z][0-9A-Za-z._-]*$",
             title="Reference token for entity group instance",
@@ -941,7 +1010,12 @@ class EntityIdT(RootModel[str]):
         str,
         Field(
             description="Contains a token required to identify an entity uniquely in the context of the current document so that it can be referred to from other parts in the document.",
-            examples=["EID-0001", "EID-CERT", "EID-Example_Company", "EID-org.example"],
+            examples=[
+                "EID-0001",
+                "EID-CERT",
+                "EID-Example_Company",
+                "EID-org.example",
+            ],
             min_length=5,
             pattern="^EID-[0-9A-Za-z][0-9A-Za-z._-]*$",
             title="Reference token for entity instance",
@@ -1055,7 +1129,11 @@ class FileHash(BaseModel):
         str,
         Field(
             description="Contains the cryptographic hash value in lowercase hexadecimal representation.",
-            examples=["37df33cb7464da5c7f077f4d56a32bc84987ec1d85b234537c1c1a4d4fc8d09dc29e2e762cb5203677bf849a2855a0283710f1f5fe1d6ce8d5ac85c645d0fcb3", "4775203615d9534a8bfca96a93dc8b461a489f69124a130d786b42204f3341cc", "9ea4c8200113d49d26505da0e02e2f49055dc078d1ad7a419b32e291c7afebbb84badfbd46dec42883bea0b2a1fa697c"],
+            examples=[
+                "37df33cb7464da5c7f077f4d56a32bc84987ec1d85b234537c1c1a4d4fc8d09dc29e2e762cb5203677bf849a2855a0283710f1f5fe1d6ce8d5ac85c645d0fcb3",
+                "4775203615d9534a8bfca96a93dc8b461a489f69124a130d786b42204f3341cc",
+                "9ea4c8200113d49d26505da0e02e2f49055dc078d1ad7a419b32e291c7afebbb84badfbd46dec42883bea0b2a1fa697c",
+            ],
             min_length=32,
             pattern="^[0-9a-f]{32,}$",
             title="Value of the cryptographic hash",
@@ -1155,7 +1233,7 @@ class ProductIdentificationHelper(BaseModel):
         Field(
             description="The Common Platform Enumeration (CPE) attribute refers to a method for naming platforms external to this specification.",
             min_length=5,
-            pattern='^((cpe:2\\.3:[aho\\*\\-](:(((\\?*|\\*?)([a-zA-Z0-9\\-\\._]|(\\\\[\\\\\\*\\?!"#\\$%&\'\\(\\)\\+,\\/:;<=>@\\[\\]\\^`\\{\\|\\}~]))+(\\?*|\\*?))|[\\*\\-])){5}(:(([a-zA-Z]{2,3}(-([a-zA-Z]{2}|[0-9]{3}))?)|[\\*\\-]))(:(((\\?*|\\*?)([a-zA-Z0-9\\-\\._]|(\\\\[\\\\\\*\\?!"#\\$%&\'\\(\\)\\+,\\/:;<=>@\\[\\]\\^`\\{\\|\\}~]))+(\\?*|\\*?))|[\\*\\-])){4})|([c][pP][eE]:\\/[AHOaho]?(:[A-Za-z0-9\\._\\-~%]*){0,6}))$',
+            pattern="^((cpe:2\\.3:[aho\\*\\-](:(((\\?*|\\*?)([a-zA-Z0-9\\-\\._]|(\\\\[\\\\\\*\\?!\"#\\$%&'\\(\\)\\+,\\/:;<=>@\\[\\]\\^`\\{\\|\\}~]))+(\\?*|\\*?))|[\\*\\-])){5}(:(([a-zA-Z]{2,3}(-([a-zA-Z]{2}|[0-9]{3}))?)|[\\*\\-]))(:(((\\?*|\\*?)([a-zA-Z0-9\\-\\._]|(\\\\[\\\\\\*\\?!\"#\\$%&'\\(\\)\\+,\\/:;<=>@\\[\\]\\^`\\{\\|\\}~]))+(\\?*|\\*?))|[\\*\\-])){4})|([c][pP][eE]:\\/[AHOaho]?(:[A-Za-z0-9\\._\\-~%]*){0,6}))$",
             title="Common Platform Enumeration representation",
         ),
     ] = None
@@ -1498,7 +1576,11 @@ class EntityGroup(BaseModel):
         str,
         Field(
             description="Contains a human-readable name for the entities grouped.",
-            examples=["Coordinating CSIRTs", "European Railway Regulators", "Researchers"],
+            examples=[
+                "Coordinating CSIRTs",
+                "European Railway Regulators",
+                "Researchers",
+            ],
             min_length=1,
             title="Name of the entity group",
         ),
@@ -1565,7 +1647,12 @@ class Publisher(BaseModel):
         str | None,
         Field(
             description="Provides information about the authority of the issuing party to release the document, in particular, the party's constituency and responsibilities or other obligations.",
-            examples=["Example Company PSIRT is responsible for vulnerability handling across all Example Company products and services.", "Example CERT as designated CSIRT according to Directive (EU) 2022/2555 Article 12 section 1 acts as coordinator for the purposes of coordinated vulnerability disclosure.", "Example ISAC publishes security information for products used by or relevant for its constituency enriched by a sector-specific assessment.", "The Example Organization Security Team is responsible for vulnerability handling across all Example Organization offerings."],
+            examples=[
+                "Example Company PSIRT is responsible for vulnerability handling across all Example Company products and services.",
+                "Example CERT as designated CSIRT according to Directive (EU) 2022/2555 Article 12 section 1 acts as coordinator for the purposes of coordinated vulnerability disclosure.",
+                "Example ISAC publishes security information for products used by or relevant for its constituency enriched by a sector-specific assessment.",
+                "The Example Organization Security Team is responsible for vulnerability handling across all Example Organization offerings.",
+            ],
             min_length=1,
             title="Issuing authority",
         ),
@@ -1650,7 +1737,11 @@ class Tracking(BaseModel):
         str,
         Field(
             description="The ID is a simple label that provides for a wide range of numbering values, types, and schemes. Its value SHOULD be assigned and maintained by the original document issuing authority.",
-            examples=["Example Company - 2019-YH3234", "RHBA-2019:0024", "cisco-sa-20190513-secureboot"],
+            examples=[
+                "Example Company - 2019-YH3234",
+                "RHBA-2019:0024",
+                "cisco-sa-20190513-secureboot",
+            ],
             min_length=1,
             pattern="^[\\S](.*[\\S])?$",
             title="Unique identifier for the document",
@@ -1698,7 +1789,10 @@ class ProductGroup(BaseModel):
         str | None,
         Field(
             description="Gives a short, optional description of the group.",
-            examples=["Products supporting Modbus.", "The x64 versions of the operating system."],
+            examples=[
+                "Products supporting Modbus.",
+                "The x64 versions of the operating system.",
+            ],
             min_length=1,
             title="Summary of the product group",
         ),
@@ -1759,7 +1853,11 @@ class Id(BaseModel):
         str,
         Field(
             description="Indicates the name of the vulnerability tracking or numbering system.",
-            examples=["Cisco Bug ID", "GitHub Issue", "https://github.com/oasis-tcs/csaf"],
+            examples=[
+                "Cisco Bug ID",
+                "GitHub Issue",
+                "https://github.com/oasis-tcs/csaf",
+            ],
             min_length=1,
             title="System name",
         ),
@@ -2011,7 +2109,12 @@ class NotesTItem(BaseModel):
         str | None,
         Field(
             description="Indicates who is intended to read it.",
-            examples=["all", "executives", "operational management and system administrators", "safety engineers"],
+            examples=[
+                "all",
+                "executives",
+                "operational management and system administrators",
+                "safety engineers",
+            ],
             min_length=1,
             title="Audience of note",
         ),
@@ -2037,7 +2140,12 @@ class NotesTItem(BaseModel):
         str | None,
         Field(
             description="Provides a concise description of what is contained in the text of the note.",
-            examples=["Details", "Executive summary", "Technical summary", "Impact on safety systems"],
+            examples=[
+                "Details",
+                "Executive summary",
+                "Technical summary",
+                "Impact on safety systems",
+            ],
             min_length=1,
             title="Title of note",
         ),
@@ -2074,7 +2182,10 @@ class FullProductNameT(BaseModel):
         str,
         Field(
             description="The value should be the product’s full canonical name, including version number and other attributes, as it would be used in a human-friendly document.",
-            examples=["Cisco AnyConnect Secure Mobility Client 2.3.185", "Microsoft Host Integration Server 2006 Service Pack 1"],
+            examples=[
+                "Cisco AnyConnect Secure Mobility Client 2.3.185",
+                "Microsoft Host Integration Server 2006 Service Pack 1",
+            ],
             min_length=1,
             title="Textual description of the product",
         ),
@@ -2118,7 +2229,13 @@ class Document(BaseModel):
         str,
         Field(
             description="Defines a short canonical name, chosen by the document producer, which will inform the end user as to the category of document.",
-            examples=["csaf_base", "csaf_security_advisory", "csaf_vex", "csaf_vulnerability_report", "Example Company Security Notice"],
+            examples=[
+                "csaf_base",
+                "csaf_security_advisory",
+                "csaf_vex",
+                "csaf_vulnerability_report",
+                "Example Company Security Notice",
+            ],
             min_length=1,
             pattern="^[^\\s\\-_\\.](.*[^\\s\\-_\\.])?$",
             title="Document category",
@@ -2156,7 +2273,12 @@ class Document(BaseModel):
         str | None,
         Field(
             description="Contains the SPDX license expression for the CSAF document.",
-            examples=["CC-BY-4.0", "LicenseRef-www.example.org-Example-CSAF-License-3.0+", "LicenseRef-scancode-public-domain", "MIT OR any-OSI"],
+            examples=[
+                "CC-BY-4.0",
+                "LicenseRef-www.example.org-Example-CSAF-License-3.0+",
+                "LicenseRef-scancode-public-domain",
+                "MIT OR any-OSI",
+            ],
             min_length=1,
             title="License expression",
         ),
@@ -2193,7 +2315,10 @@ class Document(BaseModel):
         str,
         Field(
             description="This SHOULD be a canonical name for the document, and sufficiently unique to distinguish it from similar documents.",
-            examples=["Cisco IPv6 Crafted Packet Denial of Service Vulnerability", "Example Company Cross-Site-Scripting Vulnerability in Example Generator"],
+            examples=[
+                "Cisco IPv6 Crafted Packet Denial of Service Vulnerability",
+                "Example Company Cross-Site-Scripting Vulnerability in Example Generator",
+            ],
             min_length=1,
             title="Title of this document",
         ),
@@ -2508,7 +2633,16 @@ class BranchesTItem(BaseModel):
         str,
         Field(
             description="Contains the canonical descriptor or 'friendly name' of the branch.",
-            examples=["10", "365", "Microsoft", "Office", "PCS 7", "SIMATIC", "Siemens", "Windows"],
+            examples=[
+                "10",
+                "365",
+                "Microsoft",
+                "Office",
+                "PCS 7",
+                "SIMATIC",
+                "Siemens",
+                "Windows",
+            ],
             min_length=1,
             title="Name of the branch",
         ),
@@ -2641,7 +2775,22 @@ class Schema_1(BaseModel):
         list[Reference] | None,
         Field(
             description="A list of resources that provide additional context about the decision points found in this selection.",
-            examples=[[{"summary": "Documentation for a set of decision points", "uri": "https://example.com/decision_points"}, {"summary": "JSON representation of decision point 2", "uri": "https://example.org/definitions/dp2.json"}, {"summary": "A JSON file containing extension decision points in the x_com.example namespace", "uri": "https://example.com/ssvc/x_com.example/decision_points.json"}]],
+            examples=[
+                [
+                    {
+                        "summary": "Documentation for a set of decision points",
+                        "uri": "https://example.com/decision_points",
+                    },
+                    {
+                        "summary": "JSON representation of decision point 2",
+                        "uri": "https://example.org/definitions/dp2.json",
+                    },
+                    {
+                        "summary": "A JSON file containing extension decision points in the x_com.example namespace",
+                        "uri": "https://example.com/ssvc/x_com.example/decision_points.json",
+                    },
+                ]
+            ],
             min_length=1,
             title="Decision Point Resources",
         ),
@@ -2650,7 +2799,14 @@ class Schema_1(BaseModel):
         list[Reference] | None,
         Field(
             description="A list of references that provide additional context about the specific values selected.",
-            examples=[[{"summary": "A report on which the selections were based", "uri": "https://example.com/report"}]],
+            examples=[
+                [
+                    {
+                        "summary": "A report on which the selections were based",
+                        "uri": "https://example.com/report",
+                    }
+                ]
+            ],
             min_length=1,
             title="References",
         ),
@@ -3237,7 +3393,11 @@ class Field0Model10(
     ]
 ):
     root: Annotated[
-        Field0Model5 | Field0Model6 | Field0Model7 | Field0Model8 | Field0Model9,
+        Field0Model5
+        | Field0Model6
+        | Field0Model7
+        | Field0Model8
+        | Field0Model9,
         Field(
             title="JSON Schema for Common Vulnerability Scoring System version 4.0, Revision 2"
         ),

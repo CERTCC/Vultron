@@ -33,11 +33,11 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from vultron.metadata.file_loading import load_yaml, validate
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
 
 #: Where the CSAF Technical Committee keeps its test documents in its repository.
@@ -67,15 +67,24 @@ class _TestCases(BaseModel):
     tests: list[_TestCase]
 
 
-@dataclass
-class GroupCounts:
+class GroupCounts(BaseModel):
     """How the models judged one test group's documents."""
+
+    model_config = ConfigDict(extra="forbid")
 
     valid_accepted: int = 0
     valid_rejected: int = 0
     failing_accepted: int = 0
     failing_rejected: int = 0
     missing: int = 0
+
+    def __add__(self, other: GroupCounts) -> GroupCounts:
+        return GroupCounts(
+            **{
+                name: getattr(self, name) + getattr(other, name)
+                for name in GroupCounts.model_fields
+            }
+        )
 
 
 def _accepts(path: Path, model: type[BaseModel]) -> bool:
@@ -117,10 +126,13 @@ def run_corpus(
 
     Raises:
         FileNotFoundError: *clone* has no test-case index.
-        pydantic.ValidationError: the index does not have the expected shape.
+        MetadataLoadError: the index does not parse or does not have the
+            expected shape; the error names the file.
     """
     index = clone / TESTCASES_FILE
-    cases = _TestCases.model_validate_json(index.read_bytes())
+    cases = validate(
+        _TestCases, load_yaml(index, root=clone), path=index, root=clone
+    )
     data_dir = clone / TEST_DATA_DIR
     counts: dict[str, GroupCounts] = {}
     for case in cases.tests:
@@ -132,15 +144,8 @@ def run_corpus(
 
 def format_report(counts: dict[str, GroupCounts]) -> str:
     """Render *counts* as one line per group plus a total."""
-    total = GroupCounts()
-    lines = []
-    for group, c in counts.items():
-        lines.append(_line(group, c))
-        total.valid_accepted += c.valid_accepted
-        total.valid_rejected += c.valid_rejected
-        total.failing_accepted += c.failing_accepted
-        total.failing_rejected += c.failing_rejected
-        total.missing += c.missing
+    total = sum(counts.values(), GroupCounts())
+    lines = [_line(group, c) for group, c in counts.items()]
     lines.append(_line("total", total))
     return "\n".join(lines)
 

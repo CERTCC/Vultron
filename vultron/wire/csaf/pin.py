@@ -19,7 +19,7 @@ local copy, the generated models and the crosswalk pages all read it.
 
 from __future__ import annotations
 
-import posixpath
+import hashlib
 from pathlib import Path
 from typing import Annotated
 
@@ -44,17 +44,19 @@ MODELS_DIR = CSAF_PACKAGE_DIR / "models"
 
 
 def _relative_posix_path(value: str) -> str:
-    """Return *value* when it is a normalized relative POSIX path, else raise."""
-    if (
-        posixpath.isabs(value)
-        or posixpath.normpath(value) != value
-        or value.startswith("..")
-    ):
+    """Return *value* when it is a plain relative POSIX path, else raise.
+
+    Every segment must be a real name: no empty, ``.`` or ``..`` segment and no
+    backslash, so the path stays inside the pinned local copy on any platform.
+    """
+    parts = value.split("/")
+    if "\\" in value or any(part in ("", ".", "..") for part in parts):
         raise ValueError(f"{value!r} is not a relative path inside the copy")
     return value
 
 
 RelativePath = Annotated[NonEmptyString, AfterValidator(_relative_posix_path)]
+Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
 
 class CsafPin(BaseModel):
@@ -82,16 +84,31 @@ class CsafPin(BaseModel):
         ),
     )
 
+    sha256: dict[RelativePath, Sha256] = Field(
+        description=(
+            "The SHA-256 digest of each file of the pinned local copy, so a "
+            "hand edit to the copy is detected."
+        ),
+    )
+
     @model_validator(mode="after")
-    def _root_is_a_pinned_file(self) -> CsafPin:
-        if self.root not in self.sources.values():
+    def _files_agree(self) -> CsafPin:
+        files = set(self.sources.values())
+        if self.root not in files:
             raise ValueError(f"root {self.root!r} is not a file in sources")
+        if set(self.sha256) != files:
+            raise ValueError("sha256 must list exactly the files in sources")
         return self
 
     @property
     def short_commit(self) -> str:
         """Return the seven-character commit abbreviation the docs cite."""
         return self.commit[:7]
+
+
+def file_sha256(path: Path) -> str:
+    """Return the hex SHA-256 digest of the file at *path*."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def load_pin(path: Path = PIN_PATH) -> CsafPin:
@@ -106,5 +123,7 @@ __all__ = [
     "PIN_PATH",
     "CsafPin",
     "RelativePath",
+    "Sha256",
+    "file_sha256",
     "load_pin",
 ]

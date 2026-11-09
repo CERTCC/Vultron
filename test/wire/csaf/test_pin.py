@@ -13,16 +13,19 @@
 """The one pin record of the CSAF 2.1 draft and its pinned local copy (CSAF-05-001)."""
 
 import json
+import posixpath
 import re
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
+from vultron.metadata.csaf.regenerate import schema_refs
 from vultron.wire.csaf.pin import (
     PIN_PATH,
     PINNED_COPY_DIR,
     CsafPin,
+    file_sha256,
     load_pin,
 )
 
@@ -65,26 +68,41 @@ def test_the_pin_maps_every_file_of_the_pinned_local_copy() -> None:
 
 
 @pytest.mark.spec("CSAF-05-002")
-def test_every_remote_reference_in_the_copy_is_pinned() -> None:
+def test_every_reference_in_the_copy_is_pinned() -> None:
     pin = load_pin()
     remote: set[str] = set()
-
-    def collect(node: object) -> None:
-        if isinstance(node, dict):
-            for key, value in node.items():
-                if key == "$ref" and isinstance(value, str) and "://" in value:
-                    remote.add(value.partition("#")[0])
-                else:
-                    collect(value)
-        elif isinstance(node, list):
-            for item in node:
-                collect(item)
-
+    relative: set[str] = set()
     for local in pin.sources.values():
-        collect(json.loads((PINNED_COPY_DIR / local).read_bytes()))
+        schema = json.loads((PINNED_COPY_DIR / local).read_bytes())
+        for ref in schema_refs(schema):
+            target = ref.partition("#")[0]
+            if "://" in target:
+                remote.add(target)
+            elif target:
+                relative.add(
+                    posixpath.normpath(
+                        posixpath.join(posixpath.dirname(local), target)
+                    )
+                )
 
     assert remote, "the CSAF schema references other schemas by URL"
     assert remote <= set(pin.sources)
+    assert relative <= set(pin.sources.values())
+
+
+@pytest.mark.spec("CSAF-05-002")
+def test_the_pinned_local_copy_is_unedited() -> None:
+    pin = load_pin()
+
+    edited = [
+        local
+        for local, digest in pin.sha256.items()
+        if file_sha256(PINNED_COPY_DIR / local) != digest
+    ]
+
+    assert edited == [], (
+        f"these pinned files differ from their recorded digest: {edited}"
+    )
 
 
 def _pin_data(**changes: object) -> dict[str, object]:
@@ -102,6 +120,10 @@ def _pin_data(**changes: object) -> dict[str, object]:
         {"root": "/csaf_2.1/json_schema/csaf.json"},
         {"root": "../csaf.json"},
         {"root": "csaf_2.1/./json_schema/csaf.json"},
+        {"root": "."},
+        {"root": "csaf_2.1\\json_schema\\csaf.json"},
+        {"root": "csaf_2.1//json_schema/csaf.json"},
+        {"sha256": {}},
         {"root": "csaf_2.1/json_schema/absent.json"},
         {"sources": {}},
         {"surplus": "field"},
@@ -113,6 +135,10 @@ def _pin_data(**changes: object) -> dict[str, object]:
         "absolute-root",
         "root-outside-copy",
         "unnormalized-root",
+        "dot-root",
+        "backslash-root",
+        "empty-segment-root",
+        "digests-missing",
         "root-not-in-sources",
         "no-sources",
         "unknown-field",
@@ -121,3 +147,12 @@ def _pin_data(**changes: object) -> dict[str, object]:
 def test_a_malformed_pin_record_is_refused(changes: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         CsafPin.model_validate(_pin_data(**changes))
+
+
+def test_a_name_starting_with_two_dots_is_a_relative_path() -> None:
+    data = _pin_data()
+    data["sources"] = {"https://example.org/a": "..schema.json"}
+    data["root"] = "..schema.json"
+    data["sha256"] = {"..schema.json": "0" * 64}
+
+    assert CsafPin.model_validate(data).root == "..schema.json"

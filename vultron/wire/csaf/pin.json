@@ -21,5 +21,24 @@
     "https://json-schema.org/draft/2020-12/meta/meta-data": "json-schema.org/draft/2020-12/meta/meta-data.json",
     "https://json-schema.org/draft/2020-12/meta/unevaluated": "json-schema.org/draft/2020-12/meta/unevaluated.json",
     "https://json-schema.org/draft/2020-12/meta/validation": "json-schema.org/draft/2020-12/meta/validation.json"
+  },
+  "sha256": {
+    "csaf_2.1/json_schema/csaf.json": "72fcadc3e1a4dc48a7c6dcca8840e38fa3bceb7e3aba00c7ac2254f6e24659e7",
+    "csaf_2.1/json_schema/extension-content.json": "49481571a602cc47b85d8acd2f64280e56152d03573f85aa348133bcf93af40b",
+    "csaf_2.1/json_schema/extension-metaschema.json": "bfca58a861ddcd8eb45ca73d25f6e33a994a134987e597e443fd4e7eb0b69703",
+    "csaf_2.1/json_schema/meta.json": "288f80a579bfbe3ba2d159ed70720832287418211294695a8dc429adf6df62bf",
+    "csaf_2.1/referenced_schema/certcc/SelectionList_2_0_0.schema.json": "f7afb00c84a2b58341dd7fb0d856266abc9bc50ae02718f1285fb8f9a247a7fc",
+    "csaf_2.1/referenced_schema/first/cvss-v2.0.json": "cd1a7c0815b7a47dc12fb7dded10622b96d562841f7bc6d2d8765c5d937a28f2",
+    "csaf_2.1/referenced_schema/first/cvss-v3.0.json": "b2b587e5dfa6d9a4be89e25cb593df04f14e7ffbe8fe5b167ceee17b6097d919",
+    "csaf_2.1/referenced_schema/first/cvss-v3.1.json": "77ff3df106e4588e2bb5c9cf0237f962c62d35c5002443c4bf7cc7ca16ee171f",
+    "csaf_2.1/referenced_schema/first/cvss-v4.0.json": "04040e0917f5b9162e529ca9cac8d69e42ec80b0cd2e2cdcbc004fe391f8c92c",
+    "csaf_2.1/referenced_schema/first/meta.json": "1332cad087bf54707f25bb4bdf06255ba13529c965d09fd69d66cc4a7cbfe677",
+    "json-schema.org/draft/2020-12/meta/applicator.json": "bf273b26f9f735b93ece78f2b61b36676e1d122ce78ab37ad5a2e45dfa1ca2b1",
+    "json-schema.org/draft/2020-12/meta/content.json": "a10456605b2b5bb12a1b4dcfc0300f02f54d3e8bb3646bed7724583866627682",
+    "json-schema.org/draft/2020-12/meta/core.json": "21f79d143fab1f180245c331e5657057045b36794d41fe151e6e4fed65035299",
+    "json-schema.org/draft/2020-12/meta/format-assertion.json": "6a5a8e13c605e3eff51f9bf8da18078880d81ff1634e391760ccc2e16ee2146f",
+    "json-schema.org/draft/2020-12/meta/meta-data.json": "c664d438a84d58889c8edecd248ce2f945a4bc0e3b087323b11303dc136abfbe",
+    "json-schema.org/draft/2020-12/meta/unevaluated.json": "fc99f32188da41689a9382af174dd42e8b255e4374965c157b8286556b4ab2bc",
+    "json-schema.org/draft/2020-12/meta/validation.json": "e921c5b79264d3689af01c1af1ffdf692e09f1c45df90a0f08eb7288c9acdeab"
   }
 }

@@ -88,10 +88,12 @@ The pinned local copy, the pin record and the generated models are in place; lat
 tasks reuse them rather than add a second path.
 
 - **Import the models from `vultron.wire.csaf.models`.** The root is
-  `CommonSecurityAdvisoryFramework`. They are generated, so `ruff`, `mypy` and
-  `pyright` skip that package; never edit it by hand (CSAF-05-003).
+  `CommonSecurityAdvisoryFramework`. They are generated, then `ruff`-fixed and
+  formatted, and `mypy` and `pyright` skip the package; never edit it by hand
+  (CSAF-05-003).
 - **Read the pin through `vultron.wire.csaf.pin.load_pin()`.** The record
-  (`pin.json`) maps each referenced schema's URL to its path in the copy, and the
+  (`pin.json`) maps each referenced schema's URL to its path in the copy and
+  holds each file's SHA-256, so a hand edit to the copy fails a test; the
   copy keeps the upstream repository's paths, so an upstream checkout lines up
   with it file for file.
 - **Generate from any source with `render_models(source, pin)`** in

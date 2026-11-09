@@ -5,9 +5,11 @@
 
 from __future__ import annotations
 
-from ._internal import Field0_1 as Field0
-from ._internal import Field1
-from ._internal import Version_1 as Version
-from ._internal import VersionModel
+from ._internal import (
+    Field0_1 as Field0,
+    Field1,
+    Version_1 as Version,
+    VersionModel,
+)
 
 __all__ = ["Field0", "Field1", "Version", "VersionModel"]

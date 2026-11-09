@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from test.wire.csaf._documents import minimal_csaf_document
+from test.wire.csaf._documents import minimal_csaf_document, section
 from vultron.metadata.csaf.corpus import (
     TEST_DATA_DIR,
     TESTCASES_FILE,
@@ -30,6 +30,7 @@ from vultron.metadata.csaf.corpus import (
     main,
     run_corpus,
 )
+from vultron.metadata.file_loading import MetadataLoadError
 
 
 def _write(path: Path, payload: object) -> None:
@@ -43,11 +44,12 @@ def clone(tmp_path: Path) -> Path:
     data = tmp_path / TEST_DATA_DIR
     valid = minimal_csaf_document()
     invalid = minimal_csaf_document()
-    del invalid["document"]["title"]
+    del section(invalid, "document")["title"]
     _write(data / "mandatory/valid.json", valid)
     _write(data / "mandatory/schema-invalid.json", invalid)
     _write(data / "mandatory/schema-valid-but-failing.json", valid)
     _write(data / "informative/valid.json", valid)
+    _write(data / "informative/listed-valid-but-schema-invalid.json", invalid)
     _write(
         tmp_path / TESTCASES_FILE,
         {
@@ -65,7 +67,14 @@ def clone(tmp_path: Path) -> Path:
                     "id": "6.3.1",
                     "group": "informative",
                     "failures": [{"name": "informative/absent.json"}],
-                    "valid": [{"name": "informative/valid.json"}],
+                    "valid": [
+                        {"name": "informative/valid.json"},
+                        {
+                            "name": (
+                                "informative/listed-valid-but-schema-invalid.json"
+                            )
+                        },
+                    ],
                 },
             ]
         },
@@ -76,7 +85,9 @@ def clone(tmp_path: Path) -> Path:
 @pytest.mark.spec("CSAF-05-004")
 def test_counts_each_groups_verdicts(clone: Path) -> None:
     assert run_corpus(clone) == {
-        "informative": GroupCounts(valid_accepted=1, missing=1),
+        "informative": GroupCounts(
+            valid_accepted=1, valid_rejected=1, missing=1
+        ),
         "mandatory": GroupCounts(
             valid_accepted=1, failing_accepted=1, failing_rejected=1
         ),
@@ -85,9 +96,9 @@ def test_counts_each_groups_verdicts(clone: Path) -> None:
 
 def test_the_report_has_a_line_per_group_and_a_total(clone: Path) -> None:
     assert format_report(run_corpus(clone)).splitlines() == [
-        "informative: valid 1/1 accepted, failing 0/0 rejected, 1 missing",
+        "informative: valid 1/2 accepted, failing 0/0 rejected, 1 missing",
         "mandatory: valid 1/1 accepted, failing 1/2 rejected",
-        "total: valid 2/2 accepted, failing 1/2 rejected, 1 missing",
+        "total: valid 2/3 accepted, failing 1/2 rejected, 1 missing",
     ]
 
 
@@ -103,3 +114,10 @@ def test_main_refuses_a_directory_without_the_index(
 ) -> None:
     assert main(["--clone", str(tmp_path)]) == 2
     assert "testcases.json" in capsys.readouterr().err
+
+
+def test_a_malformed_index_names_its_file(clone: Path) -> None:
+    (clone / TESTCASES_FILE).write_text('{"tests": [{"id": 1}]}', "utf-8")
+
+    with pytest.raises(MetadataLoadError, match=r"testcases\.json"):
+        run_corpus(clone)

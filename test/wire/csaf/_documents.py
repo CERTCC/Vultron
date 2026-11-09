@@ -16,10 +16,10 @@ The suite never reads the CSAF Technical Committee's test documents
 (CSAF-05-004), so tests build their own.
 """
 
-from typing import Any
+from pydantic import JsonValue
 
 
-def minimal_csaf_document() -> dict[str, Any]:
+def minimal_csaf_document() -> dict[str, JsonValue]:
     """Return a schema-valid CSAF 2.1 document with only the required fields."""
     released = "2026-10-01T00:00:00Z"
     return {
@@ -50,3 +50,13 @@ def minimal_csaf_document() -> dict[str, Any]:
             },
         },
     }
+
+
+def section(data: dict[str, JsonValue], *path: str) -> dict[str, JsonValue]:
+    """Return the object at *path* inside *data*, for a test to edit in place."""
+    node: JsonValue = data
+    for key in path:
+        assert isinstance(node, dict), f"{key!r} is not inside an object"
+        node = node[key]
+    assert isinstance(node, dict), f"{path!r} is not an object"
+    return node
