@@ -37,8 +37,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+from test.support.scenario_specs import FIRST_STEP, fixture_spec
+from vultron.demo.helpers.story import choose, story
 from vultron.demo.scenario.registry import (
-    ScenarioSpec,
     discover_scenarios,
     is_scenario_name,
 )
@@ -82,15 +83,14 @@ from vultron.metadata.specs.registry import SpecRegistry, load_registry
 
 _REPO_ROOT = Path(__file__).parents[2]
 
+#: The story every fixture spec here carries. A spec requires one; which
+#: story it is does not matter to these checks, which read the prose fields.
+_FIXTURE_STORY = story(choose(*FIRST_STEP, by="reporter"))
+
 #: A scenario the registry does not hold, used to make a check fire without
 #: touching a real scenario module.
-_FAKE = ScenarioSpec(
-    name="zz-fake",
-    label="ZZ-fake",
-    participants="Reporter + Vendor",
-    feature="Fixture scenario; never registered",
-    in_pr_set=True,
-    path=(("reporter-whom-to-tell", "vendor"),),
+_FAKE = fixture_spec(
+    name="zz-fake", label="ZZ-fake", in_pr_set=True, story=_FIXTURE_STORY
 )
 
 #: Registered scenarios allowed to have no spec group of their own.  Empty since
@@ -464,13 +464,12 @@ def test_partition_reports_a_scenario_in_both_registers(
     """A planned scenario that is also registered is reported."""
     both = (
         *discover_scenarios(),
-        ScenarioSpec(
+        fixture_spec(
             name="rcvd",
             label="RCVD",
             participants="Reporter + Coordinator + Vendor + Deployer",
             feature="Fixture: pretend rcvd is built",
-            in_pr_set=False,
-            path=(("reporter-whom-to-tell", "vendor"),),
+            story=_FIXTURE_STORY,
         ),
     )
     problems = partition_problems(registry=real_registry, specs=both)

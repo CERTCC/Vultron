@@ -46,6 +46,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.received import delivered_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -173,6 +174,7 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
         ),
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
         received_outcome_port=FastAPIReceivedOutcomePort(dl),
+        clock=SystemClock(),
     )
 
 
@@ -531,6 +533,7 @@ def _accept_invite(invitee_dl: SqliteDataLayer, invite_id: str) -> None:
         trigger_activity=TriggerActivityAdapter(invitee_dl),
         sync_port=SyncActivityAdapter(invitee_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
     assert accepted.activity is not None
 

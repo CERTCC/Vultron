@@ -514,6 +514,16 @@ class VultronWiringError(VultronError):
     """
 
 
+class VultronIdSourceInstalledError(VultronWiringError):
+    """Raised when an id source is installed while another install is active.
+
+    The scoped install (``install_id_source``) does not nest: two reproducible
+    runs in one block would draw from one stream of ids and take each other's
+    ids without anyone seeing it (ADR-0185).  A composition fault, never a
+    protocol outcome.
+    """
+
+
 class VultronReadOnlyViewError(VultronError, AttributeError):
     """Raised on an attempt to change a read-only view of a received activity.
 
@@ -534,6 +544,27 @@ class VultronUnhostedActorError(VultronWiringError):
     enqueues an activity, as an actor the running container does not host
     (BT-05-005, CM-24-011, CLP-10-014, ADR-0109), so reaching one is a
     composition fault, not a protocol outcome.
+    """
+
+
+class VultronMissingActInstantError(VultronWiringError):
+    """Raised when time is wanted below an act's edge and no act supplied it.
+
+    An act reads the clock once, at its entry point, and its tree runs carry
+    that instant as ``/at``; a node that needs the time reads it there, never
+    the clock (ADR-0176).  A run with no instant was started outside an act,
+    so it is a composition fault, not a protocol outcome, and it is never
+    answered by reading the clock instead (ARCH-10-001).
+    """
+
+
+class VultronConflictingActInstantError(VultronWiringError):
+    """Raised when a nested tree run is handed an instant of its own.
+
+    Only an act's outermost run takes the act's instant; a nested run
+    inherits it, so one act decides and records against one instant
+    (ADR-0176).  A second instant inside a run means something below the
+    act's edge read a clock.
     """
 
 

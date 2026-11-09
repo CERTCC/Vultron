@@ -26,6 +26,7 @@ from test.support.embargo_register import (
 )
 from test.support.ledger import ledger_entries
 from test.support.received import received_event
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -210,6 +211,7 @@ class _World:
                 cause=cause,
             ),
             **self.ports(),
+            clock=SystemClock(),
         ).execute()
 
     def teardown_entries(self):
@@ -426,7 +428,9 @@ def test_a_case_trigger_after_the_end_time_runs_the_lazy_check_first() -> None:
     embargo already ended at its end time, not ended early: the check is the
     first step of the trigger's own tree (ADR-0135)."""
     world = _World(end_time=now_utc() - timedelta(minutes=5))
-    dispatcher = RegistryTriggerDispatcher(entries(), **world.ports())
+    dispatcher = RegistryTriggerDispatcher(
+        entries(), **world.ports(), clock=SystemClock()
+    )
 
     dispatcher.trigger(
         AddParticipantStatusTriggerRequest(
@@ -461,6 +465,7 @@ def test_accepting_a_revision_after_the_end_time_does_not_extend_it() -> None:
                 case_id=world.case_id,
             ),
             **world.ports(),
+            clock=SystemClock(),
         ).execute()
 
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
@@ -613,6 +618,7 @@ def test_revising_after_the_end_time_is_refused_and_extends_nothing() -> None:
                 end_time=days_from_now_utc(20),
             ),
             **world.ports(),
+            clock=SystemClock(),
         ).execute()
 
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
@@ -641,6 +647,7 @@ def test_withdrawing_after_the_end_time_commits_no_leave() -> None:
                 actor_id=world.manager.id_, case_id=world.case_id
             ),
             **world.ports(),
+            clock=SystemClock(),
         ).execute()
 
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
@@ -682,6 +689,7 @@ def test_a_refused_end_time_commit_lets_the_trigger_run(
             rm_state=RM.RECEIVED,
         ),
         **world.ports(),
+        clock=SystemClock(),
     ).execute()
 
     assert result.activity_id is not None

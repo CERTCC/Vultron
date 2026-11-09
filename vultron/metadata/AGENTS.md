@@ -75,15 +75,15 @@ the private spelling will not find a public duplicate** — search for the behav
 Four subpackages own committed generated artifacts, and all split the same way:
 **generate what is derivable, check what is prose.** `adr/index_gen.py` regenerates
 `docs/adr/index.md` but only checks the hand-labelled nav; `demo_scenarios/` regenerates
-the CI matrix, two scenario tables and the tree index, leaving spec enumerations and nav
-to checks; `msm/occasions/` regenerates the occasion YAML and fragments, not page prose;
-`csaf/` the CSAF models, whole. Each is a `--check` hook (`adr-index-sync`,
-`demo-scenarios-sync`, `demo-tree-sync`, `msm-occasions-sync`, `csaf-models-sync`)
-comparing byte for byte via `generated_files.py`; an ungated one is hand-edited.
-`docs/landing_pages/` (`docs-site-sync`) splits per page: a nav group's `index.md`
-declares `contents: generated | routing | rendered`, and a routing index is *checked* to
-link every member of its section, not written (#3617). No fourth shape or default: an
-undeclared group index is a fault on purpose.
+the CI matrix, the plot manifest of every story, two scenario tables and the tree index,
+leaving spec enumerations and nav to checks; `msm/occasions/` the occasion YAML and
+fragments, not page prose; `csaf/` the CSAF models, whole. Each is a `--check` hook
+(`adr-index-sync`, `demo-scenarios-sync`, `demo-tree-sync`, `msm-occasions-sync`,
+`csaf-models-sync`) comparing byte for byte via `generated_files.py`; an ungated one is
+hand-edited. `docs/landing_pages/` (`docs-site-sync`) splits per page: a nav group's
+`index.md` declares `contents: generated | routing | rendered`, and a routing index is
+*checked* to link every member of its section, not written (#3617). No fourth shape or
+default: an undeclared group index is a fault on purpose.
 
 One trap specific to build-time rendering: MkDocs rewrites `.md` links with a
 treeprocessor on **its own** `Markdown` instance, and `markdown-exec` converts a

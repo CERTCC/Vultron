@@ -45,6 +45,7 @@ from test.support.embargo_register import (
     reject,
     write_consent_rows,
 )
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -201,6 +202,7 @@ def test_default_selection_picks_the_earliest_expiring_proposal(
         trigger_activity=TriggerActivityAdapter(finder_dl),
         sync_port=SyncActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     )
     use_case._prepare()
 
@@ -231,6 +233,7 @@ def test_default_selection_takes_open_revisions_earliest_expiring_first(
         trigger_activity=TriggerActivityAdapter(finder_dl),
         sync_port=SyncActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     )
     use_case._prepare()
 
@@ -326,6 +329,7 @@ def test_accepting_a_proposal_removes_it_from_the_open_proposal_record(
         trigger_activity=TriggerActivityAdapter(owner_dl),
         sync_port=SyncActivityAdapter(owner_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
@@ -430,6 +434,7 @@ def test_rejecting_a_proposal_removes_it_from_both_records(
         trigger_activity=TriggerActivityAdapter(owner_dl),
         sync_port=SyncActivityAdapter(owner_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))

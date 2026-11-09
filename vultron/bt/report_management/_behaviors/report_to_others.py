@@ -103,9 +103,6 @@ _IdentifyPotentialCaseParticipants = sequence_node(
 )
 
 
-# TODO AllPartiesKnown should be a simulated annealing where p rises with tick count
-#  thereby forcing notification to happen toward the outset of a case
-#  but for now we'll just leave it as a dumb fuzzer
 _IdentifyParticipants = fallback_node(
     "_IdentifyParticipants",
     "Checks whether all parties are known, otherwise identifies potential case",

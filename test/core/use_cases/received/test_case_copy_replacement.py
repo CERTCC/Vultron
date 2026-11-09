@@ -27,6 +27,7 @@ import pytest
 from test.support.ledger import ledger_entries
 from test.support.received import TEST_SENDER_POSITION, received_event
 from test.support.signing import signed_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -287,6 +288,7 @@ def _noted(case_id: str) -> tuple[LedgerNetwork, str]:
             note_content="Is there a workaround?",
         ),
         trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
+        clock=SystemClock(),
     ).execute()
     assert result.note is not None
     for _type, verdict in net.deliver(BYSTANDER, to=MANAGER):

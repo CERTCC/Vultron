@@ -44,6 +44,7 @@ from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
 )
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -701,6 +702,7 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
             note_content="Is there a workaround?",
         ),
         trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
+        clock=SystemClock(),
     ).execute()
     assert result.activity is not None and result.note is not None
     add_id: str = result.activity["id"]
@@ -804,6 +806,7 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
                 actor_id=sender, case_id=net.case_id, object_id=obj.id_
             ),
             trigger_activity=TriggerActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
 
     first = _add()

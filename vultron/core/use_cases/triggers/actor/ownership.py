@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import why_may_not_act_on_case
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.received_activity import (
@@ -89,6 +90,8 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        *,
+        clock: ClockPort,
     ) -> None:
         super().__init__(
             dl=dl,  # type: ignore[arg-type]
@@ -96,6 +99,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
             trigger_activity=trigger_activity,  # type: ignore[arg-type]
             wire_render_port=wire_render_port,
             sync_port=sync_port,
+            clock=clock,
         )
         self._actor_discovery_call_out = call_out
 

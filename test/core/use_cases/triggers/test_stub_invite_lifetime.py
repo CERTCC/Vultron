@@ -51,6 +51,7 @@ from test.support.embargo_register import (
 from test.support.ledger import ledger_entries
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -149,6 +150,7 @@ def _terminate(dl: Any, owner_id: str, case_id: str) -> None:
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
 
@@ -475,6 +477,7 @@ def test_manager_refuses_a_reinvite_of_a_closed_participant(
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
     )
     stored = dl.read(offer["id"])

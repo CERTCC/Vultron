@@ -12,6 +12,7 @@ from test.support.received import (
     stamped,
     with_evidence,
 )
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import inbox_handler as ih
@@ -79,6 +80,7 @@ def test_handle_inbox_item_dispatches(monkeypatch):
         actor_id="https://example.org/actors/actor1",
         obj=cast(Any, fake_activity),
         dl=mock_dl,
+        clock=SystemClock(),
     )
 
     mock_dispatcher.dispatch.assert_called_once()
@@ -88,6 +90,42 @@ def test_handle_inbox_item_dispatches(monkeypatch):
         dispatched_event.receiving_actor_id
         == "https://example.org/actors/actor1"
     )
+
+
+@pytest.mark.spec("CS-13-002")
+def test_handle_inbox_item_dispatches_inside_one_act(monkeypatch):
+    """The CLI delivery path is an act: lock, one read, ``/at`` in force."""
+    from test.support.act_clock import ACT_AT, CountingClock, tree_lock_held
+    from vultron.core.behaviors.bridge.act_instant import read_act_instant
+
+    fake_event = VultronEvent(
+        semantic_type=MessageSemantics.UNKNOWN,
+        activity_id="https://example.org/activities/aid",
+        actor_id="https://example.org/actors/actor1",
+    )
+    monkeypatch.setattr(
+        ih, "prepare_for_dispatch", lambda activity: fake_event
+    )
+    seen: list[tuple[object, bool]] = []
+    monkeypatch.setattr(
+        ih,
+        "dispatch",
+        lambda **_kw: seen.append((read_act_instant(), tree_lock_held())),
+    )
+    clock = CountingClock()
+
+    ih.handle_inbox_item(
+        actor_id="https://example.org/actors/actor1",
+        obj=cast(
+            Any, SimpleNamespace(name="fake", model_dump_json=lambda **_: "{}")
+        ),
+        dl=MagicMock(),
+        clock=clock,
+    )
+
+    assert clock.reads == 1
+    assert clock.locked_at_read == [True]
+    assert seen == [(ACT_AT, True)]
 
 
 def test_dispatch_uses_explicit_dispatcher(monkeypatch):

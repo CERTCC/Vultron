@@ -90,3 +90,33 @@ def test_stochastic_demo_module_importable():
     mod = importlib.import_module("vultron.demo.fuzzer.stochastic_demo")
     assert hasattr(mod, "run_stochastic_demo")
     assert callable(mod.run_stochastic_demo)
+
+
+def test_each_embargo_tree_tick_is_one_act(monkeypatch):
+    """Each full-tree tick reads the act clock once, inside the tree lock,
+    and hands that instant to its bridge run as ``at`` (ADR-0176)."""
+    from datetime import UTC, datetime
+
+    from test.support.act_clock import CountingClock
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.demo.fuzzer import stochastic_demo
+
+    first = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+    second = datetime(2026, 3, 1, 12, 1, tzinfo=UTC)
+    clock = CountingClock(first, second)
+    monkeypatch.setattr(stochastic_demo, "SystemClock", lambda: clock)
+
+    seen: list[object] = []
+    original = BTBridge.execute_with_setup
+
+    def recording(self, *args, **kwargs):
+        seen.append(kwargs.get("at"))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(BTBridge, "execute_with_setup", recording)
+
+    stochastic_demo._run_embargo_full_tree(n_ticks=2)
+
+    assert clock.reads == 2
+    assert clock.locked_at_read == [True, True]
+    assert seen == [first, second]

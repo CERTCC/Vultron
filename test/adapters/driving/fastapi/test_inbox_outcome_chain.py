@@ -35,6 +35,7 @@ from pydantic import BaseModel
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import delivered_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
@@ -124,6 +125,7 @@ def _process(
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=dispatcher
         ),
+        clock=SystemClock(),
     )
 
 
@@ -192,6 +194,7 @@ def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=make_dispatcher()
         ),
+        clock=SystemClock(),
     )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -765,6 +768,7 @@ def test_add_note_at_case_manager_stores_the_note_from_the_event(dl):
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=make_dispatcher()
         ),
+        clock=SystemClock(),
     )
 
     assert outcome.status is InboxOutcomeStatus.PROCESSED, (
@@ -1012,6 +1016,7 @@ def test_late_joiner_after_accepted_invite_accepts_case_manager_announce(dl):
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     assert accepted.activity is not None

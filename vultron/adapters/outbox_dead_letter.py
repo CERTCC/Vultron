@@ -36,7 +36,7 @@ from typing import Literal, Protocol
 
 from pydantic import Field
 
-from vultron.core.models._helpers import now_utc, timestamp_serializer
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.base import CoreRecord, NonEmptyString
 
 
@@ -61,7 +61,8 @@ class OutboxDeadLetterEntry(CoreRecord):
         ledger_entry_id: ID of the ``CaseLedgerEntry`` whose event this activity
             was replicating, or ``None`` when the activity is not an
             ``Announce(CaseLedgerEntry)`` (OX-14-001, OX-14-003).
-        recorded_at: UTC timestamp when the dead-letter was recorded.
+        recorded_at: UTC timestamp when the dead-letter was recorded, read
+            from the store's bookkeeping clock (ADR-0176).
     """
 
     type_: Literal["OutboxDeadLetterEntry"] = Field(  # type: ignore[assignment]
@@ -75,7 +76,7 @@ class OutboxDeadLetterEntry(CoreRecord):
     total_attempts: int
     failed_recipients: list[str] = Field(default_factory=list)
     ledger_entry_id: NonEmptyString | None = None
-    recorded_at: datetime = Field(default_factory=now_utc)
+    recorded_at: datetime
     _serialize_recorded_at = timestamp_serializer("recorded_at")
 
 
@@ -93,7 +94,8 @@ class InboxDeadLetterEntry(CoreRecord):
         reason: Short machine-readable reason code.
         total_attempts: Cumulative processing attempt count at time of exhaustion.
         last_error: String representation of the last exception raised.
-        recorded_at: UTC timestamp when the dead-letter was recorded.
+        recorded_at: UTC timestamp when the dead-letter was recorded, read
+            from the store's bookkeeping clock (ADR-0176).
     """
 
     type_: Literal["InboxDeadLetterEntry"] = Field(  # type: ignore[assignment]
@@ -106,7 +108,7 @@ class InboxDeadLetterEntry(CoreRecord):
     reason: NonEmptyString
     total_attempts: int
     last_error: str = ""
-    recorded_at: datetime = Field(default_factory=now_utc)
+    recorded_at: datetime
     _serialize_recorded_at = timestamp_serializer("recorded_at")
 
 

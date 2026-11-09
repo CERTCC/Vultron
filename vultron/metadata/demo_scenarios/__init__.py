@@ -20,6 +20,9 @@ Public API, in the two halves ADR-0098 splits the consumers into.
 - :data:`PAGE_SLUGS` — canonical tuple of valid page slugs.
 - :func:`scenario_matrix_json` — desired contents of
   ``.github/demo-scenarios.json``.
+- :func:`plot_manifest_json` — desired contents of the plot manifest
+  ``vultron/demo/scenario/plots.json``, every scenario's flattened story
+  (:mod:`.plots`, DEMOCI-11-034).
 - :func:`stale_artifacts` / :func:`write_artifacts` — the ``--check`` and
   ``--write`` halves of the ``demo-scenarios`` console script.
 
@@ -41,6 +44,14 @@ a demo module can know that a demo exists. This package reads it; nothing here
 is imported by demo or protocol code.
 """
 
+from vultron.metadata.demo_scenarios.plots import (
+    PLOT_MANIFEST,
+    PlotManifest,
+    PlotRow,
+    plot_manifest,
+    plot_manifest_json,
+    plot_rows,
+)
 from vultron.metadata.demo_scenarios.prose_checks import (
     consistency_problems,
     missing_narrative_nav_entries,
@@ -108,6 +119,7 @@ __all__ = [
     "PLANNED_COLUMNS",
     "PLANNED_REGISTER",
     "PLANNED_REGISTER_HEADING",
+    "PLOT_MANIFEST",
     "SCENARIO_README",
     "SCENARIO_TABLES",
     "SCENARIO_TABLE_CONSUMERS",
@@ -116,6 +128,8 @@ __all__ = [
     "WRITE_COMMAND",
     "HarnessSemanticTypeError",
     "PlannedScenario",
+    "PlotManifest",
+    "PlotRow",
     "ScenarioTable",
     "additional_semantic_types",
     "consistency_problems",
@@ -129,6 +143,9 @@ __all__ = [
     "partition_problems",
     "per_scenario_semantic_type_requirements",
     "planned_scenarios",
+    "plot_manifest",
+    "plot_manifest_json",
+    "plot_rows",
     "render_page",
     "restated_counts",
     "scenario_matrix_json",

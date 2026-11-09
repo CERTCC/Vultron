@@ -20,6 +20,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -225,6 +226,7 @@ class TestValidateEngageChain:
                 actor_id=vendor.id_, offer_id=offer.id_
             ),
             trigger_activity=TriggerActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
 
     @staticmethod
@@ -233,6 +235,7 @@ class TestValidateEngageChain:
             dl,
             EngageCaseTriggerRequest(actor_id=vendor.id_, case_id=case.id_),
             trigger_activity=TriggerActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
 
     @staticmethod
@@ -367,6 +370,7 @@ class TestValidateEngageChain:
                 actor_id=vendor.id_, offer_id=offer.id_
             ),
             trigger_activity=TriggerActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
         after = set(dl.outbox_list())
         new_ids = after - before
