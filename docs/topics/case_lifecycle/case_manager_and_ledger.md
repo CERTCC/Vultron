@@ -35,8 +35,9 @@ Whichever participant holds the `CASE_MANAGER` role is the case's **single-write
 
 It keeps the **case ledger**: the append-only history that is authoritative for the case.
 It is the only peer that appends to that history ([CLP-01-003](../../reference/vultron-spec/requirements/ledger-replication.md#clp-01-003)).
-In the prototype, a dedicated service actor (the **Case Actor**) acts as this authority.
-But the authority comes from the role, never from that actor's name or URL ([ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
+The reference implementation runs one **Case Actor** Service actor per container, which holds the `CASE_MANAGER` role for the cases delegated to it.
+A Case Owner that does not delegate management holds the role itself, because the create-case trigger grants the creating actor both `CASE_OWNER` and `CASE_MANAGER` ([CM-02-015](../../reference/vultron-spec/requirements/case-management.md#cm-02-015)).
+The authority comes from the role, never from an actor's name or URL ([ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
 
 The flow of a change is always the same:
 
