@@ -75,7 +75,8 @@ the private spelling will not find a public duplicate** — search for the behav
 Three subpackages own committed generated artifacts, and all split the same way:
 **generate what is derivable, check what is prose.** `adr/index_gen.py`
 regenerates `docs/adr/index.md` but only checks the hand-labelled nav;
-`demo_scenarios/` regenerates the CI matrix, two scenario tables and the tree
+`demo_scenarios/` regenerates the CI matrix, the plot manifest of every
+scenario's flattened story, two scenario tables and the tree
 index, leaving spec enumerations and nav to checks; `msm/occasions/` regenerates
 the occasion YAML and fragments, not page prose. Each is a `--check` hook
 (`adr-index-sync`, `demo-scenarios-sync`, `demo-tree-sync`, `msm-occasions-sync`)

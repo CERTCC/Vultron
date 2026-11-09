@@ -15,12 +15,15 @@
 
 Pins :mod:`vultron.demo.helpers.story.assembly`: :func:`choose` and
 :func:`story`, the path a scenario's registration reads off its story
-(DEMOCI-11-019, DEMOCI-11-024), and the named prefixes the registered
-scenarios share (DEMOMA-17-001, DEMOMA-17-002).
+(DEMOCI-11-019, DEMOCI-11-024), the named prefixes the registered
+scenarios share (DEMOMA-17-001, DEMOMA-17-002), and :func:`fragment_name`,
+the stable name the plot manifest records a fragment by (DEMOCI-11-034).
 """
 
 from __future__ import annotations
 
+import functools
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -33,7 +36,9 @@ from test.demo_unit.story._support import (
 from vultron.demo.helpers.story import (
     Choose,
     Story,
+    StoryState,
     choose,
+    fragment_name,
     story,
 )
 from vultron.demo.scenario import registry
@@ -550,3 +555,74 @@ def test_the_embargo_pair_shares_the_proposal_opening() -> None:
             module.STORY.items[:shared] == REPORTER_PROPOSES_EMBARGO.items
         ), f"{stem} does not start from REPORTER_PROPOSES_EMBARGO"
         assert isinstance(module.STORY.items[shared], Choose)
+
+
+# ---------------------------------------------------------------------------
+# How a written-down fragment is named (DEMOCI-11-034)
+# ---------------------------------------------------------------------------
+
+
+def reporter_submits_the_report(state: StoryState) -> None:
+    """Stand in for a module-level fragment; only its name is read here."""
+
+
+def _nested_fragment() -> Callable[[StoryState], None]:
+    """Return a closure, whose qualified name holds ``<locals>``."""
+
+    def inner(state: StoryState) -> None:
+        """Stand in for a step written inside another function."""
+
+    return inner
+
+
+class _CallableStep:
+    """A callable instance, which carries no ``__qualname__`` of its own."""
+
+    def __call__(self, state: StoryState) -> None:
+        """Stand in for a step written as an object."""
+
+
+class TestFragmentNames:
+    """``fragment_name`` is what the plot manifest records a fragment by.
+
+    Its consumer is ``vultron/metadata/demo_scenarios/plots.py``, whose own
+    tests pin the artifact; these pin the rule.
+    """
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    def test_a_module_level_fragment_is_named_by_module_and_qualname(
+        self,
+    ) -> None:
+        assert (
+            fragment_name(reporter_submits_the_report, scenario="rv")
+            == f"{__name__}.reporter_submits_the_report"
+        )
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    @pytest.mark.parametrize(
+        ("fragment", "match"),
+        [
+            (lambda state: None, "synthetic segment"),
+            (_nested_fragment(), "synthetic segment"),
+            (
+                functools.partial(reporter_submits_the_report),
+                "no __module__ and __qualname__ pair",
+            ),
+            (_CallableStep(), "no __module__ and __qualname__ pair"),
+        ],
+        ids=["lambda", "closure", "partial", "callable-instance"],
+    )
+    def test_an_unstable_name_is_refused(
+        self, fragment: Callable[[StoryState], None], match: str
+    ) -> None:
+        """No name is handed back for one that says nothing about the step.
+
+        A closure and a lambda are both ``<...>``-named, and neither a
+        ``functools.partial`` nor a callable instance has a ``__qualname__``
+        of its own — each would record a row that moves on an unrelated
+        rename, or no row at all.
+        """
+        with pytest.raises(DemoStoryError, match=match) as raised:
+            fragment_name(fragment, scenario="rv")
+
+        assert "rv" in str(raised.value)

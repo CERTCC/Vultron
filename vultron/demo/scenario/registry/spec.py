@@ -52,15 +52,27 @@ _NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\Z")
 F = TypeVar("F", bound=Callable[..., None])
 
 
-class StoryPath(Protocol):
-    """A scenario's assembled story, seen only as the path it walks.
+class AssembledStory(Protocol):
+    """A scenario's assembled story, as the registry sees it.
 
-    A scenario registers its story, and the registry reads the path off the
-    story's choices (DEMOCI-11-019).  Declared structurally rather than
+    Two facts are read off it and nothing else is: the path, from the story's
+    choices (DEMOCI-11-019), and the items, which the generated plot manifest
+    lists in order (DEMOCI-11-034).  Declared structurally rather than
     imported so the registry keeps no dependency on the demo helper library
     that owns stories (:mod:`vultron.demo.helpers.story`), which imports the
     harness, which imports this module.
     """
+
+    @property
+    def items(self) -> tuple[object, ...]:
+        """The story's items in order: its choices and its fragments.
+
+        Typed as opaque objects because narrowing them would name the
+        helper library's classes here, which is the import this protocol
+        exists to avoid.  The manifest exporter, which may import them,
+        does the narrowing.
+        """
+        ...
 
     @property
     def path(self) -> tuple[PathStep, ...]:
@@ -169,6 +181,20 @@ class ScenarioSpec:
     #: (DEMOCI-11-019). The prompts and choice labels are read from the
     #: branch-point table, never declared here (DEMOCI-11-050).
     path: tuple[PathStep, ...]
+    #: The assembled story the scenario registered, kept so the generated
+    #: plot manifest can list its items in order (DEMOCI-11-034). Read only
+    #: by :mod:`vultron.metadata.demo_scenarios.plots`; everything else asks
+    #: for :attr:`path`, which :func:`~.discovery.scenario` already read off
+    #: this story's choices (DEMOCI-11-019).
+    #:
+    #: ``None`` only for a spec built by hand. :func:`~.discovery.scenario`
+    #: requires a story, so every *registered* scenario carries one and the
+    #: manifest covers the whole registry; a spec assembled directly in a
+    #: test — the way the tree checks make a malformed path, which no story
+    #: can hold because :class:`~vultron.demo.helpers.story.Choose` validates
+    #: each step as it is written — contributes no manifest entry rather than
+    #: an entry with no items.
+    story: AssembledStory | None = None
 
     def __post_init__(self) -> None:
         if not _NAME_RE.match(self.name):

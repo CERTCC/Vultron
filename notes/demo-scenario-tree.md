@@ -429,8 +429,8 @@ vendor-first half, whose Reporter tells a Vendor.
   order (DEMOCI-11-034, DEMOCI-11-035). `TestSharedPrefixes` compares two *committed*
   recordings with each other, so a reordered shared fragment moves both alike and
   still passes it. Until the base-versus-head job is built, run
-  `export-demo-recordings --report-changes` from a clean tree in any PR that edits a
-  fragment, and read the composed fragments' checks against the base by hand. Run it
+  `export-demo-recordings --report-changes` from a clean tree in a PR editing *inside*
+  a fragment, and read the composed fragments' checks against the base by hand. Run it
   once: the first run overwrites the committed files, so a second compares them with
   themselves (#5589).
 - **The plot renders as a story a domain expert can read.** Every fragment the

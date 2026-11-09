@@ -23,9 +23,9 @@ from pathlib import Path
 from vultron.demo.scenario.registry.spec import (
     MODULE_SUFFIX,
     SCENARIO_PACKAGE,
+    AssembledStory,
     F,
     ScenarioSpec,
-    StoryPath,
 )
 from vultron.demo.scenario.tree import PathStep, TreeNode, build_scenario_tree
 from vultron.errors import DemoScenarioRegistryError
@@ -40,7 +40,7 @@ def scenario(
     participants: str,
     feature: str,
     in_pr_set: bool,
-    story: StoryPath,
+    story: AssembledStory,
 ) -> Callable[[F], F]:
     """Register the decorated ``main()`` as a demo scenario.
 
@@ -86,6 +86,7 @@ def scenario(
             feature=feature,
             in_pr_set=in_pr_set,
             path=declared,
+            story=story,
         )
         _register(spec, func.__module__)
         return func
@@ -93,7 +94,7 @@ def scenario(
     return register
 
 
-def _story_path(name: str, story: StoryPath) -> tuple[PathStep, ...]:
+def _story_path(name: str, story: AssembledStory) -> tuple[PathStep, ...]:
     """Return the path *story* walks, as the scenario *name*'s path.
 
     A required argument cannot be omitted, but it can still arrive as a

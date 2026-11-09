@@ -12,11 +12,15 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Generate and check the committed demo scenario artifacts (DEMOCI-11-005).
 
-Three artifacts are generated from the scenario registry and committed:
+Four artifacts are generated from the scenario registry and committed:
 
 - ``.github/demo-scenarios.json`` — whole file. It stays committed because the
   ``scenarios`` job in ``demo-integration.yml`` resolves the CI matrix with
   ``jq`` immediately after checkout, in a job with no Python environment.
+- ``vultron/demo/scenario/plots.json`` — whole file: every scenario's
+  flattened story, so a reordered fragment fails this check instead of
+  surfacing on the next recordings run (:mod:`.plots`, DEMOCI-11-034,
+  DEMOCI-11-035).
 - ``test/ci/README-case-log-ratchet.md`` — the table between the markers.
 - ``vultron/demo/scenario/README.md`` — the table between the markers.
 
@@ -59,6 +63,10 @@ from vultron.demo.scenario.registry import (
     discover_scenarios,
 )
 from vultron.metadata.base import repo_root
+from vultron.metadata.demo_scenarios.plots import (
+    PLOT_MANIFEST,
+    plot_manifest_json,
+)
 from vultron.metadata.demo_scenarios.prose_checks import consistency_problems
 from vultron.metadata.demo_scenarios.render import (
     render_page,
@@ -139,6 +147,13 @@ ARTIFACTS: tuple[Artifact, ...] = (
     Artifact(
         path=MATRIX_JSON,
         desired=lambda specs, _current: scenario_matrix_json(specs),
+        whole_file=True,
+    ),
+    Artifact(
+        path=PLOT_MANIFEST,
+        desired=lambda specs, _current: plot_manifest_json(
+            specs, WRITE_COMMAND
+        ),
         whole_file=True,
     ),
     _marker_artifact(HARNESS_README, "harnesses"),
@@ -325,6 +340,7 @@ __all__ = [
     "END_MARKER",
     "HARNESS_README",
     "MATRIX_JSON",
+    "PLOT_MANIFEST",
     "SCENARIO_README",
     "WRITE_COMMAND",
     "Artifact",
