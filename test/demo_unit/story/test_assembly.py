@@ -15,12 +15,15 @@
 
 Pins :mod:`vultron.demo.helpers.story.assembly`: :func:`choose` and
 :func:`story`, the path a scenario's registration reads off its story
-(DEMOCI-11-019, DEMOCI-11-024), and the named prefixes the registered
-scenarios share (DEMOMA-17-001, DEMOMA-17-002).
+(DEMOCI-11-019, DEMOCI-11-024), the named prefixes the registered
+scenarios share (DEMOMA-17-001, DEMOMA-17-002), and :func:`fragment_name`,
+the stable name the plot manifest records a fragment by (DEMOCI-11-034).
 """
 
 from __future__ import annotations
 
+import functools
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -30,10 +33,13 @@ from test.demo_unit.story._support import (
     make_fragment,
     rv_story,
 )
+from test.support.scenario_specs import fixture_spec
 from vultron.demo.helpers.story import (
     Choose,
     Story,
+    StoryState,
     choose,
+    fragment_name,
     story,
 )
 from vultron.demo.scenario import registry
@@ -200,6 +206,13 @@ def _register_fixture(
     return registry_discovery._REGISTRY[name]
 
 
+def _fixture_spec_with(story_obj: Story) -> ScenarioSpec:
+    """A spec for ``rv`` carrying *story_obj*, built without registering it."""
+    return fixture_spec(
+        name="rv", label="RV", feature="Fixture", story=story_obj
+    )
+
+
 class TestRegisteringAStory:
     @pytest.mark.spec("DEMOCI-11-019")
     def test_a_scenarios_path_is_its_storys_choices(
@@ -229,6 +242,92 @@ class TestRegisteringAStory:
                 feature="Fixture",
                 in_pr_set=False,
             )
+
+    @pytest.mark.spec("DEMOCI-11-001")
+    def test_re_executing_a_scenario_module_registers_the_same_spec(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Re-running a module's decorator is the same scenario, not a conflict.
+
+        ``_register`` decides "same scenario or conflict" by comparing specs,
+        and a story's fragments are function objects compared by identity, so
+        a re-executed module builds fresh ones. The spec keeps its story out
+        of ``__eq__`` for exactly this reason; without that, every
+        ``importlib.reload`` of a scenario whose story holds a fragment
+        defined in its own module — most of them — would raise, and the
+        one teardown that reloads one would go red far from its cause
+        (``test/demo/test_rcv_demo.py``).
+        """
+        monkeypatch.setattr(
+            registry_discovery,
+            "_REGISTRY",
+            dict(registry_discovery._REGISTRY),
+        )
+        first = _fixture_spec_with(rv_story())
+        # A second story built the way a re-executed module's module-level
+        # `story(...)` call builds it: equal in meaning, new objects.
+        reread = _fixture_spec_with(rv_story())
+        assert reread.story is not first.story
+
+        registry_discovery._REGISTRY["rv"] = first
+        registry_discovery._register(reread, "test.demo_unit.test_story")
+
+        assert registry_discovery._REGISTRY["rv"] is reread
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    def test_a_story_that_cannot_say_what_its_items_are_is_refused(
+        self,
+    ) -> None:
+        """The exporter reads the items long after import, so import checks them.
+
+        A stand-in carrying only ``path`` registers fine and then dies in the
+        plot-manifest exporter as an ``AttributeError`` over an anonymous
+        object, in a layer whose error messages are the product. The scenario
+        name is asserted because naming it is the whole point of refusing
+        here rather than there.
+        """
+
+        class _PathOnly:
+            path = (("reporter-whom-to-tell", "vendor"),)
+
+        with pytest.raises(
+            DemoScenarioRegistryError, match="no items"
+        ) as raised:
+            scenario(
+                name="rv",
+                label="RV",
+                participants="Reporter + Vendor",
+                feature="Fixture",
+                in_pr_set=False,
+                story=_PathOnly(),  # type: ignore[arg-type]
+            )
+
+        assert "rv" in str(raised.value)
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    def test_a_story_whose_items_are_mutable_is_refused(self) -> None:
+        """A list of items could be rewritten behind the committed manifest.
+
+        The scenario name is asserted for the same reason as above.
+        """
+
+        class _MutableItems:
+            path = (("reporter-whom-to-tell", "vendor"),)
+            items = [choose("reporter-whom-to-tell", "vendor", by="reporter")]
+
+        with pytest.raises(
+            DemoScenarioRegistryError, match="not a tuple"
+        ) as raised:
+            scenario(
+                name="rv",
+                label="RV",
+                participants="Reporter + Vendor",
+                feature="Fixture",
+                in_pr_set=False,
+                story=_MutableItems(),  # type: ignore[arg-type]
+            )
+
+        assert "rv" in str(raised.value)
 
     @pytest.mark.spec("DEMOCI-11-019")
     def test_a_story_that_names_no_path_is_refused(self) -> None:
@@ -550,3 +649,74 @@ def test_the_embargo_pair_shares_the_proposal_opening() -> None:
             module.STORY.items[:shared] == REPORTER_PROPOSES_EMBARGO.items
         ), f"{stem} does not start from REPORTER_PROPOSES_EMBARGO"
         assert isinstance(module.STORY.items[shared], Choose)
+
+
+# ---------------------------------------------------------------------------
+# How a written-down fragment is named (DEMOCI-11-034)
+# ---------------------------------------------------------------------------
+
+
+def reporter_submits_the_report(state: StoryState) -> None:
+    """Stand in for a module-level fragment; only its name is read here."""
+
+
+def _nested_fragment() -> Callable[[StoryState], None]:
+    """Return a closure, whose qualified name holds ``<locals>``."""
+
+    def inner(state: StoryState) -> None:
+        """Stand in for a step written inside another function."""
+
+    return inner
+
+
+class _CallableStep:
+    """A callable instance, which carries no ``__qualname__`` of its own."""
+
+    def __call__(self, state: StoryState) -> None:
+        """Stand in for a step written as an object."""
+
+
+class TestFragmentNames:
+    """``fragment_name`` is what the plot manifest records a fragment by.
+
+    Its consumer is ``vultron/metadata/demo_scenarios/plots.py``, whose own
+    tests pin the artifact; these pin the rule.
+    """
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    def test_a_module_level_fragment_is_named_by_module_and_qualname(
+        self,
+    ) -> None:
+        assert (
+            fragment_name(reporter_submits_the_report, scenario="rv")
+            == f"{__name__}.reporter_submits_the_report"
+        )
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    @pytest.mark.parametrize(
+        ("fragment", "match"),
+        [
+            (lambda state: None, "synthetic segment"),
+            (_nested_fragment(), "synthetic segment"),
+            (
+                functools.partial(reporter_submits_the_report),
+                "no __module__ and __qualname__ pair",
+            ),
+            (_CallableStep(), "no __module__ and __qualname__ pair"),
+        ],
+        ids=["lambda", "closure", "partial", "callable-instance"],
+    )
+    def test_an_unstable_name_is_refused(
+        self, fragment: Callable[[StoryState], None], match: str
+    ) -> None:
+        """No name is handed back for one that says nothing about the step.
+
+        A closure and a lambda are both ``<...>``-named, and neither a
+        ``functools.partial`` nor a callable instance has a ``__qualname__``
+        of its own — each would record a row that moves on an unrelated
+        rename, or no row at all.
+        """
+        with pytest.raises(DemoStoryError, match=match) as raised:
+            fragment_name(fragment, scenario="rv")
+
+        assert "rv" in str(raised.value)

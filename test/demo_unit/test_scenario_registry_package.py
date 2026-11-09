@@ -34,8 +34,10 @@ import pytest
 from click.testing import CliRunner
 
 import vultron.demo.scenario as scenario_package
+from test.support.scenario_specs import FIRST_STEP, fixture_spec
 from vultron.demo import cli
 from vultron.demo.cli.scenario_commands import _make_scenario_command
+from vultron.demo.helpers.story import choose, story
 from vultron.demo.scenario.registry import (
     SCENARIO_DIR,
     SCENARIO_PACKAGE,
@@ -50,6 +52,17 @@ from vultron.metadata.demo_scenarios import (
     desired_contents,
     missing_derived_paths,
 )
+
+
+def _spec(name: str) -> ScenarioSpec:
+    """A spec for *name*, on the shortest valid path with a one-step story."""
+    return fixture_spec(
+        name=name,
+        label="ZZ",
+        feature="Something",
+        story=story(choose(*FIRST_STEP, by="reporter")),
+    )
+
 
 #: The fixture scenario's name; its stem is ``zz_fixture_pkg``.
 _NAME = "zz-fixture-pkg"
@@ -66,15 +79,23 @@ _PACKAGE_FILES = {
 
         __all__ = ["CLI_HELP", "ROLES", "STORY", "main"]
     """,
+    # Assembled with story(...) rather than hand-rolled: the registry reads
+    # both the path and the items off it, and a stand-in carrying only one of
+    # them would register a scenario the plot manifest cannot write
+    # (DEMOCI-11-034).
     "story.py": """
-        class _Story:
-            path = (
-                ("reporter-whom-to-tell", "vendor"),
-                ("vendor-after-answer", "report-fix-ready"),
-            )
+        from vultron.demo.helpers.story import choose, story
 
 
-        STORY = _Story()
+        def the_reporter_tells_a_vendor(state):
+            \"\"\"Stand in for the fixture package's one step.\"\"\"
+
+
+        STORY = story(
+            choose("reporter-whom-to-tell", "vendor", by="reporter"),
+            the_reporter_tells_a_vendor,
+            choose("vendor-after-answer", "report-fix-ready", by="vendor"),
+        )
     """,
     "cli.py": f"""
         from vultron.demo.helpers.actor_roles import case_actor_role
@@ -250,14 +271,7 @@ def test_registration_refuses_a_module_outside_the_derived_package(
 ) -> None:
     """Only the derived module and its submodules may declare the scenario."""
     monkeypatch.setattr(discovery, "_REGISTRY", dict(discovery._REGISTRY))
-    spec = ScenarioSpec(
-        name=_NAME,
-        label="ZZ",
-        participants="Reporter + Vendor",
-        feature="Something",
-        in_pr_set=False,
-        path=(("reporter-whom-to-tell", "vendor"),),
-    )
+    spec = _spec(_NAME)
     with pytest.raises(DemoScenarioRegistryError, match="derives the module"):
         discovery._register(spec, origin)
 
@@ -283,14 +297,7 @@ def test_a_name_that_resolves_nowhere_reads_as_the_module_form() -> None:
     ``source_files`` raises instead, because a ratchet scanning no file would
     pass over the scenario it was asked about.
     """
-    spec = ScenarioSpec(
-        name="zz-nowhere",
-        label="ZZ",
-        participants="Reporter + Vendor",
-        feature="Something",
-        in_pr_set=False,
-        path=(("reporter-whom-to-tell", "vendor"),),
-    )
+    spec = _spec("zz-nowhere")
     assert spec.is_package is False
     assert spec.demo_path == f"{SCENARIO_DIR}/zz_nowhere_demo.py"
     with pytest.raises(DemoScenarioRegistryError, match="does not resolve"):
@@ -411,14 +418,7 @@ def test_a_namespace_directory_reads_as_no_package(
     _write(tmp_path, {"zz_ns_demo/cli.py": ""})
     monkeypatch.setattr(scenario_package, "__path__", [str(tmp_path)])
     importlib.invalidate_caches()
-    spec = ScenarioSpec(
-        name="zz-ns",
-        label="ZZ",
-        participants="Reporter + Vendor",
-        feature="Something",
-        in_pr_set=False,
-        path=(("reporter-whom-to-tell", "vendor"),),
-    )
+    spec = _spec("zz-ns")
     try:
         assert spec.is_package is False
         assert spec.demo_path == f"{SCENARIO_DIR}/zz_ns_demo.py"

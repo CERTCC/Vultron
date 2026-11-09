@@ -18,7 +18,7 @@ from __future__ import annotations
 import importlib.util
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol, TypeVar
 
@@ -52,15 +52,27 @@ _NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\Z")
 F = TypeVar("F", bound=Callable[..., None])
 
 
-class StoryPath(Protocol):
-    """A scenario's assembled story, seen only as the path it walks.
+class AssembledStory(Protocol):
+    """A scenario's assembled story, as the registry sees it.
 
-    A scenario registers its story, and the registry reads the path off the
-    story's choices (DEMOCI-11-019).  Declared structurally rather than
+    Two facts are read off it and nothing else is: the path, from the story's
+    choices (DEMOCI-11-019), and the items, which the generated plot manifest
+    lists in order (DEMOCI-11-034).  Declared structurally rather than
     imported so the registry keeps no dependency on the demo helper library
     that owns stories (:mod:`vultron.demo.helpers.story`), which imports the
     harness, which imports this module.
     """
+
+    @property
+    def items(self) -> tuple[object, ...]:
+        """The story's items in order: its choices and its fragments.
+
+        Typed as opaque objects because narrowing them would name the
+        helper library's classes here, which is the import this protocol
+        exists to avoid.  The manifest exporter, which may import them,
+        does the narrowing.
+        """
+        ...
 
     @property
     def path(self) -> tuple[PathStep, ...]:
@@ -146,8 +158,11 @@ def _require_table_cell(
 class ScenarioSpec:
     """One registered demo scenario.
 
-    Holds only facts the demo module is the authority for. Every path is a
-    derived property; see the module docstring for why none of them is a field.
+    Holds only facts the demo module is the authority for. Every *artifact*
+    path — the demo script, the invariant harness, the narrative page — is a
+    derived property; see the module docstring for why none of them is a
+    field. The scenario's path through the tree is a different thing and is a
+    field, read off :attr:`story`'s choices (DEMOCI-11-019).
     """
 
     #: Sub-command spelling, e.g. ``"rvcv-handoff"``. The identity of the
@@ -169,6 +184,23 @@ class ScenarioSpec:
     #: (DEMOCI-11-019). The prompts and choice labels are read from the
     #: branch-point table, never declared here (DEMOCI-11-050).
     path: tuple[PathStep, ...]
+    #: The assembled story the scenario registered, kept so the generated
+    #: plot manifest can list its items in order (DEMOCI-11-034). Read only
+    #: by :mod:`vultron.metadata.demo_scenarios.plots`; everything else asks
+    #: for :attr:`path`, which :func:`~.discovery.scenario` already read off
+    #: this story's choices (DEMOCI-11-019).
+    #:
+    #: Out of ``__eq__`` and ``__repr__``, both deliberately. A story's
+    #: fragments are function objects compared by identity, so re-executing a
+    #: scenario module — which ``importlib.reload`` does, and a test teardown
+    #: with it — would build an unequal spec and make
+    #: :func:`~.discovery._register`'s conflict guard refuse the scenario it
+    #: just re-read. That guard exists to catch a copy-pasted decorator, and
+    #: the prose fields plus the path are what a copy gets wrong; a story is
+    #: the one field whose repr is also unreadable, several thousand
+    #: characters of nested items and memory addresses in the message a
+    #: human has to read.
+    story: AssembledStory = field(compare=False, repr=False)
 
     def __post_init__(self) -> None:
         if not _NAME_RE.match(self.name):
