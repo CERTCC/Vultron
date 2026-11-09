@@ -25,7 +25,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 Two transitions can also be asserted on another participant's behalf, by the CASE_MANAGER or the Case Owner.
 Vendor awareness (`v→V`) is the usual case: the party that notified the vendor knows that the vendor has the information.
-Evidence of the notification — for example the vendor's acknowledgment of its Invite — provides a basis for the assertion.
+The protocol expects evidence of the notification to ground the assertion — for example, the vendor's acknowledgment of its Invite.
 The reference implementation does not enforce this; it relies on the asserter's role and the target's participant status alone.
 A Deployer's fix deployment (`d→D`) can be asserted the same way, which is expected to be rare: deployment is normally the Deployer's own report.
 Fix readiness is never asserted on a vendor's behalf, because only the vendor can know it.
@@ -103,13 +103,9 @@ Eligibility checking is a single logical capability: the full set of criteria ap
 The protocol treats it as one decision with one outcome, and does not specify how an implementation reaches that decision.
 
 !!! info "Reference implementation note"
-    The Python reference implementation currently decomposes CVE eligibility
-    into approximately eleven individual Evaluator call-out points —
-    `InScope`, `ProductInCNAScope`, `IsMostAppropriateCNA`, and nine
-    `IdAssignable` children — contrary to the single-call-out intent of
-    BTND-05-007.
-    The consolidation is tracked by
-    [#2518](https://github.com/CERTCC/Vultron/issues/2518).
+    The Python reference implementation currently decomposes CVE eligibility into three named Evaluator call-out points (`InScope`, `ProductInCNAScope`, `IsMostAppropriateCNA`) plus eight of the nine `IdAssignable` children as Evaluators — eleven in total — contrary to the single-call-out intent of BTND-05-007.
+    The ninth `IdAssignable` child (`IsOrWillBePubliclyDisclosed`) is ProtocolInternal with no factory seam.
+    The consolidation is tracked by [#2518](https://github.com/CERTCC/Vultron/issues/2518).
 
 #### 13.4.4 Case Owner Authority
 

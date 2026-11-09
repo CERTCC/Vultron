@@ -88,12 +88,8 @@ This mapping is specific to the hexagonal architecture of the reference
 implementation. Other implementations are not required to use this structure.
 
 !!! info "Reference implementation note"
-    The simulation layer (`vultron/demo/fuzzer/call_out_point.py`) still
-    exports a `SentinelCallOutPoint` mixin and three illustrative Sentinel
-    subclasses alongside the four shape mixins, contrary to the four-shapes
-    description in [G.1 The Four Capability Shapes](#g1-the-four-capability-shapes).
-    Moving the Sentinel class out of the shape-mixin module is tracked by
-    [#3424](https://github.com/CERTCC/Vultron/issues/3424).
+    The simulation layer (`vultron/demo/fuzzer/call_out_point.py`) still exports a `SentinelCallOutPoint` mixin and three illustrative Sentinel subclasses alongside the four shape mixins, contrary to the four-shapes description in [G.1 The Four Capability Shapes](#g1-the-four-capability-shapes).
+    Moving the Sentinel class out of the shape-mixin module is tracked by [#3424](https://github.com/CERTCC/Vultron/issues/3424).
 
 !!! info "See also"
     - ADR-0024 (original shape taxonomy; the term "call-out point")
