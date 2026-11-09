@@ -20,6 +20,7 @@ handled by ``SubmitReportReceivedUseCase`` in the receiver's own store.
 
 import json
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -36,14 +37,17 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.behaviors.bridge.act_instant import act_instant_in_tree_run
 from vultron.core.models.actor import VultronService
 from vultron.core.models.attached_document import (
     AttachedDocument,
-    AttachedFile,
     AttachedImage,
 )
 from vultron.core.models.events.report import SubmitReportReceivedEvent
-from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report import (
+    ReportAttachment,
+    VulnerabilityReport,
+)
 from vultron.core.models.report_claims import (
     ClaimOutcome,
     ReportClaimsRecord,
@@ -63,6 +67,7 @@ _FINDER = "https://finder.example.org/actors/finder"
 _REPORT_ID = "https://finder.example.org/reports/widget"
 _CSAF_ID = f"{_REPORT_ID}/csaf"
 _OTHER_ID = f"{_REPORT_ID}/notes"
+_RECEIVED_AT = datetime(2026, 11, 1, 12, tzinfo=UTC)
 
 
 def _document(content: str, document_id: str = _CSAF_ID) -> AttachedDocument:
@@ -79,7 +84,7 @@ class _Receipt:
     """One delivery of a report Offer to the Vendor, and what it left behind."""
 
     def __init__(
-        self, *attachments: AttachedFile, report_id: str = _REPORT_ID
+        self, *attachments: ReportAttachment, report_id: str = _REPORT_ID
     ) -> None:
         self.report_id = report_id
         report = VulnerabilityReport(
@@ -96,11 +101,13 @@ class _Receipt:
         self.dl.save(VultronService(id_=_VENDOR))
 
     def handle(self) -> HandlerResult:
-        return SubmitReportReceivedUseCase(
-            self.dl,
-            self.event,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
+        # The inbox runs each delivery inside an act (ADR-0176).
+        with act_instant_in_tree_run(_RECEIVED_AT):
+            return SubmitReportReceivedUseCase(
+                self.dl,
+                self.event,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
 
     def records(self) -> list[ReportClaimsRecord]:
         found = self.dl.list_objects("ReportClaimsRecord")
@@ -275,6 +282,7 @@ def test_the_report_keeps_a_record_of_what_its_csaf_claimed() -> None:
 
     record = receipt.record()
     assert record.activity_id == receipt.event.activity_id
+    assert record.received_at == _RECEIVED_AT
     paths = record.reading.claims.value_paths()
     assert "name" in paths
     assert "vulnerabilities[0].disclosure_date" in paths
@@ -365,3 +373,27 @@ def test_an_image_beside_the_csaf_document_is_kept_and_not_read() -> None:
     assert [r.reading.document_id for r in receipt.records()] == [_CSAF_ID]
     stored = receipt.stored_report().attachment
     assert stored is not None and type(stored[0]) is AttachedImage
+
+
+@pytest.mark.spec("CSAF-02-006")
+@pytest.mark.parametrize(
+    "other",
+    [
+        {"type": "Note", "id": _OTHER_ID, "content": "Steps to reproduce."},
+        {"type": "Link", "href": "https://finder.example.org/advisory"},
+        "https://finder.example.org/advisory",
+    ],
+    ids=["note", "link", "bare-uri"],
+)
+def test_an_attachment_that_is_no_file_never_refuses_the_report(
+    other: dict[str, str] | str,
+) -> None:
+    receipt = _Receipt(other, _csaf(vulnerability_report_document()))
+
+    result = receipt.handle()
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    assert [r.reading.document_id for r in receipt.records()] == [_CSAF_ID]
+    stored = receipt.stored_report().attachment
+    assert stored is not None and len(stored) == 2
+    assert type(stored[1]) is AttachedDocument

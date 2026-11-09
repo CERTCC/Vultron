@@ -45,10 +45,8 @@ from typing import TypeGuard
 
 from pydantic import AwareDatetime, JsonValue, TypeAdapter, ValidationError
 
-from vultron.core.models.attached_document import (
-    AttachedDocument,
-    AttachedFile,
-)
+from vultron.core.models.attached_document import AttachedDocument
+from vultron.core.models.report import ReportAttachment
 from vultron.core.models.report_claims import (
     ClaimedAcknowledgment,
     ClaimedReference,
@@ -120,7 +118,11 @@ def read_csaf_document(
     if digest is None:
         digest = content_digest(json.dumps(data, sort_keys=True))
     try:
-        parsed = CommonSecurityAdvisoryFramework.model_validate(data)
+        # Strict JSON mode, so the check is the schema's: a number is no
+        # date-time string and a string no number (CSAF-04-001).
+        parsed = CommonSecurityAdvisoryFramework.model_validate_json(
+            json.dumps(data), strict=True
+        )
     except ValidationError as exc:
         reader = _FieldReader()
         return ClaimsReading(
@@ -145,7 +147,7 @@ def read_csaf_document(
 
 
 def read_report_attachments(
-    attachments: Sequence[AttachedFile] | None,
+    attachments: Sequence[ReportAttachment] | None,
     *,
     activity_id: str,
     actor_id: str,
@@ -161,7 +163,8 @@ def read_report_attachments(
     readings: list[ClaimsReading] = []
     for attachment in attachments or []:
         # CSAF travels as a ``Document`` (CSAF-01-001); an image, audio or
-        # video file is kept with the report and not read.
+        # video file, or an attachment that is no file (a ``Note``, a
+        # ``Link``, a bare URI), is kept with the report and not read.
         if not isinstance(attachment, AttachedDocument):
             continue
         data = _json_content(attachment, activity_id, actor_id)
@@ -294,13 +297,15 @@ class _FieldReader:
     ) -> datetime | None:
         if key not in container:
             return None
-        try:
-            return _AWARE_DATETIME.validate_python(container[key])
-        except ValidationError:
-            self._skip(
-                f"{path}.{key}", "not a date-time with a time zone offset"
-            )
-            return None
+        value = container[key]
+        # A JSON date-time is a string; a number is never read as one.
+        if isinstance(value, str):
+            try:
+                return _AWARE_DATETIME.validate_python(value)
+            except ValidationError:
+                pass
+        self._skip(f"{path}.{key}", "not a date-time with a time zone offset")
+        return None
 
     def read(self, data: dict[str, JsonValue]) -> ReportClaims:
         """Read the claims of the whole document *data*."""
@@ -498,20 +503,29 @@ class _FieldReader:
         """Map each product id to the vendor branch nearest above it."""
         tree = self._object(data, "product_tree", "$") or {}
         found: dict[str, str] = {}
-        self._walk_branches(tree, "$.product_tree", None, found)
+        self._walk_branches(tree, "$.product_tree", found)
         return found
 
     def _walk_branches(
         self,
-        node: dict[str, JsonValue],
+        tree: dict[str, JsonValue],
         path: str,
-        vendor: str | None,
         found: dict[str, str],
     ) -> None:
-        for here, branch in self._items(node, "branches", path):
-            name = vendor
-            if branch.get("category") == "vendor":
-                name = self._text(branch, "name", here) or vendor
+        """Walk the branch tree depth first, with a stack, not recursion.
+
+        A sender controls the depth, and nesting ``json.loads`` accepts can
+        exceed the interpreter's recursion limit, so recursion here would
+        raise on document content and refuse the report (CSAF-02-006).
+        """
+        stack: list[Iterator[tuple[str, dict[str, JsonValue], str | None]]]
+        stack = [self._children(tree, path, None)]
+        while stack:
+            child = next(stack[-1], None)
+            if child is None:
+                stack.pop()
+                continue
+            here, branch, name = child
             product = self._object(branch, "product", here)
             if product is not None and name is not None:
                 product_id = self._text(
@@ -519,7 +533,17 @@ class _FieldReader:
                 )
                 if product_id is not None:
                     found.setdefault(product_id, name)
-            self._walk_branches(branch, here, name, found)
+            stack.append(self._children(branch, here, name))
+
+    def _children(
+        self, node: dict[str, JsonValue], path: str, vendor: str | None
+    ) -> Iterator[tuple[str, dict[str, JsonValue], str | None]]:
+        """Yield each branch below *node*, with its path and its vendor."""
+        for here, branch in self._items(node, "branches", path):
+            name = vendor
+            if branch.get("category") == "vendor":
+                name = self._text(branch, "name", here) or vendor
+            yield here, branch, name
 
 
 __all__ = [

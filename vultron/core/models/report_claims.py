@@ -47,7 +47,6 @@ from pydantic import (
 
 from vultron.core.models._helpers import (
     format_timestamp,
-    now_utc,
     timestamp_serializer,
 )
 from vultron.core.models.base import (
@@ -270,7 +269,8 @@ class ReportClaimsRecord(CoreRecord):
     one :class:`ClaimOutcome` for every value read (CSAF-04-004).  It is
     receiver-local and is never sent to another actor (CSAF-04-005).
 
-    ``received_at`` is when the receiver read the document, not the Offer's
+    ``received_at`` is the instant of the act that read the document, so no
+    clock is read below the act's edge (ADR-0176).  It is not the Offer's
     ``published``, which is the sender's claimed time (CLP-15-003); a date the
     document states is compared with it.  The id is derived from the report id
     and the document's content digest (:meth:`build_id`), so a resent Offer
@@ -285,7 +285,7 @@ class ReportClaimsRecord(CoreRecord):
     )
     report_id: UriString
     activity_id: NonEmptyString
-    received_at: datetime = Field(default_factory=now_utc)
+    received_at: datetime
     reading: ClaimsReading
     outcomes: dict[NonEmptyString, ClaimOutcome] = Field(default_factory=dict)
 

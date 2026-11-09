@@ -98,6 +98,7 @@ _SAMPLES: dict[str, dict[str, Any]] = {
     "ReportClaimsRecord": {
         "report_id": _URI,
         "activity_id": _URI,
+        "received_at": "2026-10-29T00:00:00Z",
         "reading": {
             "document_id": _URI,
             "document_digest": "0" * 64,

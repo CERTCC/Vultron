@@ -44,14 +44,17 @@ and archive it.
   receives a format-neutral `report_claims` model in `vultron.core.models`, with
   non-optional fields for what was read (ADR-0032), so a later CVE JSON or OSV
   reader fills the same type.
-- **A report's attachments are core files.** `VulnerabilityReport.attachment` is a
-  `list[AttachedFile] | None`: `AttachedDocument`, `AttachedImage`, `AttachedAudio`
-  or `AttachedVideo`, which own those wire `type` values while the `as_` classes
-  declare themselves aliases, so no import order decides the owner. A received
-  report keeps its attachments through `dl.save` and `dl.read`. It stays `None`
-  when nothing is attached, because `[]` would put a key on the wire the sender
-  never sent. Any other attachment (a `Note`, a `Link`, a bare URI) is refused at
-  parse; widen `AttachedFile` if a sender needs one. Only a `Document` is read.
+- **A report's files are typed; nothing it attaches refuses it.**
+  `VulnerabilityReport.attachment` is a `list[ReportAttachment] | None`. A file is
+  an `AttachedDocument`, `AttachedImage`, `AttachedAudio` or `AttachedVideo`, which
+  own those wire `type` values while the `as_` classes declare themselves aliases,
+  so no import order decides the owner. Anything else AS2 allows (a `Note`, a
+  `Link`, a bare URI) is an untyped `OtherAttachment`, kept as received, because a
+  report is never refused over the form of an attachment (CSAF-02-006). A single
+  attachment sent without a list is read as a list of one. A received report keeps
+  its attachments through `dl.save` and `dl.read`. It stays `None` when nothing is
+  attached, because `[]` would put a key on the wire the sender never sent. Only a
+  `Document` is read.
 - **The reading reaches core on the event.** The extractor calls
   `vultron.wire.csaf.reader.read_report_attachments` and puts one `ClaimsReading`
   per recognized CSAF 2.1 attachment on `SubmitReportReceivedEvent.claims_readings`;

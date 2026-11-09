@@ -221,6 +221,12 @@ groups:
       delivers a schema-invalid CSAF document, an attachment that is not JSON and
       one whose `document` is not an object, and checks that each Offer is
       applied, its report kept with the attachment and its case proposed.
+      `test/core/use_cases/received/test_submit_report_csaf.py::test_an_attachment_that_is_no_file_never_refuses_the_report`
+      delivers a `Note`, a `Link` and a bare URI beside the CSAF document, and checks
+      that each Offer is applied and the CSAF document still read.
+      `test/wire/csaf/test_reader.py::test_a_branch_tree_deeper_than_the_recursion_limit_is_still_read`
+      checks that a product tree deeper than the interpreter's recursion limit is
+      read, not raised on.
     adr:
     - ADR-0184
     stories:

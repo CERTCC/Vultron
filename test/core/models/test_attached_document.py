@@ -13,6 +13,7 @@
 """A report's attachments are core documents that survive the store unchanged."""
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.attached_document import (
@@ -104,18 +105,58 @@ def test_a_report_without_attachments_publishes_none() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "attachment",
-    [[{"type": "Note", "content": "not a document"}], ["https://x.example/a"]],
-    ids=["note", "bare-link"],
-)
-def test_an_attachment_that_is_no_document_is_refused_at_the_edge(
-    attachment: object,
-) -> None:
-    from vultron.wire.as2.errors import VultronParseValidationError
+_CSAF_ATTACHMENT = {
+    "type": "Document",
+    "id": f"{_REPORT_ID}/csaf",
+    "mediaType": "application/json",
+    "content": '{"document": {}}',
+}
 
-    with pytest.raises(VultronParseValidationError):
-        parse_activity(_offer_body(attachment))
+
+@pytest.mark.spec("CSAF-02-006")
+@pytest.mark.parametrize(
+    "other",
+    [
+        {"type": "Note", "content": "Steps to reproduce."},
+        {"type": "Link", "href": "https://x.example/advisory"},
+        "https://x.example/advisory",
+    ],
+    ids=["note", "link", "bare-uri"],
+)
+def test_an_attachment_that_is_no_file_is_kept_as_received(
+    other: dict[str, str] | str,
+) -> None:
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    report = _parsed_report([_CSAF_ATTACHMENT, other])
+
+    dl.create(report)
+    stored = dl.read(_REPORT_ID)
+
+    assert isinstance(stored, VulnerabilityReport)
+    assert stored.attachment is not None
+    document, kept = stored.attachment
+    assert type(document) is AttachedDocument
+    if isinstance(other, str):
+        assert kept == other
+    else:
+        assert isinstance(kept, dict)
+        assert {key: kept[key] for key in other} == other
+
+
+def test_a_single_attachment_sent_without_a_list_is_a_list_of_one() -> None:
+    report = _parsed_report(_CSAF_ATTACHMENT)
+
+    assert report.attachment is not None
+    [document] = report.attachment
+    assert type(document) is AttachedDocument
+    assert document.content == '{"document": {}}'
+
+
+def test_a_file_its_own_class_refuses_is_not_kept_untyped() -> None:
+    with pytest.raises(
+        ValidationError, match="must be a valid AttachedDocument"
+    ):
+        VulnerabilityReport(attachment=[{"type": "Document", "content": ""}])
 
 
 @pytest.mark.parametrize(

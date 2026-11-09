@@ -16,6 +16,7 @@ Issue #3872.
 """
 
 import uuid
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -41,6 +42,7 @@ from vultron.core.models.report_claims import (
 
 VENDOR = "https://example.org/actors/vendor"
 OFFER = "https://example.org/activities/offer-n1"
+_AT = datetime(2026, 11, 1, 12, tzinfo=UTC)
 REPORT = "https://example.org/reports/r-n1"
 FINDER = "https://example.org/users/finder"
 
@@ -102,13 +104,14 @@ def test_claims_node_stores_one_record_per_reading_and_logs_each_skip(caplog):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor)
     with caplog.at_level("INFO"):
         result = BTBridge(datalayer=dl).execute_with_setup(
-            _claims_node(), actor_id=actor
+            _claims_node(), actor_id=actor, at=_AT
         )
 
     assert result.status == Status.SUCCESS
     record = dl.read(ReportClaimsRecord.build_id(REPORT, "b" * 64))
     assert isinstance(record, ReportClaimsRecord)
     assert record.activity_id == OFFER
+    assert record.received_at == _AT, "the act's instant, never a clock read"
     assert record.reading.schema_verdict is SchemaVerdict.SCHEMA_INVALID
     [skip] = [r for r in caplog.records if "(CSAF-04-003)" in r.getMessage()]
     assert skip.levelname == "INFO"
@@ -121,12 +124,14 @@ def test_claims_node_keeps_a_record_it_already_holds(caplog):
     actor = f"{VENDOR}/{uuid.uuid4()}"
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor)
     bridge = BTBridge(datalayer=dl)
-    bridge.execute_with_setup(_claims_node(), actor_id=actor)
+    bridge.execute_with_setup(_claims_node(), actor_id=actor, at=_AT)
     first = dl.list_objects("ReportClaimsRecord")
     assert len(first) == 1
 
     with caplog.at_level("INFO"):
-        result = bridge.execute_with_setup(_claims_node(), actor_id=actor)
+        result = bridge.execute_with_setup(
+            _claims_node(), actor_id=actor, at=_AT
+        )
 
     assert result.status == Status.SUCCESS
     assert dl.list_objects("ReportClaimsRecord") == first

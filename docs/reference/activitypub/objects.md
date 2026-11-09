@@ -121,6 +121,7 @@ the `content` property MAY contain a link to the binary file or an embedded enco
 SHOULD be avoided whenever possible since they are more difficult to process automatically.
 
 A report can also carry files in its `attachment` property, beside the text in its `content`: each is a `Document`, `Image`, `Audio` or `Video` object.
+Any other object or link in `attachment`, such as a `Note` or a bare URI, is kept with the report as it was sent, and a receiver never refuses the report because of it.
 A [Common Security Advisory Framework (CSAF)](https://oasis-open.github.io/csaf-documentation/){:target="_blank"} 2.1 document travels this way, as a `Document` whose `mediaType` is `application/json` and whose `content` is the JSON text of the CSAF document.
 The report keeps its own human-readable text in `content`.
 A receiver reads the CSAF document as the sender's statement only on the first `Offer` of a report that belongs to no case yet ([ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)).

@@ -14,6 +14,7 @@
 
 import json
 import logging
+import sys
 from datetime import UTC, datetime
 from typing import Any
 
@@ -506,6 +507,40 @@ def test_a_reading_names_its_document_by_the_content_digest() -> None:
 
 def test_json_nested_too_deep_to_parse_is_not_read() -> None:
     assert _read(_attachment("[" * 200_000)) == []
+
+
+@pytest.mark.spec("CSAF-02-006")
+def test_a_branch_tree_deeper_than_the_recursion_limit_is_still_read() -> None:
+    data = vulnerability_report_document()
+    widget_branch = data["product_tree"]["branches"][0]["branches"][0]
+    deepest: dict[str, Any] = widget_branch
+    for _ in range(sys.getrecursionlimit() + 100):
+        deepest = {
+            "category": "product_family",
+            "name": "x",
+            "branches": [deepest],
+        }
+    data["product_tree"]["branches"][0]["branches"] = [deepest]
+
+    [reading] = _read(_attachment(json.dumps(data)))
+
+    assert reading.claims.known_affected_vendors == ["Example Vendor"]
+
+
+@pytest.mark.spec("CSAF-04-001")
+def test_a_number_where_the_schema_wants_a_date_time_is_schema_invalid() -> (
+    None
+):
+    data = vulnerability_report_document()
+    _vul(data)["disclosure_date"] = 1_700_000_000
+
+    reading = read_csaf_document(_DOCUMENT_ID, data)
+
+    assert reading.schema_verdict is SchemaVerdict.SCHEMA_INVALID
+    assert reading.claims.vulnerabilities[0].disclosure_date is None
+    assert "$.vulnerabilities[0].disclosure_date" in [
+        s.path for s in reading.skipped
+    ]
 
 
 def test_the_first_note_of_a_category_is_the_summary() -> None:

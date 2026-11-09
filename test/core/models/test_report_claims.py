@@ -35,6 +35,7 @@ _DOCUMENT_ID = "https://reporter.example.org/reports/1/csaf"
 _DIGEST = "a" * 64
 _ACTIVITY_ID = "https://reporter.example.org/activities/offer-1"
 _RECEIVER = "https://vendor.example.org/actors/vendor"
+_RECEIVED_AT = datetime(2026, 11, 1, tzinfo=UTC)
 
 
 def _claims() -> ReportClaims:
@@ -70,6 +71,7 @@ def _record(**overrides) -> ReportClaimsRecord:
     return ReportClaimsRecord(
         report_id=_REPORT_ID,
         activity_id=_ACTIVITY_ID,
+        received_at=_RECEIVED_AT,
         reading=_reading(),
         **overrides,
     )
@@ -196,6 +198,7 @@ def test_a_malformed_record_is_refused(overrides) -> None:
     fields = {
         "report_id": _REPORT_ID,
         "activity_id": _ACTIVITY_ID,
+        "received_at": _RECEIVED_AT,
         "reading": _reading().model_dump(),
         **overrides,
     }

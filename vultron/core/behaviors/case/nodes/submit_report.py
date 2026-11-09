@@ -139,10 +139,14 @@ class StoreReportClaimsRecordsNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
+        if not self._readings:
+            return Status.SUCCESS
+        received_at = self._require_act_instant()
         for reading in self._readings:
             record = ReportClaimsRecord(
                 report_id=self._report_id,
                 activity_id=self._activity_id,
+                received_at=received_at,
                 reading=reading,
             )
             try:
@@ -150,10 +154,12 @@ class StoreReportClaimsRecordsNode(DataLayerActionWithPorts):
             except VultronAlreadyExistsError:
                 self.logger.debug(
                     "%s: claims record for document '%s' of report '%s'"
-                    " already held",
+                    " in activity '%s' from actor '%s' already held",
                     self.name,
                     reading.document_id,
                     self._report_id,
+                    self._activity_id,
+                    self._sender_id,
                 )
                 continue
             self._log_stored(reading)
