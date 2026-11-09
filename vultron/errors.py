@@ -225,8 +225,9 @@ class VultronProofVerificationError(VultronError):
     content, not an HTTP credential, so 401 (which asks for a
     ``WWW-Authenticate`` challenge) does not fit.  403 does not arise at the
     inbox either: a verified sender's entitlement is decided in core and
-    answered with a ``Reject`` (HP-01-006, HP-01-007).  The distinct name keeps a failed proof apart from a field
-    error (:exc:`VultronValidationError`) for senders and in logs.  The
+    answered with a ``Reject`` (HP-01-006, HP-01-007).  The distinct name
+    keeps a failed proof apart from a field error
+    (:exc:`VultronValidationError`) for senders and in logs.  The
     authorization half of EH-03-005 is :exc:`VultronNotACaseParticipantError`.
 
     This class deliberately does not inherit ``ValueError``.  A forged body is

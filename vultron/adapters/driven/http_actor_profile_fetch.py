@@ -70,9 +70,10 @@ def check_profile_fetch_target(actor_id: str) -> None:
     literal outside the public address space (loopback, private,
     link-local such as a cloud metadata address, multicast, reserved or
     unspecified), in any spelling a resolver reads as an address, an IPv4
-    address embedded in an IPv6 one included.  A host name is fetched: the multi-container demos name
-    their peers by internal host names, and resolving a name to check it
-    here would not bind the address the client then connects to.  A
+    address embedded in an IPv6 one included.  A host name is fetched: the
+    multi-container demos name their peers by internal host names, and
+    resolving a name to check it here would not bind the address the client
+    then connects to.  A
     production allow-list or key cache is #1184.
 
     Raises:
