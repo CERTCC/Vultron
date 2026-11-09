@@ -21,8 +21,11 @@ case's embargo, one arm per outcome, each a diversion of the Accept tree
 (CLP-10-026): :class:`LateAcceptRouteIsNode` names the arm, and
 :class:`LateAcceptChangesNothingNode` is the answer when the case holds no
 embargo for the Accept to bind: nothing is recorded or sent (EMB-17-004).
+:func:`late_accept_terms` names the terms a re-invite carries (EMB-17-003),
+so the route and the re-invite read them the same way.
 """
 
+from datetime import datetime
 from enum import StrEnum
 
 import py_trees
@@ -31,19 +34,27 @@ from py_trees.common import Status
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_termination import has_reached_end_time
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.embargo_ordering import (
+    earliest_ending,
+    read_embargo_event,
+)
 from vultron.core.states.em import EM
 
 
 class LateAcceptRoute(StrEnum):
     """How the CASE_MANAGER answers a late embargo ``Accept`` (EMB-17-001).
 
-    - ``HONOUR`` — the accepted embargo is the case's current one: the
-      participant's row moves to ``AGREED`` (EMB-17-002).
-    - ``REINVITE`` — the case has a current embargo, but not the accepted
-      one: the accepter is invited to it (EMB-17-003).
-    - ``UNBOUND`` — the case holds no embargo (EM ``EXITED`` or
-      ``NONE``): the Accept changes nothing, and nothing is recorded or
-      sent (EMB-17-004).
+    - ``HONOUR`` — the case can still answer the accepted embargo: it is the
+      Active Embargo or an open proposal, and the participant's row moves to
+      ``AGREED`` (EMB-17-002, MSM-07-003).
+    - ``REINVITE`` — the case cannot answer the accepted embargo, but holds
+      terms of its own: the accepter is invited to them (EMB-17-003).
+    - ``UNBOUND`` — the case holds no terms (EM ``EXITED`` or ``NONE``, or
+      only proposals whose embargo has already ended): the Accept changes
+      nothing, and nothing is recorded or sent (EMB-17-004).
     """
 
     HONOUR = "honour"
@@ -51,15 +62,60 @@ class LateAcceptRoute(StrEnum):
     UNBOUND = "unbound"
 
 
+#: The EM states in which a case holds an embargo or a proposal of one.
+_HOLDS_EMBARGO = frozenset({EM.PROPOSED, EM.ACTIVE, EM.REVISE})
+
+
 def late_accept_route(
-    em_state: EM, active_embargo_id: str | None, embargo_id: str
+    em_state: EM, *, answerable: bool, has_terms: bool
 ) -> LateAcceptRoute:
-    """The EMB-17 arm for a late Accept of *embargo_id* (EMB-17-001)."""
-    if em_state in (EM.ACTIVE, EM.REVISE) and active_embargo_id == embargo_id:
+    """The EMB-17 arm for a late Accept (EMB-17-001, EMB-17-012).
+
+    Args:
+        em_state: The case's EM state.
+        answerable: The case can still answer the accepted embargo
+            (:meth:`~vultron.core.models.case.VulnerabilityCase.can_answer_embargo`).
+        has_terms: The case holds terms a re-invite can name
+            (:func:`late_accept_terms` is not ``None``).
+    """
+    if em_state in _HOLDS_EMBARGO and answerable:
         return LateAcceptRoute.HONOUR
-    if em_state in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
+    if em_state in _HOLDS_EMBARGO and has_terms:
         return LateAcceptRoute.REINVITE
     return LateAcceptRoute.UNBOUND
+
+
+def late_accept_terms(
+    store: CasePersistence, case: VulnerabilityCase, now: datetime
+) -> str | None:
+    """The embargo a late accepter is re-invited to, or ``None`` (EMB-17-003).
+
+    The case's Active Embargo; with none, its earliest-expiring open
+    proposal among those whose embargo has not ended at *now*, chosen by the
+    shared comparator (EP-08-002).  A proposal past its end time stays
+    ``PROPOSED`` in the register until something closes it, but an Invite to
+    it could carry no RSVP deadline the protocol allows (EP-07-002,
+    EP-07-006), so it is no terms to invite to.  ``None`` when the case holds
+    neither: there is nothing to invite to (EMB-17-004).
+
+    Raises:
+        VultronNotFoundError: An open proposal does not resolve in *store*.
+        VultronNotAnEmbargoError: An open proposal is not an
+            ``EmbargoEvent``.
+    """
+    if case.active_embargo_id is not None:
+        return case.active_embargo_id
+    live = [
+        embargo
+        for embargo in (
+            read_embargo_event(store, embargo_id)
+            for embargo_id in case.proposed_embargo_ids
+        )
+        if not has_reached_end_time(embargo.end_time, now)
+    ]
+    if not live:
+        return None
+    return earliest_ending(live, end=lambda e: e.end_time).id_
 
 
 class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
@@ -67,12 +123,15 @@ class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
 
     Reads the case's EM state through
     :func:`~vultron.core.behaviors.embargo.nodes.em_state.read_case_em_state`
-    (AC-1, #1474) and its embargo in force when the node runs, after the
-    Invite expiry has been recorded.  SUCCESS when
+    (AC-1, #1474), whether the case can still answer *embargo_id*
+    (:meth:`~vultron.core.models.case.VulnerabilityCase.can_answer_embargo`,
+    the test the Accept tree's ``IsAnswerableEmbargoNode`` makes) and the
+    terms a re-invite would name at *now* (:func:`late_accept_terms`), when
+    the node runs, after the Invite expiry has been recorded.  SUCCESS when
     :func:`late_accept_route` names *route*, logged at INFO; FAILURE
-    otherwise.  Read-only.  A case the CASE_MANAGER cannot
-    read raises: it holds its own case (Regime 1, ADR-0087), and a guess
-    here would route the Accept to the wrong arm.
+    otherwise.  Read-only.  A case or an open proposal the CASE_MANAGER
+    cannot read raises: it holds its own case (Regime 1, ADR-0087), and a
+    guess here would route the Accept to the wrong arm.
     """
 
     def __init__(
@@ -81,6 +140,8 @@ class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
         embargo_id: str,
         accepting_actor_id: str,
         route: LateAcceptRoute,
+        *,
+        now: datetime,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -88,6 +149,7 @@ class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
         self._embargo_id = embargo_id
         self._accepting_actor_id = accepting_actor_id
         self.route = route
+        self._now = now
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -97,8 +159,14 @@ class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure
+        answerable = case.can_answer_embargo(self._embargo_id)
+        # The terms matter only to an Accept the case cannot answer.
+        has_terms = (
+            not answerable
+            and late_accept_terms(self.datalayer, case, self._now) is not None
+        )
         route = late_accept_route(
-            em_state, case.active_embargo_id, self._embargo_id
+            em_state, answerable=answerable, has_terms=has_terms
         )
         if route is not self.route:
             return Status.FAILURE
@@ -115,7 +183,8 @@ class LateAcceptChangesNothingNode(py_trees.behaviour.Behaviour):
     """Answer a late Accept the case has no embargo for, by doing nothing.
 
     The Invite had expired and the case holds no embargo the Accept could
-    still bind (EM ``EXITED`` or ``NONE``), so the Accept changes nothing at
+    still bind (EM ``EXITED`` or ``NONE``, or only proposals whose embargo
+    has already ended), so the Accept changes nothing at
     the CASE_MANAGER or at any replica: no ledger entry is committed, nothing
     is sent and no consent row moves (EMB-17-004, ADR-0152).  Anything that
     holds the case and its ledger can see that the Accept named an embargo
@@ -155,4 +224,5 @@ __all__ = [
     "LateAcceptRoute",
     "LateAcceptRouteIsNode",
     "late_accept_route",
+    "late_accept_terms",
 ]
