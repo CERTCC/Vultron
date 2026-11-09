@@ -30,11 +30,11 @@ else:
 
 
 class _OwnerEmbargoDecisionEvent(LedgerPositionedEvent):
-    """The case owner's decision on an embargo proposal (ADR-0122).
+    """The case owner's decision on an embargo proposal (ADR-0122, ADR-0180).
 
-    ``Accept`` or ``Reject`` of the ``EmbargoEvent`` itself, with the case
-    as ``target`` — not of the ``Invite`` that proposed it, which is each
-    sender's own consent.
+    ``Add`` or ``Reject`` of the ``EmbargoEvent`` itself, with the case
+    as ``target`` — not an answer to the ``Invite`` that proposed it, which
+    is each sender's own consent, and which ``inReplyTo`` names.
     """
 
     @property
@@ -57,7 +57,7 @@ class _OwnerEmbargoDecisionEvent(LedgerPositionedEvent):
 class ActivateEmbargoOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
     """The case owner activated a proposed embargo on the case.
 
-    ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122).
+    ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0180).
     """
 
     semantic_type: Literal[MessageSemantics.ACTIVATE_EMBARGO_ON_CASE] = (

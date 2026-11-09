@@ -213,7 +213,7 @@
     },
     {
       "semanticType": "activate_embargo_on_case",
-      "wire": "Accept(EmbargoEvent)[target=VulnerabilityCase]",
+      "wire": "Add(EmbargoEvent)[target=VulnerabilityCase]",
       "phrase": "{actor} activated the embargo"
     },
     {

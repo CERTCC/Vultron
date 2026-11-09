@@ -15,17 +15,22 @@
 
 """The CASE_MANAGER's EMB-17-003 re-invite of a late accepter.
 
-A late ``Accept`` names an embargo that is no longer the case's current one,
-so the manager asks the accepter again about the current embargo.  The
+A late ``Accept`` names an embargo the case can no longer answer, so the
+manager asks the accepter about the case's terms instead: its Active Embargo,
+or else its earliest-expiring open proposal (EMB-17-003).  The
 re-invite is a relay (:class:`~vultron.core.behaviors.embargo.nodes.relay.RelayEmbargoInviteToEachNode`),
 narrowed to one fixed recipient: ``attributedTo`` names the current embargo's
 proposer, and it is committed as ``invite_to_embargo_on_case`` (ADR-0152).
 """
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.nodes.late_accept import (
+    late_accept_terms,
+)
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
 )
@@ -38,8 +43,15 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.participants.recipients import invitation_recipients
+from vultron.core.services.embargo_lifecycle.pec import (
+    find_actor_participant,
+)
+from vultron.core.states.participant_embargo_consent import (
+    PEC_Trigger,
+    consent_trigger_is_legal,
+)
 from vultron.core.sync_helpers import recorded_entries_for_case
-from vultron.errors import VultronNotFoundError
+from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
@@ -48,10 +60,10 @@ if TYPE_CHECKING:
 class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     """Commit and send the CASE_MANAGER's EMB-17-003 re-invite of one accepter.
 
-    A late ``Accept`` named an embargo that is no longer the case's current
-    one, so the manager asks the accepter again about the current embargo
-    (EMB-17-003).  The re-invite is a relay (ADR-0152): the frame is the
-    relay's — stamp a fresh deadline (ASK-03-004, CM-28-012), build, queue,
+    A late ``Accept`` named an embargo the case can no longer answer, so the
+    manager asks the accepter about the case's terms instead (EMB-17-003).
+    The re-invite is a relay (ADR-0152): the frame is the relay's — stamp
+    a fresh deadline (ASK-03-004, CM-28-012), build, queue,
     commit once queued (ADR-0119), apply PEC ``INVITE`` and record the
     deadline (CM-18-003, CM-28-013) — with ``attributedTo`` naming the
     embargo's proposer, read from the case's ledger
@@ -115,6 +127,8 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         Raises:
             VultronNotFoundError: A subclass cannot resolve its invitee in
                 the CASE_MANAGER's own store; the node fails.
+            BtNodePreconditionError: A subclass finds no terms where its
+                route promised some; the node fails.
         """
         return True
 
@@ -126,12 +140,20 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1: the CASE_MANAGER holds its case
+        precondition: BtNodePreconditionError | None = None
         try:
             if not self._invite_owed(case):
                 return Status.SUCCESS
+        except BtNodePreconditionError as exc:
+            precondition = exc
         except VultronNotFoundError as exc:
             self.feedback_message = str(exc)
             self.logger.exception("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        if precondition is not None:
+            # The node's own finding, not a fault below it: no traceback.
+            self.feedback_message = str(precondition)
+            self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         if self._invitee_id not in invitation_recipients(case, self.datalayer):
             self.feedback_message = (
@@ -157,16 +179,25 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
 
 
 class ReinviteLateAccepterNode(ReinviteStaleAccepterNode):
-    """Re-invite a late accepter to the case's current embargo (EMB-17-003).
+    """Re-invite a late accepter to the case's terms (EMB-17-003).
 
-    The late Accept's routing arm (CLP-10-026): the accepted embargo is not
-    the one in force, so the CASE_MANAGER asks the accepter about the one
-    that is.  Which embargo is read when the node runs, after the Invite
-    expiry was recorded.  Nothing is sent, and the node succeeds, when the
-    case has no embargo in force to invite to, or when this actor was
-    composed without the trigger-activity port that builds the Invite; the
-    WARNING says which, and the Accept is still not recorded as consent
+    The late Accept's routing arm (CLP-10-026): the case cannot answer the
+    accepted embargo, so the CASE_MANAGER asks the accepter about the terms
+    it holds — its Active Embargo, or with none its earliest-expiring open
+    proposal whose embargo has not ended at *now*
+    (:func:`~vultron.core.behaviors.embargo.nodes.late_accept.late_accept_terms`,
+    EP-08-002).  Which terms are read when the node runs, after the Invite
+    expiry was recorded.  The Accept is never recorded as consent
     (EMB-17-005, EMB-17-006).
+
+    Nothing is sent, and the node succeeds, when the accepter's row for those
+    terms takes no ``INVITE`` — it is already ``INVITED`` or ``AGREED``, so
+    it has been asked, or has answered, and asking again would undo nothing
+    (CM-18-003; the EP-09-011 guard) — logged at INFO; or when this actor
+    was composed without the trigger-activity port that builds the Invite,
+    logged at WARNING.  The route sends a late Accept here only when the
+    case holds terms, so finding none is a routing bug: the node fails
+    (ARCH-15).
     """
 
     def __init__(
@@ -176,6 +207,7 @@ class ReinviteLateAccepterNode(ReinviteStaleAccepterNode):
         name: str | None = None,
         actor_config: "ActorConfig | None" = None,
         *,
+        now: datetime,
         answers: str | None = None,
     ) -> None:
         # The embargo is resolved at tick time.
@@ -187,24 +219,55 @@ class ReinviteLateAccepterNode(ReinviteStaleAccepterNode):
             actor_config=actor_config,
             answers=answers,
         )
+        self._now = now
 
     def _invite_owed(self, case: VulnerabilityCase) -> bool:
-        embargo_id = case.active_embargo_id
+        assert self.datalayer is not None
+        embargo_id = late_accept_terms(self.datalayer, case, self._now)
         if embargo_id is None:
-            self.feedback_message = (
-                f"late Accept for case '{self._case_id}' — no embargo in"
-                f" force to re-invite '{self._invitee_id}' to"
+            raise BtNodePreconditionError(
+                f"late Accept for case '{self._case_id}' routed to the"
+                f" re-invite, but the case holds no terms to invite"
+                f" '{self._invitee_id}' to (EMB-17-003)"
             )
-        elif self.trigger_activity_factory is None:
+        if self.trigger_activity_factory is None:
             self.feedback_message = (
                 f"late Accept for a stale embargo on case '{self._case_id}'"
                 " — trigger_activity unavailable, re-invite not emitted"
             )
-        else:
-            self._embargo_id = embargo_id
-            return True
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return False
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return False
+        consent = self._invitee_record(case).consent_for(embargo_id)
+        if not consent_trigger_is_legal(consent, PEC_Trigger.INVITE):
+            self.feedback_message = (
+                f"'{self._invitee_id}' is already {consent} for embargo"
+                f" '{embargo_id}' on case '{self._case_id}'; no re-invite"
+                " sent (CM-18-003)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return False
+        self._embargo_id = embargo_id
+        return True
+
+    def _invitee_record(self, case: VulnerabilityCase) -> CaseParticipant:
+        """The accepter's participant record in the CASE_MANAGER's store.
+
+        Read through the one actor-to-participant lookup (CM-19-003).
+
+        Raises:
+            VultronNotFoundError: The case indexes no record for the
+                accepter, or the record is not a ``CaseParticipant``.
+        """
+        assert self.datalayer is not None
+        resolved = find_actor_participant(
+            self.datalayer, case, self._invitee_id
+        )
+        if resolved is None:
+            raise VultronNotFoundError(
+                "CaseParticipant",
+                f"'{self._invitee_id}' on case '{self._case_id}'",
+            )
+        return resolved[1]
 
 
 class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):

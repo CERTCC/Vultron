@@ -30,12 +30,13 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.owner_decision import (
+    decided_proposal_id,
+    owner_decision_body,
+)
 from test.support.refusal_notice import (
     assert_no_refusal_notice,
     assert_refusal_notice,
-)
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.embargo.nodes import (
@@ -233,20 +234,26 @@ def test_an_accept_answered_with_a_reject_gets_no_notice():
 
 
 def _owner_decision(
-    net: LedgerNetwork, embargo_id: str, *, accept: bool
+    net: LedgerNetwork,
+    embargo_id: str,
+    *,
+    accept: bool,
+    proposal_id: str | None = None,
 ) -> tuple[Any, str]:
     """OWNER sends its decision on *embargo_id* to the CASE_MANAGER.
 
-    Returns the verdict and the decision's id.
+    Returns the verdict and the decision's id (:func:`owner_decision_body`).
     """
-    adapter = TriggerActivityAdapter(net.stores[OWNER])
-    build = (
-        adapter.activate_embargo if accept else adapter.reject_embargo_proposal
+    activity_id, body = owner_decision_body(
+        net.stores[OWNER],
+        net.case_id,
+        embargo_id,
+        owner=OWNER,
+        manager=MANAGER,
+        accept=accept,
+        proposal_id=proposal_id,
     )
-    activity_id, sealed = build(
-        embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
-    )
-    return net.receive(MANAGER, json.loads(sealed)), activity_id
+    return net.receive(MANAGER, body), activity_id
 
 
 @pytest.mark.spec("CLP-05-001")
@@ -258,8 +265,13 @@ def test_an_owner_decision_on_no_open_proposal_gets_the_notice(accept: bool):
     net = _net(f"owner-no-proposal-{accept}")
     before = _entries(net)
 
+    # The embargo in force has no open proposal, so the owner names an
+    # Invite its store no longer records as open.
     verdict, decision_id = _owner_decision(
-        net, net.initial_embargo_id, accept=accept
+        net,
+        net.initial_embargo_id,
+        accept=accept,
+        proposal_id=decided_proposal_id(net.case_id),
     )
 
     assert verdict.disposition is HandlerDisposition.REFUSED

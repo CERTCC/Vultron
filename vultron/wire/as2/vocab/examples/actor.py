@@ -120,10 +120,8 @@ def offer_case_participant() -> as_Offer:
         to=[_vendor.id_],
         context=_case.id_,
         origin=_recommendation.id_,
-        content=(
-            f"Recommending {_coordinator.name} for case participation "
-            f"(roles: VENDOR). Origin: {_recommendation.id_}"
-        ),
+        # The recommender's reason travels as ``content`` (CM-16-020).
+        content=_recommendation.content,
     )
     return _activity
 

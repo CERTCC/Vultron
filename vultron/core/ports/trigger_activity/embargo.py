@@ -122,14 +122,18 @@ class TriggerEmbargoPort(Protocol):
     def activate_embargo(
         self,
         embargo_id: str,
+        proposal_id: str,
         case_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist the case owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]``.
+        """Create and persist the case owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]``.
 
-        The owner's activation of a proposed embargo (ADR-0122), distinct
+        The owner's activation of a proposed embargo (ADR-0180), distinct
         from :meth:`accept_embargo`, the sender's own consent to an Invite.
+        *proposal_id* is the ``Invite(EmbargoEvent)`` that proposed the
+        embargo, as the owner's store records it for the open proposal; the
+        activity names it in ``inReplyTo`` (RF-08-001).
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -137,6 +141,7 @@ class TriggerEmbargoPort(Protocol):
     def reject_embargo_proposal(
         self,
         embargo_id: str,
+        proposal_id: str,
         case_id: str,
         actor: str,
         to: list[str] | None = None,
@@ -145,6 +150,8 @@ class TriggerEmbargoPort(Protocol):
 
         The owner's rejection of a proposed embargo (ADR-0122), distinct
         from :meth:`reject_embargo`, the sender's own refusal of an Invite.
+        *proposal_id* is named in ``inReplyTo`` as for
+        :meth:`activate_embargo` (ADR-0180).
         Returns ``(activity_id, activity_dict)``.
         """
         ...

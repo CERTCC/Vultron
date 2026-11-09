@@ -382,7 +382,7 @@ groups:
       in the owner's decision), so X or A set refuses the activation as P does.
     statement: >-
       A Participant MUST NOT apply EA's transition to Active when the case is at P/X/A
-      (q^cs ∉ ···pxa). EA is the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`
+      (q^cs ∉ ···pxa). EA is the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`
       (MSM-07-008). The CASE_MANAGER refuses that activation before committing it to the
       case ledger, and sends no `Reject` of the Invite for it.
     rationale: >-
@@ -414,6 +414,8 @@ groups:
     - rel_type: uses_definition
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
+    adr:
+    - ADR-0180
     stories:
     - story_2026_033
     see_also:
@@ -929,24 +931,25 @@ groups:
       public/exploit/attack (q^cs ∈ ···pxa).
       When it receives EC for the last open proposal, it MUST move its EM state back to
       Active (q^em R → A) with the revised terms.
-      The CASE_MANAGER's commit of the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`,
+      The CASE_MANAGER's commit of the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`,
       fanned out as `Announce(CaseLedgerEntry)`, discharges "Emit EK".
       No EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
-      EC says that the Case Owner accepts a revision. The revised terms replace the
+      EC says that the Case Owner activates a revision. The revised terms replace the
       terms in force, so when no other proposal is open, EM returns to Active under the
-      revised terms. The CASE_MANAGER's commit and fan-out of the owner's Accept tell
+      revised terms. The CASE_MANAGER's commit and fan-out of the owner's Add tell
       every participant of the change, so no separate EK message is necessary
       (ADR-0113).
     adr:
     - ADR-0113
     - ADR-0130
+    - ADR-0180
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
       with CS matching ...pxa and no other open proposal transitions EM back to
       ACTIVE with revised terms, and that the
       CASE_MANAGER's commit of the Case Owner's
-      `Accept(EmbargoEvent)[target=VulnerabilityCase]` and its announcement
+      `Add(EmbargoEvent)[target=VulnerabilityCase]` and its announcement
       discharge EK with no EK message queued.
     testable: true
     preconditions:
@@ -963,7 +966,7 @@ groups:
       actor: receiver
       action: >-
         CASE_MANAGER commits the Case Owner's
-        `Accept(EmbargoEvent)[target=VulnerabilityCase]` and announces the ledger entry
+        `Add(EmbargoEvent)[target=VulnerabilityCase]` and announces the ledger entry
         (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
@@ -3108,9 +3111,10 @@ groups:
       routed by the named entry's register status and by whether the case holds any
       ACTIVE or PROPOSED entry, to exactly one of the EMB-17-002, EMB-17-003 or
       EMB-17-004 outcomes, for every EM state. `test_each_case_state_has_one_route`
-      covers the routes the code holds today, and
-      `test_an_accepted_open_proposal_is_honoured` is a strict `xfail` holding the
-      open-proposal route until #5732 builds it.
+      covers each EM state against an answerable and an unanswerable embargo, and
+      `test_an_accepted_open_proposal_is_honoured` and
+      `test_a_rejected_proposal_beside_open_ones_reinvites_to_the_earliest` cover a
+      case in EM PROPOSED.
     testable: true
     preconditions:
     - description: The referenced invitation's effective RSVP deadline has passed
@@ -3160,11 +3164,11 @@ groups:
       (`test_an_honoured_late_accept_is_committed_and_replayed_by_a_replica`) confirms
       a late Accept naming the Active Embargo marks the accepter's consent row for it
       AGREED, so the accepter is a signatory.
-      `test/core/behaviors/embargo/nodes/test_late_accept.py`
-      (`test_an_accepted_open_proposal_is_honoured`) is a strict `xfail` holding the
-      open-proposal case, where the row for that proposal reaches AGREED and the
-      accepter becomes a signatory only if the proposal is later activated, until
-      #5732 builds it.
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_a_late_accept_of_an_open_revision_is_honoured`) confirms a late Accept
+      naming an open proposal is committed verbatim and moves the row for that
+      proposal to AGREED from TIMED_OUT or DECLINED, while the accepter's row for
+      the Active Embargo is unchanged.
     testable: true
     preconditions:
     - em_state:
@@ -3213,6 +3217,15 @@ groups:
       The fresh Invite is a relay (EP-09-002). Its `actor` is the CASE_MANAGER.
       Its `attributedTo` names the invited embargo's proposer, or the CASE_MANAGER
       itself when it made the embargo as the protocol default, without a proposal.
+    note: >-
+      Only a live proposal is terms: a `PROPOSED` entry stays open after its
+      embargo's end time, but an Invite to it can carry no RSVP deadline that
+      EP-07-002 and EP-07-006 allow. A case whose proposals have all ended thus
+      holds no terms, and the late Accept takes the EMB-17-004 no-op. An accepter
+      whose row for the terms is already INVITED or AGREED has been asked or has
+      answered, and INVITE does not move that row (CM-18-003), so nothing is sent.
+      A DECLINED or TIMED_OUT row is asked again: the late Accept shows the
+      participant is now willing (maintainer decision on #5732, 2026-11-09).
     rationale: >-
       Recording the stale Accept as consent would bind the participant to terms it
       never saw; rejecting it would discard a willing participant. Re-inviting
@@ -3228,9 +3241,12 @@ groups:
       `Invite(EmbargoEvent)` carrying the case's Active Embargo, without recording the
       stale Accept as consent.
       `test/core/behaviors/embargo/nodes/test_late_accept.py`
-      (`test_a_case_under_proposal_reinvites_to_its_open_proposal`) is a strict
-      `xfail` holding the case with no Active Embargo, where the fresh Invite carries
-      the earliest-expiring open proposal, until #5732 builds it.
+      (`test_a_rejected_proposal_beside_open_ones_reinvites_to_the_earliest`,
+      `test_a_proposal_whose_embargo_has_ended_is_not_invited_to`) confirms that with
+      no Active Embargo the fresh Invite carries the earliest-expiring open proposal
+      whose embargo has not ended, and
+      `test_an_accepter_already_asked_or_answered_is_not_asked_again` confirms an
+      accepter whose row for those terms takes no INVITE is not asked again.
     testable: true
     preconditions:
     - description: >-
@@ -3383,6 +3399,9 @@ groups:
       nothing and leaves every consent row unchanged, and that a redelivery, with or
       without
       its received body, gets the same result.
+      `test/core/behaviors/embargo/nodes/test_late_accept.py`
+      (`test_a_case_whose_only_proposal_has_ended_binds_nothing`) confirms a case
+      whose open proposals have all ended takes the same no-op.
     testable: true
     preconditions:
     - em_state:

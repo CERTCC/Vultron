@@ -118,6 +118,12 @@ Three banners say where a page stands relative to it.
     The banner may be omitted where a page contains no requirement-like statements.
     It appears where that might not be clear, for example on a page that describes a specific implementation in SHOULD, MUST, and MAY statements that are not normative requirements of the protocol.
 
+## Requirements not yet in the reference implementation
+
+A requirement row or callout can carry the marker **Not yet in the reference implementation**, with links to the issues that track the work.
+The marker labels the reference implementation, not the protocol, and it is generated from the tests on `main`.
+The introduction to the [Requirements Catalog](vultron-spec/requirements/index.md) says when a row carries it, and the [Known Gaps](vultron-spec/known-gaps.md) page lists the requirements that the tests do not show `main` fully meets.
+
 ## Further reading
 
 - [Annex C Notation Reference](vultron-spec/annex-c-notation.md) — the mathematical and diagram notation used in the formal treatment of the protocol

@@ -168,19 +168,26 @@ Invite, and never falls back to it when no Invite is named (EP-09-015, #4373;
 see § "Answering the Embargo in Force").
 
 Only the owner's decision changes the embargo on the case, through
-`Accept`/`Reject(EmbargoEvent)[target=VulnerabilityCase]` (MSM-07-008/009). Every
+`Add`/`Reject(EmbargoEvent)[target=VulnerabilityCase]` (MSM-07-008/009). Every
 `Accept`/`Reject` of an Invite, the owner's included, is the sender's consent
 (MSM-07-003/004) and moves no register entry (MSM-07-011/013). The only
 activation writes are the owner's own agreement and the carry-over
 (`_consent_at_activation`, `_carry_signatories_over`).
 
 **Participants answer invitations; the owner acts on embargoes** (ADR-0180).
-Activation becomes `Add(EmbargoEvent)[target=VulnerabilityCase]`, the pair of the
-`Remove` that ends an embargo; rejection keeps `Reject(EmbargoEvent)`; both name
+Activation is `Add(EmbargoEvent)[target=VulnerabilityCase]`, the pair of the
+`Remove` that ends an embargo; rejection is `Reject(EmbargoEvent)`; both name
 the proposal's `Invite(EmbargoEvent)` in `inReplyTo`. Reason: a case change and a
 consent then differ by verb, and no shape's meaning depends on its sender. Do not
 answer a proposal for the case with `Reject(Invite(EmbargoEvent))`: that is the
-owner's own decline, which leaves the proposal open. #6030 builds it.
+owner's own decline, which leaves the proposal open.
+
+**The decision names the Invite the owner's store records for the proposal**
+(`pending_embargo_proposal_index`, RF-08-001). That is the relayed Invite the
+owner received, the proposer's Invite when the owner is the CASE_MANAGER, or the
+owner's own Invite when it proposed the terms. Reason: every one is an Invite
+the owner holds, and with no open proposal recorded the trigger refuses, so no
+decision is built without `inReplyTo`. No receiver reads it to decide.
 
 **An owner's decision never rewrites its own answer** (ADR-0180, MSM-07-028,
 MSM-07-037). Activation records the owner's `AGREE` only from `UNINVITED`,
@@ -276,7 +283,7 @@ deadline, reaches the carried state; a final entry's rows are frozen) and
 raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition`.
 
 - **Entries follow activity/object pairs.** A register step rides on the
-  act's own activity (`RegisterStep`: the `Accept(EmbargoEvent)[target=VulnerabilityCase]`
+  act's own activity (`RegisterStep`: the `Add(EmbargoEvent)[target=VulnerabilityCase]`
   is `ACTIVATE` with its supersede, the `Remove` is `TERMINATE` with its
   cancels); each changed consent row is its own CASE_MANAGER
   `Create`/`Update(EmbargoConsent)` entry (`ConsentRowChange`, semantic types in
@@ -390,8 +397,8 @@ an entry attributed to the invitee (ADR-0140; trees in
 |---|---|
 | `INVITED` row past its deadline | `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-009, CM-28-014) |
 | Accepted embargo is one the case can still answer: its `ACTIVE` entry or an open proposal | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, EMB-17-018, MSM-07-003, ADR-0152) |
-| Accepted embargo is stale, and the case holds terms of its own | relay a fresh Invite to the Active Embargo, or to the earliest-expiring open proposal when none is in force, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013, EP-08-002) |
-| No Active Embargo and no Proposed Embargo (EM `EXITED`/`NONE`) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004, EMB-17-015 through EMB-17-017) |
+| Accepted embargo is stale, and the case holds terms of its own | relay a fresh Invite to the Active Embargo, or to the earliest-expiring open proposal whose embargo has not ended when none is in force, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; nothing is sent when the accepter's row for those terms is already `INVITED` or `AGREED` (CM-18-003); the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013, EP-08-002) |
+| No Active Embargo and no live proposal (EM `EXITED`/`NONE`, or every open proposal's embargo has ended) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004, EMB-17-015 through EMB-17-017) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness
 to coordinate. Each decision follows decide → commit → apply (CLP-10-006,
@@ -522,13 +529,13 @@ The owner's decision and each participant's consent are different messages
   row entry, because each is committed before the rows make it inactive.
   A redelivery of a Leave the ledger already records is `SKIPPED`, not
   refused (HP-01-003); a new Leave after the withdrawal is still refused.
-- `ActivateEmbargoOnCaseReceivedUseCase` (`Accept(EmbargoEvent)[target=VulnerabilityCase]`,
+- `ActivateEmbargoOnCaseReceivedUseCase` (`Add(EmbargoEvent)[target=VulnerabilityCase]`,
   owner only) activates the proposal (EM derives `ACTIVE`, or `REVISE` while
   another proposal stays open, ADR-0130), marks the owner's row `AGREED` unless it
   already is, and applies the carry-over above.
 - **Triggers pick the activity by ownership.** The case owner's
   `accept-embargo`/`reject-embargo` send
-  `Accept`/`Reject(EmbargoEvent)[target=VulnerabilityCase]`; a non-owner's send `Accept`/`Reject(Invite(EmbargoEvent))`,
+  `Add`/`Reject(EmbargoEvent)[target=VulnerabilityCase]`; a non-owner's send `Accept`/`Reject(Invite(EmbargoEvent))`,
   which move only its own row.
 - **A repeated answer changes nothing.** A repeat of the same answer from the
   same participant (Accept after Accept, Reject after Reject, under any activity

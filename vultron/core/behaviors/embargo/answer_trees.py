@@ -127,8 +127,8 @@ def accept_invite_to_embargo_tree(
         ├─ PxaAcceptRefusal (DiversionStage)    # P/X/A → Reject (EMB-02-004)
         ├─ ReinviteLateAccepter / LateAcceptBindsNothing
         │                                       # late Accept arms (EMB-17)
-        ├─ OnTimeOrHonouredAccept               # a late Accept of the
-        │                                       # embargo in force is honoured
+        ├─ OnTimeOrHonouredAccept               # a late Accept the case
+        │                                       # can answer is honoured
         ├─ IsAnswerableEmbargoNode              # open or active (CM-18-003)
         ├─ EmbargoAnswerApplies                 # the row can be written
         └─ AcceptInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
@@ -143,7 +143,8 @@ def accept_invite_to_embargo_tree(
     instead of recording the Accept
     (:func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_accept_refusal`).
     A late Accept is routed by its compatibility with the case's embargo
-    (EMB-17-001): one of the embargo in force is honoured by being recorded
+    (EMB-17-001): one of the Active Embargo or of an open proposal is
+    honoured by being recorded
     as an on-time Accept is, its entry carrying the row it states
     (EMB-17-002, ADR-0152), and any other is answered by a diversion
     (:func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`)
@@ -223,6 +224,7 @@ def accept_invite_to_embargo_tree(
                 accepting_actor_id=accepting_actor_id,
                 answers=accept_id,
                 result_out=expiry_out,
+                now=now,
                 actor_config=actor_config,
             ),
             # Backstop: a late Accept is recorded only when it is honoured
@@ -232,6 +234,7 @@ def accept_invite_to_embargo_tree(
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
                 result_out=expiry_out,
+                now=now,
             ),
             # An Accept of terms the case decided, replaced or never knew
             # records nothing and is refused (CM-18-003, MSM-07-012).

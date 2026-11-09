@@ -24,11 +24,12 @@ receiver that applies it (CM-31-010).
 import json
 from typing import Any, cast
 
+from test.support.owner_decision import (
+    decided_proposal_id,
+    owner_decision_body,
+)
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.embargo_termination import OtherCause
@@ -122,17 +123,23 @@ def _remove_body(
 
 
 def _owner_decision_body(
-    net: LedgerNetwork, embargo_id: str, *, accept: bool
+    net: LedgerNetwork,
+    embargo_id: str,
+    *,
+    accept: bool,
+    proposal_id: str | None = None,
 ) -> dict[str, Any]:
-    """OWNER's decision on *embargo_id*, built by its trigger adapter."""
-    adapter = TriggerActivityAdapter(net.stores[OWNER])
-    build = (
-        adapter.activate_embargo if accept else adapter.reject_embargo_proposal
+    """OWNER's decision on *embargo_id* (:func:`owner_decision_body`)."""
+    _, body = owner_decision_body(
+        net.stores[OWNER],
+        net.case_id,
+        embargo_id,
+        owner=OWNER,
+        manager=MANAGER,
+        accept=accept,
+        proposal_id=proposal_id,
     )
-    _, sealed = build(
-        embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
-    )
-    return cast(dict[str, Any], json.loads(sealed))
+    return body
 
 
 def _owner_decision_on_a_proposal(tag: str, *, accept: bool) -> Scenario:
@@ -148,7 +155,13 @@ def _owner_decision_on_no_proposal(tag: str, *, accept: bool) -> Scenario:
     """The embargo in force is no open proposal: refused with the notice."""
     net = _net(tag)
     return _from_body(
-        net, _owner_decision_body(net, net.initial_embargo_id, accept=accept)
+        net,
+        _owner_decision_body(
+            net,
+            net.initial_embargo_id,
+            accept=accept,
+            proposal_id=decided_proposal_id(net.case_id),
+        ),
     )
 
 

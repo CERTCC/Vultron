@@ -109,10 +109,10 @@ sub-issues were this one defect in different scenarios.
 7. **Raising a timeout is not a fix.** Either the observable is wrong (1–3) or the
    effect can be *lost* rather than delayed, in which case the protocol must
    buffer it (ADR-0037, ADR-0059) and a demo guard papers over a production bug.
-8. **Test gates against the real context manager.** Patching
-   `demo_check`/`demo_gate` out with `contextlib.nullcontext` makes the assertion
-   propagate and the test pass while proving nothing — exactly how the missing
-   gate before `engage-case` escaped notice.
+8. **Test gates against the real context manager**, and read a run's checks by
+   `walk()`ing what `recording_checks()` recorded (`utils/check_tree.py`, #6127).
+   Stubbing one out with `contextlib.nullcontext` makes the assertion propagate and
+   the test pass while proving nothing — how the missing `engage-case` gate escaped.
 9. **Nest the step that reads a value inside the block that produces it.** A
    `None`/`""` pre-init is allowed only when every later read is guarded — the
    one part a check enforces (#3038, `test_demo_step_no_unbound_ratchet.py`).
