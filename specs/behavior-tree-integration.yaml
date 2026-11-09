@@ -2057,6 +2057,40 @@ groups:
     - rel_type: refines
       spec_id: BT-18-005
       note: Restates the seam-structure tree's output question for each shape.
+  - id: BT-18-029
+    priority: MAY
+    kind: architecture
+    statement: >-
+      A capability implementation MAY cache the external data it fetches. Where the
+      cache lives, how long an entry stays fresh and what clears it are the
+      implementation's choice. The call-out seam provides no cache.
+    rationale: >-
+      Only the implementation knows how fast its external source changes, so only it
+      can judge when a cached answer is stale. A shared cache in the seam would need a
+      staleness policy that the protocol cannot judge. A stale answer is a wrong
+      answer of the implementation, like any other. A cache is also one way a slow
+      external lookup meets the call-out time budget.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-015
+      note: Caching is one way an implementation meets the time budget.
+  - id: BT-18-030
+    priority: SHOULD_NOT
+    kind: architecture
+    statement: >-
+      A tree that carries content its caller supplied SHOULD NOT consult a Composer for
+      that content. A Composer call-out point sits at a step where the tree itself
+      produces the artifact.
+    rationale: >-
+      A tree that carries content sends what its caller wrote, and a tree that
+      produces content makes the artifact it sends. When the two stay apart, a reader
+      can tell from the tree who wrote each artifact. A caller that wants drafted
+      content drafts it before it calls the trigger. Reusing earlier text is the
+      Composer implementation's own choice and adds no call-out point.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-028
+      note: Places the Composer that BT-18-028 defines by its output.
 - id: BT-19
   title: Routing-Gated State Mutation in Lifecycle BT Sequences
   specs:
