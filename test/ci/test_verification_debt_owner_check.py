@@ -82,9 +82,10 @@ def test_open_owner_check_reports_and_never_fails_the_build():
 
 
 @pytest.mark.spec("MS-10-024")
-def test_open_owner_check_runs_at_least_hourly():
-    """Hundreds of PRs a week: a closed owner must surface within the hour."""
+def test_open_owner_check_runs_once_each_weekday_morning():
+    """A closed owner surfaces by the next weekday morning."""
     (entry,) = triggers(load_workflow(_WORKFLOW))["schedule"]
-    minute, hour, *_ = entry["cron"].split()
+    minute, hour, day, month, weekday = entry["cron"].split()
     assert minute.isdigit()
-    assert hour == "*"
+    assert hour.isdigit()
+    assert (day, month, weekday) == ("*", "*", "1-5")

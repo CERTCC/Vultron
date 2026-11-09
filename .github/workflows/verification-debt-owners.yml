@@ -8,7 +8,7 @@
 #   PR body can say "Closes #N") and re-runs when the body is edited.
 # - open-owners (MS-10-024): an owner closed by hand is caused by no PR, so this never
 #   fails the build — failing would turn every PR in flight red (ARCH-18-009).
-#   It runs hourly and on each push to main, and files or updates one tracking
+#   It runs each weekday morning and on each push to main, and files or updates one tracking
 #   issue while any owner is closed, closing it again once all are open.
 
 name: Verification Debt Owners
@@ -24,7 +24,7 @@ on:
       - "vultron/metadata/specs/**"
       - ".github/workflows/verification-debt-owners.yml"
   schedule:
-    - cron: "17 * * * *"  # Hourly
+    - cron: "17 10 * * 1-5"  # Weekdays, 10:17 UTC (early morning US Eastern)
   workflow_dispatch:
 
 permissions:

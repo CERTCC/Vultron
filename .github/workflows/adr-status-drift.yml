@@ -14,7 +14,7 @@ on:
       - "vultron/metadata/adr/**"
       - ".github/workflows/adr-status-drift.yml"
   schedule:
-    - cron: "23 * * * *"  # Hourly
+    - cron: "23 10 * * 1-5"  # Weekdays, 10:23 UTC (early morning US Eastern)
   workflow_dispatch:
 
 permissions:

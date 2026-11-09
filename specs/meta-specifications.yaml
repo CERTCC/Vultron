@@ -857,9 +857,9 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A scheduled check MUST run at least hourly and report each marker or owner
-      entry that names a closed issue. It reports through one tracking issue and
-      does not fail the build.
+      A scheduled check MUST run at least once each weekday and report each marker
+      or owner entry that names a closed issue. It reports through one tracking
+      issue and does not fail the build.
     rationale: >-
       When a person closes an owner issue manually, no pull request causes the
       change. A build failure would then make every open pull request fail, so the
@@ -872,10 +872,10 @@ groups:
       `test_lint_check_debt_owners_ignores_unrelated_lint_errors` in
       `test/metadata/specs/lint/test_driver.py`, check the report.
       `test_open_owner_check_reports_and_never_fails_the_build` and
-      `test_open_owner_check_runs_at_least_hourly` in
+      `test_open_owner_check_runs_once_each_weekday_morning` in
       `test/ci/test_verification_debt_owner_check.py` check that
       `.github/workflows/verification-debt-owners.yml` runs `--check-debt-owners`
-      hourly and never fails the build.
+      each weekday morning and never fails the build.
     relationships:
     - rel_type: verifies
       spec_id: MS-10-006
@@ -2396,9 +2396,9 @@ groups:
       `test/metadata/test_adr_lifecycle.py` check that the drift report lists an ADR
       behind its epoch and not one ahead of it.
       `test_drift_report_reports_and_never_fails_the_build` and
-      `test_drift_report_runs_at_least_hourly` in
+      `test_drift_report_runs_once_each_weekday_morning` in
       `test/ci/test_adr_lifecycle_workflows.py` check that `adr-status-drift.yml`
-      reports at least hourly and never fails the build.
+      reports once each weekday morning and never fails the build.
     relationships:
     - rel_type: verifies
       spec_id: MS-14-007
