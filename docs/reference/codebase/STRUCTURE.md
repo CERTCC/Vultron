@@ -42,7 +42,6 @@ stakeholder_type: [project-contributor]
 | `integration_tests/demo/` | Shell drivers for the Docker-based demo integration runs, invoked by the `Makefile` `integration-test*` targets; not a pytest suite | `integration_tests/README.md`, `integration_tests/demo/run_multi_actor_integration_test.sh` |
 | `ui/` | React/TypeScript swimlane-timeline demo of the protocol (Multi-Vendor simulation and Log Replay modes), with its own Node toolchain and `ui/AGENTS.md`; not part of the Python package (ADR-0104) | `ui/AGENTS.md`, `ui/package.json` |
 | `overrides/` | MkDocs Material theme overrides | `overrides/partials/copyright.html` |
-| `help/` | Declared as a `uv` workspace member, but no `help/` directory exists in the tree | `pyproject.toml` `[tool.uv.workspace]` |
 
 ### 2) Entry Points
 
@@ -175,7 +174,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 ### 6) Evidence
 
 - `vultron/` directory listing
-- `pyproject.toml` `[project.scripts]`, `[tool.uv.workspace]`
+- `pyproject.toml` `[project.scripts]`
 - `vultron/core/AGENTS.md`
 - `vultron/trigger_registry/__init__.py`
 - `notes/architecture-hexagonal.md`
