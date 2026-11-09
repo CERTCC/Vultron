@@ -116,14 +116,9 @@ diff whose path was guessed). A clean single legal step gets none.
 ## 7. Tooling and log locations
 
 - `node_modules/.bin` tools (eslint, tsc, vite) run via `npm run *`; `jq` reads `*.jsonl`.
-- **Unit tests** are Vitest (`npm test`, which is `vitest run`; CI runs it after
-  lint). A test is `src/**/*.test.ts` beside its module, imports `describe` /
-  `it` / `expect` from `vitest` (no globals), and runs in the Node environment, so
-  it covers pure modules only: component tests would need Testing Library and
-  jsdom, which are not approved. Vite's pipeline runs the tests, so a fixture
-  ledger loads with a `?raw` import as `App-logreplay.tsx` does. `tsc -b`
-  type-checks the tests under `strict` with the app; `vite build` never bundles
-  them.
+- **Unit tests**: Vitest, `src/**/*.test.ts` beside the module, Node environment,
+  `vitest` imports (no globals); pure modules only (no jsdom). A ledger fixture
+  loads via `?raw`, as in `App-logreplay.tsx`; `tsc -b` type-checks tests too.
 - **Two log locations — do not confuse them:**
   - **`ui/src/recordings/`** — GENERATED, COMMITTED recordings the "Load …"
     buttons import via `?raw`. In-tree, so a fresh clone builds. One dir per
@@ -201,4 +196,3 @@ export a scraped copy.
 - **Shared (a change here affects both modes):** `protocol.ts`, `constants.ts`,
   `types.ts`, `components/` (`ActorPanel`, `AnimatedNode`) and
   `state/participantHelpers.ts` (Log Replay uses only `getActiveLanes`).
-- `src/**/*.test.ts` — Vitest unit tests, next to the module they test (§7).
