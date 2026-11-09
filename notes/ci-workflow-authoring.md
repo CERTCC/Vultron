@@ -19,8 +19,9 @@ description: >
   job with no `paths` filter, why the `CI gate` must be re-run after a re-run
   check, why its `types` cover every other pull-request workflow's, how to read
   the red checks its log names, why the ruleset requiring the
-  gate admits no bypass actor, and why a new pull-request check is verified on
-  later pull requests rather than its own.
+  gate admits no bypass actor, why a new pull-request check is verified on
+  later pull requests rather than its own, and why a conflicting pull request
+  starts no workflow at all.
 related_notes:
   - notes/testing-pitfalls.md
   - notes/demo-ci-invariants.md
@@ -134,6 +135,14 @@ to be — and every other verdict has to be read off ordinary pull requests that
 come later. So a new check destined for a ruleset needs a verification task
 *after* the merge, listing the verdicts still unobserved, and the ruleset waits
 on that task rather than on the pull request that added the check (#5971).
+
+A **conflicting** pull request has no merge commit at all, so GitHub starts no
+`pull_request` workflow on it — not the new one, and not any existing one. The
+symptom is a pull request whose only check is a `pull_request_target`-style run
+such as CodeQL, which reads as "my new workflow did not trigger" and sends a
+reader hunting through `paths` and `types` that are in fact correct. Read
+`mergeStateStatus` first: `DIRTY` means resolve the conflict, and every workflow
+starts on the next push (#6026).
 
 ## Push-to-`main` and Scheduled Workflows MUST Wire `notify-failure`
 
