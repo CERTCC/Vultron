@@ -219,7 +219,7 @@ def vendor1_proposes_a_revision(state: StoryState) -> None:
 
 
 def vendor2_joins_under_the_revision(state: StoryState) -> None:
-    """Seed and invite Vendor2 once the revision is active; it signs it.
+    """Vendor2 is invited once the revision is active, and signs it.
 
     Vendor2's container is seeded here rather than in the shared opening
     (DEMOCI-11-018): ``seed_containers_rcvv`` creates it and registers it as a

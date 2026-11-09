@@ -19,7 +19,7 @@ It is here so a reader can check the narrative above against what the demo actua
 11. The Reporter asks whether the revised embargo leaves time for a fix.
 12. Vendor decides: Propose an embargo revision
 13. Vendor1 revises the embargo; the Reporter consents; the owner activates.
-14. Seed and invite Vendor2 once the revision is active; it signs it.
+14. Vendor2 is invited once the revision is active, and signs it.
 15. Both vendors report fix ready; the embargo is untouched.
 16. The fix being ready leaves the embargo in force.
 17. The Reporter publishes, and that alone ends the embargo.

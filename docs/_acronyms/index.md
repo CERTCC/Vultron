@@ -71,6 +71,7 @@ sense the docs actually use.
 
 *[DC3]: U.S. Department of Defense Cyber Crime Center
 *[DDoS]: Distributed Denial of Service
+*[DEMOMA]: Multi-Actor Demo (spec family)
 *[DFA]: Deterministic Finite Automaton
 *[DFAs]: Deterministic Finite Automata
 *[DFIR]: Digital Forensics and Incident Response
