@@ -279,6 +279,18 @@ repos:
         files: ^(vultron/wire/as2/vocab/.*\.py|vultron/metadata/wire_context/.*\.py|docs/ns/context\.jsonld)$
         pass_filenames: false
 
+      - id: csaf-models-sync
+        name: CSAF models in sync with the pinned local copy
+        # Regenerates the models in memory from the pinned local copy and
+        # compares them byte for byte (CSAF-05-003). Inputs: the copy, the pin
+        # record, the committed models, the generator script, and uv.lock,
+        # which pins the generator. test_regeneration_reproduces_the_committed_models
+        # is the backstop for a deletion and for CI.
+        entry: uv run csaf-models --check
+        language: system
+        files: ^(vultron/wire/csaf/.*|vultron/metadata/csaf/regenerate\.py|uv\.lock)$
+        pass_filenames: false
+
       - id: ruff
         name: ruff (lint + format check)
         # Invoked directly, not through run-if-changed.sh: the whole-tree run

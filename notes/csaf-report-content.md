@@ -3,7 +3,6 @@ title: "CSAF Documents in Reports: Implementation Plan"
 status: active
 kind: plan
 tracks:
-  - "#6089"
   - "#6090"
   - "#6091"
   - "#6092"
@@ -29,6 +28,7 @@ related_notes:
   - notes/datalayer-design.md
 relevant_packages:
   - vultron.wire
+  - vultron.metadata
   - vultron.core.models
 ---
 
@@ -84,23 +84,34 @@ Rules for stage 2:
 
 ## Generating the models
 
-Measured on CSD04 with `datamodel-code-generator` 0.90 during planning:
+The pinned local copy, the pin record and the generated models are in place; later
+tasks reuse them rather than add a second path.
 
-- The schema references CVSS v2, v3 and v4 (FIRST), the SSVC `SelectionList`
-  (CERT/CC) and CSAF's extension schema by URL. Rewrite those `$ref`s to the
-  pinned local copy; the CSAF repository itself keeps copies under
-  `csaf_2.1/referenced_schema/`.
-- CSAF's extension meta-schema references the JSON Schema 2020-12 meta-schemas.
-  Keep local copies of those too, so regeneration needs no network (CSAF-05-002).
-- The output must be a package directory (`--output <dir>`), because the
-  references are modular. The result is about 3,600 lines and 181 classes, with a
-  root class `CommonSecurityAdvisoryFramework`.
-- The models need `email-validator` (`pydantic[email]`) at runtime. Both new
-  dependencies were approved in the planning session: the generator as a dev
-  tool, `email-validator` at runtime.
-- Against the Technical Committee's test documents, the models accepted all 498
-  valid documents and rejected only 21 of the 316 built to fail a mandatory test.
-  That is why the verdict says schema-valid, never valid CSAF.
+- **Import the models from `vultron.wire.csaf.models`.** The root is
+  `CommonSecurityAdvisoryFramework`. They are generated, so `ruff`, `mypy` and
+  `pyright` skip that package; never edit it by hand (CSAF-05-003).
+- **Read the pin through `vultron.wire.csaf.pin.load_pin()`.** The record
+  (`pin.json`) maps each referenced schema's URL to its path in the copy, and the
+  copy keeps the upstream repository's paths, so an upstream checkout lines up
+  with it file for file.
+- **Generate from any source with `render_models(source, pin)`** in
+  `vultron.metadata.csaf.regenerate`, or `uv run csaf-models` with `--source`,
+  `--pin`, `--output` and `--check`. It returns the package as text, so the
+  draft-watch job (#6094) can generate from an upstream checkout and diff without
+  writing. A URL
+  the pin does not map raises `UnpinnedReferenceError`; the generator runs with
+  remote references refused, so nothing is ever fetched.
+- **Pydantic drops some schema constraints.** No `pattern` on a URL or UUID field,
+  no `min_length` on a URL, so a `purls` entry is not checked against its
+  `^pkg:` pattern. Stage 1 can pass a document the schema rejects there, which is
+  one more reason the verdict says schema-valid, never valid CSAF (CSAF-04-002).
+- **The models need `email-validator`** (`pydantic[email]`) at runtime, for
+  `EmailStr` fields.
+- **The Technical Committee's test documents stay outside the suite.**
+  `uv run csaf-corpus --clone <dir>` reports per-group accept and reject counts
+  over a clone's test documents when the pin moves (CSAF-05-004). Planning
+  measured all 498 valid documents accepted and only 21 of the 316 built to fail
+  a mandatory test rejected.
 
 ## Following the draft
 
@@ -121,9 +132,6 @@ Measured on CSD04 with `datamodel-code-generator` 0.90 during planning:
 - **Watch the embargo proposal.** If the Technical Committee adopts the
   crosswalk's proposal that an `embargo` action carries its own end date, the
   embargo-end mapping (CSAF-03-001) should prefer that date to `disclosure_date`.
-- **The corpus stays outside the suite.** An optional script runs the generated
-  models over a local clone's `csaf_2.1/test/validator/data/` when the pin moves
-  (CSAF-05-004).
 
 ## Signals
 

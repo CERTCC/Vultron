@@ -1,0 +1,25 @@
+{
+  "repository": "https://github.com/oasis-tcs/csaf",
+  "commit": "29b1e27aa126b820cbd6eee1830ca27ef02793d1",
+  "draft_stage": "CSD04",
+  "root": "csaf_2.1/json_schema/csaf.json",
+  "sources": {
+    "https://docs.oasis-open.org/csaf/csaf/v2.1/schema/csaf.json": "csaf_2.1/json_schema/csaf.json",
+    "https://docs.oasis-open.org/csaf/csaf/v2.1/schema/meta.json": "csaf_2.1/json_schema/meta.json",
+    "https://docs.oasis-open.org/csaf/csaf/v2.1/schema/extension-content.json": "csaf_2.1/json_schema/extension-content.json",
+    "https://docs.oasis-open.org/csaf/csaf/v2.1/schema/extension-metaschema.json": "csaf_2.1/json_schema/extension-metaschema.json",
+    "https://www.first.org/cvss/cvss-v2.0.json": "csaf_2.1/referenced_schema/first/cvss-v2.0.json",
+    "https://www.first.org/cvss/cvss-v3.0.json": "csaf_2.1/referenced_schema/first/cvss-v3.0.json",
+    "https://www.first.org/cvss/cvss-v3.1.json": "csaf_2.1/referenced_schema/first/cvss-v3.1.json",
+    "https://www.first.org/cvss/cvss-v4.0.json": "csaf_2.1/referenced_schema/first/cvss-v4.0.json",
+    "https://www.first.org/cvss/meta.json": "csaf_2.1/referenced_schema/first/meta.json",
+    "https://certcc.github.io/SSVC/data/schema/v2/SelectionList_2_0_0.schema.json": "csaf_2.1/referenced_schema/certcc/SelectionList_2_0_0.schema.json",
+    "https://json-schema.org/draft/2020-12/meta/applicator": "json-schema.org/draft/2020-12/meta/applicator.json",
+    "https://json-schema.org/draft/2020-12/meta/content": "json-schema.org/draft/2020-12/meta/content.json",
+    "https://json-schema.org/draft/2020-12/meta/core": "json-schema.org/draft/2020-12/meta/core.json",
+    "https://json-schema.org/draft/2020-12/meta/format-assertion": "json-schema.org/draft/2020-12/meta/format-assertion.json",
+    "https://json-schema.org/draft/2020-12/meta/meta-data": "json-schema.org/draft/2020-12/meta/meta-data.json",
+    "https://json-schema.org/draft/2020-12/meta/unevaluated": "json-schema.org/draft/2020-12/meta/unevaluated.json",
+    "https://json-schema.org/draft/2020-12/meta/validation": "json-schema.org/draft/2020-12/meta/validation.json"
+  }
+}

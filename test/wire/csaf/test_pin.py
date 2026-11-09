@@ -1,0 +1,123 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""The one pin record of the CSAF 2.1 draft and its pinned local copy (CSAF-05-001)."""
+
+import json
+import re
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from vultron.wire.csaf.pin import (
+    PIN_PATH,
+    PINNED_COPY_DIR,
+    CsafPin,
+    load_pin,
+)
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_CROSSWALK_VERSION = (
+    _REPO_ROOT / "docs" / "reference" / "csaf_crosswalk" / "_csaf_version.md"
+)
+_COMMIT_IN_URL = re.compile(r"/oasis-tcs/csaf/(?:tree|blob)/([0-9a-f]{40})/")
+_SHORT_COMMIT = re.compile(r"commit \[`([0-9a-f]{7})`\]")
+
+
+@pytest.mark.spec("CSAF-05-001")
+def test_the_crosswalk_names_the_pinned_commit() -> None:
+    pin = load_pin()
+    text = _CROSSWALK_VERSION.read_text(encoding="utf-8")
+
+    full_commits = set(_COMMIT_IN_URL.findall(text))
+    short_commits = set(_SHORT_COMMIT.findall(text))
+
+    assert full_commits == {pin.commit}, (
+        f"{_CROSSWALK_VERSION.name} links commits {sorted(full_commits)}; "
+        f"{PIN_PATH.name} pins {pin.commit}"
+    )
+    assert short_commits == {pin.short_commit}
+    assert f"({pin.draft_stage})" in text
+    assert pin.repository.removeprefix("https://github.com/") in text
+
+
+@pytest.mark.spec("CSAF-05-001", "CSAF-05-002")
+def test_the_pin_maps_every_file_of_the_pinned_local_copy() -> None:
+    pin = load_pin()
+    on_disk = {
+        path.relative_to(PINNED_COPY_DIR).as_posix()
+        for path in PINNED_COPY_DIR.rglob("*")
+        if path.is_file()
+    }
+
+    assert set(pin.sources.values()) == on_disk
+    assert pin.root in on_disk
+
+
+@pytest.mark.spec("CSAF-05-002")
+def test_every_remote_reference_in_the_copy_is_pinned() -> None:
+    pin = load_pin()
+    remote: set[str] = set()
+
+    def collect(node: object) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == "$ref" and isinstance(value, str) and "://" in value:
+                    remote.add(value.partition("#")[0])
+                else:
+                    collect(value)
+        elif isinstance(node, list):
+            for item in node:
+                collect(item)
+
+    for local in pin.sources.values():
+        collect(json.loads((PINNED_COPY_DIR / local).read_bytes()))
+
+    assert remote, "the CSAF schema references other schemas by URL"
+    assert remote <= set(pin.sources)
+
+
+def _pin_data(**changes: object) -> dict[str, object]:
+    data: dict[str, object] = json.loads(PIN_PATH.read_bytes())
+    data.update(changes)
+    return data
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"commit": "29b1e27"},
+        {"commit": "29B1E27AA126B820CBD6EEE1830CA27EF02793D1"},
+        {"draft_stage": ""},
+        {"root": "/csaf_2.1/json_schema/csaf.json"},
+        {"root": "../csaf.json"},
+        {"root": "csaf_2.1/./json_schema/csaf.json"},
+        {"root": "csaf_2.1/json_schema/absent.json"},
+        {"sources": {}},
+        {"surplus": "field"},
+    ],
+    ids=[
+        "short-commit",
+        "upper-case-commit",
+        "blank-draft-stage",
+        "absolute-root",
+        "root-outside-copy",
+        "unnormalized-root",
+        "root-not-in-sources",
+        "no-sources",
+        "unknown-field",
+    ],
+)
+def test_a_malformed_pin_record_is_refused(changes: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        CsafPin.model_validate(_pin_data(**changes))
