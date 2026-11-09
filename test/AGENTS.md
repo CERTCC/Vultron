@@ -55,11 +55,6 @@ runs those tests — `demo-integration.yml` for the first, `python-app.yml`'s
   types to structure (TB-05-004/005). Full URIs for actor/object fields.
 - Handler tests MUST verify: semantic dispatch, state transitions, outbox
   activities, error conditions, idempotency (`specs/handler-protocol.yaml`).
-- Run a use case with `run_in_act(uc)` and a tree with `run_tree(bridge, tree,
-  ...)` from `test/support/act_runner.py`, never a bare `.execute()` or
-  `execute_with_setup`: each run then enters an act carrying its instant, as in
-  production (ADR-0176). A trigger takes `FixedClock(at)` at construction.
-  `test_tests_run_acts_through_the_runner.py` refuses a direct call.
 - Testing step MUST use a single agent instance.
 - When splitting `nodes.py` → `nodes/`, mirror the split in the test layout
   (NODES-SPLIT-883) — see [pitfalls](../notes/testing-pitfalls.md) § "Test
@@ -182,10 +177,10 @@ Full write-ups in [testing-pitfalls](../notes/testing-pitfalls.md):
   `CORE_VOCABULARY`/`CORE_TYPE_MAP` (use `isolated_core_registries`); `SUBFAILED`
   in `unittest` subtests does not fail pytest; `caplog.set_level()` in a fixture
   captures other fixtures' setup.
-- **BT test patterns** — pass a deterministic factory when the default is random;
-  contract-test wrappers inherit the *production* node class; stub every probabilistic
-  node *except* the one under test; `ResolveCaseManagerNode` needs a CASE_MANAGER
-  participant in the fixture.
+- **BT test patterns** — run use cases/trees via `run_in_act`/`run_tree` (ADR-0176);
+  pass a deterministic factory when the default is random; contract-test wrappers
+  inherit the *production* node class; stub every probabilistic node *except* the one
+  under test; `ResolveCaseManagerNode` needs a CASE_MANAGER participant in the fixture.
 - **Fixtures that mislead** — the outbox `BackgroundTasks` emitter has two resolution
   paths, patch both; an `InProcessRouter` WARNING for an unregistered host is a
   config-leak signal; `rm -rf devlogs/` before the invariant harness; a
