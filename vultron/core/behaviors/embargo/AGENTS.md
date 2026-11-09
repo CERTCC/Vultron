@@ -105,7 +105,7 @@ its other arm sends nothing at all (EMB-16-002), so it passes
   lazy end-time check) it calls the factory itself.
 - The activation arm is converted too (#4716):
   `CommitAndApplyEmbargoActivationNode` (`nodes/activation_commit.py`) runs
-  `EmbargoLifecycle.decide_activation()`, commits the `Accept` (the whole
+  `EmbargoLifecycle.decide_activation()`, commits the `Add` (the whole
   `ACTIVATE` step and the owner's own `AGREED` row), then one
   `Update(EmbargoConsent)` per `CARRY_OVER` row, then applies. It does not use
   `_answer_arms()`; the received owner-decision tree runs the same node with

@@ -40,8 +40,9 @@ Hash chain:
   :func:`compute_genesis_hash`) as ``prev_log_hash`` (CLP-08-001,
   CLP-08-004).
 - Canonical serialization uses deterministic JSON (``sort_keys=True``,
-  compact separators, UTF-8) — compatible with RFC 8785 JCS and
-  forward-compatible with a future Merkle Tree implementation.
+  compact separators, UTF-8), forward-compatible with a future Merkle Tree
+  implementation.  It is not RFC 8785 JCS, which SYNC-01-008 requires
+  (#3659).
 - ``entry_hash`` is excluded from the content that is hashed (to avoid a
   self-referential dependency).
 

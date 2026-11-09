@@ -117,13 +117,15 @@ def _owner_accept(dl: SqliteDataLayer, request: AcceptEmbargoTriggerRequest):
 
 @pytest.mark.spec("EP-08-002")
 @pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("RF-08-001")
+@pytest.mark.spec("VAM-05-008")
 def test_accept_embargo_activates_the_proposed_embargo(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """The owner-manager's accept is Accept(EmbargoEvent)[target=VulnerabilityCase].
+    """The owner-manager's accept is Add(EmbargoEvent)[target=VulnerabilityCase].
 
     PROPOSED → ACTIVE, the owner's row becomes ACCEPTED, and the decision is
-    committed as the owner's activation (ADR-0122), never as a consent
+    committed as the owner's activation (ADR-0180), never as a consent
     answer to the Invite.
     """
     owner, dl = owner_actor_and_dl
@@ -138,9 +140,11 @@ def test_accept_embargo_activates_the_proposed_embargo(
     )
 
     activity = activity_of(result)
-    assert activity["type"] == "Accept"
+    assert activity["type"] == "Add"
     assert activity["object"]["id"] == embargo_id
     assert activity["target"] == case.id_
+    # The decision names the Invite the trigger resolved (ADR-0180).
+    assert activity["inReplyTo"] == proposal_id
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.ACTIVE
     assert updated.active_embargo_id == embargo_id
@@ -168,7 +172,7 @@ def test_non_manager_owner_accept_asks_the_manager_to_activate(
 ) -> None:
     """An owner that is not the CASE_MANAGER sends its activation to it.
 
-    The queued activity is Accept(EmbargoEvent)[target=VulnerabilityCase], recorded as a
+    The queued activity is Add(EmbargoEvent)[target=VulnerabilityCase], recorded as a
     pending ``activate_embargo_on_case`` assertion; the owner's replica
     writes no EM state and no consent until the manager's commit arrives.
     """
@@ -201,7 +205,7 @@ def test_non_manager_owner_accept_asks_the_manager_to_activate(
         actor_id=owner.id_,
         case_id=case.id_,
         manager_id=manager.id_,
-        activity_type="Accept",
+        activity_type="Add",
         semantic_type=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value,
     )
 

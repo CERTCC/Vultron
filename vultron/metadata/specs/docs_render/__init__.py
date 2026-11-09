@@ -15,7 +15,10 @@ shows, in three places:
 A catalog row and a per-kind row define the requirement's anchor; a callout
 row links it instead (DF-12-010). Where each requirement's row is, and the
 link a row shows to it, come from
-:mod:`vultron.metadata.docs.requirement_catalog`.
+:mod:`vultron.metadata.docs.requirement_catalog`. A catalog row or callout of
+an xfail-only requirement carries the "not yet in the reference
+implementation" marker, read from ``spec-coverage``'s states over the
+repository's ``test/`` tree at build time (DF-12-021).
 
 Usage (in a markdown-exec Python block)::
 

@@ -57,6 +57,34 @@ _TABLE_HEADER = (
     "|---|---|---|---|",
 )
 
+#: Where an issue number cited by an ``xfail`` reason links.
+ISSUE_URL = "https://github.com/CERTCC/Vultron/issues/{number}"
+
+#: The marker an xfail-only requirement's row carries (DF-12-021). It labels
+#: the reference implementation's status, so it holds no RFC 2119 keyword and
+#: the statement beside it keeps its own.
+NOT_YET_IMPLEMENTED_LABEL = "Not yet in the reference implementation"
+
+
+def issue_links(issues: tuple[int, ...]) -> str:
+    """*issues* as links to their GitHub issues, joined as an English list."""
+    links = [f"[#{n}]({ISSUE_URL.format(number=n)})" for n in issues]
+    if len(links) <= 2:
+        return " and ".join(links)
+    return ", ".join(links[:-1]) + f", and {links[-1]}"
+
+
+def not_yet_implemented_marker(issues: tuple[int, ...]) -> str:
+    """The marker of an xfail-only requirement whose holds cite *issues*.
+
+    It links each cited issue, and reads as the label alone when a hold
+    cites none (DF-12-021).
+    """
+    marker = f":material-progress-wrench: **{NOT_YET_IMPLEMENTED_LABEL}**"
+    if issues:
+        marker += f" (tracked by {issue_links(issues)})"
+    return marker
+
 
 def _linked_id(spec_id: str, href: RequirementHref) -> str:
     """Return *spec_id* as a link to its row, or bare when it has none."""
@@ -147,17 +175,22 @@ def _render_behavioral_cell(spec: BehavioralSpec) -> str:
 
 
 def _render_requirement_cell(
-    spec: Spec,
+    spec: Spec, not_yet_implemented: tuple[int, ...] | None
 ) -> str:
     """Return the Requirement cell content for a spec table row.
 
     The statement and rationale are folded onto one line: a YAML ``>`` block
     keeps a trailing newline and a ``|`` block keeps every line break, and
-    either inside a Markdown table cell ends the row.
+    either inside a Markdown table cell ends the row. An xfail-only
+    requirement's cell opens with its marker (DF-12-021).
     """
     statement = " ".join(spec.statement.split())
     rationale = " ".join(spec.rationale.split())
     cell = f"{statement}<br><br>*{rationale}*"
+    if not_yet_implemented is not None:
+        cell = (
+            f"{not_yet_implemented_marker(not_yet_implemented)}<br><br>{cell}"
+        )
     if isinstance(spec, BehavioralSpec):
         eca = _render_behavioral_cell(spec)
         if eca:
@@ -166,7 +199,11 @@ def _render_requirement_cell(
 
 
 def render_requirement_row(
-    spec: Spec, href: RequirementHref, *, define_anchor: bool
+    spec: Spec,
+    href: RequirementHref,
+    *,
+    define_anchor: bool,
+    not_yet_implemented: tuple[int, ...] | None = None,
 ) -> str:
     """Return the requirement table row for *spec*.
 
@@ -179,6 +216,10 @@ def render_requirement_row(
         define_anchor: ``True`` for the row that is the requirement's anchor
             (a catalog or per-kind row); ``False`` for a callout row, whose
             ID cell links that anchor and defines none (DF-12-002).
+        not_yet_implemented: The issues the holds on an xfail-only
+            requirement's tests cite, which puts the "not yet in the
+            reference implementation" marker on the row (DF-12-021);
+            ``None`` for any other requirement, whose row has no marker.
     """
     if define_anchor:
         id_cell = f'<a id="{requirement_anchor(spec.id)}"></a>`{spec.id}`'
@@ -188,7 +229,7 @@ def render_requirement_row(
             f"`{spec.id}`" if id_href is None else f"[`{spec.id}`]({id_href})"
         )
     priority_cell = _PRIORITY_BADGE[spec.priority]
-    requirement_cell = _render_requirement_cell(spec)
+    requirement_cell = _render_requirement_cell(spec, not_yet_implemented)
     related_cell = _render_relationships_cell(spec, href)
     # Escape pipe chars inside cells to avoid breaking the table
     requirement_cell = requirement_cell.replace("|", "&#124;")

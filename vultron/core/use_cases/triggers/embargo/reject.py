@@ -91,6 +91,7 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
             if self._is_owner:
                 reject_id, reject_blob = self._factory.reject_embargo_proposal(
                     embargo_id=self._embargo_id,
+                    proposal_id=self._proposal_id,
                     case_id=self._case.id_,
                     actor=self._actor_id,
                     to=to,

@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The case owner's decision on an embargo proposal, received (ADR-0122).
 
-``Accept(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
+``Add(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
 ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects it.  The CASE_MANAGER applies
 either only when it names an open proposal and nothing refuses it; a
 refusal is decided before the commit, so nothing is ledgered for it
@@ -30,6 +30,10 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
 )
 from test.support.embargo_register import activate, propose
+from test.support.owner_decision import (
+    seeded_activation,
+    seeded_proposal_rejection,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -51,10 +55,6 @@ from vultron.core.use_cases.received.embargo import (
     ActivateEmbargoOnCaseReceivedUseCase,
     RejectEmbargoProposalOnCaseReceivedUseCase,
 )
-from vultron.wire.as2.factories import (
-    activate_embargo_activity,
-    reject_embargo_proposal_activity,
-)
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _CASE_ID = "https://example.org/cases/owner-decision"
@@ -63,12 +63,12 @@ _OWNER = "https://example.org/users/vendor"
 
 _DECISIONS = [
     pytest.param(
-        activate_embargo_activity,
+        seeded_activation,
         ActivateEmbargoOnCaseReceivedUseCase,
         id="activate",
     ),
     pytest.param(
-        reject_embargo_proposal_activity,
+        seeded_proposal_rejection,
         RejectEmbargoProposalOnCaseReceivedUseCase,
         id="reject-proposal",
     ),
@@ -157,7 +157,7 @@ def test_the_case_manager_applies_and_commits_the_owners_activation(
     result = _receive(
         dl,
         make_payload,
-        activate_embargo_activity,
+        seeded_activation,
         ActivateEmbargoOnCaseReceivedUseCase,
         embargo,
     )
@@ -195,7 +195,7 @@ def test_an_embargo_activation_changes_no_participant_state(make_payload):
     result = _receive(
         dl,
         make_payload,
-        activate_embargo_activity,
+        seeded_activation,
         ActivateEmbargoOnCaseReceivedUseCase,
         embargo,
     )
@@ -222,7 +222,7 @@ def test_the_case_manager_applies_and_commits_the_owners_rejection(
     result = _receive(
         dl,
         make_payload,
-        reject_embargo_proposal_activity,
+        seeded_proposal_rejection,
         RejectEmbargoProposalOnCaseReceivedUseCase,
         embargo,
     )
@@ -270,7 +270,7 @@ def test_an_activation_with_pxa_set_is_refused_uncommitted(make_payload):
     result = _receive(
         dl,
         make_payload,
-        activate_embargo_activity,
+        seeded_activation,
         ActivateEmbargoOnCaseReceivedUseCase,
         embargo,
     )
@@ -306,7 +306,7 @@ def test_an_accepted_revision_with_pxa_set_is_refused_without_et(
     result = _receive(
         dl,
         make_payload,
-        activate_embargo_activity,
+        seeded_activation,
         ActivateEmbargoOnCaseReceivedUseCase,
         embargo,
     )
@@ -353,7 +353,7 @@ def test_an_activation_the_owner_declined_is_refused_uncommitted(
     result = _receive(
         dl,
         make_payload,
-        activate_embargo_activity,
+        seeded_activation,
         ActivateEmbargoOnCaseReceivedUseCase,
         embargo,
     )

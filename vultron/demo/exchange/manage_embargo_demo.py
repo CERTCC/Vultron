@@ -87,7 +87,7 @@ def demo_activate_then_terminate(
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
     3. Vendor, the case owner and CASE_MANAGER, activates the embargo:
-       Accept(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox (ADR-0122)
+       Add(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox (ADR-0180)
     4. Vendor announces embargo to participants
     5. Verify case has active embargo
     6. Vendor terminates (removes) the embargo (RemoveEmbargoFromCaseActivity)
@@ -122,7 +122,9 @@ def demo_activate_then_terminate(
         with demo_step("Step 3: Vendor, as case owner, activates the embargo"):
             # The owner's decision for the case goes to the CASE_MANAGER —
             # here the vendor itself (ADR-0122).
-            owner_activates_embargo(client, vendor, vendor.id_, case, embargo)
+            owner_activates_embargo(
+                client, vendor, vendor.id_, case, embargo, proposal.id_
+            )
 
         with demo_step("Step 4: Vendor announces embargo to participants"):
             announce = announce_embargo_activity(
@@ -205,7 +207,7 @@ def demo_reject_then_repropose(
     4. Verify case has no active embargo after rejection
     5. Coordinator proposes a revised embargo (90-day)
     6. Vendor, the case owner, activates the revised proposal:
-       Accept(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox
+       Add(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox
     7. Verify case has active embargo
 
     This follows the reject → re-propose → accept branch in
@@ -236,7 +238,7 @@ def demo_reject_then_repropose(
 
         with demo_step("Step 3: Vendor, as case owner, rejects the proposal"):
             owner_rejects_embargo_proposal(
-                client, vendor, vendor.id_, case, embargo_v1
+                client, vendor, vendor.id_, case, embargo_v1, proposal_v1.id_
             )
 
         with demo_step(
@@ -276,7 +278,7 @@ def demo_reject_then_repropose(
             "Step 6: Vendor, as case owner, activates the revision"
         ):
             owner_activates_embargo(
-                client, vendor, vendor.id_, case, embargo_v2
+                client, vendor, vendor.id_, case, embargo_v2, proposal_v2.id_
             )
 
         with demo_step("Step 7: Verify case has active revised embargo"):

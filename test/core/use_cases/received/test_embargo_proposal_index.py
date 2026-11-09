@@ -38,6 +38,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -596,7 +597,11 @@ class TestReceivedRejectPrunesOpenProposals:
         )
         self._seat_owner(dl, case)
         decision = reject_embargo_proposal_activity(
-            embargo, target=case.id_, actor=self._OWNER, to=[self._REPLICA]
+            embargo,
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=case.id_,
+            actor=self._OWNER,
+            to=[self._REPLICA],
         )
         event = cast(
             RejectEmbargoProposalOnCaseReceivedEvent,

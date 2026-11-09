@@ -42,6 +42,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from test.support import embargo_register
+from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -412,6 +413,7 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
     result = manager.route(
         reject_embargo_proposal_activity(
             revision,
+            in_reply_to=SEEDED_PROPOSAL_ID,
             target=CASE_ID,
             context=CASE_ID,
             actor=OWNER,
@@ -580,7 +582,7 @@ def test_owner_termination_after_the_end_time_sends_no_announce() -> None:
 
 
 def _activate_by_owner_decision(manager: _Manager, revision: Any) -> None:
-    # The owner's Accept(EmbargoEvent)[target=VulnerabilityCase] is the one activation
+    # The owner's Add(EmbargoEvent)[target=VulnerabilityCase] is the one activation
     # path (ADR-0122); the revision must be an open proposal first.
     invite = em_propose_embargo_activity(
         revision,
@@ -593,6 +595,7 @@ def _activate_by_owner_decision(manager: _Manager, revision: Any) -> None:
     result = manager.route(
         activate_embargo_activity(
             revision,
+            in_reply_to=SEEDED_PROPOSAL_ID,
             target=CASE_ID,
             context=CASE_ID,
             actor=OWNER,

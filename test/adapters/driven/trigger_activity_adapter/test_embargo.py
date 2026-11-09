@@ -538,15 +538,18 @@ class TestTerminateEmbargo:
 
 @pytest.mark.parametrize(
     ("method", "verb"),
-    [("activate_embargo", "Accept"), ("reject_embargo_proposal", "Reject")],
+    [("activate_embargo", "Add"), ("reject_embargo_proposal", "Reject")],
 )
 class TestOwnerEmbargoDecision:
-    """The case owner's Accept/Reject of the EmbargoEvent itself (ADR-0122)."""
+    """The case owner's Add/Reject of the EmbargoEvent itself (ADR-0180)."""
+
+    _PROPOSAL_ID = f"{_CASE_ID}/embargo_proposals/1"
 
     def _build(self, adapter, dl, method: str) -> tuple[str, dict, str]:
         embargo = _make_embargo(dl)
         activity_id, blob = getattr(adapter, method)(
             embargo_id=embargo.id_,
+            proposal_id=self._PROPOSAL_ID,
             case_id=_CASE_ID,
             actor=_ACTOR,
             to=[_PEER],
@@ -567,6 +570,14 @@ class TestOwnerEmbargoDecision:
         assert body["target"] == _CASE_ID
         assert body["context"] == _CASE_ID
         assert body["to"] == [_PEER]
+
+    @pytest.mark.spec("RF-08-001")
+    def test_names_the_proposal_in_in_reply_to(
+        self, adapter, dl, method, verb
+    ):
+        """Both owner decisions name the proposal's Invite (ADR-0180)."""
+        _, body, _ = self._build(adapter, dl, method)
+        assert body["inReplyTo"] == self._PROPOSAL_ID
 
     def test_persists_activity(self, adapter, dl, method, verb):
         activity_id, _, _ = self._build(adapter, dl, method)

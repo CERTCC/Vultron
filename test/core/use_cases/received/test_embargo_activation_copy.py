@@ -13,7 +13,7 @@
 
 """Owner decisions and expiry commit first and replay by copying (ADR-0124).
 
-The owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` is one entry, and it is the
+The owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` is one entry, and it is the
 whole ``ACTIVATE`` register step, the ``SUPERSEDE`` of the embargo in force
 included, and the owner's own agreement (CLP-07-013, MSM-07-028).  Each
 ``CARRY_OVER`` row a shorter revision gives an existing signatory follows as
@@ -33,6 +33,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.owner_decision import owner_decision_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -117,24 +118,25 @@ def _propose(net: LedgerNetwork, suffix: str, days: int) -> str:
 def _owner_decides(
     net: LedgerNetwork, embargo_id: str, *, accept: bool = True
 ) -> Any:
-    """The owner sends ``Accept`` or ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
+    """The owner sends ``Add`` or ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
 
-    It first receives the relayed Invites, so its store holds the embargo
-    (ADR-0122).
+    It first receives the relayed Invites, so its store holds the embargo and
+    the Invite its decision names in ``inReplyTo`` (ADR-0180).
     """
     net.deliver(MANAGER, to=OWNER, type_="Invite")
-    adapter = TriggerActivityAdapter(net.stores[OWNER])
-    send = (
-        adapter.activate_embargo if accept else adapter.reject_embargo_proposal
+    _, body = owner_decision_body(
+        net.stores[OWNER],
+        net.case_id,
+        embargo_id,
+        owner=OWNER,
+        manager=MANAGER,
+        accept=accept,
     )
-    _, sealed = send(
-        embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
-    )
-    return net.receive(MANAGER, json.loads(sealed))
+    return net.receive(MANAGER, body)
 
 
 def _owner_activates(net: LedgerNetwork, embargo_id: str) -> Any:
-    """The owner sends ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122)."""
+    """The owner sends ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0180)."""
     return _owner_decides(net, embargo_id)
 
 

@@ -264,6 +264,20 @@ class EmbargoRegisterMixin:
             if entry.status == EmbargoRegisterStatus.PROPOSED
         ]
 
+    def can_answer_embargo(self, embargo_id: str) -> bool:
+        """True when an answer to *embargo_id* can still be recorded.
+
+        The two embargoes an ``Accept`` or a ``Reject`` of an embargo Invite
+        may name: the embargo in force and the open proposals (MSM-07-003,
+        MSM-07-004).  A row for any other entry is final and accepts no
+        trigger (CM-18-003).  The one answerability test, read by the answer
+        guard and by the late-Accept route alike (EMB-17-012).
+        """
+        return (
+            embargo_id == self.active_embargo_id
+            or embargo_id in self.proposed_embargo_ids
+        )
+
     @property
     def embargo_in_force(self) -> bool:
         """True when this case's register has an ``ACTIVE`` entry.

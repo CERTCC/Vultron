@@ -21,7 +21,8 @@ stakeholder_type: [project-contributor]
 | Dependency | Version | Role in system | Evidence |
 |------------|---------|----------------|----------|
 | FastAPI | >=0.141.1 | HTTP API server (driving adapter) | `pyproject.toml` |
-| Pydantic v2 | ==2.13.5 | Data validation; domain + wire models | `pyproject.toml` |
+| Pydantic v2 | ==2.14.2 | Data validation; domain + wire models | `pyproject.toml` |
+| email-validator | via `pydantic[email]` (`uv.lock` resolves the version) | `EmailStr` fields of the CSAF 2.1 models generated from the pinned local copy of the schemas (CSAF-05-002) | `pyproject.toml`, `vultron/wire/csaf/models/` |
 | pydantic-settings | >=2.15.0 | Layered settings (YAML, env, defaults) | `pyproject.toml`, `vultron/config/app.py` |
 | SQLModel | >=0.0.39 | SQLite-backed data layer (ORM/schema) | `pyproject.toml` |
 | uvicorn | >=0.52.3 | ASGI server for FastAPI | `pyproject.toml`, `docker/Dockerfile` |
@@ -62,6 +63,7 @@ It has no backend; it reads JSON exported from the Python side (`export-demo-sta
 | pytest-xdist | Parallel test execution (>=3.8.0) | `[dependency-groups].dev` |
 | pandas-stubs / types-networkx / types-pyyaml | Type stubs for third-party deps | `[dependency-groups].dev` |
 | graphifyy | Codebase knowledge-graph tooling (>=0.9.43) | `[dependency-groups].dev` |
+| datamodel-code-generator | Generates the CSAF 2.1 models in `vultron/wire/csaf/models/` from the pinned local copy of the schemas (==0.90.0, exact, because a test compares the committed models with a fresh generation byte for byte, CSAF-05-003); run `uv run csaf-models` | `[dependency-groups].dev`, `vultron/metadata/csaf/regenerate.py` |
 | markdownlint-cli2 | Markdown linting (not a Python dependency) | `mdlint.sh`, `.markdownlint-cli2.yaml`, `Makefile` |
 
 ### 4) Key Commands
@@ -85,6 +87,9 @@ uv run ruff check
 
 # Type-check (pyright is the second pass, and runs in CI only, PAD-18-027)
 uv run mypy
+
+# Regenerate the CSAF 2.1 models from the pinned local copy (--check to compare)
+uv run csaf-models
 
 # Build package
 uv build

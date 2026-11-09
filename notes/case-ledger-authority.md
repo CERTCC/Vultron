@@ -259,7 +259,7 @@ has the verbatim asserted AS2 activity (or a deterministic normalization) as its
 `payloadSnapshot`, followed by its consequence entries (CLP-07-021).
 
 **Belongs:** `Offer(VulnerabilityReport)`, `Add(Note)`, `Add(ParticipantStatus)`,
-`Offer`/`Accept`/`Reject(EmbargoEvent)`, the stub and full-case `Invite`s with
+`Offer`/`Add`/`Reject(EmbargoEvent)`, the stub and full-case `Invite`s with
 their `Accept`/`Reject` (routed through the CASE_MANAGER, PCR-08),
 `Announce(VulnerabilityCase)`, and any other activity that changes
 protocol-visible state.

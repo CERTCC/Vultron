@@ -15,7 +15,7 @@
 """Replay of the case owner's embargo decisions on a participant replica.
 
 ``activate_embargo_on_case`` (the owner's
-``Accept(EmbargoEvent)[target=VulnerabilityCase]``) is copied through the one apply
+``Add(EmbargoEvent)[target=VulnerabilityCase]``) is copied through the one apply
 function: the ``ACTIVATE``
 step and the owner's agreement it states (ADR-0124).
 ``reject_embargo_proposal_on_case`` (its ``Reject``) is copied the same way,
@@ -112,7 +112,7 @@ def _seed(
 
 
 def _apply(bridge, embargo: Any, *, accept: bool = True):
-    """Replay the owner's Accept (or Reject) of *embargo* on the replica."""
+    """Replay the owner's Add (or Reject) of *embargo* on the replica."""
     entry = _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -124,7 +124,7 @@ def _apply(bridge, embargo: Any, *, accept: bool = True):
                 else "reject_embargo_proposal_on_case"
             ),
             payload_snapshot={
-                "type": "Accept" if accept else "Reject",
+                "type": "Add" if accept else "Reject",
                 "actor": OWNER_ACTOR_ID,
                 "context": CASE_ID,
                 "object": embargo,
@@ -213,7 +213,7 @@ def test_the_activation_records_the_owners_agreement_on_the_replica(
 @pytest.mark.spec("MSM-07-008")
 @pytest.mark.spec("CM-23-016")
 def test_a_declined_owner_agrees_on_the_replica(bridge, datalayer):
-    """The Accept states the owner's agreement, a DECLINED row included."""
+    """The Add states the owner's agreement, a DECLINED row included."""
     _seed(datalayer, EM.PROPOSED, owner_participant=True)
     owner = datalayer.read(f"{CASE_ID}/participants/owner")
     assert isinstance(owner, CaseParticipant)

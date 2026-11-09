@@ -17,8 +17,8 @@
 
 A participant's accept is ``Accept(Invite(EmbargoEvent))``, its own consent.
 The case owner's accept is its decision for the case,
-``Accept(EmbargoEvent)[target=VulnerabilityCase]``, which activates the proposal
-(ADR-0122).
+``Add(EmbargoEvent)[target=VulnerabilityCase]``, which activates the proposal
+(ADR-0180).
 """
 
 import json
@@ -94,6 +94,7 @@ class SvcAcceptEmbargoUseCase(SvcEmbargoTriggerBase):
             if self._is_owner:
                 accept_id, accept_blob = self._factory.activate_embargo(
                     embargo_id=self._embargo_id,
+                    proposal_id=self._proposal_id,
                     case_id=self._case.id_,
                     actor=self._actor_id,
                     to=to,
