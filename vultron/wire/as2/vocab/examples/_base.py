@@ -113,11 +113,11 @@ class _ScopedIds:
 
     Stands in for ``uuid.uuid4`` inside :func:`_example_scope`, which is where
     ``new_object_id``'s system id source draws its bits, so an object built
-    without an explicit ``id_`` still gets a stable one.  Each draw is :func:`example_uuid` of the
-    scope name and the draw's position within that scope, so the ids one
-    example carries depend on that example alone: entering another scope
-    before or after it moves none of them.  That is the property a seeded
-    sequence does not have, and the reason this is not
+    without an explicit ``id_`` still gets a stable one.  Each draw is
+    :func:`example_uuid` of the scope name and the draw's position within that
+    scope, so the ids one example carries depend on that example alone:
+    entering another scope before or after it moves none of them.  That is the
+    property a seeded sequence does not have, and the reason this is not
     ``vultron.demo.determinism.SeededUuid4`` — under one shared sequence,
     adding an example would shift every id drawn after it, which is the
     88-files-changed-to-alter-18 problem #5776 was filed for.
