@@ -51,6 +51,7 @@ from pathlib import Path
 
 import pytest
 
+from test.support.scenario_specs import fixture_spec
 from vultron.demo.helpers.story import (
     Choose,
     Story,
@@ -116,15 +117,7 @@ def _reordered_story() -> Story:
 
 def _fixture_spec(plot: Story) -> ScenarioSpec:
     """A spec carrying *plot* as its story."""
-    return ScenarioSpec(
-        name=_FIXTURE_NAME,
-        label="ZZ-plot",
-        participants="Reporter + Vendor",
-        feature="Fixture scenario; never registered",
-        in_pr_set=False,
-        path=((_BRANCH_POINT, _CHOICE),),
-        story=plot,
-    )
+    return fixture_spec(name=_FIXTURE_NAME, label="ZZ-plot", story=plot)
 
 
 def _committed_scenarios() -> dict[str, list[dict[str, str]]]:
@@ -293,12 +286,9 @@ class TestManifestShape:
         names no scenario when it fails. This one fails on the scenario whose
         story moved, which is what a reader of a red run needs.
         """
-        committed = json.loads(
-            read_committed(_REPO_ROOT / PLOT_MANIFEST) or "{}"
-        )["scenarios"]
+        committed = _committed_scenarios()
 
         for spec in discover_scenarios():
-            assert spec.story is not None, spec.name
             assert committed[spec.name] == plot_rows(spec.name, spec.story), (
                 spec.name
             )
@@ -347,7 +337,7 @@ class TestManifestShape:
             (_fixture_spec(_ordered_story()),), WRITE_COMMAND
         )
 
-        assert WRITE_COMMAND in str(payload["_README"])
+        assert WRITE_COMMAND in payload["_README"]
 
 
 # ---------------------------------------------------------------------------

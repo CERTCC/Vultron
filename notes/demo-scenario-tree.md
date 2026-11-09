@@ -496,8 +496,9 @@ point stops a run there.
 1. Test starting points: #5344 (one act cheap) and #5345 (the harness, which
    stops a run at a step mark), then the pilot #5346, then the migrations
    #5347 and #5348, and last #5349.
-2. The plot manifest (#5613), then the clock-reading read paths that keep a
-   shared stretch from being byte-stable: #5649, #5650, #5651 and #5652.
+2. The clock-reading read paths that keep a shared stretch from being
+   byte-stable: #5649, #5650, #5651 and #5652. The plot manifest they follow is
+   committed.
 3. Verdict evidence: the check-tree capture and compare command (#6025), then
    the base-versus-head CI job that calls it (#6026). The story rendering
-   (#6028) needs only the plot manifest (#5613).
+   (#6028) needed only the plot manifest, so nothing blocks it.

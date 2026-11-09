@@ -39,6 +39,7 @@ from pathlib import Path
 import pytest
 
 from test.demo_unit._scenario_imports import imported_names, names_a_scenario
+from test.support.scenario_specs import fixture_spec
 from vultron.demo import cli
 from vultron.demo.helpers.story import choose, story
 from vultron.demo.scenario import rv_demo
@@ -371,7 +372,7 @@ def test_derived_paths_follow_the_documented_conventions() -> None:
     differ, and a renderer or harness generator that applied one rule to all
     three would still pass a same-shaped check on an unhyphenated scenario.
     """
-    spec = ScenarioSpec(
+    spec = fixture_spec(
         name="rvcv-handoff",
         label="RVCV-handoff",
         participants="Reporter + Vendor1 → Coordinator + Vendor2",

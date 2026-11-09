@@ -34,6 +34,7 @@ import pytest
 from click.testing import CliRunner
 
 import vultron.demo.scenario as scenario_package
+from test.support.scenario_specs import FIRST_STEP, fixture_spec
 from vultron.demo import cli
 from vultron.demo.cli.scenario_commands import _make_scenario_command
 from vultron.demo.helpers.story import choose, story
@@ -55,14 +56,11 @@ from vultron.metadata.demo_scenarios import (
 
 def _spec(name: str) -> ScenarioSpec:
     """A spec for *name*, on the shortest valid path with a one-step story."""
-    return ScenarioSpec(
+    return fixture_spec(
         name=name,
         label="ZZ",
-        participants="Reporter + Vendor",
         feature="Something",
-        in_pr_set=False,
-        path=(("reporter-whom-to-tell", "vendor"),),
-        story=story(choose("reporter-whom-to-tell", "vendor", by="reporter")),
+        story=story(choose(*FIRST_STEP, by="reporter")),
     )
 
 

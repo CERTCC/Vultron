@@ -33,6 +33,7 @@ from test.demo_unit.story._support import (
     make_fragment,
     rv_story,
 )
+from test.support.scenario_specs import fixture_spec
 from vultron.demo.helpers.story import (
     Choose,
     Story,
@@ -207,14 +208,8 @@ def _register_fixture(
 
 def _fixture_spec_with(story_obj: Story) -> ScenarioSpec:
     """A spec for ``rv`` carrying *story_obj*, built without registering it."""
-    return ScenarioSpec(
-        name="rv",
-        label="RV",
-        participants="Reporter + Vendor",
-        feature="Fixture",
-        in_pr_set=False,
-        path=tuple(story_obj.path),
-        story=story_obj,
+    return fixture_spec(
+        name="rv", label="RV", feature="Fixture", story=story_obj
     )
 
 
@@ -259,7 +254,7 @@ class TestRegisteringAStory:
         a re-executed module builds fresh ones. The spec keeps its story out
         of ``__eq__`` for exactly this reason; without that, every
         ``importlib.reload`` of a scenario whose story holds a fragment
-        defined in its own module — nine of the eleven — would raise, and the
+        defined in its own module — most of them — would raise, and the
         one teardown that reloads one would go red far from its cause
         (``test/demo/test_rcv_demo.py``).
         """
@@ -287,13 +282,17 @@ class TestRegisteringAStory:
 
         A stand-in carrying only ``path`` registers fine and then dies in the
         plot-manifest exporter as an ``AttributeError`` over an anonymous
-        object, in a layer whose error messages are the product.
+        object, in a layer whose error messages are the product. The scenario
+        name is asserted because naming it is the whole point of refusing
+        here rather than there.
         """
 
         class _PathOnly:
             path = (("reporter-whom-to-tell", "vendor"),)
 
-        with pytest.raises(DemoScenarioRegistryError, match="no items"):
+        with pytest.raises(
+            DemoScenarioRegistryError, match="no items"
+        ) as raised:
             scenario(
                 name="rv",
                 label="RV",
@@ -303,15 +302,22 @@ class TestRegisteringAStory:
                 story=_PathOnly(),  # type: ignore[arg-type]
             )
 
+        assert "rv" in str(raised.value)
+
     @pytest.mark.spec("DEMOCI-11-034")
     def test_a_story_whose_items_are_mutable_is_refused(self) -> None:
-        """A list of items could be rewritten behind the committed manifest."""
+        """A list of items could be rewritten behind the committed manifest.
+
+        The scenario name is asserted for the same reason as above.
+        """
 
         class _MutableItems:
             path = (("reporter-whom-to-tell", "vendor"),)
             items = [choose("reporter-whom-to-tell", "vendor", by="reporter")]
 
-        with pytest.raises(DemoScenarioRegistryError, match="not a tuple"):
+        with pytest.raises(
+            DemoScenarioRegistryError, match="not a tuple"
+        ) as raised:
             scenario(
                 name="rv",
                 label="RV",
@@ -320,6 +326,8 @@ class TestRegisteringAStory:
                 in_pr_set=False,
                 story=_MutableItems(),  # type: ignore[arg-type]
             )
+
+        assert "rv" in str(raised.value)
 
     @pytest.mark.spec("DEMOCI-11-019")
     def test_a_story_that_names_no_path_is_refused(self) -> None:

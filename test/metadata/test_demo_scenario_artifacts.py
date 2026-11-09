@@ -46,9 +46,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+from test.support.scenario_specs import FIRST_STEP, fixture_spec
 from vultron.demo.helpers.story import StoryState, choose, story
 from vultron.demo.scenario.registry import (
-    ScenarioSpec,
     discover_scenarios,
     is_scenario_name,
 )
@@ -109,17 +109,11 @@ def _fixture_fragment(state: StoryState) -> None:
 #: decorator's prose fields: a spec with no story would leave that one
 #: artifact in sync and the "every artifact" claim below false
 #: (DEMOCI-11-034).
-_EXTRA_SPEC = ScenarioSpec(
+_EXTRA_SPEC = fixture_spec(
     name="zz-fake",
     label="ZZ-fake",
-    participants="Reporter + Vendor",
-    feature="Fixture scenario; never registered",
     in_pr_set=True,
-    path=(("reporter-whom-to-tell", "vendor"),),
-    story=story(
-        choose("reporter-whom-to-tell", "vendor", by="reporter"),
-        _fixture_fragment,
-    ),
+    story=story(choose(*FIRST_STEP, by="reporter"), _fixture_fragment),
 )
 
 
