@@ -39,6 +39,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.note_wire import assert_case_manager_note_recorded
@@ -227,8 +228,8 @@ class TestSenderIsParticipantNode:
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
 
@@ -238,8 +239,8 @@ class TestSenderIsParticipantNode:
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.FAILURE
 
@@ -249,7 +250,7 @@ class TestSenderIsParticipantNode:
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
@@ -259,8 +260,8 @@ class TestSenderIsParticipantNode:
             sender_actor_id=ACTOR_ID,
             case_id=None,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.FAILURE
 
@@ -282,9 +283,7 @@ class TestLoadParticipantNode:
         self, populated_dl, populated_bridge
     ):
         node = LoadParticipantNode(participant_id=PARTICIPANT_ID)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         participant = py_trees.blackboard.Blackboard().get(
             "append_status_participant"
@@ -296,7 +295,7 @@ class TestLoadParticipantNode:
         node = LoadParticipantNode(
             participant_id="https://example.org/cases/case-01/participants/missing"
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
 
@@ -318,9 +317,7 @@ class TestCheckStatusNotAlreadyAppendedNode:
                 ),
             ],
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_fails_when_status_already_appended(
@@ -343,9 +340,7 @@ class TestCheckStatusNotAlreadyAppendedNode:
                 ),
             ],
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
 
@@ -359,9 +354,7 @@ class TestResolveAndPersistStatusObjectNode:
             status_id=STATUS_ID,
             status_obj_fallback=None,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         status_obj = py_trees.blackboard.Blackboard().get(
             "append_status_status_obj"
@@ -378,7 +371,7 @@ class TestResolveAndPersistStatusObjectNode:
             status_id=STATUS_ID,
             status_obj_fallback=fallback,
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         persisted = dl.read(STATUS_ID)
         assert persisted is not None
@@ -389,7 +382,7 @@ class TestResolveAndPersistStatusObjectNode:
             status_id="https://example.org/missing",
             status_obj_fallback=None,
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
 
@@ -410,9 +403,7 @@ class TestValidateRMTransitionNode:
                 ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
             ],
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     @pytest.mark.spec("RSH-06-002")
@@ -449,9 +440,7 @@ class TestValidateRMTransitionNode:
                 ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
             ],
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     def test_rejects_terminal_closed_rewrite(
@@ -487,9 +476,7 @@ class TestValidateRMTransitionNode:
                 ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
             ],
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.spec("RSH-06-001")
@@ -524,9 +511,7 @@ class TestValidateRMTransitionNode:
                 ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
             ],
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
 
@@ -549,9 +534,7 @@ class TestAppendStatusAndSaveParticipantNode:
                 ),
             ],
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         p = populated_dl.read(PARTICIPANT_ID)
         assert p is not None
@@ -568,9 +551,7 @@ class TestAppendParticipantStatusSubtree:
             participant_id=PARTICIPANT_ID,
             status_obj_fallback=status_obj,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         p = populated_dl.read(PARTICIPANT_ID)
         assert p is not None
@@ -593,9 +574,7 @@ class TestAppendParticipantStatusSubtree:
             )
 
         # First call appends the status
-        result1 = bridge.execute_with_setup(
-            tree=_make_tree(), actor_id=ACTOR_ID
-        )
+        result1 = run_tree(bridge, tree=_make_tree(), actor_id=ACTOR_ID)
         assert result1.status == Status.SUCCESS
         p = populated_dl.read(PARTICIPANT_ID)
         count_after_first = len(p.participant_statuses)
@@ -609,9 +588,7 @@ class TestAppendParticipantStatusSubtree:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(populated_dl),
         )
-        result2 = bridge2.execute_with_setup(
-            tree=_make_tree(), actor_id=ACTOR_ID
-        )
+        result2 = run_tree(bridge2, tree=_make_tree(), actor_id=ACTOR_ID)
         assert result2.status == Status.SUCCESS
         p2 = populated_dl.read(PARTICIPANT_ID)
         assert len(p2.participant_statuses) == count_after_first
@@ -622,7 +599,7 @@ class TestAppendParticipantStatusSubtree:
             participant_id="https://example.org/cases/case-01/participants/missing",
             status_obj_fallback=status_obj,
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.spec("BTND-10-007")
@@ -651,9 +628,7 @@ class TestAppendParticipantStatusSubtree:
             participant_id=PARTICIPANT_ID,
             status_obj_fallback=regressed_status,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     def test_terminal_closed_duplicate_is_rejected_and_not_appended(
@@ -682,9 +657,7 @@ class TestAppendParticipantStatusSubtree:
             participant_id=PARTICIPANT_ID,
             status_obj_fallback=duplicate_closed,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
         updated_participant = populated_dl.read(PARTICIPANT_ID)
@@ -716,9 +689,7 @@ class TestAppendParticipantStatusSubtree:
             participant_id=PARTICIPANT_ID,
             status_obj_fallback=accepted_status,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
 
@@ -732,8 +703,8 @@ class TestAllParticipantsRMClosedConditionNode:
     def test_fails_when_participants_not_closed(self, populated_bridge):
         """No closed status on participant → FAILURE (not all closed)."""
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.FAILURE
 
@@ -768,7 +739,7 @@ class TestAllParticipantsRMClosedConditionNode:
             sync_port=SyncActivityAdapter(populated_dl),
         )
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
@@ -795,14 +766,14 @@ class TestAllParticipantsRMClosedConditionNode:
             sync_port=SyncActivityAdapter(populated_dl),
         )
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         # CaseActor is not RM.CLOSED → FAILURE (ADR-0051 removes the old skip)
         assert result.status == Status.FAILURE
 
     def test_fails_when_no_case_id(self, bridge):
         """No case_id → FAILURE."""
         node = AllParticipantsRMClosedConditionNode(case_id=None)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     def test_fails_when_case_not_found(self, bridge):
@@ -810,7 +781,7 @@ class TestAllParticipantsRMClosedConditionNode:
         node = AllParticipantsRMClosedConditionNode(
             case_id="https://example.org/cases/nonexistent"
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
 
@@ -824,15 +795,15 @@ class TestCloseNotYetEmittedConditionNode:
     def test_succeeds_when_outbox_empty(self, populated_bridge):
         """Empty outbox → no prior Leave → SUCCESS."""
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
 
     def test_fails_when_no_case_id(self, bridge):
         """No case_id → FAILURE."""
         node = CloseNotYetEmittedConditionNode(case_id=None)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
@@ -855,7 +826,7 @@ class TestCloseNotYetEmittedConditionNode:
             sync_port=SyncActivityAdapter(populated_dl),
         )
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
@@ -879,7 +850,7 @@ class TestCloseNotYetEmittedConditionNode:
             sync_port=SyncActivityAdapter(populated_dl),
         )
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
 
@@ -941,8 +912,8 @@ class TestAddParticipantStatusTree:
             if isinstance(case_before, CoreCase)
             else 0
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
+        result = run_tree(
+            bridge, tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
         assert result.status == Status.SUCCESS
 
@@ -983,7 +954,7 @@ class TestAddParticipantStatusTree:
             case_id=CASE_ID,
             sender_rule=_STATUS_RULE,
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=OUTSIDER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=OUTSIDER_ID)
         assert result.status == Status.FAILURE
 
         p = populated_dl.read(PARTICIPANT_ID)
@@ -1033,7 +1004,7 @@ class TestAddParticipantStatusTree:
             call_out=reject_bundle,
         )
         # Execute as the vendor (ACTOR_ID) — not CASE_MANAGER → ledger commit skipped
-        result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=cm_tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         # Outbox must be empty: guard blocked before EmitCaseStatusUpdateNode
         outbox = populated_dl.outbox_list()
@@ -1097,7 +1068,7 @@ class TestAddParticipantStatusTree:
             "RequireCaseOwnerApprovalNode must be present in the tree when using DETERMINISTIC bundle"
         )
 
-        result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=cm_tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE, (
             "Non-CASE_OWNER sender must be blocked by RequireCaseOwnerApproval (RSH-07-001)"
         )
@@ -1340,8 +1311,11 @@ class TestSenderIsCaseOwnerNode:
         node = SenderIsCaseOwnerNode(
             sender_actor_id=ACTOR_ID,  # has CASE_OWNER role in fixture
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID, case_id=CASE_ID
+        result = run_tree(
+            populated_bridge,
+            tree=node,
+            actor_id=CASE_MANAGER_ID,
+            case_id=CASE_ID,
         )
         assert result.status == Status.SUCCESS
 
@@ -1352,8 +1326,11 @@ class TestSenderIsCaseOwnerNode:
         node = SenderIsCaseOwnerNode(
             sender_actor_id=CASE_MANAGER_ID,  # has CASE_MANAGER role, not CASE_OWNER
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID, case_id=CASE_ID
+        result = run_tree(
+            populated_bridge,
+            tree=node,
+            actor_id=CASE_MANAGER_ID,
+            case_id=CASE_ID,
         )
         assert result.status == Status.FAILURE
 
@@ -1366,8 +1343,8 @@ class TestSenderIsCaseOwnerNode:
             ),
             CASE_ID,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.FAILURE
 
@@ -1380,14 +1357,14 @@ class TestSenderIsCaseOwnerNode:
             ),
             "https://example.org/cases/nonexistent",
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_returns_failure(self, bridge):
         """No case_id on the port → FAILURE."""
         node = SenderIsCaseOwnerNode(sender_actor_id=ACTOR_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
 
@@ -1409,8 +1386,8 @@ class TestStatusAuthorizationCallOutBundle:
             "CaseOwnerApprovesStatusUpdate"
         )
         assert isinstance(unwrap_call_out(node), RequireCaseOwnerApprovalNode)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.FAILURE
 
@@ -1425,8 +1402,8 @@ class TestStatusAuthorizationCallOutBundle:
         node = STATUS_AUTHORIZATION_PERMISSIVE.status_adoption_gate_factory(
             "CaseOwnerApprovesStatusUpdate"
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
 
@@ -1439,8 +1416,8 @@ class TestStatusAuthorizationCallOutBundle:
         node = bundle.status_adoption_gate_factory(
             "CaseOwnerApprovesStatusUpdate"
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.FAILURE
 
@@ -1557,8 +1534,8 @@ class TestRejectionValidatorBeforeCommit:
             case_id=CASE_ID,
             sender_rule=_STATUS_RULE,
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
+        result = run_tree(
+            bridge, tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
         assert result.status == Status.FAILURE, (
             "a backward rm refuses the whole status before GuardedCommit"
@@ -1647,8 +1624,8 @@ class TestRejectionValidatorBeforeCommit:
             case_id=CASE_ID,
             sender_rule=_STATUS_RULE,
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
+        result = run_tree(
+            bridge, tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
         assert result.status == Status.FAILURE, (
             "A fully rejected update must fail before GuardedCommit"
@@ -1705,7 +1682,7 @@ class TestEmitRMGapNoteNode:
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
         outbox = populated_dl.outbox_list()
         assert len(outbox) == 0, "No anomaly → no outbox entry expected"
@@ -1723,7 +1700,7 @@ class TestEmitRMGapNoteNode:
         # Pre-populate anomaly flag as if CheckParticipantStatusAcceptableNode ran
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
 
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
         note = assert_case_manager_note_recorded(populated_dl, CASE_ID)
@@ -1741,7 +1718,7 @@ class TestEmitRMGapNoteNode:
         )
         self._set_anomaly("regression", RM.ACCEPTED, RM.RECEIVED)
 
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
         note = assert_case_manager_note_recorded(populated_dl, CASE_ID)
@@ -1763,7 +1740,7 @@ class TestEmitRMGapNoteNode:
         node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=CASE_ID)
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
 
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
 
         assert result.status == Status.SUCCESS
         assert len(refused) == 1
@@ -1793,7 +1770,7 @@ class TestEmitRMGapNoteNode:
 
         monkeypatch.setattr(node, "_require_case", _require_case_then_lose_it)
 
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
 
         assert result.status == Status.FAILURE
         assert result.internal_error is True
@@ -1808,7 +1785,7 @@ class TestEmitRMGapNoteNode:
         )
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
 
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
         outbox = populated_dl.outbox_list()
         assert len(outbox) == 0, "No case_id → no outbox entry expected"
@@ -1821,8 +1798,8 @@ class TestEmitRMGapNoteNode:
         )
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
         # populated_bridge has no trigger_activity_factory
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
 
@@ -2014,8 +1991,8 @@ def _run_at_case_manager(
             else STATUS_AUTHORIZATION_DETERMINISTIC
         ),
     )
-    return _cm_bridge(dl).execute_with_setup(
-        tree=tree, actor_id=CASE_MANAGER_ID, activity=event
+    return run_tree(
+        _cm_bridge(dl), tree=tree, actor_id=CASE_MANAGER_ID, activity=event
     )
 
 
@@ -2248,11 +2225,9 @@ class TestAdoptedPxaReachesTheCaseStatus:
         node = EmitCaseStatusUpdateNode(
             case_id=CASE_ID, reported_status_id=reported_status_id
         )
-        return (
-            _cm_bridge(dl)
-            .execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-            .status
-        )
+        return run_tree(
+            _cm_bridge(dl), tree=node, actor_id=CASE_MANAGER_ID
+        ).status
 
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.executes_as(CASE_MANAGER_ID)

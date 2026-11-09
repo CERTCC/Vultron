@@ -28,6 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.use_cases.received.conftest import seed_case_participant
+from test.support.act_runner import run_in_act
 from test.support.inbox_replay import held_depth, ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
 from test.support.received import received_event
@@ -278,13 +279,17 @@ def _fault(
         ),
         to=[_CASE_ACTOR_ID],
     )
-    return CreateProcessingFaultReceivedUseCase(
-        dl,
-        cast(
-            CreateProcessingFaultReceivedEvent,
-            received_event(activity, receiving_actor_id=_CASE_ACTOR_ID, at=dl),
-        ),
-    ).execute()
+    return run_in_act(
+        CreateProcessingFaultReceivedUseCase(
+            dl,
+            cast(
+                CreateProcessingFaultReceivedEvent,
+                received_event(
+                    activity, receiving_actor_id=_CASE_ACTOR_ID, at=dl
+                ),
+            ),
+        )
+    )
 
 
 def _replication_state(dl: SqliteDataLayer) -> VultronReplicationState:

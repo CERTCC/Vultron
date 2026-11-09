@@ -15,6 +15,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     _make_entry,
 )
+from test.support.act_runner import run_tree
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -73,7 +74,8 @@ def _canonical_case_announce_snapshot() -> dict[str, object]:
 @pytest.mark.spec("CLP-02-001")
 @pytest.mark.spec("SYNC-01-002")
 def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-1",
@@ -165,7 +167,8 @@ def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
 def test_create_log_entry_node_rejects_non_canonical_snapshots(
     bridge, snapshot, message
 ):
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-invalid",
@@ -184,7 +187,8 @@ def test_create_log_entry_node_rejects_non_canonical_snapshots(
 
 @pytest.mark.spec("CLP-07-003")
 def test_create_log_entry_node_allows_case_authored_announce(bridge):
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
             object_id=CASE_ID,
@@ -221,7 +225,8 @@ class TestReconstructChainTailPreGenesisLogging:
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.DEBUG, logger=node_logger):
-            result = bridge.execute_with_setup(
+            result = run_tree(
+                bridge,
                 tree=ReconstructChainTailNode(
                     case_id=CASE_ID, name="ReconstructChainTail"
                 ),
@@ -242,7 +247,8 @@ class TestReconstructChainTailPreGenesisLogging:
     @pytest.mark.spec("CLP-08-005")
     @pytest.mark.spec("CLP-08-008")
     def test_pre_genesis_writes_replay_sentinel(self, bridge):
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ReconstructChainTailNode(
                 case_id=CASE_ID, name="ReconstructChainTail"
             ),
@@ -278,7 +284,8 @@ class TestPersistLogEntryNodeLogging:
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.INFO, logger=node_logger):
-            result = owner_bridge.execute_with_setup(
+            result = run_tree(
+                owner_bridge,
                 tree=PersistLogEntryNode(name="PersistLogEntry"),
                 actor_id=OWNER_ACTOR_ID,
                 log_entry=entry,
@@ -291,7 +298,8 @@ class TestPersistLogEntryNodeLogging:
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.INFO, logger=node_logger):
-            owner_bridge.execute_with_setup(
+            run_tree(
+                owner_bridge,
                 tree=PersistLogEntryNode(name="PersistLogEntry"),
                 actor_id=OWNER_ACTOR_ID,
                 log_entry=entry,
@@ -306,7 +314,8 @@ class TestPersistLogEntryNodeLogging:
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.INFO, logger=node_logger):
-            owner_bridge.execute_with_setup(
+            run_tree(
+                owner_bridge,
                 tree=PersistLogEntryNode(name="PersistLogEntry"),
                 actor_id=OWNER_ACTOR_ID,
                 log_entry=entry,
@@ -321,7 +330,8 @@ class TestPersistLogEntryNodeLogging:
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.INFO, logger=node_logger):
-            owner_bridge.execute_with_setup(
+            run_tree(
+                owner_bridge,
                 tree=PersistLogEntryNode(name="PersistLogEntry"),
                 actor_id=OWNER_ACTOR_ID,
                 log_entry=entry,
@@ -336,7 +346,8 @@ class TestPersistLogEntryNodeLogging:
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.DEBUG, logger=node_logger):
-            owner_bridge.execute_with_setup(
+            run_tree(
+                owner_bridge,
                 tree=PersistLogEntryNode(name="PersistLogEntry"),
                 actor_id=OWNER_ACTOR_ID,
                 log_entry=entry,
@@ -398,7 +409,8 @@ def test_update_replication_state_node_creates_state_for_peer(
     entry = _make_entry(0)
     event = _reject_event(entry, PARTICIPANT_ACTOR_ID, entry.entry_hash)
 
-    result = owner_bridge.execute_with_setup(
+    result = run_tree(
+        owner_bridge,
         tree=UpdateReplicationStateNode(name="UpdateReplicationState"),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
@@ -420,7 +432,8 @@ def test_update_replication_state_node_upserts_existing_state(
     entry1 = _make_entry(1, prev_hash=entry0.entry_hash)
 
     for entry in (entry0, entry1):
-        result = owner_bridge.execute_with_setup(
+        result = run_tree(
+            owner_bridge,
             tree=UpdateReplicationStateNode(name="UpdateReplicationState"),
             actor_id=OWNER_ACTOR_ID,
             activity=_reject_event(
@@ -438,7 +451,8 @@ def test_update_replication_state_node_upserts_existing_state(
 def _acknowledge_via_node(
     bridge: BTBridge, entry: CaseLedgerEntry, published: datetime | None
 ) -> None:
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=UpdateReplicationStateNode(name="UpdateReplicationState"),
         actor_id=OWNER_ACTOR_ID,
         activity=_reject_event(
@@ -526,7 +540,8 @@ def test_create_log_entry_node_entry_carries_hashed_received_at(
     hashed_at = now_utc().replace(year=2020)
     monkeypatch.setattr(case_ledger_module, "now_utc", lambda: hashed_at)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-1",
@@ -568,7 +583,8 @@ def test_create_log_entry_node_stamps_the_envelope_and_keeps_the_claimed_time(
     claimed = (now_utc() - timedelta(minutes=1)).isoformat()
     snapshot["published"] = claimed
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-claimed",

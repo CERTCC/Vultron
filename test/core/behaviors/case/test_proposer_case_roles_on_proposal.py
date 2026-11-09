@@ -34,6 +34,7 @@ import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.case.nodes import ProposeReportCaseToActorNode
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.events.case_proposal import (
@@ -89,7 +90,7 @@ class TestReceiverStatesItsRoles:
 
     def _propose(self, bridge, datalayer, actor_id, report_id):
         node = ProposeReportCaseToActorNode(report_id=report_id)
-        result = bridge.execute_with_setup(tree=node, actor_id=actor_id)
+        result = run_tree(bridge, tree=node, actor_id=actor_id)
         assert result.status == Status.SUCCESS, node.feedback_message
         (proposal,) = [
             p

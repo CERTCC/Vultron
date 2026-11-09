@@ -23,6 +23,7 @@ Per DEMOMA-07-003 step 1.
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender_entitlement import (
@@ -113,8 +114,8 @@ class TestSenderIsParticipantNode:
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
 
@@ -123,8 +124,8 @@ class TestSenderIsParticipantNode:
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.FAILURE
 
@@ -133,8 +134,8 @@ class TestSenderIsParticipantNode:
             sender_actor_id=ACTOR_ID,
             case_id=None,
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.FAILURE
 
@@ -143,7 +144,7 @@ class TestSenderIsParticipantNode:
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
 
@@ -179,7 +180,7 @@ class TestParticipantKindsDiffer:
         node = SenderIsParticipantNode(
             sender_actor_id=ACTOR_ID, case_id=CASE_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
     @pytest.mark.spec("CM-10-004")
@@ -191,7 +192,7 @@ class TestParticipantKindsDiffer:
         node = SenderIsActiveParticipantNode(
             sender_actor_id=ACTOR_ID, case_id=CASE_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
         assert "not an active participant" in node.feedback_message
 
@@ -202,8 +203,8 @@ class TestParticipantKindsDiffer:
         node = SenderIsActiveParticipantNode(
             sender_actor_id=ACTOR_ID, case_id=CASE_ID
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
 
@@ -219,8 +220,8 @@ class TestParticipantKindsDiffer:
         node = SenderIsActiveParticipantNode(
             sender_actor_id=sender, case_id=case_id
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
+        result = run_tree(
+            populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.FAILURE
 
@@ -237,8 +238,8 @@ class TestParticipantKindsDiffer:
             caplog.clear()
             node = node_cls(sender_actor_id=ACTOR_ID, case_id=None)
             with caplog.at_level("WARNING"):
-                result = populated_bridge.execute_with_setup(
-                    tree=node, actor_id=CASE_MANAGER_ID
+                result = run_tree(
+                    populated_bridge, tree=node, actor_id=CASE_MANAGER_ID
                 )
             assert result.status == Status.FAILURE
             assert "No case in this store to check sender" in (
@@ -305,8 +306,10 @@ class TestClosedSenderRefused:
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
-        result = BTBridge(
-            datalayer=request.getfixturevalue(store)
-        ).execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(
+            BTBridge(datalayer=request.getfixturevalue(store)),
+            tree=node,
+            actor_id=CASE_MANAGER_ID,
+        )
         assert result.status == Status.FAILURE
         assert "CM-23-018" in node.feedback_message

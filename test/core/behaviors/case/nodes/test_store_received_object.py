@@ -9,6 +9,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.case.note_delivery import add_note_delivery
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
@@ -30,8 +31,11 @@ def _run(datalayer, actor_id, event, store_node):
         precondition_guards=[],
         replica_effects=[store_node],
     )
-    result = BTBridge(datalayer=datalayer).execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=event
+    result = run_tree(
+        BTBridge(datalayer=datalayer),
+        tree=tree,
+        actor_id=actor_id,
+        activity=event,
     )
     return tree, result
 

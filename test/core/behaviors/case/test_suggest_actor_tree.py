@@ -34,6 +34,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.clock_decisions import clock_decision_node_ids
 from test.support.refusal_effects import refusal_effect_node_ids
 from test.support.sender_sequence_stage import sender_sequence_node_ids
@@ -711,9 +712,10 @@ def test_an_answer_node_without_the_published_offer_is_an_internal_error(
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
     try:
-        result = BTBridge(
-            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute_with_setup(
+        result = run_tree(
+            BTBridge(
+                datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+            ),
             node_class(answer_id=_ANSWER_ID, case_id=_CASE_ID),
             actor_id=_MANAGER,
         )

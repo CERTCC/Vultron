@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.submit_report import (
@@ -37,7 +38,7 @@ FINDER = "https://example.org/users/finder"
 
 def _run(node):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
-    result = BTBridge(datalayer=dl).execute_with_setup(node, actor_id=VENDOR)
+    result = run_tree(BTBridge(datalayer=dl), node, actor_id=VENDOR)
     return dl, result
 
 
@@ -64,7 +65,7 @@ def test_offer_record_node_is_idempotent():
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
     bridge = BTBridge(datalayer=dl)
     for _ in range(2):
-        result = bridge.execute_with_setup(_record_node(), actor_id=VENDOR)
+        result = run_tree(bridge, _record_node(), actor_id=VENDOR)
         assert result.status == Status.SUCCESS
 
 
@@ -91,8 +92,11 @@ def test_case_creation_eligibility_reads_to_alone(to, status):
     """Eligibility comes from ``to`` only (HP-09-001), off the blackboard."""
     node = CheckOfferNamesReceiverInToNode()
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
-    result = BTBridge(datalayer=dl).execute_with_setup(
-        node, actor_id=VENDOR, activity=_offer_event(to, sender=VENDOR)
+    result = run_tree(
+        BTBridge(datalayer=dl),
+        node,
+        actor_id=VENDOR,
+        activity=_offer_event(to, sender=VENDOR),
     )
     assert result.status == status
     assert node.not_named_in_to is (status is Status.FAILURE)
@@ -106,9 +110,7 @@ def test_eligibility_without_a_received_event_is_not_a_decline(caplog):
     node = CheckOfferNamesReceiverInToNode()
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
     with caplog.at_level("ERROR"):
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            node, actor_id=VENDOR
-        )
+        result = run_tree(BTBridge(datalayer=dl), node, actor_id=VENDOR)
     assert result.status == Status.FAILURE
     assert node.not_named_in_to is False
     assert "no received event" in node.feedback_message

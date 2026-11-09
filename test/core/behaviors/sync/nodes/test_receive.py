@@ -12,6 +12,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
+from test.support.act_runner import run_tree
 from test.support.inbox_replay import archive_event
 from vultron.core.behaviors.sync.nodes import (
     BufferOutOfOrderEntryNode,
@@ -48,7 +49,8 @@ def test_check_hash_matches_node_succeeds_when_hash_matches(
     entry = _make_entry(0)
     event = _make_event(entry, actor_id=case_actor.id_)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=CheckHashMatchesNode(name="CheckHashMatches"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -64,7 +66,8 @@ def test_send_reject_log_entry_node_sends_reject(bridge, case_actor):
     event = _make_event(entry, actor_id=case_actor.id_)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=SendRejectLogEntryNode(name="SendRejectLogEntry"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -82,7 +85,8 @@ def test_check_hash_or_reject_on_mismatch_sends_reject(bridge, case_actor):
     event = _make_event(entry, actor_id=case_actor.id_)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=CheckHashOrRejectOnMismatchNode(
             name="CheckHashOrRejectOnMismatch"
         ),
@@ -104,7 +108,8 @@ def test_check_hash_or_reject_on_mismatch_short_circuits_on_match(
     event = _make_event(entry, actor_id=case_actor.id_)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=CheckHashOrRejectOnMismatchNode(
             name="CheckHashOrRejectOnMismatch"
         ),
@@ -133,7 +138,8 @@ class TestBufferOutOfOrderEntryNode:
         event = _make_event(entry, actor_id=case_actor.id_)
         archive_event(datalayer, event)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=BufferOutOfOrderEntryNode(name="BufferOutOfOrderEntry"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -152,7 +158,8 @@ class TestBufferOutOfOrderEntryNode:
         event = _make_event(entry, actor_id=case_actor.id_)
         archive_event(datalayer, event)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=BufferOutOfOrderEntryNode(name="BufferOutOfOrderEntry"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -170,7 +177,8 @@ class TestBufferOutOfOrderEntryNode:
         entry = _make_entry(5, "deadbeef" * 8)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=BufferOutOfOrderEntryNode(name="BufferOutOfOrderEntry"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,

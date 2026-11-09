@@ -13,6 +13,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import (
     CONSTRUCTED_CASE_OWNERSHIP,
 )
@@ -114,8 +115,8 @@ def _run(dl, make_payload, sender: str, case: as_VulnerabilityCase):
         sender,
         sender_rule=CreateCaseReceivedUseCase.sender_entitlement,
     )
-    result = BTBridge(datalayer=dl).execute_with_setup(
-        tree=tree, actor_id=_RECEIVER, activity=event
+    result = run_tree(
+        BTBridge(datalayer=dl), tree=tree, actor_id=_RECEIVER, activity=event
     )
     classify = find_node(tree, ClassifyBootstrapRouteNode)
     assert classify is not None
@@ -444,9 +445,11 @@ def _run_at_owner_result(
         sender,
         sender_rule=CreateCaseReceivedUseCase.sender_entitlement,
     )
-    result = BTBridge(
-        datalayer=owner_dl, trigger_activity=TriggerActivityAdapter(owner_dl)
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=owner_dl,
+            trigger_activity=TriggerActivityAdapter(owner_dl),
+        ),
         tree=tree,
         actor_id=_OWNER,
         activity=event,
@@ -581,9 +584,12 @@ def test_reporter_receiving_the_introduction_relays_nothing(dl, make_payload):
         _OWNER,
         sender_rule=CreateCaseReceivedUseCase.sender_entitlement,
     )
-    result = BTBridge(
-        datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
-    ).execute_with_setup(tree=tree, actor_id=_RECEIVER, activity=event)
+    result = run_tree(
+        BTBridge(datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)),
+        tree=tree,
+        actor_id=_RECEIVER,
+        activity=event,
+    )
 
     assert result.status == Status.SUCCESS
     assert dl.list_objects("Create") == []
@@ -717,9 +723,12 @@ def test_reporter_trusts_a_receiver_that_is_its_own_case_manager(
         _OWNER,
         sender_rule=CreateCaseReceivedUseCase.sender_entitlement,
     )
-    result = BTBridge(
-        datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
-    ).execute_with_setup(tree=tree, actor_id=_RECEIVER, activity=event)
+    result = run_tree(
+        BTBridge(datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)),
+        tree=tree,
+        actor_id=_RECEIVER,
+        activity=event,
+    )
 
     assert result.status == Status.SUCCESS
     bound = dl.read(_link().id_)

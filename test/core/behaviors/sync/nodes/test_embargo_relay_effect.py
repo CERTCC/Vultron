@@ -20,6 +20,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from test.support.embargo_register import (
     activate,
     propose,
@@ -199,7 +200,8 @@ def revising_case(datalayer) -> VulnerabilityCase:
 
 
 def _run(bridge, node, entry: CaseLedgerEntry):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=node,
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(entry, actor_id=MANAGER_ACTOR_ID),

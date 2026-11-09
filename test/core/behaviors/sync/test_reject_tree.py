@@ -10,6 +10,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -240,7 +241,8 @@ def test_reject_tree_updates_replication_state_and_replays_entries(
     event = _make_event(second_entry, tail_hash=first_entry.entry_hash)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -289,7 +291,8 @@ def test_reject_tree_replays_all_entries_when_hash_not_found(
     event = _make_event(second_entry, tail_hash="deadbeef" * 8)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -327,7 +330,8 @@ def test_genesis_reject_queues_announce_vulnerability_case(
         sync_port=sync_port,
         trigger_activity=trigger_activity,
     )
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -372,7 +376,8 @@ def test_genesis_reject_logs_an_unbuildable_announce_at_error(
         trigger_activity=trigger_activity,
     )
     with caplog.at_level(logging.WARNING):
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_reject_log_entry_tree(
                 CASE_ID,
                 sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -403,7 +408,8 @@ def test_genesis_reject_without_trigger_port_still_succeeds(
     event = _make_event(entry, tail_hash="")
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -438,7 +444,8 @@ def test_non_genesis_reject_skips_announce_vulnerability_case(
         sync_port=sync_port,
         trigger_activity=trigger_activity,
     )
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -490,7 +497,8 @@ def test_genesis_announce_skipped_when_replay_rate_limited(
     # One genesis Reject per replayed entry, as a peer without the case sends.
     for entry in entries:
         py_trees.blackboard.Blackboard.storage.clear()
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_reject_log_entry_tree(
                 CASE_ID,
                 sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -534,7 +542,8 @@ def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
     stuck_hash = entries[0].entry_hash
     for _ in range(10):
         py_trees.blackboard.Blackboard.storage.clear()
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_reject_log_entry_tree(
                 CASE_ID,
                 sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -569,7 +578,8 @@ def test_reject_at_advanced_hash_replays_again(
 
     for stuck_at in range(3):
         py_trees.blackboard.Blackboard.storage.clear()
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_reject_log_entry_tree(
                 CASE_ID,
                 sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -601,7 +611,8 @@ def test_unknown_case_reject_leaves_replication_state_unchanged(
     event = _make_event(entry, tail_hash="")
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -647,7 +658,8 @@ def test_reject_at_tail_then_growth_replays_the_new_suffix(
 
     # The peer is fully caught up; its Reject needs no entries replayed.
     py_trees.blackboard.Blackboard.storage.clear()
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -667,7 +679,8 @@ def test_reject_at_tail_then_growth_replays_the_new_suffix(
     # The peer Rejects at the same hash it reported before — but that position
     # is now three entries behind, so the suffix MUST be replayed.
     py_trees.blackboard.Blackboard.storage.clear()
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -731,7 +744,8 @@ def _receive_reject(
     tail_hash: str,
 ) -> None:
     py_trees.blackboard.Blackboard.storage.clear()
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -839,7 +853,8 @@ def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
 
     _set_clock(monkeypatch, 0)
     py_trees.blackboard.Blackboard.storage.clear()
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -886,7 +901,8 @@ def test_genesis_reject_naming_no_entry_is_not_declined(
     )
     assert event.rejected_entry is None
     py_trees.blackboard.Blackboard.storage.clear()
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -947,11 +963,12 @@ def _sender_refused(datalayer, event) -> Status:
     """Run the reject tree for *event* and assert nothing was written or sent."""
     sync_port = MagicMock(spec=SyncActivityPort)
     trigger_activity = MagicMock()
-    result = BTBridge(
-        datalayer=datalayer,
-        sync_port=sync_port,
-        trigger_activity=trigger_activity,
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=datalayer,
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+        ),
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -1071,11 +1088,12 @@ def test_undecidable_embargo_gate_fails_the_tree_at_the_case_manager(
         sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
     )
 
-    result = BTBridge(
-        datalayer=datalayer,
-        sync_port=sync_port,
-        trigger_activity=trigger_activity,
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=datalayer,
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+        ),
         tree=tree,
         actor_id=OWNER_ACTOR_ID,
         activity=_make_event(entry, tail_hash=""),
@@ -1107,11 +1125,12 @@ def test_reject_at_a_participant_replica_sends_and_records_nothing():
     sync_port = MagicMock(spec=SyncActivityPort)
     trigger_activity = MagicMock(spec=TriggerActivityPort)
 
-    result = BTBridge(
-        datalayer=replica_dl,
-        sync_port=sync_port,
-        trigger_activity=trigger_activity,
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=replica_dl,
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+        ),
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,

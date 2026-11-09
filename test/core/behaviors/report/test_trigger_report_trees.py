@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.report.trigger_report_trees import (
     create_invalidate_report_trigger_tree,
@@ -207,7 +208,7 @@ class TestInvalidateReportTriggerTree:
             offer_id=offer.id_, report_id=report.id_
         )
         py_trees.blackboard.Blackboard.storage.clear()
-        result = bridge_no_factory.execute_with_setup(tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge_no_factory, tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.spec("BT-09-001")
@@ -354,7 +355,7 @@ class TestRejectReportTriggerTree:
             offer_id=offer.id_, report_id=report.id_
         )
         py_trees.blackboard.Blackboard.storage.clear()
-        result = bridge_no_factory.execute_with_setup(tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge_no_factory, tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
 

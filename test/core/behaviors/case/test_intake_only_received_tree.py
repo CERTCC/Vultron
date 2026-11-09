@@ -8,6 +8,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.case.note_delivery import add_note_delivery
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
@@ -33,8 +34,11 @@ def test_archives_the_activity_and_stores_nothing_else(datalayer, actor_id):
     note, activity, event = add_note_delivery(actor_id)
 
     tree = create_intake_only_received_tree("IntakeOnlyTest")
-    result = BTBridge(datalayer=datalayer).execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=event
+    result = run_tree(
+        BTBridge(datalayer=datalayer),
+        tree=tree,
+        actor_id=actor_id,
+        activity=event,
     )
 
     assert result.status == Status.SUCCESS
@@ -59,8 +63,11 @@ def test_incomplete_activity_tree_archives_then_refuses(datalayer, actor_id):
     tree = create_incomplete_activity_received_tree(
         "IncompleteTest", "Add(Note) carries no note object"
     )
-    result = BTBridge(datalayer=datalayer).execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=event
+    result = run_tree(
+        BTBridge(datalayer=datalayer),
+        tree=tree,
+        actor_id=actor_id,
+        activity=event,
     )
 
     assert result.status == Status.FAILURE

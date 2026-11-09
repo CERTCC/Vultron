@@ -4,6 +4,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import (
     CASE_OWNER_ID,
     CONSTRUCTED_CASE_OWNERSHIP,
@@ -47,9 +48,7 @@ def _participant() -> as_CaseParticipant:
 
 
 def _run(dl, node: py_trees.behaviour.Behaviour):
-    return BTBridge(datalayer=dl).execute_with_setup(
-        tree=node, actor_id=_RECEIVER
-    )
+    return run_tree(BTBridge(datalayer=dl), tree=node, actor_id=_RECEIVER)
 
 
 def test_inline_participants_are_stored_as_their_own_records(dl):

@@ -19,6 +19,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -170,7 +171,8 @@ class TestAddNoteToCaseTriggerBT:
             result_out=result_out,
             activity_builder=lambda _: [ACTIVITY_ID],
         )
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=tree,
             actor_id=actor.id_,
             trigger_activity_factory=_FakeTriggerFactory(),
@@ -194,7 +196,8 @@ class TestAddNoteToCaseTriggerBT:
             result_out=result_out,
             activity_builder=lambda _: [ACTIVITY_ID],
         )
-        bridge.execute_with_setup(
+        run_tree(
+            bridge,
             tree=tree,
             actor_id=actor.id_,
             trigger_activity_factory=_FakeTriggerFactory(),
@@ -213,7 +216,7 @@ class TestAddNoteToCaseTriggerBT:
             result_out=result_out,
             activity_builder=lambda _: [ACTIVITY_ID],
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+        result = run_tree(bridge, tree=tree, actor_id=actor.id_)
         assert result.status == Status.FAILURE
 
     def test_failure_when_no_case_manager(self, dl, bridge):
@@ -239,7 +242,8 @@ class TestAddNoteToCaseTriggerBT:
             result_out=result_out,
             activity_builder=lambda _: [ACTIVITY_ID],
         )
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=tree,
             actor_id=actor.id_,
             trigger_activity_factory=_FakeTriggerFactory(),
@@ -265,7 +269,8 @@ class TestAddNoteToCaseTriggerBT:
             activity_builder=lambda _: [ACTIVITY_ID],
             in_reply_to=parent_note_id,
         )
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=tree,
             actor_id=actor.id_,
             trigger_activity_factory=_FakeTriggerFactory(),

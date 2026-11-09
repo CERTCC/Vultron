@@ -27,6 +27,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -204,7 +205,7 @@ class TestThreatTerminationBranchNodeProposedEmPath:
         dl, bridge, node = self._setup(
             public_aware_status, store_actor=CASE_MANAGER_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
         updated_case = dl.read(CASE_ID)
@@ -216,7 +217,7 @@ class TestThreatTerminationBranchNodeProposedEmPath:
     @pytest.mark.spec("EP-09-008")
     def test_the_owner_writes_and_sends_nothing(self, public_aware_status):
         dl, bridge, node = self._setup(public_aware_status)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
         updated_case = dl.read(CASE_ID)
@@ -239,25 +240,19 @@ class TestEmitCloseCaseNode:
             CASE_MANAGER_ID
         )
         node = EmitCloseCaseNode(case_id=CASE_ID)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_succeeds_with_none_case_id(self, populated_bridge):
         """None case_id → early SUCCESS (nothing to emit)."""
         node = EmitCloseCaseNode(case_id=None)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_succeeds_when_case_manager_id_missing(self, populated_bridge):
         """Missing case_manager_id on blackboard → WARNING + SUCCESS."""
         node = EmitCloseCaseNode(case_id=CASE_ID)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     @pytest.mark.xfail(
@@ -279,7 +274,7 @@ class TestEmitCloseCaseNode:
             sync_port=SyncActivityAdapter(populated_dl),
         )
         node = EmitCloseCaseNode(case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.FAILURE
         factory.close_case.assert_not_called()
@@ -302,7 +297,7 @@ class TestEmitCloseCaseNode:
             sync_port=SyncActivityAdapter(populated_dl),
         )
         node = EmitCloseCaseNode(case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
         factory.close_case.assert_called_once_with(
@@ -328,6 +323,6 @@ class TestEmitCloseCaseNode:
             sync_port=SyncActivityAdapter(populated_dl),
         )
         node = EmitCloseCaseNode(case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.FAILURE

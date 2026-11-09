@@ -26,6 +26,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -540,11 +541,12 @@ class _World:
         tree = create_terminate_active_embargo_tree(
             case_id=self.case_id, result_out={}, call_out=bundle
         )
-        return BTBridge(
-            datalayer=self.dl,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute_with_setup(
+        return run_tree(
+            BTBridge(
+                datalayer=self.dl,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+            ),
             tree=tree,
             actor_id=self.manager.id_,
             sync_port=SyncActivityAdapter(self.dl),
@@ -675,11 +677,12 @@ def test_an_unchosen_cause_at_the_commit_is_a_wiring_fault():
     choice is reported as an internal error, not a refusal."""
     world = _World()
 
-    result = BTBridge(
-        datalayer=world.dl,
-        trigger_activity=TriggerActivityAdapter(world.dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=world.dl,
+            trigger_activity=TriggerActivityAdapter(world.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ),
         tree=terminate_embargo_bt(
             case_id=world.case_id,
             result_out={},

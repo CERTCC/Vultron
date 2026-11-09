@@ -33,6 +33,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     setup_blackboard,
 )
+from test.support.act_runner import run_tree
 from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -366,9 +367,7 @@ class TestActivationCommitFaults:
             builder=lambda to: ("urn:accept", "{}"),
         )
 
-        result = _bridge(dl).execute_with_setup(
-            tree=node, actor_id=dl.actor_id
-        )
+        result = run_tree(_bridge(dl), tree=node, actor_id=dl.actor_id)
 
         assert result.status is Status.FAILURE
         assert "did not commit" in (result.feedback_message or "")
@@ -411,9 +410,7 @@ class TestActivationCommitFaults:
             case_id=case.id_, embargo_id=revision_id, result_out={}
         )
 
-        result = _bridge(dl).execute_with_setup(
-            tree=node, actor_id=dl.actor_id
-        )
+        result = run_tree(_bridge(dl), tree=node, actor_id=dl.actor_id)
 
         assert result.internal_error
         assert "VultronWiringError" in (result.feedback_message or "")
@@ -548,7 +545,8 @@ def _owner_store(*, with_manager: bool = True) -> SqliteDataLayer:
 
 
 def _run(dl: SqliteDataLayer, tree, *, factory=None):
-    return BTBridge(datalayer=dl).execute_with_setup(
+    return run_tree(
+        BTBridge(datalayer=dl),
         tree=tree,
         actor_id=OWNER,
         trigger_activity_factory=(

@@ -27,6 +27,7 @@ from collections.abc import Callable
 import py_trees
 import pytest
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
@@ -72,9 +73,12 @@ def test_a_missing_trigger_activity_port_is_an_internal_error(node):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
     dl.create(VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR))
 
-    result = BTBridge(
-        datalayer=dl, wire_render_port=As2WireRenderAdapter()
-    ).execute_with_setup(NODES[node](), actor_id=_ACTOR, case_id=_CASE)
+    result = run_tree(
+        BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter()),
+        NODES[node](),
+        actor_id=_ACTOR,
+        case_id=_CASE,
+    )
 
     assert result.internal_error, result.feedback_message
     assert TRIGGER_FACTORY_UNAVAILABLE in result.feedback_message

@@ -38,6 +38,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.received import received_event
 from test.support.rm_declaration import (
@@ -139,13 +140,15 @@ def _deliver(
         invite, tail, actor=sender, to=[CASE_MANAGER_ID]
     )
     event = received_event(activity, at=dl)
-    return use_cases[declared](
-        dl,
-        event,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        use_cases[declared](
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 _DECLARED = (RM.VALID, RM.INVALID, RM.CLOSED)

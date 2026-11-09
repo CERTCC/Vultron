@@ -18,6 +18,7 @@
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -83,7 +84,8 @@ class TestCreateNoteNode:
             case_id=CASE_ID,
             result_out=result_out,
         )
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=node,
             actor_id=ACTOR_ID,
             trigger_activity_factory=_FakeTriggerFactory(),
@@ -100,7 +102,7 @@ class TestCreateNoteNode:
             case_id=CASE_ID,
             result_out=result_out,
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
 
@@ -114,7 +116,7 @@ class TestAttachNoteFromResultNode:
         )
         result_out = {"note_id": NOTE_ID}
         node = AttachNoteFromResultNode(case_id=CASE_ID, result_out=result_out)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         refreshed = dl.read(CASE_ID)
         assert refreshed is not None
@@ -122,5 +124,5 @@ class TestAttachNoteFromResultNode:
 
     def test_fails_without_note_id(self, bridge):
         node = AttachNoteFromResultNode(case_id=CASE_ID, result_out={})
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
