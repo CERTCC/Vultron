@@ -37,6 +37,7 @@ from test.support.ledger import (
     fail_commits,
     is_consent_row_update,
 )
+from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.relayed_invite import (
     COORD as _COORD,
     INVITEE as _INVITEE,
@@ -1551,7 +1552,7 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
     def test_owner_activation_of_a_revision_is_refused(self, make_payload):
         """No path may leave a case naming an unreadable embargo (EMB-18-003).
 
-        The owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` must read the
+        The owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` must read the
         embargo it replaces to settle consent (EP-05-001); the read fails
         closed, so the handler refuses (never DEFERRED) and EM and the active
         embargo are left as they were.
@@ -1587,7 +1588,11 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
         dl.save(case)
 
         activation = activate_embargo_activity(
-            revision, target=case_id, actor=_COORD, to=[_COORD]
+            revision,
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=case_id,
+            actor=_COORD,
+            to=[_COORD],
         )
         event = make_payload(activation, receiving_actor_id=_COORD, at=dl)
 
@@ -2995,7 +3000,8 @@ class TestOwnerAnswerToRelayedInvite:
             (EM.ACTIVE, [CVDRole.CASE_OWNER], 10, 30, []),
             (EM.REVISE, [CVDRole.CASE_OWNER], 10, 30, []),
             # The bounded auto-accept: no embargo yet, within own policy.
-            (EM.NONE, [CVDRole.CASE_OWNER], 10, 30, ["Accept"]),
+            # The owner's acceptance is its activation (ADR-0180).
+            (EM.NONE, [CVDRole.CASE_OWNER], 10, 30, ["Add"]),
             # Beyond the owner's policy, or no policy to bound against.
             (EM.NONE, [CVDRole.CASE_OWNER], 60, 30, []),
             (EM.NONE, [CVDRole.CASE_OWNER], 10, None, []),
@@ -3102,21 +3108,22 @@ class TestOwnerAnswerToRelayedInvite:
         assert answers_in_outbox(dl, _INVITEE) == []
 
     @pytest.mark.parametrize(
-        ("roles", "object_type", "has_target"),
+        ("roles", "verb", "object_type", "has_target"),
         [
-            ([CVDRole.CASE_OWNER], "EmbargoEvent", True),
-            ([CVDRole.VENDOR], "Invite", False),
+            ([CVDRole.CASE_OWNER], "Add", "EmbargoEvent", True),
+            ([CVDRole.VENDOR], "Accept", "Invite", False),
         ],
         ids=["owner-sends-its-decision", "participant-sends-its-consent"],
     )
-    @pytest.mark.spec("EP-09-005", "MSM-07-003")
+    @pytest.mark.spec("EP-09-005", "MSM-07-003", "MSM-07-008", "RF-08-001")
     def test_the_owners_auto_answer_is_its_decision_for_the_case(
-        self, make_payload, roles, object_type, has_target
+        self, make_payload, roles, verb, object_type, has_target
     ):
-        """The owner accepts the embargo itself; a participant, the Invite.
+        """The owner adds the embargo to the case; a participant accepts the Invite.
 
-        ADR-0122: the owner's answer decides the proposal, so it is
-        ``Accept(EmbargoEvent)[target=VulnerabilityCase]``; anyone else's is
+        ADR-0180: the owner's answer decides the proposal, so it is
+        ``Add(EmbargoEvent)[target=VulnerabilityCase]`` naming the Invite it
+        received in ``inReplyTo``; anyone else's is
         ``Accept(Invite(EmbargoEvent))``, its own consent.
         """
         from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
@@ -3131,18 +3138,22 @@ class TestOwnerAnswerToRelayedInvite:
             policy_days=30,
         )
 
-        result = deliver_relayed_invite(dl, case, embargo, make_payload)
+        invite_id = f"{case.id_}/embargo_proposals/relayed"
+        result = deliver_relayed_invite(
+            dl, case, embargo, make_payload, invite_id=invite_id
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
         (answer_id,) = [
             activity_id
             for activity_id in dl.outbox_list()
-            if getattr(dl.read(activity_id), "type_", None) == "Accept"
+            if getattr(dl.read(activity_id), "type_", None) == verb
         ]
         body = read_sealed_body_dict(dl, answer_id)
         assert body is not None
         assert body["object"]["type"] == object_type
         if has_target:
+            assert body["inReplyTo"] == invite_id
             assert body["object"]["id"] == embargo.id_
             assert body["target"] == case.id_
         else:

@@ -37,7 +37,7 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _WithdrawFromEmbargoActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Accept,
+    as_Add,
     as_Announce,
     as_Leave,
     as_Reject,
@@ -55,12 +55,13 @@ logger = logging.getLogger(__name__)
 
 def activate_embargo_activity(
     embargo: as_EmbargoEvent,
+    in_reply_to: str,
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
-) -> as_Accept:
-    """Build an Accept(EmbargoEvent)[target=VulnerabilityCase].
+) -> as_Add:
+    """Build an Add(EmbargoEvent)[target=VulnerabilityCase].
 
-    The case owner's activation of a proposed embargo (ADR-0122): the
+    The case owner's activation of a proposed embargo (ADR-0180): the
     receiver activates the embargo's register entry, superseding any entry
     in force, and records the owner's agreement.  Distinct from
     :func:`em_accept_embargo_activity`, the sender's own consent to an
@@ -68,20 +69,25 @@ def activate_embargo_activity(
 
     Args:
         embargo: The ``as_EmbargoEvent`` being activated, carried inline.
+        in_reply_to: The id of the ``Invite(EmbargoEvent)`` that proposed
+            the embargo (RF-08-001, ADR-0180).
         target: The ``VulnerabilityCase`` (or its URI) the embargo was
             proposed for.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``, ``context``).
 
     Returns:
-        An ``as_Accept`` whose ``object_`` is the embargo event.
+        An ``as_Add`` whose ``object_`` is the embargo event.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
         return _ActivateEmbargoActivity(
-            object_=embargo, target=case_target_ref(target), **kwargs
+            object_=embargo,
+            target=case_target_ref(target),
+            in_reply_to=in_reply_to,
+            **kwargs,
         )
     except ValidationError as exc:
         logger.warning("activate_embargo_activity: invalid arguments: %s", exc)
@@ -92,6 +98,7 @@ def activate_embargo_activity(
 
 def reject_embargo_proposal_activity(
     embargo: as_EmbargoEvent,
+    in_reply_to: str,
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Reject:
@@ -104,6 +111,8 @@ def reject_embargo_proposal_activity(
 
     Args:
         embargo: The ``as_EmbargoEvent`` being rejected, carried inline.
+        in_reply_to: The id of the ``Invite(EmbargoEvent)`` that proposed
+            the embargo (RF-08-001, ADR-0180).
         target: The ``VulnerabilityCase`` (or its URI) the embargo was
             proposed for.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -117,7 +126,10 @@ def reject_embargo_proposal_activity(
     """
     try:
         return _RejectEmbargoProposalActivity(
-            object_=embargo, target=case_target_ref(target), **kwargs
+            object_=embargo,
+            target=case_target_ref(target),
+            in_reply_to=in_reply_to,
+            **kwargs,
         )
     except ValidationError as exc:
         logger.warning(

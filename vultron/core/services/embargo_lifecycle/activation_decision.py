@@ -22,7 +22,7 @@ clear, EMB-02-002), decides the EP-05-001 arm, and returns an
 :class:`ActivationDecision`: the entries the activation commits, in order,
 and what each changes.  It writes nothing.
 
-- The owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` is one entry, and it is
+- The owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` is one entry, and it is
   the whole ``ACTIVATE`` register step, the ``SUPERSEDE`` of the embargo in
   force included: :attr:`ActivationDecision.step`.  The same activity states
   the owner's agreement, so its ``AGREED`` row
@@ -30,7 +30,7 @@ and what each changes.  It writes nothing.
   with no entry of its own (CLP-07-013, MSM-07-028).
 - Each ``CARRY_OVER`` row of a revision that ends no later than the embargo
   it replaces is its own CASE_MANAGER ``Update(EmbargoConsent)`` entry,
-  after the ``Accept``'s (:attr:`ActivationDecision.carry_overs`, EP-05-003).
+  after the ``Add``'s (:attr:`ActivationDecision.carry_overs`, EP-05-003).
 """
 
 from dataclasses import dataclass, field
@@ -61,7 +61,7 @@ from vultron.errors import VultronInvalidStateTransitionError
 class ActivationDecision:
     """What the CASE_MANAGER's activation commits, and what each entry changes.
 
-    *step* is the ``Accept``'s register step and *owner_agreement* the row
+    *step* is the ``Add``'s register step and *owner_agreement* the row
     the same activity states (``None`` when the owner's row already agrees);
     *carry_overs* are the ``CARRY_OVER`` rows, one entry each, in commit
     order.  *em_before* and *em_after* are EM around the whole activation.
@@ -127,7 +127,7 @@ def activation_consent_changes(
     """The consent rows an activation of *embargo_id* writes, in apply order.
 
     *activated* is the case file as the ``ACTIVATE`` step leaves it.  First
-    the owner's ``AGREED`` row its Accept states, then, when the revision
+    the owner's ``AGREED`` row its Add states, then, when the revision
     ends no later than *previous_embargo_id* (*ends_no_later*), one
     ``CARRY_OVER`` row per signatory of the replaced embargo, decided after
     the owner's row (EP-05-001, MSM-07-005).  Writes nothing.

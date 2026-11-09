@@ -8997,7 +8997,7 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_embargo_overdue_invite_sweep.py` lets an
       invitation pass its deadline unanswered, then delivers to the CASE_MANAGER the
-      owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]` and the owner's
+      owner's `Add(EmbargoEvent)[target=VulnerabilityCase]` and the owner's
       `Reject(EmbargoEvent)[target=VulnerabilityCase]`, and asserts for each that the
       CASE_MANAGER's `Update(EmbargoConsent)` carrying the `TIMED_OUT` row is
       committed before the activity's own entry and the invitee's row reads
@@ -9016,6 +9016,7 @@ groups:
     adr:
     - ADR-0118
     - ADR-0135
+    - ADR-0180
     stories:
     - story_2026_092
     - story_2022_027

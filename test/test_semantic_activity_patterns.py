@@ -11,6 +11,8 @@ from vultron.semantic_registry import (
     find_matching_semantics,
 )
 from vultron.wire.as2.extractor import (
+    AcceptInviteToEmbargoOnCasePattern,
+    ActivateEmbargoOnCasePattern,
     ActivityPattern,
     OfferCaseOwnershipTransferActivityPattern,
     ProposeCaseOwnershipTransferActivityPattern,
@@ -1153,6 +1155,59 @@ def test_owner_embargo_decisions_are_distinct_from_invite_answers(
     example: str, expected: MessageSemantics
 ) -> None:
     assert _example_semantics("embargo", example) == expected
+
+
+@pytest.mark.spec("MSM-07-003")
+@pytest.mark.spec("MSM-07-008")
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.spec("VAM-05-008")
+@pytest.mark.parametrize(
+    "activation", ["activate_embargo", "activate_embargo_revision"]
+)
+def test_an_activation_and_an_invite_accept_differ_by_type_alone(
+    activation: str,
+) -> None:
+    """``Add(EmbargoEvent)`` and ``Accept(Invite(EmbargoEvent))`` (ADR-0180).
+
+    The owner's activation adds the embargo to the case; a participant's
+    consent answers the Invite.  Each pattern is refused at the verb by the
+    other's example, so neither depends on the shape of the object.
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    add = getattr(examples, activation)()
+    accept = examples.accept_embargo()
+
+    assert add.type_ == "Add"
+    assert accept.type_ == "Accept"
+    assert ActivateEmbargoOnCasePattern.activity_ != (
+        AcceptInviteToEmbargoOnCasePattern.activity_
+    )
+    assert ActivateEmbargoOnCasePattern.match(add)
+    assert not ActivateEmbargoOnCasePattern.match(accept)
+    assert AcceptInviteToEmbargoOnCasePattern.match(accept)
+    assert not AcceptInviteToEmbargoOnCasePattern.match(add)
+
+
+@pytest.mark.spec("VAM-05-008")
+def test_the_retired_accept_of_the_embargo_activates_nothing() -> None:
+    """``Accept(EmbargoEvent)[target=VulnerabilityCase]`` is gone (ADR-0180).
+
+    Pre-1.0 the replaced activation shape is removed, not kept beside the
+    ``Add``: the old body matches no pattern at all.
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    add = examples.activate_embargo()
+    retired = as_Accept(
+        actor=add.actor,
+        object_=examples.embargo_event(),
+        target=add.target,
+        in_reply_to=add.in_reply_to,
+    )
+
+    assert not ActivateEmbargoOnCasePattern.match(retired)
+    assert find_matching_semantics(retired) == MessageSemantics.UNKNOWN
 
 
 # ---------------------------------------------------------------------------
