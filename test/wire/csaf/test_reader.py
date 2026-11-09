@@ -321,6 +321,18 @@ def test_a_schema_invalid_document_is_read_field_by_field() -> None:
         (lambda d: d.update({"product_tree": []}), "$.product_tree"),
         (
             lambda d: section(d, "document").update(
+                {"references": [{"summary": "s", "url": 5}]}
+            ),
+            "$.document.references[0].url",
+        ),
+        (
+            lambda d: _vul(d)["product_status"].update(
+                {"known_affected": "WIDGET-1"}
+            ),
+            "$.vulnerabilities[0].product_status.known_affected",
+        ),
+        (
+            lambda d: section(d, "document").update(
                 {"acknowledgments": [{"names": []}]}
             ),
             "$.document.acknowledgments[0]",
@@ -342,6 +354,8 @@ def test_a_schema_invalid_document_is_read_field_by_field() -> None:
         "product-id-not-string",
         "reference-without-url",
         "product-tree-not-object",
+        "reference-url-not-string",
+        "known-affected-not-list",
         "acknowledgment-naming-no-one",
         "tlp-not-object",
     ],
@@ -416,7 +430,16 @@ def test_each_known_affected_vendor_is_named_once() -> None:
             ],
         }
     )
+    # A product under no vendor branch has no vendor to name.
+    data["product_tree"]["branches"].append(
+        {
+            "category": "product_name",
+            "name": "Orphan",
+            "product": {"name": "Orphan", "product_id": "ORPHAN-1"},
+        }
+    )
     _vul(data)["product_status"]["known_affected"] = [
+        "ORPHAN-1",
         "GADGET-1",
         "WIDGET-1",
         "GIZMO-1",

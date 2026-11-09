@@ -24,10 +24,19 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.submit_report import (
     CheckOfferNamesReceiverInToNode,
+    StoreReportClaimsRecordsNode,
     StoreSubmitReportOfferRecordNode,
 )
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report_claims import (
+    ClaimsReading,
+    ReportClaims,
+    ReportClaimsRecord,
+    SchemaError,
+    SchemaVerdict,
+    SkippedClaim,
+)
 
 VENDOR = "https://example.org/actors/vendor"
 OFFER = "https://example.org/activities/offer-n1"
@@ -66,6 +75,52 @@ def test_offer_record_node_is_idempotent():
     for _ in range(2):
         result = bridge.execute_with_setup(_record_node(), actor_id=VENDOR)
         assert result.status == Status.SUCCESS
+
+
+def _claims_node() -> StoreReportClaimsRecordsNode:
+    reading = ClaimsReading(
+        document_id=f"{REPORT}/csaf",
+        document_format="CSAF 2.1",
+        schema_verdict=SchemaVerdict.SCHEMA_INVALID,
+        schema_errors=[SchemaError(path="$.document.title", message="bad")],
+        claims=ReportClaims(document_category="csaf_vulnerability_report"),
+        skipped=[SkippedClaim(path="$.document.title", reason="not a string")],
+    )
+    return StoreReportClaimsRecordsNode(
+        report_id=REPORT,
+        activity_id=OFFER,
+        sender_id=FINDER,
+        readings=[reading],
+    )
+
+
+@pytest.mark.spec("CSAF-04-004")
+def test_claims_node_stores_one_record_per_reading_and_logs_each_skip(caplog):
+    with caplog.at_level("INFO"):
+        dl, result = _run(_claims_node())
+
+    assert result.status == Status.SUCCESS
+    record = dl.read(ReportClaimsRecord.build_id(REPORT, f"{REPORT}/csaf"))
+    assert isinstance(record, ReportClaimsRecord)
+    assert record.activity_id == OFFER
+    assert record.reading.schema_verdict is SchemaVerdict.SCHEMA_INVALID
+    [skip] = [r for r in caplog.records if "(CSAF-04-003)" in r.getMessage()]
+    assert skip.levelname == "INFO"
+    assert OFFER in skip.getMessage() and FINDER in skip.getMessage()
+
+
+def test_claims_node_keeps_a_record_it_already_holds(caplog):
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
+    bridge = BTBridge(datalayer=dl)
+    bridge.execute_with_setup(_claims_node(), actor_id=VENDOR)
+    first = dl.list_objects("ReportClaimsRecord")
+
+    with caplog.at_level("INFO"):
+        result = bridge.execute_with_setup(_claims_node(), actor_id=VENDOR)
+
+    assert result.status == Status.SUCCESS
+    assert dl.list_objects("ReportClaimsRecord") == first
+    assert not [r for r in caplog.records if "(CSAF-04-003)" in r.getMessage()]
 
 
 def _offer_event(to: list[str], sender: str = FINDER) -> SimpleNamespace:
