@@ -32,6 +32,7 @@ import threading
 import uuid
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from typing import (
     Any,
     Protocol,
@@ -64,17 +65,19 @@ def system_id_source() -> uuid.UUID:
     return uuid.uuid4()
 
 
+@dataclass
 class _IdSourceSlot:
     """The process-wide slot holding the source :func:`new_object_id` draws from.
 
     Holds :func:`system_id_source` except inside :func:`install_id_source`.
     The lock serializes installs, not draws: a draw reads ``source`` once.
+    A dataclass, so it has no hand-written ``__init__`` for a scan that follows
+    core-model methods by name to reach into the system source.
     """
 
-    def __init__(self) -> None:
-        self.source: IdSource = system_id_source
-        self.installed = False
-        self.lock = threading.Lock()
+    source: IdSource = system_id_source
+    installed: bool = False
+    lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 _SLOT = _IdSourceSlot()

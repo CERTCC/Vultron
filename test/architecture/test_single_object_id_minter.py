@@ -63,7 +63,7 @@ MINTER_SITE = ("vultron/core/models/_helpers/ids.py", "system_id_source")
 #: The one place that may name the system id source: the slot that holds it
 #: as the default.  Any other caller would draw past an installed source.
 SYSTEM_SOURCE_SITES = frozenset(
-    {("vultron/core/models/_helpers/ids.py", "_IdSourceSlot.__init__")}
+    {("vultron/core/models/_helpers/ids.py", "_IdSourceSlot")}
 )
 _SYSTEM_SOURCE = frozenset({"system_id_source"})
 
