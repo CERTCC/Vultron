@@ -72,7 +72,9 @@ Each answer is recorded here so a later scan does not raise it again.
 3. Personal and embargoed data in logs: Concern #5607.
 4. Coverage target: set by TB-02-001 and TB-02-002; tooling in #4014.
 5. Connector adapters: the Jira and VINCE modules are examples; the entry-point loader is #5610, ahead of a planned VINCE connector.
-6. Oversized modules: split issues go under Epic #5417.
+6. `scipy`: keep it, though nothing imports it.
+   networkx computes `nx.pagerank()` with it, and `vultron/core/case_states/hypercube/model.py` calls that; the `pyproject.toml` comment says so (#5599).
+7. Oversized modules: split issues go under Epic #5417.
 
 ### 7) Evidence
 
