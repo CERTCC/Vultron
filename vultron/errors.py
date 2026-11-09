@@ -514,6 +514,16 @@ class VultronWiringError(VultronError):
     """
 
 
+class VultronIdSourceInstalledError(VultronWiringError):
+    """Raised when an id source is installed while another install is active.
+
+    The scoped install (``install_id_source``) does not nest: two reproducible
+    runs in one block would draw from one stream of ids and take each other's
+    ids without anyone seeing it (ADR-0185).  A composition fault, never a
+    protocol outcome.
+    """
+
+
 class VultronReadOnlyViewError(VultronError, AttributeError):
     """Raised on an attempt to change a read-only view of a received activity.
 

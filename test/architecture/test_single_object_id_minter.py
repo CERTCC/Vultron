@@ -13,12 +13,14 @@
 """Every new object id is minted by one helper the core and wire layers share.
 
 OID-01-004: ``vultron.core.models._helpers.new_object_id`` is the only
-minter.  Two checks pin it:
+minter, and it draws from the installed id source, whose default is the system
+id source (OID-01-011, ADR-0185); nothing else draws or replaces the
+``uuid`` module's random draw (OID-01-012).  Two checks pin it:
 
 * Both layers' ``id_`` default factories *are* that function, so a model built
   without an id gets one from it whichever layer the model lives in.
-* No function under ``vultron/`` but the minter names ``uuid1`` or ``uuid4``,
-  called or not, so no second minter can grow beside it.  The scan works per
+* No function under ``vultron/`` but the system id source names ``uuid1`` or
+  ``uuid4``, called or not, so no second minter can grow beside it.  The scan works per
   enclosing function, not per module, so a second minter cannot hide in a
   module that already has an allowed use.  A random UUID drawn for something
   that is not an object id is listed in :data:`NON_ID_RANDOM_UUID_EXEMPTIONS`
@@ -53,14 +55,25 @@ _VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"
 #: The scope name of code outside any function or class.
 MODULE_SCOPE = "<module>"
 
-#: The shared minter: the one function that draws an object id.
-MINTER_SITE = ("vultron/core/models/_helpers/ids.py", "new_object_id")
+#: The system id source: the one function that draws a random UUID for an
+#: object id.  The minter, ``new_object_id``, draws through the installed id
+#: source and names no ``uuid`` draw itself (OID-01-011).
+MINTER_SITE = ("vultron/core/models/_helpers/ids.py", "system_id_source")
+
+#: The one place that may name the system id source: the slot that holds it
+#: as the default.  Any other caller would draw past an installed source.
+SYSTEM_SOURCE_SITES = frozenset(
+    {("vultron/core/models/_helpers/ids.py", "_IdSourceSlot")}
+)
+_SYSTEM_SOURCE = frozenset({"system_id_source"})
 
 #: Functions that draw a random UUID for something other than an object id,
 #: keyed on (repo-relative path, dotted enclosing function).
 #: Pinned exemption set: each entry is a recorded decision, not a debt.
 # permanent: OID-01-004 (each entry draws, or replaces the draw of, a
-# UUID that never mints an object id)
+# UUID that never mints an object id); the two replacement entries are
+# removed when #6116 and #6117 move their runs to install_id_source
+# (OID-01-012, ADR-0185)
 NON_ID_RANDOM_UUID_EXEMPTIONS: dict[tuple[str, str], str] = {
     (
         "vultron/adapters/driving/fastapi/app.py",
@@ -90,25 +103,29 @@ _DOTTED_PATH = re.compile(
 )
 
 
-def _names_a_random_uuid(text: str) -> bool:
-    """Whether *text* is a dotted path whose last segment is a random draw."""
+def _names_one_of(text: str, names: frozenset[str]) -> bool:
+    """Whether *text* is a dotted path whose last segment is in *names*."""
     return bool(_DOTTED_PATH.match(text)) and (
-        text.rsplit(".", 1)[-1] in _RANDOM_UUID_NAMES
+        text.rsplit(".", 1)[-1] in names
     )
 
 
-class _RandomUuidSites(ast.NodeVisitor):
-    """Collect the enclosing scopes in which ``uuid1``/``uuid4`` is named.
+class _NameSites(ast.NodeVisitor):
+    """Collect the enclosing scopes in which any of *names* is named.
 
     A bare reference counts as well as a call, so ``default_factory=uuid4`` is
-    caught.  ``from uuid import uuid4 as fresh`` makes ``fresh`` a name to
-    look for, so an alias is caught where it is used.  ``from uuid import *``
-    hides which names it binds, so the import itself is a site.
+    caught.  ``from <module> import name as fresh`` makes ``fresh`` a name to
+    look for, so an alias is caught where it is used.  ``from <module> import
+    *`` hides which names it binds, so the import itself is a site.  A
+    dotted-path string literal ending in one of *names* is a patch target, so
+    it is a site too.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, names: frozenset[str], module: str) -> None:
         self._scope: list[str] = []
-        self._names = set(_RANDOM_UUID_NAMES)
+        self._targets = names
+        self._module = module
+        self._names = set(names)
         self.sites: set[str] = set()
 
     def _record(self) -> None:
@@ -126,12 +143,15 @@ class _RandomUuidSites(ast.NodeVisitor):
     visit_ClassDef = _visit_scope
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-        if node.module != "uuid":
+        if node.module is None or not (
+            node.module == self._module
+            or node.module.startswith(f"{self._module}.")
+        ):
             return
         for alias in node.names:
             if alias.name == "*":
                 self._record()
-            elif alias.name in _RANDOM_UUID_NAMES:
+            elif alias.name in self._targets:
                 self._names.add(alias.asname or alias.name)
 
     def visit_Name(self, node: ast.Name) -> None:
@@ -139,18 +159,20 @@ class _RandomUuidSites(ast.NodeVisitor):
             self._record()
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
-        if node.attr in _RANDOM_UUID_NAMES:
+        if node.attr in self._targets:
             self._record()
         self.generic_visit(node)
 
     def visit_Constant(self, node: ast.Constant) -> None:
         """A patch target names the minter's draw as a string, not a name."""
-        if isinstance(node.value, str) and _names_a_random_uuid(node.value):
+        if isinstance(node.value, str) and _names_one_of(
+            node.value, self._targets
+        ):
             self._record()
 
 
 def _sites_in(tree: ast.AST) -> set[str]:
-    finder = _RandomUuidSites()
+    finder = _NameSites(_RANDOM_UUID_NAMES, "uuid")
     finder.visit(tree)
     return finder.sites
 
@@ -213,14 +235,55 @@ def test_core_and_wire_id_default_factories_are_the_shared_minter():
 
 
 @pytest.mark.spec("OID-01-004")
-def test_no_function_but_the_shared_minter_draws_a_random_uuid():
+@pytest.mark.spec("OID-01-012")
+def test_no_function_but_the_system_id_source_draws_a_random_uuid():
     sites = _random_uuid_sites()
     assert MINTER_SITE in sites, (
-        "the scan no longer sees the shared minter draw a UUID; "
+        "the scan no longer sees the system id source draw a UUID; "
         "fix the scan before trusting it"
     )
     assert sites - {MINTER_SITE} == set(NON_ID_RANDOM_UUID_EXEMPTIONS), (
-        "a function outside the shared minter names uuid1/uuid4: mint object "
-        "ids with new_object_id (OID-01-004), or list a non-id use in "
+        "a function outside the system id source names uuid1/uuid4: mint "
+        "object ids with new_object_id (OID-01-004), supply repeatable ids "
+        "through install_id_source (OID-01-011, OID-01-012), or list a non-id use in "
         "NON_ID_RANDOM_UUID_EXEMPTIONS with its reason"
+    )
+
+
+def _system_source_sites() -> frozenset[tuple[str, str]]:
+    """(path, enclosing function) of every ``vultron/`` use of the system source."""
+    sites: set[tuple[str, str]] = set()
+    for path, tree in _corpus.files_mentioning(
+        *_SYSTEM_SOURCE, under=_VULTRON_ROOT
+    ):
+        finder = _NameSites(_SYSTEM_SOURCE, "vultron.core.models")
+        finder.visit(tree)
+        rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
+        sites.update((rel, site) for site in finder.sites)
+    return frozenset(sites)
+
+
+@pytest.mark.spec("OID-01-011")
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from vultron.core.models._helpers import system_id_source\n"
+        "x = system_id_source()\n",
+        "from vultron.core.models._helpers.ids import system_id_source as s\n"
+        "x = s()\n",
+        "from vultron.core.models._helpers import ids\n"
+        "x = ids.system_id_source()\n",
+    ],
+)
+def test_the_scan_sees_every_way_of_naming_the_system_source(source: str):
+    finder = _NameSites(_SYSTEM_SOURCE, "vultron.core.models")
+    finder.visit(_corpus.parse_inline(source))
+    assert finder.sites == {MODULE_SCOPE}
+
+
+@pytest.mark.spec("OID-01-011")
+def test_only_the_id_source_slot_names_the_system_source():
+    assert _system_source_sites() == SYSTEM_SOURCE_SITES, (
+        "code outside the id-source slot names system_id_source, so it draws "
+        "past an installed id source: mint with new_object_id (OID-01-011)"
     )

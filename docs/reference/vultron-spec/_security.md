@@ -72,13 +72,36 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 in-transit encryption mechanism. Transport Layer Security (TLS) is the expected transport protection for
 HTTP delivery. A future version of this specification is expected to require TLS.
 
-**At-rest and end-to-end confidentiality.** Content-level encryption — protecting
-case details from the CASE_MANAGER itself, or supporting future multi-party
-computation — is not specified by this version.
-Any unencrypted case content is accessible to whoever operates the CASE_MANAGER.
+**Key management.** Each actor generates its own unique asymmetric key pair when its identity is first provisioned.
+It publishes the public key in its actor profile and stores the private key securely.
+The key pair lasts for the lifetime of the actor identity: the actor reuses it after a process restart and does not generate a new one.
+A private key never appears in a log or an API response.
 
-**Scope.** This section covers security requirements for the protocol as
-specified. Operational security measures (key management, access control,
-incident response for actor compromise) are out of scope for this specification.
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ENC-01-001", "ENC-01-002", "ENC-01-004", "ENC-01-005", "ENC-01-006", "ENC-01-007"))
+```
+
+The rows on key generation, storage and persistence apply to a production deployment (ENC-01-001, ENC-01-004, ENC-01-005, ENC-01-006).
+The reference implementation is a prototype: it publishes each actor's key and keeps private keys out of logs and API responses (ENC-01-002, ENC-01-007).
+It does not yet generate, store or persist a key pair: it computes each actor's key pair from a seed tied to the actor id, which makes no security claim ([#1184](https://github.com/CERTCC/Vultron/issues/1184)).
+[Known Gaps](known-gaps.md) lists the key management requirements that it does not yet meet.
+
+**Per-message encryption.** A case participant can encrypt the messages it sends to the CASE_MANAGER.
+The CASE_MANAGER is expected to encrypt each message that it sends to a case participant individually.
+An encrypted message is encrypted to an encryption key that the recipient publishes in its actor profile.
+This version does not choose an encryption scheme, so until a scheme is standardized the choice is implementation-defined.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ENC-02-001", "ENC-02-002"))
+```
+
+The reference implementation does not encrypt messages yet ([#5388](https://github.com/CERTCC/Vultron/issues/5388)).
+
+**Confidentiality from the CASE_MANAGER.** Content-level encryption that protects case details from the CASE_MANAGER itself, or that supports future multi-party computation, is not specified by this version.
+The CASE_MANAGER can read all case content that it receives, so that content is accessible to whoever operates the CASE_MANAGER.
+
+**Scope.** This section covers the security requirements of the protocol as specified, including the key management and per-message encryption requirements above.
+Operational security practice beyond those requirements is out of scope.
+Examples are the means a deployment uses to protect stored keys, key backup and recovery, access control, and incident response for actor compromise.
 
 ---

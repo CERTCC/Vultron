@@ -33,9 +33,10 @@ checked against the registry, so update it by hand (DEMOCI-11-007). See
     the `vultron-demo <scenario-name>` sub-command and its options. Do not add
     a `@main.command` block to `vultron/demo/cli/` (DEMOCI-11-045).
 - [ ] **Generated artifacts** — run `uv run demo-scenarios --write` and commit
-  the result (`.github/demo-scenarios.json` and the generated scenario tables).
-  Never hand-edit a generated file. `uv run demo-scenarios --check` reports any
-  hand-written table or list that disagrees with the registry.
+  the result (`.github/demo-scenarios.json`, `vultron/demo/scenario/plots.json`
+  and the generated scenario tables). Never hand-edit a generated file.
+  `uv run demo-scenarios --check` reports any hand-written table or list that
+  disagrees with the registry.
 - [ ] **Narrative page** — `docs/topics/scenarios/<scenario-name>.md`, the path
   derived from the name (DEMOCI-11-003, DEMOCI-11-046), with its entry in the
   `mkdocs.yml` nav (DEMOCI-11-007).
