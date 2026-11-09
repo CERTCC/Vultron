@@ -32,7 +32,7 @@ slice keeps.
   reaches py_trees and moves a recording's ids with the tree's shape.
 - **Mint anywhere, but only through the minter.** Ids are not threaded to the
   act's edge: an id is a name with no value two reads must agree on, and the
-  `id_` default factories run outside any tree run (ADR-0185, option 3).
+  `id_` default factories run outside any tree run (OID-01-004; ADR-0185).
 - **The application factory installs nothing.** The system source is the
   default, because `create_app()` must not change process-wide state
   (ARCH-16-001).
