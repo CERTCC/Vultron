@@ -845,6 +845,12 @@ class TestJsonOutput:
         out = capsys.readouterr().out
         assert "1/4 verified (25.0%)" in out
         assert "  partly met: 1\n" in out
+        # The known-gaps page's order: xfail-only, partly met, untested.
+        assert (
+            out.index("xfail-only protocol")
+            < out.index("Partly-met protocol")
+            < out.index("Untested protocol")
+        )
         assert (
             "Partly-met protocol and foundation requirements (1):\n"
             "  CVG-01-002\n"

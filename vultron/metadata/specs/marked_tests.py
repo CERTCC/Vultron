@@ -13,7 +13,8 @@
 """Which tests carry a ``spec`` marker, and which of them a strict xfail holds.
 
 ``spec-coverage`` tells a requirement a passing test verifies from one only a
-strict ``xfail`` checks (SR-05-017). This module reads one test file's source
+strict ``xfail`` checks, and both from one a passing and a held test check
+together, which is partly met (SR-05-017). This module reads one test file's source
 and returns a :class:`MarkedCase` for each way its marked tests run: the spec
 IDs that case carries and the reasons of the ``xfail`` markers that apply to
 it. A case with no xfail reason runs to pass or fail.

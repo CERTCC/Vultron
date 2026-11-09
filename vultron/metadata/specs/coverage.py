@@ -107,7 +107,8 @@ class RequirementCoverage(BaseModel):
     state: CoverageState
     xfail_tests: tuple[XfailTest, ...] = ()
     """Each strict ``xfail`` or skip on a test marked for this requirement, in
-    any state: a verified requirement can also have an xfail-marked test."""
+    any state: a partly-met requirement has both these and a test that runs,
+    and a verified one has none."""
 
 
 class CoverageSummary(BaseModel):
@@ -197,7 +198,7 @@ def marked_ids_in(sources: Iterable[str]) -> frozenset[str]:
 
     This set alone decides *untested*, so the SR-05-005 growth guard and the
     report agree on it; :mod:`~vultron.metadata.specs.marked_tests` only
-    splits the marked IDs into verified and xfail-only.
+    splits the marked IDs into verified, partly met and xfail-only.
     """
     return frozenset().union(*(marked_spec_ids(source) for source in sources))
 
@@ -449,8 +450,9 @@ def format_report(report: ImplementerCoverageReport) -> str:
         f"  xfail-only: {summary.xfail_only}",
         f"  untested:   {summary.untested}",
     ]
-    lines += _held_lines(report, CoverageState.PARTLY_MET, "Partly-met")
+    # The order of the known-gaps page: xfail-only, partly met, untested.
     lines += _held_lines(report, CoverageState.XFAIL_ONLY, "xfail-only")
+    lines += _held_lines(report, CoverageState.PARTLY_MET, "Partly-met")
     if report.untested:
         lines += [
             "",
