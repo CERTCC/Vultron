@@ -3,11 +3,11 @@
 Three workflows file issues: the ``notify-failure`` composite action (a
 ``ci:main-failure`` Bug), the Demo Recordings workflow (a refresh Task) and
 the CSAF Draft Watch workflow (a ``csaf-draft-watch`` Task, tested in
-``test_csaf_draft_watch_issue.py``). Each gives its issue one ``theme:`` label (PAD-02-014) and a ``Theme:`` line
-(PAD-02-018) through ``.github/scripts/ensure-issue-triage.sh``, and sets no
-parent: the issue starts untriaged (PAD-01-007), and ``theme-fit`` lists it
-for routing instead of reporting a finding (PAD-02-026 to PAD-02-029,
-#5450).
+``test_csaf_draft_watch_issue.py``). Each gives its issue one ``theme:``
+label (PAD-02-014) and a ``Theme:`` line (PAD-02-018) through
+``.github/scripts/ensure-issue-triage.sh``, and sets no parent: the issue
+starts untriaged (PAD-01-007), and ``theme-fit`` lists it for routing instead
+of reporting a finding (PAD-02-026 to PAD-02-029, #5450).
 
 The helper is run here against a fake ``gh`` (``test/ci/_fake_gh.py``), and the
 issue each filer leaves is checked with the ``theme-fit`` analysis itself, so

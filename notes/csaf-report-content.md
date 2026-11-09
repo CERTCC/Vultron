@@ -130,14 +130,15 @@ tasks reuse them rather than add a second path.
 - **The draft cannot be told from the document.** Every CSAF 2.1 draft uses the
   same `$schema` value, so a document written to a newer draft is checked against
   the pin and may read as schema-invalid; stage 2 still reads it.
-- **The watch job compares models, not commits.** `.github/workflows/csaf-draft-watch.yml`
-  runs `uv run csaf-draft-watch` (`vultron/metadata/csaf/draft_watch/`) over
-  checkouts of the pinned commit and the upstream head. It generates models from
-  both schema sets with `description`, `$comment` and `examples` dropped, so a
-  reworded description opens nothing, and diffs the profile text and the
-  mandatory-test IDs. A `$ref` the pin does not map is reported, never raised. It
-  opens one Task, found again by the `csaf-draft-watch` label, and writes nothing
-  while that issue is open (CSAF-05-005, CSAF-05-006).
+- **The watch job compares models, not commits.**
+  `.github/workflows/csaf-draft-watch.yml` runs `uv run csaf-draft-watch`
+  (`vultron/metadata/csaf/draft_watch/`) over checkouts of the pinned commit and
+  the upstream head. It generates models from both schema sets with
+  `description`, `$comment` and `examples` dropped, so a reworded description
+  opens nothing, and diffs the profile text and the mandatory-test IDs. A `$ref`
+  the pin does not map is reported, never raised. It opens one Task, found again
+  by the `csaf-draft-watch` label, and writes nothing while that issue is open
+  (CSAF-05-005, CSAF-05-006).
 - **A new read field goes in `READ_FIELDS`.** The issue names the fields this
   codebase reads that the change touches (CSAF-05-007), from `READ_FIELDS` in
   `vultron/metadata/csaf/draft_watch/fields.py`. A task that reads another CSAF

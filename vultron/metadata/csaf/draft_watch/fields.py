@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The CSAF fields this codebase reads, and which of them a change touches (CSAF-05-007)."""
+"""The CSAF fields this codebase reads, and which a change touches (CSAF-05-007)."""
 
 from __future__ import annotations
 
