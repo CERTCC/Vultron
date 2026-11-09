@@ -153,14 +153,10 @@ SYNC-08-001)
 
 ### 3.3 Canonical Serialisation
 
-A canonical serialisation form — specifying deterministic key ordering,
-explicit field inclusion/exclusion, and no optional whitespace — MUST be established before cryptographic signatures are added to
-log entries. Changing the serialisation after entries are signed would
-invalidate existing hash chains.
+A canonical serialization form — specifying deterministic key ordering, explicit field inclusion/exclusion, and no optional whitespace — MUST be established before cryptographic signatures are added to log entries.
+Changing the serialization after entries are signed would invalidate existing hash chains.
 
-[RFC 8785 — JSON Canonicalization Scheme (JCS)](https://www.rfc-editor.org/rfc/rfc8785)
-is that form: a log entry's hash is computed over its JCS serialisation
-(SYNC-01-008).
+[RFC 8785 — JSON Canonicalization Scheme (JCS)](https://www.rfc-editor.org/rfc/rfc8785) is that form: a log entry's hash is computed over its JCS serialization (SYNC-01-008).
 
 The hash-chain entry format MUST be designed to be forward-compatible with a
 future Merkle Tree implementation; the hash-chain fields (`entry_hash`,
