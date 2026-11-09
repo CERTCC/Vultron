@@ -84,14 +84,16 @@ jobs:
       - name: Compare upstream with the pin
         id: compare
         run: |
-          set -uo pipefail
-          # No -e, so the script's change status 3 can be read below; a
-          # failed rev-parse still fails the step.
-          head=$(git -C upstream-head rev-parse HEAD) || exit 1
+          set -euo pipefail
+          head=$(git -C upstream-head rev-parse HEAD)
+          # GitHub runs a step under `bash -e`, so a bare non-zero exit ends
+          # it at once. `|| status=$?` keeps the script's change status 3 for
+          # the issue step below.
+          status=0
           PYTHONPATH='' uv run csaf-draft-watch \
             --baseline upstream-pinned --upstream upstream-head \
-            --upstream-commit "$head" --report csaf-draft-watch.md
-          status=$?
+            --upstream-commit "$head" --report csaf-draft-watch.md \
+            || status=$?
           echo "status=$status" >> "$GITHUB_OUTPUT"
           # 0: no change; 3: a change, reported in csaf-draft-watch.md.
           if [ "$status" -ne 0 ] && [ "$status" -ne 3 ]; then

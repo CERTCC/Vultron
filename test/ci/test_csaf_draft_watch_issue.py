@@ -4,11 +4,13 @@
 comparison script reports a change, and writes nothing while a Task with its
 marker label is open. It runs here against the fake ``gh`` of
 ``test/ci/_fake_gh.py``, and the workflow is read to check that it checks out
-the upstream paths the comparison script reads.
+the upstream paths the comparison script reads. The compare step runs under
+``bash -e``, as on GitHub, to check that it hands the change status on.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -204,3 +206,55 @@ def test_the_workflow_opens_the_issue_only_on_a_reported_change() -> None:
     )
 
     assert step["if"] == f"steps.compare.outputs.status == '{EXIT_CHANGED}'"
+
+
+def _run_compare_step(
+    tmp_path: Path, uv_status: int
+) -> tuple[subprocess.CompletedProcess[str], str]:
+    """Run the compare step's script as GitHub does, under ``bash -e``.
+
+    A stub ``uv`` exits *uv_status*, and a stub ``git`` prints a commit, so
+    the step's own status handling is what the result shows.
+    """
+    step = next(s for s in _steps() if s.get("id") == "compare")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, body in (
+        ("uv", f"#!/usr/bin/env bash\nexit {uv_status}\n"),
+        ("git", "#!/usr/bin/env bash\necho 0123abc\n"),
+    ):
+        path = bin_dir / name
+        path.write_text(body, encoding="utf-8")
+        path.chmod(0o755)
+    output = tmp_path / "output"
+    output.touch()
+    result = subprocess.run(
+        ["bash", "-e", "-c", str(step["run"])],
+        check=False,
+        cwd=tmp_path,
+        env={
+            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            "GITHUB_OUTPUT": str(output),
+        },
+        capture_output=True,
+        text=True,
+    )
+    return result, output.read_text(encoding="utf-8")
+
+
+@pytest.mark.spec("CSAF-05-005")
+@pytest.mark.parametrize("uv_status", [0, EXIT_CHANGED])
+def test_the_compare_step_passes_the_status_to_the_issue_step(
+    tmp_path: Path, uv_status: int
+) -> None:
+    result, output = _run_compare_step(tmp_path, uv_status)
+
+    assert result.returncode == 0, result.stderr
+    assert output.splitlines() == [f"status={uv_status}"]
+
+
+def test_a_failed_comparison_fails_the_compare_step(tmp_path: Path) -> None:
+    result, output = _run_compare_step(tmp_path, 1)
+
+    assert result.returncode == 1
+    assert output.splitlines() == ["status=1"]
