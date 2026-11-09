@@ -47,7 +47,7 @@ dependencies = [
     "networkx>=3.5",
     "pandas>=3.0.5",
     "pathspec>=0.12.1",
-    "pydantic==2.14.2",
+    "pydantic[email]==2.14.2",
     "py-trees>=2.6.0",
     "scipy>=1.18.0",
     "uvicorn>=0.52.3",
@@ -120,6 +120,8 @@ backfill-implementation-history="vultron.metadata.history.backfill_implementatio
 theme-fit="vultron.metadata.planning.theme_fit:main"
 theme-gate="vultron.metadata.planning.theme_fit.gate:main"
 theme-labels="vultron.metadata.planning.theme_labels:main"
+csaf-models="vultron.metadata.csaf.regenerate:main"
+csaf-corpus="vultron.metadata.csaf.corpus:main"
 
 
 [project.urls]
@@ -392,6 +394,9 @@ members = [
 [dependency-groups]
 dev = [
     "codespell>=2.4.3",
+    # Exact pin: the committed CSAF models must equal a fresh generation byte for
+    # byte (CSAF-05-003), so a generator upgrade is a deliberate regeneration.
+    "datamodel-code-generator==0.90.0",
     "graphifyy>=0.9.43",
     "mypy>=2.3.0",
     "pandas-stubs>=3.0.5.260730",
