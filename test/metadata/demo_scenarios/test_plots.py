@@ -265,6 +265,24 @@ class TestManifestShape:
 
         assert set(committed["scenarios"]) == {spec.name for spec in specs}
 
+    @pytest.mark.spec("DEMOCI-11-034")
+    def test_each_committed_entry_is_its_scenarios_story(self) -> None:
+        """Per scenario, the committed rows are that story's items in order.
+
+        The drift assertion above compares the whole file as text, which
+        names no scenario when it fails. This one fails on the scenario whose
+        story moved, which is what a reader of a red run needs.
+        """
+        committed = json.loads(
+            read_committed(_REPO_ROOT / PLOT_MANIFEST) or "{}"
+        )["scenarios"]
+
+        for spec in discover_scenarios():
+            assert spec.story is not None, spec.name
+            assert committed[spec.name] == plot_rows(spec.name, spec.story), (
+                spec.name
+            )
+
     @pytest.mark.spec("DEMOCI-11-019", "DEMOCI-11-034")
     def test_each_entrys_choices_are_the_scenarios_path(self) -> None:
         """The manifest's choices and the registered path are one fact.
