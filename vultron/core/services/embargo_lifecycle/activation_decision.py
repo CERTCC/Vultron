@@ -17,10 +17,10 @@
 
 The CASE_MANAGER decides an activation before it commits anything.
 :meth:`_ActivationDecisionMixin.decide_activation` reads the embargoes it
-needs (EMB-18-003), applies the ``STRICT`` checks (an open proposal, P/X/A
-clear, EMB-02-002, and an owner that has not declined it, MSM-07-037), decides the EP-05-001 arm, and returns an
-:class:`ActivationDecision`: the entries the activation commits, in order,
-and what each changes.  It writes nothing.
+needs (EMB-18-003), applies the ``STRICT`` checks (an open proposal; P/X/A
+clear, EMB-02-002; an owner that has not declined it, MSM-07-037), decides
+the EP-05-001 arm, and returns an :class:`ActivationDecision`: the entries
+the activation commits, in order, and what each changes.  It writes nothing.
 
 - The owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` is one entry, and it is
   the whole ``ACTIVATE`` register step, the ``SUPERSEDE`` of the embargo in
@@ -129,12 +129,15 @@ def activation_consent_changes(
     """The consent rows an activation of *embargo_id* writes, in apply order.
 
     *activated* is the case file as the ``ACTIVATE`` step leaves it.  First
-    the owner's ``AGREED`` row its Add states, from a row that holds no
-    answer the owner gave (an activation from a ``DECLINED`` row is refused
-    before this is reached, MSM-07-037), then, when the revision
-    ends no later than *previous_embargo_id* (*ends_no_later*), one
+    the owner's ``AGREED`` row its Add states (MSM-07-028), then, when the
+    revision ends no later than *previous_embargo_id* (*ends_no_later*), one
     ``CARRY_OVER`` row per signatory of the replaced embargo, decided after
     the owner's row (EP-05-001, MSM-07-005).  Writes nothing.
+
+    No ``DECLINED`` owner row reaches this on the CASE_MANAGER:
+    :meth:`~_ActivationDecisionMixin.decide_activation` refuses that
+    activation first (MSM-07-037).  On a replica copying a committed
+    activation, the row becomes ``AGREED`` as the entry states (CM-23-016).
     """
     agreement = owner_agreement(activated, embargo_id)
     if agreement is not None:

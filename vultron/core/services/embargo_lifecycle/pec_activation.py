@@ -84,10 +84,10 @@ class _PecActivationMixin(_PecEffectsMixin):
         written through the one apply function, so this path and the
         copy model move the same rows:
 
-        - The owner's row for the activated embargo is ``AGREED``, from a
-          row that holds no answer the owner gave; a ``DECLINED`` row is left
-          as it is, since the CASE_MANAGER refuses an activation from it
-          (MSM-07-028, MSM-07-037).
+        - The owner's row for the activated embargo is ``AGREED``
+          (MSM-07-028).  ``STRICT`` refuses an activation from a ``DECLINED``
+          row first (MSM-07-037); ``OBSERVED`` copies the agreement the
+          entry states, whatever row the replica holds (CM-23-016).
         - Replacing A with a B that ends no later than A carries A's
           signatories over; a longer B carries nobody, and the signatories
           who have not agreed to it have lapsed by derivation.  A first

@@ -461,15 +461,14 @@ def test_a_strict_activation_by_an_owner_that_declined_it_is_refused(
     assert _consents_of(dl, owner_p_id) == {embargo_id: "DECLINED"}
 
 
-@pytest.mark.spec("MSM-07-028")
-@pytest.mark.spec("CM-18-003")
-def test_an_observed_activation_leaves_a_declined_owner_row_as_it_is(
+@pytest.mark.spec("CM-23-016")
+def test_an_observed_activation_copies_the_owners_agreement(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Only the owner's own Accept changes its decline (CM-18-003).
+    """A replica copies what the committed activation states (CM-23-016).
 
-    The CASE_MANAGER never commits such an activation (MSM-07-037), so a
-    replica copying one writes no AGREE over the decline.
+    The CASE_MANAGER never commits an activation from a DECLINED owner row
+    (MSM-07-037); a replica that copies one agrees with its entry.
     """
     owner, dl, case, owner_p_id, embargo_id = _declined_by_owner(owner_and_dl)
 
@@ -482,8 +481,11 @@ def test_an_observed_activation_leaves_a_declined_owner_row_as_it_is(
 
     activated = cast(VulnerabilityCase, dl.read(case.id_))
     assert activated.active_embargo_id == embargo_id
-    assert _consents_of(dl, owner_p_id) == {embargo_id: "DECLINED"}
-    assert result.participant_changes == []
+    assert _consents_of(dl, owner_p_id) == {embargo_id: "AGREED"}
+    assert (owner_p_id, "DECLINED", "AGREED") in {
+        (c.participant_id, c.consent_before, c.consent_after)
+        for c in result.participant_changes
+    }
 
 
 @pytest.mark.spec("CM-18-001", "EP-09-007")

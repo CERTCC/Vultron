@@ -195,10 +195,11 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         carried over to B by ``CARRY_OVER``; under a longer B the signatories
         who have not agreed to it have lapsed by derivation (CM-18-001).
         Whoever holds an ``AGREED`` row for B — its proposer, for one — is a
-        signatory by lookup, with nothing to advance.  An owner's ``DECLINED``
-        row for *embargo_id* is left as it is in ``OBSERVED`` mode: only the
-        owner's own ``Accept`` changes a decline, and the CASE_MANAGER refuses
-        an activation from one before the commit (MSM-07-028, MSM-07-037).
+        signatory by lookup, with nothing to advance.  ``STRICT`` refuses an
+        activation from an owner whose row reads ``DECLINED`` (MSM-07-037);
+        ``OBSERVED`` copies what the committed activation states, so a
+        replica's ``DECLINED`` owner row becomes ``AGREED`` as the entry says
+        (CM-23-016).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.

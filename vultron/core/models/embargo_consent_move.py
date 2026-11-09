@@ -29,10 +29,10 @@ position, and both write the same row (CM-23-016):
 
 - :func:`owner_agreement` — the case owner's
   ``Add(EmbargoEvent)[target=VulnerabilityCase]`` is its agreement to the embargo it
-  activates.  A ``DECLINED`` row is left as it is: the CASE_MANAGER refuses
-  an activation from it before the commit
-  (:func:`assert_owner_has_not_declined`, MSM-07-037), so a committed
-  activation never meets one (MSM-07-028).
+  activates (MSM-07-028).  The CASE_MANAGER refuses an activation from a
+  ``DECLINED`` row before the commit (:func:`assert_owner_has_not_declined`,
+  MSM-07-037), so it never decides one; a replica copies what a committed
+  ``Add`` states, whatever row it holds (CM-23-016).
 - :func:`joiner_agreement` — an invitee's ``Accept`` of the stub Invite
   agrees to the embargo in force; a ``DECLINED`` row is left as it is, as
   seeding never overrides an answer the participant gave (CM-10-001).
@@ -103,16 +103,14 @@ def owner_agreement(
 ) -> ConsentRowChange | None:
     """The case owner's ``AGREED`` row its activation of *embargo_id* states.
 
-    *case_file* is the case as the ``ACTIVATE`` step leaves it.  The row
-    moves from ``UNINVITED``, ``INVITED`` or ``TIMED_OUT``, which hold no
-    answer the owner gave (MSM-07-028).  ``None`` when the owner's row
-    already reads ``AGREED``, when it reads ``DECLINED`` (an activation the
-    CASE_MANAGER refuses before the commit, so never one it commits,
-    MSM-07-037), or when the case file holds no record of the owner
-    (ADR-0087).
+    *case_file* is the case as the ``ACTIVATE`` step leaves it.  ``None``
+    when the owner's row already reads ``AGREED``, or the case file holds no
+    record of the owner (ADR-0087).  The CASE_MANAGER decides an activation
+    only from a row that holds no answer the owner gave: it refuses one from
+    ``DECLINED`` first (:func:`assert_owner_has_not_declined`, MSM-07-037).
+    A replica copies the committed ``Add``'s statement as it is, so it
+    agrees with the entry whatever row it holds (CM-23-016).
     """
-    if owner_declined(case_file, embargo_id):
-        return None
     return consent_row_move(
         case_file, case_file.case.attributed_to, embargo_id, PEC_Trigger.AGREE
     )

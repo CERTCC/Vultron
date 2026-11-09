@@ -65,6 +65,21 @@ def find_actor_participant(
     return participant_id, participant
 
 
+def owner_case_file(
+    persistence: CasePersistence, case: VulnerabilityCase
+) -> EmbargoCaseFile:
+    """*case* with only its owner's participant record, when *persistence* holds it.
+
+    Enough for a check of the owner's own rows, such as
+    :func:`~vultron.core.models.embargo_consent_move.assert_owner_has_not_declined`,
+    without reading the whole roster.
+    """
+    owner_id = case.attributed_to
+    resolved = find_actor_participant(persistence, case, owner_id)
+    participants = {owner_id: resolved[1]} if resolved is not None else {}
+    return EmbargoCaseFile(case=case, participants=participants)
+
+
 def owner_declined_embargo(
     persistence: CasePersistence,
     case: VulnerabilityCase,
@@ -80,12 +95,7 @@ def owner_declined_embargo(
     owner whose case does not hold the embargo yet, since it holds no row for
     it.
     """
-    owner_id = case.attributed_to
-    resolved = find_actor_participant(persistence, case, owner_id)
-    participants = {owner_id: resolved[1]} if resolved is not None else {}
-    return owner_declined(
-        EmbargoCaseFile(case=case, participants=participants), embargo_id
-    )
+    return owner_declined(owner_case_file(persistence, case), embargo_id)
 
 
 def participant_consent_row(

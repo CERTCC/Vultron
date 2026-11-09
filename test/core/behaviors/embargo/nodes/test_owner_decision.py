@@ -236,6 +236,33 @@ class TestOwnerMayActivateEmbargoNode:
         assert "MSM-07-037" in (node.feedback_message or "")
         assert "Accept the invitation" in (node.feedback_message or "")
 
+    def test_fails_when_the_owner_holds_no_row_for_the_proposal(
+        self, dl: SqliteDataLayer
+    ):
+        """A missing row is a broken invariant (ADR-0122): refused, not raised.
+
+        It is refused as ``ActivationAppliesNode`` refuses it, so the
+        refusal stage still answers the sender.
+        """
+        case, _, revision_id, owner_pid = _case_with_owner(
+            dl, "may-norow", em_state=EM.ACTIVE
+        )
+        owner = cast(as_CaseParticipant, dl.read(owner_pid))
+        owner.embargo_consents = [
+            row
+            for row in owner.embargo_consents
+            if row.embargo_id != revision_id
+        ]
+        dl.save(owner)
+        setup_blackboard(dl, actor_id=MANAGER)
+
+        node = OwnerMayActivateEmbargoNode(
+            case_id=case.id_, embargo_id=revision_id
+        )
+
+        assert _tick(node) is Status.FAILURE
+        assert "not found" in (node.feedback_message or "")
+
     @pytest.mark.spec("EMB-02-002")
     def test_fails_when_pxa_is_set(self, dl: SqliteDataLayer):
         case, _, revision_id, _ = _case_with_owner(

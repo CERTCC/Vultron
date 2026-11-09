@@ -212,11 +212,17 @@ class TestOwnerAgreement:
 
     @pytest.mark.spec("MSM-07-028")
     @pytest.mark.spec("CM-18-003")
-    def test_a_declined_owner_moves_nothing(self):
-        """Only the owner's own Accept changes its decline (CM-18-003)."""
-        case_file = _case_file(owner={E2: _S.DECLINED})
+    @pytest.mark.spec("CM-23-016")
+    def test_a_copy_agrees_for_a_declined_owner_as_the_entry_states(self):
+        """A replica copies what the committed Add states (CM-23-016).
 
-        assert owner_agreement(case_file, E2) is None
+        The CASE_MANAGER never decides an activation from a DECLINED row
+        (MSM-07-037), so this is only a replica copying its entry.
+        """
+        change = owner_agreement(_case_file(owner={E2: _S.DECLINED}), E2)
+
+        assert change is not None
+        assert change.row.state is _S.AGREED
 
 
 class TestAssertOwnerHasNotDeclined:

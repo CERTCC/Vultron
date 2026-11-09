@@ -294,3 +294,92 @@ def test_non_owner_manager_accept_is_consent_and_moves_no_register_entry(
     committed = committed_semantic_types(dl, case.id_)
     assert MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value in committed
     assert MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value not in committed
+
+
+def _decline_owner_row(
+    dl: SqliteDataLayer, case_id: str, owner_id: str, embargo_id: str
+) -> str:
+    """Set the owner's row for *embargo_id* to DECLINED; return its id."""
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    participant_id = case.actor_participant_index[owner_id]
+    participant = cast(as_CaseParticipant, dl.read(participant_id))
+    participant.embargo_consents = [
+        row.model_copy(update={"state": EmbargoConsentState.DECLINED})
+        if row.embargo_id == embargo_id
+        else row
+        for row in participant.embargo_consents
+    ]
+    dl.save(participant)
+    return participant_id
+
+
+@pytest.mark.spec("MSM-07-037")
+@pytest.mark.spec("CM-18-003")
+def test_a_declined_owner_managers_accept_changes_its_answer_then_activates(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A declined owner's first accept is its Accept; its next one activates.
+
+    The CASE_MANAGER refuses an activation from a DECLINED row (MSM-07-037),
+    so the trigger sends what the refusal asks for: the
+    Accept(Invite(EmbargoEvent)), which moves the row to AGREED and leaves
+    the proposal open.  The owner's next accept is the Add (ADR-0180).
+    """
+    owner, dl = owner_actor_and_dl
+    case, proposal_id = _case_with_open_proposal(dl, owner.id_)
+    embargo_id = case.proposed_embargo_ids[0]
+    owner_pid = _decline_owner_row(dl, case.id_, owner.id_, embargo_id)
+    request = AcceptEmbargoTriggerRequest(
+        actor_id=owner.id_, case_id=case.id_, proposal_id=proposal_id
+    )
+
+    first = activity_of(_owner_accept(dl, request))
+
+    assert first["type"] == "Accept"
+    accepted = first["object"]
+    assert (accepted["id"] if isinstance(accepted, dict) else accepted) == (
+        proposal_id
+    )
+    after_accept = cast(VulnerabilityCase, dl.read(case.id_))
+    assert after_accept.current_status.em.state == EM.PROPOSED
+    assert after_accept.proposed_embargo_ids == [embargo_id]
+    owner_participant = cast(as_CaseParticipant, dl.read(owner_pid))
+    assert (
+        owner_participant.consent_for(embargo_id) == EmbargoConsentState.AGREED
+    )
+
+    second = activity_of(_owner_accept(dl, request))
+
+    assert second["type"] == "Add"
+    activated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert activated.current_status.em.state == EM.ACTIVE
+    assert activated.active_embargo_id == embargo_id
+
+
+@pytest.mark.spec("MSM-07-037")
+def test_a_declined_non_manager_owners_accept_asks_with_an_accept(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A declined owner asks the CASE_MANAGER with an Accept, not an Add."""
+    owner, dl = owner_actor_and_dl
+    manager = _persist_actor(dl, "Case Manager")
+    case, proposal_id, embargo_id, _owner_pid = _case_owned_by_non_manager(
+        dl, owner.id_, manager.id_
+    )
+    _decline_owner_row(dl, case.id_, owner.id_, embargo_id)
+
+    _owner_accept(
+        dl,
+        AcceptEmbargoTriggerRequest(
+            actor_id=owner.id_, case_id=case.id_, proposal_id=proposal_id
+        ),
+    )
+
+    _assert_asked_case_manager(
+        dl,
+        actor_id=owner.id_,
+        case_id=case.id_,
+        manager_id=manager.id_,
+        activity_type="Accept",
+        semantic_type=MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
+    )

@@ -40,7 +40,6 @@ from vultron.core.behaviors.embargo.nodes.invite_answer import (
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
 )
-from vultron.core.behaviors.embargo_case_file import read_embargo_case_file
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.embargo_apply import RegisterStep, RegisterStepKind
 from vultron.core.models.embargo_consent_move import (
@@ -50,8 +49,9 @@ from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
+    owner_case_file,
 )
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import INTERNAL_FAULTS, VultronError
 
 
 class IsOpenEmbargoProposalNode(DataLayerConditionWithPorts):
@@ -125,12 +125,13 @@ class OwnerMayActivateEmbargoNode(DataLayerConditionWithPorts):
         else:
             try:
                 assert_owner_has_not_declined(
-                    read_embargo_case_file(self.datalayer, self._case_id),
-                    self._embargo_id,
+                    owner_case_file(self.datalayer, case), self._embargo_id
                 )
-            except VultronInvalidStateTransitionError as exc:
-                # The refusal; a missing row raises past: it is a broken
-                # invariant, never a refusal (ADR-0122, ADR-0095).
+            except INTERNAL_FAULTS:
+                raise  # never a refusal, so never answered (ADR-0095)
+            except VultronError as exc:
+                # The decline, or a missing owner row (ADR-0122), refuses
+                # the activation as ActivationAppliesNode does.
                 self.feedback_message = str(exc)
             else:
                 return Status.SUCCESS
