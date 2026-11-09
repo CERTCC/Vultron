@@ -158,8 +158,11 @@ def _require_table_cell(
 class ScenarioSpec:
     """One registered demo scenario.
 
-    Holds only facts the demo module is the authority for. Every path is a
-    derived property; see the module docstring for why none of them is a field.
+    Holds only facts the demo module is the authority for. Every *artifact*
+    path — the demo script, the invariant harness, the narrative page — is a
+    derived property; see the module docstring for why none of them is a
+    field. The scenario's path through the tree is a different thing and is a
+    field, read off :attr:`story`'s choices (DEMOCI-11-019).
     """
 
     #: Sub-command spelling, e.g. ``"rvcv-handoff"``. The identity of the
