@@ -131,7 +131,7 @@ tasks reuse them rather than add a second path.
   same `$schema` value, so a document written to a newer draft is checked against
   the pin and may read as schema-invalid; stage 2 still reads it.
 - **The watch job compares models, not commits.** `.github/workflows/csaf-draft-watch.yml`
-  runs `uv run csaf-draft-watch` (`vultron/metadata/csaf/draft_watch.py`) over
+  runs `uv run csaf-draft-watch` (`vultron/metadata/csaf/draft_watch/`) over
   checkouts of the pinned commit and the upstream head. It generates models from
   both schema sets with `description`, `$comment` and `examples` dropped, so a
   reworded description opens nothing, and diffs the profile text and the
@@ -139,10 +139,10 @@ tasks reuse them rather than add a second path.
   opens one Task, found again by the `csaf-draft-watch` label, and writes nothing
   while that issue is open (CSAF-05-005, CSAF-05-006).
 - **A new read field goes in `READ_FIELDS`.** The issue names the fields this
-  codebase reads that the change touches (CSAF-05-007), from
-  `draft_watch.READ_FIELDS`. A task that reads another CSAF field adds its
-  document path there, or the watch cannot say when upstream changes it; a test
-  fails on a path the pinned schema does not have.
+  codebase reads that the change touches (CSAF-05-007), from `READ_FIELDS` in
+  `vultron/metadata/csaf/draft_watch/fields.py`. A task that reads another CSAF
+  field adds its document path there, or the watch cannot say when upstream
+  changes it; a test fails on a path the pinned schema does not have.
 - **Watch the embargo proposal.** If the Technical Committee adopts the
   crosswalk's proposal that an `embargo` action carries its own end date, the
   embargo-end mapping (CSAF-03-001) should prefer that date to `disclosure_date`.

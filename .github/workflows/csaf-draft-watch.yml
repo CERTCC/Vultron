@@ -85,7 +85,9 @@ jobs:
         id: compare
         run: |
           set -uo pipefail
-          head=$(git -C upstream-head rev-parse HEAD)
+          # No -e, so the script's change status 3 can be read below; a
+          # failed rev-parse still fails the step.
+          head=$(git -C upstream-head rev-parse HEAD) || exit 1
           PYTHONPATH='' uv run csaf-draft-watch \
             --baseline upstream-pinned --upstream upstream-head \
             --upstream-commit "$head" --report csaf-draft-watch.md

@@ -9,6 +9,7 @@ the upstream paths the comparison script reads.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ from typing import Any
 import pytest
 import yaml
 
-from test.ci._fake_gh import FakeGh, install_fake_gh
+from test.ci._fake_gh import UNTHEMED_ISSUE, FakeGh, install_fake_gh
 from test.ci._workflows import REPO_ROOT, WORKFLOWS_DIR
 from vultron.metadata.csaf.draft_watch import (
     EXIT_CHANGED,
@@ -24,6 +25,7 @@ from vultron.metadata.csaf.draft_watch import (
     TESTCASES_FILE,
     WATCHED_SCHEMA_DIRS,
 )
+from vultron.metadata.planning.themes import load_theme_catalog
 
 SCRIPT = REPO_ROOT / ".github" / "scripts" / "csaf-draft-watch-issue.sh"
 WORKFLOW = WORKFLOWS_DIR / "csaf-draft-watch.yml"
@@ -95,6 +97,60 @@ def test_with_no_open_issue_the_step_files_one_typed_themed_task(
     assert any(c.startswith("issue view 999") for c in calls), calls
     assert any(c.endswith(f"--add-label {THEME}") for c in calls), calls
     assert not any("sub_issue" in c or "addSubIssue" in c for c in calls)
+
+
+@pytest.mark.parametrize(
+    ("issue_type", "issue"),
+    [("", COMPLETE_ISSUE), ("Task", UNTHEMED_ISSUE)],
+    ids=["untyped", "unthemed"],
+)
+def test_the_open_issue_an_earlier_run_left_incomplete_is_repaired(
+    tmp_path: Path, issue_type: str, issue: dict[str, object]
+) -> None:
+    gh = install_fake_gh(
+        tmp_path,
+        issues_page=[{"number": 42}],
+        issue=issue,
+        issue_type=issue_type,
+    )
+
+    result = _run(gh, tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    writes = _writes(gh)
+    assert writes, "the incomplete issue was not repaired"
+    assert not any(
+        w.startswith(("issue create", "issue comment", "label create"))
+        for w in writes
+    ), writes
+    assert all(
+        "updateIssue" in w or w.startswith("issue edit 42 ") for w in writes
+    ), writes
+
+
+def test_the_oldest_of_several_open_issues_is_the_one_kept(
+    tmp_path: Path,
+) -> None:
+    gh = install_fake_gh(
+        tmp_path,
+        issues_page=[{"number": 42}, {"number": 50}],
+        issue=COMPLETE_ISSUE,
+    )
+
+    result = _run(gh, tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert "#42 is open" in result.stdout
+    assert any(c.startswith("issue view 42 ") for c in gh.calls())
+    assert not any(" 50 " in f"{c} " for c in gh.calls())
+
+
+def test_the_script_files_under_an_active_catalog_theme() -> None:
+    found = re.search(r"^theme=(\S+)$", SCRIPT.read_text(), re.MULTILINE)
+
+    assert found is not None
+    assert found.group(1) == THEME
+    assert THEME in {t.label for t in load_theme_catalog().active()}
 
 
 def test_a_pull_request_with_the_label_is_not_the_open_issue(

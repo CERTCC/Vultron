@@ -18,7 +18,8 @@
 # are checked on their own, so a run on either the create or the update arm
 # finishes whatever an earlier run left undone.
 #
-# Used by .github/actions/notify-failure, .github/workflows/demo-recordings.yml
+# Used by .github/actions/notify-failure, .github/workflows/demo-recordings.yml,
+# .github/scripts/csaf-draft-watch-issue.sh (the CSAF Draft Watch workflow)
 # and .github/scripts/publish_theme_fit_report.py (the Theme Fit Report
 # workflow).
 # Needs GH_TOKEN with issues:write.

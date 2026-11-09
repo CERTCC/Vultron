@@ -718,7 +718,7 @@ groups:
       `test/metadata/test_csaf_draft_watch.py::test_a_description_only_revision_reports_no_change`
       and `test_a_revision_that_changes_a_property_reports_a_change` in the same
       module feed the comparison script, `uv run csaf-draft-watch`
-      (`vultron/metadata/csaf/draft_watch.py`), an upstream schema that differs
+      (`vultron/metadata/csaf/draft_watch/`), an upstream schema that differs
       from the pinned local copy only in a description and one that differs in a
       property, and check that only the second reports a change. The workflow is
       `.github/workflows/csaf-draft-watch.yml`.

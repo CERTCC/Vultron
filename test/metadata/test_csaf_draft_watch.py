@@ -501,7 +501,9 @@ def test_read_fields_cannot_be_read_when_the_root_is_gone(
     )
 
     assert [a.field for a in change.fields] == [_TITLE]
-    assert "cannot be read upstream" in change.fields[0].how
+    assert change.fields[0].how == (
+        f"cannot be read upstream: `{pin.root}` does not resolve there"
+    )
 
 
 def test_a_long_diff_is_cut_short_in_the_issue(pin: CsafPin) -> None:
@@ -534,3 +536,64 @@ def test_a_json_pointer_resolves_or_is_unresolved(
             schemas.node(pin.root, fragment)
     else:
         assert schemas.node(pin.root, fragment) == found
+
+
+def test_profiles_that_are_not_utf8_upstream_are_reported(
+    baseline: Path, tmp_path: Path
+) -> None:
+    head = _checkout(tmp_path / "head")
+    (head / PROFILES_FILE).write_bytes(b"# Profiles\n\xff\xfe\n")
+
+    assert compare_profiles(baseline, head) == (
+        [],
+        f"`{PROFILES_FILE}` is not UTF-8 upstream",
+    )
+
+
+def test_an_issue_body_with_huge_diffs_fits_github_s_limit(
+    pin: CsafPin,
+) -> None:
+    long_lines = tuple(f"+{n} " + "x" * 2000 for n in range(400))
+
+    body = render_issue(
+        draft_watch.DraftChange(
+            changed_modules=("_internal.py",),
+            model_diff=long_lines,
+            profiles_diff=long_lines,
+            problems=tuple("p" * 1000 for _ in range(200)),
+        ),
+        pin,
+    )
+
+    assert len(body) <= draft_watch.BODY_LIMIT
+    assert "cut short" in body
+
+
+def test_long_diff_lines_are_shortened_in_the_issue(pin: CsafPin) -> None:
+    body = render_issue(
+        draft_watch.DraftChange(
+            changed_modules=("_internal.py",), model_diff=("+" + "y" * 1000,)
+        ),
+        pin,
+    )
+
+    assert "(1001 characters)" in body
+    assert "y" * 1000 not in body
+
+
+def test_diffs_are_quoted_shorter_until_the_body_fits(pin: CsafPin) -> None:
+    long_lines = tuple(f"+{n} " + "x" * 290 for n in range(400))
+
+    body = render_issue(
+        draft_watch.DraftChange(
+            changed_modules=("_internal.py",),
+            model_diff=long_lines,
+            profiles_diff=long_lines,
+        ),
+        pin,
+    )
+
+    assert len(body) <= draft_watch.BODY_LIMIT
+    assert "cut short" not in body
+    assert "more lines" in body
+    assert "## What to do" in body
