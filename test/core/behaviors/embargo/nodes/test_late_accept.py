@@ -428,6 +428,19 @@ class TestReinviteLateAccepterNode:
         assert record.consent_for(proposal_id) == EmbargoConsentState.INVITED
 
     @pytest.mark.spec("EMB-17-003")
+    def test_an_accepter_with_no_record_is_a_failure(self) -> None:
+        """The manager holds its own roster (Regime 1, ADR-0087): no guess."""
+        case, dl = _case("late-reinvite-norecord", EM.PROPOSED)
+        node = ReinviteLateAccepterNode(
+            case_id=case.id_,
+            invitee_id="https://example.org/actors/stranger",
+            now=_NOW,
+        )
+
+        assert _run(dl, node, with_factory=True) is Status.FAILURE
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("EMB-17-003")
     def test_no_port_sends_nothing(self, caplog) -> None:
         case, dl = _case("late-reinvite-noport")
 
