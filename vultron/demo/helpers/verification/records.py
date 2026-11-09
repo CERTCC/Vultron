@@ -123,7 +123,8 @@ def verify_receiver_case_state(
     participants are present (receiver, reporter, plus at least one Case
     Actor), and that the receiver participant has reached ``RM.ACCEPTED``
     with ``EM.ACTIVE`` and ``pxa == CS_pxa.pxa``.  Optionally checks that
-    *question_note_id* and *reply_note_id* appear in the case notes.
+    *question_note_id* and *reply_note_id* appear in the case notes; a thread
+    needs both halves, so pass both ids or neither (one alone raises).
 
     Args:
         receiver_client: Client connected to the receiver container.
@@ -131,14 +132,17 @@ def verify_receiver_case_state(
         report_id: Full URI of the submitted vulnerability report.
         receiver_actor_id: Full URI of the receiver actor.
         reporter_actor_id: Full URI of the reporter actor.
-        question_note_id: Optional URI of the question note to assert present.
-        reply_note_id: Optional URI of the reply note to assert present.
+        question_note_id: URI of the question note to assert present; give it
+            together with *reply_note_id* or not at all.
+        reply_note_id: URI of the reply note to assert present; give it
+            together with *question_note_id* or not at all.
 
     Returns:
         The fetched and validated ``as_VulnerabilityCase``.
 
     Raises:
-        AssertionError: If any invariant is violated.
+        AssertionError: If any invariant is violated, or exactly one note id
+            is given.
     """
     final_case = as_VulnerabilityCase(
         **receiver_client.get(receiver_client.dl_path(case_id))

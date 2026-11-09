@@ -98,13 +98,23 @@ def _assert_case_notes(
 ) -> None:
     """Assert that *question_note_id* and *reply_note_id* are in *case.notes*.
 
-    Both IDs are optional; the check is skipped when both are ``None``.
+    A note thread has two halves, so the IDs are both given or both ``None``.
+    The check is skipped only when both are ``None``.
 
     Raises:
-        AssertionError: If a provided note ID is missing from the case.
+        AssertionError: If exactly one ID is ``None``, or a provided note ID
+            is missing from the case.
     """
     if question_note_id is None and reply_note_id is None:
         return
+    if question_note_id is None or reply_note_id is None:
+        missing = (
+            "question_note_id" if question_note_id is None else "reply_note_id"
+        )
+        raise AssertionError(
+            f"{missing} is None: a note thread assertion needs both"
+            " question_note_id and reply_note_id, or neither"
+        )
 
     note_ids = [ref_id(note) or str(note) for note in case.notes]
     if question_note_id is not None and question_note_id not in note_ids:
