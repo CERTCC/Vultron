@@ -106,6 +106,26 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
         "_poll_participant",
         "time.monotonic",
     ),
+    (
+        "vultron/demo/recordings/compare.py",
+        "_record",
+        "time.monotonic",
+    ),
+    (
+        "vultron/demo/recordings/compare.py",
+        "_record",
+        "time.monotonic",
+    ),
+    (
+        "vultron/demo/recordings/compare.py",
+        "main",
+        "time.monotonic",
+    ),
+    (
+        "vultron/demo/recordings/compare.py",
+        "main",
+        "time.monotonic",
+    ),
 )
 
 # Tree builders and guard nodes read the act's instant from the tree run.
