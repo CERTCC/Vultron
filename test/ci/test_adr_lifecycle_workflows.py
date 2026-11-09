@@ -19,7 +19,12 @@ from typing import Any
 import pytest
 import yaml
 
-from test.ci._workflows import WORKFLOWS_DIR, load_workflow, triggers
+from test.ci._workflows import (
+    WORKFLOWS_DIR,
+    load_workflow,
+    runs_at_least_weekly,
+    triggers,
+)
 from vultron.metadata.base import repo_root
 
 _EDIT = WORKFLOWS_DIR / "adr-lifecycle.yml"
@@ -92,14 +97,10 @@ def test_drift_report_reports_and_never_fails_the_build():
     }
 
 
-@pytest.mark.spec("MS-14-022")
-def test_drift_report_runs_once_each_weekday_morning():
-    """A boundary crossed overnight surfaces by the next weekday morning."""
-    (entry,) = triggers(load_workflow(_DRIFT))["schedule"]
-    minute, hour, day, month, weekday = entry["cron"].split()
-    assert minute.isdigit()
-    assert hour.isdigit()
-    assert (day, month, weekday) == ("*", "*", "1-5")
+@pytest.mark.spec("MS-14-031")
+def test_drift_report_runs_at_least_weekly():
+    """A status left behind its epoch is reported within a week."""
+    assert runs_at_least_weekly(load_workflow(_DRIFT))
 
 
 _ADDED_REFS = "vultron.metadata.adr.added_refs"

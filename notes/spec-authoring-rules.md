@@ -20,7 +20,8 @@ description: >
   (MS-02-003/004); the `verification_debt` ratchet and its growth guard
   (MS-10-005 to MS-10-009, MS-10-016); one
   obligation per requirement in plain sentences, and how to split a compound
-  one (MS-03); guards that
+  one (MS-03); stating the decided obligation, not an implementation setting
+  such as a cron or timeout; guards that
   state a domain truth (MS-05-005); the rationale rule, its style rule and its
   advisory worklists (MS-10-012, MS-10-013, MS-10-015, MS-10-017); removed
   requirements (MS-09); audit passes
@@ -437,6 +438,18 @@ in spirit, with no jargon, in the terms `CONTEXT.md` and
 written reason a new reader gets. A glossary or spec term beats an STE-approved
 swap ("create a case", not "make a case"), since a second word for one concept
 breaks the search from spec to docs to code.
+
+### A Spec States the Obligation That Was Decided, Not the Setting Chosen
+
+A requirement holds only what someone decided the system needs. A value the
+implementation picked (a cron, a timeout, a retry count, a threshold) stays in
+the code or config, because a spec that restates it turns a setting into an
+obligation that nobody chose, and the next change to the setting becomes a spec
+amendment. Write the bound the reason supports, not the value in use: "at least
+once a week", not "hourly". A specific number belongs in a statement only when
+the `rationale:` justifies that number, and a `MUST` needs a reason why
+anything weaker fails. Its test checks the bound, not the configured value: a
+test that pins today's cron pins the spec to it (MS-10-029).
 
 ### One Obligation per Requirement, in Plain Sentences (MS-03)
 

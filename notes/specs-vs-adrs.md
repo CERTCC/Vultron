@@ -282,7 +282,7 @@ old one. Never rewrite an accepted ADR under its own number.
 changes no commit, so a check reading today's date would turn `main` red with
 no one to blame. A PR that materially edits or adds an ADR owns its status on
 that date (MS-14-019); every other status behind its epoch is reported by the
-weekday-morning `adr-status-drift` workflow through one self-closing issue (MS-14-022),
+scheduled `adr-status-drift` workflow through one self-closing issue (MS-14-022),
 and a human flips it. The `adr-lifecycle-check` hook and the `ADR Lifecycle` PR workflow
 enforce MS-14-007, -009, -010 and -012 against `HEAD` and the merge base.
 `uv run adr-index --epochs` prints each live ADR's epoch, status and revision.

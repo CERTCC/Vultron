@@ -857,9 +857,8 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A scheduled check MUST run at least once each weekday and report each marker
-      or owner entry that names a closed issue. It reports through one tracking
-      issue and does not fail the build.
+      A scheduled check MUST report each marker or owner entry that names a closed
+      issue. It reports through one tracking issue and does not fail the build.
     rationale: >-
       When a person closes an owner issue manually, no pull request causes the
       change. A build failure would then make every open pull request fail, so the
@@ -871,11 +870,10 @@ groups:
       `test_lint_check_debt_owners_fails_on_a_closed_owner` and
       `test_lint_check_debt_owners_ignores_unrelated_lint_errors` in
       `test/metadata/specs/lint/test_driver.py`, check the report.
-      `test_open_owner_check_reports_and_never_fails_the_build` and
-      `test_open_owner_check_runs_once_each_weekday_morning` in
-      `test/ci/test_verification_debt_owner_check.py` check that
+      `test_open_owner_check_reports_and_never_fails_the_build` in
+      `test/ci/test_verification_debt_owner_check.py` checks that
       `.github/workflows/verification-debt-owners.yml` runs `--check-debt-owners`
-      each weekday morning and never fails the build.
+      on a schedule and never fails the build.
     relationships:
     - rel_type: verifies
       spec_id: MS-10-006
@@ -884,6 +882,27 @@ groups:
     - tooling
     adr:
     - ADR-0101
+  - id: MS-10-029
+    priority: SHOULD
+    kind: process
+    statement: >-
+      The scheduled check of MS-10-024 SHOULD run at least once a week.
+    rationale: >-
+      An owner closed by hand leaves its debt with no one to act on it until the
+      report shows it, so the report must not wait long. A week is the longest
+      delay that still finds a closure before the debt is forgotten. The exact time
+      is a setting in the workflow, not part of the requirement.
+    verification: >-
+      `test_open_owner_check_runs_at_least_weekly` in
+      `test/ci/test_verification_debt_owner_check.py` checks that
+      `.github/workflows/verification-debt-owners.yml` has a schedule that fires
+      every week, and `test/ci/test_workflows_helpers.py` checks the helper it uses.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-024
+    tags:
+    - documentation
+    - tooling
   - id: MS-10-007
     priority: MUST
     kind: process
@@ -2395,13 +2414,35 @@ groups:
       `test_drift_report_credits_dependent_only_when_it_decided_the_epoch` in
       `test/metadata/test_adr_lifecycle.py` check that the drift report lists an ADR
       behind its epoch and not one ahead of it.
-      `test_drift_report_reports_and_never_fails_the_build` and
-      `test_drift_report_runs_once_each_weekday_morning` in
-      `test/ci/test_adr_lifecycle_workflows.py` check that `adr-status-drift.yml`
-      reports once each weekday morning and never fails the build.
+      `test_drift_report_reports_and_never_fails_the_build` in
+      `test/ci/test_adr_lifecycle_workflows.py` checks that `adr-status-drift.yml`
+      reports on a schedule and never fails the build.
     relationships:
     - rel_type: verifies
       spec_id: MS-14-007
+    adr:
+    - ADR-0120
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-031
+    priority: SHOULD
+    kind: process
+    statement: >-
+      The scheduled check of MS-14-022 SHOULD run at least once a week.
+    rationale: >-
+      An ADR whose status falls behind its epoch misleads every reader until a
+      human flips it, and the report is what tells the human. A week is the longest
+      delay that keeps a stale status from being read as current. The exact time
+      is a setting in the workflow, not part of the requirement.
+    verification: >-
+      `test_drift_report_runs_at_least_weekly` in
+      `test/ci/test_adr_lifecycle_workflows.py` checks that `adr-status-drift.yml`
+      has a schedule that fires every week, and `test/ci/test_workflows_helpers.py`
+      checks the helper it uses.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-14-022
     adr:
     - ADR-0120
     tags:

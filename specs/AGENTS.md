@@ -136,6 +136,9 @@ that bite most often:
   the glossary's terms (MS-10-017). The schema refuses a requirement without
   one (SR-02-009). `uv run spec-rationale history` and `adr-links`
   (`--file specs/<name>.yaml`) are advisory worklists (MS-10-015).
+- **`statement:`** — the obligation that was decided, never a setting the
+  implementation chose: "at least once a week", not "hourly". A number needs a
+  rationale for that number, and the test checks the bound, not the config.
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
   is a FATAL registry load error. A `MUST_NOT` is the MUST tier (MS-02-003), so
   it needs a `verification:` clause exactly as a `MUST` does (MS-10-003).
