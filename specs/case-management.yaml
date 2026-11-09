@@ -4718,11 +4718,13 @@ groups:
     statement: >-
       This codebase MUST call `CaseParticipant.copy_consent_row()` only from
       `apply_embargo_change()`, after that function checks the row's starting state
-      (CM-23-016).
+      against the consent row machine (CM-18-003).
     rationale: >-
       The copy write takes a row as a ledger entry carries it and does not consult the
       consent table. It stays fail-closed only because its one caller first checks that
-      the row starts where the entry implies (CM-23-016, ADR-0124).
+      the row starts where the entry implies. A `Create` finds no row yet. An `Update`
+      finds a held row that one consent row trigger moves to the carried row, or an
+      `INVITED` row that gets a fresh deadline (CM-18-003, ADR-0124).
     verification: >-
       `test/core/models/test_embargo_apply.py` asserts the copy write refuses a row that
       does not start where its entry implies, and
@@ -4731,11 +4733,10 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-18-005
+    - rel_type: uses_definition
+      spec_id: CM-18-003
     adr:
     - ADR-0124
-    see_also:
-    - spec_id: CM-23-016
-      reason: 'a citation #5887 is to repoint; context for the reader until then'
   - id: CM-18-026
     priority: MUST_NOT
     kind: project
@@ -5078,15 +5079,15 @@ groups:
     statement: >-
       The CASE_MANAGER role MUST NOT be assigned to any organizational or human participant
       joining a case as a facilitation actor rather than as the actor enacting the
-      CASE_MANAGER role (CBT-01-003).
+      CASE_MANAGER role (CM-02-011).
     rationale: '`CVDRole.CASE_MANAGER` grants single-writer authority over the canonical ledger (CLP-09). Conferring it on a
       participant invited for facilitation would let them author ledger entries that only the actor enacting `CVDRole.CASE_MANAGER`
       is authorized to write.'
+    relationships:
+    - rel_type: uses_definition
+      spec_id: CM-02-011
     stories:
     - story_2026_023
-    see_also:
-    - spec_id: CBT-01-003
-      reason: 'a citation #5887 is to repoint; context for the reader until then'
 - id: CM-21
   title: Ownership Transfer Protocol Effects
   specs:

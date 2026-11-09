@@ -20,6 +20,7 @@ related_specs:
   - specs/handler-protocol.yaml
   - specs/object-ids.yaml
   - specs/actor-knowledge-model.yaml
+  - specs/vultron-protocol-spec.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
@@ -221,7 +222,7 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   proposal-derived id, unless still pending in the outbox; create no second case
   (CP-05-013).
   "Duplicate" means only this — an exact redelivery. A second report about the same
-  vulnerability is a report-management question (RMB-11-002). The case is found
+  vulnerability is a report-management question (VP-02-022). The case is found
   through the stored `Accept`'s `result`, not only by owner: after an ownership
   transfer the former owner owns nothing, and an owner-only lookup made a second
   case (#4650). Gate that `Accept` scan on whether the admission record pre-dated

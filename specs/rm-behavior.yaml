@@ -197,38 +197,6 @@ groups:
     stories:
     - story_2026_014
 
-  - id: RMB-01-005
-    priority: MAY
-    kind: protocol
-    statement: >-
-      A Participant in RM Closed (q^rm ∈ C) receiving any R* message MAY
-      ignore it without sending a response. The same holds for non-R* traffic
-      (EM, CS, GI) on a closed case (VP-03-013); for the CASE_MANAGER once the
-      case is fully closed, ignoring is not optional: it records nothing
-      (CM-23-013).
-    rationale: >-
-      Closed cases are terminal. The protocol permits silent discard to avoid
-      generating unnecessary traffic for completed work. The R* scope is this
-      group's trigger, not the limit of the rule: VP-03-013 covers every message
-      class, and ADR-0085 makes owner close a hard kill switch at the
-      CASE_MANAGER.
-    testable: false
-    lint_suppress:
-    - testable_without_steps
-    preconditions:
-    - rm_state:
-        - CLOSED
-      description: Participant is in RM Closed
-    relationships:
-    - rel_type: refines
-      spec_id: VP-03-013
-      note: Recipients MAY ignore messages received on Closed cases
-    stories:
-    - story_2022_068
-    see_also:
-    - spec_id: CM-23-013
-      reason: 'context for the reader'
-
 - id: RMB-02
   title: Receive RI (Report Invalid)
   description: Behaviors triggered when a participant receives an RI (Report Invalid) message, updating the sender's RM state model.
@@ -846,7 +814,7 @@ groups:
       The reporter checks who may acknowledge its Offer against its own record of that
       Offer (RMB-08-004). The store of each addressee also holds a record. RK answers
       the reporter's Offer and is outside the case, so it is the stated exception to
-      PCR-08-001.
+      PCR-08-001 and to the routing topology of VP-18-001, VP-18-002 and VP-18-003.
     verification: >-
       Tests marked `RMB-08-003` confirm that the ack-report trigger addresses
       RK to the reporter alone, with or without a case.
@@ -865,6 +833,15 @@ groups:
     - rel_type: supersedes
       spec_id: PCR-08-001
       note: the stated RK exception to CASE_MANAGER-only addressing
+    - rel_type: supersedes
+      spec_id: VP-18-001
+      note: the stated RK exception to the CASE_MANAGER routing path
+    - rel_type: supersedes
+      spec_id: VP-18-002
+      note: the stated RK exception to the no-direct-delivery rule
+    - rel_type: supersedes
+      spec_id: VP-18-003
+      note: the stated RK exception to CASE_MANAGER-mediated delivery
     stories:
     - story_2022_016
     - story_2022_012
@@ -1215,27 +1192,6 @@ groups:
       note: SHOULD send a message for each RM state transition
     stories:
     - story_2022_062
-
-  - id: RMB-11-002
-    priority: SHOULD_NOT
-    kind: protocol
-    statement: >-
-      Participants SHOULD NOT mark duplicate reports as Invalid.
-    rationale: >-
-      A duplicate report is not invalid — it describes a real vulnerability
-      already tracked in an existing case. Marking it Invalid misrepresents
-      the validation outcome and may confuse other Participants.
-    testable: true
-    preconditions:
-    - rm_state:
-        - INVALID
-      description: Participant is in RM Invalid
-    lint_suppress:
-    - testable_without_steps
-    relationships:
-    - rel_type: refines
-      spec_id: VP-02-022
-      note: Participants SHOULD NOT mark duplicate reports as Invalid
 
   - id: RMB-11-003
     priority: MAY

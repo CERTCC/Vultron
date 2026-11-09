@@ -2890,6 +2890,8 @@ groups:
     statement: >-
       Outbound messages from a participant MUST follow the routing path:
       `participant → CASE_MANAGER → CaseLedgerEntry → broadcast → participants`.
+      The one exception is RK, `Read(Offer(VulnerabilityReport))`, which answers the
+      reporter's Offer outside the case and goes to the reporter alone (RMB-08-003).
     rationale: >-
       The ledger record provides the audit trail and ordering guarantees for all case
       activity. Direct peer-to-peer delivery bypasses the ledger and the broadcast
@@ -2914,6 +2916,8 @@ groups:
     verification_debt: '#3612'
     statement: >-
       A participant MUST NOT deliver messages directly to another participant's inbox.
+      The one exception is the RK that RMB-08-003 requires an addressee of the
+      reporter's Offer to send to the reporter.
     rationale: >-
       Direct peer-to-peer delivery bypasses the case ledger, removing the audit trail
       and broadcast idempotency guarantees.
@@ -2927,7 +2931,8 @@ groups:
     kind: protocol
     statement: >-
       Delivery of outbound participant messages MUST be mediated by the CASE_MANAGER
-      and recorded in the case ledger before being fanned out to participants.
+      and recorded in the case ledger before being fanned out to participants. The one
+      exception is RK, which goes to the reporter alone (RMB-08-003).
     rationale: >-
       Mediation through the CASE_MANAGER ensures all case activity is ledger-ordered
       and consistently broadcast to all participants.
