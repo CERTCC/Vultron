@@ -3444,8 +3444,9 @@ groups:
       it transforms the Offer, the Case Owner would decide without it.
     verification: >-
       `test_offer_actor_to_case_forwards_the_recommenders_reason` in
-      `test/core/use_cases/received/actor/test_suggest.py` is a strict expected
-      failure until the forwarded Offer carries the recommender's reason.
+      `test/core/use_cases/received/actor/test_suggest.py` passes when the
+      forwarded `Offer(CaseParticipant)` carries the recommender's reason as
+      `content`.
     relationships:
     - rel_type: extends
       spec_id: CM-16-005

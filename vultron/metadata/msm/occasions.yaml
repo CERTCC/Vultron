@@ -1056,7 +1056,8 @@ groups:
     shorthand: GI
     status: expansion
     description: Forwards the recommendation as a proposed participant record, carrying the
-      original recommendation's ID and the default roles it assigned.
+      original recommendation's ID, the default roles it assigned, and the recommender's reason
+      as its content.
     seen_in:
     - path: howto/activitypub/activities/suggest_actor.md
       title: How to Suggest an Actor for a Case
