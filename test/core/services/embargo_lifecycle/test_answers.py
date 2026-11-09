@@ -20,7 +20,7 @@ own consent, the case owner's included; ``activate_embargo`` and
 STRICT and OBSERVED mode, idempotency,
 pruning of decided proposals (EP-08-003), and the per-embargo consent rules
 of ADR-0093 and ADR-0122: the containment carry-over at activation
-(EP-05-003, MSM-07-019), a
+(EP-05-003), a
 signatory's answer to a *proposed* revision (MSM-07-003), and which embargo
 a Reject names (MSM-07-004)."""
 
@@ -700,7 +700,6 @@ def _revision_case(
 @pytest.mark.spec("MSM-07-005")
 @pytest.mark.spec("CM-10-001")
 @pytest.mark.spec("EP-05-003")
-@pytest.mark.spec("MSM-07-019")
 def test_owner_activating_a_shorter_revision_carries_every_signatory_over(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

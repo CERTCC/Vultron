@@ -64,6 +64,9 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`encryption.md`** · `plan`
   How to build actor signing (ADR-0164), plus open options for message encryption.
   **Load when**: building signing or verification (#1156), or designing encryption.
+- **`id-source.md`** · `plan`
+  Migrating the one id minter to an id-source port, so no run patches `uuid4` (ADR-0185).
+  **Load when**: minting object ids, or changing how a recording or example gets ids.
 - **`protocol-asks.md`** · `plan`
   The ask primitive: ask and terminate, conversation-state routing, ask registers.
   **Load when**: building a gate that needs another actor's answer, or an ask/reply
