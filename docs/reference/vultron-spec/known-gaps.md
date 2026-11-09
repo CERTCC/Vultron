@@ -19,8 +19,9 @@ When the tests show that `main` meets all of a requirement, the requirement leav
 The page has three sections.
 The first lists the requirements that a test shows `main` does not yet meet, with the issues that track the work.
 The second lists the requirements that `main` meets only in part.
-Some of their tests pass, but at least one test shows a part that `main` does not yet do, and the issues that track that part are named.
-The third lists the requirements that no test checks.
+Some of their tests pass, but at least one test is held as an expected failure or a skip, and the section names the issues that track the held part.
+
+The third section lists the requirements that no test checks.
 A requirement in the third section is not known to be missing from `main`: no test shows `main` does it.
 
 The page describes the reference implementation, not the protocol.
