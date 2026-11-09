@@ -399,11 +399,17 @@ vendor-first half, whose Reporter tells a Vendor.
   `triages=`: a vendor judges the report it was invited over, a coordinator joining to
   coordinate does not.
 - **A demo PR is checked by recording base and head, not by the committed files.** On
-  a PR that changes `vultron/demo/`, CI records every registered scenario in-process
-  at the base commit and at the head and compares each scenario's two runs
+  a PR that changes `vultron/demo/`, `demo-verdict.yml` records every registered
+  scenario in-process at both commits and compares each scenario's two runs
   (DEMOCI-11-054, DEMOCI-11-055). Nothing is committed, so no PR regenerates a
   recording (#3901) and a stale committed recording does not matter. Core-only PRs are
   not consolidations; the daily `demo-recordings.yml` run covers their drift.
+- **The two commits are the merge base and the head, each recorded by its own code.**
+  The base branch's tip is not one of them: a tip that moved ahead would attribute
+  `main`'s own verdict changes to this PR. The base side runs in a `git worktree` at
+  the merge base, under that commit's own `uv sync --dev --frozen`, because recording
+  it with the head's installed code compares the head with itself and reports every
+  scenario unchanged. The head's code then reads both written sides and compares them.
 - **Two traces, because each is blind to what the other sees.** The normalized ledger
   shows an added act, a changed note text or a changed argument. The check tree shows
   every `demo_step`, `demo_check` and `demo_gate` the run entered, nested as it ran,
@@ -431,24 +437,37 @@ vendor-first half, whose Reporter tells a Vendor.
   the diff to its summary, so the opt-out shows what it admits (DEMOCI-11-063,
   DEMOCI-11-064). The two halves are declared separately: `compare-demo-runs` takes
   `--allow-difference`, which prints every difference and exits zero, and the job
-  passes that flag exactly when the pull request carries the label (#6026). A
-  difference exits 4 rather than 1, so an opt-out keyed on "non-zero" cannot excuse a
-  crashed recorder as a deliberate change. The comparison fails on an empty scenario
-  set (DEMOCI-11-062, DF-09-009).
+  passes that flag exactly when the pull request carries the label. A difference exits
+  4 rather than 1, so an opt-out keyed on "non-zero" cannot excuse a crashed recorder
+  as a deliberate change. The comparison fails on an empty scenario set
+  (DEMOCI-11-062, DF-09-009).
+- **The label is a trigger, not just a condition.** `demo-verdict.yml` adds `labeled`
+  and `unlabeled` to its `pull_request` types, so applying the label turns the job
+  green and removing it turns the job red again, neither needing a hand re-run. The
+  second direction is the one that matters: an opt-out that survives its own removal
+  admits every later difference too. A label a workflow's own `GITHUB_TOKEN` applies
+  raises no event, so the size label does not re-run it
+  ([ci-workflow-authoring](ci-workflow-authoring.md)).
+- **The job's verdict is the command's exit status, propagated.** It decides nothing
+  itself: 4 is a difference, 3 an empty scenario set, 1 a crashed recorder, and a job
+  that re-derived any of the three from the log would be a second place for them to be
+  confused. It owns only which two commits to record, whether the label is on, and
+  writing the comparison's output to its step summary — on the failing arm as well,
+  since the diff a reader needs is on exactly the run that failed.
 - **The plot manifest catches a reorder for free.** It lists each story's choices and
   fragment names, read without running anything, and drift-fails on any change in
   order (DEMOCI-11-034, DEMOCI-11-035). `TestSharedPrefixes` compares two *committed*
   recordings with each other, so a reordered shared fragment moves both alike and
-  still passes it. Until the base-versus-head job is built (#6026), run the comparison
-  by hand in any PR that edits a fragment: `uv run compare-demo-runs --write
-  /tmp/runs/base` on the base commit and `--write /tmp/runs/head` on the head, then
-  `uv run compare-demo-runs --base /tmp/runs/base --head /tmp/runs/head`. **Two
-  directories, outside the repository**: one name in both positions makes the head
-  write overwrite the base and the comparison compare a directory with itself, which
-  reports every scenario unchanged — the silent pass of #5589 again, so the command
-  refuses it. It reads both traces, so it needs no clean tree and overwrites no
-  committed file, and nothing is left to be read against the base by hand. Step-mark
-  drift stays the scheduled `demo-recordings` run's business: a mark can move to a
+  still passes it. `demo-verdict.yml` is what catches the reorder a PR makes, and
+  running the comparison by hand is for reading a difference before pushing: `uv run
+  compare-demo-runs --write /tmp/runs/base` on the base commit and `--write
+  /tmp/runs/head` on the head, then `uv run compare-demo-runs --base /tmp/runs/base
+  --head /tmp/runs/head`. **Two directories, outside the repository**: one name in both
+  positions makes the head write overwrite the base and the comparison compare a
+  directory with itself, which reports every scenario unchanged — the silent pass of
+  #5589 again, so the command refuses it. It reads both traces, so it needs no clean
+  tree and overwrites no committed file. Step-mark drift stays the scheduled
+  `demo-recordings` run's business: a mark can move to a
   different ledger tail with the ledger unchanged, and the comparison *compares*
   neither the marks nor the committed files. It does still **read** the marks — a run
   that leaves none, or leaves them out of its declared path's order, fails
@@ -507,6 +526,4 @@ point stops a run there.
    #5347 and #5348, and last #5349.
 2. The plot manifest (#5613), then the clock-reading read paths that keep a
    shared stretch from being byte-stable: #5649, #5650, #5651 and #5652.
-3. Verdict evidence: the check-tree capture and compare command (#6025), then
-   the base-versus-head CI job that calls it (#6026). The story rendering
-   (#6028) needs only the plot manifest (#5613).
+3. The story rendering (#6028) needs only the plot manifest (#5613).
