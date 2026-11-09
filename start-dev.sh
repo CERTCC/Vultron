@@ -34,7 +34,7 @@ if [ "$BUILD_GRAPH" = false ] && [ -z "$SLOT" ]; then
     echo "  --rebuild      Remove and rebuild the Docker image from scratch."
     echo "  --build-graph  Rebuild the ONE shared knowledge graph (from origin/main,"
     echo "                 CPU-capped) that every slot mounts read-only. Run this on"
-    echo "                 demand when the graph feels stale; slots pick it up on restart."
+    echo "                 demand when the graph feels stale; running slots see it at once."
     exit 1
 fi
 
@@ -160,7 +160,8 @@ if [ "$BUILD_GRAPH" = true ]; then
     '
     echo ""
     echo "Shared graph updated at $SHARED_GRAPH"
-    echo "Restart any running slots to pick it up."
+    echo "Slots created with the directory mount see it now; restart older slots"
+    echo "(remove and recreate them) to switch them to the directory mount."
     exit 0
 fi
 
@@ -206,6 +207,14 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
         --memory-swap "$SLOT_MEMORY" "$CONTAINER_NAME" >/dev/null ||
         echo "warning: could not apply slot limits to '$CONTAINER_NAME'" >&2
     _write_heavy_slots
+    # A slot created before the shared graph was mounted as a directory still
+    # has per-file mounts, which never see a rebuild (see the mount below).
+    if ! docker inspect -f '{{range .Mounts}} {{.Destination}} {{end}}' "$CONTAINER_NAME" |
+        grep -q ' /graphify-shared '; then
+        echo "NOTE: '$CONTAINER_NAME' predates the shared-graph directory mount and will"
+        echo "      not see graph rebuilds. Remove and recreate it to switch:"
+        echo "      docker rm -f $CONTAINER_NAME && ./start-dev.sh $SLOT"
+    fi
     echo "Attaching to container '$CONTAINER_NAME'..."
     _exec_shell
     exit 0
@@ -246,22 +255,19 @@ DOCKER_ARGS=(
     -w "$WORKSPACE"
 )
 
-# Knowledge graph: mount the heavy artifacts read-only from the single shared
-# build. The image ships a writable, vscode-owned /app/graphify-out, so the
-# query flow's disposable scratch (.vocab.txt, memory/) still writes there and
-# is discarded on teardown — but graph.json is read-only, so a slot physically
-# cannot rebuild or corrupt the shared graph. Mounts are added only if the graph
-# exists; otherwise the slot starts graph-less and queries fall back gracefully.
-if [ -f "$SHARED_GRAPH/graph.json" ]; then
-    DOCKER_ARGS+=(-v "$SHARED_GRAPH/graph.json:/app/graphify-out/graph.json:ro")
-    for _gf in .graphify_python manifest.json .graphify_root; do
-        if [ -e "$SHARED_GRAPH/$_gf" ]; then
-            DOCKER_ARGS+=(-v "$SHARED_GRAPH/$_gf:/app/graphify-out/$_gf:ro")
-        fi
-    done
-else
+# Knowledge graph: mount the shared build DIRECTORY read-only at
+# /graphify-shared. The image's /app/graphify-out holds symlinks into it (see
+# docker/Dockerfile), so the query flow's disposable scratch (.vocab.txt,
+# memory/) still writes locally, while graph.json is read-only and a slot
+# physically cannot rebuild or corrupt the shared graph. Mount the directory,
+# never the files: a single-file bind mount pins the inode it started with, so a
+# `--build-graph` run (which replaces graph.json by rename) was invisible to
+# running slots, which kept reading the replaced file. With no graph yet the
+# symlinks dangle and queries fall back gracefully.
+DOCKER_ARGS+=(-v "$SHARED_GRAPH:/graphify-shared:ro")
+if [ ! -f "$SHARED_GRAPH/graph.json" ]; then
     echo "NOTE: no shared graph at $SHARED_GRAPH — run './start-dev.sh --build-graph' to build it."
-    echo "      This slot starts without a knowledge graph."
+    echo "      Running slots see the graph as soon as the build finishes."
 fi
 
 # Mount user-level skills read-only if present on the host
