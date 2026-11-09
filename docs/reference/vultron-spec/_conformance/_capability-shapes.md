@@ -87,6 +87,11 @@ contract is carried as prose plus a key dictionary.
 This mapping is specific to the hexagonal architecture of the reference
 implementation. Other implementations are not required to use this structure.
 
+!!! info "Reference implementation note"
+    The simulation layer (`vultron/demo/fuzzer/call_out_point.py`) still exports a `SentinelCallOutPoint` mixin and three illustrative Sentinel subclasses.
+    They sit alongside the four shape mixins, which differs from [G.1 The Four Capability Shapes](#g1-the-four-capability-shapes).
+    Removing the Sentinel classes is tracked by [#3424](https://github.com/CERTCC/Vultron/issues/3424).
+
 !!! info "See also"
     - ADR-0024 (original shape taxonomy; the term "call-out point")
     - ADR-0025 (call-out point abstraction)

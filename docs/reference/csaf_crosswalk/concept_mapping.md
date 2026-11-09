@@ -47,7 +47,7 @@ The two directions can differ: a mapping can be fixed in one direction and need 
 
 A projection is a CSAF document that a participant produces from its copy of a case, as the [overview](overview.md#a-case-can-produce-a-csaf-document) explains.
 "Vultron → CSAF" is the direction of a projection.
-"CSAF → Vultron" is the direction of a CSAF document that arrives inside a case, and Vultron could read such content as claims ([overview](overview.md#a-csaf-document-can-travel-inside-a-case), [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"}).
+"CSAF → Vultron" is the direction of a CSAF document that arrives inside a case, and Vultron reads such a document only when it arrives with the first offer of a report ([overview](overview.md#a-csaf-document-can-travel-inside-a-case), [ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)).
 
 ---
 
@@ -572,7 +572,7 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">One to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">Vultron could identify CSAF content by its `mediaType`, and it could read the process fields of that content as claims by the sender. A claim changes the case only through a Vultron activity, which can be automatic. If nothing changes, an implementation can still read and use the CSAF content, but the protocol does not say how a claim in it, such as a proposed disclosure date, becomes a Vultron activity. Issue [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} tracks this change.</td>
+<td markdown="span">Specified, not yet built ([ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)). The report carries the CSAF document as an attached `Document` with the media type `application/json`, and the receiver identifies it by its `$schema` and `document.csaf_version`. When the report is first offered, the receiver can fill the inputs of the new case from it: a future `disclosure_date` proposes the embargo end, and a past one or an SSVC exploitation value sets P, X or A. A Vultron field always counts before the CSAF value. Epic [#5911](https://github.com/CERTCC/Vultron/issues/5911){:target="_blank"} tracks the implementation.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`VulnerabilityRecord` on a case</td>
@@ -580,7 +580,7 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">Many to one</td>
 <td markdown="span">Interpretive</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">Vultron could add a list of vulnerability records to the case, which CM-05-003 already expects. Vultron could also let a `VulnerabilityRecord` carry a CSAF document or a CVE record as its content, with a `mediaType` that identifies the format. The record keeps the identifiers that Vultron uses, and Vultron reads the content as claims. A CSAF document for one vulnerability must also define the products that it refers to (mandatory test 6.1.1, Missing Definition of Product ID), so this change could include a CSAF profile for one vulnerability, without `involvement`, because the case holds the coordination history. If nothing changes, a projection finds the vulnerabilities only in the text of the reports, and it cannot set `dl_vuln_ids` reliably. Issue [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} tracks this change.</td>
+<td markdown="span">Vultron could add a list of vulnerability records to the case, which CM-05-003 already expects. Vultron could also let a `VulnerabilityRecord` carry a CSAF document or a CVE record as its content, with a `mediaType` that identifies the format. The record keeps the identifiers that Vultron uses, and its CSAF content is a projection of the case, not a source of case data. A CSAF document for one vulnerability must also define the products that it refers to (mandatory test 6.1.1, Missing Definition of Product ID), so this change could include a CSAF profile for one vulnerability, without `involvement`, because the case holds the coordination history. If nothing changes, a projection finds the vulnerabilities only in the text of the reports, and it cannot set `dl_vuln_ids` reliably. Issue [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} tracks this change.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`VulnerabilityRecord` `name` and `aliases`</td>
