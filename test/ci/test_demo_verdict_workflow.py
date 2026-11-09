@@ -11,16 +11,25 @@ on success, and an artifact name a re-run can collide with.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from test.ci._workflows import (
+    REPO_ROOT as _REPO_ROOT,
     WORKFLOWS_DIR,
     load_workflow,
     neutering,
     triggers,
+)
+from vultron.demo.recordings.compare import (
+    DIFFERENT_EXIT_CODE,
+    NO_SCENARIOS_EXIT_CODE,
+)
+from vultron.demo.recordings.topology import (
+    COMPOSE_PATH as TOPOLOGY_COMPOSE_PATH,
 )
 from vultron.metadata.planning.ci_mirror import EXCLUSIONS
 
@@ -75,6 +84,14 @@ def test_it_runs_on_a_pull_request_that_changes_the_demo() -> None:
 
     assert pull_request["branches"] == ["main"]
     assert "vultron/demo/**" in pull_request["paths"]
+    # `load_topology` reads the compose file for each slot's URL and default
+    # case roles, so a change there changes what every scenario records; a
+    # filter that missed it would leave the check installed and unreachable
+    # on a pull-request shape it exists to police (the #4506 shape).
+    assert (
+        str(TOPOLOGY_COMPOSE_PATH.relative_to(_REPO_ROOT))
+        in (pull_request["paths"])
+    )
     # A change to the job itself re-validates the job.
     assert ".github/workflows/demo-verdict.yml" in pull_request["paths"]
 
@@ -248,10 +265,20 @@ def test_the_difference_reaches_the_summary_on_both_arms() -> None:
 
 @pytest.mark.spec("DEMOCI-11-064")
 def test_an_oversized_diff_truncates_with_a_pointer() -> None:
-    """A step summary over 1 MiB is rejected whole, losing the diff."""
-    step = _step("Write the comparison to the job summary")
+    """A step summary over 1 MiB is rejected whole, losing the diff.
 
-    assert int(step["env"]["SUMMARY_LINE_LIMIT"]) > 0
+    Both limits: a line count alone is cleared by a normalized ledger entry,
+    which is one JSON object on one line, so a few hundred lines can carry a
+    megabyte; a byte count alone is the other half of the same cap.
+    """
+    step = _step("Write the comparison to the job summary")
+    env = step["env"]
+
+    assert int(env["SUMMARY_LINE_LIMIT"]) > 0
+    # Under GitHub's 1 MiB, with room for the surrounding prose.
+    assert 0 < int(env["SUMMARY_BYTE_LIMIT"]) < 1024 * 1024
+    assert 'head -n "$SUMMARY_LINE_LIMIT"' in step["run"]
+    assert 'head -c "$SUMMARY_BYTE_LIMIT"' in step["run"]
     assert "truncated at" in step["run"]
     assert "artifact" in step["run"]
 
@@ -276,6 +303,102 @@ def test_the_mirror_leaves_the_job_to_ci_with_a_reason() -> None:
 
     assert "CI" in reason
     assert "PAD-18-023" in reason
+
+
+@pytest.mark.spec("DEMOCI-11-054")
+def test_the_head_side_records_the_head_tree() -> None:
+    """The head step runs in the checkout, so it declares no directory.
+
+    Its correctness rests on the *absence* of ``working-directory``, which is
+    the one thing a test has to say out loud: adding the base worktree's
+    directory there makes both sides record the merge base, so the comparison
+    reports every scenario unchanged and the job is green forever, with every
+    other assertion in this file still passing (the #5589 shape).
+    """
+    base = _step("Record every scenario at the merge base")
+    head = _step("Record every scenario at the head")
+
+    assert "working-directory" not in head
+    assert base["working-directory"] != head.get("working-directory")
+
+
+@pytest.mark.spec("DEMOCI-11-063")
+def test_the_differs_signal_matches_what_the_command_prints() -> None:
+    """The grep is a prefix of *both* of the command's messages.
+
+    The admitted arm is the one `failure()` does not cover, so if a reword
+    left the grep matching only the failing message, a green admitted run
+    would upload no traces — the evidence DEMOCI-11-064 asks for.
+    """
+    run = _step("Compare the two runs")["run"]
+    [grep_line] = [
+        line for line in run.splitlines() if line.strip().startswith("if grep")
+    ]
+    pattern = grep_line.split("'")[1].lstrip("^")
+    source = (
+        _REPO_ROOT / "vultron" / "demo" / "recordings" / "compare.py"
+    ).read_text(encoding="utf-8")
+    printed = re.findall(r'f"(Differing scenarios[^"]*)"', source)
+
+    # Both arms: the admitted one and the failing one.
+    assert len(printed) == 2
+    for message in printed:
+        assert message.startswith(pattern), (
+            f"the job greps {pattern!r}, which {message!r} does not start "
+            "with, so the differs signal is false on that arm"
+        )
+
+
+@pytest.mark.spec("DEMOCI-11-062")
+def test_the_header_names_the_exit_codes_the_command_uses() -> None:
+    """A header that misnames a code misdirects whoever reads a red run."""
+    header = _text().split("name: Demo Verdict", 1)[0]
+
+    assert f"exit {DIFFERENT_EXIT_CODE}: a scenario differs" in header
+    assert f"exit {NO_SCENARIOS_EXIT_CODE}: the run compared no" in header
+
+
+@pytest.mark.spec("DEMOCI-11-062")
+def test_a_merge_base_without_the_command_fails_on_its_own_code() -> None:
+    """Its own code, so the verdict tells "rebase" from "the recorder broke".
+
+    The guard runs before either recording step, or the base pass fails on a
+    missing console script instead, with nothing saying why.
+    """
+    worktree = _step("Check out the merge base in a worktree")
+    code = worktree["env"]["STALE_BASE_EXIT_CODE"]
+
+    assert 'exit "$STALE_BASE_EXIT_CODE"' in worktree["run"]
+    assert int(code) not in {
+        0,
+        1,
+        2,
+        DIFFERENT_EXIT_CODE,
+        NO_SCENARIOS_EXIT_CODE,
+    }
+    names = [s.get("name") for s in _steps()]
+    assert names.index("Check out the merge base in a worktree") < names.index(
+        "Record every scenario at the merge base"
+    )
+
+
+@pytest.mark.spec("DEMOCI-11-064")
+def test_the_traces_artifact_reads_the_declared_paths() -> None:
+    """One spelling of each scratch path, not two (CS-22-001).
+
+    A second spelling that drifted would upload an empty artifact while the
+    summary tells the reader the whole log is in it.
+    """
+    step = _step("Upload both sides' traces")
+    declared = _step("Name the scratch paths and read the opt-out label")[
+        "run"
+    ]
+
+    for variable in ("BASE_RUNS", "HEAD_RUNS", "COMPARE_LOG"):
+        assert f"{variable}=$RUNNER_TEMP" in declared
+        assert "${{ env." + variable + " }}" in step["with"]["path"]
+    # `warn`, not `ignore`: a rename has to say so out loud.
+    assert step["with"]["if-no-files-found"] == "warn"
 
 
 @pytest.mark.spec("DEMOCI-11-054")

@@ -441,12 +441,17 @@ vendor-first half, whose Reporter tells a Vendor.
   4 rather than 1, so an opt-out keyed on "non-zero" cannot excuse a crashed recorder
   as a deliberate change. The comparison fails on an empty scenario set
   (DEMOCI-11-062, DF-09-009).
-- **The label is a trigger, not just a condition.** `demo-verdict.yml` adds `labeled`
-  and `unlabeled` to its `pull_request` types, so applying the label turns the job
-  green and removing it turns the job red again, neither needing a hand re-run. The
-  second direction is the one that matters: an opt-out that survives its own removal
-  admits every later difference too. A label a workflow's own `GITHUB_TOKEN` applies
-  raises no event, so the size label does not re-run it
+- **The label is a trigger, not just a condition, and the `CI gate` carries the same
+  two types.** `demo-verdict.yml` adds `labeled` and `unlabeled` to its
+  `pull_request` types, so applying the label turns the job green and removing it
+  turns the job red again, neither needing a hand re-run. The second direction is the
+  one that matters: an opt-out that survives its own removal admits every later
+  difference too. `ci-gate.yml` needs both types for the same reason — it judges once
+  per pull-request event and is the one required check, so an event it misses leaves
+  its earlier verdict standing over a check that has since turned red, and the
+  ruleset admits the merge. The rule generalizes: the gate's types cover every other
+  pull-request workflow's, which `test/ci/test_ci_gate.py` pins. A label a workflow's
+  own `GITHUB_TOKEN` applies raises no event, so the size label re-runs neither
   ([ci-workflow-authoring](ci-workflow-authoring.md)).
 - **The job's verdict is the command's exit status, propagated.** It decides nothing
   itself: 4 is a difference, 3 an empty scenario set, 1 a crashed recorder, and a job

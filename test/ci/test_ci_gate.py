@@ -24,6 +24,7 @@ from test.ci._workflows import (
     WORKFLOWS_DIR,
     load_workflow,
     triggers,
+    workflow_files,
 )
 
 _SCRIPT = REPO_ROOT / ".github" / "scripts" / "ci_gate.py"
@@ -500,12 +501,17 @@ def test_it_runs_on_every_pull_request_to_main(
     pr = on["pull_request"]
     assert pr["branches"] == ["main"]
     assert "paths" not in pr and "paths-ignore" not in pr
+    # The exact set, so a type dropped here fails with the reason, beside
+    # `test_the_gate_judges_every_event_another_workflow_runs_on`, which fails
+    # when a sibling workflow gains a type this list lacks.
     assert set(pr["types"]) == {
         "opened",
         "synchronize",
         "reopened",
         "ready_for_review",
         "edited",
+        "labeled",
+        "unlabeled",
     }
 
 
@@ -551,3 +557,55 @@ def test_its_deadline_ends_before_the_job_cap(
     assert [s["run"] for s in script] == [
         "python3 -I .github/scripts/ci_gate.py"
     ]
+
+
+#: The `pull_request` types GitHub assumes when a workflow declares none.
+_DEFAULT_PR_TYPES = frozenset({"opened", "synchronize", "reopened"})
+
+
+def _other_pull_request_types() -> dict[str, frozenset[str]]:
+    """The `pull_request` types of every workflow but this gate's own."""
+    types: dict[str, frozenset[str]] = {}
+    for path in workflow_files():
+        if path == _WORKFLOW:
+            continue
+        pull_request = triggers(load_workflow(path)).get("pull_request")
+        if pull_request is None:
+            continue
+        declared = (
+            pull_request.get("types")
+            if isinstance(pull_request, dict)
+            else None
+        )
+        types[path.name] = (
+            frozenset(declared) if declared else _DEFAULT_PR_TYPES
+        )
+    return types
+
+
+@pytest.mark.spec("PAD-18-031")
+def test_the_gate_judges_every_event_another_workflow_runs_on(
+    workflow: dict[str, Any],
+) -> None:
+    """The gate's types cover every judged workflow's (#6026).
+
+    The gate judges once per pull-request event. An event that starts another
+    workflow but not this one leaves this gate's earlier verdict standing over
+    a check that has since changed: a label removed from a pull request turns
+    `demo-verdict.yml` red while the gate stays green, and ruleset `main-3`,
+    which requires the gate and nothing else, then admits the merge.
+    """
+    mine = set(triggers(workflow)["pull_request"]["types"])
+    others = _other_pull_request_types()
+    # A parse that found no other workflow would make this vacuous.
+    assert len(others) >= 3
+
+    uncovered = {
+        name: sorted(found - mine)
+        for name, found in others.items()
+        if found - mine
+    }
+    assert not uncovered, (
+        "these workflows run on pull-request events the CI gate does not "
+        f"judge, so their verdict can change behind a stale gate: {uncovered}"
+    )

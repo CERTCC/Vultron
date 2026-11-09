@@ -17,7 +17,8 @@ description: >
   job correctly, why a new pull-request step must be mirrored locally or
   excluded with a reason, why a check moved from a local gate to CI needs a
   job with no `paths` filter, why the `CI gate` must be re-run after a re-run
-  check, how to read the red checks its log names, why the ruleset requiring the
+  check, why its `types` cover every other pull-request workflow's, how to read
+  the red checks its log names, why the ruleset requiring the
   gate admits no bypass actor, and why a new pull-request check is verified on
   later pull requests rather than its own.
 related_notes:
@@ -90,6 +91,19 @@ The gate judges once per pull-request event, so a re-run or a dispatched run
 on the head commit after it finished is never judged. After any such run,
 re-run the `CI gate` job too before merging. Otherwise a flaky check re-run
 green leaves the gate red, and a green check re-run red leaves it green.
+
+### The Gate's `types` Cover Every Other Pull-Request Workflow's
+
+Because the gate judges once per event, an event that starts another workflow
+but not the gate leaves the gate's earlier verdict standing over a check that
+has since changed — and since the ruleset requires the gate and nothing else,
+a check turned red behind a green gate is a merge GitHub admits. So a `types:`
+list added to any `pull_request` workflow is added to `ci-gate.yml` too:
+`edited` for `verification-debt-owners.yml`, which reads the body, and
+`labeled`/`unlabeled` for `demo-verdict.yml`, whose verdict a label decides
+(#6026). `test/ci/test_ci_gate.py` compares the gate's list with every
+sibling's, defaulting an undeclared list to GitHub's `opened`, `synchronize`,
+`reopened`.
 
 A red gate names what it judged, one `##[error]Red check: <name>: <conclusion>`
 line per red check, so the gate's own log says which check to open instead of

@@ -18,6 +18,10 @@
 #   and the job fails (DEMOCI-11-061).
 # - exit 3: the run compared no scenario, which is its own distinct failure
 #   rather than a vacuous pass (DEMOCI-11-062, DF-09-009).
+# - exit 5: the job's own preflight — the merge base predates
+#   `compare-demo-runs`, so the base side cannot be recorded at all. Its own
+#   code, not 1: a reader of a red run should not have to tell "rebase this
+#   pull request" from "a scenario crashed".
 # - any other exit: the recorder itself broke. A difference exits 4 rather than
 #   1 precisely so the `demo-verdict-change` opt-out cannot excuse a crashed
 #   recorder as a deliberate change.
@@ -32,9 +36,13 @@
 # (DEMOCI-11-063, DEMOCI-11-064). A person applies the label, so it is created
 # in the repository rather than by this workflow, and `labeled` and `unlabeled`
 # are triggers here: adding the label re-runs the job and turns it green,
-# removing it turns the job red again, neither needing a manual re-run. A label
-# a workflow's own `GITHUB_TOKEN` applies raises no event
-# (notes/ci-workflow-authoring.md), so the size label does not re-run this.
+# removing it turns the job red again, neither needing a manual re-run. The
+# `CI gate` carries the same two types for that reason — it judges once per
+# pull-request event, so an event it misses would leave its earlier verdict
+# standing over a check that has since changed, and the ruleset requiring the
+# gate would admit the merge. A label a workflow's own `GITHUB_TOKEN` applies
+# raises no event (notes/ci-workflow-authoring.md), so the size label does not
+# re-run this.
 #
 # No matrix, so no shard: one in-process pass over the whole scenario tree runs
 # in under four minutes on a runner, counting checkout and setup (the latest 6
@@ -81,6 +89,12 @@ on:
       # see a change in. A core-only pull request is not a consolidation, and
       # the daily `demo-recordings.yml` run covers its drift.
       - "vultron/demo/**"
+      # The recorder reads the compose file for the cast's topology
+      # (`load_topology`) and feeds each slot's URL and default case roles
+      # into every run, so a changed slot URL or default role changes what
+      # every scenario records and the job has to start on it (DEMOCI-11-020,
+      # DEMOCI-11-032).
+      - "docker/docker-compose-multi-actor.yml"
       # A change to the job itself must re-validate the job.
       - ".github/workflows/demo-verdict.yml"
 
@@ -135,6 +149,9 @@ jobs:
       - name: Check out the merge base in a worktree
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
+          # Its own code, so a red run says "rebase" rather than reading as a
+          # crashed recorder (exit 1) or a difference (exit 4).
+          STALE_BASE_EXIT_CODE: "5"
         run: |
           set -euo pipefail
           # The merge base, not the base branch's tip: a tip that moved ahead
@@ -146,7 +163,7 @@ jobs:
           git worktree add --detach "$BASE_TREE" "$base_sha"
           if [ ! -f "$BASE_TREE/vultron/demo/recordings/compare.py" ]; then
             echo "::error::The merge base predates the compare-demo-runs command (#6025), so the base side cannot be recorded. Rebase this pull request onto a newer ${BASE_REF}."
-            exit 1
+            exit "$STALE_BASE_EXIT_CODE"
           fi
 
       - name: Record every scenario at the merge base
@@ -198,10 +215,15 @@ jobs:
         # (DEMOCI-11-064).
         if: ${{ !cancelled() }}
         env:
-          # Well under the 1 MiB a step summary accepts, so a large diff
-          # truncates with a pointer to the artifact instead of overflowing
-          # and losing the whole summary.
+          # A step summary over 1 MiB is rejected whole, so a large diff
+          # truncates with a pointer to the artifact instead of losing the
+          # summary. Both limits, because either alone can be cleared while
+          # the other is blown: a normalized ledger entry is one JSON object
+          # on one line, so a few hundred lines can carry a megabyte, and a
+          # check-tree diff is short lines, so a megabyte is tens of
+          # thousands of them.
           SUMMARY_LINE_LIMIT: "1500"
+          SUMMARY_BYTE_LIMIT: "600000"
         run: |
           set -euo pipefail
           # Defaulted, not required: this step also runs when a step before
@@ -221,13 +243,17 @@ jobs:
               echo "before it compared anything. Read the job log."
             else
               echo '```diff'
-              total="$(wc -l < "$log")"
-              if [ "$total" -gt "$SUMMARY_LINE_LIMIT" ]; then
-                head -n "$SUMMARY_LINE_LIMIT" "$log"
-                echo "... truncated at ${SUMMARY_LINE_LIMIT} of ${total} lines;"
-                echo "the whole log is in the demo-verdict-runs artifact."
-              else
-                cat "$log"
+              lines="$(wc -l < "$log")"
+              bytes="$(wc -c < "$log")"
+              head -n "$SUMMARY_LINE_LIMIT" "$log" \
+                | head -c "$SUMMARY_BYTE_LIMIT"
+              if [ "$lines" -gt "$SUMMARY_LINE_LIMIT" ] \
+                || [ "$bytes" -gt "$SUMMARY_BYTE_LIMIT" ]; then
+                echo
+                echo "... truncated at ${SUMMARY_LINE_LIMIT} lines or"
+                echo "${SUMMARY_BYTE_LIMIT} bytes, of ${lines} lines and"
+                echo "${bytes} bytes; the whole log is in the"
+                echo "demo-verdict-runs artifact."
               fi
               echo '```'
             fi
@@ -242,8 +268,14 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: demo-verdict-runs-${{ github.run_attempt }}
+          # The same variables the scratch-path step declared, not a second
+          # spelling of them (CS-22-001): a renamed path would otherwise
+          # upload an empty artifact while the summary points a reader at it.
           path: |
-            ${{ runner.temp }}/runs/
-            ${{ runner.temp }}/compare.log
+            ${{ env.BASE_RUNS }}
+            ${{ env.HEAD_RUNS }}
+            ${{ env.COMPARE_LOG }}
           retention-days: 14
-          if-no-files-found: ignore
+          # `warn`, not `ignore`: on an early failure there is genuinely
+          # nothing to upload, and a rename must still say so out loud.
+          if-no-files-found: warn
