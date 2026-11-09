@@ -27,6 +27,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -107,7 +108,9 @@ class TestSvcSetStubSummaryUseCase:
             case_id=self.case.id_,
             stub_summary="This is the summary",
         )
-        SvcSetStubSummaryUseCase(self.dl, request).execute()
+        SvcSetStubSummaryUseCase(
+            self.dl, request, clock=SystemClock()
+        ).execute()
 
         updated = self.dl.read_case(self.case.id_)
         assert updated is not None
@@ -121,7 +124,9 @@ class TestSvcSetStubSummaryUseCase:
             case_id=self.case.id_,
             stub_summary="Some summary",
         )
-        SvcSetStubSummaryUseCase(self.dl, request).execute()
+        SvcSetStubSummaryUseCase(
+            self.dl, request, clock=SystemClock()
+        ).execute()
 
         after = set(self.dl.outbox_list())
         assert after == before, (
@@ -136,7 +141,9 @@ class TestSvcSetStubSummaryUseCase:
             stub_summary="Some summary",
         )
         with pytest.raises(VultronNotFoundError):
-            SvcSetStubSummaryUseCase(self.dl, request).execute()
+            SvcSetStubSummaryUseCase(
+                self.dl, request, clock=SystemClock()
+            ).execute()
 
     def test_unknown_case_raises_not_found(self):
         """VultronNotFoundError when the case is absent from the DataLayer."""
@@ -146,7 +153,9 @@ class TestSvcSetStubSummaryUseCase:
             stub_summary="Some summary",
         )
         with pytest.raises(VultronNotFoundError):
-            SvcSetStubSummaryUseCase(self.dl, request).execute()
+            SvcSetStubSummaryUseCase(
+                self.dl, request, clock=SystemClock()
+            ).execute()
 
     def test_execute_overwrites_existing_stub_summary(self):
         """A second call overwrites the previous stub_summary value."""
@@ -156,7 +165,9 @@ class TestSvcSetStubSummaryUseCase:
                 case_id=self.case.id_,
                 stub_summary=summary,
             )
-            SvcSetStubSummaryUseCase(self.dl, request).execute()
+            SvcSetStubSummaryUseCase(
+                self.dl, request, clock=SystemClock()
+            ).execute()
 
         updated = self.dl.read_case(self.case.id_)
         assert updated is not None

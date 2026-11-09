@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The status history of a :class:`VulnerabilityCase` (CM-29, CS-13-002).
+"""The status history of a :class:`VulnerabilityCase` (CM-29).
 
 Appending a status and reading the current one.  EM on a status is only a
 stamped copy of the embargo register's (ADR-0122).
@@ -78,8 +78,8 @@ class CaseStatusHistoryMixin:
         dimension.  Each assignment is validated (ARCH-21-001).  The new
         entry gets a fresh ``id_`` and a ``name`` derived from its own states
         unless one is passed.  Its ``published`` comes from ``now_utc_after``,
-        so it is strictly later than the current status's (CM-29-005,
-        CS-13-002), and it carries no ``updated``: a status is never changed
+        so it is strictly later than the current status's (CM-29-005),
+        and it carries no ``updated``: a status is never changed
         after it is appended, so ``published`` is its one time (CM-29-006).
         EM is
         not a status field to set: it is derived from the embargo register

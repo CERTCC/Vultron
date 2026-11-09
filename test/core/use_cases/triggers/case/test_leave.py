@@ -13,6 +13,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -168,7 +169,10 @@ class TestLeaveCaseTriggersOutboxActivity:
         )
         before = set(self.dl.outbox_list())
         SvcLeaveCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
@@ -181,7 +185,10 @@ class TestLeaveCaseTriggersOutboxActivity:
         )
         before = set(self.dl.outbox_list())
         SvcLeaveCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
         after = set(self.dl.outbox_list())
         new_ids = after - before
@@ -218,6 +225,7 @@ class TestLeaveCaseTriggersOutboxActivity:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_leave_case_not_found_raises_error(self):
@@ -230,6 +238,7 @@ class TestLeaveCaseTriggersOutboxActivity:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_leave_case_no_case_manager_raises_validation_error(self):
@@ -268,6 +277,7 @@ class TestLeaveCaseTriggersOutboxActivity:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
 
@@ -352,6 +362,7 @@ class TestLeaveCaseTrigger:
             LeaveCaseTriggerRequest(actor_id=self.actor.id_, case_id=case.id_),
             trigger_activity=TriggerActivityAdapter(self.dl),
             call_out=call_out,
+            clock=SystemClock(),
         ).execute()
 
     @pytest.mark.spec("TRIG-13-001")

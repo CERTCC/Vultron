@@ -94,6 +94,19 @@ names (SIG-02-001). The adapter (`HttpActorProfileFetchAdapter`) makes the
 GET and parses the body, so core gets a `CoreActor`. Reason: core makes no
 HTTP call and parses no wire JSON (ARCH-01-001, ADR-0032).
 
+### `ClockPort` and `BookkeepingClockPort`
+
+`clock.py` holds the two clocks (ADR-0176). `ClockPort.now()` is the act
+clock: only an act's entry point holds it, and `open_act(clock)` reads it once
+after taking the tree lock. Everything below takes that instant: a ports node
+calls `self._require_act_instant()`, other code takes it as a required
+argument.
+`BookkeepingClockPort.bookkeeping_now()` is for an adapter's own records (a
+dead letter's `recorded_at`). The operation names differ so neither clock can
+stand in for the other. Reason: one act decides and records against one
+instant. `test/architecture/test_clock_reads_at_act_edge.py` fails on a new
+clock read or a new module that holds a clock.
+
 ### Server-Level Inbox: Deferred Design Decision
 
 A server-level inbox is recognized as a future option, but current

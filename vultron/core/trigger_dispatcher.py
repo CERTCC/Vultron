@@ -30,6 +30,7 @@ from collections.abc import Iterable
 from typing import Any, cast
 
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
@@ -52,6 +53,8 @@ class RegistryTriggerDispatcher:
             snapshots through (ARCH-20-001); given to every ``bt_backed`` row.
         sync_port: The port a BT-backed commit fans a ledger entry out through
             (SYNC-02-003); given to every ``bt_backed`` row.
+        clock: The act clock, given to every row: each trigger invocation is
+            one act and reads it once, after taking the tree lock (ADR-0176).
 
     Port injection is keyed on the row's ``bt_backed`` flag, never on its
     verb: a BT-backed use case is built with the whole BT port bundle, and the
@@ -65,8 +68,10 @@ class RegistryTriggerDispatcher:
         trigger_activity: TriggerActivityPort,
         wire_render_port: WireRenderPort,
         sync_port: SyncActivityPort,
+        clock: ClockPort,
     ) -> None:
         self._by_request = index_by_request_model(entries)
+        self._clock = clock
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
@@ -86,7 +91,10 @@ class RegistryTriggerDispatcher:
         return entry
 
     def _ports_for(self, entry: TriggerEntry) -> dict[str, object]:
-        ports: dict[str, object] = {"trigger_activity": self._trigger_activity}
+        ports: dict[str, object] = {
+            "trigger_activity": self._trigger_activity,
+            "clock": self._clock,
+        }
         if entry.bt_backed:
             ports["wire_render_port"] = self._wire_render_port
             ports["sync_port"] = self._sync_port

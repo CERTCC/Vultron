@@ -51,6 +51,7 @@ from test.support.transferee import (
     transferee_record,
 )
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -294,6 +295,7 @@ class _OwnerDirectInvite:
             trigger_activity=TriggerActivityAdapter(self.owner_dl),
             sync_port=SyncActivityAdapter(self.owner_dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
         return activity_of(result)
 
@@ -420,6 +422,7 @@ class TestSvcInviteActorToCaseUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
         assert dl.outbox_list() == []
 
@@ -452,6 +455,7 @@ class TestSvcInviteActorToCaseUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
         assert activity_of(result)["type"] == "Offer"
@@ -511,6 +515,7 @@ class TestSvcInviteActorToCaseUseCase:
                     trigger_activity=TriggerActivityAdapter(dl),
                     sync_port=SyncActivityAdapter(dl),
                     wire_render_port=As2WireRenderAdapter(),
+                    clock=SystemClock(),
                 ).execute()
 
         assert dl.read(bad_id) is None, (
@@ -536,6 +541,7 @@ class TestSvcInviteActorToCaseUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
     def test_invite_normalises_short_uuid_actor_id(self):
@@ -559,6 +565,7 @@ class TestSvcInviteActorToCaseUseCase:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         # Activity actor field must be the full canonical URI, not the short UUID
@@ -986,6 +993,7 @@ class TestSvcSuggestActorToCaseUseCase:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -1025,6 +1033,7 @@ class TestSvcSuggestActorToCaseUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
         assert result is not None
@@ -1075,6 +1084,7 @@ class TestSvcSuggestActorToCaseUseCase:
                     trigger_activity=TriggerActivityAdapter(dl),
                     sync_port=SyncActivityAdapter(dl),
                     wire_render_port=As2WireRenderAdapter(),
+                    clock=SystemClock(),
                 ).execute()
 
         assert dl.read(bad_id) is None, (
@@ -1103,6 +1113,7 @@ class TestSvcSuggestActorToCaseUseCase:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
@@ -1128,6 +1139,7 @@ class TestSvcSuggestActorToCaseUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
 
@@ -1166,6 +1178,7 @@ class TestSvcAcceptCaseInviteUseCase:
             trigger_activity=TriggerActivityAdapter(dl_invitee),
             sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -1203,6 +1216,7 @@ class TestSvcAcceptCaseInviteUseCase:
             trigger_activity=TriggerActivityAdapter(dl_invitee),
             sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         addressed = activity_of(result).get("to") or []
@@ -1226,6 +1240,7 @@ class TestSvcAcceptCaseInviteUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
     def test_accept_no_type_check_on_invite(self):
@@ -1268,6 +1283,7 @@ class TestSvcAcceptCaseInviteUseCase:
             trigger_activity=TriggerActivityAdapter(dl_invitee),
             sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
         assert result.activity is not None
 
@@ -1304,6 +1320,7 @@ class TestSvcAcceptCaseInviteUseCase:
             trigger_activity=TriggerActivityAdapter(dl_invitee),
             sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
@@ -1341,6 +1358,7 @@ class TestSvcRejectCaseInviteUseCase:
             trigger_activity=TriggerActivityAdapter(dl_invitee),
             sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -1363,6 +1381,7 @@ class TestSvcRejectCaseInviteUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
     def test_reject_normalises_short_uuid_actor_id(self):
@@ -1397,6 +1416,7 @@ class TestSvcRejectCaseInviteUseCase:
             trigger_activity=TriggerActivityAdapter(dl_invitee),
             sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
@@ -1452,6 +1472,7 @@ class TestSvcActorRecommendationAnswerUseCases:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
     def test_answer_names_the_offer_and_its_case(
@@ -1588,6 +1609,7 @@ def _offer_ownership(dl, owner, case, transferee_id, **kwargs):
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
 
@@ -1713,6 +1735,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         # The deadline is the inner Offer's, the one the CASE_MANAGER makes
@@ -1748,6 +1771,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         assert activity_of(result).get("endTime") is None
@@ -1827,6 +1851,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
         assert result is not None
@@ -1857,6 +1882,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
     @pytest.mark.spec("CM-24-004")
@@ -2017,6 +2043,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -2056,6 +2083,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         accept_id = activity_of(result)["id"]
@@ -2085,6 +2113,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
     def test_accept_raises_when_actor_not_found(self):
@@ -2114,6 +2143,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
     @pytest.mark.spec("DL-06-006")
@@ -2167,6 +2197,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
         assert dl.outbox_list() == []
 
@@ -2217,6 +2248,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 trigger_activity=TriggerActivityAdapter(mock_dl),
                 sync_port=SyncActivityAdapter(mock_dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
     def test_accept_to_field_is_case_actor(self):
@@ -2263,6 +2295,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         activity_data = activity_of(result)
@@ -2289,7 +2322,10 @@ class TestSvcOfferCaseParticipantRoleUseCase:
             role=role,
         )
         return SvcOfferCaseParticipantRoleUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
 
     def test_happy_path_returns_activity(self):
@@ -2298,6 +2334,46 @@ class TestSvcOfferCaseParticipantRoleUseCase:
 
         assert isinstance(result, RoleOfferResult)
         assert result.activity["type"] == "Offer"
+
+    @pytest.mark.spec("CS-13-002")
+    def test_runs_as_one_act_and_hands_its_instant_to_the_tree(
+        self, monkeypatch
+    ):
+        """Lock, one read, and the sender tree's run carries that instant."""
+        from test.support.act_clock import (
+            ACT_AT,
+            CountingClock,
+            tree_lock_held,
+        )
+        from vultron.core.behaviors.bridge import BTBridge
+
+        original = BTBridge.execute_with_setup
+        seen: list[tuple[object, bool]] = []
+
+        def _spy(bridge, *args, **kwargs):
+            seen.append((kwargs.get("at"), tree_lock_held()))
+            return original(bridge, *args, **kwargs)
+
+        monkeypatch.setattr(BTBridge, "execute_with_setup", _spy)
+        actor, target, dl, case = self._setup()
+        clock = CountingClock()
+        request = OfferCaseParticipantRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            target_actor_id=target.id_,
+            role=CVDRole.VENDOR,
+        )
+
+        SvcOfferCaseParticipantRoleUseCase(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            clock=clock,
+        ).execute()
+
+        assert clock.reads == 1
+        assert clock.locked_at_read == [True]
+        assert seen[0] == (ACT_AT, True)
 
     def test_happy_path_activity_persisted(self):
         """Emitted Offer activity is readable from the DataLayer."""
@@ -2360,7 +2436,7 @@ class TestSvcOfferCaseParticipantRoleUseCase:
 
         with pytest.raises(VultronValidationError):
             SvcOfferCaseParticipantRoleUseCase(
-                dl, request, trigger_activity=broken
+                dl, request, trigger_activity=broken, clock=SystemClock()
             ).execute()
         assert dl.outbox_list() == []
 
@@ -2375,7 +2451,7 @@ class TestSvcOfferCaseParticipantRoleUseCase:
         )
         with pytest.raises(RuntimeError):
             SvcOfferCaseParticipantRoleUseCase(
-                dl, request, trigger_activity=None
+                dl, request, trigger_activity=None, clock=SystemClock()
             ).execute()
 
 
@@ -2411,6 +2487,7 @@ class TestActorDiscoveryCallOut:
                 sync_port=SyncActivityAdapter(dl),
                 call_out=ACTOR_DISCOVERY_DETERMINISTIC,
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
         assert result is not None
@@ -2447,6 +2524,7 @@ class TestActorDiscoveryCallOut:
                 sync_port=SyncActivityAdapter(dl),
                 call_out=fail_bundle,
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
         # Invite proceeds even on FAILURE — annotating, not blocking (AC-4)
@@ -2485,6 +2563,7 @@ class TestActorDiscoveryCallOut:
             sync_port=SyncActivityAdapter(dl),
             call_out=fail_bundle,
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         # Peer recorded even on FAILURE (protocol proceeds with URI-only record)
@@ -2510,6 +2589,7 @@ class TestActorDiscoveryCallOut:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         recorded = dl.read(missing_id)
@@ -2561,6 +2641,7 @@ class TestActorDiscoveryCallOut:
                 sync_port=SyncActivityAdapter(dl),
                 call_out=running_bundle,
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
         assert result is not None

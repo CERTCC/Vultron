@@ -44,6 +44,7 @@ from test.core.use_cases.received.conftest import (
 from test.support import embargo_register
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -465,6 +466,7 @@ def _trigger_terminate(manager: _Manager) -> None:
         trigger_activity=TriggerActivityAdapter(manager.dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(manager.dl),
+        clock=SystemClock(),
     ).execute()
 
 

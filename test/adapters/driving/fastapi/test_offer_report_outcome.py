@@ -31,6 +31,7 @@ import pytest
 import vultron.adapters.driving.fastapi.inbox_port_factories as port_factories
 from test.support.received import delivered_body
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -114,6 +115,7 @@ def _deliver(dl: SqliteDataLayer, *, to: str, cc: list[str]) -> InboxOutcome:
             dl=dl, actor_id=_VENDOR, dispatcher=make_dispatcher()
         ),
         received_outcome_port=FastAPIReceivedOutcomePort(dl),
+        clock=SystemClock(),
     )
 
 

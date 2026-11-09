@@ -239,7 +239,8 @@ pass/fail to CI.
 5. Decorate the demo module's `main()` with `@scenario(...)` from
    `vultron/demo/scenario/registry/`. That decoration is the **only** place
    the scenario is declared: the CI matrix in `.github/demo-scenarios.json`,
-   the table at the top of this document and the sub-command table in
+   the plot manifest in `vultron/demo/scenario/plots.json`, the table at the top
+   of this document and the sub-command table in
    `vultron/demo/scenario/README.md` are all generated from it. Name the
    harness file `test_<scenario>_invariants.py`, where `<scenario>` is the
    decorator's `name` with hyphens replaced by underscores — the registry
@@ -248,8 +249,8 @@ pass/fail to CI.
    `path` places the scenario on the scenario tree; discovery fails unless it
    is a new ending (DEMOCI-11-023).
 
-6. Run `uv run demo-scenarios --write` to regenerate the three committed
-   artifacts, and commit them. The `demo-scenarios-sync` pre-commit hook fails
+6. Run `uv run demo-scenarios --write` to regenerate every committed artifact
+   listed above, and commit them. The `demo-scenarios-sync` pre-commit hook fails
    if you forget. `test_all_ci_scenarios_have_a_harness_module` still fails
    until DEMOMA-16 and the `notes/` scenario tables are updated, because those
    are hand-written prose that is checked rather than generated (#3451).
