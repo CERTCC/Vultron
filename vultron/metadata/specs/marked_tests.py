@@ -12,11 +12,13 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Which tests carry a ``spec`` marker, and which of them a strict xfail holds.
 
-``spec-coverage`` tells a requirement a passing test verifies from one only a
-strict ``xfail`` checks (SR-05-017). This module reads one test file's source
-and returns a :class:`MarkedCase` for each way its marked tests run: the spec
-IDs that case carries and the reasons of the ``xfail`` markers that apply to
-it. A case with no xfail reason runs to pass or fail.
+``spec-coverage`` sorts each marked requirement by how its tests run
+(SR-05-017): *verified* when a test runs and none is held, *partly met* when a
+test runs and at least one is held, and *xfail-only* when every one is held (a
+held test is a strict ``xfail`` or a skip). This module reads one test file's
+source and returns a :class:`MarkedCase` for each way its marked tests run:
+the spec IDs that case carries and the reasons of the ``xfail`` markers that
+apply to it. A case with no xfail reason runs to pass or fail.
 
 A marker applies to a test from four places, and they combine as pytest
 combines them: a module ``pytestmark``, a class decorator or class

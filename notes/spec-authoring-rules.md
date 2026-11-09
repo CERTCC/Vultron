@@ -400,7 +400,8 @@ its removal, and `reason=` links the implementation issue.
 
 The marker satisfies the guard but does not count as verified: `spec-coverage`
 reports a requirement whose every marked test is a strict xfail as xfail-only,
-outside the coverage figure, and `--json` writes the `#N` its reason cites for
+and one whose held test sits beside a passing one as partly met. Both stay
+outside the coverage figure, and `--json` writes the `#N` each reason cites for
 the known-gaps page (SR-05-017, SR-05-018). Keep the reason a literal or an
 f-string of module string constants, which the reader resolves.
 
