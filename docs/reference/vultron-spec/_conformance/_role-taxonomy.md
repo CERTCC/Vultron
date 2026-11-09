@@ -10,7 +10,7 @@ An actor can hold several process roles, and what it may do is the union of what
 | Reporter | Initiates cases; drives `RS`; authoritative source of the original report |
 | Vendor | Drives its own VFD transition `f→F` (fix ready, `CF`) |
 | Deployer | Drives its own VFD transition `d→D` (fix deployed, `CD`) |
-| Coordinator | Drives case participant management; coordinates multi-party disclosure |
+| Coordinator | Coordinates multi-party disclosure; holds no independent protocol authority. Participant management is a CASE_MANAGER and Case Owner function |
 | CVE Numbering Authority (CNA) | Can assign CVE IDs directly; a participant without the role delegates assignment. Orthogonal to the other roles, and typically co-held with Coordinator or Vendor |
 | Observer | Holds no drive obligations for VFD; can report PXA observations ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](../conformance.md#1342-participant-agnostic-cs-transitions-pxa)) |
 

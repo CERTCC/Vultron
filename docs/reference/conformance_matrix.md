@@ -50,7 +50,7 @@ Which transitions a participant may drive depends on its roles ([§13.3.1 Proces
 | Reporter | Report Submission (RS); its own RM transitions |
 | Vendor | Its own Fix Ready transition (CF) |
 | Deployer | Its own Fix Deployed transition (CD) |
-| Coordinator | Case participant management; its own RM transitions |
+| Coordinator | Its own RM transitions; coordinates multi-party disclosure. Participant management is a CASE_MANAGER and Case Owner function |
 | CVE Numbering Authority (CNA) | CVE ID assignment; a participant without the role delegates it |
 | Observer | No VFD drive obligations; may report PXA observations |
 | Case Owner | Shared EM transitions; authorizes status adoption; offers case ownership transfer |
