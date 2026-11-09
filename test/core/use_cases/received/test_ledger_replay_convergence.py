@@ -40,7 +40,10 @@ from pydantic import BaseModel
 
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.failed_teardown import fail_pxa_teardown
-from test.support.owner_decision import SEEDED_PROPOSAL_ID
+from test.support.owner_decision import (
+    seeded_activation,
+    seeded_proposal_rejection,
+)
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -88,12 +91,10 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.factories import (
-    activate_embargo_activity,
     add_note_to_case_activity,
     add_status_to_case_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
-    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
@@ -216,9 +217,8 @@ def test_a_replica_follows_the_owners_embargo_activation():
     )
     _send(
         net,
-        activate_embargo_activity(
+        seeded_activation(
             _embargo(net),
-            in_reply_to=SEEDED_PROPOSAL_ID,
             target=net.case_id,
             actor=OWNER,
             to=[MANAGER],
@@ -247,9 +247,8 @@ def test_a_replica_follows_the_owners_rejection_of_a_proposal():
     )
     _send(
         net,
-        reject_embargo_proposal_activity(
+        seeded_proposal_rejection(
             _embargo(net),
-            in_reply_to=SEEDED_PROPOSAL_ID,
             target=net.case_id,
             actor=OWNER,
             to=[MANAGER],
@@ -321,9 +320,8 @@ def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
 
     _send(
         net,
-        activate_embargo_activity(
+        seeded_activation(
             revision,
-            in_reply_to=SEEDED_PROPOSAL_ID,
             target=net.case_id,
             actor=OWNER,
             to=[MANAGER],
@@ -365,9 +363,8 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure(
 
     _send(
         net,
-        reject_embargo_proposal_activity(
+        seeded_proposal_rejection(
             revision,
-            in_reply_to=SEEDED_PROPOSAL_ID,
             target=net.case_id,
             actor=OWNER,
             to=[MANAGER],
@@ -426,9 +423,8 @@ def test_a_refused_termination_commits_neither_entry(monkeypatch):
         raise VultronInvalidStateTransitionError("termination refused")
 
     monkeypatch.setattr(termination_commit, "decide_termination", _refuse)
-    reject = reject_embargo_proposal_activity(
+    reject = seeded_proposal_rejection(
         revision,
-        in_reply_to=SEEDED_PROPOSAL_ID,
         target=net.case_id,
         actor=OWNER,
         to=[MANAGER],
@@ -463,9 +459,8 @@ def test_a_termination_failing_after_its_remove_commits_neither_entry(
     monkeypatch.setattr(
         ReissueStubInvitesNode, "update", lambda _self: Status.FAILURE
     )
-    reject = reject_embargo_proposal_activity(
+    reject = seeded_proposal_rejection(
         revision,
-        in_reply_to=SEEDED_PROPOSAL_ID,
         target=net.case_id,
         actor=OWNER,
         to=[MANAGER],
@@ -492,9 +487,8 @@ def test_a_redelivered_owner_activation_entry_changes_nothing():
     )
     _send(
         net,
-        activate_embargo_activity(
+        seeded_activation(
             _embargo(net),
-            in_reply_to=SEEDED_PROPOSAL_ID,
             target=net.case_id,
             actor=OWNER,
             to=[MANAGER],
@@ -906,9 +900,8 @@ def test_embargo_activation_writes_nothing_at_a_replica():
     _deliver_direct(
         net,
         BYSTANDER,
-        activate_embargo_activity(
+        seeded_activation(
             _embargo(net),
-            in_reply_to=SEEDED_PROPOSAL_ID,
             target=net.case_id,
             actor=OWNER,
             to=[BYSTANDER],

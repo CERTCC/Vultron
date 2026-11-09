@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The case owner's decision on an embargo proposal (ADR-0122).
+"""The case owner's decision on an embargo proposal (ADR-0122, ADR-0180).
 
 ``Add(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
 ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects it.  These are the owner's

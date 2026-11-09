@@ -274,7 +274,7 @@ def activate_embargo_trigger_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for the case owner's activation (EP-09-008).
 
-    ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122): as the CASE_MANAGER the
+    ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0180): as the CASE_MANAGER the
     owner decides the activation ``STRICT``, commits the ``Add`` (the
     whole ``ACTIVATE`` step and its own agreement) and then one
     ``Update(EmbargoConsent)`` per ``CARRY_OVER`` row, and only then writes

@@ -1189,6 +1189,27 @@ def test_an_activation_and_an_invite_accept_differ_by_type_alone(
     assert not AcceptInviteToEmbargoOnCasePattern.match(add)
 
 
+@pytest.mark.spec("VAM-05-008")
+def test_the_retired_accept_of_the_embargo_activates_nothing() -> None:
+    """``Accept(EmbargoEvent)[target=VulnerabilityCase]`` is gone (ADR-0180).
+
+    Pre-1.0 the replaced activation shape is removed, not kept beside the
+    ``Add``: the old body matches no pattern at all.
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    add = examples.activate_embargo()
+    retired = as_Accept(
+        actor=add.actor,
+        object_=examples.embargo_event(),
+        target=add.target,
+        in_reply_to=add.in_reply_to,
+    )
+
+    assert not ActivateEmbargoOnCasePattern.match(retired)
+    assert find_matching_semantics(retired) == MessageSemantics.UNKNOWN
+
+
 # ---------------------------------------------------------------------------
 # MSM-07-010 — a signatory's withdrawal from the embargo in force is
 # Leave(EmbargoEvent)[context=VulnerabilityCase], distinct from leaving the

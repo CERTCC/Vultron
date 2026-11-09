@@ -532,7 +532,8 @@ groups:
       proposal is an `Invite` relayed by the CASE_MANAGER (EP-09-001), and
       participants and status changes have role-gated flows of their own, so those
       types are not part of this trigger. `Add(EmbargoEvent)[target=VulnerabilityCase]`
-      is the Case Owner's activation, sent only by accept-embargo with a required
+      is the Case Owner's activation, sent only by the owner-decision paths (the
+      accept-embargo trigger and the owner's automatic answer) with a required
       `inReplyTo` (ADR-0180).
     verification: >-
       `test_trigger_add_object_to_case_addresses_add_to_case_manager` in

@@ -16,7 +16,7 @@
 """The CASE_MANAGER's activation: decide, commit the entries, then apply.
 
 The case owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal
-(ADR-0122).  As the CASE_MANAGER, :class:`CommitAndApplyEmbargoActivationNode`
+(ADR-0180).  As the CASE_MANAGER, :class:`CommitAndApplyEmbargoActivationNode`
 follows the copy model (ADR-0124, #4294):
 
 1. **Decide** —

@@ -115,10 +115,24 @@ class TestVocabEmbargoExamples(unittest.TestCase):
 
         self.assertIsInstance(activity, as_Reject)
         self.assertEqual(activity.type_, "Reject")
+        self.assertEqual(activity.in_reply_to, examples.propose_embargo().id_)
 
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.object_, embargo)
+
+    def test_revision_decisions_name_the_revision_invite(self):
+        """An owner decision on a revision names the revision's Invite (ADR-0180)."""
+        revision = examples.propose_embargo_revision()
+        for activity in (
+            examples.activate_embargo_revision(),
+            examples.reject_embargo_revision_proposal(),
+        ):
+            with self.subTest(type_=activity.type_):
+                self.assertEqual(activity.in_reply_to, revision.id_)
+                self.assertNotEqual(
+                    activity.in_reply_to, examples.propose_embargo().id_
+                )
 
     def test_announce_embargo(self):
         activity = examples.announce_embargo()

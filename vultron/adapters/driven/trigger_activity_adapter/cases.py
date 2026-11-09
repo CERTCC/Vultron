@@ -64,8 +64,9 @@ logger = logging.getLogger(__name__)
 # target check matters: an ``Add(ParticipantStatus)`` targeting a case URI would
 # match the participant-status pattern, whose permissive target accepts any URI.
 # The Case Owner's activation of a proposed embargo is an ``Add(EmbargoEvent)``
-# too, sent only by the accept-embargo trigger, which names the proposal it
-# decides (ADR-0180).
+# too, sent only by the owner-decision paths (the accept-embargo trigger and
+# the owner's automatic answer), which name the proposal it decides
+# (ADR-0180).
 _ADD_OBJECT_TO_CASE_SEMANTICS: frozenset[MessageSemantics] = frozenset(
     entry.semantics
     for entry in SEMANTIC_REGISTRY

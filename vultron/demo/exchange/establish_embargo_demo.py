@@ -85,7 +85,7 @@ def demo_propose_embargo_accept(
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
     3. Vendor, the case owner and CASE_MANAGER, activates the embargo:
-       Add(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox (ADR-0122)
+       Add(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox (ADR-0180)
     4. Vendor announces embargo to all participants
     5. Verify case has ACTIVE embargo
 

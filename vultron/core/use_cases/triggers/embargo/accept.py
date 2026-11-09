@@ -18,7 +18,7 @@
 A participant's accept is ``Accept(Invite(EmbargoEvent))``, its own consent.
 The case owner's accept is its decision for the case,
 ``Add(EmbargoEvent)[target=VulnerabilityCase]``, which activates the proposal
-(ADR-0122).
+(ADR-0180).
 """
 
 import json

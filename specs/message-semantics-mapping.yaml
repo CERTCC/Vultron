@@ -1813,7 +1813,7 @@ groups:
     statement: >-
       The wire activity REJECT_EMBARGO_PROPOSAL_ON_CASE (wire form:
       Reject(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as
-      the object) is
+      the object, inReplyTo naming the Invite(EmbargoEvent) that proposed it) is
       the Case Owner's decision for the case. It MUST reject the named proposal's
       embargo register entry. Once no other proposal is open, the derived EM becomes
       NONE (ER) or stays ACTIVE with the prior terms in force (EJ). It stays PROPOSED or
@@ -1837,6 +1837,7 @@ groups:
       spec_id: EMB-18-005
     adr:
     - ADR-0122
+    - ADR-0180
     stories:
     - story_2026_087
   - id: MSM-07-030

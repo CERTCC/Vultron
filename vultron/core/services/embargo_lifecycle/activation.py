@@ -174,7 +174,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
     ) -> EmbargoLifecycleResult:
         """Apply the case owner's activation of a proposed embargo.
 
-        ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122): ``ACTIVATE``
+        ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0180): ``ACTIVATE``
         *embargo_id*'s register entry and ``SUPERSEDE`` any ``ACTIVE`` one in
         the same step, so EM derives ``ACTIVE``, or ``REVISE`` while another
         proposal stays open as a revision (ADR-0130).  In ``STRICT`` mode the entry

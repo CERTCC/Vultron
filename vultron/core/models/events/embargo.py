@@ -57,7 +57,7 @@ class _OwnerEmbargoDecisionEvent(LedgerPositionedEvent):
 class ActivateEmbargoOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
     """The case owner activated a proposed embargo on the case.
 
-    ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122).
+    ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0180).
     """
 
     semantic_type: Literal[MessageSemantics.ACTIVATE_EMBARGO_ON_CASE] = (
