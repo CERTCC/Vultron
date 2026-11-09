@@ -1371,6 +1371,7 @@ class TestRolesFromStoredOffer:
             roles=[CVDRole.COORDINATOR, CVDRole(authority_role)]
         )
         ledger_before = len(dl.list_objects("CaseLedgerEntry"))
+        outbox_before = len(dl.outbox_list())
         result = AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -1397,6 +1398,7 @@ class TestRolesFromStoredOffer:
             reason="CM-20-008",
             case_id=AC1_CASE_ID,
         )
+        assert len(dl.outbox_list()) == outbox_before + 1, dl.outbox_list()
 
     @pytest.mark.spec("CM-16-018")
     def test_participant_case_roles_vendor_after_full_round_trip(self):

@@ -111,6 +111,23 @@ def authority_roles_named(roles: Iterable[object]) -> list[CVDRole]:
     return named
 
 
+def describe_authority_roles(roles: Iterable[object]) -> str | None:
+    """The authority roles *roles* names, with the reason none is offered.
+
+    ``None`` when :func:`authority_roles_named` finds none.  The suggestion
+    guards and the trigger bodies both refuse with this text (CM-20-008,
+    CM-20-009).
+    """
+    named = authority_roles_named(roles)
+    if not named:
+        return None
+    listed = ", ".join(role.value for role in named)
+    return (
+        f"{listed}, which no invitation or role Offer confers: ownership"
+        " moves by transfer and the CASE_MANAGER role by delegation"
+    )
+
+
 def parse_role(value: str) -> CVDRole:
     """Parse one role string (any case) into a ``CVDRole``.
 

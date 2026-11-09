@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict
 from vultron.core.models.base import UriString
 from vultron.enums.roles import (
     CVDRole,
-    authority_roles_named,
+    describe_authority_roles,
     validate_roles,
 )
 
@@ -41,13 +41,9 @@ def refuse_authority_roles(roles: list[CVDRole]) -> list[CVDRole]:
     Raises:
         ValueError: *roles* names an authority role.
     """
-    named = authority_roles_named(roles)
-    if named:
-        listed = ", ".join(role.value for role in named)
-        raise ValueError(
-            f"{listed} is never offered to another actor; ownership moves by"
-            " transfer and the CASE_MANAGER role by delegation (CM-20-009)"
-        )
+    named = describe_authority_roles(roles)
+    if named is not None:
+        raise ValueError(f"the request names {named} (CM-20-009)")
     return roles
 
 

@@ -27,6 +27,7 @@ from vultron.enums.roles import (
     AUTHORITY_ROLES,
     CVDRole,
     authority_roles_named,
+    describe_authority_roles,
     parse_role,
     serialize_roles,
     validate_roles,
@@ -286,3 +287,16 @@ def test_authority_roles_are_case_owner_and_case_manager():
 def test_authority_roles_named(roles, expected):
     """Only the authority roles are returned; a non-role is skipped."""
     assert authority_roles_named(roles) == expected
+
+
+@pytest.mark.spec("CM-20-008")
+def test_describe_authority_roles_names_each_role_and_the_reason():
+    """The shared refusal text lists the roles named and why none is offered."""
+    text = describe_authority_roles(["vendor", "case_owner", "CASE_MANAGER"])
+    assert text is not None
+    assert text.startswith("case_owner, case_manager")
+    assert "transfer" in text and "delegation" in text
+
+
+def test_describe_authority_roles_is_none_without_an_authority_role():
+    assert describe_authority_roles(["vendor", CVDRole.COORDINATOR]) is None

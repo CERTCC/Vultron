@@ -101,8 +101,9 @@ def create_recommend_actor_to_case_received_tree(
 
         RecommendActorToCaseBT (Sequence, memory=False)
         ├── SuggestedActorAdmitted (CASE_MANAGER path)
-        │   ├── SuggestedActorNotRemoved          — CM-31-013 guard
-        │   └── SuggestedRolesGrantable           — CM-20-008 guard
+        │   └── SuggestedActorAdmissible (Sequence, memory=False)
+        │       ├── SuggestedActorNotRemoved      — CM-31-013 guard
+        │       └── SuggestedRolesGrantable       — CM-20-008 guard
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── RecommendActorToCaseIfCaseManager (Selector)   — BT-17-001 gate
             ├── SkipIfNotCaseManager                — Inverter(CheckIsCaseManagerNode)
@@ -142,9 +143,11 @@ def create_recommend_actor_to_case_received_tree(
             the pending-offer path it is appended to the
             duplicate-recommendation Note (CM-16-008).
         suggested_roles: Role strings the received Offer carries
-            (``suggestedRoles``), as the CASE_MANAGER stored it.  Injected
-            into the role Evaluator on both the owner-direct and fresh paths;
-            ``None`` leaves the choice to the Evaluator's default
+            (``suggestedRoles``), as the CASE_MANAGER stored it.  The
+            precondition guard refuses them when they name ``CASE_MANAGER``
+            or ``CASE_OWNER`` (CM-20-008); otherwise they are injected into
+            the role Evaluator on the re-invite, owner-direct and fresh
+            paths, and ``None`` leaves the choice to the Evaluator's default
             (CM-16-003).
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the reply deadline of every stub Invite it sends (CM-11-014,

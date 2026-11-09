@@ -29,6 +29,10 @@ Submodules:
 - ``accept_offer``: Case Owner owner-side Accept and Reject responses
   (``EmitAcceptCaseParticipantOfferNode``,
   ``EmitRejectCaseParticipantOfferNode``)
+- ``admission``: the CASE_MANAGER's precondition guards and their factories
+  (``SuggestedActorIsNotRemovedNode``, ``AcceptedInviteeIsNotRemovedNode``,
+  ``SuggestedActorIsInvitableNode``, ``SuggestedRolesAreGrantableNode``,
+  ``AcceptedRolesAreGrantableNode``)
 - ``conditions``: Duplicate-detection precondition nodes
   (``ActorAlreadyParticipantNode``,
   ``InviteInFlightNode``,
@@ -45,18 +49,20 @@ from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
     EmitRejectCaseParticipantOfferNode,
 )
-from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
+from vultron.core.behaviors.case.nodes.suggest_actor.admission import (
     AcceptedInviteeIsNotRemovedNode,
     AcceptedRolesAreGrantableNode,
-    ActorAlreadyParticipantNode,
-    InviteInFlightNode,
-    PendingOfferCaseParticipantNode,
     SuggestedActorIsInvitableNode,
     SuggestedActorIsNotRemovedNode,
     SuggestedRolesAreGrantableNode,
     case_manager_admits_accepted_invitee_guard,
     case_manager_admits_suggested_actor_guard,
     case_manager_requires_recorded_rejection_guard,
+)
+from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
+    ActorAlreadyParticipantNode,
+    InviteInFlightNode,
+    PendingOfferCaseParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitNoteDuplicateRecommendationToOwnerNode,
