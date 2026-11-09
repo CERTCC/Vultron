@@ -20,13 +20,13 @@ import protocolStates from './data/protocol_states.json'
 
 export type MachineName = 'rm' | 'em' | 'vfd' | 'pxa'
 
-interface RawTransition {
+export interface RawTransition {
   trigger: string
   source: string
   dest: string
 }
 
-interface RawMachine {
+export interface RawMachine {
   initial: string
   states: string[]
   transitions: RawTransition[]

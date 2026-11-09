@@ -19,23 +19,12 @@ import {
   nextStates,
   requireNextState,
   type MachineName,
+  type RawMachine,
 } from './protocol'
-
-interface ArtifactTransition {
-  trigger: string
-  source: string
-  dest: string
-}
-
-interface ArtifactMachine {
-  initial: string
-  states: string[]
-  transitions: ArtifactTransition[]
-}
 
 const MACHINE_NAMES: readonly MachineName[] = ['rm', 'em', 'vfd', 'pxa']
 
-const artifact = protocolStates as unknown as Record<MachineName, ArtifactMachine>
+const artifact = protocolStates as unknown as Record<MachineName, RawMachine>
 
 /** Every dest the artifact lists for (source, trigger), in artifact order. */
 function artifactDests(machine: MachineName, source: string, trigger: string): string[] {

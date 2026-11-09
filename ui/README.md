@@ -95,7 +95,7 @@ multi-actor log folders.
 Each participant has a horizontal lane showing their actions, the consequences
 that land in their context, and their current state across the relevant state
 machines. Lanes are born from events (submitting a report creates the Vendor and
-Case Actor lanes; inviting a vendor adds a lane).
+CASE_MANAGER lanes; inviting a vendor adds a lane).
 
 ### State Machines
 
