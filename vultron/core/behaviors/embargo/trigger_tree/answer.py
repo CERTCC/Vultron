@@ -70,10 +70,10 @@ def _answer_arms(
 ) -> list[py_trees.behaviour.Behaviour]:
     """Manager: decide, commit, apply, declare; otherwise: ask the manager.
 
-    The manager's Accept or Reject — of an Invite (the sender's consent), or
-    as the case owner of the embargo itself (ADR-0122) — is addressed to
-    nobody: every replica learns it from the committed entry (EP-09-007).  An
-    Accept that activates a shorter revision is announced to the bound
+    The manager's Accept or Reject of an Invite (the sender's consent), or
+    its Add or Reject of the embargo itself as the case owner (ADR-0180), is
+    addressed to nobody: every replica learns it from the committed entry
+    (EP-09-007).  An Add that activates a shorter revision is announced to the bound
     signatories the ledger no longer reaches (CM-31-009).
 
     The manager arm commits before it writes (ADR-0124, CLP-07-013): the

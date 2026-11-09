@@ -96,9 +96,9 @@ See [When the End Time Passes](../../process_models/em/early_termination.md#when
 Every EM transition runs through one of two paths: the embargo lifecycle service, or the single function that applies a committed ledger entry.
 The CASE_MANAGER and every replica share that function (ADR-0124).
 Termination and activation take the second path.
-The CASE_MANAGER first commits the `Remove` or the owner's `Accept`, and then applies it.
-The `Accept` records the whole activation, including the supersession of the replaced embargo and the owner's own agreement.
-After the `Accept`, each signatory carried over to shorter terms gets its own ledger entry.
+The CASE_MANAGER first commits the `Remove` or the owner's `Add`, and then applies it.
+The `Add` records the whole activation, including the supersession of the replaced embargo and the owner's own agreement.
+After the `Add`, each signatory carried over to shorter terms gets its own ledger entry.
 
 The CASE_MANAGER records an invitation that expires unanswered in the same way.
 It commits the expiry, then the participant's changed consent, and only then writes those changes.

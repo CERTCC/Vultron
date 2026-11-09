@@ -78,7 +78,7 @@ class TestEmbargoLogEntryCascade:
     def test_owner_decision_commits_log_entry(
         self, make_payload, factory, use_case, semantic_type
     ):
-        """The owner's Accept/Reject(EmbargoEvent) commits one CaseLedgerEntry."""
+        """The owner's Add/Reject(EmbargoEvent) commits one CaseLedgerEntry."""
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_decide"
         dl, _case_actor, case, embargo = make_embargo_case_with_actor(

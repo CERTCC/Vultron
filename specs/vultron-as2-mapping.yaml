@@ -1171,7 +1171,7 @@ groups:
     rationale: >-
       An invitee consents to the proposed embargo when it accepts the Invite that it
       received, so the `Accept` wraps that Invite. Its inner object tells it apart from
-      the Case Owner's activation, which is an `Accept` of the `EmbargoEvent` itself
+      the Case Owner's activation, which is an `Add` of the `EmbargoEvent` itself
       (VAM-05-008).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AcceptInviteToEmbargoOnCasePattern` wraps `InviteToEmbargoOnCasePattern` inside an `Accept` outer
