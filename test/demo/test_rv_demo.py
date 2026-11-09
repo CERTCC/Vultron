@@ -642,10 +642,11 @@ class TestTheVendorHoldsTheFinalCase:
 
         final.assert_called_once()
         kwargs = final.call_args.kwargs
-        # Both ids, not None: `_assert_case_notes` skips a note it is given
-        # `None` for, so the check would pass over the thread entirely.  The
-        # props carry real `as_Note`s, so a non-None id is what each equality
-        # below asserts (DEMOCI-11-017).
+        # Both ids, not None: `verify_receiver_case_state` refuses a thread
+        # named by one id alone, and passing `None` for both would skip the
+        # note assertions entirely (#5643).  The props carry real `as_Note`s,
+        # so a non-None id is what each equality below asserts
+        # (DEMOCI-11-017).
         assert question.id_ and answer.id_
         assert kwargs["question_note_id"] == question.id_
         assert kwargs["reply_note_id"] == answer.id_

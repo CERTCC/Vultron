@@ -26,6 +26,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -81,11 +82,19 @@ def _invite(embargo: Any) -> Any:
 #: Each use case and the activity it receives, from _SENDER to _MANAGER.
 _ACTIVITIES: dict[type, Callable[[Any], Any]] = {
     ActivateEmbargoOnCaseReceivedUseCase: lambda e: activate_embargo_activity(
-        e, target=_CASE, context=_CASE, **_ADDRESSING
+        e,
+        in_reply_to=SEEDED_PROPOSAL_ID,
+        target=_CASE,
+        context=_CASE,
+        **_ADDRESSING,
     ),
     RejectEmbargoProposalOnCaseReceivedUseCase: (
         lambda e: reject_embargo_proposal_activity(
-            e, target=_CASE, context=_CASE, **_ADDRESSING
+            e,
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=_CASE,
+            context=_CASE,
+            **_ADDRESSING,
         )
     ),
     RemoveEmbargoEventFromCaseReceivedUseCase: (

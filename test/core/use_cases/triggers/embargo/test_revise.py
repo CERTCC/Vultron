@@ -10,6 +10,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import committed_semantic_types
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -59,6 +60,7 @@ def test_propose_embargo_revision_transitions_em_to_revise(
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     assert result.activity is not None
@@ -91,6 +93,7 @@ def test_manager_revision_relays_an_invite_to_each_other_participant(
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
@@ -151,6 +154,7 @@ def test_a_manager_revision_whose_relay_commit_fails_is_not_kept(
                 trigger_activity=TriggerActivityAdapter(dl),
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
     assert relayed_to == [[other_id]], "the relay, not the proposal, failed"
@@ -184,6 +188,7 @@ def test_propose_embargo_revision_invalid_em_state_raises_error(
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
 
@@ -209,6 +214,7 @@ def test_propose_embargo_revision_invalid_state_does_not_persist_embargo(
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
     after = len(list(dl.list_objects("EmbargoEvent")))
@@ -250,6 +256,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     assert result.activity is not None

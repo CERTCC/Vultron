@@ -16,7 +16,7 @@
 """Received-side trees for the case owner's decision on an embargo proposal.
 
 ``activate_embargo_on_case_tree`` handles
-``Accept(EmbargoEvent)[target=VulnerabilityCase]`` and
+``Add(EmbargoEvent)[target=VulnerabilityCase]`` and
 ``reject_embargo_proposal_on_case_tree`` handles
 ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122).  Only the case owner sends
 either (EP-09-005); the sender guard refuses anyone else (HP-01-006).  The
@@ -79,7 +79,7 @@ def activate_embargo_on_case_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the case owner's activation of a proposal (EA / EC).
 
-    Handles receipt of an ``Accept(EmbargoEvent)[target=VulnerabilityCase]``::
+    Handles receipt of an ``Add(EmbargoEvent)[target=VulnerabilityCase]``::
 
         ActivateEmbargoOnCaseBT (Sequence)
         ├─ ActivityAddressedToReceiverNode   # addressee door
@@ -93,7 +93,7 @@ def activate_embargo_on_case_tree(
         ├─ OwnerMayActivateEmbargoNode       # P/X/A clear (EMB-02-002)
         ├─ ActivationAppliesNode             # decide + trial apply (ADR-0124)
         └─ ActivateEmbargoOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
-           ├─ GuardedCommitCaseLedgerEntryBT    # the Accept: ACTIVATE (+ SUPERSEDE)
+           ├─ GuardedCommitCaseLedgerEntryBT    # the Add: ACTIVATE (+ SUPERSEDE)
            └─ ActivateEmbargoOnCaseBTIfCaseManager (CASE_MANAGER gate)
               ├─ CaptureActiveEmbargoNode       # snapshot signatories before
               ├─ CommitAndApplyEmbargoActivationNode  # CARRY_OVER entries, apply
@@ -106,7 +106,7 @@ def activate_embargo_on_case_tree(
     refused activation is never ledgered; the activation itself runs
     ``STRICT``.  The CASE_MANAGER decides the activation and trial-applies it
     among the guards, so a step the register refuses commits nothing; once
-    the guarded commit has committed the ``Accept`` (the whole register step and the
+    the guarded commit has committed the ``Add`` (the whole register step and the
     owner's agreement), each ``CARRY_OVER`` row is committed as its own
     ``Update(EmbargoConsent)`` entry and only then is the case file written
     (ADR-0124, CLP-07-013).
@@ -119,7 +119,7 @@ def activate_embargo_on_case_tree(
     Args:
         case_id: ID of the VulnerabilityCase.
         embargo_id: ID of the proposed EmbargoEvent being activated.
-        sender_actor_id: Sender of the ``Accept``; must be the case owner.
+        sender_actor_id: Sender of the ``Add``; must be the case owner.
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the deadline of a stub Invite the activation re-issues.
         sender_rule: The use case's declared sender rule; the factory

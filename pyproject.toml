@@ -37,7 +37,6 @@ dependencies = [
     "markdown-exec>=1.12.3",
     "mkdocs-autorefs>=1.4.3",
     "mkdocs-include-markdown-plugin>=7.3.0",
-    "mkdocs-material-extensions>=1.3.1",
     "mkdocs-material>=9.7.7",
     "mkdocs-print-site-plugin>=2.8",
     "mkdocs-redirects>=1.2.3",
@@ -47,12 +46,14 @@ dependencies = [
     "networkx>=3.5",
     "pandas>=3.0.5",
     "pathspec>=0.12.1",
-    "pydantic==2.14.2",
+    "pydantic[email]==2.14.3",
     "py-trees>=2.6.0",
+    # Never imported: networkx 3.x computes nx.pagerank() with scipy, and
+    # vultron/core/case_states/hypercube/model.py calls it. Nothing else in
+    # uv.lock pulls scipy in, so this line is what installs it.
     "scipy>=1.18.0",
     "uvicorn>=0.52.3",
     "click>=8.4.2",
-    "griffelib>=2.1.0",
     "transitions>=0.9.3",
     "sqlmodel>=0.0.39",
     "pyyaml>=6.0",
@@ -76,6 +77,7 @@ export-demo-states="vultron.metadata.demo_scenarios.export_states:main"
 export-demo-semantics="vultron.metadata.demo_scenarios.export_semantics:main"
 export-demo-tree="vultron.metadata.demo_scenarios.export_tree:main"
 export-demo-recordings="vultron.demo.recordings.cli:main"
+compare-demo-runs="vultron.demo.recordings.compare:main"
 spec-dump="vultron.metadata.specs.render:main_llm_json"
 spec-dump-llm-json="vultron.metadata.specs.render:main_llm_json"
 spec-lint="vultron.metadata.specs.lint:main"
@@ -119,6 +121,8 @@ backfill-implementation-history="vultron.metadata.history.backfill_implementatio
 theme-fit="vultron.metadata.planning.theme_fit:main"
 theme-gate="vultron.metadata.planning.theme_fit.gate:main"
 theme-labels="vultron.metadata.planning.theme_labels:main"
+csaf-models="vultron.metadata.csaf.regenerate:main"
+csaf-corpus="vultron.metadata.csaf.corpus:main"
 
 
 [project.urls]
@@ -383,14 +387,12 @@ markers = [
     "spec_corpus: marks tests that load actual specs/ YAML files; run on specs/** path changes via spec-check.yml",
 ]
 
-[tool.uv.workspace]
-members = [
-    "help",
-]
-
 [dependency-groups]
 dev = [
     "codespell>=2.4.3",
+    # Exact pin: the committed CSAF models must equal a fresh generation byte for
+    # byte (CSAF-05-003), so a generator upgrade is a deliberate regeneration.
+    "datamodel-code-generator==0.90.0",
     "graphifyy>=0.9.43",
     "mypy>=2.3.0",
     "pandas-stubs>=3.0.5.260730",

@@ -31,6 +31,7 @@ from test.support.broken_ledger_entry import tampered
 from test.support.embargo_register import activate
 from test.support.ledger_records import with_ledger_records
 from test.support.received import case_stub, settle_as_the_inbox
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -570,6 +571,7 @@ class TestInviteActorUseCases:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
         assert accepted.activity is not None
         second_result = InviteActorToCaseReceivedUseCase(

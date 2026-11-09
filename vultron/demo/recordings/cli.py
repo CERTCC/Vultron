@@ -20,6 +20,7 @@ import click
 
 from vultron.demo.recordings import layout
 from vultron.demo.recordings.runner import record_scenario
+from vultron.demo.recordings.selection import select_scenarios
 from vultron.demo.recordings.topology import load_topology
 from vultron.demo.scenario.registry import discover_scenarios
 
@@ -77,15 +78,14 @@ def main(
             )
         _check_layout(tuple(specs))
         return
-    unknown = sorted(set(scenarios) - set(specs))
-    if unknown:
-        raise click.BadParameter(
-            f"not registered: {', '.join(unknown)}", param_hint="--scenario"
-        )
+    selected = select_scenarios(specs, scenarios)
     changed = [] if scenarios else layout.remove_unregistered(set(specs))
     topology = load_topology()
-    for name in scenarios or tuple(specs):
-        recording = record_scenario(specs[name], topology)
+    for name, spec in selected.items():
+        # The run's check tree is not committed: it is evidence for the
+        # base-versus-head comparison (`compare-demo-runs`), not a file
+        # ui/ reads.
+        recording = record_scenario(spec, topology).recording
         if not layout.is_current(recording):
             changed.append(name)
         path = layout.write_recording(recording)

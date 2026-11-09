@@ -67,6 +67,7 @@ from vultron.demo.helpers.story.assembly import (
     Story,
     StoryProp,
     choose,
+    fragment_name,
     story,
 )
 from vultron.demo.helpers.story.runner import run_story
@@ -83,6 +84,7 @@ __all__ = [
     "StoryState",
     "UnseatedContainer",
     "choose",
+    "fragment_name",
     "run_story",
     "story",
 ]

@@ -654,11 +654,11 @@ groups:
       schemas and the models generated from them read the one record, so they
       cannot disagree about the draft.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_one_pin_names_the_csaf_draft`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a test checks that the crosswalk version include and the pinned local
-      copy name the same commit.
-    tracking_issue: '#6089'
+      `test/metadata/test_csaf_pin.py::test_the_crosswalk_names_the_pinned_commit`
+      checks that the crosswalk version include names the commit, draft stage and
+      repository of the pin record, `third_party/csaf/pin.json`.
+      `test_the_pin_maps_every_file_of_the_pinned_local_copy` in the same module
+      checks that the record lists exactly the files of the pinned local copy.
   - id: CSAF-05-002
     priority: MUST
     kind: project
@@ -669,11 +669,10 @@ groups:
       The CSAF schema references the CVSS and SSVC schemas by URL. A local copy
       makes the models reproducible without network access.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_models_come_from_the_pinned_local_copy`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: the regeneration script reads only the pinned local copy; the test of
-      CSAF-05-003 runs it with network access disabled.
-    tracking_issue: '#6089'
+      `test/metadata/test_csaf_regenerate.py::test_models_generate_from_the_pinned_local_copy_offline`
+      generates the models with every socket connection refused, and
+      `test_an_unpinned_remote_reference_is_refused_not_fetched` checks that a URL
+      the pin record does not map fails regeneration instead of being fetched.
   - id: CSAF-05-003
     priority: MUST
     kind: project
@@ -684,11 +683,10 @@ groups:
       Without the test, a hand edit or a schema change without regeneration leaves
       the models out of step with the schema they claim to follow.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_regeneration_reproduces_the_committed_models`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a test regenerates the models into a temporary directory and compares
-      them with the committed models.
-    tracking_issue: '#6089'
+      `test/metadata/test_csaf_regenerate.py::test_regeneration_reproduces_the_committed_models`
+      regenerates the models from the pinned local copy through a temporary
+      staging directory, with network access refused, and compares them byte for
+      byte with `vultron/wire/csaf/models/`, counting a stray module as stale.
   - id: CSAF-05-004
     priority: MUST_NOT
     kind: project
@@ -702,8 +700,9 @@ groups:
     verification: >-
       `test/architecture/test_csaf_report_content_planned.py::test_the_suite_never_reads_the_tc_test_documents`
       checks that no other test module names a path under the test data
-      directory of the CSAF Technical Committee's repository.
-    tracking_issue: '#6089'
+      directory of the CSAF Technical Committee's repository. The optional script
+      is `uv run csaf-corpus --clone <dir>` (`vultron/metadata/csaf/corpus.py`),
+      tested on a stand-in clone of hand-written documents.
   - id: CSAF-05-005
     priority: MUST
     kind: process

@@ -236,18 +236,21 @@ class _EmbargoMixin:
     def activate_embargo(
         self,
         embargo_id: str,
+        proposal_id: str,
         case_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist the owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]``.
+        """Create and persist the owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]``.
 
+        ``inReplyTo`` names *proposal_id*, the proposal's Invite (ADR-0180).
         ``context`` names the case as well, so the snapshot the CASE_MANAGER
         commits carries the case URI there (VM-08-003, #4085).
         """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = activate_embargo_activity(
             embargo=embargo,
+            in_reply_to=proposal_id,
             target=case_id,
             context=case_id,
             actor=actor,
@@ -258,18 +261,21 @@ class _EmbargoMixin:
     def reject_embargo_proposal(
         self,
         embargo_id: str,
+        proposal_id: str,
         case_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
         """Create and persist the owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
 
+        ``inReplyTo`` names *proposal_id*, the proposal's Invite (ADR-0180).
         ``context`` names the case as well, so the snapshot the CASE_MANAGER
         commits carries the case URI there (VM-08-003, #4085).
         """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = reject_embargo_proposal_activity(
             embargo=embargo,
+            in_reply_to=proposal_id,
             target=case_id,
             context=case_id,
             actor=actor,

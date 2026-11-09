@@ -163,12 +163,9 @@ _INLINE_WIRE_FORM = re.compile(r"`([A-Z][A-Za-z]+\([^`]*\))`")
 _MIN_LABELLED_NODES = 48
 
 #: Node ids whose wire form no registry entry carries on its own, mapped to the
-#: pattern that does carry it.  ``ActivateEmbargo`` shares
-#: ``AddEmbargoEventToCasePattern`` with ``AddEmbargoToCase`` — the activation
-#: form is the same ``Add(EmbargoEvent)`` distinguished only by ``inReplyTo`` — so it
-#: has no ``SEMANTIC_REGISTRY`` entry of its own and would otherwise be skipped
-#: unchecked, which is precisely the node ISSUE-3456 AC-6 was about.
-_FORM_ALIASES = MappingProxyType({"ActivateEmbargo": "AddEmbargoToCase"})
+#: pattern that does carry it.  None today: ``ActivateEmbargo`` resolves through
+#: ``_ActivateEmbargoActivity``'s own registry entry (ADR-0180).
+_FORM_ALIASES: MappingProxyType[str, str] = MappingProxyType({})
 
 #: The qualifier each node id is allowed to carry after its wire form, naming
 #: the field that tells two activities sharing one form apart.  Checked rather
@@ -183,7 +180,7 @@ _EXPECTED_QUALIFIER = MappingProxyType(
     }
 )
 
-#: A wire line's trailing bracketed qualifier, ``Accept(EmbargoEvent)`` then
+#: A wire line's trailing bracketed qualifier, ``Add(EmbargoEvent)`` then
 #: ``[target=VulnerabilityCase]`` (Wire Activity notation, Annex C).  Only the
 #: group after the last ``)`` is a qualifier, so ``_render_as2_form``'s bare
 #: form is what the first group holds.
@@ -419,11 +416,10 @@ def test_mermaid_labels_are_the_canonical_as2_form():
 
     The wire line may carry a trailing ``[<qualifier>]`` naming a field the
     reader needs to tell an activity apart, such as the case ``target`` of the
-    case owner's ``Accept``/``Reject(EmbargoEvent)``. The qualifier is *checked*
-    against ``_EXPECTED_QUALIFIER`` rather than stripped: when two activities
-    once shared ``Add(EmbargoEvent)`` and were told apart only by ``inReplyTo``,
-    discarding it let a label assert the exact opposite of the truth while this
-    test passed.
+    case owner's ``Add``/``Reject(EmbargoEvent)``. The qualifier is *checked*
+    against ``_EXPECTED_QUALIFIER`` rather than stripped, because a discarded
+    qualifier can let a label assert the opposite of the truth while this test
+    passes.
 
     An unresolvable node id is a failure, not a skip.  Skipping it silently is
     the same false-clean signal DF-09-009 forbids, and it hid ``ActivateEmbargo``

@@ -40,6 +40,7 @@ import pytest
 
 from test.support.embargo_register import activate
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -190,6 +191,7 @@ class _Revision:
             trigger_activity=TriggerActivityAdapter(self.proposer_dl),
             sync_port=SyncActivityAdapter(self.proposer_dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
         activity = activity_of(result)
         assert activity["to"] == [OWNER]
@@ -228,6 +230,7 @@ class _Revision:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
     def owner_rejects(self, revision_id: str) -> None:
@@ -242,6 +245,7 @@ class _Revision:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
     # -- the reads ---------------------------------------------------------

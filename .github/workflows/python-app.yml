@@ -22,6 +22,17 @@ on:
       # request that hand-edits or half-regenerates an example and nothing
       # else runs no test at all (#5776).
       - docs/reference/examples/**
+      # The crosswalk's CSAF version include must name the commit the CSAF
+      # pin record names; test/metadata/test_csaf_pin.py compares them
+      # (CSAF-05-001), so a pull request that edits only the include must
+      # run it.
+      - docs/reference/csaf_crosswalk/_csaf_version.md
+      # The pinned local copy of the CSAF schemas and its pin record are JSON,
+      # not Python: test/metadata/test_csaf_pin.py checks their digests and
+      # test_regeneration_reproduces_the_committed_models regenerates from
+      # them (CSAF-05-002/003), so a pull request that edits only them must
+      # run those tests.
+      - third_party/**
       # A Dependabot bump inside the existing version range touches only the
       # lockfile; demo-integration.yml skips Dependabot PRs on the premise that
       # this workflow still tests them (DEMOCI-02-004, #3610).
@@ -61,6 +72,10 @@ on:
       # The committed vocab examples are an input to
       # test/architecture/test_vocab_examples_current.py; see the push filter.
       - docs/reference/examples/**
+      # Compared with the CSAF pin record (CSAF-05-001); see the push filter.
+      - docs/reference/csaf_crosswalk/_csaf_version.md
+      # The pinned local copy and its pin record; see the push filter.
+      - third_party/**
       - uv.lock
       - pyrightconfig.json
       # test/ci reads every workflow and the pre-commit config, so the pull

@@ -47,6 +47,7 @@ from test.architecture._vocab_example_corpus import (
 from test.support.received import delivered_body
 from test.support.signing import resigned, serve_published_profiles
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.app import create_app
@@ -138,7 +139,7 @@ def _run_pipeline_once(
     dispatch_adp = FastAPIDispatchAdapter(
         dl=dl, actor_id=_ACTOR_ID, dispatcher=dispatcher
     )
-    outcome = process_payload(body, ingress, dispatch_adp)
+    outcome = process_payload(body, ingress, dispatch_adp, clock=SystemClock())
     # IO-04-002: assert on both status and failure_reason field *values*.
     # isinstance guards that process_payload returned the correct type;
     # the InboxOutcomeStatus membership check verifies status is a real enum

@@ -24,7 +24,9 @@ from test.core.use_cases.received.conftest import (
     seed_store_owner_as_case_manager,
 )
 from test.support.embargo_register import propose, write_consent_rows
+from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import assert_held_only_as_received
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -183,7 +185,7 @@ class TestEmbargoProposalLifecycle:
         assert result.disposition is HandlerDisposition.APPLIED
 
         # Accept(Invite) is the sender's consent, the owner's included; the
-        # owner's decision for the case is Accept(EmbargoEvent) (ADR-0122).
+        # owner's decision for the case is Add(EmbargoEvent) (ADR-0122).
         case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
@@ -345,7 +347,7 @@ class TestEmbargoProposalLifecycle:
     @pytest.mark.spec("EP-09-005")
     @pytest.mark.spec("MSM-07-005")
     def test_owners_accept_of_the_embargo_activates_it(self, make_payload):
-        """The owner's Accept(EmbargoEvent)[target=VulnerabilityCase] activates the proposal.
+        """The owner's Add(EmbargoEvent)[target=VulnerabilityCase] activates the proposal.
 
         The activation is also the owner's agreement, so its row for the
         embargo becomes ACCEPTED (ADR-0122).
@@ -376,7 +378,11 @@ class TestEmbargoProposalLifecycle:
         dl.create(embargo)
 
         activation = activate_embargo_activity(
-            embargo, target=case.id_, actor=owner_id, to=[coordinator_id]
+            embargo,
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=case.id_,
+            actor=owner_id,
+            to=[coordinator_id],
         )
         event = make_payload(
             activation, receiving_actor_id=coordinator_id, at=dl
@@ -511,7 +517,10 @@ class TestEmbargoProposalLifecycle:
         )
         with pytest.raises(VultronInvalidStateTransitionError):
             SvcAcceptEmbargoUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                clock=SystemClock(),
             ).execute()
 
 

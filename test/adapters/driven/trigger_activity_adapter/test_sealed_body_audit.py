@@ -511,12 +511,14 @@ RECIPES: dict[str, Recipe] = {
     ),
     "activate_embargo": lambda w: w.adapter.activate_embargo(
         embargo_id=str(w.embargo.id_),
+        proposal_id=w.proposal_id(),
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
     ),
     "reject_embargo_proposal": lambda w: w.adapter.reject_embargo_proposal(
         embargo_id=str(w.embargo.id_),
+        proposal_id=w.proposal_id(),
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],

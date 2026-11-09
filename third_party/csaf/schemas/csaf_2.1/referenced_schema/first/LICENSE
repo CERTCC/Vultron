@@ -1,0 +1,36 @@
+FIRST CVSS JSON schemas (cvss-v2.0.json, cvss-v3.0.json, cvss-v3.1.json,
+cvss-v4.0.json) and their meta-schema (meta.json)
+
+Source: https://github.com/oasis-tcs/csaf, commit 29b1e27, directory
+csaf_2.1/referenced_schema/first/, which keeps copies of the schemas FIRST
+publishes at https://www.first.org/cvss/. Kept byte for byte as published.
+
+Licence: BSD-3-Clause. Each CVSS schema carries its licence in its "license"
+field; the copyright lines are:
+
+  cvss-v2.0.json: Copyright (c) 2017, FIRST.ORG, INC.
+  cvss-v3.0.json: Copyright (c) 2017, FIRST.ORG, INC.
+  cvss-v3.1.json: Copyright (c) 2021, FIRST.ORG, INC.
+  cvss-v4.0.json: Copyright (c) 2025, FIRST.ORG, INC.
+
+The licence text, as it appears in cvss-v4.0.json:
+
+Copyright (c) 2025, FIRST.ORG, INC.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the 
+following conditions are met:
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following 
+   disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the 
+   following disclaimer in the documentation and/or other materials provided with the distribution.
+3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote 
+   products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS' AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

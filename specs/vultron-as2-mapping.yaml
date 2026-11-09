@@ -1171,7 +1171,7 @@ groups:
     rationale: >-
       An invitee consents to the proposed embargo when it accepts the Invite that it
       received, so the `Accept` wraps that Invite. Its inner object tells it apart from
-      the Case Owner's activation, which is an `Accept` of the `EmbargoEvent` itself
+      the Case Owner's activation, which is an `Add` of the `EmbargoEvent` itself
       (VAM-05-008).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AcceptInviteToEmbargoOnCasePattern` wraps `InviteToEmbargoOnCasePattern` inside an `Accept` outer
@@ -1200,19 +1200,26 @@ groups:
     kind: protocol
     statement: >-
       `ACTIVATE_EMBARGO_ON_CASE` MUST be represented as
-      `Accept(EmbargoEvent)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
-      itself, carried inline or by reference, and not the `Invite` that proposed it (ADR-0122).
+      `Add(EmbargoEvent)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
+      itself, carried inline or by reference, and whose `inReplyTo` names the
+      `Invite(EmbargoEvent)` that proposed it (ADR-0180).
     rationale: >-
-      The Case Owner's activation is a decision about the embargo for the case, so it accepts
-      the embargo; an `Accept` of the `Invite` is each sender's own consent (VAM-05-006).
-      Giving the two different objects keeps them apart on the wire.
+      The Case Owner's activation is a change to the case: the case gains the embargo, as
+      `Remove(EmbargoEvent)` ends it (VAM-05-003). An `Accept` of the `Invite` is each
+      sender's own consent (VAM-05-006), so the two differ by verb, and a receiver tells
+      them apart by type alone. `inReplyTo` links the decision to the proposal it decides
+      (RF-08-001).
     verification: A unit test in `test/test_semantic_activity_patterns.py` confirms that
-      `Accept(EmbargoEvent)[target=VulnerabilityCase]` maps to
-      `ACTIVATE_EMBARGO_ON_CASE` and no
-      other semantics, and inspection of `_instances.py` confirms `ActivateEmbargoOnCasePattern`
-      uses `TAtype.ACCEPT`, `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
+      `Add(EmbargoEvent)[target=VulnerabilityCase]` maps to
+      `ACTIVATE_EMBARGO_ON_CASE` and no other semantics, and that neither it nor
+      `Accept(Invite(EmbargoEvent))` matches the other's pattern. Inspection of
+      `_instances.py` confirms `ActivateEmbargoOnCasePattern` uses `TAtype.ADD`,
+      `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
+      `test/architecture/test_response_in_reply_to.py` confirms the activity cannot be
+      built without `inReplyTo`.
     adr:
     - ADR-0122
+    - ADR-0180
     stories:
     - story_2026_087
   - id: VAM-05-009
@@ -1221,17 +1228,22 @@ groups:
     statement: >-
       `REJECT_EMBARGO_PROPOSAL_ON_CASE` MUST be represented as
       `Reject(EmbargoEvent)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
-      itself, carried inline or by reference, and not the `Invite` that proposed it (ADR-0122).
+      itself, carried inline or by reference, and not the `Invite` that proposed it, which
+      its `inReplyTo` names (ADR-0122, ADR-0180).
     rationale: >-
       The Case Owner's rejection is a decision about the embargo for the case; a
-      `Reject` of the `Invite` is each sender's own consent (VAM-05-007).
+      `Reject` of the `Invite` is each sender's own consent (VAM-05-007). `inReplyTo`
+      links the decision to the proposal it decides (RF-08-001).
     verification: A unit test in `test/test_semantic_activity_patterns.py` confirms that
       `Reject(EmbargoEvent)[target=VulnerabilityCase]` maps to
       `REJECT_EMBARGO_PROPOSAL_ON_CASE` and no other semantics, and inspection of
       `_instances.py` confirms `RejectEmbargoProposalOnCasePattern` uses `TAtype.REJECT`,
       `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
+      `test/architecture/test_response_in_reply_to.py` confirms the activity cannot be
+      built without `inReplyTo`.
     adr:
     - ADR-0122
+    - ADR-0180
     stories:
     - story_2026_087
   - id: VAM-05-010
@@ -1239,7 +1251,7 @@ groups:
     kind: project
     statement: >-
       This codebase MUST carry the proposed `EmbargoEvent` inline as the object of the
-      `Accept(EmbargoEvent)[target=VulnerabilityCase]` of VAM-05-008 and of the
+      `Add(EmbargoEvent)[target=VulnerabilityCase]` of VAM-05-008 and of the
       `Reject(EmbargoEvent)[target=VulnerabilityCase]` of VAM-05-009.
     rationale: >-
       This is how this codebase meets VAM-05-008 and VAM-05-009, kept apart from them so
@@ -1255,7 +1267,7 @@ groups:
       `vultron/wire/as2/vocab/activities/embargo.py` confirms each types `object_` as
       `as_EmbargoEvent`, not a reference union, so this codebase cannot build either with
       a bare URI. Unit tests in `test/test_semantic_activity_patterns.py` confirm that
-      `Accept(EmbargoEvent)[target=VulnerabilityCase]` and
+      `Add(EmbargoEvent)[target=VulnerabilityCase]` and
       `Reject(EmbargoEvent)[target=VulnerabilityCase]`, each carrying the typed inline
       `EmbargoEvent`, map to `ACTIVATE_EMBARGO_ON_CASE` and
       `REJECT_EMBARGO_PROPOSAL_ON_CASE`.
@@ -1264,6 +1276,8 @@ groups:
       spec_id: VAM-05-008
     - rel_type: implements
       spec_id: VAM-05-009
+    adr:
+    - ADR-0180
   - id: VAM-05-011
     priority: MUST
     kind: protocol

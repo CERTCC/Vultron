@@ -19,13 +19,17 @@ intake archived (IE-10-001).
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
+import httpx2 as httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
 from test.support.signing import post_delivered, serve_published_profiles
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
@@ -35,27 +39,35 @@ from vultron.core.ports.datalayer import DataLayer
 
 @contextmanager
 def served_store(
-    dl: DataLayer, actor_id: str, name: str, actor: CoreActor | None = None
+    dl: DataLayer,
+    actor_id: str,
+    name: str,
+    actor: CoreActor | None = None,
+    *,
+    existing: bool = False,
 ) -> Iterator[tuple[TestClient, RecordingEmitter]]:
     """Serve *dl*, the store of actor *actor_id*, with a real app.
 
     The store's actor record is *actor* when given, else a bare actor named
-    *name* with its hosted endpoints.  Every author that posts to it
-    publishes its profile (:func:`serve_published_profiles`), so the inbox
-    verifies each signed body by its author's key; a test of an unreadable
-    key installs its own fetcher on ``client.app``.
+    *name* with its hosted endpoints. With *existing*, *dl* already holds the
+    actor, as a store does when its process restarts, so nothing is written.
+    Every author that posts to it publishes its profile
+    (:func:`serve_published_profiles`), so the inbox verifies each signed
+    body by its author's key; a test of an unreadable key installs its own
+    fetcher on ``client.app``.
     """
-    dl.create(
-        object_to_record(
-            actor
-            or CoreActor(
-                id_=actor_id,
-                name=name,
-                inbox=f"{actor_id}/inbox",
-                outbox=f"{actor_id}/outbox",
+    if not existing:
+        dl.create(
+            object_to_record(
+                actor
+                or CoreActor(
+                    id_=actor_id,
+                    name=name,
+                    inbox=f"{actor_id}/inbox",
+                    outbox=f"{actor_id}/outbox",
+                )
             )
         )
-    )
     app = create_app(docs_url=None, openapi_url=None)
     app.dependency_overrides[get_actor_dl] = lambda actor_id: dl
     emitter = RecordingEmitter()
@@ -63,6 +75,29 @@ def served_store(
         app.state.emitter = emitter
         serve_published_profiles(app)
         yield client, emitter
+
+
+def get_from_store(
+    store: Path, segment: str, path: str, *, existing: bool = False
+) -> httpx.Response:
+    """GET *path* from a real app serving the store file *store*.
+
+    The store belongs to the actor at *segment*. A new store is provisioned
+    with that actor; with *existing*, the file already holds it, as it does
+    when its process restarts. A file per store: two in-memory stores for one
+    actor id share their rows, so the second would find the first one's actor
+    record.
+    """
+    actor_id = canonical_actor_uri(segment)
+    dl = SqliteDataLayer(f"sqlite:///{store}", actor_id=actor_id)
+    try:
+        with served_store(dl, actor_id, segment, existing=existing) as (
+            client,
+            _emitter,
+        ):
+            return client.get(path)
+    finally:
+        dl.close()
 
 
 #: Post an already-signed body to an inbox and check it is accepted; the

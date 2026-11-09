@@ -6,6 +6,18 @@ Each requirement below has tests, and every one of them is held by a strict expe
 So a test shows that `main` does not yet meet the requirement.
 The requirements are grouped by the issues that the held tests cite.
 
+### Tracked by [#1184](https://github.com/CERTCC/Vultron/issues/1184)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ENC-01-001",
+    "ENC-01-004",
+    "ENC-01-005",
+    "ENC-01-006",
+))
+```
+
 ### Tracked by [#2883](https://github.com/CERTCC/Vultron/issues/2883)
 
 ```python exec="true" idprefix=""
@@ -86,6 +98,24 @@ print(requirement_callout(
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "CP-05-007",
+))
+```
+
+### Tracked by [#3659](https://github.com/CERTCC/Vultron/issues/3659)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "SYNC-01-008",
+))
+```
+
+### Tracked by [#3660](https://github.com/CERTCC/Vultron/issues/3660)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "HTTP-01-004",
 ))
 ```
 
@@ -243,6 +273,15 @@ print(requirement_callout(
 ))
 ```
 
+### Tracked by [#5388](https://github.com/CERTCC/Vultron/issues/5388)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ENC-02-002",
+))
+```
+
 ### Tracked by [#5636](https://github.com/CERTCC/Vultron/issues/5636)
 
 ```python exec="true" idprefix=""
@@ -267,15 +306,6 @@ print(requirement_callout(
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "CM-20-006",
-))
-```
-
-### Tracked by [#5642](https://github.com/CERTCC/Vultron/issues/5642)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CM-16-020",
 ))
 ```
 
@@ -588,7 +618,6 @@ print(requirement_callout(
     "EMB-01-005",
     "EMB-02-003",
     "EMB-04-001",
-    "EMB-05-001",
     "EMB-08-001",
     "EMB-09-001",
     "EMB-10-001",
@@ -688,7 +717,6 @@ print(requirement_callout(
     "CM-14-010",
     "CM-14-013",
     "CM-16-002",
-    "CM-16-005",
     "CM-18-004",
     "CM-20-001",
     "CM-20-002",
@@ -785,12 +813,7 @@ print(requirement_callout(
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
-    "ENC-01-001",
-    "ENC-01-004",
-    "ENC-01-005",
-    "ENC-01-006",
     "ENC-02-001",
-    "ENC-02-002",
     "IE-11-002",
 ))
 ```

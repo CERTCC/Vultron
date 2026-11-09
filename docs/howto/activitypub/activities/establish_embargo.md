@@ -51,7 +51,7 @@ flowchart TB
         EmRejectEmbargo["Refuse the terms<br/>Reject(Invite(EmbargoEvent))"]
     end
     subgraph Case Owner decides
-        ActivateEmbargo["Embargo Proposal Acceptance (EA)<br/>Accept(EmbargoEvent)[target=VulnerabilityCase]"]
+        ActivateEmbargo["Embargo Proposal Acceptance (EA)<br/>Add(EmbargoEvent)[target=VulnerabilityCase]"]
         RejectEmbargoProposal["Embargo Proposal Rejection (ER)<br/>Reject(EmbargoEvent)[target=VulnerabilityCase]"]
     end
     subgraph as:Announce
@@ -104,7 +104,8 @@ The receiver uses the EM state of the case (MSM-02).
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/refuse-embargo-proposal.md" %}
 
-4. When you judge that the proposal has carried, send Embargo Proposal Acceptance (EA), `Accept(EmbargoEvent)`, as Case Owner, with the proposed `EmbargoEvent` as its `object` and the case as its `target`.
+4. When you judge that the proposal has carried, send Embargo Proposal Acceptance (EA), `Add(EmbargoEvent)`, as Case Owner, with the proposed `EmbargoEvent` as its `object` and the case as its `target`.
+   Name the proposal's `Invite(EmbargoEvent)` in `inReplyTo`.
    The case moves to `EM.ACTIVE`.
    Your own consent to the terms is recorded at the same time.
 
@@ -114,7 +115,7 @@ The receiver uses the EM state of the case (MSM-02).
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/announce-embargo.md" %}
 
-To reject the proposal, send Embargo Proposal Rejection (ER), `Reject(EmbargoEvent)`, with the same `object` and `target` as Case Owner instead.
+To reject the proposal, send Embargo Proposal Rejection (ER), `Reject(EmbargoEvent)`, with the same `object`, `target` and `inReplyTo` as Case Owner instead.
 The case returns to `EM.NONE`.
 The negotiation is then open again.
 Propose revised terms with another `Invite(EmbargoEvent)`.
@@ -142,7 +143,7 @@ When the terms need no negotiation, propose them as Case Owner and activate them
 
 1. Send `Invite(EmbargoEvent)` as above.
    Proposing the terms records your consent to them.
-2. Send `Accept(EmbargoEvent)` with the case as its `target`.
+2. Send `Add(EmbargoEvent)` with the case as its `target` and your own `Invite(EmbargoEvent)` in `inReplyTo`.
 3. Send `Announce(EmbargoEvent)`.
 
 Use this route when the terms need no negotiation:
@@ -190,7 +191,7 @@ So the call reports not found when no proposal is open.
 |---|---|
 | `Invite(EmbargoEvent)` | The case `em_state` is `PROPOSED`. |
 | `Accept(Invite(EmbargoEvent))` | Your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) row for the embargo is `AGREED`, as [§9 Participant Embargo Consent (PEC) State Machine in the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) defines it. You become a [signatory](../../../reference/glossary.md#embargo-and-timing) once that embargo is the Active Embargo. |
-| `Accept(EmbargoEvent)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE`, the case names one active embargo, and your consent row for it is `AGREED`. |
+| `Add(EmbargoEvent)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE`, the case names one active embargo, and your consent row for it is `AGREED`. |
 | `Reject(EmbargoEvent)` with the case as `target`, as Case Owner | The case `em_state` is `NONE` and no participant's consent row changed. |
 | `Announce(EmbargoEvent)` | Every participant's replica carries the same active embargo ID. |
 

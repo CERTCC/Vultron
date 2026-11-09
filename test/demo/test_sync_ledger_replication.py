@@ -24,6 +24,7 @@ import pytest
 
 from test.support.received import delivered, peer_position, received_event
 from test.support.signing import signed_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
@@ -349,6 +350,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
             obj=delivered(out_of_chain_announce),
             dl=peer_dl,
             dispatcher=peer_iso.app.state.dispatcher,
+            clock=SystemClock(),
         )
         peer_reject_events = [
             cast(RejectLogEntryReceivedEvent, extract_event(activity))
@@ -499,6 +501,7 @@ def test_sync_duplicate_delivery_idempotency(
             obj=delivered(announce),
             dl=peer_dl,
             dispatcher=peer_iso.app.state.dispatcher,
+            clock=SystemClock(),
         )
 
     assert saved_case_ledger_entry_ids == [entry.id_]
@@ -595,7 +598,10 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
     peer_dl.save(entry1)
 
     sent = state_ledger_positions_trigger(
-        peer_dl, peer_actor_id, SyncActivityAdapter(peer_dl)
+        peer_dl,
+        peer_actor_id,
+        SyncActivityAdapter(peer_dl),
+        clock=SystemClock(),
     )
     assert sent == 1
     reads = peer_dl.list_objects("Read")
@@ -607,6 +613,7 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
         obj=delivered(reads[0]),
         dl=case_actor_dl,
         dispatcher=case_actor_iso.app.state.dispatcher,
+        clock=SystemClock(),
     )
     anyio.run(
         functools.partial(

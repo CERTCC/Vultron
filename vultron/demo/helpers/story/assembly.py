@@ -13,7 +13,8 @@
 """Assemble a story: fragments, props, choices and named prefixes.
 
 :data:`Fragment`, :class:`StoryProp`, :func:`choose` and :func:`story`, the
-parts a scenario writes its story from (:mod:`vultron.demo.helpers.story`).
+parts a scenario writes its story from (:mod:`vultron.demo.helpers.story`),
+and :func:`fragment_name`, how a fragment is named once it is written down.
 """
 
 from __future__ import annotations
@@ -34,6 +35,68 @@ if TYPE_CHECKING:
 #: rather than inlined because it is also what a named prefix is made of, and
 #: what a scenario reads top to bottom.
 Fragment = Callable[["StoryState"], None]
+
+
+def _unstable_name_reason(module: object, qualname: object) -> str | None:
+    """Return why ``module``/``qualname`` is not a stable name, or ``None``."""
+    if (
+        not isinstance(module, str)
+        or not module
+        or not isinstance(qualname, str)
+        or not qualname
+    ):
+        return (
+            "it has no __module__ and __qualname__ pair, so there is no name "
+            "to write; a functools.partial and a callable instance are the "
+            "usual causes"
+        )
+    if "<" in qualname:
+        return (
+            f"its qualified name {qualname!r} holds a synthetic segment such "
+            "as '<lambda>' or '<locals>', which names no step and changes "
+            "when its enclosing function is renamed"
+        )
+    return None
+
+
+def fragment_name(fragment: object, *, scenario: str) -> str:
+    """Return *fragment*'s qualified name: ``module.qualname``.
+
+    Every story item is a :class:`Choose` or a **named module-level**
+    fragment — a parameterized helper is called from inside one — so this
+    name is stable, and the committed plot manifest records a fragment by it
+    (DEMOCI-11-034).
+
+    Args:
+        fragment: The story item, a :data:`Fragment`. Typed as an opaque
+            object because deciding whether it *has* a stable name is this
+            function's whole job: a ``functools.partial`` and a callable
+            instance are both assignable to :data:`Fragment` and neither
+            carries a ``__qualname__``, so the narrower annotation would
+            promise a check the type system does not make.
+        scenario: The scenario whose story holds it, for the message.
+
+    Returns:
+        ``f"{fragment.__module__}.{fragment.__qualname__}"``.
+
+    Raises:
+        DemoStoryError: When that name would not be stable. Refusing beats
+            recording it: a manifest row that moves on an unrelated rename
+            makes every later diff unreadable, which is the one thing the
+            artifact exists to keep legible.
+    """
+    module = getattr(fragment, "__module__", None)
+    qualname = getattr(fragment, "__qualname__", None)
+    reason = _unstable_name_reason(module, qualname)
+    if reason is not None:
+        raise DemoStoryError(
+            f"scenario {scenario!r} has a story item {fragment!r} that the "
+            f"plot manifest cannot name: {reason} (DEMOCI-11-034). Give the "
+            "step a module-level function in the scenario's module or under "
+            "vultron/demo/helpers/, and call any parameterized helper from "
+            "inside it."
+        )
+    return f"{module}.{qualname}"
 
 
 @dataclass(frozen=True)

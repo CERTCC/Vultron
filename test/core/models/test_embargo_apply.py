@@ -19,12 +19,13 @@ carries, reads no clock and no store, and leaves its input as it was.
 """
 
 import sys
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from vultron.core.models._helpers import ids as helpers_ids
+from vultron.core.models._helpers import install_id_source, new_object_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
@@ -576,8 +577,9 @@ def test_the_apply_function_reads_no_clock_mints_no_id_and_reads_no_store(
 
     The function takes no store: its only inputs are the case file and the
     change.  Every core module's ``datetime`` reads the clock through
-    ``datetime.now``, and every minted id goes through ``new_object_id``; all of
-    them fail here.
+    ``datetime.now``, and every minted id goes through ``new_object_id``.  Both
+    fail here: the clock through a refusing ``datetime``, and the minter
+    through a refusing id source installed for the block (OID-01-011).
     """
     case_file = _case_file()
     patched = [
@@ -590,9 +592,11 @@ def test_the_apply_function_reads_no_clock_mints_no_id_and_reads_no_store(
     for name in patched:
         monkeypatch.setattr(sys.modules[name], "datetime", _NoClock)
 
-    def _no_mint() -> str:
+    def _no_mint() -> uuid.UUID:
         raise AssertionError("the apply function minted an id")
 
-    monkeypatch.setattr(helpers_ids.uuid, "uuid4", _no_mint)
-    after = _apply_all(case_file, _LEDGER)
+    with install_id_source(_no_mint):
+        with pytest.raises(AssertionError, match="minted an id"):
+            new_object_id()  # the refusing source is the one the minter uses
+        after = _apply_all(case_file, _LEDGER)
     assert after.case.em_state == EM.EXITED

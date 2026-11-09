@@ -197,19 +197,22 @@ repos:
         # every error message, README step and AGENTS.md entry names.
         entry: uv run demo-scenarios --check
         language: system
-        # Three kinds of input make the committed artifacts stale, so all three
+        # Four kinds of input make the committed artifacts stale, so all four
         # are watched (DEMOCI-11-005): the @scenario decorators in the scenario
-        # modules, the renderers that turn them into tables and JSON, and the
-        # artifacts themselves — the last so a hand-edit is caught too. The
-        # scenario narrative pages are watched as well, because --check also
-        # refuses a page for an unregistered scenario or one that declares a
-        # maturity claim (DEMOCI-11-012).
+        # modules, the story helpers under vultron/demo/helpers/ that hold the
+        # fragments and choose(...) items a shared prefix is assembled from —
+        # the plot manifest lists them in order, so reordering one there makes
+        # it stale (DEMOCI-11-034, DEMOCI-11-035) — the renderers that turn
+        # them into tables and JSON, and the artifacts themselves, the last so
+        # a hand-edit is caught too. The scenario narrative pages are watched
+        # as well, because --check also refuses a page for an unregistered
+        # scenario or one that declares a maturity claim (DEMOCI-11-012).
         #
         # Not covered: a commit that *only deletes* a scenario module and its
         # derived files. pre-commit's staged-file list excludes deletions, so no
         # pattern can match one; test_committed_artifacts_are_in_sync in
         # test/metadata/test_demo_scenario_artifacts.py is the backstop there.
-        files: ^(vultron/demo/scenario/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md|docs/topics/scenarios/.*\.md)$
+        files: ^(vultron/demo/scenario/.*\.py|vultron/demo/helpers/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|vultron/demo/scenario/plots\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md|docs/topics/scenarios/.*\.md)$
         pass_filenames: false
 
       - id: demo-recordings-sync
@@ -277,6 +280,20 @@ repos:
         # that changes vultron/; the test is also the backstop for a deletion,
         # which pre-commit's staged-file list cannot match.
         files: ^(vultron/wire/as2/vocab/.*\.py|vultron/metadata/wire_context/.*\.py|docs/ns/context\.jsonld)$
+        pass_filenames: false
+
+      - id: csaf-models-sync
+        name: CSAF models in sync with the pinned local copy
+        # Regenerates the models in memory from the pinned local copy and
+        # compares them byte for byte (CSAF-05-003). Inputs: the copy and the
+        # pin record under third_party/csaf/, the committed models, the
+        # generator script, the pin reader and the comparison helper, pyproject.toml (the ruff config the output is
+        # formatted with), and uv.lock, which pins the generator and ruff.
+        # test_regeneration_reproduces_the_committed_models is the backstop
+        # for a deletion and for CI.
+        entry: uv run csaf-models --check
+        language: system
+        files: ^(third_party/csaf/.*|vultron/wire/csaf/.*|vultron/metadata/csaf/(regenerate|pin)\.py|vultron/metadata/generated_files\.py|pyproject\.toml|uv\.lock)$
         pass_filenames: false
 
       - id: ruff

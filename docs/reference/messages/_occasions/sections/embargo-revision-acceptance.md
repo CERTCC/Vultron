@@ -7,7 +7,7 @@ Activates the revision for the case. It replaces the active embargo in the same 
 === "Details"
 
     - **When…** the Case Owner decides to replace the active embargo with a proposed revision
-    - **Send:** `Accept(EmbargoEvent)[target=VulnerabilityCase]`
+    - **Send:** `Add(EmbargoEvent)[target=VulnerabilityCase]`
     - **Send to:** the CASE_MANAGER
     - **Sent by:** the Case Owner
     - **Distinguished by:** EM state `REVISE`

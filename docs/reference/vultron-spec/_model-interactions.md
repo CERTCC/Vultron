@@ -142,7 +142,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 Every one of these changes reaches the case ledger, and every replica applies it by copying.
 The act's own activity carries its whole register step: a termination's entry also cancels every open proposal, and an activation's entry also supersedes the embargo it replaces.
-Where the act's activity states a row itself, as the owner's `Accept` states the owner's agreement, the act's entry carries that row.
+Where the act's activity states a row itself, as the owner's `Add` states the owner's agreement, the act's entry carries that row.
 
 Each other consent row that the CASE_MANAGER writes as a consequence of the act is its own CASE_MANAGER entry after the act's entry.
 Examples are an `UNINVITED` row, the proposer's `AGREED` row or a `CARRY_OVER`.

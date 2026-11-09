@@ -57,6 +57,7 @@ from test.core.use_cases.received.test_joiner_revision_relay import (
 )
 from test.support.embargo_register import activate
 from test.support.received import delivered_body, received_event
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -118,6 +119,7 @@ def _deliver(
             dl=dl, actor_id=actor_id, dispatcher=make_dispatcher()
         ),
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
+        clock=SystemClock(),
     )
 
 

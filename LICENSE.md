@@ -32,6 +32,25 @@ respect to the terms applicable to their Third Party Software. Third Party Softw
 licenses only apply to the Third Party Software and not any other portion of this
 program or this program as a whole.
 
+### Third Party Software in this Repository
+
+The `third_party/` directory holds pinned local copies of files published by
+other parties. Each is distributed under its own licence, in a `LICENSE` or
+`NOTICE` file next to it; see `third_party/README.md`.
+
+- CSAF 2.1 JSON schemas (OASIS CSAF Technical Committee), in
+  `third_party/csaf/schemas/csaf_2.1/json_schema/`: OASIS IPR Policy,
+  Non-Assertion Mode. Copyright © OASIS Open 2026. All Rights Reserved.
+- CVSS v2.0, v3.0, v3.1 and v4.0 JSON schemas (FIRST), in
+  `third_party/csaf/schemas/csaf_2.1/referenced_schema/first/`: BSD-3-Clause.
+  Copyright (c) FIRST.ORG, INC.
+- SSVC `SelectionList` JSON schema (CERT/CC), in
+  `third_party/csaf/schemas/csaf_2.1/referenced_schema/certcc/`: MIT
+  (SEI)-style. Copyright 2026 Carnegie Mellon University.
+- JSON Schema draft 2020-12 meta-schemas, in
+  `third_party/csaf/schemas/json-schema.org/`: BSD-3-Clause. Copyright (c) 2022
+  JSON Schema Specification Authors.
+
 Created, in part, with funding and support from the United States Government. (see
 Acknowledgments file).
 

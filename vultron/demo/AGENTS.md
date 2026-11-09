@@ -46,16 +46,16 @@ Actor's Replica Updates via the CASE_MANAGER's Announce". (CONCERN-1635, ISSUE-2
 
 A scenario module declares itself, and nothing else anywhere does:
 
-- `@scenario(name, label, participants, feature, in_pr_set, story)` on `main()`,
-  from `scenario/registry/`. `story` is **required** and is the only thing that
-  places the scenario on the tree: its path is read off the story's `choose(...)`
-  items, which name `scenario/branch_points.py` entries, and there is no path
-  parameter to state it a second time (DEMOCI-11-019, DEMOCI-11-024). Every table
-  and `.github/demo-scenarios.json` are generated from it (`demo-scenarios --write`,
-  gated by `demo-scenarios-sync`): never hand-edit one, change the decorator. Script,
-  harness and narrative paths are **derived** from `name` (`<name_>_demo.py` or a
-  `<name_>_demo/` package, `test_<name_>_invariants.py`, `<name>.md`; hyphens become
-  underscores) — rename to match, never add an override (DEMOCI-11-003).
+- `@scenario(name, label, participants, feature, in_pr_set, story)` on `main()`, from
+  `scenario/registry/`. `story` is **required** and is the only thing that places the
+  scenario on the tree: its path is read off the story's `choose(...)` items, which name
+  `scenario/branch_points.py` entries, and there is no path parameter to state it a
+  second time (DEMOCI-11-019, DEMOCI-11-024). Every table, `.github/demo-scenarios.json`
+  and `scenario/plots.json` are generated from it (`demo-scenarios --write`, gated by
+  `demo-scenarios-sync`): never hand-edit one, change the decorator. Script, harness and
+  narrative paths are **derived** from `name` (`<name_>_demo.py` or a `<name_>_demo/`
+  package, `test_<name_>_invariants.py`, `<name>.md`; hyphens become underscores) —
+  rename to match, never add an override (DEMOCI-11-003).
 - `ROLES: list[ActorRole]` (`helpers/actor_roles.py`), one frozen role per actor
   **in `main()` parameter order**, and `CLI_HELP: str`. These generate the
   scenario's `--<role>-url` / `--<role>-id` options and its `--help`; each address
@@ -109,10 +109,10 @@ sub-issues were this one defect in different scenarios.
 7. **Raising a timeout is not a fix.** Either the observable is wrong (1–3) or the
    effect can be *lost* rather than delayed, in which case the protocol must
    buffer it (ADR-0037, ADR-0059) and a demo guard papers over a production bug.
-8. **Test gates against the real context manager.** Patching
-   `demo_check`/`demo_gate` out with `contextlib.nullcontext` makes the assertion
-   propagate and the test pass while proving nothing — exactly how the missing
-   gate before `engage-case` escaped notice.
+8. **Test gates against the real context manager**, and read a run's checks by
+   `walk()`ing what `recording_checks()` recorded (`utils/check_tree.py`, #6127).
+   Stubbing one out with `contextlib.nullcontext` makes the assertion propagate and
+   the test pass while proving nothing — how the missing `engage-case` gate escaped.
 9. **Nest the step that reads a value inside the block that produces it.** A
    `None`/`""` pre-init is allowed only when every later read is guarded — the
    one part a check enforces (#3038, `test_demo_step_no_unbound_ratchet.py`).

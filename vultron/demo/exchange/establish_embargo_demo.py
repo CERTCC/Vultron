@@ -85,7 +85,7 @@ def demo_propose_embargo_accept(
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
     3. Vendor, the case owner and CASE_MANAGER, activates the embargo:
-       Accept(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox (ADR-0122)
+       Add(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox (ADR-0180)
     4. Vendor announces embargo to all participants
     5. Verify case has ACTIVE embargo
 
@@ -118,7 +118,9 @@ def demo_propose_embargo_accept(
         with demo_step("Step 3: Vendor, as case owner, activates the embargo"):
             # The owner's decision for the case goes to the CASE_MANAGER —
             # here the vendor itself (ADR-0122).
-            owner_activates_embargo(client, vendor, vendor.id_, case, embargo)
+            owner_activates_embargo(
+                client, vendor, vendor.id_, case, embargo, proposal.id_
+            )
 
         with demo_step("Step 4: Vendor announces embargo to participants"):
             announce = announce_embargo_activity(
@@ -199,7 +201,7 @@ def demo_propose_embargo_reject(
             # The owner's decision for the case goes to the CASE_MANAGER —
             # here the vendor itself (ADR-0122).
             owner_rejects_embargo_proposal(
-                client, vendor, vendor.id_, case, embargo
+                client, vendor, vendor.id_, case, embargo, proposal.id_
             )
 
         with demo_step("Step 4: Verify case has no active embargo"):

@@ -24,6 +24,8 @@ signs it here, never by hand:
 - :func:`post_signed` signs a body and posts it to an inbox.
 - :func:`post_delivered` posts a body that is already signed, such as one
   from ``delivered_body``, unchanged, and checks the inbox accepts it.
+- :func:`published_multikeys` reads the ``Multikey`` entries a profile lists
+  under ``assertionMethod`` (ENC-01-002).
 - :class:`AcceptingProofVerifier` stands in for the inbox's verification
   stage (:class:`~vultron.core.ports.proof_verification.ProofVerificationPort`),
   through the route's ``get_proof_verifier`` dependency.
@@ -138,6 +140,16 @@ def post_delivered(
     assert "proof" in body, "sign the body before posting it (SIG-01-001)"
     response = client.post(inbox, json=dict(body))
     assert response.status_code == 202, response.text
+
+
+def published_multikeys(profile: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The ``Multikey`` entries *profile* lists under ``assertionMethod``."""
+    methods = profile.get("assertionMethod") or []
+    return [
+        method
+        for method in (methods if isinstance(methods, list) else [methods])
+        if isinstance(method, dict) and method.get("type") == "Multikey"
+    ]
 
 
 class AcceptingProofVerifier:

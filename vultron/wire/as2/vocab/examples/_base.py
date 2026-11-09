@@ -112,12 +112,12 @@ class _ScopedIds:
     """An id source that derives each draw from the example asking for it.
 
     Stands in for ``uuid.uuid4`` inside :func:`_example_scope`, which is where
-    ``new_object_id`` draws its bits, so an object built without an explicit
-    ``id_`` still gets a stable one.  Each draw is :func:`example_uuid` of the
-    scope name and the draw's position within that scope, so the ids one
-    example carries depend on that example alone: entering another scope
-    before or after it moves none of them.  That is the property a seeded
-    sequence does not have, and the reason this is not
+    ``new_object_id``'s system id source draws its bits, so an object built
+    without an explicit ``id_`` still gets a stable one.  Each draw is
+    :func:`example_uuid` of the scope name and the draw's position within that
+    scope, so the ids one example carries depend on that example alone:
+    entering another scope before or after it moves none of them.  That is the
+    property a seeded sequence does not have, and the reason this is not
     ``vultron.demo.determinism.SeededUuid4`` — under one shared sequence,
     adding an example would shift every id drawn after it, which is the
     88-files-changed-to-alter-18 problem #5776 was filed for.
@@ -154,9 +154,9 @@ def _example_scope(scope: str) -> Iterator[None]:
     than stepping so that two objects in one example agree.  What the two do
     share, ``SteppingClock``, is imported rather than copied.
     ``deterministic_run``'s ``sys.modules`` sweep is not needed here: the one
-    draw on the example build path is ``new_object_id``, which reaches
-    ``uuid4`` as an attribute of the ``uuid`` module, so patching that
-    attribute reaches it.
+    draw on the example build path is the system id source behind
+    ``new_object_id``, which reaches ``uuid4`` as an attribute of the ``uuid``
+    module, so patching that attribute reaches it.
 
     The patch is process-global for the duration of the block, so a caller
     must not enter it while another thread is minting ids: an id drawn there

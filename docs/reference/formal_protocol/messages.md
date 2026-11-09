@@ -276,7 +276,7 @@ See [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) fo
 
     The ActivityStreams-based wire format collapses the revision-negotiation message types:
     $EV$ is sent as $EP$, $EC$ is sent as $EA$, and $EJ$ is sent as $ER$.
-    $EA$ and $EC$ are both the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`, and $ER$ and $EJ$ are both its `Reject(EmbargoEvent)[target=VulnerabilityCase]`; the case's EM state, `PROPOSED` or `REVISE`, tells them apart.
+    $EA$ and $EC$ are both the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`, and $ER$ and $EJ$ are both its `Reject(EmbargoEvent)[target=VulnerabilityCase]`; the case's EM state, `PROPOSED` or `REVISE`, tells them apart.
     $ER$ is also the CASE_MANAGER's abandoning `Reject(Invite(EmbargoEvent))`.
     A Participant's `Accept` or `Reject` of the embargo `Invite` is that Participant's consent and carries no shorthand (MSM-02-010).
     The formal message type set above remains normative for protocol semantics;

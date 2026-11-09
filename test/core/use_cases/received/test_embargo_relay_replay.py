@@ -25,12 +25,14 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.owner_decision import owner_decision_body
 from test.support.received import (
     assert_held_only_as_received,
     received_event,
     received_record,
 )
 from test.support.signing import resigned, signed_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -107,24 +109,26 @@ def _propose(net: _Network, suffix: str, days: int) -> str:
 def _owner_decides(
     net: _Network, embargo_id: str, *, accept: bool = True
 ) -> Any:
-    """The owner gets its relayed Invite and decides the proposal (ADR-0122).
+    """The owner gets its relayed Invite and decides the proposal (ADR-0180).
 
     A revision is the owner's to answer (EP-09-006), so its replica holds
     the Invite; the owner then sends its decision for the case —
-    ``Accept`` or ``Reject`` of the embargo itself — to the CASE_MANAGER.
+    ``Add`` or ``Reject`` of the embargo itself, naming that Invite in
+    ``inReplyTo`` — to the CASE_MANAGER.
     """
     for _type, verdict in net.deliver(MANAGER, to=OWNER, type_="Invite"):
         assert verdict.disposition is HandlerDisposition.APPLIED, (
             verdict.reason
         )
-    adapter = TriggerActivityAdapter(net.stores[OWNER])
-    build = (
-        adapter.activate_embargo if accept else adapter.reject_embargo_proposal
+    _, body = owner_decision_body(
+        net.stores[OWNER],
+        net.case_id,
+        embargo_id,
+        owner=OWNER,
+        manager=MANAGER,
+        accept=accept,
     )
-    _, sealed = build(
-        embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
-    )
-    return net.receive(MANAGER, json.loads(sealed))
+    return net.receive(MANAGER, body)
 
 
 def _owner_answers(net: _Network, embargo_id: str) -> None:
@@ -764,6 +768,7 @@ def _manager_revises(net: _Network, *, days: int = 90) -> str:
             end_time=days_from_now_utc(days),
         ),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     (revision_id,) = net.case(MANAGER).proposed_embargo_ids
     return revision_id
@@ -802,6 +807,7 @@ def test_a_replica_follows_the_managing_owners_revision_by_trigger():
         dl,
         AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     assert net.queued(MANAGER, to=MANAGER) == []
     _replay_to_bystander(net)
@@ -839,6 +845,7 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
         dl,
         AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
 
     bystander = _participant(net, MANAGER, BYSTANDER)
@@ -888,6 +895,7 @@ def test_a_replica_follows_the_managing_owners_first_proposal_by_trigger():
             end_time=days_from_now_utc(90),
         ),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     (proposal_id,) = net.case(MANAGER).proposed_embargo_ids
     assert net.queued(MANAGER, to=MANAGER) == []
@@ -914,6 +922,7 @@ def test_a_replica_follows_the_managing_owners_rejection_by_trigger():
         net.stores[MANAGER],
         RejectEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     assert net.queued(MANAGER, to=MANAGER) == []
     _replay_to_bystander(net)
@@ -947,6 +956,7 @@ def test_a_replica_follows_the_managing_owners_termination_by_trigger():
         net.stores[MANAGER],
         TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     assert net.queued(MANAGER, to=MANAGER) == []
     (remove,) = net.queued(MANAGER, to=BYSTANDER, type_="Remove")
@@ -988,6 +998,7 @@ def test_termination_leaves_nobody_a_signatory_in_every_store():
         net.stores[MANAGER],
         TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     _replay_to_bystander(net)
 

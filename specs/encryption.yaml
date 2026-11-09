@@ -21,8 +21,9 @@ groups:
       several cases uses one key pair for all of them, so per-case key separation is a consequence of deployment topology
       rather than a key-binding rule. Regenerating a key pair would invalidate any peer's cached public key and break
       encrypted communication mid-case. See `notes/encryption.md` for the topology discussion.
-    verification: A unit test confirms that two independently provisioned actors have distinct public keys, and that a
-      newly provisioned actor's key pair is non-None.
+    verification: '`test/adapters/driving/fastapi/routers/test_actor_key_management_planned.py::test_each_provisioning_generates_a_unique_key_pair`
+      provisions one actor id in two independent stores and checks that each
+      publishes a key and that the keys differ.'
     scope:
     - production
     tracking_issue: '#1184'
@@ -55,9 +56,11 @@ groups:
   - id: ENC-01-004
     priority: MUST
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       An implementation MUST store each private key securely.
+    verification: '`test/adapters/driving/fastapi/routers/test_actor_key_management_planned.py::test_the_private_key_cannot_be_computed_from_the_actor_id`
+      checks that the key an actor publishes is not the one computed from a seed tied
+      to its actor id, since a key anyone can compute is not stored securely.'
     rationale: >-
       Anyone who obtains an actor's private key can read messages encrypted to it,
       including embargoed vul details, and can forge activities in its name.
@@ -97,8 +100,10 @@ groups:
     rationale: >-
       Regenerating on restart would invalidate any peer's cached public key and break
       encrypted communication mid-case.
-    verification: A unit test confirms that an actor reconstructed from a persisted record retains the same key pair
-      as the original and does not generate a new one on reconstruction.
+    verification: '`test/adapters/driving/fastapi/routers/test_actor_key_management_planned.py::test_the_key_pair_is_persisted_and_reused_across_a_restart`
+      reopens an actor''s store as a restarted process and checks that it serves the
+      provisioned key, and that a store which never held the actor serves a different
+      one, so the key came from the persisted store.'
     scope:
     - production
     tracking_issue: '#1184'
@@ -111,8 +116,11 @@ groups:
   - id: ENC-01-006
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: A new key pair MUST NOT be generated on process resumption for an existing actor identity.
+    verification: '`test/adapters/driving/fastapi/routers/test_actor_key_management_planned.py::test_resuming_an_actor_makes_no_new_key_pair`
+      reopens an actor''s store as a resumed process and checks that it serves the
+      provisioned key while neither generating a key pair nor computing one from the
+      actor id.'
     rationale: >-
       Generating a new key pair on restart breaks any encrypted channel established
       with the previous key, invalidating cached public keys held by case participants.

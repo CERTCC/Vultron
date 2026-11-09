@@ -63,6 +63,32 @@ groups:
       spec_id: IE-03-001
     tags:
     - http
+  - id: HTTP-01-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A sender MUST deliver an activity to an inbox with `Content-Type:
+      application/activity+json` or `Content-Type: application/ld+json;
+      profile="https://www.w3.org/ns/activitystreams"`.
+    rationale: >-
+      ActivityPub requires a POST to an inbox to use the `ld+json` ActivityStreams
+      profile. Every Vultron inbox also accepts `application/activity+json`
+      (HTTP-01-001, HTTP-01-002), so Vultron lets a sender use either form. That is
+      looser than ActivityPub, so the rule is Vultron's own. A receiver that refuses
+      other media types (HTTP-01-003) refuses plain `application/json`.
+    verification: >-
+      No check covers this yet: the delivery adapter posts with `Content-Type:
+      application/json` (#3660).
+      `test/adapters/driven/test_delivery_media_type.py::test_delivery_posts_an_activitystreams_media_type`
+      is a strict `xfail` until it does.
+    relationships:
+    - rel_type: extends
+      spec_id: HTTP-01-001
+    stories:
+    - story_2022_002
+    - story_2022_040
+    tags:
+    - wire-format
 - id: HTTP-02
   title: Request Size Limits
   specs:

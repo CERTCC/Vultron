@@ -18,9 +18,11 @@ class, and RF-08-003 says no response may be built with that field missing.  A
 test that builds two classes cannot show that: a new response class without the
 validator would pass it.  This ratchet finds every ``as_Accept``, ``as_Reject``,
 ``as_TentativeAccept`` and ``as_TentativeReject`` subclass in
-``vultron/wire/as2/vocab/activities/``.  It builds each one again from its vocab
-example with ``inReplyTo`` removed, and checks the result.  A class that refuses
-the body because ``inReplyTo`` is missing also meets RF-08-003.
+``vultron/wire/as2/vocab/activities/``, and the responses listed in
+``_RESPONSES_BY_MEANING`` whose verb is not an answer.  It builds each one
+again from its vocab example with ``inReplyTo`` removed, and checks the
+result.  A class that refuses the body because ``inReplyTo`` is missing also
+meets RF-08-003.
 
 The classes that do not meet the rule yet are listed by name in
 ``_KNOWN_GAP``, owned by #5641.  The ratchet fails when a listed class starts to
@@ -42,6 +44,9 @@ from vultron.wire.as2.vocab.activities.case.rm import (
     _RmCloseCaseActivity,
     _RmRejectCloseCaseActivity,
 )
+from vultron.wire.as2.vocab.activities.embargo import (
+    _ActivateEmbargoActivity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Reject,
@@ -56,6 +61,11 @@ _RESPONSE_BASES = (
     as_TentativeAccept,
     as_TentativeReject,
 )
+
+#: Responses whose verb is not an answer.  The case owner's activation is an
+#: ``Add`` of the embargo to the case (ADR-0180), yet it decides the proposal
+#: an ``Invite(EmbargoEvent)`` made, and names that Invite in ``inReplyTo``.
+_RESPONSES_BY_MEANING: tuple[type[Any], ...] = (_ActivateEmbargoActivity,)
 
 # Response classes that build with no ``inReplyTo`` today.
 # owner: #5641
@@ -74,8 +84,6 @@ _KNOWN_GAP = frozenset(
         "_RejectCaseOwnershipTransferActivity",
         "_EmAcceptEmbargoActivity",
         "_EmRejectEmbargoActivity",
-        "_ActivateEmbargoActivity",
-        "_RejectEmbargoProposalActivity",
         "_RejectLogEntryActivity",
     }
 )
@@ -93,7 +101,10 @@ def _response_classes() -> dict[str, type[Any]]:
             if (
                 inspect.isclass(value)
                 and value.__module__ == module.__name__
-                and issubclass(value, _RESPONSE_BASES)
+                and (
+                    issubclass(value, _RESPONSE_BASES)
+                    or value in _RESPONSES_BY_MEANING
+                )
             ):
                 found[name] = value
     return found
@@ -134,6 +145,7 @@ def test_the_scan_finds_the_response_classes() -> None:
     """Non-vacuity: the scan sees the classes the rule is about."""
     assert "_RmAcceptInviteToCaseActivity" in _CLASSES
     assert "_EmAcceptEmbargoActivity" in _CLASSES
+    assert "_ActivateEmbargoActivity" in _CLASSES
     assert set(_CLASSES) >= _KNOWN_GAP, sorted(_KNOWN_GAP - set(_CLASSES))
 
 
@@ -144,6 +156,8 @@ def test_every_response_class_has_a_sample() -> None:
 
 @pytest.mark.spec("RF-08-002")
 @pytest.mark.spec("RF-08-003")
+@pytest.mark.spec("VAM-05-008")
+@pytest.mark.spec("VAM-05-009")
 @pytest.mark.parametrize("name", sorted(set(_CLASSES) - _KNOWN_GAP))
 def test_a_response_built_without_in_reply_to_names_what_it_answers(
     name: str,

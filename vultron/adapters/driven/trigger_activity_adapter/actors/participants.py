@@ -165,6 +165,7 @@ class _ParticipantsMixin:
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list | None = None,
+        content: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an Offer(CaseParticipant)[target=VulnerabilityCase].
 
@@ -173,14 +174,18 @@ class _ParticipantsMixin:
         addressed to the Case Owner.
         ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
         ``origin`` carries the original Offer ID for causal traceability
-        (CM-16-004).  An Offer already built under *id_* is returned as
-        sealed, without storing a second inline participant.
+        (CM-16-004).  ``content`` carries the recommender's reason text so the
+        Case Owner can decide on the suggestion with its evidence (CM-16-020).
+        An Offer already built under *id_* is returned as sealed, without
+        storing a second inline participant.
         """
         if (built := _already_sealed(self._dl, id_)) is not None:
             return built
         extra = _addressing(actor, to, id_)
         if origin is not None:
             extra["origin"] = origin
+        if content is not None:
+            extra["content"] = content
         activity = offer_case_participant_activity(
             recommended=recommended_id,
             target=case_id,

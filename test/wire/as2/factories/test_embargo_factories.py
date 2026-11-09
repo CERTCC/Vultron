@@ -50,6 +50,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Add,
     as_Announce,
     as_Invite,
     as_Leave,
@@ -429,19 +430,24 @@ def test_em_undo_embargo_invite_plain_invite_raises(sample_embargo):
 
 # ---------------------------------------------------------------------------
 # activate_embargo_activity / reject_embargo_proposal_activity — the case
-# owner's decision, Accept/Reject(EmbargoEvent)[target=VulnerabilityCase] (ADR-0122)
+# owner's decision, Add/Reject(EmbargoEvent)[target=VulnerabilityCase] (ADR-0180)
 # ---------------------------------------------------------------------------
 
 _OWNER_DECISIONS = [
-    pytest.param(activate_embargo_activity, as_Accept, id="activate"),
+    pytest.param(activate_embargo_activity, as_Add, id="activate"),
     pytest.param(reject_embargo_proposal_activity, as_Reject, id="reject"),
 ]
+
+#: The proposal's Invite each owner decision names (ADR-0180).
+_PROPOSAL_URI = "https://example.org/cases/1/embargo_proposals/1"
 
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
 def test_owner_decision_returns_plain_verb(factory, verb, sample_embargo):
-    result = factory(embargo=sample_embargo, actor=_ACTOR_URI)
+    result = factory(
+        embargo=sample_embargo, in_reply_to=_PROPOSAL_URI, actor=_ACTOR_URI
+    )
     assert isinstance(result, verb)
 
 
@@ -450,7 +456,9 @@ def test_owner_decision_object_is_the_embargo_itself(
     factory, verb, sample_embargo
 ):
     """The object is the EmbargoEvent, never the Invite that proposed it."""
-    result = factory(embargo=sample_embargo, actor=_ACTOR_URI)
+    result = factory(
+        embargo=sample_embargo, in_reply_to=_PROPOSAL_URI, actor=_ACTOR_URI
+    )
     assert result.object_ == sample_embargo
     assert not isinstance(result.object_, as_Invite)
 
@@ -458,16 +466,32 @@ def test_owner_decision_object_is_the_embargo_itself(
 @pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
 def test_owner_decision_target_is_the_case(factory, verb, sample_embargo):
     result = factory(
-        embargo=sample_embargo, target=_CASE_URI, actor=_ACTOR_URI
+        embargo=sample_embargo,
+        in_reply_to=_PROPOSAL_URI,
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
     )
     assert result.target == _CASE_URI
+
+
+@pytest.mark.spec("RF-08-001")
+@pytest.mark.spec("RF-08-003")
+@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
+def test_owner_decision_names_the_proposal(factory, verb, sample_embargo):
+    """``inReplyTo`` names the proposal's Invite, and is required (ADR-0180)."""
+    result = factory(
+        embargo=sample_embargo, in_reply_to=_PROPOSAL_URI, actor=_ACTOR_URI
+    )
+    assert result.in_reply_to == _PROPOSAL_URI
+    with pytest.raises(VultronActivityConstructionError):
+        factory(embargo=sample_embargo, in_reply_to="", actor=_ACTOR_URI)
 
 
 @pytest.mark.spec("AF-04-001")
 @pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
 def test_owner_decision_invalid_raises(factory, verb):
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        factory(embargo="not-an-embargo")  # type: ignore[arg-type]
+        factory(embargo="not-an-embargo", in_reply_to=_PROPOSAL_URI)  # type: ignore[arg-type]
     assert exc_info.value.__cause__ is not None
 
 

@@ -17,9 +17,8 @@ input is a build product rather than a source file, and all three fail rather th
 passing when that input is missing (`docs/built_site.py`; DOCBW-03-016, DOCBW-03-019,
 DOCBW-03-025, DF-09-009).
 
-Nothing here is protocol code. The audience for its output is a human or an
-agent who just edited a metadata file and got it wrong, so **error messages
-are the product**.
+Nothing here is protocol code. The audience for its output is a human or an agent who
+just edited a metadata file and got it wrong, so **error messages are the product**.
 
 ## Subpackages
 
@@ -32,6 +31,7 @@ are the product**.
 | `msm/` | the `occasions` and `page` on each `SEMANTIC_REGISTRY` entry, and the include directives of every `docs/` page; derives mapping status, "Sent by", section headings and "Seen in"; generates `msm/occasions.yaml` and `docs/reference/messages/_occasions/` (tables, sections, how-to embeds) (`occasions/`) | `OccasionTable` (`_mapping/`) |
 | `demo_scenarios/` | the `@scenario` registry and the branch-point table in `vultron/demo/scenario/`; the committed recordings' case ids (`export_tree.py`) | — |
 | `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the `AppConfig` model, for the generated settings tables on `docs/reference/configuration.md` (`config_reference/`, #4171); the built `site/` tree (`withheld.py`, `links.py`, `legacy_urls.py`, `path_boxes.py` — the `docs-path-boxes` check that every page renders its reading-path boxes, DF-11-045 — via `built_site.py`); each page's rendered HTML at build time (`anchor_ids.py`, an `on_page_content` hook under `hooks:` in `mkdocs.yml` — registers exec-emitted ids as anchor targets for `--strict`, #3735); the assembled `full.md` Markdown at build time (`full_page_links.py`, an `on_page_markdown` hook under `hooks:` — rewrites the Protocol Specification's same-section `page.md#fragment` links to in-page `#fragment` links on its single-page edition only, #4092); every `docs/**/*.md` page's `stakeholder_type`/`level`/`page_type`/`subject` (`page_frontmatter/`, DF-11); each nav section's pages' `subject`, so no section mixes protocol and implementation pages (`nav_subjects.py`, `docs-nav-subjects`, DF-11-020/025); each `docs/start/` page's `thread:` (`threads/` — the `docs-threads` check, the start-page listing `docs-site` splices and the reading-path box fragments it writes under `docs/start/_paths/`, which pages place by hand with `include-markdown`, DF-11-013–016, DF-11-022/023; `thread_order.py` — the `docs-thread-order` check that no member uses a term a later member introduces, reusing `level_order.py`'s scan, DF-11-024); the include directives naming the normative and specification-governs banners, against the normative set and protocol-design pages it declares (`normative_banner.py`, DF-12-006/007); the paragraphs of every target page, for the advisory cross-page copy report `lint-docs` reads (`duplicates.py`, `docs-duplicates`, SG-43, DF-10-002); the requirement registry, for the Requirements Catalog placement table, row lookup and link targets (`requirement_catalog/`, DF-12-001/002/005/010) and the page an exec block prints on (`exec_page.py`, an `on_pre_page` hook under `hooks:`); the story pages under `docs/reference/user_stories/` (`story_pages.py` — the catalog both `spec-lint` and the generators read) and that catalog against the registry's `stories:` fields, for the generated index table and traceability matrix `docs-site` writes (`story_coverage.py`, TRACE-01-001, TRACE-03-003); the registry and the `test/` tree's markers, through `specs/coverage.py`, for the Protocol Specification's known-gaps fragment `docs-site` writes (`known_gaps.py`, DF-12-019/020); the listed specification fragments, for RFC 2119 keywords in prose (`rfc2119_keywords.py`, DF-12-004); built-site URLs for links a renderer prints come from `site_urls.py`; `notes/nav-usability/suite.yaml`, a nav's labels and a built `site/`, for the agent usability test that gates a nav change (`nav_usability/`, ADR-0136) | `PageFrontmatter`, `WorkingRecordFrontmatter`, `ThreadDeclaration` (`page_schema/`); publication axis: DOCBW-03-005; reference axis: DOCBW-03-007; continuity axis: DOCBW-03-008 |
+| `csaf/` | the pinned local copy of the CSAF 2.1 schemas and its pin record under `third_party/csaf/` (`pin.py`), generating `vultron/wire/csaf/models/` (`regenerate.py`, `csaf-models`, CSAF-05-002/003); a clone of `oasis-tcs/csaf` outside the repository, named by `--clone` and never read by a test or hook (`corpus.py`, `csaf-corpus`, CSAF-05-004) | `CsafPin` (`pin.py`) |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests/`); merged `base:main` PRs and the Issues they close, through `gh` search, and a `git blame` trace of each bug-fix PR in the local clone (`size_calibration/`, `pr-size --calibrate`); `.github/workflows/` and a branch diff, running CI's pull-request checks locally (`ci_mirror/`: `prepush-ci-mirror`); a PR body file or `gh pr view` payload (`pr_body_lint/`); the theme catalog block in `notes/epic-themes.md` (`themes.py`) and `gh label list` (`theme_labels.py`, the `theme-labels` sync); every open Issue's labels, type, parents and Schedule (`theme_fit/`, the `theme-fit` check) | `ThemeCatalog` (selection rules: PAD-15; local test gate and CI mirror: PAD-18; PR body rules: PAD-20; themes: PAD-02-014–021) |
 
 Shared helpers live in `base.py`, `markdown_tables.py`, `git_runner.py` (`GitRunner`,
@@ -72,18 +72,18 @@ the private spelling will not find a public duplicate** — search for the behav
 
 ## Generate vs. Check
 
-Three subpackages own committed generated artifacts, and all split the same way:
-**generate what is derivable, check what is prose.** `adr/index_gen.py`
-regenerates `docs/adr/index.md` but only checks the hand-labelled nav;
-`demo_scenarios/` regenerates the CI matrix, two scenario tables and the tree
-index, leaving spec enumerations and nav to checks; `msm/occasions/` regenerates
-the occasion YAML and fragments, not page prose. Each is a `--check` hook
-(`adr-index-sync`, `demo-scenarios-sync`, `demo-tree-sync`, `msm-occasions-sync`)
-comparing byte for byte via `generated_files.py`; an ungated one is hand-edited.
-`docs/landing_pages/` (`docs-site-sync`) splits per page: a nav group's
-`index.md` declares `contents: generated | routing | rendered`, and a routing
-index is *checked* to link every member of its section, not written (#3617).
-No fourth shape or default: an undeclared group index is a fault on purpose.
+Four subpackages own committed generated artifacts, and all split the same way:
+**generate what is derivable, check what is prose.** `adr/index_gen.py` regenerates
+`docs/adr/index.md` but only checks the hand-labelled nav; `demo_scenarios/` regenerates
+the CI matrix, the plot manifest of every story, two scenario tables and the tree index,
+leaving spec enumerations and nav to checks; `msm/occasions/` the occasion YAML and
+fragments, not page prose; `csaf/` the CSAF models, whole. Each is a `--check` hook
+(`adr-index-sync`, `demo-scenarios-sync`, `demo-tree-sync`, `msm-occasions-sync`,
+`csaf-models-sync`) comparing byte for byte via `generated_files.py`; an ungated one is
+hand-edited. `docs/landing_pages/` (`docs-site-sync`) splits per page: a nav group's
+`index.md` declares `contents: generated | routing | rendered`, and a routing index is
+*checked* to link every member of its section, not written (#3617). No fourth shape or
+default: an undeclared group index is a fault on purpose.
 
 One trap specific to build-time rendering: MkDocs rewrites `.md` links with a
 treeprocessor on **its own** `Markdown` instance, and `markdown-exec` converts a
