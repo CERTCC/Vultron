@@ -1,0 +1,118 @@
+# Watches the CSAF 2.1 draft upstream (CSAF-05-005 to CSAF-05-007). The CSAF
+# Technical Committee can still change the draft, and Vultron follows one
+# pinned revision of it (`third_party/csaf/pin.json`). Each weekday this job
+# checks out `oasis-tcs/csaf` at the pinned commit and at the head of its
+# default branch, and `uv run csaf-draft-watch` compares what Vultron's CSAF
+# models depend on: the models generated from the schemas, the profile text
+# and the list of mandatory tests. Descriptions, meeting minutes and other
+# prose change none of them, so they open nothing.
+#
+# On a change it opens one `csaf-draft-watch` Task naming the CSAF fields
+# Vultron reads that the change touches, and stays silent while that issue is
+# open (CSAF-05-006). The job never moves the pin. When the issue opens:
+#
+#   1. Bump the pin: copy the pinned schemas from the new upstream commit into
+#      `third_party/csaf/schemas/` and update `third_party/csaf/pin.json`
+#      (commit, draft stage, sources, sha256).
+#   2. Regenerate the models: `uv run csaf-models`.
+#   3. Re-check the crosswalk (`docs/reference/csaf_crosswalk/`) for each
+#      field the issue names, and run `uv run csaf-corpus --clone <clone>`.
+#
+# Close the issue from the pull request that moves the pin.
+
+name: CSAF Draft Watch
+
+on:
+  schedule:
+    - cron: "41 11 * * 1-5"  # Weekdays, 11:41 UTC (morning US Eastern)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Runs one at a time, so two runs never both find no issue and both file one.
+concurrency:
+  group: csaf-draft-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Compare the CSAF 2.1 draft with the pin
+    runs-on: ubuntu-latest
+    # Two sparse checkouts, a uv sync and two model generations of a few
+    # seconds each. Cap at 15 min so a hang fails fast instead of holding a
+    # runner until GitHub's 6-h limit (TB-14-006).
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Read the pin
+        id: pin
+        run: |
+          set -euo pipefail
+          commit=$(jq -r .commit third_party/csaf/pin.json)
+          repository=$(jq -r .repository third_party/csaf/pin.json)
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "repository=${repository#https://github.com/}" >> "$GITHUB_OUTPUT"
+      - name: Check out the pinned revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.pin.outputs.repository }}
+          ref: ${{ steps.pin.outputs.commit }}
+          path: upstream-pinned
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            csaf_2.1/prose/edit/src/profiles.md
+            csaf_2.1/test/validator/data/testcases.json
+      - name: Check out the upstream head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.pin.outputs.repository }}
+          path: upstream-head
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            csaf_2.1/json_schema/**
+            csaf_2.1/referenced_schema/**
+            csaf_2.1/prose/edit/src/profiles.md
+            csaf_2.1/test/validator/data/testcases.json
+      - name: Compare upstream with the pin
+        id: compare
+        run: |
+          set -uo pipefail
+          head=$(git -C upstream-head rev-parse HEAD)
+          PYTHONPATH='' uv run csaf-draft-watch \
+            --baseline upstream-pinned --upstream upstream-head \
+            --upstream-commit "$head" --report csaf-draft-watch.md
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # 0: no change; 3: a change, reported in csaf-draft-watch.md.
+          if [ "$status" -ne 0 ] && [ "$status" -ne 3 ]; then
+            exit "$status"
+          fi
+      - name: Open the draft-watch issue unless one is open
+        if: steps.compare.outputs.status == '3'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: bash .github/scripts/csaf-draft-watch-issue.sh "$REPO" csaf-draft-watch.md
+      - name: File or update the CI failure issue
+        # failure() also catches checkout or setup failing first (CISEC-05).
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-csaf-draft-watch
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close the CI failure issue
+        if: success()
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-csaf-draft-watch
+          token: ${{ secrets.GITHUB_TOKEN }}

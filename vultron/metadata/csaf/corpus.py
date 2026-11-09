@@ -67,7 +67,9 @@ class _TestCase(BaseModel):
     valid: list[_Document] = []
 
 
-class _TestCases(BaseModel):
+class CorpusIndex(BaseModel):
+    """The test-case index of a clone, ``testcases.json``: each test and its group."""
+
     model_config = ConfigDict(extra="ignore")
 
     tests: list[_TestCase]
@@ -124,11 +126,8 @@ def _count(
             counts.failing_rejected += 1
 
 
-def run_corpus(
-    clone: Path,
-    model: type[BaseModel] = CommonSecurityAdvisoryFramework,
-) -> dict[str, GroupCounts]:
-    """Return per-group counts of *model*'s verdicts on *clone*'s test documents.
+def load_corpus_index(clone: Path) -> CorpusIndex:
+    """Read and check the test-case index of *clone*.
 
     Raises:
         FileNotFoundError: *clone* has no test-case index.
@@ -146,7 +145,21 @@ def run_corpus(
             line=exc.lineno,
             column=exc.colno,
         ) from exc
-    cases = validate(_TestCases, data, path=index, root=clone)
+    return validate(CorpusIndex, data, path=index, root=clone)
+
+
+def run_corpus(
+    clone: Path,
+    model: type[BaseModel] = CommonSecurityAdvisoryFramework,
+) -> dict[str, GroupCounts]:
+    """Return per-group counts of *model*'s verdicts on *clone*'s test documents.
+
+    Raises:
+        FileNotFoundError: *clone* has no test-case index.
+        MetadataLoadError: the index does not parse or does not have the
+            expected shape; the error names the file.
+    """
+    cases = load_corpus_index(clone)
     data_dir = clone / TEST_DATA_DIR
     counts: dict[str, GroupCounts] = {}
     for case in cases.tests:
