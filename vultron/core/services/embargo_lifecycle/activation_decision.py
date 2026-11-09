@@ -18,7 +18,7 @@
 The CASE_MANAGER decides an activation before it commits anything.
 :meth:`_ActivationDecisionMixin.decide_activation` reads the embargoes it
 needs (EMB-18-003), applies the ``STRICT`` checks (an open proposal, P/X/A
-clear, EMB-02-002), decides the EP-05-001 arm, and returns an
+clear, EMB-02-002, and an owner that has not declined it, MSM-07-037), decides the EP-05-001 arm, and returns an
 :class:`ActivationDecision`: the entries the activation commits, in order,
 and what each changes.  It writes nothing.
 
@@ -27,7 +27,8 @@ and what each changes.  It writes nothing.
   force included: :attr:`ActivationDecision.step`.  The same activity states
   the owner's agreement, so its ``AGREED`` row
   (:attr:`ActivationDecision.owner_agreement`) is applied from that entry,
-  with no entry of its own (CLP-07-013, MSM-07-028).
+  with no entry of its own (CLP-07-013, MSM-07-028).  An owner whose row
+  reads ``DECLINED`` is refused instead (MSM-07-037).
 - Each ``CARRY_OVER`` row of a revision that ends no later than the embargo
   it replaces is its own CASE_MANAGER ``Update(EmbargoConsent)`` entry,
   after the ``Add``'s (:attr:`ActivationDecision.carry_overs`, EP-05-003).
@@ -43,6 +44,7 @@ from vultron.core.models.embargo_apply import (
     apply_embargo_change,
 )
 from vultron.core.models.embargo_consent_move import (
+    assert_owner_has_not_declined,
     consent_row_move,
     owner_agreement,
 )
@@ -127,7 +129,9 @@ def activation_consent_changes(
     """The consent rows an activation of *embargo_id* writes, in apply order.
 
     *activated* is the case file as the ``ACTIVATE`` step leaves it.  First
-    the owner's ``AGREED`` row its Add states, then, when the revision
+    the owner's ``AGREED`` row its Add states, from a row that holds no
+    answer the owner gave (an activation from a ``DECLINED`` row is refused
+    before this is reached, MSM-07-037), then, when the revision
     ends no later than *previous_embargo_id* (*ends_no_later*), one
     ``CARRY_OVER`` row per signatory of the replaced embargo, decided after
     the owner's row (EP-05-001, MSM-07-005).  Writes nothing.
@@ -155,7 +159,8 @@ class _ActivationDecisionMixin(_ActivationArmMixin):
 
         Raises:
             VultronInvalidStateTransitionError: *embargo_id* is not an open
-                proposal of the case, or P/X/A is set (EMB-02-002).
+                proposal of the case, P/X/A is set (EMB-02-002), or the case
+                owner's row for it reads ``DECLINED`` (MSM-07-037).
             VultronNotFoundError: the activated embargo, or the one it
                 replaces, cannot be read (EMB-18-003).
             VultronValidationError: either record is not an ``EmbargoEvent``.
@@ -178,6 +183,7 @@ class _ActivationDecisionMixin(_ActivationArmMixin):
         self._assert_pxa_embargo_eligible(
             case.current_status.pxa.state, case.id_, "activate embargo"
         )
+        assert_owner_has_not_declined(case_file, embargo_id)
         previous_embargo_id = case.active_embargo_id
         ends_no_later = self._activation_arm(
             previous_embargo_id=previous_embargo_id,

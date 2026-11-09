@@ -29,8 +29,10 @@ position, and both write the same row (CM-23-016):
 
 - :func:`owner_agreement` — the case owner's
   ``Add(EmbargoEvent)[target=VulnerabilityCase]`` is its agreement to the embargo it
-  activates; a ``DECLINED`` row moves too, since activating is the owner
-  changing its answer (MSM-07-028).
+  activates.  A ``DECLINED`` row is left as it is: the CASE_MANAGER refuses
+  an activation from it before the commit
+  (:func:`assert_owner_has_not_declined`, MSM-07-037), so a committed
+  activation never meets one (MSM-07-028).
 - :func:`joiner_agreement` — an invitee's ``Accept`` of the stub Invite
   agrees to the embargo in force; a ``DECLINED`` row is left as it is, as
   seeding never overrides an answer the participant gave (CM-10-001).
@@ -54,6 +56,7 @@ from vultron.core.states.participant_embargo_consent import (
     consent_after,
     consent_trigger_is_legal,
 )
+from vultron.errors import VultronInvalidStateTransitionError
 
 
 def consent_row_move(
@@ -100,13 +103,66 @@ def owner_agreement(
 ) -> ConsentRowChange | None:
     """The case owner's ``AGREED`` row its activation of *embargo_id* states.
 
-    *case_file* is the case as the ``ACTIVATE`` step leaves it.  ``None``
-    when the owner's row already reads ``AGREED``, or the case file holds no
-    record of the owner (ADR-0087).
+    *case_file* is the case as the ``ACTIVATE`` step leaves it.  The row
+    moves from ``UNINVITED``, ``INVITED`` or ``TIMED_OUT``, which hold no
+    answer the owner gave (MSM-07-028).  ``None`` when the owner's row
+    already reads ``AGREED``, when it reads ``DECLINED`` (an activation the
+    CASE_MANAGER refuses before the commit, so never one it commits,
+    MSM-07-037), or when the case file holds no record of the owner
+    (ADR-0087).
     """
+    if owner_declined(case_file, embargo_id):
+        return None
     return consent_row_move(
         case_file, case_file.case.attributed_to, embargo_id, PEC_Trigger.AGREE
     )
+
+
+def owner_declined(case_file: EmbargoCaseFile, embargo_id: str) -> bool:
+    """Whether the case owner's row for *embargo_id* reads ``DECLINED``.
+
+    ``False`` when the case file holds no record of the owner (ADR-0087) or
+    the register holds no entry for *embargo_id*, so no row either: the
+    register refuses that activation itself (ADR-0122).
+
+    Raises:
+        VultronNotFoundError: the owner holds no row for an embargo the
+            register holds, a broken invariant (ADR-0122).
+    """
+    owner = case_file.participants.get(case_file.case.attributed_to)
+    if (
+        owner is None
+        or case_file.case.embargo_register_entry(embargo_id) is None
+    ):
+        return False
+    return owner.consent_for(embargo_id) == EmbargoConsentState.DECLINED
+
+
+def assert_owner_has_not_declined(
+    case_file: EmbargoCaseFile, embargo_id: str
+) -> None:
+    """Refuse the owner's activation of an embargo it declined (MSM-07-037).
+
+    The owner's decline is an answer it sent and the ledger holds.  An
+    activation that moved the row to ``AGREED`` would be both the case's
+    decision and a change of the owner's own answer (ADR-0180), so the
+    owner accepts the invitation first and then activates.  The raised
+    reason says so; the refusal notice carries it (CLP-05-001).
+
+    Raises:
+        VultronInvalidStateTransitionError: the owner's row for
+            *embargo_id* reads ``DECLINED``.
+        VultronNotFoundError: the owner holds no row for *embargo_id*
+            (ADR-0122).
+    """
+    if owner_declined(case_file, embargo_id):
+        raise VultronInvalidStateTransitionError(
+            f"Cannot activate embargo '{embargo_id}' on case"
+            f" '{case_file.case.id_}': the case owner"
+            f" '{case_file.case.attributed_to}' declined it. Accept the"
+            " invitation to the embargo first (Accept(Invite(EmbargoEvent))),"
+            " then activate it (MSM-07-037)."
+        )
 
 
 def joiner_agreement(
@@ -158,8 +214,10 @@ def joiner_decline(
 
 
 __all__ = [
+    "assert_owner_has_not_declined",
     "consent_row_move",
     "joiner_agreement",
     "joiner_decline",
     "owner_agreement",
+    "owner_declined",
 ]

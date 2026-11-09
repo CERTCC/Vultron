@@ -194,12 +194,12 @@ class TestOwnerMayActivateEmbargoNode:
             EmbargoConsentState.UNINVITED,
             EmbargoConsentState.INVITED,
             EmbargoConsentState.AGREED,
-            EmbargoConsentState.DECLINED,
             EmbargoConsentState.TIMED_OUT,
         ],
-        ids=["uninvited", "invited", "agreed", "declined", "timed-out"],
+        ids=["uninvited", "invited", "agreed", "timed-out"],
     )
-    def test_passes_with_pxa_clear_whatever_the_owner_answered(
+    @pytest.mark.spec("MSM-07-028")
+    def test_passes_with_pxa_clear_and_no_decline(
         self,
         dl: SqliteDataLayer,
         owner_consent: EmbargoConsentState,
@@ -214,6 +214,27 @@ class TestOwnerMayActivateEmbargoNode:
         )
 
         assert _tick(node) is Status.SUCCESS
+
+    @pytest.mark.spec("MSM-07-037")
+    def test_fails_when_the_owner_declined_the_proposal(
+        self, dl: SqliteDataLayer
+    ):
+        """The reason tells the owner to accept the invitation first."""
+        case, _, revision_id, _ = _case_with_owner(
+            dl,
+            "may-declined",
+            em_state=EM.ACTIVE,
+            owner_consent=EmbargoConsentState.DECLINED,
+        )
+        setup_blackboard(dl, actor_id=MANAGER)
+
+        node = OwnerMayActivateEmbargoNode(
+            case_id=case.id_, embargo_id=revision_id
+        )
+
+        assert _tick(node) is Status.FAILURE
+        assert "MSM-07-037" in (node.feedback_message or "")
+        assert "Accept the invitation" in (node.feedback_message or "")
 
     @pytest.mark.spec("EMB-02-002")
     def test_fails_when_pxa_is_set(self, dl: SqliteDataLayer):
