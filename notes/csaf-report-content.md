@@ -44,8 +44,7 @@ and archive it.
   generated models and the CSAF reader go in a `vultron.wire.csaf` package. Core
   receives a format-neutral `report_claims` model in `vultron.core.models`, with
   non-optional fields for what was read (ADR-0032), so a later CVE JSON or OSV
-  reader fills the same type. The planned-test probes name these two modules
-  (`test/architecture/test_csaf_report_content_planned.py`).
+  reader fills the same type.
 - **A report's attachments need a core type.** `parse_activity` already turns a
   report's `attachment` into a list of wire `as_Document` objects, held in the
   untyped `attachment` field of the core `VulnerabilityReport`. Give the report a
@@ -75,7 +74,10 @@ Rules for stage 2:
   time counts as past (CSAF-03-003).
 - **Mapping SSVC.** The value sits in `vulnerabilities[].metrics[].content.ssvc_v2`,
   an SSVC `SelectionList`; read the selection whose decision point is
-  Exploitation. Reuse `SSVC_2_Exploitation` in `vultron/core/scoring/ssvc_2.py`.
+  Exploitation. The wire reader copies the selected value into `report_claims`
+  as a plain string, and core maps it onto `SSVC_2_Exploitation` in
+  `vultron/core/scoring/ssvc_2.py`: wire may import only core models and
+  states (ARCH-22-001), so `vultron.wire.csaf` never imports `scoring`.
 - **Explicit fields first.** Compare each CSAF value with the Offer and report
   field for the same thing before applying it, and record the outcome
   (CSAF-02-003, CSAF-04-004).
@@ -131,7 +133,15 @@ Measured on CSD04 with `datamodel-code-generator` 0.90 during planning:
   category `vendor` above the products in `product_status.known_affected`
   (CSAF-04-007). Turning a name into an actor needs a directory that does not
   exist yet; the party-discovery monitor (BT-20-003) or a human does it, through
-  `suggest-actor-to-case`.
+  `suggest-actor-to-case`. Comparing a vendor name with the receiving actor's own
+  `name` needs no directory, so that is how "a vendor other than the receiver"
+  is decided.
 
-The draft-watch probe in the planned-test module expects the workflow at
-`.github/workflows/csaf-draft-watch.yml`; name it so, or update the probe.
+## Retiring the planned-test probes
+
+Each probe in `test/architecture/test_csaf_report_content_planned.py` XPASSes
+once a test elsewhere under `test/` carries its spec ID in a
+`@pytest.mark.spec` marker. The issue that writes that behavioral test is the
+one whose build turns the probe red, so delete the probe in the same change. A
+probe never keys on a module or field name, so no task can flip a probe that
+another task owns.

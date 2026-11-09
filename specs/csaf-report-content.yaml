@@ -33,8 +33,12 @@ groups:
       Inline `content` keeps the document inside the signed activity (SIG-01-003)
       and inside the copy that the case ledger records.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the attachment is built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_sender_carries_csaf_as_an_attached_document`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a trigger test submits a report with a CSAF document and
+      checks that the sent report carries it as a `Document` in `attachment`, its JSON
+      text as that `Document`'s `content`, and the request's text as the report's own
+      `content`.
     adr:
     - ADR-0184
     stories:
@@ -51,8 +55,10 @@ groups:
       CSAF draft defines label each CSAF document `application/json`. A media type
       that only Vultron invented would mean nothing to other tools.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the attachment is built.
+      `test/architecture/test_csaf_report_content_planned.py::test_the_csaf_document_is_labelled_application_json`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: the trigger test of CSAF-01-001 checks that the attached
+      `Document` has the `mediaType` `application/json`.
     relationships:
     - rel_type: extends
       spec_id: CSAF-01-001
@@ -72,8 +78,11 @@ groups:
       schema fixes both values, so they identify the format, and
       `document.category` then names the profile.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until recognition is built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_receiver_recognizes_csaf_by_schema_and_version`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test attaches a CSAF 2.1 document and a
+      JSON document that is not CSAF, and checks that only the first is recognized as
+      CSAF 2.1.
     adr:
     - ADR-0184
     stories:
@@ -96,8 +105,11 @@ groups:
       it can supply what the Vultron fields leave out. Reading it stays optional:
       a receiver that treats the document as opaque still handles the report.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the case inputs are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_the_initial_report_may_fill_gaps_from_csaf`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test offers a report that has no case yet,
+      with a `csaf_vulnerability_report` attachment and no report name, and checks that
+      the created case takes its inputs from the document.
     adr:
     - ADR-0184
     stories:
@@ -116,8 +128,11 @@ groups:
       reading it back as a statement would let a projection rewrite the case it
       describes. The case changes only through Vultron's own activities.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the case inputs are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_csaf_outside_the_initial_report_changes_no_case_data`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: receive-path tests send a CSAF document on a report that
+      already belongs to a case, on another activity and of another category, and check
+      that the case data does not change.
     adr:
     - ADR-0184
     stories:
@@ -139,8 +154,11 @@ groups:
       keeps a receiver from weighing two answers, for example a `proposedEmbargo`
       against a `disclosure_date`.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the case inputs are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_vultron_field_beats_the_csaf_value`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test offers a report whose name and
+      `proposedEmbargo` differ from its CSAF document, and checks that the case takes
+      the Vultron values and the record marks the CSAF values overridden.
     adr:
     - ADR-0184
     stories:
@@ -157,8 +175,11 @@ groups:
       makes them win. Values that agree with the attachment keep the two accounts
       of one report from contradicting each other.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the sender side is built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_sender_fills_vultron_fields_that_agree_with_its_csaf`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: the trigger test of CSAF-04-010 checks that the name,
+      summary and proposed embargo end that the sender fills agree with the attached
+      document.
     adr:
     - ADR-0184
     stories:
@@ -175,8 +196,11 @@ groups:
       receiver does for a report with no CSAF document. A schema default, such as
       the TLP label `CLEAR`, is filled in by a parser and was never sent.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the case inputs are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_an_omitted_csaf_field_or_schema_default_is_no_statement`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test attaches a document that omits a
+      field the schema gives a default, and checks that the stored record holds no value
+      for it.
     adr:
     - ADR-0184
     stories:
@@ -193,8 +217,10 @@ groups:
       not by the form of one attachment, and refusing would leave a real
       vulnerability unreported. The receiver reads what it can (CSAF-04-003).
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the receive side is built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_broken_csaf_attachment_never_refuses_the_report`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: receive-path tests attach a schema-invalid and an
+      unparseable CSAF document, and check that the Offer is not refused.
     adr:
     - ADR-0184
     stories:
@@ -210,8 +236,10 @@ groups:
       accepts (CSAF-02-006). A schema-valid document lets every receiver read it
       the same way.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the sender side is built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_sender_does_not_attach_schema_invalid_csaf`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: the trigger test of CSAF-04-009 checks that a
+      schema-invalid document is refused and nothing is sent.
     adr:
     - ADR-0184
     stories:
@@ -234,8 +262,11 @@ groups:
       Report profile uses it to coordinate that date. It then competes with the
       receiver's own default as any proposed embargo does (EP-04-003).
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the case inputs are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_future_disclosure_date_proposes_the_embargo_end`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test attaches a document with a future
+      `disclosure_date` to an Offer with no `proposedEmbargo`, and checks that the
+      proposed embargo ends on that date.
     adr:
     - ADR-0184
     stories:
@@ -256,8 +287,11 @@ groups:
       intended disclosure, in the same way that the shorter term wins between two
       parties (EP-04-003).
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the case inputs are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_the_earliest_future_disclosure_date_wins`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test attaches a document whose
+      vulnerabilities have two future disclosure dates, and checks that the proposed
+      embargo ends on the earlier one.
     relationships:
     - rel_type: extends
       spec_id: CSAF-03-001
@@ -276,10 +310,14 @@ groups:
     rationale: >-
       The CSAF 2.1 draft defines a past disclosure date as the time the
       vulnerability was disclosed to the public. A case cannot hold an embargo for
-      one vulnerability while another in the same report is public (EP-04-008).
+      one vulnerability while another in the same report is public, so a case
+      created with P set starts with no embargo (EP-04-020).
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the case inputs are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_past_disclosure_date_states_the_vul_is_public`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test attaches a document with a
+      `disclosure_date` before the time of receipt, and checks that the case starts with
+      P set and no embargo.
     adr:
     - ADR-0184
     stories:
@@ -298,8 +336,11 @@ groups:
       directions (the SSVC crosswalk): `None` means neither X nor A, `PoC` means X
       without A, and `Active` means A. `None` therefore states nothing to set.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the case inputs are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_ssvc_exploitation_poc_sets_x_and_active_sets_a`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: receive-path tests attach documents with SSVC
+      Exploitation `PoC`, `Active` and `None`, and check that the case starts with X,
+      with A, and with neither.
     adr:
     - ADR-0184
     stories:
@@ -316,8 +357,11 @@ groups:
       Each entry records when an exploitation happened, which is an observed
       attack in the CS model.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until the case inputs are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_first_known_exploitation_date_sets_a`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test attaches a document with a
+      `first_known_exploitation_dates` entry, and checks that the case starts with A
+      set.
     adr:
     - ADR-0184
     stories:
@@ -334,8 +378,11 @@ groups:
       case from the report in the same way. The case can change its name and
       summary later.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until case naming is built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_case_starts_with_its_reports_name_and_summary`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test offers a named report with a summary,
+      and checks that the created case has that name and summary, also when a separate
+      CASE_MANAGER creates it.
     adr:
     - ADR-0184
     stories:
@@ -354,8 +401,11 @@ groups:
       document-level note describes the whole report, so neither depends on which
       of several vulnerabilities a reader picks.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until case naming is built.
+      `test/architecture/test_csaf_report_content_planned.py::test_a_missing_name_and_summary_come_from_the_csaf_document`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test offers a report with no name or
+      summary, and checks that the case takes `document.title` and the document-level
+      `summary` note, and the `description` note when there is no `summary` note.
     relationships:
     - rel_type: extends
       spec_id: CSAF-03-006
@@ -377,8 +427,11 @@ groups:
       identifiers are what later messages and projections refer to (CM-05-003,
       CM-05-009). The case has no field for records until #5132 adds one.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until vulnerability records are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_each_csaf_vulnerability_becomes_a_vulnerability_record`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test attaches a document with two
+      vulnerabilities, and checks that the case gets a vulnerability record for each,
+      with its name, aliases and description.
     adr:
     - ADR-0184
     stories:
@@ -396,8 +449,11 @@ groups:
       summary, and the profile uses them for evidence of exploitation (CM-05-004,
       CM-05-005). The case has no field for references until #5132 adds one.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py` holds a strict xfail
-      probe until case references are built.
+      `test/architecture/test_csaf_report_content_planned.py::test_each_csaf_reference_becomes_a_case_reference`
+      holds a strict xfail probe until a behavioral test marked with this ID lands. That
+      test replaces the probe: a receive-path test attaches a document with
+      document-level and vulnerability-level references, and checks that the case gets a
+      case reference with the URL and summary of each.
     adr:
     - ADR-0184
     stories:
@@ -515,16 +571,20 @@ groups:
     statement: >-
       This codebase MUST record a candidate-parties signal with the report when the
       vendors of the products that its CSAF document lists as known affected are
-      more than one, or include a vendor other than the receiver.
+      more than one, or include a vendor whose name differs from the receiving
+      actor's `name`.
     rationale: >-
       Affected products name the parties that a case needs, for example when a
       coordinator or one of several vendors receives the report. Party discovery
-      then suggests those actors to the case (BT-20-003).
+      then suggests those actors to the case (BT-20-003). A vendor name becomes an
+      actor only through a directory that does not exist yet, so the receiver's
+      own `name` is the one comparison that needs none.
     verification: >-
       `test/architecture/test_csaf_report_content_planned.py::test_several_affected_vendors_raise_a_candidate_parties_signal`
       holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a receive-path test attaches a document with two affected vendors and
-      reads the stored candidate-parties signal.
+      replaces it: receive-path tests attach a document with two affected vendors, and
+      one with a single affected vendor whose name is not the receiver's, and read the
+      stored candidate-parties signal of each.
     tracking_issue: '#6091'
   - id: CSAF-04-008
     priority: MUST_NOT
@@ -641,9 +701,8 @@ groups:
       moves.
     verification: >-
       `test/architecture/test_csaf_report_content_planned.py::test_the_suite_never_reads_the_tc_test_documents`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a test checks that no test module reads a path under the CSAF
-      Technical Committee's test data.
+      checks that no other test module names a path under the test data
+      directory of the CSAF Technical Committee's repository.
     tracking_issue: '#6089'
   - id: CSAF-05-005
     priority: MUST

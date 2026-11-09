@@ -102,7 +102,7 @@ any vulnerability report format that can be embedded as part of the JSON object.
 
 Examples of what might go into the `content` property of a `VulnerabilityReport` object include:
 
-- Community-developed Structured formats like [CSAF](https://oasis-open.github.io/csaf-documentation/){:target="_blank"} or
+- Community-developed Structured formats like
   [CVE JSON](https://github.com/CVEProject/cve-schema){:target="_blank"}
 - Quasi-structured text formats based on templates like the
   [OWASP Vulnerability Template](https://owasp.org/www-community/vulnerabilities/Vulnerability_template){:target="_blank"}
@@ -119,6 +119,11 @@ vulnerability reports.
 Binary attachments (PDF documents, images, audio files, video files) are supported; in those cases,
 the `content` property MAY contain a link to the binary file or an embedded encoding. Binary attachments
 SHOULD be avoided whenever possible since they are more difficult to process automatically.
+
+A report can also carry files in its `attachment` property, beside the text in its `content`.
+A [Common Security Advisory Framework (CSAF)](https://oasis-open.github.io/csaf-documentation/){:target="_blank"} 2.1 document travels this way, as a `Document` whose `mediaType` is `application/json` and whose `content` is the JSON text of the CSAF document.
+The report keeps its own human-readable text in `content`.
+A receiver reads the CSAF document as the sender's statement only on the first `Offer` of a report that belongs to no case yet ([ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)).
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import gen_report, json2md

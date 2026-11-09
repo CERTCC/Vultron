@@ -88,7 +88,7 @@ The mapping from CSAF fields to case inputs, the receiver's local record of what
 - Bad, because a CSAF document that arrives after the case exists can only be read by a human, even when it carries news, such as a later exploitation report.
   Such news reaches the case through the Vultron activity that reports it.
 
-### Confirmation
+## Validation
 
 A requirement for each part of the decision carries a test marker.
 Each marker is a strict expected failure until its behavior is built.

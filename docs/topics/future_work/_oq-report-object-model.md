@@ -3,9 +3,9 @@
     A Report is not a Case.
     A Report is the object of the initial `Offer`.
     A Case exists only after a recipient accepts that `Offer`.
-    Two Report formats are possible: plain text and JavaScript Object Notation (JSON) in the Common Security Advisory Framework (CSAF) format.
-    The project has not specified either format, and more formats can follow.
-    The [CSAF 2.1 crosswalk](../../reference/csaf_crosswalk/concept_mapping.md#content-objects) compares the two object models, and Idea [#5131](https://github.com/CERTCC/Vultron/issues/5131) tracks how Vultron reads CSAF content in a Report.
+    A Report carries plain text in its `content`, and it can carry a Common Security Advisory Framework (CSAF) 2.1 document as an attachment.
+    [ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md) specifies how a CSAF document travels with a Report and when a recipient reads it, and more formats can follow.
+    The [CSAF 2.1 crosswalk](../../reference/csaf_crosswalk/concept_mapping.md#content-objects) compares the two object models.
 
     The condition occurs when the same Report goes to more than one recipient.
     Each recipient can accept the Report and make its own Case from it.
