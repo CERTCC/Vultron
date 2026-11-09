@@ -125,7 +125,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
 
         *after* is the case file as :meth:`_change` leaves it.  An act's own
         activity can state more than one change (CLP-07-013): the owner's
-        ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` is the ``ACTIVATE`` step and
+        ``Add(EmbargoEvent)[target=VulnerabilityCase]`` is the ``ACTIVATE`` step and
         the owner's agreement.  None by default.
         """
         return []

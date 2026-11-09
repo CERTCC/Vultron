@@ -32,8 +32,11 @@ import json
 import pytest
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.demo.helpers.cast import ALL_SLOTS
 from vultron.demo.recordings.runner import record_scenario
+from vultron.demo.recordings.traces import normalize_run
 from vultron.demo.scenario.registry import discover_scenarios
+from vultron.demo.utils.check_tree import walk
 
 pytestmark = pytest.mark.integration
 
@@ -45,8 +48,9 @@ _SMOKE_SCENARIO = "rv"
 def test_the_recorder_records_a_scenario():
     spec = next(s for s in discover_scenarios() if s.name == _SMOKE_SCENARIO)
 
-    recording = record_scenario(spec)
+    run = record_scenario(spec)
 
+    recording = run.recording
     entries = [
         CaseLedgerEntry.model_validate(json.loads(line))
         for line in recording.entries
@@ -58,3 +62,42 @@ def test_the_recorder_records_a_scenario():
     assert [(m.branch_point, m.choice) for m in recording.steps] == list(
         spec.path
     )
+    # The same run left a check tree, which nothing commits (DEMOCI-11-056).
+    # Its shape is tested in test/demo_unit/; what a real run adds is that the
+    # three context managers and the routed client really are the only paths,
+    # so every node carries a label and a gate or step that polled a container
+    # names the cast member it read (DEMOCI-11-057).
+    nodes = list(walk(run.checks))
+    assert nodes, "the run entered no demo_step, demo_check or demo_gate"
+    assert all(node.label for node in nodes)
+    assert {name for node in nodes for name in node.reads} <= {
+        slot.name for slot in ALL_SLOTS
+    }
+    assert any(node.reads for node in nodes), (
+        "no check was attributed a container read"
+    )
+
+
+@pytest.mark.timeout(900)
+@pytest.mark.spec("DEMOCI-11-055")
+def test_two_runs_of_one_unchanged_tree_compare_equal():
+    """The determinism the comparison rests on, against real runs.
+
+    ``compare-demo-runs`` with no directory option records each selected
+    scenario twice in this process and compares the pair, so two runs of one
+    unchanged tree must differ in nothing once normalized.  Every CLI test of
+    that form stubs ``record_scenario`` out, so this is the only place the
+    claim is made against the real recorder: a process-global the recorder
+    forgets to reset would otherwise break the command with no failing test
+    (the class of defect ``_scenario_nodes``' blackboard reset exists for).
+    """
+    spec = next(s for s in discover_scenarios() if s.name == _SMOKE_SCENARIO)
+
+    before = normalize_run(record_scenario(spec).traces)
+    after = normalize_run(record_scenario(spec).traces)
+
+    # Guards against an equality that holds because both sides are empty.
+    assert before.ledger, "the first run normalized to no ledger"
+    assert before.checks, "the first run normalized to no check tree"
+    assert before.ledger == after.ledger
+    assert before.checks == after.checks

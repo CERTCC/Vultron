@@ -83,6 +83,7 @@ class TriggerParticipantsPort(Protocol):
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list[Any] | None = None,
+        content: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(CaseParticipant)[target=VulnerabilityCase]`` activity.
 
@@ -91,7 +92,9 @@ class TriggerParticipantsPort(Protocol):
         its roles, addressed to the Case Owner.  ``roles`` defaults to
         ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).  ``origin`` carries the
         original recommender Offer ID so the Case Owner can trace the causal
-        chain (CM-16-004).
+        chain (CM-16-004).  ``content`` carries the recommender's reason text
+        from its ``Offer(Actor)`` so the Case Owner can decide on the
+        suggestion with its evidence (CM-16-020).
         Returns ``(activity_id, activity_dict)``.
         """
         ...

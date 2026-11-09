@@ -99,6 +99,10 @@ scenario to surface failures (DEMOCI-01-003/004):
   skipped, so dependent steps go inside it and do not produce meaningless secondary
   failures (ADR-0058).
 
+Each block is also one node of the run's check tree while the recorder has a
+capture installed (DEMOCI-11-056); what that trace is for is
+[demo-scenario-tree.md](demo-scenario-tree.md) § "Composition".
+
 When to use which is in `vultron/demo/AGENTS.md`; behavior is pinned by
 `test/demo/test_demo_context_managers.py`. Standalone maintenance tooling belongs in
 `vultron/metadata/`, not `vultron/demo/`.

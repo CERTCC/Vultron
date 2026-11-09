@@ -101,7 +101,7 @@ def trigger_propose_embargo(
         "A participant accepts the current (or specified) embargo proposal "
         "with Accept(Invite(EmbargoEvent)), which records its own consent and "
         "moves no EM state. The case owner's accept is its decision for the "
-        "case, Accept(EmbargoEvent)[target=VulnerabilityCase], which activates the "
+        "case, Add(EmbargoEvent)[target=VulnerabilityCase], which activates the "
         "embargo (EM state → ACTIVE). "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),

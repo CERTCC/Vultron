@@ -202,6 +202,13 @@ _GENERIC_TRANSITIVE_CLASSES = (
 )
 
 
+#: The owner decisions also require ``inReplyTo`` (ADR-0180); supply it so
+#: the error is the missing object alone.
+_OWNER_DECISION_FIELDS = {
+    "in_reply_to": "urn:uuid:case-123/embargo_proposals/1"
+}
+
+
 @pytest.mark.spec("MV-09-001")
 @pytest.mark.spec("RF-02-008")
 @pytest.mark.spec("RF-02-009")
@@ -540,16 +547,24 @@ class TestNoneObjectRejected(unittest.TestCase):
         self._assert_missing_rejected(_EmRejectEmbargoActivity)
 
     def test_activate_embargo_rejects_none(self):
-        self._assert_none_rejected(_ActivateEmbargoActivity)
+        self._assert_none_rejected(
+            _ActivateEmbargoActivity, **_OWNER_DECISION_FIELDS
+        )
 
     def test_activate_embargo_rejects_missing(self):
-        self._assert_missing_rejected(_ActivateEmbargoActivity)
+        self._assert_missing_rejected(
+            _ActivateEmbargoActivity, **_OWNER_DECISION_FIELDS
+        )
 
     def test_reject_embargo_proposal_rejects_none(self):
-        self._assert_none_rejected(_RejectEmbargoProposalActivity)
+        self._assert_none_rejected(
+            _RejectEmbargoProposalActivity, **_OWNER_DECISION_FIELDS
+        )
 
     def test_reject_embargo_proposal_rejects_missing(self):
-        self._assert_missing_rejected(_RejectEmbargoProposalActivity)
+        self._assert_missing_rejected(
+            _RejectEmbargoProposalActivity, **_OWNER_DECISION_FIELDS
+        )
 
     def test_announce_embargo_rejects_none(self):
         self._assert_none_rejected(_AnnounceEmbargoActivity)

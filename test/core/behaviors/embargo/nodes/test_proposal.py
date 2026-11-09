@@ -235,7 +235,7 @@ class TestRecordParticipantAcceptanceNode:
     ):
         """The owner's Accept(Invite) of B marks row(B) and activates nothing.
 
-        Activation is the owner's separate ``Accept(EmbargoEvent)``, so the
+        Activation is the owner's separate ``Add(EmbargoEvent)``, so the
         node needs neither A nor B readable: even with A unreplicated here
         it succeeds, logs no ERROR, and leaves the register as it was.
         """
