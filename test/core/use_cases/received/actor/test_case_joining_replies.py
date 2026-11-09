@@ -48,6 +48,7 @@ from test.core.use_cases.received.actor.test_invite import (
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.ledger_records import with_ledger_records
 from test.support.received import received_event, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -176,9 +177,11 @@ def route_received(
         "actor_config": actor_config,
     }
     accepted = inspect.signature(use_case_class).parameters
-    result = use_case_class(
-        dl, event, **{k: v for k, v in ports.items() if k in accepted}
-    ).execute()
+    result = run_in_act(
+        use_case_class(
+            dl, event, **{k: v for k, v in ports.items() if k in accepted}
+        )
+    )
     assert isinstance(result, HandlerResult)
     # The inbox's outcome stage settles the record after the run, so a
     # second route of the same activity meets its seen-before door

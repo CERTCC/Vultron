@@ -25,6 +25,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -143,9 +144,11 @@ def _receive_reject(
     rejecting_actor_id: str,
 ) -> None:
     event = _reject_event(dl, proposal, case_id, rejecting_actor_id)
-    RejectInviteToEmbargoOnCaseReceivedUseCase(
-        dl, event, wire_render_port=As2WireRenderAdapter()
-    ).execute()
+    run_in_act(
+        RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        )
+    )
 
 
 def _pending(case_id: str, proposal_id: str) -> bool:

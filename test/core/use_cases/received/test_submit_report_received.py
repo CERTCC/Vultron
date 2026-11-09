@@ -18,6 +18,7 @@ Instead it writes a pending VultronReportCaseLink and sends Create(CaseProposal)
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.received import (
     assert_held_only_as_received,
     received_record,
@@ -102,9 +103,11 @@ class TestSubmitReportLogMessages:
         dl.save(VultronService(id_="https://example.org/actors/vendor"))
 
         with caplog.at_level(logging.INFO):
-            SubmitReportReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
+            run_in_act(
+                SubmitReportReceivedUseCase(
+                    dl, event, trigger_activity=TriggerActivityAdapter(dl)
+                )
+            )
 
         log_text = " ".join(r.message for r in caplog.records)
         assert "https://example.org/actors/vendor" in log_text, (
@@ -170,9 +173,11 @@ class TestSubmitReportCreatesCase:
         Instead it writes a pending link and sends Create(CaseProposal).
         """
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         link = dl.read(link_id)
@@ -189,18 +194,22 @@ class TestSubmitReportCreatesCase:
         No ledger exists until the CASE_MANAGER creates the case (ADR-0041).
         """
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         assert dl.list_objects("CaseLedgerEntry") == []
 
     def test_submit_report_creates_vendor_participant_at_received(self):
         """ADR-0041: no VulnerabilityCase → no CaseParticipant created by vendor."""
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         participants = dl.get_all("CaseParticipant")
         vendor_participants = [
@@ -217,9 +226,11 @@ class TestSubmitReportCreatesCase:
     def test_submit_report_creates_finder_participant_accepted(self):
         """ADR-0041: no CaseParticipant with RM.ACCEPTED created by vendor tree."""
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         statuses = [
             ParticipantStatus.model_validate(row["data_"])
@@ -238,12 +249,16 @@ class TestSubmitReportCreatesCase:
     def test_submit_report_case_creation_is_idempotent(self):
         """Calling SubmitReportReceivedUseCase twice creates only one pending link (ADR-0041)."""
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         links = [
             obj
@@ -289,9 +304,11 @@ class TestSubmitReportCreatesCase:
         dl.save(report)
         dl.save(VultronService(id_=self.VENDOR_ID))
 
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         stored = dl.read(report.id_)
         assert stored is not None, (
@@ -334,9 +351,11 @@ class TestSubmitReportCreatesCase:
             actor_id=self.VENDOR_ID,
         )
 
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert all_cases == [], (
@@ -390,12 +409,14 @@ class TestSubmitReportAutoCreateCasePolicy:
         from vultron.config.actor import ActorConfig
 
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            actor_config=ActorConfig(auto_create_case=False),
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                actor_config=ActorConfig(auto_create_case=False),
+            )
+        )
 
         # The report is persisted; the Offer(VulnerabilityReport) is held as received.
         assert dl.read(self.REPORT_ID) is not None
@@ -409,12 +430,14 @@ class TestSubmitReportAutoCreateCasePolicy:
         from vultron.config.actor import ActorConfig
 
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            actor_config=ActorConfig(auto_create_case=False),
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                actor_config=ActorConfig(auto_create_case=False),
+            )
+        )
 
         assert dl.outbox_list() == []
 
@@ -424,12 +447,14 @@ class TestSubmitReportAutoCreateCasePolicy:
 
         event, dl = self._make_event_and_dl()
         dl.save(VulnerabilityReport(id_=self.REPORT_ID))
-        SubmitReportReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            actor_config=ActorConfig(auto_create_case=True),
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                actor_config=ActorConfig(auto_create_case=True),
+            )
+        )
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         assert isinstance(dl.read(link_id), VultronReportCaseLink)
@@ -438,9 +463,11 @@ class TestSubmitReportAutoCreateCasePolicy:
         """AC-1: absent ActorConfig preserves always-send-proposal behavior (ADR-0041)."""
         event, dl = self._make_event_and_dl()
         dl.save(VulnerabilityReport(id_=self.REPORT_ID))
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         assert isinstance(dl.read(link_id), VultronReportCaseLink)
@@ -500,9 +527,11 @@ class TestOfferAddressingSemantics:
         )
         dl = self._make_dl()
 
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         assert isinstance(dl.read(link_id), VultronReportCaseLink), (
@@ -522,9 +551,11 @@ class TestOfferAddressingSemantics:
         )
         dl = self._make_dl()
 
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         assert isinstance(dl.read(link_id), VultronReportCaseLink)
@@ -540,9 +571,11 @@ class TestOfferAddressingSemantics:
         )
         dl = self._make_dl()
 
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         assert dl.read(link_id) is None
@@ -592,9 +625,11 @@ class TestOfferAddressingSemantics:
         dl = self._make_dl()
 
         with caplog.at_level(logging.WARNING):
-            SubmitReportReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
+            run_in_act(
+                SubmitReportReceivedUseCase(
+                    dl, event, trigger_activity=TriggerActivityAdapter(dl)
+                )
+            )
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert all_cases == [], (
@@ -619,9 +654,11 @@ class TestOfferAddressingSemantics:
         dl = self._make_dl()
 
         with caplog.at_level(logging.WARNING):
-            SubmitReportReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
+            run_in_act(
+                SubmitReportReceivedUseCase(
+                    dl, event, trigger_activity=TriggerActivityAdapter(dl)
+                )
+            )
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert all_cases == [], (
@@ -650,9 +687,11 @@ class TestOfferAddressingSemantics:
         )
         dl = self._make_dl()
 
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         assert isinstance(dl.read(link_id), VultronReportCaseLink), (
@@ -674,9 +713,11 @@ class TestOfferAddressingSemantics:
         )
         dl = self._make_dl()
 
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert all_cases == [], (
@@ -729,9 +770,11 @@ class TestSubmitReportStoresOfferRecord:
         from vultron.core.models.offer_record import VultronOfferRecord
 
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         record_id = VultronOfferRecord.build_id(self.OFFER_ID)
         record = dl.read(record_id)
@@ -748,12 +791,16 @@ class TestSubmitReportStoresOfferRecord:
         from vultron.core.models.offer_record import VultronOfferRecord
 
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
-        SubmitReportReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
+        run_in_act(
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         record_id = VultronOfferRecord.build_id(self.OFFER_ID)
         records = [
@@ -801,9 +848,9 @@ class TestSubmitReportUnresolvableReceiver:
         inner = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
 
         with pytest.raises(VultronValidationError):
-            SubmitReportReceivedUseCase(
-                anonymous_store(inner), event
-            ).execute()
+            run_in_act(
+                SubmitReportReceivedUseCase(anonymous_store(inner), event)
+            )
 
         assert inner.read(self.REPORT_ID) is None
         assert inner.read(self.OFFER_ID) is None
@@ -844,12 +891,14 @@ class TestSubmitReportDisposition:
         if dl is None:
             dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
             dl.save(VultronService(id_=self.VENDOR_ID))
-        result = SubmitReportReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            actor_config=actor_config,
-        ).execute()
+        result = run_in_act(
+            SubmitReportReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                actor_config=actor_config,
+            )
+        )
         return result, dl
 
     @pytest.mark.spec("HP-01-003")
@@ -1031,12 +1080,14 @@ class TestSubmitReportKeepsWhatArrived:
         )
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
         dl.save(VultronService(id_=self.VENDOR_ID))
-        result = SubmitReportReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            actor_config=actor_config,
-        ).execute()
+        result = run_in_act(
+            SubmitReportReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                actor_config=actor_config,
+            )
+        )
         return result, dl
 
     def _assert_kept(self, dl, *, record=True):

@@ -36,6 +36,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.ledger import ledger_entries
@@ -218,9 +219,11 @@ class _World:
             to=[self.receiver_id],
             context=self.case_id,
         )
-        return AddCaseStatusToCaseReceivedUseCase(
-            self.dl, self._event(activity), **self._ports()
-        ).execute()
+        return run_in_act(
+            AddCaseStatusToCaseReceivedUseCase(
+                self.dl, self._event(activity), **self._ports()
+            )
+        )
 
     def finder_status(self) -> HandlerResult:
         """The finder's own status, at the RM state it was seated with."""
@@ -237,9 +240,11 @@ class _World:
             actor=self.finder.id_,
             to=[self.receiver_id],
         )
-        return AddParticipantStatusToParticipantReceivedUseCase(
-            self.dl, self._event(activity), **self._ports()
-        ).execute()
+        return run_in_act(
+            AddParticipantStatusToParticipantReceivedUseCase(
+                self.dl, self._event(activity), **self._ports()
+            )
+        )
 
     def leave_from(self, sender_id: str, suffix: str = "1") -> HandlerResult:
         activity = rm_close_case_activity(
@@ -251,9 +256,11 @@ class _World:
             to=list(dict.fromkeys([self.manager.id_, self.receiver_id])),
             id_=f"{self.case_id}/leaves/{suffix}",
         )
-        return CloseCaseReceivedUseCase(
-            self.dl, self._event(activity), **self._ports()
-        ).execute()
+        return run_in_act(
+            CloseCaseReceivedUseCase(
+                self.dl, self._event(activity), **self._ports()
+            )
+        )
 
     def invite_from(self, sender_id: str) -> HandlerResult:
         """An Invite naming the receiver, or, at the CASE_MANAGER, which is
@@ -270,9 +277,11 @@ class _World:
             to=[invitee],
             id_=f"{self.case_id}/invitations/1",
         )
-        return InviteActorToCaseReceivedUseCase(
-            self.dl, self._event(activity), **self._ports()
-        ).execute()
+        return run_in_act(
+            InviteActorToCaseReceivedUseCase(
+                self.dl, self._event(activity), **self._ports()
+            )
+        )
 
 
 def _overdue() -> datetime:

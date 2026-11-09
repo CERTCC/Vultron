@@ -23,6 +23,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -77,12 +78,14 @@ def _add(dl, report, *, sender=_OWNER_ID):
         ),
         at=dl,
     )
-    return AddReportToCaseReceivedUseCase(
-        dl,
-        cast(AddReportToCaseReceivedEvent, event),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        AddReportToCaseReceivedUseCase(
+            dl,
+            cast(AddReportToCaseReceivedEvent, event),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 def _report_ids(case: as_VulnerabilityCase) -> list[str]:
@@ -174,7 +177,7 @@ def test_missing_id_is_refused(dl, missing):
         ),
     )
 
-    result = AddReportToCaseReceivedUseCase(dl, request).execute()
+    result = run_in_act(AddReportToCaseReceivedUseCase(dl, request))
 
     assert result.disposition == HandlerDisposition.REFUSED
 
@@ -198,7 +201,8 @@ def test_late_joiner_receives_the_added_report_through_backfill(dl):
         wire_render_port=As2WireRenderAdapter(),
         sync_port=sync_port,
     )
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=BackfillCanonicalLedgerToInviteeNode(
             case_id=_CASE_ID, invitee_id=invitee_id
         ),
@@ -223,9 +227,8 @@ def test_late_joiner_receives_the_added_report_through_backfill(dl):
     activity = SimpleNamespace(
         log_entry=report_entries[0], actor_id=_MANAGER_ID
     )
-    applied = BTBridge(
-        datalayer=replica, wire_render_port=As2WireRenderAdapter()
-    ).execute_with_setup(
+    applied = run_tree(
+        BTBridge(datalayer=replica, wire_render_port=As2WireRenderAdapter()),
         tree=ApplyOfferReportFromLedgerNode(name="ApplyReport"),
         actor_id=invitee_id,
         activity=activity,
@@ -267,15 +270,12 @@ def test_apply_report_entry_is_idempotent_and_tolerates_a_missing_case(dl):
     activity = SimpleNamespace(log_entry=entry, actor_id=_MANAGER_ID)
 
     def apply() -> Status:
-        return (
-            BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
-            .execute_with_setup(
-                tree=ApplyOfferReportFromLedgerNode(name="ApplyReport"),
-                actor_id=_MANAGER_ID,
-                activity=activity,
-            )
-            .status
-        )
+        return run_tree(
+            BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter()),
+            tree=ApplyOfferReportFromLedgerNode(name="ApplyReport"),
+            actor_id=_MANAGER_ID,
+            activity=activity,
+        ).status
 
     assert apply() == Status.SUCCESS  # no case replica yet: a no-op
     dl.create(

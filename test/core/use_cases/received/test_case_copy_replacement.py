@@ -24,6 +24,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.ledger import ledger_entries
 from test.support.received import TEST_SENDER_POSITION, received_event
 from test.support.signing import signed_body
@@ -279,17 +280,19 @@ def _noted(case_id: str) -> tuple[LedgerNetwork, str]:
     owner's replica has not received the entry."""
     net = LedgerNetwork(case_id, em_state=EM.NONE)
     net.stores[BYSTANDER].create(as_Service(id_=BYSTANDER, name="Vendor B"))
-    result = SvcAddNoteToCaseUseCase(
-        net.stores[BYSTANDER],
-        AddNoteToCaseTriggerRequest(
-            actor_id=BYSTANDER,
-            case_id=net.case_id,
-            note_name="Question",
-            note_content="Is there a workaround?",
-        ),
-        trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcAddNoteToCaseUseCase(
+            net.stores[BYSTANDER],
+            AddNoteToCaseTriggerRequest(
+                actor_id=BYSTANDER,
+                case_id=net.case_id,
+                note_name="Question",
+                note_content="Is there a workaround?",
+            ),
+            trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
+            clock=SystemClock(),
+        )
+    )
     assert result.note is not None
     for _type, verdict in net.deliver(BYSTANDER, to=MANAGER):
         assert verdict.disposition is HandlerDisposition.APPLIED

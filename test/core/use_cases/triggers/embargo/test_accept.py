@@ -4,6 +4,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -61,14 +62,16 @@ def test_non_manager_accept_embargo_asks_the_case_manager(
         proposal_id=proposal.id_,
     )
 
-    result = SvcAcceptEmbargoUseCase(
-        finder_dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(finder_dl),
-        sync_port=SyncActivityAdapter(finder_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcAcceptEmbargoUseCase(
+            finder_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+            sync_port=SyncActivityAdapter(finder_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     assert result.activity is not None
 
@@ -105,14 +108,16 @@ def test_non_manager_accept_embargo_asks_the_case_manager(
 
 
 def _owner_accept(dl: SqliteDataLayer, request: AcceptEmbargoTriggerRequest):
-    return SvcAcceptEmbargoUseCase(
-        dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcAcceptEmbargoUseCase(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
 
 @pytest.mark.spec("EP-08-002")

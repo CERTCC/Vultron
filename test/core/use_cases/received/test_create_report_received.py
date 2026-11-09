@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -79,7 +80,7 @@ class TestUseCaseExecution:
         )
 
         mock_dl = MagicMock()
-        result = CreateReportReceivedUseCase(mock_dl, event).execute()
+        result = run_in_act(CreateReportReceivedUseCase(mock_dl, event))
         assert result == HandlerResult.applied()
 
     def test_create_case_executes_with_valid_semantics(self, make_payload):
@@ -100,7 +101,7 @@ class TestUseCaseExecution:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        result = CreateCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(CreateCaseReceivedUseCase(dl, event))
         # No ReportCaseLink names the sender: an untrusted Create is refused
         # (HP-01-003, CBT-01-011).
         assert result.disposition == HandlerDisposition.REFUSED
@@ -120,7 +121,7 @@ class TestUseCaseExecution:
             to=[dl.actor_id],
         )
         event = make_payload(create_activity)
-        result = CreateReportReceivedUseCase(dl, event).execute()
+        result = run_in_act(CreateReportReceivedUseCase(dl, event))
         assert result == HandlerResult.applied()
 
 
@@ -154,7 +155,7 @@ def _run_create_report(
             activity=activity,
         )
     )
-    return CreateReportReceivedUseCase(dl, event).execute(), dl
+    return run_in_act(CreateReportReceivedUseCase(dl, event)), dl
 
 
 class TestCreateReportNoStandaloneParticipantStatus:
@@ -286,12 +287,14 @@ class TestDuplicateReportHandling:
         with caplog.at_level(logging.WARNING):
             # Case creation off: the tree keeps the report (the duplicate
             # path under test) and proposes nothing.
-            SubmitReportReceivedUseCase(
-                dl,
-                event,
-                trigger_activity=TriggerActivityAdapter(dl),
-                actor_config=ActorConfig(auto_create_case=False),
-            ).execute()
+            run_in_act(
+                SubmitReportReceivedUseCase(
+                    dl,
+                    event,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    actor_config=ActorConfig(auto_create_case=False),
+                )
+            )
 
         warning_records = [
             r for r in caplog.records if r.levelno >= logging.WARNING
@@ -334,7 +337,7 @@ class TestDuplicateReportHandling:
         dl.save(report)
 
         with caplog.at_level(logging.WARNING):
-            CreateReportReceivedUseCase(dl, event).execute()
+            run_in_act(CreateReportReceivedUseCase(dl, event))
 
         warning_records = [
             r for r in caplog.records if r.levelno >= logging.WARNING
@@ -374,4 +377,4 @@ class TestCreateReportDisposition:
         with pytest.raises(
             VultronBTInternalError, match="CreateReportReceivedBT"
         ):
-            CreateReportReceivedUseCase(dl, event).execute()
+            run_in_act(CreateReportReceivedUseCase(dl, event))

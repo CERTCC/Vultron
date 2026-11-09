@@ -30,6 +30,7 @@ import json
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.ledger_labels import registry_label
 from test.support.trigger_results import recipient_ids
 from vultron.adapters.driven.clock import SystemClock
@@ -108,14 +109,16 @@ def _seed_case(
 
 
 def _run(dl: SqliteDataLayer, request: SyncLogEntryTriggerRequest):
-    return SvcSyncLogEntryUseCase(
-        dl,
-        request,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcSyncLogEntryUseCase(
+            dl,
+            request,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
 
 @pytest.mark.spec("SYNC-02-002")

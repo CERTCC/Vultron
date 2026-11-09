@@ -26,6 +26,7 @@ import re
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.ledger import (
     assert_case_at_chain_tail,
@@ -166,7 +167,7 @@ class TestSvcCreateCaseUseCase:
         request = CreateCaseTriggerRequest(
             actor_id=self.actor.id_, name="Genesis Case", content="c"
         )
-        _use_case(self.dl, request).execute()
+        run_in_act(_use_case(self.dl, request))
 
         (case,) = [
             obj
@@ -189,7 +190,7 @@ class TestSvcCreateCaseUseCase:
             content="A test case for a vulnerability",
             to=[_RECIPIENT],
         )
-        result = _use_case(self.dl, request).execute()
+        result = run_in_act(_use_case(self.dl, request))
 
         # Verify case was persisted
         case_id = None
@@ -234,7 +235,7 @@ class TestSvcCreateCaseUseCase:
             report_id=report.id_,
             to=[_RECIPIENT],
         )
-        result = _use_case(self.dl, request).execute()
+        result = run_in_act(_use_case(self.dl, request))
 
         # Verify case was created
         case_id = None
@@ -264,7 +265,7 @@ class TestSvcCreateCaseUseCase:
             content="Test content",
         )
         with pytest.raises(VultronNotFoundError, match="Actor"):
-            _use_case(self.dl, request).execute()
+            run_in_act(_use_case(self.dl, request))
 
     def test_create_case_raises_when_report_not_found(self):
         """SvcCreateCaseUseCase raises VultronNotFoundError when report_id not found."""
@@ -275,7 +276,7 @@ class TestSvcCreateCaseUseCase:
             report_id="https://example.org/nonexistent",
         )
         with pytest.raises(VultronNotFoundError, match="VulnerabilityReport"):
-            _use_case(self.dl, request).execute()
+            run_in_act(_use_case(self.dl, request))
 
     def test_create_case_raises_when_report_wrong_type(self):
         """SvcCreateCaseUseCase raises VultronValidationError when report_id is
@@ -295,7 +296,7 @@ class TestSvcCreateCaseUseCase:
         with pytest.raises(
             VultronValidationError, match="not a VulnerabilityReport"
         ):
-            _use_case(self.dl, request).execute()
+            run_in_act(_use_case(self.dl, request))
 
     def test_create_case_outbox_activity_addressed_to_case_actor(self):
         """Activity is addressed to the Case Actor only when ``to`` is set (PCR-08-001)."""
@@ -308,7 +309,7 @@ class TestSvcCreateCaseUseCase:
             to=[case_actor.id_],
         )
         before = set(self.dl.outbox_list())
-        _use_case(self.dl, request).execute()
+        run_in_act(_use_case(self.dl, request))
         after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, "CreateCase must queue at least one outbox activity"
@@ -348,7 +349,7 @@ class TestSvcCreateCaseUseCase:
             name="Test Case Participant Roles",
             content="A test case for participant role registration",
         )
-        _use_case(self.dl, request).execute()
+        run_in_act(_use_case(self.dl, request))
 
         raw_case_id = None
         for obj in self.dl.list_objects("VulnerabilityCase"):
@@ -387,14 +388,16 @@ class TestSvcCreateCaseUseCase:
         """The creator's CASE_OWNER+CASE_MANAGER record names its case, so
         its own Add(ParticipantStatus), received on its own store, acts on
         that case and the status is appended (HP-08-008, #4961)."""
-        created = _use_case(
-            self.dl,
-            CreateCaseTriggerRequest(
-                actor_id=self.actor.id_,
-                name="Test Case Owner Status",
-                content="A test case for the owner's own status update",
-            ),
-        ).execute()
+        created = run_in_act(
+            _use_case(
+                self.dl,
+                CreateCaseTriggerRequest(
+                    actor_id=self.actor.id_,
+                    name="Test Case Owner Status",
+                    content="A test case for the owner's own status update",
+                ),
+            )
+        )
         assert created.case_id is not None
         case_obj = self.dl.read_case(created.case_id)
         assert case_obj is not None
@@ -402,18 +405,20 @@ class TestSvcCreateCaseUseCase:
         assert isinstance(record, CaseParticipant)
         assert _as_id(record.context) == case_obj.id_
 
-        sent = SvcAddParticipantStatusUseCase(
-            self.dl,
-            AddParticipantStatusTriggerRequest(
-                actor_id=self.actor.id_,
-                case_id=case_obj.id_,
-                rm_state=RM.RECEIVED,
-            ),
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        sent = run_in_act(
+            SvcAddParticipantStatusUseCase(
+                self.dl,
+                AddParticipantStatusTriggerRequest(
+                    actor_id=self.actor.id_,
+                    case_id=case_obj.id_,
+                    rm_state=RM.RECEIVED,
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
         assert sent.activity_id is not None
         sent_activity = self.dl.read(sent.activity_id)
         assert isinstance(sent_activity, as_Activity)
@@ -424,13 +429,15 @@ class TestSvcCreateCaseUseCase:
             event, AddParticipantStatusToParticipantReceivedEvent
         )
 
-        result = AddParticipantStatusToParticipantReceivedUseCase(
-            self.dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(self.dl),
-        ).execute()
+        result = run_in_act(
+            AddParticipantStatusToParticipantReceivedUseCase(
+                self.dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(self.dl),
+            )
+        )
 
         assert result.disposition != HandlerDisposition.REFUSED, result.reason
         stored = self.dl.read(record.id_)
@@ -448,7 +455,7 @@ class TestSvcCreateCaseUseCase:
             content="Test content",
             to=[_RECIPIENT],
         )
-        result = _use_case(self.dl, request).execute()
+        result = run_in_act(_use_case(self.dl, request))
 
         # Verify activity ID is in result
         activity_dict = activity_of(result)
@@ -475,7 +482,7 @@ class TestSvcCreateCaseUseCase:
             content="Test content",
             to=to,
         )
-        result = _use_case(self.dl, request).execute()
+        result = run_in_act(_use_case(self.dl, request))
 
         assert result.case_id is not None
         assert self.dl.read(result.case_id) is not None
@@ -549,7 +556,7 @@ class TestCreateCaseTriggerLedger:
             report_id=self.report.id_ if report else None,
             to=to,
         )
-        result = _use_case(self.dl, request).execute()
+        result = run_in_act(_use_case(self.dl, request))
         assert result.case_id is not None
         case = self.dl.read_case(result.case_id)
         assert isinstance(case, VulnerabilityCase)
@@ -717,13 +724,15 @@ class TestCreateCaseTriggerLedger:
         # A composition fault is ours, not the client's: never a 422
         # validation error (ARCH-20-001).
         with pytest.raises(VultronBTInternalError, match=missing):
-            SvcCreateCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                **ports,  # type: ignore[arg-type]
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcCreateCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    **ports,  # type: ignore[arg-type]
+                    clock=SystemClock(),
+                )
+            )
 
         assert self.dl.list_objects("VulnerabilityCase") == []
         assert self.dl.list_objects("CaseLedgerEntry") == []

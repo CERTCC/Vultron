@@ -4,6 +4,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -141,12 +142,14 @@ class TestEngageCaseRMTransitionViaBT:
             case_id=self.case.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcEngageCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
@@ -182,12 +185,14 @@ class TestEngageCaseRMTransitionViaBT:
         )
 
         with caplog.at_level(logging.INFO):
-            SvcEngageCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcEngageCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
         narrative = [
             r
@@ -228,12 +233,14 @@ class TestEngageCaseRMTransitionViaBT:
 
         caplog.clear()
         with caplog.at_level(logging.INFO):
-            SvcEngageCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcEngageCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
         assert not [
             r for r in caplog.records if "engaged case" in r.getMessage()
@@ -262,14 +269,16 @@ class TestEngageCaseRMTransitionViaBT:
         before = set(self.dl.outbox_list())
 
         with pytest.raises(VultronValidationError):
-            SvcEngageCaseUseCase(
-                self.dl,
-                EngageCaseTriggerRequest(
-                    actor_id=self.vendor.id_, case_id=self.case.id_
-                ),
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcEngageCaseUseCase(
+                    self.dl,
+                    EngageCaseTriggerRequest(
+                        actor_id=self.vendor.id_, case_id=self.case.id_
+                    ),
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
         assert set(self.dl.outbox_list()) == before
         after = self.dl.read(self.vendor_participant.id_)
@@ -285,14 +294,16 @@ class TestEngageCaseRMTransitionViaBT:
         before = set(self.dl.outbox_list())
 
         with pytest.raises(VultronValidationError):
-            SvcEngageCaseUseCase(
-                self.dl,
-                EngageCaseTriggerRequest(
-                    actor_id=self.vendor.id_, case_id=case_solo.id_
-                ),
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcEngageCaseUseCase(
+                    self.dl,
+                    EngageCaseTriggerRequest(
+                        actor_id=self.vendor.id_, case_id=case_solo.id_
+                    ),
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
         assert set(self.dl.outbox_list()) == before
 
@@ -310,12 +321,14 @@ class TestEngageCaseRMTransitionViaBT:
             case_id=case_solo.id_,
         )
         with pytest.raises(VultronValidationError):
-            SvcEngageCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcEngageCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_engage_case_unknown_actor_raises_not_found(self):
         """Ported from the retired ``TriggerService`` suite (#3833)."""
@@ -323,12 +336,14 @@ class TestEngageCaseRMTransitionViaBT:
             actor_id="urn:uuid:no-such-actor", case_id=self.case.id_
         )
         with pytest.raises(VultronNotFoundError):
-            SvcEngageCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcEngageCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_engage_case_unknown_case_raises_not_found(self):
         """Ported from the retired ``TriggerService`` suite (#3833)."""
@@ -336,9 +351,11 @@ class TestEngageCaseRMTransitionViaBT:
             actor_id=self.vendor.id_, case_id="urn:uuid:no-such-case"
         )
         with pytest.raises(VultronNotFoundError):
-            SvcEngageCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcEngageCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )

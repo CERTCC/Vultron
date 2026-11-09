@@ -57,6 +57,7 @@ from test.core.use_cases.received.test_reject_sync import (
     _make_entry,
     _make_reject_event,
 )
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
@@ -224,15 +225,17 @@ def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
         to=[_CASE_MANAGER_ID],
         id_=offer_id,
     )
-    recorded = ProposeCaseOwnershipTransferReceivedUseCase(
-        cm_store,
-        make_payload(
-            proposal, receiving_actor_id=_CASE_MANAGER_ID, at=cm_store
-        ),
-        trigger_activity=TriggerActivityAdapter(cm_store),
-        sync_port=SyncActivityAdapter(cm_store),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    recorded = run_in_act(
+        ProposeCaseOwnershipTransferReceivedUseCase(
+            cm_store,
+            make_payload(
+                proposal, receiving_actor_id=_CASE_MANAGER_ID, at=cm_store
+            ),
+            trigger_activity=TriggerActivityAdapter(cm_store),
+            sync_port=SyncActivityAdapter(cm_store),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
     assert recorded.disposition is HandlerDisposition.APPLIED
     offer = cm_store.read(
         ownership_offer_id(
@@ -252,12 +255,14 @@ def _reject_ownership_offer(cm_store, make_payload, offer, sender):
         receiving_actor_id=_CASE_MANAGER_ID,
         at=cm_store,
     )
-    return RejectCaseOwnershipTransferReceivedUseCase(
-        cm_store,
-        event,
-        sync_port=SyncActivityAdapter(cm_store),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        RejectCaseOwnershipTransferReceivedUseCase(
+            cm_store,
+            event,
+            sync_port=SyncActivityAdapter(cm_store),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 @pytest.mark.spec("CM-21-011")
@@ -283,12 +288,14 @@ def test_ownership_accept_from_non_transferee_is_refused(
         at=cm_store,
     )
 
-    result = AcceptCaseOwnershipTransferReceivedUseCase(
-        cm_store,
-        event,
-        sync_port=SyncActivityAdapter(cm_store),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        AcceptCaseOwnershipTransferReceivedUseCase(
+            cm_store,
+            event,
+            sync_port=SyncActivityAdapter(cm_store),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert (
@@ -363,13 +370,15 @@ def test_accept_of_unrecorded_invite_is_refused(
         at=cm_store,
     )
 
-    result = AcceptInviteActorToCaseReceivedUseCase(
-        cm_store,
-        event,
-        sync_port=MagicMock(),
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(cm_store),
-    ).execute()
+    result = run_in_act(
+        AcceptInviteActorToCaseReceivedUseCase(
+            cm_store,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(cm_store),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     case = _reload_case(cm_store, owned_case.id_)
@@ -409,13 +418,15 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
         at=cm_store,
     )
 
-    AcceptInviteActorToCaseReceivedUseCase(
-        cm_store,
-        event,
-        sync_port=MagicMock(),
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(cm_store),
-    ).execute()
+    run_in_act(
+        AcceptInviteActorToCaseReceivedUseCase(
+            cm_store,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(cm_store),
+        )
+    )
 
     case = _reload_case(cm_store, owned_case.id_)
     participant = cm_store.read(case.actor_participant_index[invitee_id])
@@ -455,13 +466,15 @@ def test_accept_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
     )
     entries_before = len(cm_store.list_objects("CaseLedgerEntry"))
 
-    result = AcceptInviteActorToCaseReceivedUseCase(
-        cm_store,
-        event,
-        sync_port=MagicMock(),
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(cm_store),
-    ).execute()
+    result = run_in_act(
+        AcceptInviteActorToCaseReceivedUseCase(
+            cm_store,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(cm_store),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     case = _reload_case(cm_store, owned_case.id_)
@@ -501,13 +514,15 @@ def test_accept_of_an_invite_recorded_for_another_case_is_refused(
         at=cm_store,
     )
 
-    result = AcceptInviteActorToCaseReceivedUseCase(
-        cm_store,
-        event,
-        sync_port=MagicMock(),
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(cm_store),
-    ).execute()
+    result = run_in_act(
+        AcceptInviteActorToCaseReceivedUseCase(
+            cm_store,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(cm_store),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     case = _reload_case(cm_store, owned_case.id_)
@@ -537,13 +552,15 @@ def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
     )
     entries_before = len(cm_store.list_objects("CaseLedgerEntry"))
 
-    result = AcceptInviteActorToCaseReceivedUseCase(
-        cm_store,
-        event,
-        sync_port=MagicMock(),
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(cm_store),
-    ).execute()
+    result = run_in_act(
+        AcceptInviteActorToCaseReceivedUseCase(
+            cm_store,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(cm_store),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     case = _reload_case(cm_store, owned_case.id_)
@@ -578,13 +595,15 @@ def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
         at=cm_store,
     )
 
-    result = RejectInviteActorToCaseReceivedUseCase(
-        cm_store,
-        event,
-        sync_port=MagicMock(),
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(cm_store),
-    ).execute()
+    result = run_in_act(
+        RejectInviteActorToCaseReceivedUseCase(
+            cm_store,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(cm_store),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     case = _reload_case(cm_store, owned_case.id_)
@@ -612,13 +631,15 @@ def test_recommendation_accept_from_non_owner_is_refused():
         AcceptOfferCaseParticipantReceivedEvent, received_event(accept, at=dl)
     )
 
-    result = AcceptOfferCaseParticipantReceivedUseCase(
-        dl,
-        event,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "Case Owner" in (result.reason or "")
@@ -652,13 +673,15 @@ def test_recommendation_reject_from_non_owner_is_refused():
         RejectOfferCaseParticipantReceivedEvent, received_event(reject, at=dl)
     )
 
-    result = RejectOfferCaseParticipantReceivedUseCase(
-        dl,
-        event,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        RejectOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "Case Owner" in (result.reason or "")
@@ -691,13 +714,15 @@ def test_offer_case_participant_from_non_case_manager_is_refused():
         OfferCaseParticipantReceivedEvent, received_event(offer, at=dl)
     )
 
-    result = OfferCaseParticipantReceivedUseCase(
-        dl,
-        event,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        OfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "CASE_MANAGER" in (result.reason or "")
@@ -720,7 +745,7 @@ def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
         at=dl,
     )
 
-    result = AcceptCaseProposalReceivedUseCase(dl, event).execute()
+    result = run_in_act(AcceptCaseProposalReceivedUseCase(dl, event))
 
     assert result.disposition is HandlerDisposition.REFUSED
     link = dl.read(link_id)
@@ -745,7 +770,7 @@ def test_case_proposal_reject_from_non_addressee_is_refused(make_payload):
         at=dl,
     )
 
-    result = RejectCaseProposalReceivedUseCase(dl, event).execute()
+    result = run_in_act(RejectCaseProposalReceivedUseCase(dl, event))
 
     assert result.disposition is HandlerDisposition.REFUSED
     link = dl.read(link_id)
@@ -772,7 +797,7 @@ def test_case_proposal_reply_with_no_recorded_addressee_is_refused(
         at=dl,
     )
 
-    result = AcceptCaseProposalReceivedUseCase(dl, event).execute()
+    result = run_in_act(AcceptCaseProposalReceivedUseCase(dl, event))
 
     assert result.disposition is HandlerDisposition.REFUSED
     link = dl.read(link_id)
@@ -805,7 +830,7 @@ def test_case_proposal_accept_after_case_established_keeps_case_manager(
         at=dl,
     )
 
-    AcceptCaseProposalReceivedUseCase(dl, event).execute()
+    run_in_act(AcceptCaseProposalReceivedUseCase(dl, event))
 
     reloaded = dl.read(link_id)
     assert isinstance(reloaded, VultronReportCaseLink)
@@ -836,7 +861,7 @@ def test_case_proposal_reject_after_case_established_leaves_link_unchanged(
         at=dl,
     )
 
-    RejectCaseProposalReceivedUseCase(dl, event).execute()
+    run_in_act(RejectCaseProposalReceivedUseCase(dl, event))
 
     reloaded = dl.read(link_id)
     assert isinstance(reloaded, VultronReportCaseLink)
@@ -867,7 +892,7 @@ def test_case_proposal_accept_from_addressee_with_trailing_slash_is_applied(
         at=dl,
     )
 
-    result = AcceptCaseProposalReceivedUseCase(dl, event).execute()
+    result = run_in_act(AcceptCaseProposalReceivedUseCase(dl, event))
 
     assert result.disposition is HandlerDisposition.APPLIED
     reloaded = dl.read(link_id)
@@ -894,9 +919,11 @@ def test_note_removal_by_stranger_is_refused(
         at=cm_store,
     )
 
-    result = RemoveNoteFromCaseReceivedUseCase(
-        cm_store, event, wire_render_port=As2WireRenderAdapter()
-    ).execute()
+    result = run_in_act(
+        RemoveNoteFromCaseReceivedUseCase(
+            cm_store, event, wire_render_port=As2WireRenderAdapter()
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     case = _reload_case(cm_store, owned_case.id_)
@@ -919,7 +946,7 @@ def test_report_addition_by_non_owner_is_refused(
         at=cm_store,
     )
 
-    result = AddReportToCaseReceivedUseCase(cm_store, event).execute()
+    result = run_in_act(AddReportToCaseReceivedUseCase(cm_store, event))
 
     assert result.disposition is HandlerDisposition.REFUSED
     case = _reload_case(cm_store, owned_case.id_)
@@ -941,9 +968,11 @@ def test_ledger_reject_from_non_participant_is_refused():
     dl.create(case)
     event = _make_reject_event(entry0, "", _IMPOSTOR_ID)
 
-    result = RejectLedgerEntryReceivedUseCase(
-        dl, event, sync_port=SyncActivityAdapter(dl)
-    ).execute()
+    result = run_in_act(
+        RejectLedgerEntryReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
@@ -962,9 +991,11 @@ def test_ledger_reject_for_unknown_case_is_refused():
     dl.save(entry0)
     event = _make_reject_event(entry0, "", _IMPOSTOR_ID)
 
-    result = RejectLedgerEntryReceivedUseCase(
-        dl, event, sync_port=SyncActivityAdapter(dl)
-    ).execute()
+    result = run_in_act(
+        RejectLedgerEntryReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
@@ -1080,12 +1111,14 @@ def test_embargo_invite_from_a_stranger_is_refused(
         proposal, receiving_actor_id=_CASE_MANAGER_ID, at=cm_store
     )
 
-    result = InviteToEmbargoOnCaseReceivedUseCase(
-        cm_store,
-        event,
-        trigger_activity=TriggerActivityAdapter(cm_store),
-        **_embargo_ports(cm_store),
-    ).execute()
+    result = run_in_act(
+        InviteToEmbargoOnCaseReceivedUseCase(
+            cm_store,
+            event,
+            trigger_activity=TriggerActivityAdapter(cm_store),
+            **_embargo_ports(cm_store),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "ACTIVE_PARTICIPANT" in (result.reason or "")
@@ -1128,12 +1161,14 @@ def test_embargo_invite_at_a_participant_from_a_peer_is_refused(
     )
     event = make_payload(invite, receiving_actor_id=_INVITEE_ID)
 
-    result = InviteToEmbargoOnCaseReceivedUseCase(
-        replica,
-        event,
-        trigger_activity=TriggerActivityAdapter(replica),
-        **_embargo_ports(replica),
-    ).execute()
+    result = run_in_act(
+        InviteToEmbargoOnCaseReceivedUseCase(
+            replica,
+            event,
+            trigger_activity=TriggerActivityAdapter(replica),
+            **_embargo_ports(replica),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "CASE_MANAGER" in (result.reason or "")
@@ -1168,12 +1203,14 @@ def test_embargo_accept_from_a_non_invitee_is_refused(
         at=cm_store,
     )
 
-    result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-        cm_store,
-        event,
-        trigger_activity=TriggerActivityAdapter(cm_store),
-        **_embargo_ports(cm_store),
-    ).execute()
+    result = run_in_act(
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            cm_store,
+            event,
+            trigger_activity=TriggerActivityAdapter(cm_store),
+            **_embargo_ports(cm_store),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "invitee" in (result.reason or "")
@@ -1211,12 +1248,14 @@ def test_embargo_accept_of_an_unrecorded_invite_is_refused(
         at=cm_store,
     )
 
-    result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-        cm_store,
-        event,
-        trigger_activity=TriggerActivityAdapter(cm_store),
-        **_embargo_ports(cm_store),
-    ).execute()
+    result = run_in_act(
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            cm_store,
+            event,
+            trigger_activity=TriggerActivityAdapter(cm_store),
+            **_embargo_ports(cm_store),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "never recorded" in (result.reason or "")
@@ -1256,9 +1295,11 @@ def test_embargo_reject_from_a_non_invitee_is_refused(
         at=cm_store,
     )
 
-    result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-        cm_store, event, **_embargo_ports(cm_store)
-    ).execute()
+    result = run_in_act(
+        RejectInviteToEmbargoOnCaseReceivedUseCase(
+            cm_store, event, **_embargo_ports(cm_store)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "invitee" in (result.reason or "")
@@ -1304,7 +1345,7 @@ def test_owner_embargo_decision_from_a_non_owner_is_refused(
         at=cm_store,
     )
 
-    result = use_case(cm_store, event, **_embargo_ports(cm_store)).execute()
+    result = run_in_act(use_case(cm_store, event, **_embargo_ports(cm_store)))
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "Case Owner" in (result.reason or "")
@@ -1350,9 +1391,11 @@ def test_embargo_remove_from_a_non_owner_is_refused(
         at=cm_store,
     )
 
-    result = RemoveEmbargoEventFromCaseReceivedUseCase(
-        cm_store, event, **_embargo_ports(cm_store)
-    ).execute()
+    result = run_in_act(
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            cm_store, event, **_embargo_ports(cm_store)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "CASE_OWNER" in (result.reason or "")
@@ -1391,9 +1434,11 @@ def test_embargo_remove_from_the_owner_is_applied(
         at=cm_store,
     )
 
-    result = RemoveEmbargoEventFromCaseReceivedUseCase(
-        cm_store, event, **_embargo_ports(cm_store)
-    ).execute()
+    result = run_in_act(
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            cm_store, event, **_embargo_ports(cm_store)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED
     assert (
@@ -1422,9 +1467,11 @@ def test_embargo_announce_from_a_non_manager_is_refused(
         at=cm_store,
     )
 
-    result = AnnounceEmbargoEventToCaseReceivedUseCase(
-        cm_store, event, sync_port=SyncActivityAdapter(cm_store)
-    ).execute()
+    result = run_in_act(
+        AnnounceEmbargoEventToCaseReceivedUseCase(
+            cm_store, event, sync_port=SyncActivityAdapter(cm_store)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "CASE_MANAGER" in (result.reason or "")
@@ -1451,9 +1498,11 @@ def test_embargo_remove_from_the_owner_with_trailing_slash_is_applied(
         at=cm_store,
     )
 
-    result = RemoveEmbargoEventFromCaseReceivedUseCase(
-        cm_store, event, **_embargo_ports(cm_store)
-    ).execute()
+    result = run_in_act(
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            cm_store, event, **_embargo_ports(cm_store)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED
 
@@ -1491,9 +1540,11 @@ def test_embargo_announce_at_a_participant_from_a_peer_is_refused(
         receiving_actor_id=_INVITEE_ID,
     )
 
-    result = AnnounceEmbargoEventToCaseReceivedUseCase(
-        replica, event, sync_port=SyncActivityAdapter(replica)
-    ).execute()
+    result = run_in_act(
+        AnnounceEmbargoEventToCaseReceivedUseCase(
+            replica, event, sync_port=SyncActivityAdapter(replica)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "CASE_MANAGER" in (result.reason or "")
@@ -1545,7 +1596,7 @@ def test_report_addition_by_a_closed_owner_is_refused(
         at=cm_store,
     )
 
-    result = AddReportToCaseReceivedUseCase(cm_store, event).execute()
+    result = run_in_act(AddReportToCaseReceivedUseCase(cm_store, event))
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "already closed" in (result.reason or "")
@@ -1587,7 +1638,7 @@ def test_owner_embargo_decision_from_a_closed_owner_is_refused(
         at=cm_store,
     )
 
-    result = use_case(cm_store, event, **_embargo_ports(cm_store)).execute()
+    result = run_in_act(use_case(cm_store, event, **_embargo_ports(cm_store)))
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "already closed" in (result.reason or "")
@@ -1623,9 +1674,11 @@ def test_embargo_remove_from_a_closed_owner_is_refused(
         at=cm_store,
     )
 
-    result = RemoveEmbargoEventFromCaseReceivedUseCase(
-        cm_store, event, **_embargo_ports(cm_store)
-    ).execute()
+    result = run_in_act(
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            cm_store, event, **_embargo_ports(cm_store)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     _assert_embargo_untouched(

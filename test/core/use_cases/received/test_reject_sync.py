@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -220,7 +221,7 @@ class TestRejectLedgerEntryReceivedUseCase:
         uc = RejectLedgerEntryReceivedUseCase(
             manager_dl, event, sync_port=SyncActivityAdapter(manager_dl)
         )
-        uc.execute()
+        run_in_act(uc)
 
         state_id = VultronReplicationState(
             case_id=CASE_URI, peer_id=PARTICIPANT_URI
@@ -250,13 +251,15 @@ class TestRejectLedgerEntryReceivedUseCase:
 
         # The copy names the store too, so the addressee door admits it and
         # the CASE_MANAGER role guard decides (HP-01-005).
-        result = RejectLedgerEntryReceivedUseCase(
-            dl,
-            self._make_event(
-                entry1, entry0.entry_hash, to=[CASE_ACTOR_URI, dl.actor_id]
-            ),
-            sync_port=sync_port,
-        ).execute()
+        result = run_in_act(
+            RejectLedgerEntryReceivedUseCase(
+                dl,
+                self._make_event(
+                    entry1, entry0.entry_hash, to=[CASE_ACTOR_URI, dl.actor_id]
+                ),
+                sync_port=sync_port,
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert "not the CASE_MANAGER" in (result.reason or "")
@@ -278,7 +281,7 @@ class TestRejectLedgerEntryReceivedUseCase:
             actor_id=PARTICIPANT_URI,
         )
         uc = RejectLedgerEntryReceivedUseCase(dl, event)
-        result = uc.execute()  # should not raise
+        result = run_in_act(uc)  # should not raise
 
         # HP-01-003: a Reject naming no entry is malformed, not a no-op.
         assert result.disposition == HandlerDisposition.REFUSED
@@ -301,9 +304,11 @@ class TestRejectLedgerEntryReceivedUseCase:
         # Participant says they only have up to entry0
         event = self._make_event(entry1, entry0.entry_hash)
         sync_port = SyncActivityAdapter(manager_dl)
-        result = RejectLedgerEntryReceivedUseCase(
-            manager_dl, event, sync_port=sync_port
-        ).execute()
+        result = run_in_act(
+            RejectLedgerEntryReceivedUseCase(
+                manager_dl, event, sync_port=sync_port
+            )
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
         # Should have queued one replay Announce (for entry1).

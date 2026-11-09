@@ -25,6 +25,7 @@ from typing import Any
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.clock import SystemClock
@@ -280,14 +281,16 @@ class TestCaseTriggerToField:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        result = SvcEngageCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -307,14 +310,16 @@ class TestCaseTriggerToField:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        result = SvcDeferCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcDeferCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -333,14 +338,16 @@ class TestCaseTriggerToField:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        result = SvcAddParticipantStatusUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAddParticipantStatusUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
         assert result.activity_id is not None
         act_obj = self.dl.read(result.activity_id)
@@ -369,14 +376,16 @@ class TestCaseTriggerToField:
             case_id=case_solo.id_,
         )
         with pytest.raises(VultronValidationError):
-            SvcEngageCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                sync_port=SyncActivityAdapter(self.dl),
-                wire_render_port=As2WireRenderAdapter(),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcEngageCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    sync_port=SyncActivityAdapter(self.dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    clock=SystemClock(),
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -413,14 +422,16 @@ class TestEmbargoTriggerToField:
             case_id=self.case.id_,
             end_time=FUTURE_END_DATETIME,
         )
-        result = SvcProposeEmbargoUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcProposeEmbargoUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -452,14 +463,16 @@ class TestEmbargoTriggerToField:
             case_id=self.case.id_,
             proposal_id=proposal.id_,
         )
-        result = SvcAcceptEmbargoUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAcceptEmbargoUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -485,14 +498,16 @@ class TestEmbargoTriggerToField:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        result = SvcTerminateEmbargoUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcTerminateEmbargoUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -524,14 +539,16 @@ class TestEmbargoTriggerToField:
             case_id=self.case.id_,
             proposal_id=proposal.id_,
         )
-        result = SvcRejectEmbargoUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcRejectEmbargoUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
 
@@ -557,14 +574,16 @@ class TestEmbargoTriggerToField:
             case_id=self.case.id_,
             end_time=FUTURE_END_DATETIME,
         )
-        result = SvcProposeEmbargoRevisionUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcProposeEmbargoRevisionUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -667,14 +686,16 @@ class TestReportTriggerToField:
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcInvalidateReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcInvalidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -695,14 +716,16 @@ class TestReportTriggerToField:
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcRejectReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -731,14 +754,16 @@ class TestReportTriggerToField:
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcInvalidateReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcInvalidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
 
@@ -785,15 +810,17 @@ class TestReportTriggerToField:
         before = set(self.dl.outbox_list())
 
         with pytest.raises(VultronInvalidStateTransitionError):
-            SvcRejectReportUseCase(
-                self.dl,
-                RejectReportTriggerRequest(
-                    actor_id=self.vendor.id_, offer_id=self.offer.id_
-                ),
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                sync_port=SyncActivityAdapter(self.dl),
-                wire_render_port=As2WireRenderAdapter(),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcRejectReportUseCase(
+                    self.dl,
+                    RejectReportTriggerRequest(
+                        actor_id=self.vendor.id_, offer_id=self.offer.id_
+                    ),
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    sync_port=SyncActivityAdapter(self.dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    clock=SystemClock(),
+                )
+            )
 
         assert set(self.dl.outbox_list()) == before

@@ -29,6 +29,7 @@ from typing import NamedTuple, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.clock import SystemClock
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
@@ -425,12 +426,14 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             rm_state=RM.RECEIVED,
         )
         before = set(self.dl.outbox_list())
-        SvcAddParticipantStatusUseCase(
-            self.dl,
-            request,
-            trigger_activity=self.trigger_activity,
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcAddParticipantStatusUseCase(
+                self.dl,
+                request,
+                trigger_activity=self.trigger_activity,
+                clock=SystemClock(),
+            )
+        )
         after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, (
@@ -484,12 +487,14 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             pxa_state=CS_pxa.Pxa,
         )
         before = set(self.dl.outbox_list())
-        SvcAddParticipantStatusUseCase(
-            self.dl,
-            request,
-            trigger_activity=self.trigger_activity,
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcAddParticipantStatusUseCase(
+                self.dl,
+                request,
+                trigger_activity=self.trigger_activity,
+                clock=SystemClock(),
+            )
+        )
         (activity_id,) = set(self.dl.outbox_list()) - before
         activity = self.dl.read(activity_id)
         assert isinstance(activity, as_TransitiveActivity)
@@ -565,12 +570,14 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             pxa_state=reported,
         )
         before = set(self.dl.outbox_list())
-        SvcAddParticipantStatusUseCase(
-            self.dl,
-            request,
-            trigger_activity=self.trigger_activity,
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcAddParticipantStatusUseCase(
+                self.dl,
+                request,
+                trigger_activity=self.trigger_activity,
+                clock=SystemClock(),
+            )
+        )
 
         (activity_id,) = set(self.dl.outbox_list()) - before
         activity = self.dl.read(activity_id)
@@ -613,12 +620,14 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
         before = _status_snapshot(self.dl, self.actor_participant.id_)
         outbox_before = set(self.dl.outbox_list())
-        result = SvcAddParticipantStatusUseCase(
-            self.dl,
-            request,
-            trigger_activity=self.trigger_activity,
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAddParticipantStatusUseCase(
+                self.dl,
+                request,
+                trigger_activity=self.trigger_activity,
+                clock=SystemClock(),
+            )
+        )
 
         status_id = result.status_id
         assert status_id is not None, "execute() must return a status_id"
@@ -675,12 +684,14 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         outbox_before = set(self.dl.outbox_list())
 
         with pytest.raises(VultronValidationError):
-            SvcAddParticipantStatusUseCase(
-                self.dl,
-                request,
-                trigger_activity=self.trigger_activity,
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcAddParticipantStatusUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=self.trigger_activity,
+                    clock=SystemClock(),
+                )
+            )
 
         assert set(self.dl.outbox_list()) == outbox_before
         assert _status_snapshot(self.dl, self.actor_participant.id_) == before
@@ -716,7 +727,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             trigger_activity=self.trigger_activity,
             clock=SystemClock(),
         )
-        result = use_case.execute()
+        result = run_in_act(use_case)
 
         rm, *_ = use_case._resolve_current_participant_state(
             self.dl, self.actor_participant.id_
@@ -843,8 +854,8 @@ class TestCreateParticipantStatusNode:
             result_out=result_out,
             **kwargs,
         )
-        bt_result = self.bridge.execute_with_setup(
-            node, actor_id=self.actor.id_, case_id=self.case.id_
+        bt_result = run_tree(
+            self.bridge, node, actor_id=self.actor.id_, case_id=self.case.id_
         )
         return bt_result, result_out
 
@@ -962,8 +973,8 @@ class TestCreateParticipantStatusNode:
             pxa_state=None,
             result_out=result_out,
         )
-        bt_result = self.bridge.execute_with_setup(
-            node, actor_id=self.actor.id_, case_id=self.case.id_
+        bt_result = run_tree(
+            self.bridge, node, actor_id=self.actor.id_, case_id=self.case.id_
         )
 
         assert bt_result.status == Status.FAILURE
@@ -1519,8 +1530,8 @@ class TestCreateParticipantStatusNode:
             result_out=result_out,
             force_rm_state=True,
         )
-        bt_result = self.bridge.execute_with_setup(
-            node, actor_id=self.actor.id_, case_id=self.case.id_
+        bt_result = run_tree(
+            self.bridge, node, actor_id=self.actor.id_, case_id=self.case.id_
         )
 
         assert bt_result.status == Status.FAILURE
@@ -1551,8 +1562,8 @@ class TestCreateParticipantStatusNode:
             result_out=result_out,
             force_rm_state=True,
         )
-        bt_result = self.bridge.execute_with_setup(
-            node, actor_id=self.actor.id_, case_id=self.case.id_
+        bt_result = run_tree(
+            self.bridge, node, actor_id=self.actor.id_, case_id=self.case.id_
         )
 
         assert bt_result.status == Status.SUCCESS, bt_result.feedback_message
@@ -1658,12 +1669,14 @@ class TestValidateTriggerTransitions:
             d_state=d_state,
             pxa_state=pxa_state,
         )
-        return SvcAddParticipantStatusUseCase(
-            self.dl,
-            request,
-            trigger_activity=self.trigger_activity,
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcAddParticipantStatusUseCase(
+                self.dl,
+                request,
+                trigger_activity=self.trigger_activity,
+                clock=SystemClock(),
+            )
+        )
 
     def _status_snapshot(self) -> _StatusSnapshot:
         return _status_snapshot(self.dl, self.actor_participant.id_)
@@ -1959,12 +1972,14 @@ class TestSoleObserverVfdGuard:
             d_state=d_state,
             pxa_state=pxa_state,
         )
-        return SvcAddParticipantStatusUseCase(
-            self.dl,
-            request,
-            trigger_activity=self.trigger_activity,
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcAddParticipantStatusUseCase(
+                self.dl,
+                request,
+                trigger_activity=self.trigger_activity,
+                clock=SystemClock(),
+            )
+        )
 
     def _status_snapshot(self) -> _StatusSnapshot:
         return _status_snapshot(self.dl, self.actor_participant.id_)
@@ -2097,12 +2112,14 @@ class TestVendorVfdRoleGuard:
             d_state=d_state,
             pxa_state=pxa_state,
         )
-        return SvcAddParticipantStatusUseCase(
-            self.dl,
-            request,
-            trigger_activity=self.trigger_activity,
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcAddParticipantStatusUseCase(
+                self.dl,
+                request,
+                trigger_activity=self.trigger_activity,
+                clock=SystemClock(),
+            )
+        )
 
     def _status_snapshot(self, participant_id: str) -> _StatusSnapshot:
         return _status_snapshot(self.dl, participant_id)
@@ -2223,12 +2240,14 @@ class TestCrossMachineEntailments:
             d_state=d_state,
             pxa_state=pxa_state,
         )
-        return SvcAddParticipantStatusUseCase(
-            self.dl,
-            request,
-            trigger_activity=self.trigger_activity,
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcAddParticipantStatusUseCase(
+                self.dl,
+                request,
+                trigger_activity=self.trigger_activity,
+                clock=SystemClock(),
+            )
+        )
 
     def _status_snapshot(self) -> _StatusSnapshot:
         return _status_snapshot(self.dl, self.actor_participant.id_)
@@ -2511,8 +2530,8 @@ class TestCreateParticipantStatusNodeCrossMachineOnBypassPath:
             result_out=result_out,
             **kwargs,
         )
-        bt_result = self.bridge.execute_with_setup(
-            node, actor_id=self.actor.id_, case_id=self.case.id_
+        bt_result = run_tree(
+            self.bridge, node, actor_id=self.actor.id_, case_id=self.case.id_
         )
         return bt_result, result_out
 

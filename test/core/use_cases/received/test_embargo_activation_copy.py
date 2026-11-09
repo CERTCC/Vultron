@@ -32,6 +32,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.ledger import committed_semantic_types, fail_commits
 from test.support.owner_decision import owner_decision_body
 from vultron.adapters.driven.clock import SystemClock
@@ -441,27 +442,31 @@ def _ports(net: LedgerNetwork) -> dict[str, Any]:
 
 
 def _manager_revises(net: LedgerNetwork, days: int) -> str:
-    SvcProposeEmbargoRevisionUseCase(
-        net.stores[MANAGER],
-        ProposeEmbargoRevisionTriggerRequest(
-            actor_id=MANAGER,
-            case_id=net.case_id,
-            end_time=days_from_now_utc(days),
-        ),
-        **_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcProposeEmbargoRevisionUseCase(
+            net.stores[MANAGER],
+            ProposeEmbargoRevisionTriggerRequest(
+                actor_id=MANAGER,
+                case_id=net.case_id,
+                end_time=days_from_now_utc(days),
+            ),
+            **_ports(net),
+            clock=SystemClock(),
+        )
+    )
     (revision_id,) = net.case(MANAGER).proposed_embargo_ids
     return revision_id
 
 
 def _manager_activates(net: LedgerNetwork) -> None:
-    SvcAcceptEmbargoUseCase(
-        net.stores[MANAGER],
-        AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
-        **_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcAcceptEmbargoUseCase(
+            net.stores[MANAGER],
+            AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+            **_ports(net),
+            clock=SystemClock(),
+        )
+    )
 
 
 class TestTriggerActivation:
@@ -542,12 +547,13 @@ def _invited_bystander(name: str) -> tuple[LedgerNetwork, str]:
 
 def _expire(net: LedgerNetwork, embargo_id: str):
     dl = net.stores[MANAGER]
-    return BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute_with_setup(
+    return run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ),
         tree=create_commit_and_record_expiry_tree(
             case_id=net.case_id,
             invitee_id=BYSTANDER,

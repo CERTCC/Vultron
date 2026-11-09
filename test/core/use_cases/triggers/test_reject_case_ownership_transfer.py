@@ -28,6 +28,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import archive_received
 from test.support.trigger_results import activity_of
@@ -94,16 +95,18 @@ def _forwarded_offer(dl: Any, case, case_manager_id: str, transferee_id: str):
 
 
 def _execute(dl: Any, actor_id: str, offer_id: str):
-    return SvcRejectCaseOwnershipTransferUseCase(
-        dl,
-        RejectCaseOwnershipTransferTriggerRequest(
-            actor_id=actor_id, offer_id=offer_id
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcRejectCaseOwnershipTransferUseCase(
+            dl,
+            RejectCaseOwnershipTransferTriggerRequest(
+                actor_id=actor_id, offer_id=offer_id
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
 
 @pytest.fixture

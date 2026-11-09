@@ -33,6 +33,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act, run_tree
 from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -174,11 +175,13 @@ def _deliver_offer(
                 "received_evidence": json.dumps(body),
             }
         )
-    return OfferCaseParticipantRoleReceivedUseCase(
-        dl,
-        request,
-        **_ports(dl),
-    ).execute()
+    return run_in_act(
+        OfferCaseParticipantRoleReceivedUseCase(
+            dl,
+            request,
+            **_ports(dl),
+        )
+    )
 
 
 def _deliver_answer(
@@ -202,11 +205,13 @@ def _deliver_answer(
     )
     extra = {} if answer_id is None else {"id_": answer_id}
     answer = build(offer=offer, actor=sender, to=[_CASE_MANAGER_ID], **extra)
-    return use_case(
-        dl,
-        make_payload(answer, receiving_actor_id=dl.actor_id, at=dl),
-        **_ports(dl),
-    ).execute()
+    return run_in_act(
+        use_case(
+            dl,
+            make_payload(answer, receiving_actor_id=dl.actor_id, at=dl),
+            **_ports(dl),
+        )
+    )
 
 
 def _semantic_types(dl: SqliteDataLayer) -> list[str]:
@@ -268,16 +273,18 @@ def _redeliver_archived_offer(dl: SqliteDataLayer, offer: Any) -> Any:
     (IE-10-001), so the redelivery cannot pass on the resent body's own
     evidence.
     """
-    return OfferCaseParticipantRoleReceivedUseCase(
-        dl,
-        archived_redelivery_as(
+    return run_in_act(
+        OfferCaseParticipantRoleReceivedUseCase(
             dl,
-            offer.id_,
-            OfferCaseParticipantRoleReceivedEvent,
-            receiving_actor_id=dl.actor_id,
-        ),
-        **_ports(dl),
-    ).execute()
+            archived_redelivery_as(
+                dl,
+                offer.id_,
+                OfferCaseParticipantRoleReceivedEvent,
+                receiving_actor_id=dl.actor_id,
+            ),
+            **_ports(dl),
+        )
+    )
 
 
 def _assert_recorded_and_forwarded_once(dl: SqliteDataLayer) -> None:
@@ -415,11 +422,13 @@ def test_a_forward_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     broken.offer_case_participant_role.side_effect = RuntimeError("down")
 
     with pytest.raises(VultronBTInternalError):
-        OfferCaseParticipantRoleReceivedUseCase(
-            dl,
-            make_payload(offer, receiving_actor_id=dl.actor_id, at=dl),
-            **{**_ports(dl), "trigger_activity": broken},
-        ).execute()
+        run_in_act(
+            OfferCaseParticipantRoleReceivedUseCase(
+                dl,
+                make_payload(offer, receiving_actor_id=dl.actor_id, at=dl),
+                **{**_ports(dl), "trigger_activity": broken},
+            )
+        )
     assert _semantic_types(dl) == []
     assert _forwards(dl) == []
 
@@ -572,11 +581,13 @@ def test_offer_naming_no_case_or_no_target_is_refused(
         }
     )
 
-    result = OfferCaseParticipantRoleReceivedUseCase(
-        dl,
-        request,
-        **_ports(dl),
-    ).execute()
+    result = run_in_act(
+        OfferCaseParticipantRoleReceivedUseCase(
+            dl,
+            request,
+            **_ports(dl),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _semantic_types(dl) == []
@@ -1045,11 +1056,13 @@ def test_a_participant_refuses_an_answer_sent_to_it(make_payload, accept):
         else RejectCaseParticipantRoleReceivedUseCase
     )
 
-    result = use_case(
-        dl,
-        make_payload(answer, receiving_actor_id=dl.actor_id, at=dl),
-        **_ports(dl),
-    ).execute()
+    result = run_in_act(
+        use_case(
+            dl,
+            make_payload(answer, receiving_actor_id=dl.actor_id, at=dl),
+            **_ports(dl),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     # The answer's type declares the manager path alone, so the path stage
@@ -1080,7 +1093,7 @@ def test_answer_naming_no_case_is_refused(make_payload, accept):
         else RejectCaseParticipantRoleReceivedUseCase
     )
 
-    result = use_case(dl, request, **_ports(dl)).execute()
+    result = run_in_act(use_case(dl, request, **_ports(dl)))
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "names no case" in (result.reason or "")
@@ -1165,8 +1178,8 @@ def test_open_offer_guard_flags_a_vanished_offer_as_internal(make_payload):
         carried_target_id=_TARGET_ID,
     )
 
-    result = BTBridge(datalayer=dl).execute_with_setup(
-        tree=node, actor_id=_CASE_MANAGER_ID
+    result = run_tree(
+        BTBridge(datalayer=dl), tree=node, actor_id=_CASE_MANAGER_ID
     )
 
     assert result.internal_error
@@ -1208,16 +1221,18 @@ def test_a_grant_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     assert "accept_case_participant_role" not in entries
     assert not _target_holds(dl, CVDRole.VENDOR)
 
-    result = AcceptCaseParticipantRoleReceivedUseCase(
-        dl,
-        archived_redelivery_as(
+    result = run_in_act(
+        AcceptCaseParticipantRoleReceivedUseCase(
             dl,
-            answer_id,
-            AcceptCaseParticipantRoleReceivedEvent,
-            receiving_actor_id=dl.actor_id,
-        ),
-        **_ports(dl),
-    ).execute()
+            archived_redelivery_as(
+                dl,
+                answer_id,
+                AcceptCaseParticipantRoleReceivedEvent,
+                receiving_actor_id=dl.actor_id,
+            ),
+            **_ports(dl),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED
     assert _semantic_types(dl) == [*entries, "accept_case_participant_role"]
@@ -1266,9 +1281,9 @@ def _deliver_altered_answer(
             "activity": request.activity.model_copy(update=update),
         }
     )
-    return AcceptCaseParticipantRoleReceivedUseCase(
-        dl, request, **_ports(dl)
-    ).execute()
+    return run_in_act(
+        AcceptCaseParticipantRoleReceivedUseCase(dl, request, **_ports(dl))
+    )
 
 
 @pytest.mark.spec("CM-33-005")
@@ -1335,9 +1350,9 @@ def test_answer_carrying_an_offer_with_no_readable_role_is_refused(
         }
     )
 
-    result = AcceptCaseParticipantRoleReceivedUseCase(
-        dl, request, **_ports(dl)
-    ).execute()
+    result = run_in_act(
+        AcceptCaseParticipantRoleReceivedUseCase(dl, request, **_ports(dl))
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "carries an Offer naming role None" in (result.reason or "")

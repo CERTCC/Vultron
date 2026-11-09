@@ -29,6 +29,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import extract_stamped, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -144,13 +145,15 @@ def _run(
     dl: SqliteDataLayer, verb: Verb, event: AnswerEvent | None = None
 ) -> HandlerResult:
     use_case = _USE_CASES[verb]
-    return use_case(
-        dl,
-        event if event is not None else _event(verb),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        use_case(
+            dl,
+            event if event is not None else _event(verb),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
 
 
 @pytest.mark.spec("CM-16-006")

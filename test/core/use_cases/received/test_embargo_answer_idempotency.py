@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.received import extract_stamped, received_activity
 from test.support.signing import signed_body
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
@@ -455,8 +456,8 @@ def _guard(
         answering_actor_id=actor,
         answer=answer,
     )
-    result = BTBridge(datalayer=net.stores[MANAGER]).execute_with_setup(
-        tree=node, actor_id=MANAGER
+    result = run_tree(
+        BTBridge(datalayer=net.stores[MANAGER]), tree=node, actor_id=MANAGER
     )
     return node, result.status
 
@@ -512,8 +513,11 @@ def test_the_accept_trees_own_repeat_guard_stops_a_repeat():
         at=net.stores[MANAGER],
     ).model_copy(update={"receiving_actor_id": MANAGER})
 
-    result = BTBridge(datalayer=net.stores[MANAGER]).execute_with_setup(
-        tree=tree, actor_id=MANAGER, activity=event
+    result = run_tree(
+        BTBridge(datalayer=net.stores[MANAGER]),
+        tree=tree,
+        actor_id=MANAGER,
+        activity=event,
     )
 
     assert result.status is Status.FAILURE

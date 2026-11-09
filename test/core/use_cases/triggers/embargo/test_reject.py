@@ -5,6 +5,7 @@ from typing import NoReturn, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_in_act
 from test.support.ledger import committed_semantic_types, ledger_entries
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -72,14 +73,16 @@ def test_non_manager_reject_embargo_asks_the_case_manager(
         proposal_id=proposal.id_,
     )
 
-    result = SvcRejectEmbargoUseCase(
-        finder_dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(finder_dl),
-        sync_port=SyncActivityAdapter(finder_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcRejectEmbargoUseCase(
+            finder_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+            sync_port=SyncActivityAdapter(finder_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     assert result.activity is not None
 
@@ -135,14 +138,16 @@ def test_each_deliberate_reject_is_a_new_activity(
     )
     adapter = TriggerActivityAdapter(finder_dl)
 
-    result = SvcRejectEmbargoUseCase(
-        finder_dl,
-        request,
-        trigger_activity=adapter,
-        sync_port=SyncActivityAdapter(finder_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcRejectEmbargoUseCase(
+            finder_dl,
+            request,
+            trigger_activity=adapter,
+            sync_port=SyncActivityAdapter(finder_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
     derived_id, _ = adapter.reject_embargo(
         proposal_id=proposal.id_,
         case_id=case.id_,
@@ -171,16 +176,18 @@ def test_manager_reject_embargo_commits_the_decision(
     case, proposal_id = _case_with_open_proposal(dl, owner.id_)
     embargo_id = case.proposed_embargo_ids[0]
 
-    result = SvcRejectEmbargoUseCase(
-        dl,
-        RejectEmbargoTriggerRequest(
-            actor_id=owner.id_, case_id=case.id_, proposal_id=proposal_id
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcRejectEmbargoUseCase(
+            dl,
+            RejectEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_, proposal_id=proposal_id
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
+        )
+    )
 
     activity = activity_of(result)
     assert activity["type"] == "Reject"
@@ -217,16 +224,18 @@ def test_non_manager_owner_reject_asks_the_manager_to_reject(
         dl, owner.id_, manager.id_
     )
 
-    result = SvcRejectEmbargoUseCase(
-        dl,
-        RejectEmbargoTriggerRequest(
-            actor_id=owner.id_, case_id=case.id_, proposal_id=proposal_id
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcRejectEmbargoUseCase(
+            dl,
+            RejectEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_, proposal_id=proposal_id
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
+        )
+    )
 
     activity = activity_of(result)
     assert activity["object"]["id"] == embargo_id
@@ -267,16 +276,18 @@ def test_non_owner_manager_reject_is_consent_and_moves_no_register_entry(
         dl, owner.id_, manager.id_
     )
 
-    result = SvcRejectEmbargoUseCase(
-        dl,
-        RejectEmbargoTriggerRequest(
-            actor_id=manager.id_, case_id=case.id_, proposal_id=proposal_id
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcRejectEmbargoUseCase(
+            dl,
+            RejectEmbargoTriggerRequest(
+                actor_id=manager.id_, case_id=case.id_, proposal_id=proposal_id
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
+        )
+    )
 
     # It reports the Update it committed (TRIG-04-001).
     activity = activity_of(result)
@@ -326,16 +337,18 @@ def _owner_manager_revision_after_disclosure(
 def _reject_as_owner(
     dl: SqliteDataLayer, owner_id: str, case_id: str, proposal_id: str
 ) -> object:
-    return SvcRejectEmbargoUseCase(
-        dl,
-        RejectEmbargoTriggerRequest(
-            actor_id=owner_id, case_id=case_id, proposal_id=proposal_id
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcRejectEmbargoUseCase(
+            dl,
+            RejectEmbargoTriggerRequest(
+                actor_id=owner_id, case_id=case_id, proposal_id=proposal_id
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
+        )
+    )
 
 
 @pytest.mark.spec("EMB-04-002")
