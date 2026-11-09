@@ -34,6 +34,7 @@ from vultron.adapters.driven.sync_activity_adapter import (
 )
 from vultron.adapters.outbox_sealed_body import (
     SealedOutboundBody,
+    read_sealed_body_dict,
     sealed_body_id,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
@@ -128,6 +129,35 @@ def test_same_mismatching_entry_is_rejected_under_one_id(dl):
 
     # Queued again under the same id (the receiver deduplicates), once.
     assert dl.outbox_list() == [first]
+
+
+@pytest.mark.spec("ID-04-004")
+@pytest.mark.spec("RF-08-004")
+def test_a_repeat_prompted_by_a_later_announce_names_the_first(dl):
+    """``inReplyTo`` does not key the Reject's id, so a repeat for the same
+    entry under another Announce sends the stored body, which names the
+    first Announce."""
+    adapter = SyncActivityAdapter(dl)
+    entry = _entry(2)
+    first_announce = "https://example.org/activities/first-announce"
+
+    adapter.send_reject_log_entry(
+        entry, "a" * 64, OWNER, [PEER_A], in_reply_to=first_announce
+    )
+    (first,) = dl.outbox_list()
+    assert dl.outbox_pop() == first  # the drain took it
+    adapter.send_reject_log_entry(
+        entry,
+        "a" * 64,
+        OWNER,
+        [PEER_A],
+        in_reply_to="https://example.org/activities/later-announce",
+    )
+
+    assert dl.outbox_list() == [first]
+    body = read_sealed_body_dict(dl, first)
+    assert body is not None
+    assert body["inReplyTo"] == first_announce
 
 
 @pytest.mark.spec("ID-04-005")

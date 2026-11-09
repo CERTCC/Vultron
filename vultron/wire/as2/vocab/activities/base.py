@@ -16,7 +16,7 @@ Provides the base class for all Vultron ActivityStreams activity wire types.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Any, ClassVar, Self
+from typing import Any, ClassVar, Protocol, Self, cast
 
 from pydantic import model_validator
 
@@ -86,7 +86,24 @@ class as_VultronActivity(as_TransitiveActivity):
         return cls.model_validate(data)
 
 
-def reply_to_object(reply: Any) -> None:
+class _Identified(Protocol):
+    """The answered activity: anything with an ``id_``."""
+
+    @property
+    def id_(self) -> str | None: ...
+
+
+class _ObjectReply(Protocol):
+    """A response whose ``object`` is the inline activity it answers."""
+
+    @property
+    def in_reply_to(self) -> object: ...
+
+    @property
+    def object_(self) -> _Identified: ...
+
+
+def reply_to_object(reply: _ObjectReply) -> None:
     """Set *reply*'s ``in_reply_to`` to its ``object_``'s id when unset.
 
     The rule of every response whose ``object`` is the activity it answers,
@@ -108,5 +125,5 @@ class RepliesToObject:
 
     @model_validator(mode="after")
     def _reply_to_object(self) -> Self:
-        reply_to_object(self)
+        reply_to_object(cast(_ObjectReply, self))
         return self
