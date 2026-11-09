@@ -50,6 +50,7 @@ from __future__ import annotations
 import importlib
 import json
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -67,6 +68,7 @@ from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 from vultron.metadata.demo_scenarios import sync
+from vultron.metadata.demo_scenarios.narrative_pages import NARRATIVE_DIR
 from vultron.metadata.demo_scenarios.plots import (
     FRAGMENT_KIND,
     PLOT_MANIFEST,
@@ -510,6 +512,25 @@ class TestNarrativePages:
             f"{spec.narrative_path} ends with '(no heading)', not with a "
             f"'{STORY_HEADING}' section"
         ]
+
+    @pytest.mark.spec("DEMOCI-11-067")
+    @pytest.mark.parametrize(
+        "check",
+        [missing_story_includes, orphan_story_fragments],
+        ids=["includes", "orphans"],
+    )
+    def test_a_moved_narrative_directory_fails_both_checks(
+        self,
+        tmp_path: Path,
+        check: Callable[[Path], list[str]],
+    ) -> None:
+        """A missing directory is an error, not an empty result (DF-09-009).
+
+        Either check would otherwise find no page, report success, and drop
+        every scenario out of coverage at once.
+        """
+        with pytest.raises(FileNotFoundError, match=NARRATIVE_DIR):
+            check(tmp_path)
 
     @pytest.mark.spec("DEMOCI-11-067")
     def test_an_orphan_story_fragment_is_reported(

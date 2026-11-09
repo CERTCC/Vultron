@@ -256,6 +256,9 @@ def missing_story_includes(
     """
     base = root or repo_root()
     resolved = discover_scenarios() if specs is None else specs
+    # Asked for its refusal, not its result: a moved directory would make
+    # every page below unreadable and this check pass over all of them
+    # (DF-09-009).
     narrative_dir(base)
     problems: list[str] = []
     for spec in resolved:
