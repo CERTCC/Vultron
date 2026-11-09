@@ -2147,3 +2147,19 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | AKM — Actor Knowledge Model | [AKM-05-003](../vultron-spec/requirements/messages.md#akm-05-003), [AKM-05-004](../vultron-spec/requirements/messages.md#akm-05-004), [AKM-05-007](../vultron-spec/requirements/messages.md#akm-05-007), [AKM-05-010](../vultron-spec/requirements/messages.md#akm-05-010), [AKM-05-011](../vultron-spec/requirements/messages.md#akm-05-011), [AKM-05-012](../vultron-spec/requirements/messages.md#akm-05-012) |
 | CP — CaseProposal Protocol | [CP-01-009](../vultron-spec/requirements/case-management.md#cp-01-009) |
 | EMB — Embargo Management Behavioral Requirements | [EMB-18-007](../vultron-spec/requirements/state-behavior.md#emb-18-007) |
+
+## [story_2026_099](story_2026_099.md)
+
+{% include-markdown "./story_2026_099.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CSAF — CSAF Documents in Reports | [CSAF-01-001](../vultron-spec/requirements/messages.md#csaf-01-001), [CSAF-01-002](../vultron-spec/requirements/messages.md#csaf-01-002), [CSAF-01-003](../vultron-spec/requirements/messages.md#csaf-01-003), [CSAF-02-001](../vultron-spec/requirements/messages.md#csaf-02-001), [CSAF-02-003](../vultron-spec/requirements/messages.md#csaf-02-003), [CSAF-02-004](../vultron-spec/requirements/messages.md#csaf-02-004), [CSAF-02-005](../vultron-spec/requirements/messages.md#csaf-02-005), [CSAF-02-006](../vultron-spec/requirements/messages.md#csaf-02-006), [CSAF-02-007](../vultron-spec/requirements/messages.md#csaf-02-007), [CSAF-03-001](../vultron-spec/requirements/messages.md#csaf-03-001), [CSAF-03-002](../vultron-spec/requirements/messages.md#csaf-03-002), [CSAF-03-003](../vultron-spec/requirements/messages.md#csaf-03-003), [CSAF-03-004](../vultron-spec/requirements/messages.md#csaf-03-004), [CSAF-03-005](../vultron-spec/requirements/messages.md#csaf-03-005), [CSAF-03-006](../vultron-spec/requirements/messages.md#csaf-03-006), [CSAF-03-007](../vultron-spec/requirements/messages.md#csaf-03-007), [CSAF-03-008](../vultron-spec/requirements/messages.md#csaf-03-008), [CSAF-03-009](../vultron-spec/requirements/messages.md#csaf-03-009) |
+
+## [story_2026_100](story_2026_100.md)
+
+{% include-markdown "./story_2026_100.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %}
+
+| Spec file | Citing requirements |
+|---|---|
+| CSAF — CSAF Documents in Reports | [CSAF-02-002](../vultron-spec/requirements/messages.md#csaf-02-002) |

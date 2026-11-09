@@ -2358,21 +2358,25 @@ groups:
       The Protocol Specification MUST include a known-gaps page, outside the
       normative set (DF-12-006), that is generated from the coverage states of
       SR-05-017. The page lists every xfail-only `protocol` and `foundation`
-      requirement in one section, with the issues its holds cite (SR-05-018), and
-      every untested one in a second section that says no test shows `main` meets
-      it. It lists no other requirement, and it presents each listed requirement
-      as a callout (DF-12-003).
+      requirement in one section, every partly-met one in a second, each with the
+      issues its holds cite (SR-05-018), and every untested one in a third section
+      that says no test shows `main` meets it. A section with no requirement says so.
+      It lists no verified requirement, and it presents each listed requirement as
+      a callout (DF-12-003).
     rationale: >-
       A reader of a draft needs to know which published requirements `main` is
       not shown to meet. A page generated from the test suite shrinks as tests
       are written and cannot fall behind them, which hand-written prose or
-      placeholder tests would. An untested requirement is labelled by what the
-      tests show, because no test does not mean the behavior is unbuilt.
+      placeholder tests would. A requirement with one passing test and one held
+      test is only partly met, and leaving it off would hide the held part (#6075).
+      An untested requirement is labelled by what the tests show, because no test
+      does not mean the behavior is unbuilt.
     verification: >-
       In `test/metadata/docs/test_known_gaps.py`, `TestRenderFragment` fails when
-      the fragment lists a verified requirement, omits an xfail-only or untested
-      one, puts one in the wrong section, drops the issue an xfail cites, or reads
-      an empty registry as no gaps.
+      the fragment lists a verified requirement, omits an xfail-only, partly-met or
+      untested one, puts one in the wrong section, drops the issue an xfail cites,
+      drops an empty section instead of saying it is empty, or reads an empty
+      registry as no gaps.
     relationships:
     - rel_type: uses_definition
       spec_id: SR-05-017

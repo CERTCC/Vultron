@@ -25,7 +25,9 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 Two transitions can also be asserted on another participant's behalf, by the CASE_MANAGER or the Case Owner.
 Vendor awareness (`v→V`) is the usual case: the party that notified the vendor knows that the vendor has the information.
-The assertion needs evidence of the notification, for example the vendor's acknowledgment of its Invite.
+The protocol expects evidence of the notification to ground the assertion — for example, the vendor's acknowledgment of its Invite.
+The reference implementation does not check this evidence.
+It checks only that the asserter holds the CASE_MANAGER or Case Owner role and that the target is already a participant holding the Vendor or Deployer role.
 A Deployer's fix deployment (`d→D`) can be asserted the same way, which is expected to be rare: deployment is normally the Deployer's own report.
 Fix readiness is never asserted on a vendor's behalf, because only the vendor can know it.
 
@@ -100,6 +102,15 @@ This avoids coupling the Request for Comments (RFC) to the release cycle of an i
 
 Eligibility checking is a single logical capability: the full set of criteria applied as a unit against one rules edition.
 The protocol treats it as one decision with one outcome, and does not specify how an implementation reaches that decision.
+
+!!! info "Reference implementation note"
+    The Python reference implementation splits CVE eligibility into eleven Evaluator call-out points.
+    This differs from the single call-out that BTND-05-007 describes.
+    Three are named checks: `InScope`, `ProductInCNAScope` and `IsMostAppropriateCNA`.
+    The other eight are children of the `IdAssignable` check.
+    Its ninth child, `IsOrWillBePubliclyDisclosed`, reads case state directly and is not a call-out point.
+    Consolidating the `IdAssignable` children into one Evaluator is tracked by [#2518](https://github.com/CERTCC/Vultron/issues/2518).
+    The three named checks stay separate call-out points.
 
 #### 13.4.4 Case Owner Authority
 

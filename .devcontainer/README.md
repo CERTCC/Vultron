@@ -21,6 +21,9 @@ From the repo root, run:
 Replace `<slot>` with any name you like — it's personal to you and not stored
 in the repo. On first run the script will prompt you for AWS credentials and
 write them to `.devcontainer/devcontainer.env` (git-ignored).
+The script runs that setup only when the file is missing, so a change to
+`.devcontainer/setup.sh` reaches an existing host only after you delete
+`devcontainer.env` (or edit it by hand) and start a slot again.
 
 The script will:
 

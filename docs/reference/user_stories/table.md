@@ -216,3 +216,5 @@
 | [2026_096](story_2026_096.md) | {% include-markdown "./story_2026_096.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [8](traceability.md#story_2026_096) |
 | [2026_097](story_2026_097.md) | {% include-markdown "./story_2026_097.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [7](traceability.md#story_2026_097) |
 | [2026_098](story_2026_098.md) | {% include-markdown "./story_2026_098.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [8](traceability.md#story_2026_098) |
+| [2026_099](story_2026_099.md) | {% include-markdown "./story_2026_099.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [18](traceability.md#story_2026_099) |
+| [2026_100](story_2026_100.md) | {% include-markdown "./story_2026_100.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | [1](traceability.md#story_2026_100) |

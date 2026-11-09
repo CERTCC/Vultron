@@ -96,6 +96,7 @@ Load additional files only when the task touches the relevant area. See the
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
 | Security / CI | `ci-security.yaml`, `signing.yaml`, `encryption.yaml` |
+| CSAF documents in reports | `csaf-report-content.yaml`, `notes/csaf-report-content.md` |
 | Demo CI / GitHub Actions demo workflow | `demo-ci.yaml` |
 | Docs build and link-check CI workflow | `docs-build-workflow.yaml`, `notes/docs-build-workflow.md` |
 | Agentic API | `agentic-readiness.yaml` |
@@ -335,6 +336,13 @@ related requirements across files.
   policy fields: restricted grammar, validation rules, Pydantic mapping
   (DUR-01 through DUR-07)
 
+### Interoperability
+
+- **`csaf-report-content.yaml`** - CSAF 2.1 documents attached to reports:
+  carriage and recognition, the sender's statement at the initial report, case
+  inputs from its fields, receiving and sending in this codebase, and following
+  the draft (CSAF-01 through CSAF-05)
+
 ### Security
 
 - **`ci-security.yaml`** - GitHub Actions security: SHA pinning, secrets
@@ -475,6 +483,7 @@ is reserved for `testability.yaml`).
 | `CM` | `case-management.yaml` |
 | `CP` | `case-proposal.yaml` |
 | `CS` | `code-style.yaml` |
+| `CSAF` | `csaf-report-content.yaml` |
 | `DC` | `demo-cli.yaml` |
 | `DEMOMA` | `multi-actor-demo.yaml` |
 | `DRPT` | `demo-report.yaml` |

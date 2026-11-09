@@ -12,13 +12,16 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Generate the Protocol Specification's known-gaps fragment (DF-12-019).
 
-The fragment lists, in two sections, each ``protocol`` and ``foundation``
-requirement that no passing test shows ``main`` meets, using the coverage
-states of ``spec-coverage`` (SR-05-017):
+The fragment lists, in three sections, each ``protocol`` and ``foundation``
+requirement that the tests do not show ``main`` fully meets, using the
+coverage states of ``spec-coverage`` (SR-05-017):
 
 * **xfail-only** — every test marked for the requirement is held by a strict
   ``xfail`` or a skip, so a test shows ``main`` does not yet meet it. These
   are grouped by the issues the holds cite (SR-05-018).
+* **partly met** — some marked tests run and at least one is held, so a test
+  shows ``main`` meets part of the requirement and not the rest. These are
+  grouped by cited issue too.
 * **untested** — no ``@pytest.mark.spec`` marker names it, so no test shows
   ``main`` does it. Nothing is said about whether ``main`` does; these are
   grouped by Requirements Catalog page, in catalog order.
@@ -72,6 +75,7 @@ FRAGMENT_PATH = "docs/reference/vultron-spec/_known-gaps.md"
 ISSUE_URL = "https://github.com/CERTCC/Vultron/issues/{number}"
 
 XFAIL_ONLY_HEADING = "## Requirements a test shows `main` does not yet meet"
+PARTLY_MET_HEADING = "## Requirements a test shows `main` meets only in part"
 UNTESTED_HEADING = "## Requirements no test checks"
 
 #: The plain label of the untested section (#5976): it reports what the test
@@ -87,6 +91,14 @@ _XFAIL_ONLY_INTRO = (
     "Each requirement below has tests, and every one of them is held by a "
     "strict expected failure (`xfail`) or a skip.",
     "So a test shows that `main` does not yet meet the requirement.",
+    "The requirements are grouped by the issues that the held tests cite.",
+)
+
+_PARTLY_MET_INTRO = (
+    "Each requirement below has tests that pass and at least one test that is "
+    "held by a strict expected failure (`xfail`) or a skip.",
+    "So the tests show that `main` meets part of the requirement, but not all "
+    "of it.",
     "The requirements are grouped by the issues that the held tests cite.",
 )
 
@@ -178,6 +190,30 @@ def _section(
     return lines
 
 
+def _held_groups(
+    report: ImplementerCoverageReport,
+    state: CoverageState,
+    registry: SpecRegistry,
+    pages: tuple[CatalogPage, ...],
+) -> dict[str, list[str]]:
+    """The *state* IDs grouped under a subheading naming their cited issues.
+
+    Raises:
+        NotInCatalogError: If a listed requirement's file is on no catalog
+            page (DF-12-015).
+    """
+    held = [r for r in report.requirements if r.state is state]
+    # Each listed ID is printed by a callout, which refuses an uncatalogued
+    # one at build time (DF-12-012); refuse it here too, so the generator,
+    # not a later mkdocs build, reports it.
+    for requirement in held:
+        catalog_location(requirement.id, registry, pages)
+    return {
+        (f"Tracked by {_issue_links(issues)}" if issues else _NO_ISSUE): ids
+        for issues, ids in _by_issues(held).items()
+    }
+
+
 def render_fragment(
     report: ImplementerCoverageReport,
     registry: SpecRegistry,
@@ -202,18 +238,12 @@ def render_fragment(
             "so the known-gaps page would read as no gaps (DF-09-009)",
             path=FRAGMENT_PATH,
         )
-    xfail_only = [
-        r for r in report.requirements if r.state is CoverageState.XFAIL_ONLY
-    ]
-    # Each listed ID is printed by a callout, which refuses an uncatalogued
-    # one at build time (DF-12-012); refuse it here too, so the generator,
-    # not a later mkdocs build, reports it.
-    for requirement in xfail_only:
-        catalog_location(requirement.id, registry, pages)
-    xfail_groups = {
-        (f"Tracked by {_issue_links(issues)}" if issues else _NO_ISSUE): ids
-        for issues, ids in _by_issues(xfail_only).items()
-    }
+    xfail_groups = _held_groups(
+        report, CoverageState.XFAIL_ONLY, registry, pages
+    )
+    partly_met_groups = _held_groups(
+        report, CoverageState.PARTLY_MET, registry, pages
+    )
     untested_groups = {
         page.title: ids
         for page, ids in _by_catalog_page(
@@ -224,6 +254,7 @@ def render_fragment(
         _GENERATED_NOTE,
         "",
         *_section(XFAIL_ONLY_HEADING, _XFAIL_ONLY_INTRO, xfail_groups),
+        *_section(PARTLY_MET_HEADING, _PARTLY_MET_INTRO, partly_met_groups),
         *_section(UNTESTED_HEADING, _UNTESTED_INTRO, untested_groups),
     ]
     return "\n".join(lines).rstrip("\n") + "\n"
@@ -244,6 +275,7 @@ __all__ = [
     "FRAGMENT_PATH",
     "ISSUE_URL",
     "PAGE",
+    "PARTLY_MET_HEADING",
     "UNTESTED_HEADING",
     "UNTESTED_LABEL",
     "XFAIL_ONLY_HEADING",
