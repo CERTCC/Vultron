@@ -123,10 +123,7 @@ class IsAnswerableEmbargoNode(DataLayerConditionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        if (
-            self.embargo_id == case.active_embargo_id
-            or self.embargo_id in case.proposed_embargo_ids
-        ):
+        if case.can_answer_embargo(self.embargo_id):
             return Status.SUCCESS
         verb = "accept" if self.accept else "reject"
         self.feedback_message = (

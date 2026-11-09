@@ -360,17 +360,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5732](https://github.com/CERTCC/Vultron/issues/5732)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "EMB-17-002",
-    "EMB-17-003",
-    "EMB-17-012",
-))
-```
-
 ### Tracked by [#6073](https://github.com/CERTCC/Vultron/issues/6073)
 
 ```python exec="true" idprefix=""
