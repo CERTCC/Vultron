@@ -331,6 +331,7 @@ def create_recommend_actor_to_case_received_tree(
                 recommender_id=recommender_id,
                 recommended_id=recommended_id,
                 case_id=case_id,
+                offer_content=offer_content,
             ),
         ],
     )

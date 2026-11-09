@@ -196,13 +196,6 @@ class TestOfferActorToCaseReceivedUseCase:
         assert [getattr(q, "to", None) for q in offers] == [[local_actor_id]]
 
     @pytest.mark.spec("CM-16-020")
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "CM-16-020: the forwarded Offer(CaseParticipant) does not carry "
-            "the recommender's reason yet. Tracked by #5642."
-        ),
-    )
     def test_offer_actor_to_case_forwards_the_recommenders_reason(
         self, make_payload, seed_case_manager
     ):
