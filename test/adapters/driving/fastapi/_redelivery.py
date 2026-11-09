@@ -35,24 +35,31 @@ from vultron.core.ports.datalayer import DataLayer
 
 @contextmanager
 def served_store(
-    dl: DataLayer, actor_id: str, name: str, actor: CoreActor | None = None
+    dl: DataLayer,
+    actor_id: str,
+    name: str,
+    actor: CoreActor | None = None,
+    *,
+    existing: bool = False,
 ) -> Iterator[tuple[TestClient, RecordingEmitter]]:
     """Serve *dl*, the store of actor *actor_id*, with a real app.
 
     The store's actor record is *actor* when given, else a bare actor named
-    *name* with its hosted endpoints.
+    *name* with its hosted endpoints. With *existing*, *dl* already holds the
+    actor, as a store does when its process restarts, so nothing is written.
     """
-    dl.create(
-        object_to_record(
-            actor
-            or CoreActor(
-                id_=actor_id,
-                name=name,
-                inbox=f"{actor_id}/inbox",
-                outbox=f"{actor_id}/outbox",
+    if not existing:
+        dl.create(
+            object_to_record(
+                actor
+                or CoreActor(
+                    id_=actor_id,
+                    name=name,
+                    inbox=f"{actor_id}/inbox",
+                    outbox=f"{actor_id}/outbox",
+                )
             )
         )
-    )
     app = create_app(docs_url=None, openapi_url=None)
     app.dependency_overrides[get_actor_dl] = lambda actor_id: dl
     emitter = RecordingEmitter()

@@ -15,9 +15,11 @@
 Each test is a strict ``xfail``: `main` computes an actor's key pair from a
 seed tied to its actor id (``signing.seeded_signing_key``, the ADR-0164
 prototype carve-out) every time it needs one, and never generates, stores or
-persists a key pair. Real per-actor keys are #1184. When they land, these
-tests XPASS, ``strict=True`` fails the build, and the builder drops the
-``xfail`` (``notes/spec-authoring-rules.md`` § "Use a Strict ``xfail`` for
+persists a key pair. Real per-actor keys are #1184. When they land, the
+build goes red either way: a test XPASSes and ``strict=True`` fails it, or a
+test that probes the seeded key function finds it gone and fails as a setup
+error. The builder then drops the ``xfail`` or rewrites the probe
+(``notes/spec-authoring-rules.md`` § "Use a Strict ``xfail`` for
 Not-Yet-Implemented Specs").
 
 Each test reads the key an actor publishes through a real app, as a peer
@@ -26,19 +28,21 @@ which the ``raises=AssertionError`` on each ``xfail`` does not accept, so a
 test fails for its stated reason or not at all.
 """
 
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 from unittest.mock import patch
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+)
 from fastapi.testclient import TestClient
 
 from test.adapters.driving.fastapi._redelivery import served_store
+from test.support.signing import published_multikeys
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driving.fastapi.app import create_app
-from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.wire.as2 import signing
 
 _SEEDED = (
@@ -58,11 +62,9 @@ def _key_from(client: TestClient, segment: str) -> str:
     response = client.get(f"/api/v2/actors/{segment}/profile")
     if response.status_code != 200:
         pytest.fail(f"the profile was not served: {response.text}")
-    methods = response.json().get("assertionMethod") or []
     keys = [
-        method.get("publicKeyMultibase")
-        for method in (methods if isinstance(methods, list) else [methods])
-        if isinstance(method, dict) and method.get("type") == "Multikey"
+        key.get("publicKeyMultibase")
+        for key in published_multikeys(response.json())
     ]
     if len(keys) != 1 or not keys[0]:
         pytest.fail(f"the profile does not publish one key: {keys}")
@@ -80,26 +82,40 @@ def _provisioned_key(path: Path, segment: str) -> str:
         dl.close()
 
 
-@contextmanager
-def _resumed(path: Path, segment: str) -> Iterator[TestClient]:
-    """A new process serving the store at *path*, which already holds the actor."""
+def _seeded_signing_key() -> Callable[[str], signing.SigningKey]:
+    """`main`'s seeded key function; its absence is a probe to replace.
+
+    Once #1184 removes or renames it, this fails the test as a setup
+    error, which the ``raises=AssertionError`` on the ``xfail`` reports
+    rather than counting as the expected failure, so the builder rewrites
+    the probe against the real key store instead of it passing silently.
+    """
+    derive = getattr(signing, "seeded_signing_key", None)
+    if derive is None:
+        pytest.fail(
+            "signing.seeded_signing_key is gone: rewrite this probe against"
+            " the stored key (#1184)"
+        )
+    return cast(Callable[[str], signing.SigningKey], derive)
+
+
+def _resumed_key(path: Path, segment: str) -> str:
+    """The key a new process serving the store at *path* publishes.
+
+    The store already holds the actor, as it does when its process restarts.
+    """
     actor_id = canonical_actor_uri(segment)
     dl = _store(path, actor_id)
-    if dl.read(actor_id) is None:
-        pytest.fail("the reopened store does not hold the provisioned actor")
-    app = create_app(docs_url=None, openapi_url=None)
-    app.dependency_overrides[get_actor_dl] = lambda actor_id: dl
     try:
-        with TestClient(app) as client:
-            yield client
+        if dl.read(actor_id) is None:
+            pytest.fail("the reopened store does not hold the actor")
+        with served_store(dl, actor_id, segment, existing=True) as (
+            client,
+            _emitter,
+        ):
+            return _key_from(client, segment)
     finally:
         dl.close()
-
-
-def _seed_derivation(actor_id: str) -> str | None:
-    """The public key a seed tied to *actor_id* gives, if `main` still seeds."""
-    derive = getattr(signing, "seeded_signing_key", None)
-    return None if derive is None else derive(actor_id).public_key_multibase
 
 
 @pytest.mark.spec("ENC-01-001")
@@ -140,7 +156,9 @@ def test_the_private_key_cannot_be_computed_from_the_actor_id(tmp_path: Path):
 
     published = _provisioned_key(tmp_path / "vendor.db", segment)
 
-    assert published != _seed_derivation(canonical_actor_uri(segment)), (
+    derived = _seeded_signing_key()(canonical_actor_uri(segment))
+
+    assert published != derived.public_key_multibase, (
         "the published key is the one a seed tied to the actor id gives"
     )
 
@@ -165,8 +183,7 @@ def test_the_key_pair_is_persisted_and_reused_across_a_restart(
     store = tmp_path / "vendor.db"
     provisioned = _provisioned_key(store, segment)
 
-    with _resumed(store, segment) as client:
-        restarted = _key_from(client, segment)
+    restarted = _resumed_key(store, segment)
     if restarted != provisioned:
         pytest.fail("the restarted process served a different key")
     elsewhere = _provisioned_key(tmp_path / "elsewhere.db", segment)
@@ -185,30 +202,28 @@ def test_the_key_pair_is_persisted_and_reused_across_a_restart(
     f" the actor id instead of loading the persisted one. {_SEEDED}",
 )
 def test_resuming_an_actor_makes_no_new_key_pair(tmp_path: Path):
-    """A resumed process loads the actor's key pair; it computes none.
+    """A resumed process loads the actor's key pair; it makes none.
 
-    The spy watches the one way `main` makes a key pair. Once real keys
-    replace the seeded ones (#1184) the function is gone, nothing is
-    watched, and the test passes, so the strict ``xfail`` reports it.
+    Two spies watch the ways a key pair is made: generating a fresh one,
+    and `main`'s computing one from the actor id.
     """
     segment = "key-resumed-vendor"
     store = tmp_path / "vendor.db"
     provisioned = _provisioned_key(store, segment)
+    derive = _seeded_signing_key()
 
-    derive = getattr(signing, "seeded_signing_key", None)
-    with _resumed(store, segment) as client:
-        if derive is None:
-            resumed = _key_from(client, segment)
-            computed = 0
-        else:
-            with patch.object(
-                signing, "seeded_signing_key", wraps=derive
-            ) as spy:
-                resumed = _key_from(client, segment)
-            computed = spy.call_count
+    with (
+        patch.object(
+            Ed25519PrivateKey, "generate", wraps=Ed25519PrivateKey.generate
+        ) as generated,
+        patch.object(signing, "seeded_signing_key", wraps=derive) as computed,
+    ):
+        resumed = _resumed_key(store, segment)
     if resumed != provisioned:
         pytest.fail("the resumed process served a different key")
 
-    assert computed == 0, (
-        f"resuming the actor computed its key pair {computed} time(s)"
+    assert generated.call_count == 0, "resuming the actor generated a key pair"
+    assert computed.call_count == 0, (
+        f"resuming the actor computed its key pair {computed.call_count}"
+        " time(s) from its actor id"
     )

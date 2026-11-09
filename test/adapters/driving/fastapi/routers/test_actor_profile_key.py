@@ -23,6 +23,7 @@ from unittest.mock import patch
 import pytest
 
 from test.adapters.driving.fastapi._redelivery import served_store
+from test.support.signing import published_multikeys
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -53,16 +54,6 @@ def _profile(store: Path, segment: str) -> dict[str, Any]:
     return _get(store, segment, f"/api/v2/actors/{segment}/profile")
 
 
-def _multikeys(profile: dict[str, Any]) -> list[dict[str, Any]]:
-    """The ``Multikey`` entries *profile* lists under ``assertionMethod``."""
-    methods = profile.get("assertionMethod") or []
-    return [
-        method
-        for method in (methods if isinstance(methods, list) else [methods])
-        if isinstance(method, dict) and method.get("type") == "Multikey"
-    ]
-
-
 @pytest.mark.spec("ENC-01-002")
 @pytest.mark.spec("SIG-02-002")
 def test_an_unsigned_get_returns_the_profile_with_its_key(tmp_path: Path):
@@ -70,7 +61,7 @@ def test_an_unsigned_get_returns_the_profile_with_its_key(tmp_path: Path):
 
     profile = _profile(tmp_path / "vendor.db", "profile-key-vendor")
 
-    keys = _multikeys(profile)
+    keys = published_multikeys(profile)
     assert len(keys) == 1, profile
     [key] = keys
     assert key.get("controller") == actor_id
@@ -99,9 +90,13 @@ def test_the_profile_context_defines_the_key_terms(tmp_path: Path):
 
 @pytest.mark.spec("SIG-05-001")
 def test_an_actors_key_is_the_same_in_every_store(tmp_path: Path):
-    first = _multikeys(_profile(tmp_path / "first.db", "profile-key-finder"))
-    again = _multikeys(_profile(tmp_path / "again.db", "profile-key-finder"))
-    other = _multikeys(
+    first = published_multikeys(
+        _profile(tmp_path / "first.db", "profile-key-finder")
+    )
+    again = published_multikeys(
+        _profile(tmp_path / "again.db", "profile-key-finder")
+    )
+    other = published_multikeys(
         _profile(tmp_path / "other.db", "profile-key-coordinator")
     )
 
@@ -119,7 +114,9 @@ def test_the_published_key_verifies_the_actors_proofs(tmp_path: Path):
         {"id": f"{actor_id}/activities/1", "type": "Create"}, owner_key
     )
 
-    [key] = _multikeys(_profile(tmp_path / "signer.db", "profile-key-signer"))
+    [key] = published_multikeys(
+        _profile(tmp_path / "signer.db", "profile-key-signer")
+    )
 
     assert key["id"] == signing.proof_verification_method(signed)
     signing.verify(signed, key["publicKeyMultibase"])
@@ -133,8 +130,10 @@ def test_the_actor_id_dereferences_to_the_profile_with_its_key(
     segment = "profile-key-deref"
     store = tmp_path / "deref.db"
 
-    by_id = _multikeys(_get(store, segment, f"/api/v2/actors/{segment}"))
-    by_profile = _multikeys(_profile(tmp_path / "again.db", segment))
+    by_id = published_multikeys(
+        _get(store, segment, f"/api/v2/actors/{segment}")
+    )
+    by_profile = published_multikeys(_profile(tmp_path / "again.db", segment))
 
     assert by_id
     assert by_id == by_profile
@@ -165,7 +164,7 @@ def test_the_actor_id_serves_the_whole_profile_with_its_endpoints(
     own = hosted_endpoints(actor_id)
     assert by_id.json()["inbox"] == own["inbox"]
     assert by_id.json()["outbox"] == own["outbox"]
-    assert _multikeys(by_id.json())
+    assert published_multikeys(by_id.json())
     assert by_id.json() == by_profile.json()
 
 
@@ -196,7 +195,7 @@ def test_the_hosted_actors_list_publishes_each_actors_key(tmp_path: Path):
 
     assert listed.status_code == 200, listed.text
     [entry] = listed.json()
-    assert _multikeys(entry)
+    assert published_multikeys(entry)
     assert entry == profile.json()
 
 
@@ -230,7 +229,7 @@ def test_a_stored_key_is_replaced_by_the_key_the_actor_signs_with(
     own = signing.seeded_signing_key(actor_id)
     assert [
         (key["id"], key["publicKeyMultibase"])
-        for key in _multikeys(response.json())
+        for key in published_multikeys(response.json())
     ] == [(own.key_id, own.public_key_multibase)]
 
 

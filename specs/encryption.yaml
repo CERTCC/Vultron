@@ -21,8 +21,9 @@ groups:
       several cases uses one key pair for all of them, so per-case key separation is a consequence of deployment topology
       rather than a key-binding rule. Regenerating a key pair would invalidate any peer's cached public key and break
       encrypted communication mid-case. See `notes/encryption.md` for the topology discussion.
-    verification: A unit test confirms that two independently provisioned actors have distinct public keys, and that a
-      newly provisioned actor's key pair is non-None.
+    verification: '`test/adapters/driving/fastapi/routers/test_actor_key_management_planned.py::test_each_provisioning_generates_a_unique_key_pair`
+      provisions one actor id in two independent stores and checks that each
+      publishes a key and that the keys differ.'
     scope:
     - production
     tracking_issue: '#1184'

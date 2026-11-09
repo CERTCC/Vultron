@@ -72,7 +72,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 in-transit encryption mechanism. Transport Layer Security (TLS) is the expected transport protection for
 HTTP delivery. A future version of this specification is expected to require TLS.
 
-**Key management.** Each actor generates its own asymmetric key pair when its identity is first provisioned.
+**Key management.** Each actor generates its own unique asymmetric key pair when its identity is first provisioned.
 It publishes the public key in its actor profile and stores the private key securely.
 The key pair lasts for the lifetime of the actor identity: the actor reuses it after a process restart and does not generate a new one.
 A private key never appears in a log or an API response.
@@ -81,12 +81,12 @@ A private key never appears in a log or an API response.
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ENC-01-001", "ENC-01-002", "ENC-01-004", "ENC-01-005", "ENC-01-006", "ENC-01-007"))
 ```
 
-The reference implementation publishes each actor's key and keeps private keys out of logs and API responses.
+The rows on key generation, storage and persistence apply to a production deployment (ENC-01-001, ENC-01-004, ENC-01-005, ENC-01-006).
+The reference implementation is a prototype: it publishes each actor's key and keeps private keys out of logs and API responses (ENC-01-002, ENC-01-007).
 It does not yet generate, store or persist a key pair: it computes each actor's key pair from a seed tied to the actor id, which makes no security claim ([#1184](https://github.com/CERTCC/Vultron/issues/1184)).
 [Known Gaps](known-gaps.md) lists the key management requirements that it does not yet meet.
 
-**Per-message encryption.** Above the transport, a sender can encrypt each message on its own.
-A case participant can encrypt the messages it sends to the CASE_MANAGER.
+**Per-message encryption.** A case participant can encrypt the messages it sends to the CASE_MANAGER.
 The CASE_MANAGER is expected to encrypt each message that it sends to a case participant individually.
 Each message is encrypted to an encryption key that the recipient publishes in its actor profile.
 This version does not choose an encryption scheme, so until a scheme is standardized the choice is implementation-defined.
