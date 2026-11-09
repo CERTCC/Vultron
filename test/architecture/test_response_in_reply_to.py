@@ -156,6 +156,8 @@ def test_every_response_class_has_a_sample() -> None:
 
 @pytest.mark.spec("RF-08-002")
 @pytest.mark.spec("RF-08-003")
+@pytest.mark.spec("VAM-05-008")
+@pytest.mark.spec("VAM-05-009")
 @pytest.mark.parametrize("name", sorted(set(_CLASSES) - _KNOWN_GAP))
 def test_a_response_built_without_in_reply_to_names_what_it_answers(
     name: str,

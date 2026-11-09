@@ -29,7 +29,7 @@ from py_trees.common import Status
 
 from test.support.embargo_register import terminate
 from test.support.ledger import consent_row_updates
-from test.support.owner_decision import held_proposal_id
+from test.support.owner_decision import owner_decision_body
 from test.support.received import received_event
 from test.support.refusal_notice import assert_no_refusal_notice
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -239,17 +239,16 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
             update={"state": CS_pxa.Pxa}
         )
         dl.save(case)
-    _, sealed = TriggerActivityAdapter(
-        net.stores[OWNER]
-    ).reject_embargo_proposal(
-        embargo_id=revision,
-        proposal_id=held_proposal_id(net.stores[OWNER], net.case_id, revision),
-        case_id=net.case_id,
-        actor=OWNER,
-        to=[MANAGER],
+    _, body = owner_decision_body(
+        net.stores[OWNER],
+        net.case_id,
+        revision,
+        owner=OWNER,
+        manager=MANAGER,
+        accept=False,
     )
 
-    verdict = net.receive(MANAGER, json.loads(sealed))
+    verdict = net.receive(MANAGER, body)
 
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     _deliver_all(net, BYSTANDER)

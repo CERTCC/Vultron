@@ -19,8 +19,13 @@ trigger reads it from its own store's open-proposal record
 through the trigger-activity adapter reads it the same way.
 """
 
-from typing import Any
+import json
+from typing import Any, cast
 
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
@@ -73,3 +78,45 @@ def seeded_proposal_rejection(
     return reject_embargo_proposal_activity(
         embargo, in_reply_to=SEEDED_PROPOSAL_ID, **kwargs
     )
+
+
+def decided_proposal_id(case_id: str) -> str:
+    """An Invite id the owner's store does not record as an open proposal.
+
+    The ``inReplyTo`` a test gives an owner decision on an embargo that is
+    no open proposal, such as the embargo already in force, which the
+    CASE_MANAGER refuses (MSM-07-029).
+    """
+    return f"{case_id}/embargo_proposals/decided"
+
+
+def owner_decision_body(
+    owner_store: CaseOutboxPersistence,
+    case_id: str,
+    embargo_id: str,
+    *,
+    owner: str,
+    manager: str,
+    accept: bool,
+    proposal_id: str | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """The owner's decision on *embargo_id*, built by its trigger adapter.
+
+    ``Add`` when *accept*, else ``Reject(EmbargoEvent)``, addressed to
+    *manager*.  ``inReplyTo`` names *proposal_id*, by default the Invite
+    *owner_store* records for the open proposal (:func:`held_proposal_id`,
+    ADR-0180).  Returns the decision's id and its sealed body.
+    """
+    adapter = TriggerActivityAdapter(owner_store)
+    build = (
+        adapter.activate_embargo if accept else adapter.reject_embargo_proposal
+    )
+    activity_id, sealed = build(
+        embargo_id=embargo_id,
+        proposal_id=proposal_id
+        or held_proposal_id(owner_store, case_id, embargo_id),
+        case_id=case_id,
+        actor=owner,
+        to=[manager],
+    )
+    return activity_id, cast(dict[str, Any], json.loads(sealed))

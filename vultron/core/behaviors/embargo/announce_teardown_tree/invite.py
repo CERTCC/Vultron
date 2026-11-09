@@ -160,8 +160,9 @@ def invite_to_embargo_on_case_tree(
     (``create_embargo_response_decision_tree``) queues an ``Accept`` or
     ``Reject`` of it to the CASE_MANAGER (``SendEmbargoInviteAnswerNode``).
     When the addressee is the case owner its answer is its decision for the
-    case, so it is queued as ``Accept`` or ``Reject`` of the embargo itself
-    (``SendOwnerEmbargoDecisionNode``, ADR-0122) — and only inside the
+    case, so it is queued as ``Add`` or ``Reject`` of the embargo itself,
+    naming the Invite in ``inReplyTo`` (``SendOwnerEmbargoDecisionNode``,
+    ADR-0180) — and only inside the
     prototype's auto-accept bound; otherwise the owner holds its answer.
     No EM state and no consent state moves here: the replica learns the
     proposal, the relayed Invite and every answer from the CASE_MANAGER's

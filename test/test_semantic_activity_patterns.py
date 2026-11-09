@@ -1160,6 +1160,7 @@ def test_owner_embargo_decisions_are_distinct_from_invite_answers(
 @pytest.mark.spec("MSM-07-003")
 @pytest.mark.spec("MSM-07-008")
 @pytest.mark.spec("SE-01-006")
+@pytest.mark.spec("VAM-05-008")
 @pytest.mark.parametrize(
     "activation", ["activate_embargo", "activate_embargo_revision"]
 )

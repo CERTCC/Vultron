@@ -33,7 +33,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import committed_semantic_types, fail_commits
-from test.support.owner_decision import held_proposal_id
+from test.support.owner_decision import owner_decision_body
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -117,30 +117,25 @@ def _propose(net: LedgerNetwork, suffix: str, days: int) -> str:
 def _owner_decides(
     net: LedgerNetwork, embargo_id: str, *, accept: bool = True
 ) -> Any:
-    """The owner sends ``Accept`` or ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
+    """The owner sends ``Add`` or ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
 
-    It first receives the relayed Invites, so its store holds the embargo
-    (ADR-0122).
+    It first receives the relayed Invites, so its store holds the embargo and
+    the Invite its decision names in ``inReplyTo`` (ADR-0180).
     """
     net.deliver(MANAGER, to=OWNER, type_="Invite")
-    adapter = TriggerActivityAdapter(net.stores[OWNER])
-    send = (
-        adapter.activate_embargo if accept else adapter.reject_embargo_proposal
+    _, body = owner_decision_body(
+        net.stores[OWNER],
+        net.case_id,
+        embargo_id,
+        owner=OWNER,
+        manager=MANAGER,
+        accept=accept,
     )
-    _, sealed = send(
-        embargo_id=embargo_id,
-        proposal_id=held_proposal_id(
-            net.stores[OWNER], net.case_id, embargo_id
-        ),
-        case_id=net.case_id,
-        actor=OWNER,
-        to=[MANAGER],
-    )
-    return net.receive(MANAGER, json.loads(sealed))
+    return net.receive(MANAGER, body)
 
 
 def _owner_activates(net: LedgerNetwork, embargo_id: str) -> Any:
-    """The owner sends ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122)."""
+    """The owner sends ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0180)."""
     return _owner_decides(net, embargo_id)
 
 

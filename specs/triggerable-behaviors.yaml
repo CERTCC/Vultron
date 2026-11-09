@@ -531,7 +531,9 @@ groups:
       object type. A Note is the most common use, but not the only one. An embargo
       proposal is an `Invite` relayed by the CASE_MANAGER (EP-09-001), and
       participants and status changes have role-gated flows of their own, so those
-      types are not part of this trigger.
+      types are not part of this trigger. `Add(EmbargoEvent)[target=VulnerabilityCase]`
+      is the Case Owner's activation, sent only by accept-embargo with a required
+      `inReplyTo` (ADR-0180).
     verification: >-
       `test_trigger_add_object_to_case_addresses_add_to_case_manager` in
       `test/adapters/driving/fastapi/routers/test_trigger_case.py` posts a routable

@@ -376,10 +376,10 @@ class TestActivationCommitFaults:
         assert untouched.active_embargo_id == active_id
         assert untouched.proposed_embargo_ids == [revision_id]
 
-    def test_carry_overs_with_no_received_accept_raise(
+    def test_carry_overs_with_no_received_activation_raise(
         self, dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
     ):
-        """A received activation's carry-overs name the received Accept as
+        """A received activation's carry-overs name the received Add as
         their cause; with none on ``/activity`` the tree is miswired."""
         from vultron.core.services.embargo_lifecycle import (
             ActivationDecision,

@@ -4,8 +4,8 @@ This implementation does not support a received ``Create(EmbargoEvent)``:
 the proposal's ``Invite`` carries the event inline.
 
 The case owner's activation of an embargo is
-``Add(EmbargoEvent)[target=VulnerabilityCase]`` (:mod:`.owner_decision`, ADR-0122);
-there is no direct activation by ``Add``.
+``Add(EmbargoEvent)[target=VulnerabilityCase]``, the pair of this ``Remove``
+(:mod:`.owner_decision`, ADR-0180).
 """
 
 import logging
