@@ -309,6 +309,8 @@ def test_a_proposal_whose_embargo_has_ended_is_not_invited_to() -> None:
     )
 
     assert late_accept_terms(dl, case, _NOW) == ids["live"]
+    # An embargo has ended at its end time, not only after it (ADR-0122).
+    assert late_accept_terms(dl, case, _NOW + timedelta(days=60)) is None
     assert late_accept_terms(dl, case, _NOW + timedelta(days=61)) is None
     assert _run(dl, _reinvite(case), with_factory=True) is Status.SUCCESS
     assert _invited_embargo_ids(dl) == [ids["live"]]
@@ -316,13 +318,18 @@ def test_a_proposal_whose_embargo_has_ended_is_not_invited_to() -> None:
 
 @pytest.mark.spec("EMB-17-004")
 @pytest.mark.spec("EMB-17-007")
-def test_a_case_whose_only_proposal_has_ended_binds_nothing() -> None:
-    case, dl = _case("late-unbound-ended", EM.NONE)
+@pytest.mark.parametrize(
+    "ended_at",
+    [timedelta(0), -timedelta(seconds=1)],
+    ids=["at-end-time", "after-end-time"],
+)
+def test_a_case_whose_only_proposal_has_ended_binds_nothing(ended_at) -> None:
+    case, dl = _case(f"late-unbound-ended-{ended_at.days}", EM.NONE)
     ids = _with_proposals(
         case,
         dl,
         ("old", _NOW + timedelta(days=20)),
-        ("ended", _NOW - timedelta(seconds=1)),
+        ("ended", _NOW + ended_at),
         rejected=("old",),
     )
     assert case.em_state == EM.PROPOSED
@@ -428,7 +435,7 @@ class TestReinviteLateAccepterNode:
         assert record.consent_for(proposal_id) == EmbargoConsentState.INVITED
 
     @pytest.mark.spec("EMB-17-003")
-    def test_an_accepter_with_no_record_is_a_failure(self) -> None:
+    def test_an_accepter_with_no_record_is_a_failure(self, caplog) -> None:
         """The manager holds its own roster (Regime 1, ADR-0087): no guess."""
         case, dl = _case("late-reinvite-norecord", EM.PROPOSED)
         node = ReinviteLateAccepterNode(
@@ -437,8 +444,27 @@ class TestReinviteLateAccepterNode:
             now=_NOW,
         )
 
-        assert _run(dl, node, with_factory=True) is Status.FAILURE
+        with caplog.at_level("ERROR"):
+            status = _run(dl, node, with_factory=True)
+
+        assert status is Status.FAILURE
+        assert "CaseParticipant" in node.feedback_message
+        assert "stranger" in caplog.text
         assert dl.outbox_list() == []
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_an_unreadable_open_proposal_is_an_internal_error(self) -> None:
+        """A proposal the manager's own store cannot read is its own fault.
+
+        It raises rather than reading as no terms, so the route can never
+        send the Accept to the no-op on a store fault (EMB-18-003).
+        """
+        case, dl = _case("late-terms-unreadable", EM.NONE)
+        propose(case, f"{case.id_}/embargo_events/missing")
+        dl.save(case)
+
+        with pytest.raises(RuntimeError, match="cannot read"):
+            late_accept_terms(dl, case, _NOW)
 
     @pytest.mark.spec("EMB-17-003")
     def test_no_port_sends_nothing(self, caplog) -> None:

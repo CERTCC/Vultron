@@ -42,6 +42,7 @@ from vultron.core.services.embargo_ordering import (
     read_embargo_event,
 )
 from vultron.core.states.em import EM
+from vultron.errors import VultronNotAnEmbargoError, VultronNotFoundError
 
 
 class LateAcceptRoute(StrEnum):
@@ -99,18 +100,27 @@ def late_accept_terms(
     neither: there is nothing to invite to (EMB-17-004).
 
     Raises:
-        VultronNotFoundError: An open proposal does not resolve in *store*.
-        VultronNotAnEmbargoError: An open proposal is not an
-            ``EmbargoEvent``.
+        RuntimeError: An open proposal does not resolve in *store* to an
+            ``EmbargoEvent``.  The CASE_MANAGER holds its own case, so that
+            is a fault in its own store, never the sender's (Regime 1,
+            ADR-0087; EMB-18-003), and it is raised as the internal error it
+            is.
     """
     if case.active_embargo_id is not None:
         return case.active_embargo_id
-    live = [
-        embargo
-        for embargo in (
+    try:
+        proposals = [
             read_embargo_event(store, embargo_id)
             for embargo_id in case.proposed_embargo_ids
-        )
+        ]
+    except (VultronNotFoundError, VultronNotAnEmbargoError) as exc:
+        raise RuntimeError(
+            f"case '{case.id_}' names an open proposal its CASE_MANAGER's"
+            f" store cannot read: {exc}"
+        ) from exc
+    live = [
+        embargo
+        for embargo in proposals
         if not has_reached_end_time(embargo.end_time, now)
     ]
     if not live:
@@ -130,8 +140,8 @@ class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
     the node runs, after the Invite expiry has been recorded.  SUCCESS when
     :func:`late_accept_route` names *route*, logged at INFO; FAILURE
     otherwise.  Read-only.  A case or an open proposal the CASE_MANAGER
-    cannot read raises: it holds its own case (Regime 1, ADR-0087), and a
-    guess here would route the Accept to the wrong arm.
+    cannot read raises an internal error: it holds its own case (Regime 1,
+    ADR-0087), and a guess here would route the Accept to the wrong arm.
     """
 
     def __init__(

@@ -295,7 +295,7 @@ def late_accept_diversions(
         answers: The late Accept's id; the re-invite's id derives from it.
         result_out: The Invite expiry decision's findings.
         now: The CASE_MANAGER's clock, against which a proposal's end time
-            is read (:func:`~vultron.core.behaviors.embargo.nodes.late_accept.late_accept_terms`).
+            is read (``late_accept_terms``).
         actor_config: The CASE_MANAGER's configuration (RSVP window).
     """
 

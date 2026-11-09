@@ -603,7 +603,7 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     # The replica's own store (TB-06-007): same consent and deadline, no EM move.
     assert len(_invites_of(net, OWNER, BYSTANDER, active_before)) == 1
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
-    assert replayed.consent_for(revision_id) != EmbargoConsentState.AGREED
+    assert replayed.consent_for(revision_id) == EmbargoConsentState.INVITED
     assert replayed.consent_for(active_before) == EmbargoConsentState.INVITED
     assert replayed.rsvp_deadline_for(active_before) == manager_deadline
     # The entry replays as a re-invite, never as a second proposal of the

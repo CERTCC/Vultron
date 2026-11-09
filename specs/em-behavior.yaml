@@ -3214,6 +3214,15 @@ groups:
       The fresh Invite is a relay (EP-09-002). Its `actor` is the CASE_MANAGER.
       Its `attributedTo` names the invited embargo's proposer, or the CASE_MANAGER
       itself when it made the embargo as the protocol default, without a proposal.
+    note: >-
+      Only a live proposal is terms: a `PROPOSED` entry stays open after its
+      embargo's end time, but an Invite to it can carry no RSVP deadline that
+      EP-07-002 and EP-07-006 allow. A case whose proposals have all ended thus
+      holds no terms, and the late Accept takes the EMB-17-004 no-op. An accepter
+      whose row for the terms is already INVITED or AGREED has been asked or has
+      answered, and INVITE does not move that row (CM-18-003), so nothing is sent.
+      A DECLINED or TIMED_OUT row is asked again: the late Accept shows the
+      participant is now willing (maintainer decision on #5732, 2026-11-09).
     rationale: >-
       Recording the stale Accept as consent would bind the participant to terms it
       never saw; rejecting it would discard a willing participant. Re-inviting
@@ -3387,6 +3396,9 @@ groups:
       nothing and leaves every consent row unchanged, and that a redelivery, with or
       without
       its received body, gets the same result.
+      `test/core/behaviors/embargo/nodes/test_late_accept.py`
+      (`test_a_case_whose_only_proposal_has_ended_binds_nothing`) confirms a case
+      whose open proposals have all ended takes the same no-op.
     testable: true
     preconditions:
     - em_state:
