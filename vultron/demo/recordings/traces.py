@@ -287,10 +287,16 @@ def read_runs(root: Path) -> dict[str, ScenarioRun]:
 
     Raises:
         DemoRecordingError: When *root* is not a directory, or a scenario
-            directory under it holds only one of the two traces, or an
-            unreadable one.  A half-written run is refused rather than
+            directory under it holds only one of the two traces, an unreadable
+            one, or an empty ledger.  A half-written run is refused rather than
             compared, so a run that failed before its traces landed does not
-            read as "no difference".
+            read as "no difference".  An empty ledger is refused for the same
+            reason: a recorded run can never have one, because a target with
+            no entries fails the dump, so two zeroed artifacts comparing equal
+            would be the gate passing over nothing rather than over no change.
+            The check tree is *not* checked for emptiness — a tree is a
+            meaningful trace at any size, and the ledger is the trace that
+            tells a zeroed artifact from a run.
     """
     if not root.is_dir():
         raise DemoRecordingError(
@@ -315,6 +321,13 @@ def read_runs(root: Path) -> dict[str, ScenarioRun]:
             raise DemoRecordingError(
                 f"the check tree of {name!r} in {root} is not readable: {exc}"
             ) from exc
+        if not ledger.strip():
+            raise DemoRecordingError(
+                f"the recorded run of {name!r} in {root} has an empty ledger, "
+                "so it is a truncated or zeroed artifact rather than a run: "
+                "a target with no entries fails the dump, so a recorded run "
+                "always holds some."
+            )
         runs[name] = ScenarioRun(name, ledger=ledger, checks=tree)
     return runs
 

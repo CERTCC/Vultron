@@ -25,7 +25,9 @@ ledger *and* its check tree (DEMOCI-11-055).
 Three forms:
 
 - ``--write DIR`` records the selected scenarios and writes each run's two
-  traces under ``DIR/<scenario>/``.  CI calls it once per commit.
+  traces under ``DIR/<scenario>/``.  The base-versus-head job will call it
+  once per commit (#6026); until that job exists, it is run by hand, as
+  ``notes/demo-scenario-tree.md`` § "Composition" describes.
 - ``--base DIR --head DIR`` compares two directories ``--write`` left.
 - Neither records each selected scenario **twice in this process** and
   compares the pair.  That is the recorder's own determinism check: two runs
@@ -139,24 +141,27 @@ def _diff(
     )
 
 
-def _one_sided(
-    scenario: str, present: NormalizedRun, at_head: bool
-) -> ScenarioComparison:
-    """Compare a scenario recorded on one side only.
+def _missing(scenario: str) -> NormalizedRun:
+    """The stand-in for a side that holds no run of *scenario*.
 
-    Reported as a difference rather than skipped: a scenario added or dropped
-    between base and head is exactly the kind of change the gate exists to
-    show, and a side that holds no run for it is not evidence that nothing
-    moved.
+    A scenario recorded on one side only is reported as a difference rather
+    than skipped: a scenario added or dropped between base and head is exactly
+    the kind of change the gate exists to show, and a side that holds no run
+    for it is not evidence that nothing moved.
     """
-    missing = NormalizedRun(
+    return NormalizedRun(
         scenario, ledger=(MISSING_RUN,), checks=(MISSING_RUN,)
     )
-    base, head = (missing, present) if at_head else (present, missing)
+
+
+def _compare(
+    scenario: str, before: NormalizedRun, after: NormalizedRun
+) -> ScenarioComparison:
+    """Diff one scenario's two normalized runs, on both traces."""
     return ScenarioComparison(
         scenario=scenario,
-        ledger=_diff(scenario, "ledger", base.ledger, head.ledger),
-        checks=_diff(scenario, "checks", base.checks, head.checks),
+        ledger=_diff(scenario, "ledger", before.ledger, after.ledger),
+        checks=_diff(scenario, "checks", before.checks, after.checks),
     )
 
 
@@ -173,31 +178,19 @@ def compare_runs(
     """
     comparisons: list[ScenarioComparison] = []
     for scenario in sorted(set(base) | set(head)):
-        if scenario not in head:
-            comparisons.append(
-                _one_sided(
-                    scenario, normalize_run(base[scenario]), at_head=False
-                )
-            )
-            continue
-        if scenario not in base:
-            comparisons.append(
-                _one_sided(
-                    scenario, normalize_run(head[scenario]), at_head=True
-                )
-            )
-            continue
-        before, after = (
-            normalize_run(base[scenario]),
-            normalize_run(head[scenario]),
+        # A side that holds no run of this scenario stands in as `_missing`,
+        # so one call shape covers both sides present and either side absent.
+        before = (
+            normalize_run(base[scenario])
+            if scenario in base
+            else _missing(scenario)
         )
-        comparisons.append(
-            ScenarioComparison(
-                scenario=scenario,
-                ledger=_diff(scenario, "ledger", before.ledger, after.ledger),
-                checks=_diff(scenario, "checks", before.checks, after.checks),
-            )
+        after = (
+            normalize_run(head[scenario])
+            if scenario in head
+            else _missing(scenario)
         )
+        comparisons.append(_compare(scenario, before, after))
     return comparisons
 
 
@@ -275,7 +268,7 @@ def main(
     check.
     """
     logging.basicConfig(level=log_level)
-    _refuse_a_bad_combination(write_to, base_dir, head_dir)
+    _refuse_a_bad_combination(write_to, base_dir, head_dir, allow_difference)
     started = time.monotonic()
     try:
         if write_to is not None:
@@ -293,13 +286,21 @@ def main(
 
 
 def _refuse_a_bad_combination(
-    write_to: Path | None, base_dir: Path | None, head_dir: Path | None
+    write_to: Path | None,
+    base_dir: Path | None,
+    head_dir: Path | None,
+    allow_difference: bool,
 ) -> None:
     """Refuse an option combination that would compare nothing real."""
     if write_to is not None and (base_dir or head_dir):
         raise click.UsageError(
             "--write records one side; it does not compare, so it takes "
             "neither --base nor --head."
+        )
+    if write_to is not None and allow_difference:
+        raise click.UsageError(
+            "--write compares nothing, so there is no difference for "
+            "--allow-difference to admit. Pass it to the comparison run."
         )
     if (base_dir is None) != (head_dir is None):
         raise click.UsageError(
@@ -331,14 +332,16 @@ def _registered(scenarios: tuple[str, ...]) -> dict[str, ScenarioSpec]:
 def _write(write_to: Path, scenarios: tuple[str, ...]) -> None:
     """Record one side and write its traces, pruning any stale run there."""
     specs = _registered(scenarios)
+    # Pruned *before* the recording, not after: a pass that dies part-way
+    # records nothing and would otherwise leave every earlier run in place,
+    # which the comparison then reads as this side's current evidence. Clearing
+    # them first makes a failed pass leave a side with nothing to compare,
+    # which `read_runs` reports as an empty set rather than as no difference.
+    for stale in prune_runs(write_to, keep=set(specs)):
+        click.echo(f"Removed the stale run of {stale}")
     runs = _record(specs, "write")
     for run in runs.values():
         click.echo(f"Wrote {write_run(run, write_to)}")
-    # A write into a reused directory would otherwise leave an earlier run of
-    # a scenario this pass did not record, and the comparison would read it as
-    # this side's current evidence.
-    for stale in prune_runs(write_to, keep=set(runs)):
-        click.echo(f"Removed the stale run of {stale}")
 
 
 def _written_pair(

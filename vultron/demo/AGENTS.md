@@ -112,7 +112,10 @@ sub-issues were this one defect in different scenarios.
 8. **Test gates against the real context manager.** Patching
    `demo_check`/`demo_gate` out with `contextlib.nullcontext` makes the assertion
    propagate and the test pass while proving nothing — exactly how the missing
-   gate before `engage-case` escaped notice.
+   gate before `engage-case` escaped notice. To read which checks a run entered,
+   enter `recording_checks()` (`vultron/demo/utils/check_tree.py`) and `walk()`
+   the recorded tree: the real manager runs, so accumulate-and-continue still
+   holds (DEMOCI-11-056, #6127).
 9. **Nest the step that reads a value inside the block that produces it.** A
    `None`/`""` pre-init is allowed only when every later read is guarded — the
    one part a check enforces (#3038, `test_demo_step_no_unbound_ratchet.py`).

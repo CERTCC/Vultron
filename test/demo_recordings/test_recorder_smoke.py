@@ -34,6 +34,7 @@ import pytest
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.demo.helpers.cast import ALL_SLOTS
 from vultron.demo.recordings.runner import record_scenario
+from vultron.demo.recordings.traces import normalize_run
 from vultron.demo.scenario.registry import discover_scenarios
 from vultron.demo.utils.check_tree import walk
 
@@ -75,3 +76,28 @@ def test_the_recorder_records_a_scenario():
     assert any(node.reads for node in nodes), (
         "no check was attributed a container read"
     )
+
+
+@pytest.mark.timeout(900)
+@pytest.mark.spec("DEMOCI-11-055")
+def test_two_runs_of_one_unchanged_tree_compare_equal():
+    """The determinism the comparison rests on, against real runs.
+
+    ``compare-demo-runs`` with no directory option records each selected
+    scenario twice in this process and compares the pair, so two runs of one
+    unchanged tree must differ in nothing once normalized.  Every CLI test of
+    that form stubs ``record_scenario`` out, so this is the only place the
+    claim is made against the real recorder: a process-global the recorder
+    forgets to reset would otherwise break the command with no failing test
+    (the class of defect ``_scenario_nodes``' blackboard reset exists for).
+    """
+    spec = next(s for s in discover_scenarios() if s.name == _SMOKE_SCENARIO)
+
+    before = normalize_run(record_scenario(spec).traces)
+    after = normalize_run(record_scenario(spec).traces)
+
+    # Guards against an equality that holds because both sides are empty.
+    assert before.ledger, "the first run normalized to no ledger"
+    assert before.checks, "the first run normalized to no check tree"
+    assert before.ledger == after.ledger
+    assert before.checks == after.checks

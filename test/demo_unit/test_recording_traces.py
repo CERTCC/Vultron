@@ -292,6 +292,18 @@ class TestWrittenRuns:
         with pytest.raises(DemoRecordingError, match="not readable"):
             read_runs(tmp_path)
 
+    @pytest.mark.parametrize("text", ["", "  \n"], ids=["zeroed", "blank"])
+    def test_a_run_with_an_empty_ledger_is_refused(self, tmp_path, text):
+        """A recorded run can never have an empty ledger, so two zeroed
+        artifacts must not compare equal: that would be the gate passing over
+        nothing rather than over no change."""
+        write_run(BASE, tmp_path)
+        (tmp_path / "rv" / LEDGER_FILENAME).write_text(text)
+        with pytest.raises(
+            DemoRecordingError, match=r"of 'rv' in .* empty ledger"
+        ):
+            read_runs(tmp_path)
+
     def test_a_check_tree_that_is_valid_json_but_no_tree_names_itself(
         self, tmp_path
     ):

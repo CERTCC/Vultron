@@ -51,6 +51,7 @@ from vultron.demo.utils.failures import (
     demo_step,
     reset_demo_failures,
 )
+from vultron.errors import DemoRecordingError
 
 CASE_ID = "urn:uuid:ed045a61-5ca4-4c92-b278-3dff7bb2199f"
 
@@ -522,3 +523,29 @@ class TestCompareCli:
         assert result.exit_code == 0, result.output
         assert "Removed the stale run of retired-scenario" in result.output
         assert sorted(p.name for p in tmp_path.iterdir()) == ["rv", "rvv"]
+
+    def test_a_write_that_dies_part_way_leaves_no_stale_run(
+        self, stubbed, tmp_path, monkeypatch
+    ):
+        """Pruning after the recording would leave every earlier run in place
+        when the pass records nothing, and the comparison would read those as
+        this side's current evidence."""
+        write_run(_stub_run("retired-scenario"), tmp_path)
+
+        def _die(spec, _topology):
+            raise DemoRecordingError(f"the {spec.name} recorder died")
+
+        monkeypatch.setattr(compare, "record_scenario", _die)
+        result = CliRunner().invoke(compare.main, ["--write", str(tmp_path)])
+        assert result.exit_code != 0
+        assert isinstance(result.exception, DemoRecordingError)
+        assert "Removed the stale run of retired-scenario" in result.output
+        assert list(tmp_path.iterdir()) == []
+
+    def test_write_with_allow_difference_is_refused(self, stubbed, tmp_path):
+        """`--write` compares nothing, so there is no difference to admit."""
+        result = CliRunner().invoke(
+            compare.main, ["--write", str(tmp_path), "--allow-difference"]
+        )
+        assert result.exit_code != 0
+        assert "no difference for --allow-difference" in result.output

@@ -449,8 +449,11 @@ vendor-first half, whose Reporter tells a Vendor.
   refuses it. It reads both traces, so it needs no clean tree and overwrites no
   committed file, and nothing is left to be read against the base by hand. Step-mark
   drift stays the scheduled `demo-recordings` run's business: a mark can move to a
-  different ledger tail with the ledger unchanged, and the comparison reads neither
-  the marks nor the committed files.
+  different ledger tail with the ledger unchanged, and the comparison *compares*
+  neither the marks nor the committed files. It does still **read** the marks — a run
+  that leaves none, or leaves them out of its declared path's order, fails
+  `record_scenario` outright (exit 1, a crashed recorder), so that is the one kind of
+  step-mark defect the comparison does report.
 - **The plot renders as a story a domain expert can read.** Every fragment the
   manifest names opens its docstring with one sentence in CVD domain terms, with no
   code identifier, helper or container (DEMOCI-11-065, DEMOCI-11-066). Each narrative
