@@ -52,6 +52,7 @@ from test.support.embargo_register import (
 )
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
 )
@@ -174,6 +175,7 @@ def _send_stub_invite(
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
     )
     already_queued = set(dl.outbox_list())
@@ -376,6 +378,7 @@ def test_joined_participant_never_answers_the_original_report_offer(
             ),
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
     except VultronError:
         # Refusing the trigger outright also satisfies CM-11-018.  The setup
@@ -430,6 +433,7 @@ def test_on_behalf_assertion_for_absent_target_is_refused(
             ),
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
 
     after = dl.read_case(case.id_)
@@ -567,6 +571,7 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     replacements = [
@@ -696,6 +701,7 @@ def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
     assert [
         invite

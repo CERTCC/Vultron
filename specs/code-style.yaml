@@ -466,18 +466,28 @@ groups:
   - id: CS-13-002
     priority: MUST
     kind: project
+    adr:
+    - ADR-0176
     verification: >-
-      `test_application_code_reads_the_clock_only_through_now_utc` in
-      `test/core/models/test_helpers.py` parses every module under `vultron/`
-      except the `vultron/metadata/` repo tooling and fails on any
-      `datetime.now()`, `utcnow()` or `date.today()` call outside the body
-      of `now_utc` itself.
-    statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.core.models._helpers`
+      `test_every_clock_read_is_listed_and_every_listed_read_exists` in
+      `test/architecture/test_clock_reads_at_act_edge.py` parses every module
+      under `vultron/` except the `vultron/metadata/` repo tooling and fails on
+      any clock read its lists do not name, and on any listed read that is
+      gone. The lists name the reads ADR-0176 permits at the edge and, under an
+      owner issue each, the reads below an act's edge still to be removed (#5676).
+      `test_only_the_act_edge_holds_a_clock` in the same file fails when a
+      module other than an act's entry point or the composition root that
+      wires it names a clock port.
+    statement: >-
+      Application code MUST read the current time only at an act's entry point,
+      through the act clock port (`ClockPort` in `vultron.core.ports.clock`),
+      once per act and after the act takes the tree lock.
     rationale: >-
-      One clock function gives every time the application creates the same form:
-      timezone-aware, in UTC and at microsecond precision (CS-13-001, CS-13-008). A
-      direct `datetime.now()` call can give a naive or local time. Tests can also
-      replace the clock in one place to control time.
+      An act that reads the clock twice can decide against one instant and record
+      against another, and a read that commits nothing still moves a recorded
+      run's clock (ADR-0176). One read per act, through one injected port, gives
+      the act's decisions and stamps one instant. The system clock behind the
+      port reads through `now_utc()`, so each time keeps its CS-13-001 form.
   - id: CS-13-004
     priority: MUST
     kind: project

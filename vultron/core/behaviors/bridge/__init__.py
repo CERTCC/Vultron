@@ -23,6 +23,8 @@ completion and classifies the result.  Grouped by concern:
 - ``tree_execution``: the tick loop and exception classification
 - ``result``: ``BTExecutionResult``
 - ``lock``: the one process-wide execution lock (``_BT_GLOBAL_LOCK``)
+- ``act_instant``: an act's one clock read and the ``/at`` key that carries
+  it through a tree run (ADR-0176)
 - ``leadership``: the single-node leadership guard (SYNC-09-003)
 """
 

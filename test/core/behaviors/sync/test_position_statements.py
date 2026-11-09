@@ -35,6 +35,7 @@ from test.core.behaviors.sync.nodes._embargo_gate_support import (
 )
 from test.core.behaviors.sync.nodes.conftest import CASE_ID, _make_entry
 from test.support.received import received_event
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -441,7 +442,9 @@ def test_participant_states_its_tail_to_the_case_manager() -> None:
     store = _participant_store()
     port = MagicMock(spec=SyncActivityPort)
 
-    sent = state_ledger_positions_trigger(store, SIGNATORY_ID, port)
+    sent = state_ledger_positions_trigger(
+        store, SIGNATORY_ID, port, clock=SystemClock()
+    )
 
     assert sent == 1
     port.send_read_ledger_entry.assert_called_once()
@@ -464,7 +467,12 @@ def test_participant_at_the_empty_ledger_position_states_nothing() -> None:
     seed_case(store, embargo_active=False)
     port = MagicMock(spec=SyncActivityPort)
 
-    assert state_ledger_positions_trigger(store, SIGNATORY_ID, port) == 0
+    assert (
+        state_ledger_positions_trigger(
+            store, SIGNATORY_ID, port, clock=SystemClock()
+        )
+        == 0
+    )
     port.send_read_ledger_entry.assert_not_called()
 
 
@@ -475,7 +483,12 @@ def test_case_manager_states_no_position_for_a_case_it_manages() -> None:
     seed_ledger(store, 2)
     port = MagicMock(spec=SyncActivityPort)
 
-    assert state_ledger_positions_trigger(store, MANAGER_ID, port) == 0
+    assert (
+        state_ledger_positions_trigger(
+            store, MANAGER_ID, port, clock=SystemClock()
+        )
+        == 0
+    )
     port.send_read_ledger_entry.assert_not_called()
 
 
@@ -487,7 +500,12 @@ def test_closed_participant_states_no_position() -> None:
     close(store, SIGNATORY_ID)
     port = MagicMock(spec=SyncActivityPort)
 
-    assert state_ledger_positions_trigger(store, SIGNATORY_ID, port) == 0
+    assert (
+        state_ledger_positions_trigger(
+            store, SIGNATORY_ID, port, clock=SystemClock()
+        )
+        == 0
+    )
     port.send_read_ledger_entry.assert_not_called()
 
 
@@ -498,7 +516,12 @@ def test_case_naming_no_case_manager_gets_no_statement() -> None:
     store.save(_make_entry(0))
     port = MagicMock(spec=SyncActivityPort)
 
-    assert state_ledger_positions_trigger(store, SIGNATORY_ID, port) == 0
+    assert (
+        state_ledger_positions_trigger(
+            store, SIGNATORY_ID, port, clock=SystemClock()
+        )
+        == 0
+    )
     port.send_read_ledger_entry.assert_not_called()
 
 
@@ -557,6 +580,7 @@ def test_stating_positions_without_a_sync_port_is_a_wiring_fault() -> None:
             store,
             SIGNATORY_ID,
             None,  # type: ignore[arg-type]
+            clock=SystemClock(),
         )
 
 
@@ -567,7 +591,12 @@ def test_actor_the_roster_does_not_list_states_no_position() -> None:
     seed_ledger(store, 2)
     port = MagicMock(spec=SyncActivityPort)
 
-    assert state_ledger_positions_trigger(store, UNLISTED_ID, port) == 0
+    assert (
+        state_ledger_positions_trigger(
+            store, UNLISTED_ID, port, clock=SystemClock()
+        )
+        == 0
+    )
     port.send_read_ledger_entry.assert_not_called()
 
 
@@ -582,4 +611,9 @@ def test_removed_participant_still_states_its_position() -> None:
     store.save(participant)
     port = MagicMock(spec=SyncActivityPort)
 
-    assert state_ledger_positions_trigger(store, SIGNATORY_ID, port) == 1
+    assert (
+        state_ledger_positions_trigger(
+            store, SIGNATORY_ID, port, clock=SystemClock()
+        )
+        == 1
+    )

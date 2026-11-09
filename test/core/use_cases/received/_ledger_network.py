@@ -44,6 +44,7 @@ from test.support.received import (
     stamped,
 )
 from test.support.signing import author_of, resigned
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
@@ -399,7 +400,7 @@ class LedgerNetwork:
         number order.  Returns how many holds ended.
         """
         dl = self.stores[actor]
-        ended = end_expired_holds(dl)
+        ended = end_expired_holds(dl, clock=SystemClock())
         replay_inbox(dl, actor)
         return ended
 

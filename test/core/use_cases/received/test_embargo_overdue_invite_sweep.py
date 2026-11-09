@@ -35,6 +35,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import activate, propose, reject
 from test.support.ledger import is_consent_row_update
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -599,6 +600,7 @@ class TestOwnerTrigger:
                 actor_id=_MANAGER, case_id=_CASE_ID, proposal_id=proposal.id_
             ),
             **_ports(dl),
+            clock=SystemClock(),
         ).execute()
 
         types = _semantic_types(dl)

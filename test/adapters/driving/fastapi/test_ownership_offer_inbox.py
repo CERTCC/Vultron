@@ -41,6 +41,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.signing import signed_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -137,6 +138,7 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]):
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_CASE_ACTOR_ID, dispatcher=make_dispatcher()
         ),
+        clock=SystemClock(),
     )
 
 

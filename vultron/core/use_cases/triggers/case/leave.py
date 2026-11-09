@@ -53,6 +53,7 @@ from vultron.core.use_cases.triggers.requests import LeaveCaseTriggerRequest
 
 if TYPE_CHECKING:
     from vultron.core.ports.case_outbox import CaseOutboxPersistence
+    from vultron.core.ports.clock import ClockPort
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
@@ -90,6 +91,8 @@ class SvcLeaveCaseUseCase(SvcActivityTriggerBase):
         wire_render_port: "WireRenderPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
         call_out: CloseReportCallOutBundle = CLOSE_REPORT_DETERMINISTIC,
+        *,
+        clock: "ClockPort",
     ) -> None:
         super().__init__(
             dl=dl,
@@ -97,6 +100,7 @@ class SvcLeaveCaseUseCase(SvcActivityTriggerBase):
             trigger_activity=trigger_activity,
             wire_render_port=wire_render_port,
             sync_port=sync_port,
+            clock=clock,
         )
         self._close_call_out = call_out
 

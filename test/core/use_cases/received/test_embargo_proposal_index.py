@@ -40,6 +40,7 @@ from test.support.embargo_register import (
 )
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -262,6 +263,7 @@ class TestProposeTriggerRecordsIndex:
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -296,6 +298,7 @@ class TestProposeTriggerRecordsIndex:
             ),
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         updated_case = dl.read(case.id_)
@@ -357,6 +360,7 @@ class TestAcceptRejectFromCoreState:
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -410,6 +414,7 @@ class TestAcceptRejectFromCoreState:
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -447,6 +452,7 @@ class TestAcceptRejectFromCoreState:
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity is not None
@@ -480,6 +486,7 @@ class TestAcceptRejectFromCoreState:
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_reject_raises_notfound_when_index_empty(self):
@@ -507,6 +514,7 @@ class TestAcceptRejectFromCoreState:
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
+                clock=SystemClock(),
             ).execute()
 
 

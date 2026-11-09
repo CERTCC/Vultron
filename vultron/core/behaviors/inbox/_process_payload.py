@@ -38,7 +38,10 @@ from vultron.core.behaviors.blackboard_scope import (
     restore_keys,
     snapshot_keys,
 )
-from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
+from vultron.core.behaviors.bridge.act_instant import (
+    act_instant_in_tree_run,
+    open_act,
+)
 from vultron.core.behaviors.inbox.inbox_tree import create_inbox_bt
 from vultron.core.behaviors.inbox.models import (
     DispatchAdapter,
@@ -63,6 +66,7 @@ from vultron.core.behaviors.inbox.nodes import (
     KEY_QUEUE,
     KEY_UNHANDLED,
 )
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.object_dereference import ObjectDereferencePort
 
 logger = logging.getLogger(__name__)
@@ -203,8 +207,16 @@ def process_payload(
     actor_config: ActorConfig | None = None,
     dereference_port: ObjectDereferencePort | None = None,
     received_outcome_port: ReceivedOutcomePort | None = None,
+    *,
+    clock: ClockPort,
 ) -> InboxOutcome:
     """Process one inbox payload through the BT pipeline.
+
+    The processing of one delivery is one act (ADR-0176): it takes the tree
+    lock, then reads *clock* once, and its tree runs carry that instant as
+    ``/at`` until it returns.  A held activity replayed later is processed
+    by a call of its own, so it is judged at its replay's instant, even when
+    that call is nested in the processing of the delivery that released it.
 
     Always returns an :class:`InboxOutcome`; never raises for
     protocol-invalid payloads (IO-04-001).
@@ -233,6 +245,8 @@ def process_payload(
             body is given up for a receipt stub (CLP-10-018, ADR-0154); both
             production pipelines provide it, and without it a refused body is
             over-retained rather than lost.
+        clock: The act clock, supplied by the composition root.  Read once,
+            after the tree lock is taken; nothing below reads a clock.
 
     Returns:
         :class:`InboxOutcome` whose ``status`` is an
@@ -242,8 +256,9 @@ def process_payload(
     # The shared BT global lock serialises BT blackboard access
     # across concurrent FastAPI BackgroundTasks.  The RLock supports
     # re-entrant acquisition so replay paths calling process_payload
-    # recursively do not deadlock.
-    with _BT_GLOBAL_LOCK:
+    # recursively do not deadlock.  open_act takes it before it reads the
+    # clock, so time spent queueing for the lock is not decision time.
+    with open_act(clock) as at, act_instant_in_tree_run(at):
         storage = py_trees.blackboard.Blackboard.storage
         saved = _save_inbox_keys(storage)
         # Every run starts with no handler verdict.  A nested run (the replay

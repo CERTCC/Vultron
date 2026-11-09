@@ -25,6 +25,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.received import assert_held_only_as_received
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -511,7 +512,10 @@ class TestEmbargoProposalLifecycle:
         )
         with pytest.raises(VultronInvalidStateTransitionError):
             SvcAcceptEmbargoUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                clock=SystemClock(),
             ).execute()
 
 

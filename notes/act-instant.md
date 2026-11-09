@@ -4,7 +4,6 @@ status: active
 kind: plan
 tracks:
   - "#5676"   # epic: a re-recorded scenario equals the committed one
-  - "#5757"   # slice 1: clock port, act entry points, tree-run instant, ratchet
   - "#5649"   # slice 2: tree builders and guard nodes (absorbed #5650)
   - "#5651"   # slice 3: sync rate-limit checks and the replication-state key
   - "#5758"   # slice 4: core models and time helpers
@@ -58,9 +57,34 @@ yet. This note holds the order of the work and the rules each slice keeps.
 - **A verdict does not change.** Each migrated decision gives the same answer for
   the same instant as before; a slice that changes a verdict is a behavior change
   and needs its own issue.
-- **A CS-13 rule is restated with the slice that meets it.** CS-13-002,
-  CS-13-004 and CS-13-008 name the current clock helpers; each is rewritten in the
-  PR whose test verifies the new form, not before.
+- **A CS-13 rule is restated with the slice that meets it.** CS-13-004 and
+  CS-13-008 name the current clock helpers; each is rewritten in the PR whose test
+  verifies the new form, not before, as CS-13-002 was with the port (#5757).
+
+## What the later slices build on
+
+- **Read the instant in a node with `self._require_act_instant()`**, in
+  `update()`, never at build. Both ports bases declare the optional `at` port
+  remapped to `/at` (BTND-03-001); code outside a ports node calls
+  `read_act_instant()` (`vultron/core/behaviors/bridge/act_instant.py`). Both
+  raise `VultronMissingActInstantError` when the run carries no `/at`, which the
+  bridge reports as an internal error, so a missing instant is never answered by
+  a clock read (ARCH-10-001).
+- **A test that ticks a reading node outside an act publishes the instant
+  itself**, with `act_instant_in_tree_run(at)` around the tick or `at=` on the
+  outermost `BTBridge.execute_with_setup` call. A nested run takes no `at`; one
+  that passes a different instant fails with `VultronConflictingActInstantError`.
+- **Delete your own lines from the ratchet.**
+  `test/architecture/test_clock_reads_at_act_edge.py` lists each read as
+  `(path, scope, read)` under the constant whose `# owner:` is your slice; a read
+  no slice names is under `KNOWN_UNSLICED_CLOCK_READS` (`# owner: #5676`) until
+  the epic routes it. A permitted edge read goes in `CLOCK_EDGE_EXEMPTIONS`, and
+  a new module that holds a clock in `CLOCK_HOLDER_EXEMPTIONS`.
+- **An act entry point opens the act with `open_act(clock)`** and takes the
+  `ClockPort` from its composition root (`vultron/core/ports/clock.py`; the system
+  clock is `vultron/adapters/driven/clock.py`). Today's entry points:
+  `process_payload`, `SvcBTTriggerBase.execute`, the participant-role trigger,
+  `state_ledger_positions_trigger` and the sender-sequence hold sweep.
 
 ## Slices, in order
 

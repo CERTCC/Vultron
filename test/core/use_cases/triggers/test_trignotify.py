@@ -27,6 +27,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -285,6 +286,7 @@ class TestCaseTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -311,6 +313,7 @@ class TestCaseTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -336,6 +339,7 @@ class TestCaseTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         assert result.activity_id is not None
@@ -371,6 +375,7 @@ class TestCaseTriggerToField:
                 trigger_activity=TriggerActivityAdapter(self.dl),
                 sync_port=SyncActivityAdapter(self.dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
 
@@ -414,6 +419,7 @@ class TestEmbargoTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -452,6 +458,7 @@ class TestEmbargoTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -484,6 +491,7 @@ class TestEmbargoTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -522,6 +530,7 @@ class TestEmbargoTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -554,6 +563,7 @@ class TestEmbargoTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -663,6 +673,7 @@ class TestReportTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -690,6 +701,7 @@ class TestReportTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -725,6 +737,7 @@ class TestReportTriggerToField:
             trigger_activity=TriggerActivityAdapter(self.dl),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -780,6 +793,7 @@ class TestReportTriggerToField:
                 trigger_activity=TriggerActivityAdapter(self.dl),
                 sync_port=SyncActivityAdapter(self.dl),
                 wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
             ).execute()
 
         assert set(self.dl.outbox_list()) == before

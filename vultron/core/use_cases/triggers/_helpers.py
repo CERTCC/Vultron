@@ -23,6 +23,7 @@ framework imports allowed here.
 
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import NamedTuple
 
 from py_trees.common import Status
@@ -347,11 +348,16 @@ def send_case_actor_activity(
     trigger_activity: TriggerActivityPort | None,
     failure_label: str,
     activity_builder: Callable[[str], list[str]],
+    at: datetime,
 ) -> None:
-    """Send an activity to the case manager via the sender-side BT."""
+    """Send an activity to the case manager via the sender-side BT.
+
+    *at* is the calling trigger's act instant, which the tree run carries
+    as ``/at`` (ADR-0176).
+    """
     bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
     tree = sender_side_bt(case_id=case_id, activity_builder=activity_builder)
-    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(tree, actor_id=actor_id, at=at)
     if result.status != Status.SUCCESS:
         raise VultronValidationError(
             f"{failure_label} failed: {BTBridge.get_failure_reason(tree)}"

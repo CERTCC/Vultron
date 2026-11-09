@@ -12,6 +12,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import committed_semantic_types
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -87,6 +88,7 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
         trigger_activity=TriggerActivityAdapter(owner_dl),
         sync_port=SyncActivityAdapter(owner_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     assert result.activity is not None
@@ -133,6 +135,7 @@ def test_terminate_embargo_no_active_embargo_raises_via_bt_node(
             trigger_activity=TriggerActivityAdapter(owner_dl),
             sync_port=SyncActivityAdapter(owner_dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
 
@@ -169,6 +172,7 @@ def test_terminate_embargo_forgets_every_open_revision_via_bt_path(
         trigger_activity=TriggerActivityAdapter(owner_dl),
         sync_port=SyncActivityAdapter(owner_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
@@ -198,6 +202,7 @@ def test_terminate_embargo_queues_the_announce_in_the_outbox(
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     assert len(set(dl.outbox_list()) - before) >= 1
@@ -222,6 +227,7 @@ def test_manager_terminate_queues_nothing_addressed_to_itself(
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        clock=SystemClock(),
     ).execute()
 
     queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
@@ -253,6 +259,7 @@ def test_manager_teardown_is_queued_before_it_is_committed(
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        clock=SystemClock(),
     ).execute()
 
     (remove_id,) = [
@@ -280,6 +287,7 @@ def test_non_manager_terminate_asks_the_case_manager(
         TerminateEmbargoTriggerRequest(actor_id=finder.id_, case_id=case.id_),
         trigger_activity=TriggerActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     updated = cast(VulnerabilityCase, finder_dl.read(case.id_))
@@ -324,6 +332,7 @@ def _terminate(dl: SqliteDataLayer, actor_id: str, case_id: str):
         TerminateEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
 
@@ -383,6 +392,7 @@ def test_terminate_embargo_unknown_actor_raises_not_found(
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
 
@@ -424,6 +434,7 @@ def test_an_early_request_records_its_cause_or_other(
         trigger_activity=TriggerActivityAdapter(owner_dl),
         sync_port=SyncActivityAdapter(owner_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     expected = EmbargoTermination(
@@ -484,6 +495,7 @@ def test_a_participant_ask_carries_the_requested_cause_or_other(
         ),
         trigger_activity=TriggerActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     assert result.activity is not None

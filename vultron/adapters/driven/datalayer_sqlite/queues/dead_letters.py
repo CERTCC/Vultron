@@ -18,13 +18,13 @@ actor's store.
 """
 
 import logging
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from vultron.adapters.outbox_dead_letter import (
     InboxDeadLetterEntry,
     OutboxDeadLetterEntry,
 )
-from vultron.core.models._helpers import now_utc
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle broken for typing only
     # ``datalayer`` imports this module to build its own methods, so the name
@@ -49,6 +49,8 @@ def dead_letter_append(
     total_attempts: int,
     failed_recipients: list[str],
     ledger_entry_id: str | None = None,
+    *,
+    recorded_at: datetime,
 ) -> None:
     """Write an exhausted outbox activity to this actor's dead-letter store.
 
@@ -69,6 +71,8 @@ def dead_letter_append(
         failed_recipients: Actor IDs that could not be reached.
         ledger_entry_id: ID of the ``CaseLedgerEntry`` the activity was
             replicating, or ``None`` for non-ledger activities (OX-14-001).
+        recorded_at: When the store recorded it, from its bookkeeping clock
+            (ADR-0176).
     """
     actor = dl.actor_id
     entry = OutboxDeadLetterEntry(
@@ -78,7 +82,7 @@ def dead_letter_append(
         total_attempts=total_attempts,
         failed_recipients=list(failed_recipients),
         ledger_entry_id=ledger_entry_id,
-        recorded_at=now_utc(),
+        recorded_at=recorded_at,
     )
     dl.save(entry)
     logger.debug(
@@ -132,6 +136,8 @@ def inbox_dead_letter_append(
     reason: str,
     total_attempts: int,
     last_error: str = "",
+    *,
+    recorded_at: datetime,
 ) -> None:
     """Write an exhausted inbox activity to this actor's dead-letter store.
 
@@ -145,6 +151,8 @@ def inbox_dead_letter_append(
         reason: Short machine-readable reason code.
         total_attempts: Total cumulative attempt count at exhaustion.
         last_error: String representation of the last exception raised.
+        recorded_at: When the store recorded it, from its bookkeeping clock
+            (ADR-0176).
     """
     actor = dl.actor_id
     entry = InboxDeadLetterEntry(
@@ -153,7 +161,7 @@ def inbox_dead_letter_append(
         reason=reason,
         total_attempts=total_attempts,
         last_error=last_error,
-        recorded_at=now_utc(),
+        recorded_at=recorded_at,
     )
     dl.save(entry)
     logger.debug(

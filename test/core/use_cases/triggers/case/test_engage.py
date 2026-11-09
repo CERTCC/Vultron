@@ -5,6 +5,7 @@ from typing import cast
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -141,7 +142,10 @@ class TestEngageCaseRMTransitionViaBT:
         )
         before = set(self.dl.outbox_list())
         SvcEngageCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
         updated = self.dl.read(self.vendor_participant.id_)
@@ -182,6 +186,7 @@ class TestEngageCaseRMTransitionViaBT:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
         narrative = [
@@ -227,6 +232,7 @@ class TestEngageCaseRMTransitionViaBT:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
         assert not [
@@ -262,6 +268,7 @@ class TestEngageCaseRMTransitionViaBT:
                     actor_id=self.vendor.id_, case_id=self.case.id_
                 ),
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
         assert set(self.dl.outbox_list()) == before
@@ -284,6 +291,7 @@ class TestEngageCaseRMTransitionViaBT:
                     actor_id=self.vendor.id_, case_id=case_solo.id_
                 ),
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
         assert set(self.dl.outbox_list()) == before
@@ -306,6 +314,7 @@ class TestEngageCaseRMTransitionViaBT:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_engage_case_unknown_actor_raises_not_found(self):
@@ -318,6 +327,7 @@ class TestEngageCaseRMTransitionViaBT:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     def test_engage_case_unknown_case_raises_not_found(self):
@@ -330,4 +340,5 @@ class TestEngageCaseRMTransitionViaBT:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()

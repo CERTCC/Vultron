@@ -23,6 +23,7 @@ import anyio
 import pytest
 
 from test.support.received import delivered, peer_position, received_event
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
@@ -565,7 +566,10 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
     peer_dl.save(entry1)
 
     sent = state_ledger_positions_trigger(
-        peer_dl, peer_actor_id, SyncActivityAdapter(peer_dl)
+        peer_dl,
+        peer_actor_id,
+        SyncActivityAdapter(peer_dl),
+        clock=SystemClock(),
     )
     assert sent == 1
     reads = peer_dl.list_objects("Read")

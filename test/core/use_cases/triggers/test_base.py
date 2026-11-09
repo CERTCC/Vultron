@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import py_trees.behaviour
 import pytest
 
+from vultron.adapters.driven.clock import SystemClock
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.use_case_result import ActivityResult, OfferResult
 from vultron.core.use_cases.triggers._base import (
@@ -25,8 +26,8 @@ _CASE_ID = "https://example.org/cases/c1"
 class _MinimalTrigger(SvcActivityTriggerBase):
     """Simplest concrete subclass: records hook calls and raises nothing."""
 
-    def __init__(self, dl, request, trigger_activity=None):
-        super().__init__(dl, request, trigger_activity)
+    def __init__(self, dl, request, trigger_activity=None, *, clock):
+        super().__init__(dl, request, trigger_activity, clock=clock)
         self.prepare_called = False
         self.build_tree_called = False
         self.handle_result_called = False
@@ -50,8 +51,10 @@ class _EmbargoTrigger(SvcEmbargoTriggerBase):
 
     _assertion_semantic_type = "test_embargo_event"
 
-    def __init__(self, dl, request, trigger_activity=None, subject=None):
-        super().__init__(dl, request, trigger_activity)
+    def __init__(
+        self, dl, request, trigger_activity=None, subject=None, *, clock
+    ):
+        super().__init__(dl, request, trigger_activity, clock=clock)
         self.log_called = False
         self.tree_built = False
         self._subject: str | None = subject
@@ -81,7 +84,10 @@ class _EmbargoTrigger(SvcEmbargoTriggerBase):
 def test_missing_trigger_activity_raises():
     """execute() raises RuntimeError when trigger_activity is None."""
     uc = _MinimalTrigger(
-        dl=MagicMock(), request=object(), trigger_activity=None
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=None,
+        clock=SystemClock(),
     )
     with pytest.raises(RuntimeError, match="requires a TriggerActivityPort"):
         uc.execute()
@@ -90,7 +96,10 @@ def test_missing_trigger_activity_raises():
 def test_missing_trigger_activity_calls_prepare_first():
     """_prepare() is called before the TriggerActivityPort guard."""
     uc = _MinimalTrigger(
-        dl=MagicMock(), request=object(), trigger_activity=None
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=None,
+        clock=SystemClock(),
     )
     with pytest.raises(RuntimeError):
         uc.execute()
@@ -102,7 +111,10 @@ def test_a_received_read_without_a_trigger_port_is_a_wiring_fault():
     """The trigger port is the loader a trigger reads what it received
     through (ADR-0149); without one the read fails loudly, never empty."""
     uc = _MinimalTrigger(
-        dl=MagicMock(), request=object(), trigger_activity=None
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=None,
+        clock=SystemClock(),
     )
     with pytest.raises(VultronWiringError, match="ADR-0149"):
         uc._received_activities  # noqa: B018 - the property raises
@@ -111,7 +123,10 @@ def test_a_received_read_without_a_trigger_port_is_a_wiring_fault():
 def test_the_trigger_port_is_the_received_activity_loader():
     port = MagicMock()
     uc = _MinimalTrigger(
-        dl=MagicMock(), request=object(), trigger_activity=port
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=port,
+        clock=SystemClock(),
     )
     assert uc._received_activities is port
 
@@ -124,7 +139,10 @@ def test_the_trigger_port_is_the_received_activity_loader():
 def test_hooks_called_in_order():
     """Template method calls hooks in the correct sequence."""
     uc = _MinimalTrigger(
-        dl=MagicMock(), request=object(), trigger_activity=MagicMock()
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
     result = uc.execute()
 
@@ -153,13 +171,87 @@ def test_execute_returns_captured_activity():
             return Success(name="capturing-tree")
 
     uc = _CapturingTrigger(
-        dl=MagicMock(), request=object(), trigger_activity=MagicMock()
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
     result = uc.execute()
     assert result == ActivityResult(
         activity={"type": "TestActivity"},
         emitting_actor_id="https://example.org/actor",
     )
+
+
+class _FixedClock:
+    """An act clock that counts its reads and notes whether the lock was held."""
+
+    def __init__(self, at) -> None:
+        self._at = at
+        self.reads = 0
+        self.locked_at_read: list[bool] = []
+
+    def now(self):
+        from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
+
+        self.locked_at_read.append(_BT_GLOBAL_LOCK._is_owned())  # type: ignore[attr-defined]
+        self.reads += 1
+        return self._at
+
+
+@pytest.mark.spec("CS-13-002")
+def test_a_trigger_reads_its_instant_inside_the_lock_and_its_tree_sees_it():
+    """The instant is read at execute(), after the lock, not at construction;
+    the checks before the tree run inside the lock against it, and the tree
+    run carries it as ``/at`` (ADR-0176)."""
+    from datetime import UTC, datetime
+
+    from py_trees.common import Status
+
+    from vultron.core.behaviors.bridge.act_instant import read_act_instant
+    from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
+
+    at = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+    seen: dict[str, object] = {}
+
+    class _ReadsInstant(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            seen["tree"] = read_act_instant()
+            return Status.SUCCESS
+
+    class _Observed(_MinimalTrigger):
+        def _prepare(self) -> None:
+            super()._prepare()
+            seen["prepare_locked"] = _BT_GLOBAL_LOCK._is_owned()  # type: ignore[attr-defined]
+            seen["prepare_at"] = self._at
+
+        def _suppressed_duplicate(self):
+            seen["check_locked"] = _BT_GLOBAL_LOCK._is_owned()  # type: ignore[attr-defined]
+            seen["check_at"] = self._at
+
+        def _build_tree(self) -> py_trees.behaviour.Behaviour:
+            return _ReadsInstant(name="reads-instant")
+
+    clock = _FixedClock(at)
+    uc = _Observed(
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=MagicMock(),
+        clock=clock,
+    )
+    assert clock.reads == 0  # construction reads no clock
+
+    uc.execute()
+
+    assert clock.reads == 1
+    assert clock.locked_at_read == [True]
+    assert seen == {
+        "prepare_locked": True,
+        "prepare_at": at,
+        "check_locked": True,
+        "check_at": at,
+        "tree": at,
+    }
 
 
 def test_invalid_result_is_an_internal_error_not_a_validation_error():
@@ -176,7 +268,10 @@ def test_invalid_result_is_an_internal_error_not_a_validation_error():
             )
 
     uc = _BrokenTrigger(
-        dl=MagicMock(), request=object(), trigger_activity=MagicMock()
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
     with pytest.raises(RuntimeError, match="built an invalid result"):
         uc.execute()
@@ -202,7 +297,10 @@ def test_execute_returns_the_subtype_a_generic_subclass_binds():
             return OfferResult(offer=self._captured.get("offer"))
 
     uc = _OfferTrigger(
-        dl=MagicMock(), request=object(), trigger_activity=MagicMock()
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
     result = uc.execute()
     assert result == OfferResult(offer={"type": "Offer"})
@@ -220,6 +318,7 @@ def test_embargo_handle_result_raises_when_lifecycle_result_missing():
         dl=MagicMock(),
         request=object(),
         trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
     uc._result_out = {}
     with pytest.raises(RuntimeError, match="did not capture lifecycle result"):
@@ -232,6 +331,7 @@ def test_embargo_handle_result_raises_for_wrong_type():
         dl=MagicMock(),
         request=object(),
         trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
     uc._result_out = {"lifecycle_result": "not-the-right-type"}
     with pytest.raises(RuntimeError, match="did not capture lifecycle result"):
@@ -253,6 +353,7 @@ def test_embargo_handle_result_stores_lifecycle_result_and_delegates():
         dl=MagicMock(),
         request=object(),
         trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
     uc._result_out = {"lifecycle_result": lr}
     uc._handle_result()
@@ -277,6 +378,7 @@ def test_embargo_handle_result_records_the_ask_and_skips_the_lifecycle():
         request=object(),
         trigger_activity=MagicMock(),
         subject="proposal-1",
+        clock=SystemClock(),
     )
     uc._actor_id = _ACTOR_ID
     uc._result_out = {ASSERTED_ACTIVITY_KEY: "https://example.org/act/1"}
@@ -312,6 +414,7 @@ def test_embargo_duplicate_ask_is_suppressed_before_the_tree_runs():
         request=object(),
         trigger_activity=MagicMock(),
         subject="proposal-1",
+        clock=SystemClock(),
     )
     result = uc.execute()
 
@@ -337,8 +440,10 @@ def test_embargo_ask_about_another_subject_is_not_suppressed():
         request=object(),
         trigger_activity=MagicMock(),
         subject="proposal-2",
+        clock=SystemClock(),
     )
     uc._actor_id = _ACTOR_ID
+    uc._at = now_utc()  # execute() reads the act's instant; called alone here
     assert uc._suppressed_duplicate() is None
 
 
@@ -379,6 +484,7 @@ def test_wire_render_port_is_published_to_the_tree():
         request=object(),
         trigger_activity=MagicMock(),
         wire_render_port=port,  # type: ignore[arg-type]
+        clock=SystemClock(),
     ).execute()
 
     assert seen["port"] is port
@@ -402,6 +508,8 @@ def _store_with_case():
 def _built_tree(uc: SvcBTTriggerBase) -> py_trees.behaviour.Behaviour:
     from py_trees.behaviours import Success
 
+    # execute() reads the act's instant; these tests build the tree alone.
+    uc._at = now_utc()
     return uc._with_case_clock_decisions(Success(name="own-tree"))
 
 
@@ -421,6 +529,7 @@ def test_a_case_scoped_trigger_leads_with_the_gated_clock_decisions():
         dl=_store_with_case(),
         request=CaseTriggerRequest(case_id=_CASE_ID),
         trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
 
     tree = _built_tree(uc)
@@ -458,6 +567,7 @@ def test_an_embargo_trigger_adds_the_overdue_invite_sweep():
         dl=_store_with_case(),
         request=CaseTriggerRequest(case_id=_CASE_ID),
         trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
 
     assert _stage_decisions(_built_tree(uc)) == [
@@ -478,9 +588,11 @@ def test_terminate_embargo_takes_the_sweep_alone():
         SvcTerminateEmbargoUseCase,
     )
 
-    decisions = SvcTerminateEmbargoUseCase(
-        dl=_store_with_case(), request=object()
-    )._clock_decisions(_CASE_ID)
+    uc = SvcTerminateEmbargoUseCase(
+        dl=_store_with_case(), request=object(), clock=SystemClock()
+    )
+    uc._at = now_utc()  # execute() reads the act's instant; called alone here
+    decisions = uc._clock_decisions(_CASE_ID)
 
     assert [d.name for d in decisions] == [OVERDUE_INVITES_SWEEP_NAME]
 
@@ -500,6 +612,7 @@ def test_a_trigger_taking_no_clock_decision_runs_its_own_tree_alone():
         dl=_store_with_case(),
         request=CaseTriggerRequest(case_id=_CASE_ID),
         trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
 
     assert _built_tree(uc).name == "own-tree"
@@ -507,7 +620,10 @@ def test_a_trigger_taking_no_clock_decision_runs_its_own_tree_alone():
 
 def test_a_trigger_naming_no_case_runs_its_own_tree_alone():
     uc = _MinimalTrigger(
-        dl=_store_with_case(), request=object(), trigger_activity=MagicMock()
+        dl=_store_with_case(),
+        request=object(),
+        trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
 
     assert _built_tree(uc).name == "own-tree"
@@ -523,6 +639,7 @@ def test_a_trigger_naming_an_unknown_case_runs_its_own_tree_alone():
         dl=_store_with_case(),
         request=CaseTriggerRequest(case_id="https://example.org/cases/other"),
         trigger_activity=MagicMock(),
+        clock=SystemClock(),
     )
 
     assert _built_tree(uc).name == "own-tree"

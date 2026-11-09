@@ -35,6 +35,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     suggest_actor_to_case_trigger_bt,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
@@ -81,6 +82,8 @@ class _SvcRecommendActorBase(SvcActivityTriggerBase):
         call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        *,
+        clock: ClockPort,
     ) -> None:
         super().__init__(
             dl=dl,  # type: ignore[arg-type]
@@ -88,6 +91,7 @@ class _SvcRecommendActorBase(SvcActivityTriggerBase):
             trigger_activity=trigger_activity,  # type: ignore[arg-type]
             wire_render_port=wire_render_port,
             sync_port=sync_port,
+            clock=clock,
         )
         self._actor_discovery_call_out = call_out
 

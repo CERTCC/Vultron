@@ -33,6 +33,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import committed_semantic_types, fail_commits
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -446,6 +447,7 @@ def _manager_revises(net: LedgerNetwork, days: int) -> str:
             end_time=days_from_now_utc(days),
         ),
         **_ports(net),
+        clock=SystemClock(),
     ).execute()
     (revision_id,) = net.case(MANAGER).proposed_embargo_ids
     return revision_id
@@ -456,6 +458,7 @@ def _manager_activates(net: LedgerNetwork) -> None:
         net.stores[MANAGER],
         AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_ports(net),
+        clock=SystemClock(),
     ).execute()
 
 

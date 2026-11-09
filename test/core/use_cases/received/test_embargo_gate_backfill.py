@@ -29,6 +29,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -204,6 +205,7 @@ class _GateScenario:
             trigger_activity=TriggerActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
     def cascade_terminate(self) -> None:
