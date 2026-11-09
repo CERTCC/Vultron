@@ -218,6 +218,9 @@ groups:
       the scoped install restores the previous source on exit and on an exception and
       refuses to nest; a test in `test/adapters/driving/fastapi/test_app_isolation.py`
       confirms that `create_app()` installs no id source.
+      `test/architecture/test_single_object_id_minter.py` confirms that no code under
+      `vultron/` names the system id source except the slot that holds it as the
+      default, so nothing draws past an installed source.
     relationships:
     - rel_type: refines
       spec_id: OID-01-004

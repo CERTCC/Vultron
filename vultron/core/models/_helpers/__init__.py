@@ -41,7 +41,6 @@ from vultron.core.models._helpers.ids import (
     _as_id,
     install_id_source,
     new_object_id,
-    system_id_source,
 )
 from vultron.core.models._helpers.inbound import (
     INBOUND_CONTEXT_KEY,
@@ -88,6 +87,5 @@ __all__ = [
     "refuse_absent_published",
     "require_future_aware",
     "strip_annotated",
-    "system_id_source",
     "timestamp_serializer",
 ]

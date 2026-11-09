@@ -21,8 +21,8 @@ from vultron.core.models._helpers import (
     IdSource,
     install_id_source,
     new_object_id,
-    system_id_source,
 )
+from vultron.core.models._helpers.ids import system_id_source
 from vultron.core.models.base import CoreRecord
 from vultron.errors import VultronIdSourceInstalledError, VultronWiringError
 from vultron.wire.as2.vocab.base.objects.base import as_Object
