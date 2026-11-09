@@ -10,7 +10,7 @@ tracks:
   - "#5758"   # slice 4: core models and time helpers
   - "#5652"   # slice 5: the parse edge reads no clock
   - "#5760"   # slice 6: recordings through the port
-  - "#5761"   # follow-on: generated ids through an id source
+  - "#5761"   # follow-on: generated ids, decided in ADR-0185
   - "#5848"   # follow-on: drift limit, after the call-out budget (#3423)
 description: >
   The unbuilt migration to ADR-0176: each act reads the clock once at its edge,
@@ -85,5 +85,6 @@ yet. This note holds the order of the work and the rules each slice keeps.
    recording is regenerated once. Update the recording-clock paragraph in
    `notes/demo-scenario-tree.md` in the same PR.
 
-Generated ids follow the same pattern in a later decision (#5761); they are not
-part of this plan.
+Generated ids are not part of this plan. ADR-0185 decides them differently: the one
+minter draws from an id-source port, and ids are not threaded to the act's edge
+(`notes/id-source.md`).
