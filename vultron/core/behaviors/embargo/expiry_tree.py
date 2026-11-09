@@ -41,9 +41,10 @@ CASE_MANAGER too (BT-17-001, HP-01-005).
 A replica copies the row from the ``Update`` entry (CM-23-016).
 
 A late Accept is then answered by its compatibility with the case's embargo
-(EMB-17-001).  One the case's current embargo still binds is honoured: it is
-recorded as an on-time Accept is, its own entry carrying the row it states
-(EMB-17-002, ADR-0152).  The other two are diversions of the Accept tree
+(EMB-17-001).  One the case can still answer — its Active Embargo or an open
+proposal — is honoured: it is recorded as an on-time Accept is, its own entry
+carrying the row it states (EMB-17-002, ADR-0152).  The other two are
+diversions of the Accept tree
 (:func:`late_accept_diversions`, CLP-10-026), which declares the CASE_MANAGER
 path alone, so they run only there (HP-01-038); the re-invite
 changes the case and follows commit → effect, and the other changes
@@ -225,6 +226,7 @@ def _late_accept_condition(
     accepting_actor_id: str,
     route: LateAcceptRoute,
     result_out: dict[str, Any],
+    now: datetime,
 ) -> py_trees.behaviour.Behaviour:
     """The Invite expired, and its late Accept takes the *route* arm."""
     children: list[py_trees.behaviour.Behaviour] = [
@@ -241,6 +243,7 @@ def _late_accept_condition(
             embargo_id=embargo_id,
             accepting_actor_id=accepting_actor_id,
             route=route,
+            now=now,
         ),
     ]
     return py_trees.composites.Sequence(
@@ -257,6 +260,7 @@ def late_accept_diversions(
     accepting_actor_id: str,
     answers: str | None,
     result_out: dict[str, Any],
+    now: datetime,
     actor_config: "ActorConfig | None" = None,
 ) -> list[Diversion]:
     """The CASE_MANAGER's two diverted answers to a late embargo Accept (EMB-17).
@@ -271,14 +275,16 @@ def late_accept_diversions(
     :class:`~vultron.core.behaviors.embargo.nodes.late_accept.LateAcceptRouteIsNode`
     reads from the case; the conditions are exclusive, so one answer runs
     at most, and the late Accept itself is not committed.  A late Accept of
-    the embargo in force takes neither: it is honoured by being recorded as
-    an on-time Accept is (EMB-17-002, ADR-0152).
+    the Active Embargo or of an open proposal takes neither: it is honoured
+    by being recorded as an on-time Accept is (EMB-17-002, ADR-0152).
 
-    - **Re-invite** (EMB-17-003): invite the accepter to the embargo in
-      force with a relayed Invite attributed to its proposer; the node stamps
-      a fresh deadline, queues the Invite, commits it once queued and applies
-      PEC ``INVITE`` (ADR-0119, CM-28-013, ADR-0152).
-    - **Bind nothing** (EMB-17-004): the case holds no embargo for the Accept
+    - **Re-invite** (EMB-17-003): invite the accepter to the case's terms —
+      the Active Embargo, or else its earliest-expiring open proposal whose
+      embargo has not ended — with a relayed Invite attributed to its
+      proposer; the node stamps a fresh deadline, queues the Invite, commits
+      it once queued and applies PEC ``INVITE`` (ADR-0119, CM-28-013,
+      ADR-0152).
+    - **Bind nothing** (EMB-17-004): the case holds no terms for the Accept
       to bind, so it changes nothing: no entry, nothing sent, no consent row
       moved (ADR-0152).
 
@@ -288,6 +294,8 @@ def late_accept_diversions(
         accepting_actor_id: The late accepter.
         answers: The late Accept's id; the re-invite's id derives from it.
         result_out: The Invite expiry decision's findings.
+        now: The CASE_MANAGER's clock, against which a proposal's end time
+            is read (``late_accept_terms``).
         actor_config: The CASE_MANAGER's configuration (RSVP window).
     """
 
@@ -298,6 +306,7 @@ def late_accept_diversions(
             accepting_actor_id=accepting_actor_id,
             route=route,
             result_out=result_out,
+            now=now,
         )
 
     reinvite = Diversion(
@@ -307,6 +316,7 @@ def late_accept_diversions(
             ReinviteLateAccepterNode(
                 case_id=case_id,
                 invitee_id=accepting_actor_id,
+                now=now,
                 actor_config=actor_config,
                 answers=answers,
             ),
@@ -332,12 +342,14 @@ def on_time_or_honoured_accept(
     embargo_id: str,
     accepting_actor_id: str,
     result_out: dict[str, Any],
+    now: datetime,
 ) -> py_trees.behaviour.Behaviour:
     """Guard: the Accept is on time, or a late Accept the case honours.
 
     The backstop after :func:`late_accept_diversions`: an Accept the Invite
-    expiry found late is recorded as an answer only when the accepted embargo
-    is the case's current one (EMB-17-002), exactly as an on-time Accept is,
+    expiry found late is recorded as an answer only when the case can still
+    answer the accepted embargo — its Active Embargo or an open proposal
+    (EMB-17-002, MSM-07-003) — exactly as an on-time Accept is,
     its entry carrying the row it states (ADR-0152).  Any other late Accept
     was answered by a diversion, and is never recorded (EMB-17-005).
     """
@@ -355,6 +367,7 @@ def on_time_or_honoured_accept(
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
                 route=LateAcceptRoute.HONOUR,
+                now=now,
             ),
         ],
     )

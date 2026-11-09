@@ -5,6 +5,8 @@ kind: plan
 tracks:
   - "#1156"
   - "#5911"
+  - "#6100"
+  - "#5954"
   - "#1147"
   - "#5676"
   - "#5677"
@@ -15,12 +17,13 @@ tracks:
   - "#5674"
   - "#5913"
   - "#5068"
-  - "#5193"
+  - "#5931"
   - "#5396"
   - "#5829"
   - "#5830"
   - "#5683"
   - "#2619"
+  - "#3794"
 description: >
   The year goal (Vultron piloted on CERT/CC's own case work and available for
   others to try) and the 2026Q4 objectives with their finish lines: Interconnect,
@@ -65,15 +68,17 @@ Vultron exchanges case data with outside systems. Deliverables, in this order:
    (#5911). The CSAF document is an attachment of the report in
    `Offer(VulnerabilityReport)`, with no new wire activity (ADR-0184). The build
    tasks are #6089 to #6094, and the deliverable waits on the Offer(Report)
-   receive tree rewrite (#5045, #5046).
+   receive tree rewrite (#5045, #5046). A demo scenario shows it end to end
+   (#6100), and it waits on #6091 and #6092.
 2. **That offer carries a seeded-key proof that is verified** (#1156). A missing
    or failing proof gets 422 with its own error name (#5763), not 401: a proof is
    content, not an HTTP credential.
 3. **The VINCE shadow reads a real VINCE case and prompts a human.** It runs
    Vultron's own case logic on a local copy, held as CERT/CC's Case Manager, and
-   raises prompts at call-out points. A Sentinel carries VINCE changes in. Its path
-   starts with the call-out shapes (#1147); the shadow itself has no Epic yet, and
-   it needs VINCE API access.
+   raises prompts at call-out points. A Sentinel carries VINCE changes in (#5954).
+   Its prompts wait on the call-out shapes (#1147). VINCE API access and a host
+   (#5957) and the data-handling decision (#5956) need the maintainer, so start
+   them before the Epic reaches Focus.
 
 The VINCE gateway is 2027. Replay of historical VINCE cases moved to the shadow:
 reading live cases through the API covers what a data dump was for.
@@ -108,9 +113,13 @@ later measure one real case both ways and compare.
 
 ### Health (budget)
 
-The receive pipeline's checks (#5193), order independence (#5396), `plan/history`
-cleanup (#5829), size estimates that predict PR size (#5830), AS2-only fields
-(#5683) and tests that check what they claim (#2619).
+Case authority answered in one place (#5931), order independence (#5396),
+`plan/history` cleanup (#5829), size estimates that predict PR size (#5830),
+AS2-only fields (#5683), tests that check what they claim (#2619) and a docs site
+that follows green `main` (#3794).
+
+Case authority (#5931) edits the received-message trees that #5674 is aligning
+with the specs, so it waits for #5674 to close.
 
 Among the Health Epics in Now, #5830 comes first: its recalibrated estimates feed
 the staggering rule's "closest to done" judgment. #5683's child #5168 (outbound

@@ -271,7 +271,13 @@ catch-up path.
   The re-invite names the embargo in force, or the earliest-expiring open
   proposal when none is in force (EMB-17-003, EP-08-002); the no-op's is the
   only case with nothing to name, so a re-invite arm that finds nothing has a
-  wrong route above it, not a missing fallback. The honour commits the Accept
+  wrong route above it, not a missing fallback. **Select only live proposals,
+  and ask only a row `INVITE` moves:** a `PROPOSED` entry stays open past its
+  embargo's `end_time` (nothing cancels it), but an Invite to it has no legal
+  RSVP deadline (EP-07-002, EP-07-006), so a case whose proposals have all ended
+  takes the no-op; and an `INVITED` or `AGREED` row is already asked or
+  answered (CM-18-003), so the re-invite sends nothing (`late_accept_terms`,
+  `ReinviteLateAccepterNode`). The honour commits the Accept
   itself, as an on-time Accept is, and the re-invite a relayed Invite
   attributed to the embargo's proposer, so replicas learn the outcome
   (RSH-08-004, ADR-0152); the no-op changes nothing

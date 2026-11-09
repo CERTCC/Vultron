@@ -288,6 +288,60 @@ print(requirement_callout(
 ))
 ```
 
+## Requirements a test shows `main` meets only in part
+
+Each requirement below has tests that pass and at least one test that is held by a strict expected failure (`xfail`) or a skip.
+So the tests show that `main` meets part of the requirement, but not all of it.
+The requirements are grouped by the issues that the held tests cite.
+
+### Tracked by [#2884](https://github.com/CERTCC/Vultron/issues/2884)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ASK-03-002",
+))
+```
+
+### Tracked by [#3698](https://github.com/CERTCC/Vultron/issues/3698)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CBT-06-002",
+))
+```
+
+### Tracked by [#3918](https://github.com/CERTCC/Vultron/issues/3918) and [#3964](https://github.com/CERTCC/Vultron/issues/3964)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-24-014",
+))
+```
+
+### Tracked by [#5386](https://github.com/CERTCC/Vultron/issues/5386)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "SIG-01-003",
+    "SIG-02-001",
+    "SIG-03-002",
+))
+```
+
+### Tracked by [#6073](https://github.com/CERTCC/Vultron/issues/6073)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "HTTP-03-004",
+    "IE-07-001",
+))
+```
+
 ## Requirements no test checks
 
 For each requirement below, no test shows `main` does this.
@@ -571,7 +625,6 @@ print(requirement_callout(
     "RMB-01-002",
     "RMB-01-003",
     "RMB-01-004",
-    "RMB-01-005",
     "RMB-02-001",
     "RMB-02-002",
     "RMB-03-001",
@@ -590,7 +643,6 @@ print(requirement_callout(
     "RMB-10-002",
     "RMB-10-003",
     "RMB-10-004",
-    "RMB-11-002",
     "RMB-11-004",
     "RMB-12-002",
     "RMB-12-003",
