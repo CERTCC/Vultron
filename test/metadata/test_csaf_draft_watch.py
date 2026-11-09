@@ -515,3 +515,22 @@ def test_a_long_diff_is_cut_short_in_the_issue(pin: CsafPin) -> None:
     assert "+line 199" in body
     assert "+line 200" not in body
     assert "300 more lines" in body
+
+
+@pytest.mark.parametrize(
+    ("fragment", "found"),
+    [("/oneOf/1/type", "integer"), ("/oneOf/2", None), ("anchor", None)],
+)
+def test_a_json_pointer_resolves_or_is_unresolved(
+    pin: CsafPin, fragment: str, found: str | None
+) -> None:
+    schemas = SchemaSet(
+        pin=pin,
+        files={pin.root: {"oneOf": [{"type": "string"}, {"type": "integer"}]}},
+    )
+
+    if found is None:
+        with pytest.raises(draft_watch.UnresolvedReferenceError):
+            schemas.node(pin.root, fragment)
+    else:
+        assert schemas.node(pin.root, fragment) == found
