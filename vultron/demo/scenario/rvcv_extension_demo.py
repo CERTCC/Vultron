@@ -245,7 +245,7 @@ def both_vendors_fix_the_vul(state: StoryState) -> None:
 
 
 def everyone_publishes(state: StoryState) -> None:
-    """Vendor1, as CASE_OWNER, publishes first; the Reporter reports last."""
+    """Vendor1, the Case Owner, publishes first; the Reporter reports last."""
     reports_published(state, VENDOR)
     the_embargo_ends_for(
         state,

@@ -196,3 +196,10 @@ C1, the Vendor, and the Reporter leave first; C2, the Case Owner since the hando
 
 The ownership offer is not an unobservable step.
 The Case Actor records it as `offer_case_ownership_transfer` once it sends the offer, and C2's `accept_case_ownership_transfer` follows it, which is the edge declared above.
+
+## The story as the code tells it
+
+This is the plot of the scenario as the demo code composes it, generated from that code.
+It is here so a reader can check the narrative above against what the demo actually runs; where the two disagree, the narrative is the one written independently, so read it as the claim and this as the evidence.
+
+{% include-markdown "./_rccv-handoff-story.md" %}

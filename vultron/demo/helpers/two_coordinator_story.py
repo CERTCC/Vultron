@@ -241,7 +241,7 @@ def c2_is_seeded(state: StoryState) -> None:
 
 
 def c1_invites_c2(state: StoryState) -> None:
-    """C1 invites C2 with ``CVDRole.COORDINATOR``; C2 accepts and joins.
+    """C1 invites C2 to coordinate too; C2 accepts and joins.
 
     C2 holds ``CVDRole.COORDINATOR`` and **not** ``CVDRole.CASE_MANAGER``,
     which stays with the CaseActor (DEMOMA-13-003).  It runs no RM triage: it
@@ -305,7 +305,7 @@ def required_participants_are_present(state: StoryState) -> None:
 
 
 def every_replica_converges(state: StoryState) -> None:
-    """Verify LedgerFanout replication for the Reporter, C2 and Vendor replicas.
+    """Ledger Fanout reaches the Reporter, C2 and the Vendor.
 
     Thin call to the shared sync helper (DEMOMA-23-007), naming only this
     pair's authority, replicas and late joiner.  C1 is the authority in both

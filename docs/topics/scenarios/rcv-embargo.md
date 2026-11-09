@@ -145,3 +145,10 @@ The Coordinator, the Case Owner, leaves last.
 ### 7. Ledger dump
 
 The scenario writes each participant's case ledger for the invariant harness, on success and on failure.
+
+## The story as the code tells it
+
+This is the plot of the scenario as the demo code composes it, generated from that code.
+It is here so a reader can check the narrative above against what the demo actually runs; where the two disagree, the narrative is the one written independently, so read it as the claim and this as the evidence.
+
+{% include-markdown "./_rcv-embargo-story.md" %}

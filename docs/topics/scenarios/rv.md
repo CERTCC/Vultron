@@ -149,3 +149,10 @@ The Vendor's `close_case` follows the Reporter's.
 | Unobservable step | Why not in ledger |
 |---|---|
 | Reporter submits report to Vendor | Report submission is an out-of-band API call; the case does not yet exist when the report is submitted. |
+
+## The story as the code tells it
+
+This is the plot of the scenario as the demo code composes it, generated from that code.
+It is here so a reader can check the narrative above against what the demo actually runs; where the two disagree, the narrative is the one written independently, so read it as the claim and this as the evidence.
+
+{% include-markdown "./_rv-story.md" %}

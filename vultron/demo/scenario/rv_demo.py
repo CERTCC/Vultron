@@ -264,7 +264,7 @@ def _the_reporter_replica_reflects_the_fix(state: StoryState) -> None:
 
 
 def both_publish(state: StoryState) -> None:
-    """The Vendor, as CASE_OWNER, publishes first; then the Reporter."""
+    """The Vendor, the Case Owner, publishes first; then the Reporter."""
     reports_published(state, VENDOR)
     the_embargo_ends_for(
         state,

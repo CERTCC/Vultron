@@ -14,15 +14,19 @@
 
 :data:`Fragment`, :class:`StoryProp`, :func:`choose` and :func:`story`, the
 parts a scenario writes its story from (:mod:`vultron.demo.helpers.story`),
-and :func:`fragment_name`, how a fragment is named once it is written down.
+and :func:`fragment_name` and :func:`fragment_sentence`, how a fragment is
+named and how it says what it does once it is written down.
 """
 
 from __future__ import annotations
 
+import inspect
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from vultron.demo.helpers.cast import CASE_ACTOR, CAST
 from vultron.demo.scenario.branch_points import validate_path
 from vultron.demo.scenario.tree import PathStep
 from vultron.errors import DemoStoryError
@@ -97,6 +101,133 @@ def fragment_name(fragment: object, *, scenario: str) -> str:
             "inside it."
         )
     return f"{module}.{qualname}"
+
+
+#: Every cast container name: the five actor slots and the dedicated CaseActor
+#: slot (:mod:`vultron.demo.helpers.cast`).  A container is *where* a step
+#: runs, never what it does, so naming one in a fragment's opening sentence
+#: tells a reader of the story nothing about the case (DEMOCI-11-066).
+_CONTAINER_NAMES: frozenset[str] = frozenset(
+    slot.name for slot in (*CAST, CASE_ACTOR)
+)
+
+#: A code identifier spelled as words joined by underscores:
+#: ``add_note_to_case``, ``CASE_OWNER``.  It is the one spelling a sentence
+#: about coordinated disclosure never needs — the domain terms are "the case
+#: note" and "the Case Owner" — so it is the mechanical signal that a
+#: docstring opened in code rather than in domain terms (DEMOCI-11-066).
+_IDENTIFIER_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b")
+
+
+def _opening_paragraph(fragment: object) -> str:
+    """Return *fragment*'s docstring up to its first blank line, as one line.
+
+    The docstring's summary, not its first physical line: a summary long
+    enough to wrap is still one sentence, and reading only the first line
+    would cut it in half.  Everything after the blank line is the body, which
+    a story never shows.
+    """
+    doc = inspect.getdoc(fragment)
+    if not doc:
+        return ""
+    summary: list[str] = []
+    for line in doc.splitlines():
+        if not line.strip():
+            break
+        summary.append(line.strip())
+    return " ".join(summary)
+
+
+def _sentence_violations(sentence: str) -> list[str]:
+    """Return every way *sentence* is not one sentence in CVD domain terms.
+
+    Every violation is reported, not the first: the sentence is refused as a
+    unit, so an author told one reason at a time gains nothing from the round
+    trip (EH-07-001).
+    """
+    violations: list[str] = []
+    if not sentence.endswith("."):
+        violations.append(
+            "it does not end in a full stop, so where the sentence ends is a "
+            "guess"
+        )
+    if ". " in sentence:
+        violations.append(
+            "it holds more than one sentence; the opening sentence is the "
+            "whole of what a story shows for the step, so put the rest in "
+            "the docstring's body"
+        )
+    if "`" in sentence:
+        violations.append(
+            "it holds a backtick, which marks code rather than domain prose"
+        )
+    violations.extend(
+        f"it names the code identifier {match!r}"
+        for match in _IDENTIFIER_RE.findall(sentence)
+    )
+    lowered = sentence.lower()
+    violations.extend(
+        f"it names the cast container {name!r}"
+        for name in sorted(_CONTAINER_NAMES)
+        if re.search(rf"\b{re.escape(name)}\b", lowered)
+    )
+    return violations
+
+
+def fragment_sentence(fragment: object, *, scenario: str) -> str:
+    """Return *fragment*'s opening sentence: what the step does, in domain terms.
+
+    The plot manifest names a fragment by code (:func:`fragment_name`), which
+    a CVD domain expert cannot review.  One domain sentence per fragment is
+    what lets each scenario's plot render as a numbered story on its narrative
+    page (DEMOCI-11-065, DEMOCI-11-067).
+
+    A step that cannot be named cannot be read either, so this starts from
+    :func:`fragment_name`.  That is not only for the message: a
+    ``functools.partial`` and a callable instance both answer ``__doc__``
+    with a docstring their *class* owns — ``functools.partial``'s own reads
+    "Create a new function with partial application ..." — which says nothing
+    about the step and would pass every check below.
+
+    Args:
+        fragment: The story item, a :data:`Fragment`.  Typed as an opaque
+            object for the same reason as in :func:`fragment_name`: whether it
+            carries a usable docstring at all is part of what is being
+            decided.
+        scenario: The scenario whose story holds it, for the message.
+
+    Returns:
+        The docstring's summary — its text up to the first blank line, joined
+        into one line.
+
+    Raises:
+        DemoStoryError: As :func:`fragment_name`, and when the summary is
+            missing, is more than one sentence, or is written in code rather
+            than in domain terms (DEMOCI-11-066).  Refusing beats rendering
+            it: a story line holding a backtick or a ``snake_case`` name is
+            the manifest's code name again, which is what the rendering
+            exists to replace.
+    """
+    name = fragment_name(fragment, scenario=scenario)
+    sentence = _opening_paragraph(fragment)
+    violations = (
+        _sentence_violations(sentence)
+        if sentence
+        else [
+            "it has no docstring, so there is no sentence to open with; "
+            "every fragment the plot manifest names has one"
+        ]
+    )
+    if violations:
+        raise DemoStoryError(
+            f"scenario {scenario!r} has a story fragment "
+            f"{name} whose opening sentence cannot be "
+            f"told as a story: {'; '.join(violations)} (DEMOCI-11-065, "
+            "DEMOCI-11-066). Open the docstring with one sentence saying "
+            "what the step does in CVD domain terms, naming roles and acts "
+            "rather than identifiers, helpers or containers."
+        )
+    return sentence
 
 
 @dataclass(frozen=True)

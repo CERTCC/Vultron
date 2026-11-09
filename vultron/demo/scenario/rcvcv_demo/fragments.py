@@ -154,7 +154,7 @@ C2_JOINED: StoryProp[str] = StoryProp("case C2 joined", str)
 
 
 def c1_invites_the_second_coordinator(state: StoryState) -> None:
-    """C1 invites C2 with ``CVDRole.COORDINATOR``; C2 accepts and joins.
+    """C1 invites C2 to coordinate too; C2 accepts and joins.
 
     C2 runs no RM triage: it joins to help coordinate, not to judge the
     report, so it engages no case of its own (CM-11-022 applies to the
@@ -213,7 +213,7 @@ def c2_suggests_the_vendor_deployer(state: StoryState) -> None:
 
 
 def every_replica_converges(state: StoryState) -> None:
-    """Verify LedgerFanout replication for all participant replicas."""
+    """Ledger Fanout reaches every participant's replica of the case."""
     run_sync_verification_phase(
         auth_client=state.client(C1),
         auth_label=C1_LABEL,

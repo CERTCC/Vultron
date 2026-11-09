@@ -170,7 +170,7 @@ def vendor1_hands_the_case_to_the_coordinator(state: StoryState) -> None:
 
 
 def the_coordinator_invites_the_second_vendor(state: StoryState) -> None:
-    """The Coordinator, the new CASE_OWNER, invites Vendor2 (DEMOMA-11-003)."""
+    """The Coordinator, the new Case Owner, invites Vendor2 (DEMOMA-11-003)."""
     the_new_owner_invites(
         state,
         new_owner=COORDINATOR_PART,
