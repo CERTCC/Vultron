@@ -184,13 +184,25 @@ registry takes no path parameter, so the path cannot be stated a second time
 the coordinator-first subtree, whose Reporter tells a Coordinator, and the
 vendor-first half, whose Reporter tells a Vendor.
 
-- **The API is four names.** `vultron/demo/helpers/story/` holds them:
+- **An author writes a story from four names.** `vultron/demo/helpers/story/`
+  holds them:
   `choose(branch point, choice, by=<cast name>)` declares one decision,
   `story(...)` concatenates named prefixes, choices and fragments into one flat
   sequence, `StoryState` is what a fragment runs against, and `run_story(name,
   plot, open_cast)` plays it inside `scenario_harness`. Prefer adding a
   fragment to extending the API — with one exception, the artifacts a family
-  carries between its own steps (below).
+  carries between its own steps (below). The package exports one more,
+  `fragment_name`, which nothing a story writes calls: it is how the plot
+  manifest records a step (next bullet).
+- **A story item is a named module-level callable, or it is refused.**
+  `fragment_name` records a fragment as `module.qualname`, so a lambda, a
+  closure, a `functools.partial`, a callable instance, and any fragment a
+  factory binds at module level (its qualname carries `<locals>`) raise
+  `DemoStoryError` instead of reaching the manifest (DEMOCI-11-034). The
+  reason is the diff: a name that moves when an unrelated enclosing function
+  is renamed makes every later manifest diff unreadable, which is the one
+  thing the artifact exists to keep legible. Write a parameterized helper as
+  a call *inside* a named fragment, the way the invite chain already does.
 - **A family's own artifacts are props, not state fields.** `StoryState` names
   what every story has: the case, the report, the Offer, the delivered
   Invites. What one family passes between its own steps is a
@@ -463,16 +475,18 @@ vendor-first half, whose Reporter tells a Vendor.
   fragment names, read without running anything, and drift-fails on any change in
   order (DEMOCI-11-034, DEMOCI-11-035). `TestSharedPrefixes` compares two *committed*
   recordings with each other, so a reordered shared fragment moves both alike and
-  still passes it. `demo-verdict.yml` is what catches the reorder a PR makes, and
-  running the comparison by hand is for reading a difference before pushing: `uv run
-  compare-demo-runs --write /tmp/runs/base` on the base commit and `--write
-  /tmp/runs/head` on the head, then `uv run compare-demo-runs --base /tmp/runs/base
-  --head /tmp/runs/head`. **Two directories, outside the repository**: one name in both
-  positions makes the head write overwrite the base and the comparison compare a
-  directory with itself, which reports every scenario unchanged — the silent pass of
-  #5589 again, so the command refuses it. It reads both traces, so it needs no clean
-  tree and overwrites no committed file. Step-mark drift stays the scheduled
-  `demo-recordings` run's business: a mark can move to a
+  still passes it. `demo-verdict.yml` is what catches the reorder a PR makes. Running
+  the comparison by hand is for reading a difference before pushing, most of all in a
+  PR that edits *inside* a fragment: that is the one change the manifest cannot see,
+  while a reorder drift-fails the manifest instead. On the base commit run `uv run
+  compare-demo-runs --write /tmp/runs/base`, on the head `--write /tmp/runs/head`,
+  then `uv run compare-demo-runs --base /tmp/runs/base --head /tmp/runs/head`. **Two
+  directories, outside the repository**: one name in both positions makes the head
+  write overwrite the base and the comparison compare a directory with itself, which
+  reports every scenario unchanged — the silent pass of #5589 again, so the command
+  refuses it. It reads both traces, so it needs no clean tree and overwrites no
+  committed file. Step-mark drift stays the scheduled `demo-recordings` run's
+  business: a mark can move to a
   different ledger tail with the ledger unchanged, and the comparison *compares*
   neither the marks nor the committed files. It does still **read** the marks — a run
   that leaves none, or leaves them out of its declared path's order, fails
@@ -529,6 +543,8 @@ point stops a run there.
 1. Test starting points: #5344 (one act cheap) and #5345 (the harness, which
    stops a run at a step mark), then the pilot #5346, then the migrations
    #5347 and #5348, and last #5349.
-2. The plot manifest (#5613), then the clock-reading read paths that keep a
-   shared stretch from being byte-stable: #5649, #5650, #5651 and #5652.
-3. The story rendering (#6028) needs only the plot manifest (#5613).
+2. The clock-reading read paths that keep a shared stretch from being
+   byte-stable: #5649, #5650, #5651 and #5652. The plot manifest they follow is
+   committed.
+3. The story rendering (#6028) needs only the plot manifest, so nothing blocks
+   it.

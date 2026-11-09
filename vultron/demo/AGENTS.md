@@ -46,16 +46,16 @@ Actor's Replica Updates via the CASE_MANAGER's Announce". (CONCERN-1635, ISSUE-2
 
 A scenario module declares itself, and nothing else anywhere does:
 
-- `@scenario(name, label, participants, feature, in_pr_set, story)` on `main()`,
-  from `scenario/registry/`. `story` is **required** and is the only thing that
-  places the scenario on the tree: its path is read off the story's `choose(...)`
-  items, which name `scenario/branch_points.py` entries, and there is no path
-  parameter to state it a second time (DEMOCI-11-019, DEMOCI-11-024). Every table
-  and `.github/demo-scenarios.json` are generated from it (`demo-scenarios --write`,
-  gated by `demo-scenarios-sync`): never hand-edit one, change the decorator. Script,
-  harness and narrative paths are **derived** from `name` (`<name_>_demo.py` or a
-  `<name_>_demo/` package, `test_<name_>_invariants.py`, `<name>.md`; hyphens become
-  underscores) — rename to match, never add an override (DEMOCI-11-003).
+- `@scenario(name, label, participants, feature, in_pr_set, story)` on `main()`, from
+  `scenario/registry/`. `story` is **required** and is the only thing that places the
+  scenario on the tree: its path is read off the story's `choose(...)` items, which name
+  `scenario/branch_points.py` entries, and there is no path parameter to state it a
+  second time (DEMOCI-11-019, DEMOCI-11-024). Every table, `.github/demo-scenarios.json`
+  and `scenario/plots.json` are generated from it (`demo-scenarios --write`, gated by
+  `demo-scenarios-sync`): never hand-edit one, change the decorator. Script, harness and
+  narrative paths are **derived** from `name` (`<name_>_demo.py` or a `<name_>_demo/`
+  package, `test_<name_>_invariants.py`, `<name>.md`; hyphens become underscores) —
+  rename to match, never add an override (DEMOCI-11-003).
 - `ROLES: list[ActorRole]` (`helpers/actor_roles.py`), one frozen role per actor
   **in `main()` parameter order**, and `CLI_HELP: str`. These generate the
   scenario's `--<role>-url` / `--<role>-id` options and its `--help`; each address
