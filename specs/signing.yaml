@@ -116,6 +116,58 @@ groups:
     - ADR-0164
     stories:
     - story_2022_035
+  - id: SIG-02-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A verifier MUST take a proof's key only from the author's profile as fetched from
+      the author's own profile URL, never from a copy it stores.
+    rationale: >-
+      A stored copy of a peer's profile came from somewhere other than that peer, such
+      as an activity that embedded it, so a key planted in it would let the planter sign
+      as the peer. Fetching from the peer's own URL is the one source the receiver can
+      trust as far as it trusts the peer's id. Whether to pin the first key fetched
+      (trust on first use), and how a fetched key is cached or rotated, are #1184's to
+      decide.
+    verification: >-
+      `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_stored_peer_key_is_ignored`
+      stores a copy of the author's profile listing another key and checks the
+      author's genuine body is verified by the fetched key, and
+      `test/core/services/test_verification_key.py::test_the_resolver_takes_no_store`
+      checks the key lookup takes no store.
+    relationships:
+    - rel_type: refines
+      spec_id: SIG-02-001
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_035
+    - story_2022_089
+  - id: SIG-02-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST discard the keys of every actor profile a received activity
+      embeds, before it parses or stores the activity.
+    rationale: >-
+      A key embedded in a received activity was put there by its sender, who need not
+      be the profile's actor. Discarding it at the parse edge means no parsed object
+      and no stored copy carries a peer's key (SIG-02-003). The received body itself is
+      kept as received, as evidence (VM-08-002), and no key is read from it.
+    verification: >-
+      `test/wire/as2/test_embedded_profile_keys.py` parses activities embedding a sender
+      and a peer profile with `assertionMethod` and checks the parsed objects carry no
+      key, and
+      `test/adapters/driving/fastapi/test_inbox_verification.py::test_an_embedded_profile_reaches_storage_without_its_keys`
+      checks the stored record of the embedded actor has none.
+    relationships:
+    - rel_type: implements
+      spec_id: SIG-02-003
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_035
+    - story_2022_089
 - id: SIG-03
   title: Verification and Refusal
   specs:

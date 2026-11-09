@@ -27,7 +27,6 @@ from urllib.parse import urlparse
 
 from fastapi.testclient import TestClient
 
-import vultron.demo.utils.inbox as demo_inbox
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 from vultron.adapters.driven.trigger_activity_adapter.proposals import (
     _ProposalsMixin,
@@ -232,7 +231,6 @@ def record_scenario(
             deterministic_run(seed=TREE_RECORDING_SEED),
             _scenario_nodes(bases, topology) as nodes,
             patch.dict(os.environ, {"DEVLOGS_DIR": devlogs}),
-            patch.object(demo_inbox, "DEFAULT_WAIT_SECONDS", 0.0),
             patch.object(
                 DataLayerClient,
                 "call",

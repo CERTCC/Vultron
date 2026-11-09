@@ -18,6 +18,7 @@ directly, for the cases a route test reaches only indirectly.
 """
 
 import asyncio
+import json
 from typing import Any
 
 import pytest
@@ -26,6 +27,7 @@ from starlette.requests import Request
 
 from test.support.signing import PublishedProfileFetcher, signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.http_actor_profile_fetch import (
     HttpActorProfileFetchAdapter,
 )
@@ -33,12 +35,16 @@ from vultron.adapters.driving.fastapi.deps import (
     ACTOR_PROFILE_FETCHER_STATE,
     get_actor_profile_fetcher,
 )
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    FastAPIIngressAdapter,
+)
 from vultron.adapters.driving.fastapi.inbox_verification import (
     ProfileKeyProofVerifier,
     decode_inbox_body,
 )
 from vultron.core.ports.proof_verification import ProofVerificationPort
 from vultron.errors import VultronProofVerificationError
+from vultron.wire.as2 import signing
 from vultron.wire.as2.errors import (
     VultronJsonSyntaxError,
     VultronProofInvalidError,
@@ -53,9 +59,8 @@ AUTHOR = "https://author.example/actors/author"
 def _verifier(
     fetcher: PublishedProfileFetcher | None = None,
 ) -> ProfileKeyProofVerifier:
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVER)
     return ProfileKeyProofVerifier(
-        dl, fetcher or PublishedProfileFetcher(), RECEIVER
+        fetcher or PublishedProfileFetcher(), RECEIVER
     )
 
 
@@ -128,34 +133,37 @@ def test_the_snapshot_author_must_publish_the_key():
     assert fetcher.asked == [MANAGER, AUTHOR]
 
 
-@pytest.mark.spec("SIG-01-003")
-def test_the_managers_own_snapshot_is_covered_by_the_outer_proof():
-    """A snapshot naming the Announce's actor needs no second proof."""
+@pytest.mark.spec("SIG-04-002")
+def test_the_managers_native_snapshot_is_checked_by_its_key():
+    """A native entry's snapshot names the CASE_MANAGER and carries its proof."""
     fetcher = PublishedProfileFetcher([MANAGER])
 
-    _verify(_announce(_note(actor=MANAGER)), fetcher=fetcher)
+    _verify(_announce(signed_body(_note(actor=MANAGER))), fetcher=fetcher)
 
-    assert fetcher.asked == [MANAGER]
+    assert fetcher.asked == [MANAGER, MANAGER]
 
 
 @pytest.mark.spec("SIG-04-002")
-def test_a_snapshot_naming_no_actor_is_covered_by_the_outer_proof():
-    """SIG-04-002 asks for an author's proof only when one is named."""
-    fetcher = PublishedProfileFetcher([MANAGER])
-    snapshot = {k: v for k, v in _note().items() if k != "actor"}
-
-    _verify(_announce(snapshot), fetcher=fetcher)
-
-    assert fetcher.asked == [MANAGER]
+def test_the_managers_snapshot_without_its_proof_is_refused():
+    """The outer proof does not stand in for the snapshot's own."""
+    with pytest.raises(VultronProofVerificationError, match="payloadSnapshot"):
+        _verify(_announce(_note(actor=MANAGER)))
 
 
-@pytest.mark.spec("SIG-04-002")
-def test_an_empty_snapshot_is_covered_by_the_outer_proof():
-    fetcher = PublishedProfileFetcher([MANAGER])
-
-    _verify(_announce({}), fetcher=fetcher)
-
-    assert fetcher.asked == [MANAGER]
+@pytest.mark.spec("SIG-05-005")
+@pytest.mark.parametrize(
+    "snapshot",
+    [
+        {k: v for k, v in _note().items() if k != "actor"},
+        {},
+        {"semantic_type": "add_note_to_case"},
+    ],
+    ids=["activity-without-actor", "empty", "placeholder"],
+)
+def test_a_snapshot_naming_no_actor_is_refused(snapshot: dict[str, Any]):
+    """Every activity names its signer, so a snapshot with none is refused."""
+    with pytest.raises(VultronProofInvalidError, match="payloadSnapshot"):
+        _verify(_announce(snapshot))
 
 
 @pytest.mark.spec("SIG-04-002")
@@ -270,3 +278,36 @@ def test_a_harness_fetcher_installed_on_the_app_is_used():
     setattr(app.state, ACTOR_PROFILE_FETCHER_STATE, installed)
 
     assert get_actor_profile_fetcher(_request(app)) is installed
+
+
+@pytest.mark.spec("SIG-02-004")
+def test_an_embedded_profile_reaches_storage_without_its_keys():
+    """The ingress parse drops the key, so no record of the actor holds one.
+
+    The record is the form every store path writes
+    (:func:`object_to_record`), the inbox staging's included.
+    """
+    key = signing.published_multikey(
+        signing.seeded_signing_key(AUTHOR), AUTHOR
+    ).model_dump(mode="json", by_alias=True, exclude_none=True)
+    body = signed_body(
+        {
+            **_note(),
+            "published": "2026-01-01T00:00:00+00:00",
+            "actor": {
+                "type": "Organization",
+                "id": AUTHOR,
+                "name": "author",
+                "assertionMethod": [key],
+            },
+        },
+        author=AUTHOR,
+    )
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVER)
+
+    activity = FastAPIIngressAdapter(dl).parse(body)
+
+    assert activity is not None
+    record = object_to_record(activity.actor)
+    assert "assertionMethod" not in json.dumps(record.model_dump(mode="json"))
+    assert "assertion_method" not in json.dumps(record.model_dump(mode="json"))

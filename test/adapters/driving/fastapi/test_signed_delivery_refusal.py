@@ -314,3 +314,34 @@ def test_the_stage_sees_the_body_as_received_before_the_parser(
     assert "published" in response.text
     assert verifier.verified == [body]
     assert "proof" in verifier.verified[0]
+
+
+@pytest.mark.spec("SIG-02-003")
+def test_a_stored_peer_key_is_ignored(
+    served_manager: tuple[TestClient, LedgerNetwork],
+):
+    """The key comes only from the author's fetched profile.
+
+    The CASE_MANAGER's store holds a copy of the owner's profile listing a
+    key under the owner's key id that is not the owner's.  A verifier that
+    read it would refuse the owner's genuine body; the fetched key admits it.
+    """
+    client, net = served_manager
+    planted = Multikey(
+        id_=signing.key_id_for(OWNER),
+        type_="Multikey",
+        controller=OWNER,
+        public_key_multibase=signing.seeded_signing_key(
+            BYSTANDER
+        ).public_key_multibase,
+    )
+    net.stores[MANAGER].save(
+        VultronOrganization(
+            id_=OWNER, name="owner", assertion_method=[planted]
+        )
+    )
+    body = _owner_note(net, "https://example.org/notes/stored-peer-key")
+
+    response = client.post(_INBOX, json=body)
+
+    assert response.status_code == 202, response.text

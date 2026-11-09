@@ -102,7 +102,6 @@ def test_a_served_profile_yields_the_key_that_verifies_the_actors_proof(
         {"id": f"{author}/activities/1", "type": "Create"},
         signing.seeded_signing_key(author),
     )
-    receiver = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVER)
     actor = VultronOrganization(id_=author, name=segment)
 
     with served_store(dl, author, segment, actor) as (client, _emitter):
@@ -111,7 +110,6 @@ def test_a_served_profile_yields_the_key_that_verifies_the_actors_proof(
             resolve_verification_key(
                 signing.proof_verification_method(signed),
                 author_id=author,
-                dl=receiver,
                 fetcher=adapter,
                 requester_id=RECEIVER,
             )

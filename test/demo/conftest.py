@@ -22,7 +22,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
-import vultron.demo.utils.inbox as demo_inbox
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
@@ -46,11 +45,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-
-# Eliminate wait delays in all demo tests. The FastAPI TestClient processes
-# background tasks synchronously, so no sleep is needed between inbox posts
-# and state checks.
-demo_inbox.DEFAULT_WAIT_SECONDS = 0.0
 
 logger = logging.getLogger(__name__)
 

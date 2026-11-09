@@ -88,13 +88,13 @@ class VerifiedDelivery:
 def get_proof_verifier(
     actor_id: str,
     request: Request,
-    dl: DataLayer = Depends(get_actor_dl),
     fetcher: ActorProfileFetchPort = Depends(get_actor_profile_fetcher),
 ) -> ProofVerificationPort:
     """FastAPI dependency: the verification stage's port.
 
-    The real stage, :class:`ProfileKeyProofVerifier`, over the addressed
-    actor's store and the app's profile fetch.  The receiver it names on a
+    The real stage, :class:`ProfileKeyProofVerifier`, over the app's
+    profile fetch: every key is fetched from its author's profile, none read
+    from a stored copy (SIG-02-003).  The receiver it names on a
     fetch is the canonical URI of the path segment, as ``get_actor_dl``
     computes it.  A test that is not about verification may override this
     seam with ``test.support.signing.AcceptingProofVerifier``.
@@ -102,7 +102,7 @@ def get_proof_verifier(
     receiver_id = canonical_actor_uri(
         actor_id, base_url=node_base_url(request)
     )
-    return ProfileKeyProofVerifier(dl, fetcher, receiver_id)
+    return ProfileKeyProofVerifier(fetcher, receiver_id)
 
 
 async def verified_delivery(

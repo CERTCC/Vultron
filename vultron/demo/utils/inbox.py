@@ -23,10 +23,13 @@ import httpx2 as httpx
 from vultron.adapters.utils import parse_id
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+    ReceivedStage,
+)
 from vultron.core.models.sender_sequence import SenderSequenceOrder
 from vultron.demo.utils.client import DataLayerClient, logfmt, postfmt
 from vultron.primitives import same_actor_id
-from vultron.wire.as2 import signing
 from vultron.wire.as2.factories import (
     ledger_position_case_ids,
     sender_sequence_case_ids,
@@ -38,11 +41,6 @@ from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 # One logger for the whole package, so log records keep its name.
 logger = logging.getLogger(__package__)
-
-
-# Default wait time (seconds) after posting to an inbox, to allow background
-# tasks to complete before checking state. Set to 0 in test environments.
-DEFAULT_WAIT_SECONDS: float = 1.0
 
 
 def _receivers_case_position(
@@ -152,40 +150,127 @@ def post_to_inbox_and_wait(
     activity: as_Activity,
     wait_seconds: float | None = None,
 ) -> None:
-    """POST an activity to an actor's inbox and pause to let background tasks complete.
+    """Deliver *activity* to *actor_id*'s inbox through its sender's outbox.
 
-    The demo stands in for the sender's node, as it already does when it
-    stamps the activity as the sender's adapter would, so it also signs the
-    body as the sender's outbox would (SIG-01-001), with the key of the
-    activity's ``actor`` (``signing.sign_as_author``).  The inbox verifies
-    that proof by the key the sender's profile publishes (SIG-02-001), so an
-    activity naming an actor no node serves is refused.  Prefer a trigger,
-    which the actor's own outbox signs (DEMOMA-00-002).
+    An exchange demo builds the activity a peer would send.  It is handed
+    to the sender's own outbox on the same server
+    (``POST /actors/{sender}/outbox/``), which checks the activity's
+    ``actor`` is the sender, seals and signs it as its owner (SIG-05-004,
+    SIG-01-001) and delivers it to the recipients its addressing names.
+    Demo code never signs as an actor.  The demo still stands in for the
+    sender's adapter in one respect: it states the ledger position and
+    sender number a peer in step with the receiver would state, which the
+    outbox keeps (SYNC-18-001, SYNC-21-001).
+
+    An activity that names no recipient is addressed to *actor_id*; one
+    whose addressing leaves *actor_id* out is refused before anything is
+    sent.  The wait is a gate, not a sleep (EDF-06): it polls the receiver
+    until its record of the activity reaches an outcome -- archived,
+    refused to a receipt stub, or held for a replay.
 
     Args:
         client: DataLayerClient instance.
-        actor_id: ID of the target actor.
-        activity: ActivityStreams activity to deliver.
-        wait_seconds: Seconds to sleep after posting; defaults to ``DEFAULT_WAIT_SECONDS``.
+        actor_id: ID of the receiving actor.
+        activity: ActivityStreams activity its sender sends.
+        wait_seconds: Most seconds to wait for the receiver's outcome;
+            defaults to ``DELIVERY_OUTCOME_TIMEOUT``.
+
+    Raises:
+        ValueError: *activity* names no sender, or is addressed to others
+            but not to *actor_id*.
+        AssertionError: The receiver reached no outcome in time.
     """
+    activity = _addressed_to(activity, actor_id)
     activity = _numbered_as_in_step(
         client, actor_id, _stamped_as_in_step(client, actor_id, activity)
     )
-    actor_obj_id = parse_id(actor_id)["object_id"]
+    sender = _as_id(activity.actor)
+    if sender is None:
+        raise ValueError(
+            f"{activity.id_} names no actor, so no outbox can send it"
+        )
+    sender_obj_id = parse_id(sender)["object_id"]
     logger.debug(
-        "Posting activity to %s's inbox: %s", actor_obj_id, logfmt(activity)
+        "Sending activity through %s's outbox to %s: %s",
+        sender_obj_id,
+        actor_id,
+        logfmt(activity),
     )
-    body = postfmt(activity)
-    # The demo is the sender's stand-in, so it signs as the sender.
-    sender = signing.author_of(body)
-    client.post(
-        f"/actors/{actor_obj_id}/inbox/",
-        json=signing.sign_as_author(body, owner_id=sender),
+    client.post(f"/actors/{sender_obj_id}/outbox/", json=postfmt(activity))
+    _wait_for_delivery_outcome(
+        client,
+        actor_id,
+        activity.id_,
+        DELIVERY_OUTCOME_TIMEOUT if wait_seconds is None else wait_seconds,
     )
-    delay = DEFAULT_WAIT_SECONDS if wait_seconds is None else wait_seconds
-    time.sleep(
-        delay
-    )  # temporal: liveness probe — give BackgroundTasks time to process (EDF-06-006)
+
+
+#: Most seconds the outbox delivery and the receiver's handling may take.
+DELIVERY_OUTCOME_TIMEOUT: float = 15.0
+
+_ADDRESSING_FIELDS = ("to", "cc", "bto", "bcc")
+
+
+def _addressed_to(activity: as_Activity, actor_id: str) -> as_Activity:
+    """*activity*, addressed to *actor_id* when it names no recipient.
+
+    The outbox delivers only to the recipients the activity names.
+
+    Raises:
+        ValueError: *activity* names recipients, and *actor_id* is not one.
+    """
+    recipients: list[str | None] = []
+    for field_name in _ADDRESSING_FIELDS:
+        value = getattr(activity, field_name, None)
+        if value is None:
+            continue
+        items = value if isinstance(value, list) else [value]
+        recipients.extend(_as_id(item) for item in items)
+    if not recipients:
+        return activity.model_copy(update={"to": [actor_id]})
+    if any(
+        recipient is not None and same_actor_id(recipient, actor_id)
+        for recipient in recipients
+    ):
+        return activity
+    raise ValueError(
+        f"{activity.id_} is addressed to {recipients}, not to {actor_id};"
+        " its sender's outbox would not deliver it there"
+    )
+
+
+def _delivery_outcome_reached(record: object) -> bool:
+    """Whether a received-activity record shows the delivery's outcome."""
+    if not isinstance(record, dict):
+        return False
+    stage = record.get("stage")
+    if stage in (ReceivedStage.ARCHIVED, ReceivedStage.REFUSED):
+        return True
+    return bool(record.get("replay_owed"))
+
+
+def _wait_for_delivery_outcome(
+    client: DataLayerClient,
+    actor_id: str,
+    activity_id: str,
+    timeout_seconds: float,
+) -> None:
+    """Poll *actor_id*'s store until its record of *activity_id* settles."""
+    key = ReceivedActivityRecord.build_id(activity_id)
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        records = read_stored_of_types(
+            client, [ReceivedActivityRecord.__name__], actor_id=actor_id
+        )
+        if _delivery_outcome_reached(records.get(key)):
+            return
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"Timed out waiting for {actor_id!r} at {client.base_url} to"
+                f" reach an outcome for {activity_id!r} sent through its"
+                " sender's outbox; outbox delivery may not have completed"
+            )
+        time.sleep(0.2)  # temporal: liveness probe between polls (EDF-06-006)
 
 
 def post_to_trigger(

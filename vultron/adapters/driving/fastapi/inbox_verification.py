@@ -25,9 +25,9 @@ and another way by a parser.
 :class:`~vultron.core.ports.proof_verification.ProofVerificationPort`.  It
 checks the activity's proof against the key its ``actor`` publishes
 (SIG-05-005: the actor is the signer), resolved from that actor's profile
-(SIG-02-001).  On an ``Announce(CaseLedgerEntry)`` whose ``payloadSnapshot``
-names another actor, it checks the snapshot's author's proof too, so a
-replica refuses the whole entry when either fails (SIG-04-002).  The
+(SIG-02-001).  On an ``Announce(CaseLedgerEntry)`` it checks the
+``payloadSnapshot``'s proof too, by the key of the snapshot's own ``actor``,
+so a replica refuses the whole entry when either fails (SIG-04-002).  The
 snapshot's proof is read from the body as received: the parser drops
 ``proof``, so no parsed copy carries it.
 
@@ -36,13 +36,11 @@ No key is derived from a seed here (SIG-05-002).
 
 import logging
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import Any
 
 from starlette.concurrency import run_in_threadpool
 
 from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
-from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.ports.datalayer import DataLayer
 from vultron.core.services.verification_key import (
     key_owner_id,
     resolve_verification_key,
@@ -51,7 +49,6 @@ from vultron.errors import (
     VultronProofVerificationError,
     VultronVerificationKeyError,
 )
-from vultron.primitives import normalise_actor_id
 from vultron.wire.as2 import signing
 from vultron.wire.as2.errors import (
     VultronMultikeyError,
@@ -159,22 +156,19 @@ def _ledger_snapshots(document: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 
 
 class ProfileKeyProofVerifier:
-    """Verify a received body by keys read from its authors' profiles.
+    """Verify a received body by keys fetched from its authors' profiles.
 
     Args:
-        dl: The receiving actor's own store, which holds its copies of other
-            actors' profiles (read first, AKM-05-012).
-        fetcher: Fetches a profile the held copy does not list the key in.
+        fetcher: Fetches each author's profile from its own URL; no stored
+            copy is read (SIG-02-003).
         receiver_id: The receiving actor, named on a fetch.
     """
 
     def __init__(
         self,
-        dl: DataLayer,
         fetcher: ActorProfileFetchPort,
         receiver_id: str,
     ) -> None:
-        self._dl = cast(CasePersistence, dl)
         self._fetcher = fetcher
         self._receiver_id = receiver_id
 
@@ -182,11 +176,11 @@ class ProfileKeyProofVerifier:
         """Return when *document*'s proofs verify; raise when one does not.
 
         The activity's proof is checked against its ``actor``'s key.  An
-        ``Announce(CaseLedgerEntry)`` whose snapshot names another actor
-        also needs that author's proof on the snapshot (SIG-04-002); a
-        snapshot naming the same actor, or none, is covered by the outer
-        proof, which signs every nested object (SIG-01-003).  The entry and
-        its snapshot are found under every spelling the parser accepts.
+        ``Announce(CaseLedgerEntry)`` also needs its snapshot's proof, by the
+        key of the snapshot's own ``actor``: the CASE_MANAGER's for a native
+        entry, the author's for a relayed act (SIG-04-002).  A snapshot
+        naming no actor is refused.  The entry and its snapshot are found
+        under every spelling the parser accepts.
 
         Raises:
             VultronProofVerificationError: A proof is missing or does not
@@ -198,35 +192,24 @@ class ProfileKeyProofVerifier:
         author = _author(document, "activity")
         await self._verify_as(document, author)
         for snapshot in _ledger_snapshots(document):
-            await self._verify_snapshot(snapshot, author)
+            await self._verify_snapshot(snapshot)
 
-    async def _verify_snapshot(
-        self, snapshot: Mapping[str, Any], relay_author: str
-    ) -> None:
-        """Verify a relayed snapshot's author's proof, unless it is the relay's.
+    async def _verify_snapshot(self, snapshot: Mapping[str, Any]) -> None:
+        """Verify a relayed snapshot's proof by its own ``actor``'s key.
 
-        A snapshot naming the relay's own actor is the CASE_MANAGER's own
-        act, and one naming no actor attributes its content to nobody: the
-        outer proof covers both (SIG-01-003), since SIG-04-002 asks for an
-        author's proof only when the snapshot's ``actor`` is another actor.
-        Ledger entries whose snapshot names no actor do occur (a snapshot of
-        an object, not an activity), so refusing them would refuse genuine
-        relays.  A blank ``actor`` is refused: it names an author no key can
-        be read for.
+        Every activity names its signer (SIG-05-005), so one check covers
+        each entry: a native entry's snapshot names the CASE_MANAGER and is
+        checked by its key, a relayed participant's act names that author
+        and is checked by the author's key (SIG-04-002).  A snapshot naming
+        no actor, or a blank one, has no signer and is refused.
         """
-        if snapshot.get("actor") is None:
-            return
         snapshot_author = _author(snapshot, "payloadSnapshot")
-        if normalise_actor_id(snapshot_author) == normalise_actor_id(
-            relay_author
-        ):
-            return
         try:
             await self._verify_as(snapshot, snapshot_author)
         except VultronProofVerificationError as exc:
             raise VultronProofVerificationError(
                 "the ledger entry's payloadSnapshot is not verified as"
-                f" written by its author {snapshot_author!r}, so the whole"
+                f" written by its actor {snapshot_author!r}, so the whole"
                 f" entry is refused (SIG-04-002): {exc}"
             ) from exc
 
@@ -238,7 +221,6 @@ class ProfileKeyProofVerifier:
         key = await resolve_verification_key(
             method,
             author_id=author,
-            dl=self._dl,
             fetcher=self._fetcher,
             requester_id=self._receiver_id,
         )

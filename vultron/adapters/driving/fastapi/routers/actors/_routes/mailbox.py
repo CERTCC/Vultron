@@ -18,11 +18,12 @@ The inbox accepts POST only; every other method is answered 405
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
+    Body,
     Depends,
     HTTPException,
     Request,
@@ -52,7 +53,6 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.errors import VultronUnsignableJsonError
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -179,15 +179,21 @@ def post_actor_inbox(
 )
 def post_actor_outbox(
     actor_id: str,
-    activity: as_Activity,
     request: Request,
     background_tasks: BackgroundTasks,
+    body: Annotated[dict[str, Any], Body()],
     dl: DataLayer = Depends(get_actor_dl),
 ) -> None:
     """Adds an item to the Actor's Outbox.
+
+    The body is parsed by the wire parser, as the inbox parses one, so the
+    activity keeps its own type and every field it carries (its ``object``
+    and ``target`` included); validating it as the bare ``as_Activity``
+    would drop them.
+
     Args:
         actor_id: The ID of the Actor whose Outbox to add the item to.
-        activity: The Activity item to add to the Outbox.
+        body: The Activity to add to the Outbox, as JSON.
         request: The FastAPI Request (used to resolve the per-app emitter).
         background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
     Returns:
@@ -197,6 +203,7 @@ def post_actor_outbox(
     """
     actor = _resolve_actor_or_404(actor_id, dl)
     canonical_actor_id = actor.id_
+    activity = parse_activity(body)
 
     # actor.id_ must match activity.actor or activity.actor.id_
     if isinstance(activity.actor, str):

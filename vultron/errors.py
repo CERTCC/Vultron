@@ -250,8 +250,9 @@ class VultronVerificationKeyError(VultronProofVerificationError):
     """Raised when the key a proof names cannot be read from its author.
 
     A receiver takes the key that verifies a proof only from the author's
-    actor profile (SIG-02-001).  When neither the held copy nor a fetched
-    copy lists the key the proof's ``verificationMethod`` names, the
+    actor profile, as fetched from the author (SIG-02-001, SIG-02-003).
+    When the fetch fails or the fetched profile does not list the key the
+    proof's ``verificationMethod`` names, the
     receiver cannot tell who wrote the document and refuses it
     (SIG-03-002), so this is a proof-verification failure, answered as one.
     """

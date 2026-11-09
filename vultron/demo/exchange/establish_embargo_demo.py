@@ -125,7 +125,9 @@ def demo_propose_embargo_accept(
                 embargo,
                 actor=vendor.id_,
                 context=case.id_,
-                to=f"{case.id_}/participants",
+                # The vendor is addressed too: its own outbox delivers to the
+                # recipients named, and this demo's receiver is the vendor.
+                to=[f"{case.id_}/participants", vendor.id_],
                 summary=f"Embargo for {case.name} is now active.",
             )
             logger.info("Announcing embargo: %s", logfmt(announce))
