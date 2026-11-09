@@ -182,6 +182,14 @@ def fragment_sentence(fragment: object, *, scenario: str) -> str:
     what lets each scenario's plot render as a numbered story on its narrative
     page (DEMOCI-11-065, DEMOCI-11-067).
 
+    What "a code identifier" is read as, which DEMOCI-11-066 leaves wider
+    than the check: a backtick, a name spelled as words joined by
+    underscores, and a cast container slug.  A *requirement or decision id*
+    in parentheses — ``(CSB-15-002)``, ``(DEMOMA-14-004)`` — is a citation,
+    not a code identifier, and is left alone: the narrative pages these
+    sentences render into cite requirements in prose themselves, and the
+    citation is how a reader checks the step against the spec.
+
     A step that cannot be named cannot be read either, so this starts from
     :func:`fragment_name`.  That is not only for the message: a
     ``functools.partial`` and a callable instance both answer ``__doc__``

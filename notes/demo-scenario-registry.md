@@ -66,7 +66,10 @@ no backtick, no `snake_case` or `SCREAMING_SNAKE` name, no cast container slug
 (DEMOCI-11-065, DEMOCI-11-066). `fragment_sentence` in
 `vultron/demo/helpers/story/assembly.py` refuses the rest, reporting every
 violation at once, and the rest of the docstring is the body, which no story
-shows. A new scenario's narrative page therefore ends with a
+shows. A requirement or decision id in parentheses is a citation, not a code
+identifier, so a sentence may carry one: the narrative pages cite requirements
+in prose themselves, and the citation is how a reader checks the step against
+the spec. A new scenario's narrative page therefore ends with a
 `## The story as the code tells it` section holding one include of its
 generated story, after the hand-written narrative — the narrative is written
 without reading the code so that it can contradict it, and a rendering of the
