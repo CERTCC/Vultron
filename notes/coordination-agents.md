@@ -197,7 +197,8 @@ or overridden) is what lets an Evaluator earn promotion to auto-execute.
 - **Core narrows the case before the port sees it.** The port takes a
   core-owned suggestion context built by one core projection, because which
   embargoed information leaves the actor is a disclosure decision made once
-  (BT-24-002, BT-24-003). An adapter that wants more input changes that type.
+  (BT-24-002, BT-24-003, BT-24-008). An adapter that wants more input changes
+  that type.
 - **A suggestion is an identity with a reason.** Actor id, suggested role,
   rationale; no timing, because the receiver schedules invites from the
   invitee's embargo policy (BT-24-004, BT-24-006). Prefer over-suggesting

@@ -113,4 +113,4 @@ A ratchet that no caller reaches the port except through the projection, and a t
 
 - Source: Idea #1142; reshapes Task #3426.
 - Related: ADR-0026 (CASE_MANAGER-routed suggestion), ADR-0029 (`suggest-actor-to-case`), ADR-0047 (Sentinel over inline loop), ADR-0097 (capability layer), ADR-0183 (backend answers yes, no or error).
-- Generated spec requirements: `behavior-tree-integration.yaml` BT-24-001 through BT-24-007.
+- Generated spec requirements: `behavior-tree-integration.yaml` BT-24-001 through BT-24-008.
