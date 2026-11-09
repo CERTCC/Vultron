@@ -20,7 +20,8 @@ leave the ledger byte-identical and move only the check tree.
 """
 
 import json
-from dataclasses import replace
+from collections.abc import Sequence
+from dataclasses import dataclass, field, replace
 
 import pytest
 from click.testing import CliRunner
@@ -58,12 +59,8 @@ CASE_ID = "urn:uuid:ed045a61-5ca4-4c92-b278-3dff7bb2199f"
 OTHER_SLOT = CAST[3]
 
 
-def _ledger() -> str:
-    """Two ledger entries, the same in every run here.
-
-    Neither mutation performs a protocol act, so the ledger is literally
-    unchanged by both — which is the point (#5596).
-    """
+def _ledger(acts: Sequence[str] = ("create_case", "engage_case")) -> str:
+    """A ledger of one entry per *act*, in the shape the recorder writes one."""
     return "".join(
         json.dumps(
             {
@@ -72,14 +69,14 @@ def _ledger() -> str:
                 "published": "2026-01-01T00:00:00.560000+00:00",
                 "caseId": CASE_ID,
                 "logIndex": index,
-                "semanticType": "create_case",
+                "semanticType": act,
                 "payloadSnapshot": {"type": "Create"},
                 "prevLogHash": "0" * 64,
                 "entryHash": "a" * 64,
             }
         )
         + "\n"
-        for index in range(2)
+        for index, act in enumerate(acts)
     )
 
 
@@ -93,43 +90,80 @@ def _stub_recorded(name: str) -> runner.RecordedRun:
     )
 
 
+@dataclass
+class _Cast:
+    """Two in-process cast containers, and the acts they were sent.
+
+    The acts are what the fixture story's ledger is built from, so a mutation
+    that moved an *act* would move the ledger and the "the ledger saw it too"
+    assertions below could fail. Neither mutation under test does: a check
+    moved out of its gate and a wait pointed elsewhere write nothing, which is
+    exactly why a recording is blind to them (#5596).
+    """
+
+    nodes: runner._Nodes
+    acts: list[str] = field(default_factory=list)
+
+    def ledger(self) -> str:
+        return _ledger(self.acts)
+
+
 class TestFixtureStoryMutations:
     """Two check-side mutations the ledger cannot see (DEMOMA-17-002)."""
 
     @pytest.fixture
-    def nodes(self):
-        """Two cast containers, both answering one state endpoint."""
+    def cast(self):
+        """Two cast containers: one state to read, one act to post."""
+        acts: list[str] = []
         app = FastAPI()
 
         @app.get("/api/v2/state")
         def state() -> dict[str, str]:
             return {"rmState": "VALID"}
 
+        @app.post("/api/v2/act")
+        def act(body: dict[str, str]) -> dict[str, str]:
+            acts.append(body["act"])
+            return {}
+
         with TestClient(app) as client:
-            yield runner._Nodes(
-                clients={
-                    runner._node_base(slot.compose_url): client
-                    for slot in (VENDOR_SLOT, OTHER_SLOT)
-                }
+            yield _Cast(
+                nodes=runner._Nodes(
+                    clients={
+                        runner._node_base(slot.compose_url): client
+                        for slot in (VENDOR_SLOT, OTHER_SLOT)
+                    }
+                ),
+                acts=acts,
             )
 
     @staticmethod
     def _story(
-        nodes: runner._Nodes,
+        cast: _Cast,
         *,
         wait_on: ContainerSlot,
         check_inside_the_gate: bool,
+        extra_act: bool = False,
     ) -> None:
-        """A two-step story: a gate on the Vendor, then one standalone check.
+        """A two-step story: one act, a gate on the Vendor, then one check.
 
         ``check_inside_the_gate`` places the check inside the gate or after
         it; ``wait_on`` is the cast member whose container the check's wait
-        reads (EDF-06-002).
+        reads (EDF-06-002); ``extra_act`` adds a second protocol act, which is
+        the mutation the *ledger* is meant to see.
         """
 
         def wait(slot: ContainerSlot) -> None:
-            nodes.call(
+            cast.nodes.call(
                 DataLayerClient(base_url=slot.compose_url), "GET", "/state"
+            )
+
+        def act(name: str) -> None:
+            cast.nodes.call(
+                DataLayerClient(base_url=VENDOR_SLOT.compose_url),
+                "POST",
+                "/act",
+                json={"act": name},
             )
 
         def the_check() -> None:
@@ -137,7 +171,9 @@ class TestFixtureStoryMutations:
                 wait(wait_on)
 
         with demo_step("1. the Reporter tells the Vendor"):
-            pass
+            act("submit_report")
+            if extra_act:
+                act("engage_case")
         with demo_gate("the Vendor reached RM.VALID"):
             wait(VENDOR_SLOT)
             if check_inside_the_gate:
@@ -145,21 +181,22 @@ class TestFixtureStoryMutations:
         if not check_inside_the_gate:
             the_check()
 
-    def _run(self, nodes, **kwargs) -> ScenarioRun:
+    def _run(self, cast: _Cast, **kwargs) -> ScenarioRun:
         reset_demo_failures()
+        cast.acts.clear()
         with recording_checks() as recorder:
-            self._story(nodes, **kwargs)
-        return ScenarioRun("fixture", ledger=_ledger(), checks=recorder.tree())
+            self._story(cast, **kwargs)
+        return ScenarioRun(
+            "fixture", ledger=cast.ledger(), checks=recorder.tree()
+        )
 
     @pytest.mark.spec("DEMOCI-11-055", "DEMOCI-11-056")
     def test_moving_a_check_out_of_its_gate_shows_in_the_checks_alone(
-        self, nodes
+        self, cast
     ):
-        base = self._run(
-            nodes, wait_on=VENDOR_SLOT, check_inside_the_gate=True
-        )
+        base = self._run(cast, wait_on=VENDOR_SLOT, check_inside_the_gate=True)
         head = self._run(
-            nodes, wait_on=VENDOR_SLOT, check_inside_the_gate=False
+            cast, wait_on=VENDOR_SLOT, check_inside_the_gate=False
         )
 
         [one] = compare_runs({"fixture": base}, {"fixture": head})
@@ -169,22 +206,45 @@ class TestFixtureStoryMutations:
 
     @pytest.mark.spec("DEMOCI-11-057", "EDF-06-002")
     def test_switching_a_wait_to_another_cast_member_shows_in_the_checks(
-        self, nodes
+        self, cast
     ):
-        base = self._run(
-            nodes, wait_on=VENDOR_SLOT, check_inside_the_gate=True
-        )
-        head = self._run(nodes, wait_on=OTHER_SLOT, check_inside_the_gate=True)
+        base = self._run(cast, wait_on=VENDOR_SLOT, check_inside_the_gate=True)
+        head = self._run(cast, wait_on=OTHER_SLOT, check_inside_the_gate=True)
 
         [one] = compare_runs({"fixture": base}, {"fixture": head})
         assert one.ledger == ()
         assert one.checks
         assert any(OTHER_SLOT.name in line for line in one.checks)
 
-    def test_an_unmutated_story_compares_equal(self, nodes):
-        """Guards the two above: the pair differs only by the mutation."""
+    def test_an_added_act_shows_in_the_ledger(self, cast):
+        """Guards the two assertions above: both sides' ledgers come from what
+        the story did, so "the ledger saw nothing" can fail."""
+        base = self._run(cast, wait_on=VENDOR_SLOT, check_inside_the_gate=True)
+        head = self._run(
+            cast,
+            wait_on=VENDOR_SLOT,
+            check_inside_the_gate=True,
+            extra_act=True,
+        )
+
+        [one] = compare_runs({"fixture": base}, {"fixture": head})
+        assert one.ledger, "the ledger missed an added act"
+        assert one.checks == ()
+
+    @pytest.mark.spec("DEMOCI-11-057")
+    def test_an_act_is_not_counted_as_a_read(self, cast):
+        """``reads`` names the containers a check *read*; the step that posted
+        the act wrote to one."""
+        run = self._run(cast, wait_on=VENDOR_SLOT, check_inside_the_gate=True)
+
+        step, gate = run.checks
+        assert step.reads == ()
+        assert gate.reads == (VENDOR_SLOT.name,)
+
+    def test_an_unmutated_story_compares_equal(self, cast):
+        """Guards the mutations: the pair differs only by the mutation."""
         runs = [
-            self._run(nodes, wait_on=VENDOR_SLOT, check_inside_the_gate=True)
+            self._run(cast, wait_on=VENDOR_SLOT, check_inside_the_gate=True)
             for _ in range(2)
         ]
 
@@ -254,6 +314,27 @@ def stubbed(monkeypatch):
     return specs
 
 
+@pytest.fixture
+def differing(tmp_path):
+    """Two written sides whose `rv` check trees differ, the ledgers equal."""
+    base, head = tmp_path / "base", tmp_path / "head"
+    write_run(_stub_run("rv"), base)
+    write_run(
+        _stub_run(
+            "rv",
+            (
+                CheckNode(
+                    kind=CheckKind.CHECK,
+                    label="a check the base did not run",
+                    outcome=CheckOutcome.PASSED,
+                ),
+            ),
+        ),
+        head,
+    )
+    return base, head
+
+
 class TestCompareCli:
     @pytest.mark.spec("DEMOCI-11-061")
     def test_identical_runs_pass(self, stubbed):
@@ -264,25 +345,9 @@ class TestCompareCli:
 
     @pytest.mark.spec("DEMOCI-11-061")
     def test_a_difference_fails_and_prints_the_per_scenario_diff(
-        self, tmp_path
+        self, differing
     ):
-        base, head = tmp_path / "base", tmp_path / "head"
-        write_run(_stub_run("rv"), base)
-        write_run(
-            ScenarioRun(
-                "rv",
-                ledger=_ledger(),
-                checks=(
-                    CheckNode(
-                        kind=CheckKind.CHECK,
-                        label="a check the base did not run",
-                        outcome=CheckOutcome.PASSED,
-                    ),
-                ),
-            ),
-            head,
-        )
-
+        base, head = differing
         result = CliRunner().invoke(
             compare.main, ["--base", str(base), "--head", str(head)]
         )
@@ -383,3 +448,77 @@ class TestCompareCli:
         result = CliRunner().invoke(compare.main, [])
         assert "Recorded rv (first) in" in result.output
         assert "Recorded rv (second) in" in result.output
+
+    @pytest.mark.spec("DEMOCI-11-063")
+    def test_allow_difference_exits_zero_on_a_difference(self, differing):
+        base, head = differing
+        result = CliRunner().invoke(
+            compare.main,
+            ["--base", str(base), "--head", str(head), "--allow-difference"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "admitted by request: rv" in result.output
+
+    @pytest.mark.spec("DEMOCI-11-064")
+    def test_allow_difference_still_prints_the_difference(self, differing):
+        """The opt-out shows what it admits, so a reviewer sees it."""
+        base, head = differing
+        result = CliRunner().invoke(
+            compare.main,
+            ["--base", str(base), "--head", str(head), "--allow-difference"],
+        )
+        assert "rv: the two runs differ" in result.output
+        assert "--- rv checks ---" in result.output
+        assert "a check the base did not run" in result.output
+
+    def test_a_difference_still_reports_the_wall_time(self, differing):
+        base, head = differing
+        result = CliRunner().invoke(
+            compare.main, ["--base", str(base), "--head", str(head)]
+        )
+        assert result.exit_code == DIFFERENT_EXIT_CODE
+        assert "Total wall time:" in result.output
+
+    def test_a_difference_does_not_exit_one(self):
+        """``1`` is what a crashed recorder exits with, and ``2`` is click's
+        usage error, so an opt-out keyed on "non-zero" must not meet either."""
+        assert DIFFERENT_EXIT_CODE not in {0, 1, 2, NO_SCENARIOS_EXIT_CODE}
+
+    def test_one_directory_in_both_positions_is_refused(self, tmp_path):
+        """Otherwise every scenario is compared with itself and the gate
+        cannot fail — the silent pass of #5589 again."""
+        write_run(_stub_run("rv"), tmp_path)
+        result = CliRunner().invoke(
+            compare.main, ["--base", str(tmp_path), "--head", str(tmp_path)]
+        )
+        assert result.exit_code != 0
+        assert "name one directory" in result.output
+
+    def test_a_scenario_the_head_retired_is_still_compared(self, tmp_path):
+        """Narrowing a written pair by the live registry would hide it."""
+        base, head = tmp_path / "base", tmp_path / "head"
+        write_run(_stub_run("retired-scenario"), base)
+        head.mkdir()
+        result = CliRunner().invoke(
+            compare.main, ["--base", str(base), "--head", str(head)]
+        )
+        assert result.exit_code == DIFFERENT_EXIT_CODE
+        assert "retired-scenario: the two runs differ" in result.output
+
+    def test_a_scenario_on_neither_side_is_refused(self, tmp_path):
+        base, head = tmp_path / "base", tmp_path / "head"
+        for root in (base, head):
+            write_run(_stub_run("rv"), root)
+        result = CliRunner().invoke(
+            compare.main,
+            ["--scenario", "rvv", "--base", str(base), "--head", str(head)],
+        )
+        assert result.exit_code != 0
+        assert "not recorded on either side: rvv" in result.output
+
+    def test_write_prunes_a_stale_run(self, stubbed, tmp_path):
+        write_run(_stub_run("retired-scenario"), tmp_path)
+        result = CliRunner().invoke(compare.main, ["--write", str(tmp_path)])
+        assert result.exit_code == 0, result.output
+        assert "Removed the stale run of retired-scenario" in result.output
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["rv", "rvv"]

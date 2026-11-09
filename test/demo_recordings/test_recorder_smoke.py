@@ -35,6 +35,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.demo.helpers.cast import ALL_SLOTS
 from vultron.demo.recordings.runner import record_scenario
 from vultron.demo.scenario.registry import discover_scenarios
+from vultron.demo.utils.check_tree import walk
 
 pytestmark = pytest.mark.integration
 
@@ -65,7 +66,7 @@ def test_the_recorder_records_a_scenario():
     # three context managers and the routed client really are the only paths,
     # so every node carries a label and a gate or step that polled a container
     # names the cast member it read (DEMOCI-11-057).
-    nodes = list(_walk(run.checks))
+    nodes = list(walk(run.checks))
     assert nodes, "the run entered no demo_step, demo_check or demo_gate"
     assert all(node.label for node in nodes)
     assert {name for node in nodes for name in node.reads} <= {
@@ -74,10 +75,3 @@ def test_the_recorder_records_a_scenario():
     assert any(node.reads for node in nodes), (
         "no check was attributed a container read"
     )
-
-
-def _walk(tree):
-    """Every node of *tree*, parents before children."""
-    for node in tree:
-        yield node
-        yield from _walk(node.children)

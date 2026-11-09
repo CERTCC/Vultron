@@ -75,6 +75,9 @@ Usage::
     uv run export-demo-recordings --check         # the recorded set only
     uv run export-demo-recordings --report-changes  # exit 3 if any changed
     uv run compare-demo-runs                      # record twice, compare
-    uv run compare-demo-runs --write runs/base    # record one side
-    uv run compare-demo-runs --base runs/base --head runs/head
+    uv run compare-demo-runs --write /tmp/runs/base      # record one side
+    uv run compare-demo-runs --base /tmp/runs/base --head /tmp/runs/head
+
+The written runs go outside the repository: nothing about them is committed,
+and a target inside the working tree would leave untracked files behind.
 """

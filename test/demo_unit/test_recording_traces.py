@@ -21,10 +21,12 @@ entry and a changed check label all survive the normalizer.
 """
 
 import json
+import re
 from dataclasses import replace
 
 import pytest
 
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.demo.recordings.traces import (
     CHECKS_FILENAME,
     DIGEST_KEY_SUFFIX,
@@ -32,8 +34,8 @@ from vultron.demo.recordings.traces import (
     LEDGER_FILENAME,
     TIMESTAMP_PLACEHOLDER,
     ScenarioRun,
-    ledger_digest_keys,
     normalize_run,
+    prune_runs,
     read_runs,
     write_run,
 )
@@ -53,6 +55,9 @@ CASE_ACTOR = "http://case-actor:7999/api/v2/actors/case-actor"
 #: would make: different values, same order of first appearance.
 OTHER_CASE_ID = "urn:uuid:11111111-1111-4111-8111-111111111111"
 OTHER_ACTIVITY_ID = "urn:uuid:22222222-2222-4222-8222-222222222222"
+
+#: A SHA-256 digest as a ledger entry carries one.
+_DIGEST_VALUE = re.compile(r'"[0-9a-f]{64}"')
 
 
 def _entry(
@@ -220,11 +225,35 @@ class TestWhatTheNormalizerDoes:
         assert first["payloadSnapshot"]["content"] == "first contact"
 
     @pytest.mark.spec("DEMOCI-11-059")
-    def test_every_ledger_digest_field_matches_the_dropped_suffix(self):
-        """Guards the suffix rule against a renamed digest field."""
-        keys = ledger_digest_keys()
-        assert keys, "the ledger entry declares no hash-chain digest field"
-        assert all(key.endswith(DIGEST_KEY_SUFFIX) for key in keys)
+    def test_no_hash_chain_digest_of_a_real_entry_survives(self):
+        """Keyed on a digest's shape, not on the two field names.
+
+        A guard that listed ``prevLogHash`` and ``entryHash`` would lose its
+        subject to a rename: the list would shrink, the suffix assertion would
+        still pass, and the renamed field would silently stop being dropped
+        (#5535). A renamed field keeps its 64-character hex value, so it still
+        fails here.
+        """
+        entry = CaseLedgerEntry(
+            case_id=CASE_ID,
+            log_index=0,
+            log_object_id=CASE_ID,
+            semantic_type="create_case",
+            payload_snapshot={"id": ACTIVITY_ID, "type": "Create"},
+            prev_log_hash="0" * 64,
+            entry_hash="a" * 64,
+        )
+        line = json.dumps(
+            entry.model_dump(by_alias=True, exclude_none=True, mode="json")
+        )
+        assert re.search(_DIGEST_VALUE, line), "the fixture holds no digest"
+
+        [normalized] = normalize_run(_run(f"{line}\n")).ledger
+
+        assert not re.search(_DIGEST_VALUE, normalized), (
+            "a hash-chain digest survived normalization; every digest field "
+            f"of a ledger entry must end in {DIGEST_KEY_SUFFIX!r}"
+        )
 
     def test_a_ledger_line_that_is_not_an_entry_is_refused(self):
         with pytest.raises(DemoRecordingError, match="ledger line 2"):
@@ -262,6 +291,41 @@ class TestWrittenRuns:
         (tmp_path / "rv" / CHECKS_FILENAME).write_text("{oops")
         with pytest.raises(DemoRecordingError, match="not readable"):
             read_runs(tmp_path)
+
+    def test_a_check_tree_that_is_valid_json_but_no_tree_names_itself(
+        self, tmp_path
+    ):
+        """`tree_from_json` raises `DemoRecordingError`, not `ValueError`, so
+        this escaped naming neither the scenario nor the directory."""
+        write_run(BASE, tmp_path)
+        (tmp_path / "rv" / CHECKS_FILENAME).write_text('{"nodes": []}')
+        with pytest.raises(
+            DemoRecordingError, match=r"of 'rv' in .* not read"
+        ):
+            read_runs(tmp_path)
+
+    def test_a_directory_holding_neither_trace_is_skipped(self, tmp_path):
+        """A cache directory or a nested CI artifact is not a scenario, and
+        must not take the whole comparison down naming itself as one."""
+        write_run(BASE, tmp_path)
+        (tmp_path / ".cache").mkdir()
+        (tmp_path / ".cache" / "something").write_text("x")
+        assert sorted(read_runs(tmp_path)) == ["rv"]
+
+    def test_pruning_drops_the_runs_not_kept(self, tmp_path):
+        write_run(BASE, tmp_path)
+        write_run(replace(BASE, scenario="rvv"), tmp_path)
+        (tmp_path / ".cache").mkdir()
+
+        assert prune_runs(tmp_path, keep={"rv"}) == ["rvv"]
+
+        assert sorted(read_runs(tmp_path)) == ["rv"]
+        assert (tmp_path / ".cache").is_dir(), "pruning touched a non-run"
+
+    def test_pruning_a_directory_that_does_not_exist_removes_nothing(
+        self, tmp_path
+    ):
+        assert prune_runs(tmp_path / "missing", keep=set()) == []
 
     def test_a_path_that_is_not_a_directory_is_refused(self, tmp_path):
         with pytest.raises(DemoRecordingError, match="not a directory"):

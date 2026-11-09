@@ -30,6 +30,13 @@ labels, and replaces timestamps and hash-chain digests with a placeholder
 (DEMOCI-11-058, DEMOCI-11-059).  It changes nothing else (DEMOCI-11-060): a
 changed note text, an added entry and a changed check label all survive it.
 
+Dropping timestamps costs real coverage, because a time the protocol *derives*
+reads the same as one the clock minted: an embargo's ``startTime`` and
+``endTime``, an invite's ``rsvpDeadline`` and the embargo name that quotes
+them all go with the clock, so a change to the default embargo window or the
+RSVP window compares equal.  The gate is not a check on those constants; the
+blind spot is recorded in ``notes/demo-scenario-tree.md`` § "Composition".
+
 Design: ``notes/demo-scenario-tree.md`` § "Composition".
 """
 
@@ -37,12 +44,12 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Mapping
+import shutil
+from collections.abc import Container, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.demo.utils.check_tree import (
     CheckNode,
     CheckTree,
@@ -85,9 +92,12 @@ DIGEST_PLACEHOLDER = "<digest>"
 #: The suffix of every hash-chain digest field a ledger entry or a nested sync
 #: payload carries (``prevLogHash``, ``entryHash``, a sync activity's tail
 #: hash).  A suffix rather than a list of names, so a new digest field is
-#: dropped without an edit here; ``test/demo_unit/test_recording_traces.py``
-#: holds :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`'s own
-#: two aliases against it.
+#: dropped without an edit here.  What holds the rule is not this constant but
+#: the shape of a digest: ``test/demo_unit/test_recording_traces.py`` normalizes
+#: a real :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry` and
+#: fails if any 64-character hex value survives, so a digest field renamed out
+#: of this suffix fails there rather than silently stopping being dropped
+#: (#5535).
 DIGEST_KEY_SUFFIX = "Hash"
 
 
@@ -251,21 +261,43 @@ def write_run(run: ScenarioRun, root: Path) -> Path:
     return directory
 
 
+def _run_directories(root: Path) -> list[Path]:
+    """The directories under *root* that hold a written run, or half of one.
+
+    A directory holding neither trace file is not a run and is skipped: a
+    cache directory beside the runs, or a CI artifact that extracted into a
+    nested folder, would otherwise take the whole comparison down with a
+    message naming it as a scenario.  One holding exactly one of the two is
+    the genuine half-written run, and is kept so that :func:`read_runs`
+    refuses it.
+    """
+    return sorted(
+        path
+        for path in root.iterdir()
+        if path.is_dir()
+        and (
+            (path / LEDGER_FILENAME).exists()
+            or (path / CHECKS_FILENAME).exists()
+        )
+    )
+
+
 def read_runs(root: Path) -> dict[str, ScenarioRun]:
     """Return the runs :func:`write_run` left under *root*, by scenario name.
 
     Raises:
         DemoRecordingError: When *root* is not a directory, or a scenario
-            directory under it is missing or holds an unreadable trace.  A
-            half-written run is refused rather than compared, so a run that
-            failed before its traces landed does not read as "no difference".
+            directory under it holds only one of the two traces, or an
+            unreadable one.  A half-written run is refused rather than
+            compared, so a run that failed before its traces landed does not
+            read as "no difference".
     """
     if not root.is_dir():
         raise DemoRecordingError(
             f"{root} is not a directory of recorded runs."
         )
     runs: dict[str, ScenarioRun] = {}
-    for directory in sorted(path for path in root.iterdir() if path.is_dir()):
+    for directory in _run_directories(root):
         name = directory.name
         try:
             ledger = (directory / LEDGER_FILENAME).read_text(encoding="utf-8")
@@ -276,7 +308,10 @@ def read_runs(root: Path) -> dict[str, ScenarioRun]:
             ) from exc
         try:
             tree = tree_from_json(json.loads(checks))
-        except ValueError as exc:
+        except (ValueError, DemoRecordingError) as exc:
+            # `tree_from_json` raises `DemoRecordingError`, which is not a
+            # `ValueError`: without it a valid-JSON-but-not-a-tree file
+            # escaped naming neither the scenario nor the directory.
             raise DemoRecordingError(
                 f"the check tree of {name!r} in {root} is not readable: {exc}"
             ) from exc
@@ -284,18 +319,23 @@ def read_runs(root: Path) -> dict[str, ScenarioRun]:
     return runs
 
 
-def ledger_digest_keys() -> tuple[str, ...]:
-    """The hash-chain digest aliases a ledger entry carries, from the model.
+def prune_runs(root: Path, keep: Container[str]) -> list[str]:
+    """Remove the written runs under *root* whose scenario is not in *keep*.
 
-    Read by the test that holds :data:`DIGEST_KEY_SUFFIX` against them, so a
-    renamed digest field fails there rather than silently stopping being
-    dropped.
+    A write into a reused directory would otherwise leave an earlier, now
+    stale run in place, and :func:`read_runs` would read it as that side's
+    current evidence.  Only directories that hold a written run are touched
+    (:func:`_run_directories`), so nothing else under *root* is removed.
+
+    Returns:
+        The scenario names removed, in name order.
     """
-    return tuple(
-        field.serialization_alias or name
-        for name, field in CaseLedgerEntry.model_fields.items()
-        if name in {"prev_log_hash", "entry_hash"}
-    )
+    removed = []
+    for directory in _run_directories(root) if root.is_dir() else []:
+        if directory.name not in keep:
+            shutil.rmtree(directory)
+            removed.append(directory.name)
+    return removed
 
 
 __all__ = [
@@ -306,8 +346,8 @@ __all__ = [
     "NormalizedRun",
     "ScenarioRun",
     "TIMESTAMP_PLACEHOLDER",
-    "ledger_digest_keys",
     "normalize_run",
+    "prune_runs",
     "read_runs",
     "write_run",
 ]

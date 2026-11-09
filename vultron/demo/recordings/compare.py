@@ -35,14 +35,23 @@ Nothing is committed either way (#3901).
 
 Exit status:
 
-- ``0`` — every compared scenario agrees.
+- ``0`` — every compared scenario agrees, or one differed and
+  ``--allow-difference`` was given.
 - :data:`DIFFERENT_EXIT_CODE` — at least one scenario differs, with its
-  per-scenario diff printed (DEMOCI-11-061).  The ``demo-verdict-change``
-  label that admits a deliberate change is the calling job's business
-  (DEMOCI-11-063, DEMOCI-11-064), not this command's.
+  per-scenario diff printed (DEMOCI-11-061).  Its own code rather than ``1``,
+  which is what a crashed recorder exits with: a caller keying its
+  ``demo-verdict-change`` opt-out on "non-zero" would otherwise excuse a
+  broken run as a deliberate verdict change, the collision the sibling
+  command avoided the same way.
 - :data:`NO_SCENARIOS_EXIT_CODE` — the run compared no scenario at all.  A
   blocking gate reports an empty target set as its own failure rather than as
   success (DEMOCI-11-062, DF-09-009).
+
+``--allow-difference`` is the input a job passes exactly when its pull request
+carries the ``demo-verdict-change`` label: the differences are still printed,
+so the opt-out shows what it admits, and the command exits zero
+(DEMOCI-11-063, DEMOCI-11-064).  Which pull requests get it is the job's
+business (#6026).
 
 Design: ``notes/demo-scenario-tree.md`` § "Composition".
 """
@@ -53,6 +62,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NoReturn
 
 import click
 
@@ -63,13 +73,16 @@ from vultron.demo.recordings.traces import (
     NormalizedRun,
     ScenarioRun,
     normalize_run,
+    prune_runs,
     read_runs,
     write_run,
 )
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 
-#: Exit status when a scenario's two runs differ.
-DIFFERENT_EXIT_CODE = 1
+#: Exit status when a scenario's two runs differ.  Not ``1``: click exits ``1``
+#: on an uncaught exception, which is what a scenario that fails to run gives,
+#: and not ``2``, which click uses for a usage error.
+DIFFERENT_EXIT_CODE = 4
 
 #: Exit status when the run compared no scenario.  Distinct from a difference,
 #: so a caller can tell "the gate ran and found a change" from "the gate ran
@@ -235,6 +248,12 @@ def _record(
     help="The directory a --write pass left at the pull request's head.",
 )
 @click.option(
+    "--allow-difference",
+    is_flag=True,
+    help="Print the differences but exit zero. The input a job passes exactly "
+    "when its pull request carries the demo-verdict-change label.",
+)
+@click.option(
     "--log-level",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
     default="ERROR",
@@ -246,6 +265,7 @@ def main(
     write_to: Path | None,
     base_dir: Path | None,
     head_dir: Path | None,
+    allow_difference: bool,
     log_level: str,
 ) -> None:
     """Compare each demo scenario's base and head runs on ledger and checks.
@@ -255,6 +275,27 @@ def main(
     check.
     """
     logging.basicConfig(level=log_level)
+    _refuse_a_bad_combination(write_to, base_dir, head_dir)
+    started = time.monotonic()
+    try:
+        if write_to is not None:
+            _write(write_to, scenarios)
+            return
+        if base_dir is not None and head_dir is not None:
+            base, head = _written_pair(base_dir, head_dir, scenarios)
+        else:
+            base, head = _recorded_pair(scenarios)
+        _report(compare_runs(base, head), allow_difference=allow_difference)
+    finally:
+        # In a `finally`, so the run a reader most wants timed — the one that
+        # found a difference — is not the one that reports no time.
+        click.echo(f"Total wall time: {time.monotonic() - started:.1f}s")
+
+
+def _refuse_a_bad_combination(
+    write_to: Path | None, base_dir: Path | None, head_dir: Path | None
+) -> None:
+    """Refuse an option combination that would compare nothing real."""
     if write_to is not None and (base_dir or head_dir):
         raise click.UsageError(
             "--write records one side; it does not compare, so it takes "
@@ -265,52 +306,90 @@ def main(
             "a comparison needs both --base and --head; pass neither to "
             "record both sides in this process."
         )
+    if (
+        base_dir is not None
+        and head_dir is not None
+        and base_dir.resolve() == head_dir.resolve()
+    ):
+        raise click.UsageError(
+            "--base and --head name one directory, so every scenario would "
+            "be compared with itself and nothing could fail. Write each side "
+            "to its own directory."
+        )
+
+
+def _registered(scenarios: tuple[str, ...]) -> dict[str, ScenarioSpec]:
+    """The selected registered scenarios, refusing an empty selection."""
     specs = select_scenarios(
         {spec.name: spec for spec in discover_scenarios()}, scenarios
     )
-    started = time.monotonic()
-    if write_to is not None:
-        _refuse_an_empty_set(specs)
-        for run in _record(specs, "write").values():
-            click.echo(f"Wrote {write_run(run, write_to)}")
-        click.echo(f"Total wall time: {time.monotonic() - started:.1f}s")
-        return
-    if base_dir is not None and head_dir is not None:
-        base, head = read_runs(base_dir), read_runs(head_dir)
-        if scenarios:
-            # Only an explicit --scenario narrows a written pair.  Narrowing
-            # by the current registry would drop a scenario the head commit
-            # retired, which is a change the gate exists to show.
-            base = {n: run for n, run in base.items() if n in specs}
-            head = {n: run for n, run in head.items() if n in specs}
-    else:
-        _refuse_an_empty_set(specs)
-        base, head = _record(specs, "first"), _record(specs, "second")
-    _report(compare_runs(base, head))
-    click.echo(f"Total wall time: {time.monotonic() - started:.1f}s")
-
-
-def _refuse_an_empty_set(specs: Mapping[str, ScenarioSpec]) -> None:
-    """Exit distinctly when there is no scenario to record."""
     if not specs:
-        click.echo(
-            "No scenario was selected, so nothing was compared. A gate that "
-            "reports an empty target set as success checks nothing "
-            "(DEMOCI-11-062, DF-09-009).",
-            err=True,
+        _no_scenarios("No scenario was selected, so none was recorded.")
+    return specs
+
+
+def _write(write_to: Path, scenarios: tuple[str, ...]) -> None:
+    """Record one side and write its traces, pruning any stale run there."""
+    specs = _registered(scenarios)
+    runs = _record(specs, "write")
+    for run in runs.values():
+        click.echo(f"Wrote {write_run(run, write_to)}")
+    # A write into a reused directory would otherwise leave an earlier run of
+    # a scenario this pass did not record, and the comparison would read it as
+    # this side's current evidence.
+    for stale in prune_runs(write_to, keep=set(runs)):
+        click.echo(f"Removed the stale run of {stale}")
+
+
+def _written_pair(
+    base_dir: Path, head_dir: Path, scenarios: tuple[str, ...]
+) -> tuple[dict[str, ScenarioRun], dict[str, ScenarioRun]]:
+    """Read two written sides, narrowed by an explicit ``--scenario`` only.
+
+    A name is checked against what the pair holds rather than against the
+    registry: narrowing by the registry would drop a scenario the head commit
+    retired, which is a change the gate exists to show, and would refuse a
+    ``--scenario`` naming it outright.
+    """
+    base, head = read_runs(base_dir), read_runs(head_dir)
+    if not scenarios:
+        return base, head
+    unknown = sorted(set(scenarios) - set(base) - set(head))
+    if unknown:
+        raise click.BadParameter(
+            f"not recorded on either side: {', '.join(unknown)}",
+            param_hint="--scenario",
         )
-        raise SystemExit(NO_SCENARIOS_EXIT_CODE)
+    return (
+        {n: run for n, run in base.items() if n in scenarios},
+        {n: run for n, run in head.items() if n in scenarios},
+    )
 
 
-def _report(comparisons: Sequence[ScenarioComparison]) -> None:
+def _recorded_pair(
+    scenarios: tuple[str, ...],
+) -> tuple[dict[str, ScenarioRun], dict[str, ScenarioRun]]:
+    """Record each selected scenario twice in this process."""
+    specs = _registered(scenarios)
+    return _record(specs, "first"), _record(specs, "second")
+
+
+def _no_scenarios(what_happened: str) -> NoReturn:
+    """Report an empty target set as this command's own distinct failure."""
+    click.echo(
+        f"{what_happened} A gate that reports an empty target set as success "
+        "checks nothing (DEMOCI-11-062, DF-09-009).",
+        err=True,
+    )
+    raise SystemExit(NO_SCENARIOS_EXIT_CODE)
+
+
+def _report(
+    comparisons: Sequence[ScenarioComparison], *, allow_difference: bool
+) -> None:
     """Print each scenario's verdict and exit on an empty set or a difference."""
     if not comparisons:
-        click.echo(
-            "No scenario was compared. A gate that reports an empty target "
-            "set as success checks nothing (DEMOCI-11-062, DF-09-009).",
-            err=True,
-        )
-        raise SystemExit(NO_SCENARIOS_EXIT_CODE)
+        _no_scenarios("No scenario was compared.")
     different = [one for one in comparisons if one.differs]
     for one in different:
         click.echo(one.report())
@@ -318,11 +397,13 @@ def _report(comparisons: Sequence[ScenarioComparison]) -> None:
         if not one.differs:
             click.echo(f"{one.scenario}: unchanged")
     if different:
-        click.echo(
-            "Differing scenarios: "
-            + ", ".join(one.scenario for one in different),
-            err=True,
-        )
+        named = ", ".join(one.scenario for one in different)
+        if allow_difference:
+            # The differences are printed above either way, so the opt-out
+            # shows what it admits (DEMOCI-11-064).
+            click.echo(f"Differing scenarios admitted by request: {named}")
+            return
+        click.echo(f"Differing scenarios: {named}", err=True)
         raise SystemExit(DIFFERENT_EXIT_CODE)
     click.echo(f"{len(comparisons)} scenario(s) compared, none differ.")
 

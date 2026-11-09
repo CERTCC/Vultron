@@ -29,6 +29,7 @@ from vultron.demo.utils.check_tree import (
     tree_from_json,
     tree_lines,
     tree_to_json,
+    walk,
 )
 from vultron.demo.utils.failures import (
     demo_check,
@@ -232,6 +233,28 @@ class TestRendering:
             tree_from_json(json.loads(json.dumps(tree_to_json(self.TREE))))
             == self.TREE
         )
+
+    def test_walk_yields_each_parent_before_its_children(self):
+        assert [node.label for node in walk(self.TREE)] == [
+            "the Vendor reached RM.VALID",
+            "the Vendor holds the case",
+        ]
+
+    @pytest.mark.parametrize("field_name", ["reads", "children"])
+    def test_a_string_where_a_list_belongs_is_refused(self, field_name):
+        """A JSON string is iterable: ``reads: "actor1"`` would otherwise read
+        back as six single-character cast members and compare as a real
+        difference."""
+        node = {
+            "kind": "step",
+            "label": "1. act",
+            "outcome": "passed",
+            "reads": [],
+            "children": [],
+        }
+        node[field_name] = "actor1"
+        with pytest.raises(DemoRecordingError, match=f"carries {field_name}"):
+            tree_from_json([node])
 
     @pytest.mark.parametrize(
         "raw",

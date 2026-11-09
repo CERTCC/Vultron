@@ -37,7 +37,7 @@ Design: ``notes/demo-scenario-tree.md`` § "Composition".
 from __future__ import annotations
 
 import threading
-from collections.abc import Generator, Iterable, Mapping
+from collections.abc import Generator, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -119,12 +119,25 @@ class CheckNode:
             kind = CheckKind(raw["kind"])
             outcome = CheckOutcome(raw["outcome"])
             label = raw["label"]
-            reads = tuple(raw["reads"])
-            children = tuple(cls.from_json(child) for child in raw["children"])
+            reads_raw, children_raw = raw["reads"], raw["children"]
         except (KeyError, TypeError, ValueError) as exc:
             raise DemoRecordingError(
                 f"a check tree node is not readable: {exc}"
             ) from exc
+        # Each is checked for ``list`` before it is iterated: a JSON string is
+        # iterable, so ``reads: "actor1"`` would otherwise read back as six
+        # single-character cast members and compare as a real difference,
+        # which is the opposite of what this validator is for.
+        for field_name, value in (
+            ("reads", reads_raw),
+            ("children", children_raw),
+        ):
+            if not isinstance(value, list):
+                raise DemoRecordingError(
+                    f"check tree node {label!r} carries {field_name} as "
+                    f"{type(value).__name__}, not a list."
+                )
+        reads = tuple(reads_raw)
         if not isinstance(label, str) or not all(
             isinstance(name, str) for name in reads
         ):
@@ -136,7 +149,7 @@ class CheckNode:
             label=label,
             outcome=outcome,
             reads=reads,
-            children=children,
+            children=tuple(cls.from_json(child) for child in children_raw),
         )
 
 
@@ -175,10 +188,10 @@ class _OpenNode:
     def close(self, outcome: CheckOutcome) -> CheckNode:
         """Return the finished node.
 
-        The reads are sorted rather than kept in call order: a delivery that a
-        read triggers runs on a worker thread (``_one_row_at_a_time``), so two
-        runs can interleave two containers' reads differently, and an order
-        that varies would read as a difference where nothing changed.
+        The reads are a set, reported in name order: what the comparison asks
+        is *which* cast members a check read, and a count or an order would
+        make a repeated poll, or two containers polled in either order, read
+        as a difference where nothing changed.
         """
         return CheckNode(
             kind=self.kind,
@@ -192,9 +205,15 @@ class _OpenNode:
 class CheckRecorder:
     """Gathers the check tree of one scenario run.
 
-    Guarded by a lock because the recorder's in-process topology delivers on
-    worker threads, so a read can be noted while the scenario thread is
-    entering or leaving a node.
+    Every caller today is the scenario thread: the three context managers run
+    there, and the one routed client that notes a read
+    (``DataLayerClient.call``) is reached only from demo code on that thread —
+    the in-process router's delivery worker does not use it.  The lock is
+    there so that a future off-thread caller cannot corrupt the stack, not
+    because one exists; it does **not** make such a read correct, because the
+    read would be attributed to whatever node the scenario thread happened to
+    hold at that moment.  A cross-thread read needs the stack made
+    thread-local first.
     """
 
     def __init__(self) -> None:
@@ -321,6 +340,17 @@ def note_container_read(cast_member: str) -> None:
         recorder.note_read(cast_member)
 
 
+def walk(tree: Iterable[CheckNode]) -> Iterator[CheckNode]:
+    """Every node of *tree*, each parent before its children.
+
+    The one flattening, shared by the readers that ask a question of every
+    node rather than of the shape (CS-22-001).
+    """
+    for node in tree:
+        yield node
+        yield from walk(node.children)
+
+
 def tree_lines(tree: Iterable[CheckNode], depth: int = 0) -> list[str]:
     """Render *tree* as one line per node, for a diff a person reads.
 
@@ -353,4 +383,5 @@ __all__ = [
     "tree_from_json",
     "tree_lines",
     "tree_to_json",
+    "walk",
 ]

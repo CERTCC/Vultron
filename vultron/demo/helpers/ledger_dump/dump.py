@@ -25,7 +25,7 @@ from typing import Any
 import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
-from vultron.demo.helpers.cast import cast_member_name, slot_for
+from vultron.demo.helpers.cast import cast_member_at
 from vultron.demo.helpers.ledger_dump.layout import (
     LEDGER_FILE_SUFFIX,
     ActorLedgerRecord,
@@ -70,8 +70,8 @@ def replica_route_key(client: DataLayerClient) -> str:
         The route key to read the ledger under.
     """
     if not client.actor_id:
-        name = cast_member_name(client.base_url)
-        if slot_for(client.base_url) is None:
+        slot, name = cast_member_at(client.base_url)
+        if slot is None:
             # Not a cast container, so nothing says which actor it hosts.  The
             # host name is the last guess available, and the WARNING is the
             # only notice the dump will give before it reports an empty ledger.

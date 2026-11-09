@@ -96,6 +96,12 @@ class _Nodes:
         cast member whose container the call hits, which is what EDF-06-002
         constrains and what no static pass could resolve: a gate predicate is
         handed a session, not a container name.
+
+        Only a ``GET`` counts.  DEMOCI-11-057 asks which containers a check
+        *read*, and a trigger or an inbox post is an act, not a read: counting
+        one would put a cast member in ``reads`` that the step wrote to.  An
+        act redirected to another container moves the ledger instead, which is
+        the trace that sees it.
         """
         url = f"{client.base_url}{path}"
         parsed = urlparse(url)
@@ -105,7 +111,8 @@ class _Nodes:
                 f"no in-process container serves {url!r}; the scenario "
                 "addressed a host its ROLES do not name."
             )
-        note_container_read(cast_member_name(client.base_url))
+        if method.upper() == "GET":
+            note_container_read(cast_member_name(client.base_url))
         kwargs.pop("timeout", None)
         target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
         response = node.request(method.upper(), target, **kwargs)
