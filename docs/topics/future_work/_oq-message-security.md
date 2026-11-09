@@ -1,10 +1,9 @@
 !!! warning "Open question: what does a deployment sign and encrypt?"
 
-    The prototype signs each activity that it sends, but it does not verify proofs yet and does not encrypt its messages.
+    The prototype signs each activity that it sends and verifies the proof on each activity that it receives, but it does not encrypt its messages.
     Activities move as plaintext AS2 JSON on HTTP.
     The adapter for signed remote delivery is a stub (OX-10).
     The prototype is a demonstration of coordination logic, not a service for deployment.
-    Concern [#509](https://github.com/CERTCC/Vultron/issues/509) records this gap.
 
     Encryption has a design.
     `specs/encryption.yaml` (ENC-01 through ENC-03) gives each actor a key pair.
@@ -22,7 +21,8 @@
     The outbox of each actor signs each activity before it seals the body, so the delivered body and the ledger snapshot carry the same proof.
     The prototype can also find the key that a proof names.
     It reads the key from the receiver's copy of the author's profile, or else it fetches the profile from the author.
-    The prototype does not verify proofs yet.
+    The inbox of each actor verifies the proof on each activity before it parses the activity.
+    A replica also checks the proof of the author inside each ledger entry that it receives.
     `specs/signing.yaml` (SIG-01 through SIG-05) puts a proof inside each activity that an actor sends ([ADR-0164](../../adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md)).
     The proof uses the FEP-8b32 `eddsa-jcs-2022` form.
     It thus stays in the activity when the CASE_MANAGER relays the activity or records it in the case ledger.

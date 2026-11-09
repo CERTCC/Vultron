@@ -243,16 +243,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5386](https://github.com/CERTCC/Vultron/issues/5386)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "SIG-03-001",
-    "SIG-04-002",
-))
-```
-
 ### Tracked by [#5636](https://github.com/CERTCC/Vultron/issues/5636)
 
 ```python exec="true" idprefix=""

@@ -21,7 +21,7 @@ The receiver gets the key from the actor profile of the author, and from no othe
 The `proof` stays in the activity when the CASE_MANAGER relays it or records it in the case ledger.
 A replica can thus check who wrote each ledger entry that it applies (SIG-04-001, SIG-04-002).
 HTTP Message Signatures on each delivery are not required; a production deployment can add them to authenticate the server that delivers a request.
-The reference implementation signs each activity that it sends, but it does not verify proofs yet ([#1156](https://github.com/CERTCC/Vultron/issues/1156)).
+The reference implementation signs each activity that it sends, and its inbox refuses an activity whose `proof` is missing or does not verify.
 
 **Case bootstrap as the trust establishment mechanism.**
 The `Create(VulnerabilityCase)` message that the report receiver sends to the reporter as itself is the trust root for a case ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).

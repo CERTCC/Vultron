@@ -16,6 +16,7 @@ The test reads each author's public key from its seeded key here, as the
 author's profile will publish it; a verifier never does (SIG-05-002).
 """
 
+import asyncio
 import copy
 from typing import Any, cast
 
@@ -25,11 +26,15 @@ from fastapi.testclient import TestClient
 from test.support.signing import (
     TEST_PROOF_CREATED,
     AcceptingProofVerifier,
+    PublishedProfileFetcher,
     author_of,
     post_signed,
     resigned,
     signed_body,
 )
+from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
+from vultron.core.ports.proof_verification import ProofVerificationPort
+from vultron.errors import VultronActorProfileFetchError
 from vultron.wire.as2 import signing
 from vultron.wire.as2.errors import (
     VultronProofInvalidError,
@@ -157,7 +162,32 @@ def test_the_accepting_verifier_records_each_document():
     verifier = AcceptingProofVerifier()
     first, second = _body(), signed_body(_body())
 
-    verifier.verify(first)
-    verifier.verify(second)
+    asyncio.run(verifier.verify(first))
+    asyncio.run(verifier.verify(second))
 
     assert verifier.verified == [first, second]
+
+
+def test_the_accepting_verifier_conforms_to_the_verification_port():
+    assert isinstance(AcceptingProofVerifier(), ProofVerificationPort)
+
+
+def test_a_published_profile_lists_the_key_that_verifies_its_author():
+    author = "https://example.org/actors/author"
+    fetcher = PublishedProfileFetcher([author])
+    body = signed_body({**_body(), "actor": author})
+
+    profile = asyncio.run(fetcher.fetch_profile(author + "/", "receiver"))
+
+    assert isinstance(fetcher, ActorProfileFetchPort)
+    assert profile.id_ == author
+    [key] = profile.assertion_method
+    signing.verify(body, key.public_key_multibase)
+
+
+def test_an_author_not_named_publishes_no_profile():
+    fetcher = PublishedProfileFetcher(["https://example.org/actors/a"])
+
+    with pytest.raises(VultronActorProfileFetchError):
+        asyncio.run(fetcher.fetch_profile("https://example.org/actors/b", "r"))
+    assert fetcher.asked == ["https://example.org/actors/b"]

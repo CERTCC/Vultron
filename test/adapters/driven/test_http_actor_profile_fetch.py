@@ -154,7 +154,7 @@ def test_an_actor_id_that_is_no_uri_is_refused_without_a_fetch():
     with pytest.raises(VultronActorProfileFetchError) as caught:
         _fetch(fetcher, actor_id="vendor")
 
-    assert "'vendor' is not an actor id" in str(caught.value)
+    assert "'vendor' is not an http or https URL" in str(caught.value)
     assert fetcher.asked == []
 
 
@@ -227,3 +227,71 @@ def test_the_configured_fetcher_is_built_on_first_use(
 
     assert len(built) == 1
     assert len(fetcher.asked) == 2
+
+
+@pytest.mark.spec("SIG-02-001")
+@pytest.mark.parametrize(
+    ("actor_id", "rule"),
+    [
+        ("ftp://author.example/actors/a", "not an http or https URL"),
+        ("https:///actors/a", "not an http or https URL"),
+        ("https://user:pw@author.example/actors/a", "user info"),
+        ("https://author.example/actors/a?x=1", "query or fragment"),
+        ("https://author.example/actors/a#k", "query or fragment"),
+        ("http://127.0.0.1:7999/api/v2/actors/a", "non-public address"),
+        ("http://169.254.169.254/latest/meta-data", "non-public address"),
+        ("http://10.0.0.5/actors/a", "non-public address"),
+        ("http://[::1]/actors/a", "non-public address"),
+        ("http://0.0.0.0/actors/a", "non-public address"),
+    ],
+    ids=[
+        "scheme",
+        "no-host",
+        "userinfo",
+        "query",
+        "fragment",
+        "loopback",
+        "link-local-metadata",
+        "private",
+        "ipv6-loopback",
+        "unspecified",
+    ],
+)
+def test_a_profile_url_outside_the_fetch_rules_is_refused_without_a_fetch(
+    actor_id: str, rule: str
+):
+    """The URL is the unverified sender's choice, so it is checked first."""
+    fetcher = _TableFetcher(_fetched({}))
+
+    with pytest.raises(VultronActorProfileFetchError, match=rule):
+        _fetch(fetcher, actor_id=actor_id)
+
+    assert fetcher.asked == []
+
+
+@pytest.mark.spec("SIG-02-001")
+@pytest.mark.parametrize(
+    "actor_id",
+    [
+        "http://vendor:7999/api/v2/actors/vendor",
+        "https://author.example/api/v2/actors/author",
+        "https://93.184.216.34/actors/a",
+    ],
+    ids=["demo-host-name", "public-name", "public-ip"],
+)
+def test_a_profile_url_by_host_name_or_public_address_is_admitted(
+    actor_id: str,
+):
+    apf.check_profile_fetch_target(actor_id)
+
+
+@pytest.mark.spec("SIG-02-001")
+def test_the_verification_fetch_makes_one_short_attempt():
+    """A lookup before the sender is verified buys no retries."""
+    from vultron.config.app import config_override
+
+    with config_override(VULTRON_VERIFICATION_KEY_FETCH_TIMEOUT_SECONDS="1.5"):
+        fetcher = apf.verification_object_fetcher()
+
+    assert fetcher._max_attempts == 1
+    assert fetcher._timeout == 1.5

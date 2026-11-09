@@ -32,7 +32,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
-from test.support.signing import signed_body
+from test.support.signing import serve_published_profiles, signed_body
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -133,6 +133,8 @@ def inbox_client(
     app.dependency_overrides[get_datalayer] = lambda: dl
     app.dependency_overrides[actors_router.get_actor_dl] = lambda: dl
     app.state.emitter = recording_emitter
+    # Each sender publishes its profile, so the inbox verifies its proof.
+    serve_published_profiles(app)
     return TestClient(app, raise_server_exceptions=False)
 
 

@@ -220,9 +220,9 @@ class VultronProofVerificationError(VultronError):
     receiver cannot tell who wrote the document, so it refuses it
     (SIG-03-002).  ``translate_domain_errors`` maps it to 422 with
     ``ProofVerificationError`` as the error name, the answer the inbox gives
-    once it verifies proofs (#5386).  The proof is part of the content, not an
-    HTTP credential, so 401 (which asks for a ``WWW-Authenticate`` challenge)
-    does not fit.  403 does not arise at the inbox either: a verified sender's
+    to a delivery whose proof fails (SIG-03-002).  The proof is part of the
+    content, not an HTTP credential, so 401 (which asks for a
+    ``WWW-Authenticate`` challenge) does not fit.  403 does not arise at the inbox either: a verified sender's
     entitlement is decided in core and answered with a ``Reject`` (HP-01-006,
     HP-01-007).  The distinct name keeps a failed proof apart from a field
     error (:exc:`VultronValidationError`) for senders and in logs.  The
@@ -235,10 +235,12 @@ class VultronProofVerificationError(VultronError):
 
     The signing module raises the wire subclass
     :exc:`~vultron.wire.as2.errors.VultronProofInvalidError`.  Its other two
-    errors are outside this category and stay unmapped:
-    ``VultronMultikeyError`` (the author's published key is malformed) and
-    ``VultronUnsignableJsonError`` (the body cannot be canonicalized).  How
-    ingress answers them is #5386's to decide.
+    errors are outside this category, and ``translate_domain_errors`` maps
+    neither.  The inbox's verification stage answers a malformed published
+    key (``VultronMultikeyError``) as a key that cannot be read, raising
+    :exc:`VultronVerificationKeyError`, and a body it cannot read as one
+    JSON object (``VultronUnsignableJsonError``) 400 for a syntax fault and
+    422 for refused but well-formed JSON.
     """
 
 

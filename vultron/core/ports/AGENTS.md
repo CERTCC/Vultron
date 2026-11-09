@@ -94,6 +94,15 @@ names (SIG-02-001). The adapter (`HttpActorProfileFetchAdapter`) makes the
 GET and parses the body, so core gets a `CoreActor`. Reason: core makes no
 HTTP call and parses no wire JSON (ARCH-01-001, ADR-0032).
 
+### `ProofVerificationPort`
+
+`ProofVerificationPort` (`proof_verification.py`) is the inbox's verification
+stage: `async verify(document)` refuses a decoded body whose proofs do not
+verify (SIG-03-002). The adapter (`ProfileKeyProofVerifier`) resolves each
+author's key from its profile and calls the signing module. Reason: the stage
+runs before the parser (SIG-03-003), and a test that stubs the ingress swaps
+in `AcceptingProofVerifier` (`test/support/signing.py`) by this shape.
+
 ### Server-Level Inbox: Deferred Design Decision
 
 A server-level inbox is recognized as a future option, but current

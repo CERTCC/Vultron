@@ -36,7 +36,9 @@ end-to-end. Poll the effect instead (`wait_for_case_on_container`,
 reliably-timing-out poll is a delivery bug, not a workaround to write. Scope:
 `vultron/demo/scenario/` plus the `vultron/demo/helpers/` code it calls (#3980);
 `vultron/demo/exchange/` demos drive one backend directly and use
-`post_to_inbox_and_wait` normally. **No self-delivery exception** either: activities
+`post_to_inbox_and_wait` normally; it signs as the activity's `actor`, the
+sender it stands in for, so that actor must be one the backend serves a
+profile for (SIG-02-001). **No self-delivery exception** either: activities
 route through the CaseActor, whose `Announce` every replica consumes, so a replica
 that is not updating means the routing is wrong, not that the actor should POST to
 itself. [ownership-transfer](../../notes/ownership-transfer.md) § "The Accepting

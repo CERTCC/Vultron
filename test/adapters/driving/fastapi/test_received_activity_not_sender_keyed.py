@@ -144,13 +144,17 @@ def test_ingress_holds_nothing_under_the_senders_id(receiver_dl):
 
 
 @pytest.mark.spec("DL-06-006")
-def test_ingress_of_a_parsed_activity_holds_nothing_either(receiver_dl):
-    """The route hands ingress a parsed activity; that path writes nothing."""
-    ingress = FastAPIIngressAdapter(receiver_dl)
-    parsed = ingress.parse(_create_case(_SENDER_URI))
-    assert parsed is not None
-    ingress.rehydrate(parsed)
+@pytest.mark.spec("SIG-03-003")
+def test_ingress_refuses_a_parsed_activity_and_holds_nothing(receiver_dl):
+    """An inbox run starts only from a body, never from a parsed activity.
 
+    The route hands ingress the body its verification stage checked; a
+    parsed activity carries no proof, so the ingress takes none and writes
+    nothing.
+    """
+    ingress = FastAPIIngressAdapter(receiver_dl)
+
+    assert ingress.parse(_create_case(_SENDER_URI)) is None
     assert sum(receiver_dl.count_all().values()) == 0
 
 

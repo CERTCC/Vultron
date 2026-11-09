@@ -355,8 +355,12 @@ def test_the_key_owner_is_the_normalised_actor_id():
         pytest.importorskip(
             "vultron.adapters.driven.http_actor_profile_fetch"
         ),
+        pytest.importorskip(
+            "vultron.adapters.driving.fastapi.inbox_verification"
+        ),
+        pytest.importorskip("vultron.adapters.driving.fastapi.deps"),
     ],
-    ids=["resolver", "fetch-adapter"],
+    ids=["resolver", "fetch-adapter", "verification-stage", "fetch-wiring"],
 )
 def test_the_key_lookup_names_no_seed_function(module: object):
     """No seed function is named, however it might be imported or called."""

@@ -26,6 +26,7 @@ from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.sender_sequence import SenderSequenceOrder
 from vultron.demo.utils.client import DataLayerClient, logfmt, postfmt
 from vultron.primitives import same_actor_id
+from vultron.wire.as2 import signing
 from vultron.wire.as2.factories import (
     ledger_position_case_ids,
     sender_sequence_case_ids,
@@ -153,6 +154,14 @@ def post_to_inbox_and_wait(
 ) -> None:
     """POST an activity to an actor's inbox and pause to let background tasks complete.
 
+    The demo stands in for the sender's node, as it already does when it
+    stamps the activity as the sender's adapter would, so it also signs the
+    body as the sender's outbox would (SIG-01-001), with the key of the
+    activity's ``actor`` (``signing.sign_as_author``).  The inbox verifies
+    that proof by the key the sender's profile publishes (SIG-02-001), so an
+    activity naming an actor no node serves is refused.  Prefer a trigger,
+    which the actor's own outbox signs (DEMOMA-00-002).
+
     Args:
         client: DataLayerClient instance.
         actor_id: ID of the target actor.
@@ -166,7 +175,13 @@ def post_to_inbox_and_wait(
     logger.debug(
         "Posting activity to %s's inbox: %s", actor_obj_id, logfmt(activity)
     )
-    client.post(f"/actors/{actor_obj_id}/inbox/", json=postfmt(activity))
+    body = postfmt(activity)
+    # The demo is the sender's stand-in, so it signs as the sender.
+    sender = signing.author_of(body)
+    client.post(
+        f"/actors/{actor_obj_id}/inbox/",
+        json=signing.sign_as_author(body, owner_id=sender),
+    )
     delay = DEFAULT_WAIT_SECONDS if wait_seconds is None else wait_seconds
     time.sleep(
         delay

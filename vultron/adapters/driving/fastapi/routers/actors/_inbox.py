@@ -2,8 +2,10 @@
 """
 Inbox processing helpers for the Vultron FastAPI actors router.
 
-Provides the ``parse_activity`` HTTP adapter and the private addressing
-helpers the inbox route uses to gate an activity. No route handlers here.
+Provides the inbox's two ingress stages, :func:`verified_delivery` (decode
+and verify the body's proofs, SIG-03-003) and the ``parse_activity`` HTTP
+adapter, and the private addressing helpers the inbox route uses to gate an
+activity. No route handlers here.
 Rebuilding the activity for routing is ingress work, done in
 ``vultron.adapters.driving.fastapi.inbox_orchestration`` with
 ``inbox_staging``, which writes nothing to the receiver's store (DL-06-006),
@@ -26,23 +28,107 @@ route keeps no receipt bookkeeping of its own (IE-02-004).
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 
 from vultron.adapters.driven.actor_hosts import (
     ACTORS_SEGMENT as _ACTORS_SEGMENT,
 )
+from vultron.adapters.driving.fastapi.deps import (
+    get_actor_dl,
+    get_actor_profile_fetcher,
+)
+from vultron.adapters.driving.fastapi.errors import (
+    inbox_body_http_exception,
+    translate_domain_errors,
+)
+from vultron.adapters.driving.fastapi.inbox_verification import (
+    ProfileKeyProofVerifier,
+    decode_inbox_body,
+)
+from vultron.adapters.driving.fastapi.routers.actors._lookup import (
+    _resolve_actor_or_404,
+)
 from vultron.adapters.utils import strip_id_prefix
+from vultron.core.models.actor import CoreActor
+from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
+from vultron.core.ports.datalayer import DataLayer
+from vultron.errors import VultronProofVerificationError
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingTypeError,
+    VultronUnsignableJsonError,
 )
 from vultron.wire.as2.parser import parse_activity as _parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger("uvicorn.error")
+
+
+@dataclass(frozen=True)
+class VerifiedDelivery:
+    """A delivery whose body decoded and whose proofs verified.
+
+    Attributes:
+        body: The decoded JSON object, as received; the parser reads it next.
+        receiver: The addressed actor, found before any key is looked up.
+    """
+
+    body: dict[str, Any]
+    receiver: CoreActor
+
+
+async def verified_delivery(
+    actor_id: str,
+    request: Request,
+    dl: DataLayer = Depends(get_actor_dl),
+    fetcher: ActorProfileFetchPort = Depends(get_actor_profile_fetcher),
+) -> VerifiedDelivery:
+    """FastAPI dependency: the inbox's decode and verification stage.
+
+    Runs before ``parse_activity``, so a forged body reaches no expansion,
+    validation or hydration (SIG-03-001, SIG-03-003).  The addressed actor
+    is found first, so a post to an actor this node does not host is
+    answered 404 with no key lookup.  The raw body is decoded with
+    :func:`~vultron.adapters.driving.fastapi.inbox_verification.decode_inbox_body`
+    and every proof it needs is checked by
+    :class:`~vultron.adapters.driving.fastapi.inbox_verification.ProfileKeyProofVerifier`
+    (SIG-02-001, SIG-04-002).
+
+    Raises:
+        HTTPException: 404 for an actor this node does not host; 400 for a
+            body that is not JSON (IE-07-001); 422 for JSON the inbox
+            refuses (IE-04-002); 422 ``ProofVerificationError`` for a proof
+            that is missing or does not verify, or whose key cannot be read
+            (SIG-03-002, EH-03-005).
+    """
+    receiver = _resolve_actor_or_404(actor_id, dl)
+    raw = await request.body()
+    try:
+        body = decode_inbox_body(raw)
+        await ProfileKeyProofVerifier(dl, fetcher, receiver.id_).verify(body)
+    except VultronUnsignableJsonError as exc:
+        logger.warning(
+            "Refusing a delivery to actor_id=%s: its body cannot be read"
+            " as one JSON object: %s",
+            receiver.id_,
+            exc,
+        )
+        raise inbox_body_http_exception(exc) from exc
+    except VultronProofVerificationError as exc:
+        # The id and actor are the unverified sender's claims.
+        logger.warning(
+            "Refusing activity %s (claimed actor %s) to actor_id=%s: %s",
+            body.get("id"),
+            body.get("actor"),
+            receiver.id_,
+            exc,
+        )
+        raise translate_domain_errors(exc) from exc
+    return VerifiedDelivery(body=body, receiver=receiver)
 
 
 def parse_activity(body: dict[str, Any]) -> as_Activity:

@@ -27,7 +27,11 @@ from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+from vultron.adapters.driven.http_actor_profile_fetch import (
+    HttpActorProfileFetchAdapter,
+)
 from vultron.adapters.driving.fastapi import outbox_handler
+from vultron.adapters.driving.fastapi.deps import ACTOR_PROFILE_FETCHER_STATE
 from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import (
     get_default_emitter,
@@ -36,7 +40,7 @@ from vultron.demo.helpers.invite_chain import (
     chain as invite_runs,
     links as invite_links,
 )
-from vultron.demo.in_process import InProcessRouter
+from vultron.demo.in_process import InProcessObjectFetcher, InProcessRouter
 from vultron.wire.as2.factories import parse_submit_report_offer
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -441,11 +445,25 @@ def client():
 
         previous_node_base_url = getattr(app_v2.state, "node_base_url", None)
         app_v2.state.node_base_url = f"{tc_base}/api/v2"
+        # A proof's key is read from its author's profile (SIG-02-001); the
+        # inbox fetches it from this same app through the router, as the
+        # single-node container fetches it from itself over HTTP.
+        previous_fetcher = getattr(
+            app_v2.state, ACTOR_PROFILE_FETCHER_STATE, None
+        )
+        setattr(
+            app_v2.state,
+            ACTOR_PROFILE_FETCHER_STATE,
+            HttpActorProfileFetchAdapter(InProcessObjectFetcher(router)),
+        )
         try:
             yield test_client
         finally:
             configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
             app_v2.state.node_base_url = previous_node_base_url
+            setattr(
+                app_v2.state, ACTOR_PROFILE_FETCHER_STATE, previous_fetcher
+            )
 
 
 @pytest.fixture(autouse=True)

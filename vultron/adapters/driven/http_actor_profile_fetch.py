@@ -32,11 +32,16 @@ refusal saying the actor published no key would mislead.
 
 from __future__ import annotations
 
+import ipaddress
+from urllib.parse import urlsplit
+
 from vultron.adapters.driven.http_object_fetch import (
+    HttpObjectFetcher,
     ObjectFetcher,
     default_object_fetcher,
     parse_fetched_object,
 )
+from vultron.config import get_config
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.object_fetch import (
     ObjectFetchSource,
@@ -50,6 +55,64 @@ from vultron.errors import (
 
 #: The AS2 actor type that parses without the profile's keys.
 GENERIC_ACTOR_TYPE = "Actor"
+
+#: The URL schemes a profile is fetched over.
+_FETCH_SCHEMES = frozenset({"http", "https"})
+
+
+def check_profile_fetch_target(actor_id: str) -> None:
+    """Refuse an actor id that is not a URL a profile may be fetched from.
+
+    The key lookup runs before the sender is verified, so the URL is the
+    unverified sender's choice.  Only a plain ``http`` or ``https`` URL is
+    fetched: no user info, query or fragment, and no host that is an IP
+    literal outside the public address space (loopback, private,
+    link-local such as a cloud metadata address, multicast, reserved or
+    unspecified).  A host name is fetched: the multi-container demos name
+    their peers by internal host names, and resolving a name to check it
+    here would not bind the address the client then connects to.  A
+    production allow-list or key cache is #1184.
+
+    Raises:
+        VultronActorProfileFetchError: *actor_id* is not such a URL; the
+            message says which rule it breaks.
+    """
+    parts = urlsplit(actor_id)
+    if parts.scheme not in _FETCH_SCHEMES or not parts.hostname:
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} is not an http or https URL with a host"
+        )
+    if parts.username is not None or parts.password is not None:
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} carries user info, which a profile URL may not"
+        )
+    if parts.query or parts.fragment:
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} carries a query or fragment, which a profile URL"
+            " may not"
+        )
+    try:
+        address = ipaddress.ip_address(parts.hostname)
+    except ValueError:
+        return
+    if not address.is_global:
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} names a non-public address, which a profile is"
+            " not fetched from"
+        )
+
+
+def verification_object_fetcher() -> HttpObjectFetcher:
+    """The fetcher for a key lookup made before the sender is verified.
+
+    One attempt, no retry, and a short timeout
+    (``verification_key_fetch_timeout_seconds``): an unsigned or forged
+    delivery must not buy the AKM-05-008 retries an object fetch gets.
+    """
+    return HttpObjectFetcher(
+        max_attempts=1,
+        timeout=get_config().verification_key_fetch_timeout_seconds,
+    )
 
 
 class HttpActorProfileFetchAdapter:
@@ -69,10 +132,12 @@ class HttpActorProfileFetchAdapter:
         """Fetch and parse *actor_id*'s profile on behalf of *requester_id*.
 
         Raises:
-            VultronActorProfileFetchError: *actor_id* is not a URI to fetch
-                from, the fetch failed, or the body is not *actor_id*'s
-                profile as one of the concrete actor types.
+            VultronActorProfileFetchError: *actor_id* is not a URL to fetch
+                from (:func:`check_profile_fetch_target`), the fetch failed,
+                or the body is not *actor_id*'s profile as one of the
+                concrete actor types.
         """
+        check_profile_fetch_target(actor_id)
         if self._fetcher is None:
             self._fetcher = default_object_fetcher()
         try:
@@ -112,4 +177,9 @@ class HttpActorProfileFetchAdapter:
         return parsed
 
 
-__all__ = ["GENERIC_ACTOR_TYPE", "HttpActorProfileFetchAdapter"]
+__all__ = [
+    "GENERIC_ACTOR_TYPE",
+    "HttpActorProfileFetchAdapter",
+    "check_profile_fetch_target",
+    "verification_object_fetcher",
+]

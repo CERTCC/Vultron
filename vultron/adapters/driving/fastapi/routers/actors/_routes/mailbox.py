@@ -41,8 +41,10 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+    VerifiedDelivery,
     _activity_addressed_to,
     parse_activity,
+    verified_delivery,
 )
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _resolve_actor_or_404,
@@ -102,11 +104,9 @@ def refuse_non_post_inbox(actor_id: str) -> None:
 )
 def post_actor_inbox(
     actor_id: str,
-    # as_Activity is a problem, because its subclasses have different required fields,
-    # so we really want to accept any subclass that we have a registered handler for here.
     request: Request,
     background_tasks: BackgroundTasks,
-    activity: as_Activity = Depends(parse_activity),
+    delivery: VerifiedDelivery = Depends(verified_delivery),
     dl: DataLayer = Depends(get_actor_dl),
 ) -> None:
     """Adds an item to the Actor's Inbox.
@@ -124,18 +124,27 @@ def post_actor_inbox(
     (``hosted_endpoints``) and a sender holding that profile posts to
     (OX-12-009), as well as at ``/inbox/``.
 
+    The ingress stages run in order: the body is decoded and its proofs
+    verified (``verified_delivery``, SIG-03-003), then it is parsed
+    (``parse_activity``) and its addressing checked (IE-11-001).  The
+    background task gets the verified body, not the parsed activity, and
+    parses it again in its own ingress: an inbox run starts only from a body
+    (``FastAPIIngressAdapter.parse``).
+
     Args:
         actor_id: The ID of the Actor whose Inbox to add the item to.
         request: The FastAPI Request (used to resolve the per-app emitter/dispatcher).
-        activity: The Activity item (parsed by the ``parse_activity`` dependency).
+        delivery: The verified body and its addressed actor (the
+            ``verified_delivery`` dependency).
         background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
     Returns:
         None
     Raises:
-        HTTPException: If the Actor is not found.
+        HTTPException: If the Actor is not found, the body is refused by
+            the verification stage, or it does not parse.
     """
-    actor = _resolve_actor_or_404(actor_id, dl)
-    canonical_actor_id = actor.id_
+    canonical_actor_id = delivery.receiver.id_
+    activity = parse_activity(delivery.body)
 
     if not _activity_addressed_to(activity, canonical_actor_id):
         logger.warning(
@@ -153,7 +162,7 @@ def post_actor_inbox(
 
     background_tasks.add_task(
         run_inbox_pipeline,
-        activity,
+        delivery.body,
         dl,
         canonical_actor_id,
         dispatcher,

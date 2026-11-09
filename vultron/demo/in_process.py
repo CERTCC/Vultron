@@ -42,9 +42,21 @@ from vultron.adapters.driven.datalayer_sqlite import (
     dispose_actor_engines,
     get_datalayer,
 )
+from vultron.adapters.driven.http_actor_profile_fetch import (
+    HttpActorProfileFetchAdapter,
+)
 from vultron.adapters.driven.http_delivery import DeliveryError, inbox_url_for
+from vultron.adapters.driven.http_object_fetch import (
+    REQUESTER_HEADER,
+    ObjectFetchResult,
+    fetch_url,
+)
 from vultron.adapters.driving.fastapi.app import create_app
-from vultron.adapters.driving.fastapi.deps import get_actor_dl
+from vultron.adapters.driving.fastapi.deps import (
+    ACTOR_PROFILE_FETCHER_STATE,
+    get_actor_dl,
+)
+from vultron.core.models.object_fetch import ObjectReference
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +132,10 @@ class InProcessRouter:
     def register(self, base_url: str, client: "TestClient") -> None:
         """Register *client* as the delivery target for *base_url*."""
         self._clients[base_url.rstrip("/")] = client
+
+    def client_for(self, base_url: str) -> "TestClient | None":
+        """The client registered for *base_url*, if any."""
+        return self._clients.get(base_url.rstrip("/"))
 
     def inject_failure(self, base_url: str) -> None:
         """Cause all subsequent emits to *base_url* to raise ``DeliveryError``.
@@ -206,6 +222,55 @@ class InProcessRouter:
                     inbox_path,
                     exc,
                 )
+
+
+class InProcessObjectFetcher:
+    """:class:`~vultron.adapters.driven.http_object_fetch.ObjectFetcher` over
+    an :class:`InProcessRouter`'s apps.
+
+    A fetch is the ``GET`` a container would make, sent to the
+    :class:`TestClient` the router holds for the URL's base, so a node reads
+    another node's profile from the route that serves it, as in the Docker
+    topology.  One attempt, as the verification stage's fetch makes
+    (``verification_object_fetcher``); an unregistered host or an error
+    status is the failure, never raised.
+    """
+
+    def __init__(self, router: "InProcessRouter") -> None:
+        self._router = router
+
+    async def fetch(
+        self, reference: ObjectReference, requester_id: str
+    ) -> ObjectFetchResult:
+        """``GET`` *reference*'s URL from the app that serves it."""
+        url = fetch_url(reference)
+        parsed = urlparse(url)
+        client = self._router.client_for(f"{parsed.scheme}://{parsed.netloc}")
+        if client is None or client.portal is None:
+            return ObjectFetchResult(
+                None, f"no in-process app serves {url}", 1
+            )
+        get = functools.partial(
+            client.get,
+            parsed.path,
+            headers={
+                REQUESTER_HEADER: requester_id,
+                "Accept": "application/activity+json",
+            },
+        )
+        # Off the calling loop, as ``InProcessRouter.emit`` posts: the
+        # target app may be the caller's own.
+        response = await anyio.to_thread.run_sync(get)
+        if response.status_code >= 400:
+            return ObjectFetchResult(
+                None, f"GET {url} answered HTTP {response.status_code}", 1
+            )
+        body = response.json()
+        if not isinstance(body, dict):
+            return ObjectFetchResult(
+                None, f"GET {url} answered with no JSON object", 1
+            )
+        return ObjectFetchResult(body, None, 1)
 
 
 @dataclass
@@ -350,6 +415,14 @@ def create_isolated_actor_app(
     # they would open the process-global store while every other route reads this
     # node's, so an actor would 404 immediately after being created.
     app.state.db_url = db_url
+    # A proof's key is read from its author's profile (SIG-02-001), fetched
+    # from the node that serves it through the router, as a container
+    # fetches it over HTTP.
+    setattr(
+        app.state,
+        ACTOR_PROFILE_FETCHER_STATE,
+        HttpActorProfileFetchAdapter(InProcessObjectFetcher(router)),
+    )
 
     # This app's own actor.  Its store is opened only when a test reads
     # `IsolatedActorApp.dl` (or the actor is created through the routes), so a

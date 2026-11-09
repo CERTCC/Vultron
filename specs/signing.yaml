@@ -72,7 +72,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_body_changed_after_signing_is_refused`
       posts a signed body whose nested object was changed afterwards.
-    tracking_issue: '#5386'
     adr:
     - ADR-0164
     stories:
@@ -95,7 +94,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_proof_naming_a_key_outside_the_authors_profile_is_refused`
       posts an activity whose proof names another actor's key.
-    tracking_issue: '#5386'
     adr:
     - ADR-0164
     stories:
@@ -134,7 +132,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_an_activity_without_a_valid_proof_is_refused_and_stores_nothing`
       checks that a refused activity leaves nothing in the receiver's store.
-    tracking_issue: '#5386'
     adr:
     - ADR-0164
     stories:
@@ -151,7 +148,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_an_activity_without_a_valid_proof_is_refused_and_stores_nothing`
       posts an activity with no proof and one with a proof that does not verify.
-    tracking_issue: '#5386'
     relationships:
     - rel_type: depends_on
       spec_id: SIG-03-001
@@ -174,7 +170,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_bad_proof_is_refused_before_the_schema_is_checked`
       posts a body with an invalid proof and a schema fault.
-    tracking_issue: '#5386'
     relationships:
     - rel_type: implements
       spec_id: SIG-03-001
@@ -217,9 +212,9 @@ groups:
       relay, or a genuine act be replayed by a forger. Refusing the whole entry keeps the
       replica's ledger a prefix of the CASE_MANAGER's.
     verification: >-
-      `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_replica_refuses_an_entry_whose_author_proof_is_missing`
-      delivers an entry whose snapshot lost its author's proof.
-    tracking_issue: '#5386'
+      `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_replica_refuses_an_entry_whose_author_proof_fails`
+      posts to a replica's inbox an entry whose snapshot lost its author's proof,
+      and one whose snapshot was altered, each re-signed by the CASE_MANAGER.
     adr:
     - ADR-0164
     stories:
@@ -259,7 +254,6 @@ groups:
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_an_author_whose_profile_cannot_be_read_is_refused`
       posts an activity from an author whose profile the receiver holds no copy of and
       cannot fetch.
-    tracking_issue: '#5386'
     relationships:
     - rel_type: refines
       spec_id: SIG-02-001

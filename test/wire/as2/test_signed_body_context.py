@@ -15,8 +15,8 @@
 Signing appends the data-integrity context to a body's own ``@context``
 (FEP-8b32), so every signed body's context is a list, and the parser must
 accept one on the envelope and on every nested object.  Nothing reads the
-``proof`` at the parse edge yet: verification runs before the parser
-(SIG-03-003, #5386), so the parser sets the key aside and reports it like any
+``proof`` at the parse edge: verification runs before the parser
+(SIG-03-003), so the parser sets the key aside and reports it like any
 foreign key (MV-11-003), and the received evidence keeps it (SIG-04-001).
 """
 
