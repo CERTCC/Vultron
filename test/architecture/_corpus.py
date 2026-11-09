@@ -315,6 +315,87 @@ def node_line(node: ast.AST) -> int:
     return getattr(node, "lineno", 0)
 
 
+#: Identifier tokens inside a quoted annotation, for :func:`trailing_names`.
+_QUOTED_IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+
+
+def trailing_names(node: ast.expr | None) -> frozenset[str]:
+    """Every identifier *node* mentions, an attribute by its trailing name.
+
+    For ratchets that decide whether an annotation or an argument names a
+    class, without resolving the binding: ``X``, ``mod.X`` and the quoted
+    forward reference ``"mod.X | None"`` all yield ``X``.
+
+    A quoted annotation is **tokenised**, not split on ``.``: a subscript or a
+    union inside the quotes (``"StoryProp[str] | None"``) is one string
+    ``Constant``, so taking it whole — or taking only what follows the last
+    dot — yields a name no membership test matches, and the ratchet goes
+    quiet on one pair of quotes (#5598).
+    """
+    if node is None:
+        return frozenset()
+    found: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            found.add(child.id)
+        elif isinstance(child, ast.Attribute):
+            found.add(child.attr)
+        elif isinstance(child, ast.Constant) and isinstance(child.value, str):
+            found.update(_QUOTED_IDENTIFIER.findall(child.value))
+    return frozenset(found)
+
+
+def parameters_of(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+) -> tuple[ast.arg, ...]:
+    """Every parameter *fn* declares, in declaration order.
+
+    Positional-only, then positional-or-keyword, then keyword-only, then
+    ``*args`` and ``**kwargs`` when present.  One reading of the five
+    ``ast.arguments`` slots, so a ratchet that judges each parameter cannot
+    silently omit one of them.
+    """
+    args = fn.args
+    return tuple(
+        arg
+        for arg in (
+            *args.posonlyargs,
+            *args.args,
+            *args.kwonlyargs,
+            args.vararg,
+            args.kwarg,
+        )
+        if arg is not None
+    )
+
+
+def defaulted_parameters(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> frozenset[str]:
+    """The names of *fn*'s parameters that carry a default of any value.
+
+    ``ast.arguments`` aligns ``defaults`` with the *tail* of the positional
+    parameters and ``kw_defaults`` element-wise with the keyword-only ones,
+    carrying ``None`` where there is no default at all — two different
+    encodings a caller should not have to rediscover.  For the narrower
+    question of which parameters default to ``None`` and at what caller
+    index, see ``_guard_reachability.none_defaulted_params``.
+    """
+    args = fn.args
+    positional = [*args.posonlyargs, *args.args]
+    tail = positional[len(positional) - len(args.defaults) :]
+    return frozenset(
+        [arg.arg for arg in tail]
+        + [
+            arg.arg
+            for arg, default in zip(
+                args.kwonlyargs, args.kw_defaults, strict=True
+            )
+            if default is not None
+        ]
+    )
+
+
 # ---------------------------------------------------------------------------
 # Definition lookup — the cached AST node for a live function object.
 # ---------------------------------------------------------------------------
@@ -461,7 +542,7 @@ def definition_summaries(
     for match, end in zip(starts, ends[: len(starts)], strict=True):
         if classes or not match.group(0).startswith("class"):
             yield match.group(1), called_names(source[match.end() : end])
-    for alias, original in _aliases(source):
+    for alias, original in aliases(source):
         yield alias, frozenset({original})
 
 
@@ -484,8 +565,13 @@ def class_spans(source: str) -> Iterator[tuple[str, frozenset[str], str]]:
         yield match.group(1), bases, span
 
 
-def _aliases(source: str) -> Iterator[tuple[str, str]]:
-    """``(alias, original)`` for each top-level alias in *source*."""
+def aliases(source: str) -> Iterator[tuple[str, str]]:
+    """``(alias, original)`` for each top-level alias in *source*.
+
+    Covers both module-level shapes a ratchet that follows a name has to
+    know about: ``ALIAS = ORIGINAL`` at module level, and
+    ``from m import ORIGINAL as ALIAS``.
+    """
     for assignment in _ASSIGNMENT_ALIAS.finditer(source):
         if assignment.group(1) != assignment.group(2):
             yield assignment.group(1), assignment.group(2)

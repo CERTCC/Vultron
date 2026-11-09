@@ -33,6 +33,7 @@ related_specs:
   - specs/testability.yaml
   - specs/case-proposal.yaml
 related_notes:
+  - notes/architecture-ratchet-corpus.md
   - notes/demo-scenario-registry.md
   - notes/demo-interactive-ui.md
   - notes/demo-scenario-authoring.md

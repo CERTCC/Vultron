@@ -13,9 +13,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Architecture invariant (DEMOMA-22-014 through DEMOMA-22-017): every story
-prop is declared once, kept by a step and read by a step, and the step that
-reads one is told which.
+"""Architecture invariant (DEMOMA-22-014 through DEMOMA-22-019): every story
+prop is declared once as a named constant, kept by a step and read by a step,
+and the step that reads one is told which.
 
 A :class:`~vultron.demo.helpers.story.StoryProp` is how a composed scenario
 carries a causal gate through a flat sequence: the fragment that performs an
@@ -42,22 +42,29 @@ of the scan (``notes/architecture-ratchet-corpus.md`` § "Key a Ratchet on the
 Act, Not on the Name of What Performs It").  Subpackages are covered by
 construction: the scan walks every module under ``vultron/demo/``, so a prop
 declared in a package a split created is found without an edit here
-(#5592).  Each arm asserts its own subjects are non-empty, so none of them
+(#5592).  The arms assert their own subjects are non-empty, so none of them
 can pass over an empty corpus (DF-09-009's shape).
 
-Two shapes of site are recognised, because both are live:
+Three shapes of site are recognised, because all three are live:
 
-* **direct** — ``state.keep(PROP, value)`` and ``state.kept(PROP)`` naming the
-  prop constant;
+* **outright** — ``state.keep(PROP, value)`` and ``state.kept(PROP)`` naming
+  the prop constant;
 * **through a parameter** — the prop handed to a step as ``joined=PROP``,
-  where that step's ``joined`` parameter is one it keeps or reads.  This is
-  the shape the #5535 fix introduced, and it is what makes a continuation's
-  precondition structural rather than remembered.
+  where that step's ``joined`` parameter is one it keeps or reads, directly or
+  through any chain of forwarding wrappers.  This is the shape the #5535 fix
+  introduced, and it is what makes a continuation's precondition structural
+  rather than remembered;
+* **through an alias** — the name a keep or a call site reaches the prop by is
+  not the constant's own: a local binding, a ``for`` target over a collection
+  of props (``rv``'s note pair), a module-level rename or an
+  ``import ... as``.
 
 Loose readings, with the direction each one errs in
 (``notes/architecture-ratchet-corpus.md`` § "Say, Per Loose Reading, Whether
-It Can Miss or Invent").  All but the last can only **miss** a violation,
-never invent one, and none can be narrowed without resolving bindings:
+It Can Miss or Invent").  Every reading below can only **miss** a violation,
+and none can be narrowed without resolving bindings; the arms that could
+*invent* one — fail correct code — were removed rather than documented, since
+a red arm on correct code is what gets a ratchet switched off (#5598):
 
 * ``keep`` / ``kept`` are matched on the attribute name, whatever the
   receiver, so another object's ``keep`` whose first argument names a
@@ -65,26 +72,32 @@ never invent one, and none can be narrowed without resolving bindings:
 * A call site is matched by its callee's bare name, so two functions that
   share a name share their prop-parameter roles: a prop passed as ``joined=``
   to a same-named function that does not read it reads as read.
-* A local alias is followed by name through assignments and ``for`` targets
-  rather than by binding, so a name rebound between the alias and the keep
-  still resolves to the first binding's props.  This is the arm that reads
-  ``rv``'s note pair, which is kept by iterating a local tuple of two props.
-* The annotation that marks a prop parameter is matched on its trailing name,
-  so a module that aliased the class under another name would have its
-  parameters unchecked.
-* The one arm that can **invent**: a ``StoryProp(...)`` call that is not a
-  module-level assignment to a single name is reported as a stray
-  construction.  It is narrow on purpose — it is what makes the enumeration
-  complete, since every construction under ``vultron/demo/`` is then either a
-  declaration this ratchet checks or a failure.  A prop built any other way
-  is not reachable as a module constant, which is how every family declares
-  one.
+* Sites are flat sets of bare identifiers, intersected with the declared
+  constants' identifiers, so two modules declaring the same identifier
+  cross-credit each other: a prop touched by nobody is hidden when a
+  same-named one elsewhere is kept and read.  DEMOMA-22-019 forbids two
+  declarations spelling one *declared name*, not one *constant*, so the shape
+  is legal; narrowing it means keying every site on the declaring module and
+  its importers.
+* An alias is followed by name rather than by binding, so a name rebound
+  between the alias and the site still resolves to the first binding's props.
+* The annotation that marks a prop parameter is matched on the identifiers it
+  spells, so a module that aliased the class under another name would have
+  its parameters unchecked.
+
+One arm is deliberately strict rather than loose: a ``StoryProp(...)`` call
+that is not a module-level assignment to a single name, or whose declared
+name is not a string literal, is reported (DEMOMA-22-018).  That is what makes
+the enumeration complete rather than best-effort — every construction under
+``vultron/demo/`` is then either a subject the other arms reach or a failure
+of this one — and a prop built any other way is named by no site, which is
+how every family declares one.
 
 The derivation runs once at import time, outside the per-test timeout, and
 costs about 0.8 s over the two prefilter rounds; each test then reads the
 result and measures under 5 ms, within TB-13-004's budget.
 
-Spec: DEMOMA-22-014 through DEMOMA-22-017, DEMOCI-01-011, TB-13-001,
+Spec: DEMOMA-22-014 through DEMOMA-22-019, DEMOCI-01-011, TB-13-001,
 TB-13-002.
 """
 
@@ -107,12 +120,19 @@ _DEMO_DIR = _corpus.REPO_ROOT / "vultron/demo"
 _PROP_CLASS = "StoryProp"
 
 #: The two state methods that write and read a prop (``helpers/story/state``).
-#: Their own definitions take a prop positionally and are the primitives
-#: every site calls, not steps of a story, so a definition named either one is
-#: excluded from the parameter scan — and
-#: :func:`test_the_state_primitives_are_the_only_definitions_excluded` pins
-#: that there are exactly two, so the exclusion cannot widen unnoticed.
 _KEEP, _READ = "keep", "kept"
+
+#: The definitions the parameter scan skips: ``StoryState.keep`` and
+#: ``StoryState.kept`` themselves, which take a prop positionally and are the
+#: primitives every site calls rather than steps of a story.  A **pinned
+#: exemption set**, not a ratchet — it has no terminal value, because the
+#: methods are what the whole mechanism is made of (ARCH-18-005, ARCH-18-010).
+#: :func:`test_the_state_primitives_are_the_only_definitions_excluded` pins it
+#: in both directions, so a step that happened to be named after one is
+#: reported rather than silently skipped.
+# permanent: DEMOMA-22-014 — the two StoryState methods in
+# vultron/demo/helpers/story/state.py, which every site calls.
+_PRIMITIVE_DEFINITION_EXEMPTIONS = frozenset({_KEEP, _READ})
 
 #: The fragments that seed the file prefilter (TB-13-002).  The call sites
 #: that hand a prop to a step mention neither the class nor the methods, so
@@ -133,8 +153,9 @@ class PropDeclaration:
 
     #: The module constant it is bound to, which is how every site names it.
     constant: str
-    #: The declared name :class:`StoryState` keys the artifact under.
-    label: str
+    #: The declared name :class:`StoryState` keys the artifact under, or
+    #: ``None`` when the construction did not give one as a string literal.
+    label: str | None
     #: ``<module>::<constant>``, for the failure message.
     where: str
 
@@ -152,8 +173,11 @@ class PropParameter:
     keeps: bool
     keyword_only: bool
     has_default: bool
-    #: Whether the annotation admits ``None``.
+    #: Whether the annotation admits ``None`` at its top level.
     optional: bool
+    #: Whether it is a ``*args`` or ``**kwargs`` slot, which no caller can
+    #: name and which therefore cannot be keyword-only.
+    starred: bool = False
 
 
 @dataclass
@@ -162,16 +186,21 @@ class PropSites:
 
     declarations: tuple[PropDeclaration, ...] = ()
     parameters: tuple[PropParameter, ...] = ()
-    #: Constants named by a ``state.keep`` / ``state.kept`` call directly.
+    #: Constants a ``state.keep`` call names, outright or through an alias.
     direct_keeps: frozenset[str] = frozenset()
+    #: Constants a ``state.kept`` call names, outright or through an alias.
     direct_reads: frozenset[str] = frozenset()
     #: Constants handed to a keeping / reading prop parameter by a caller.
     passed_keeps: frozenset[str] = frozenset()
     passed_reads: frozenset[str] = frozenset()
-    #: Constants a local alias carried into a keep (``rv``'s note pair).
+    #: The subset of :attr:`direct_keeps` an alias carried, rather than the
+    #: keep call naming the constant itself (``rv``'s note pair).
     aliased_keeps: frozenset[str] = frozenset()
     #: ``StoryProp(...)`` calls that are no module-level declaration.
     strays: tuple[str, ...] = ()
+    #: Declarations whose name is not a string literal, so no site, message
+    #: or collision check can read what the artifact is called.
+    unnamed: tuple[str, ...] = ()
     #: The ``keep`` / ``kept`` definitions excluded as the primitives.
     primitives: tuple[str, ...] = ()
     #: Declaring modules, repo-relative, for the subpackage-coverage arm.
@@ -210,6 +239,10 @@ class PropSites:
         sites."""
         by_label: dict[str, list[str]] = {}
         for found in self.declarations:
+            if found.label is None:
+                # Reported by :attr:`unnamed` instead; grouping them here
+                # would read as one collision among every such declaration.
+                continue
             by_label.setdefault(found.label, []).append(found.where)
         return {
             label: sorted(where)
@@ -225,47 +258,70 @@ class PropSites:
     def keepers(self) -> tuple[PropParameter, ...]:
         return tuple(found for found in self.parameters if found.keeps)
 
+    @property
+    def starred(self) -> tuple[PropParameter, ...]:
+        return tuple(found for found in self.parameters if found.starred)
+
 
 # ---------------------------------------------------------------------------
 # AST readings
 # ---------------------------------------------------------------------------
 
 
-def _trailing_names(node: ast.expr | None) -> frozenset[str]:
-    """Every identifier *node* mentions, an attribute by its trailing name.
+#: The typing spellings whose argument list admits ``None``.
+_OPTIONAL_WRAPPERS = frozenset({"Optional", "Union"})
 
-    A quoted forward reference is read as the name it spells, so a module's
-    import form does not decide whether its parameters are checked.
-    """
-    if node is None:
-        return frozenset()
-    found: set[str] = set()
-    for child in ast.walk(node):
-        if isinstance(child, ast.Name):
-            found.add(child.id)
-        elif isinstance(child, ast.Attribute):
-            found.add(child.attr)
-        elif isinstance(child, ast.Constant) and isinstance(child.value, str):
-            found.add(child.value.rsplit(".", 1)[-1])
-    return frozenset(found)
+
+def _is_none(node: ast.expr) -> bool:
+    return isinstance(node, ast.Constant) and node.value is None
 
 
 def _is_optional(annotation: ast.expr | None) -> bool:
-    """True when *annotation* admits ``None``.
+    """True when *annotation* lets a caller hand the step nothing.
 
     ``X | None``, ``Optional[X]`` and ``Union[X, None]`` all count: each one
-    lets a caller hand the step nothing, which is the relaxation that made the
-    #5535 mutation silent.
+    makes the prop a parameter the caller may omit in effect, which is the
+    relaxation that made the #5535 mutation silent.
+
+    Read at the **top level only**.  The obligation is on the parameter, not
+    on its type argument, so walking the whole subtree would report
+    ``joined: StoryProp[str | None]`` — a prop whose artifact may be
+    ``None`` — as an optional parameter, failing correct code.
     """
     if annotation is None:
         return False
-    for child in ast.walk(annotation):
-        if isinstance(child, ast.Constant) and child.value is None:
+    if isinstance(annotation, ast.Constant) and isinstance(
+        annotation.value, str
+    ):
+        # A quoted annotation, re-read as the expression it spells so the
+        # same top-level reading applies (``_corpus.trailing_names``'s
+        # tokenising answers a different question).
+        try:
+            inner = _corpus.parse_inline(annotation.value, "<annotation>")
+        except SyntaxError:
+            return False
+        body = getattr(inner, "body", None)
+        first = body[0] if body else None
+        return _is_optional(getattr(first, "value", None))
+    if isinstance(annotation, ast.BinOp) and isinstance(
+        annotation.op, ast.BitOr
+    ):
+        return (
+            _is_none(annotation.left)
+            or _is_none(annotation.right)
+            or _is_optional(annotation.left)
+            or _is_optional(annotation.right)
+        )
+    if isinstance(annotation, ast.Subscript):
+        wrapper = _corpus.callee_name(annotation.value)
+        if wrapper not in _OPTIONAL_WRAPPERS:
+            return False
+        if wrapper == "Optional":
             return True
-        if isinstance(child, ast.Name) and child.id == "Optional":
-            return True
-        if isinstance(child, ast.Attribute) and child.attr == "Optional":
-            return True
+        elements = annotation.slice
+        return isinstance(elements, ast.Tuple) and any(
+            _is_none(element) for element in elements.elts
+        )
     return False
 
 
@@ -280,23 +336,38 @@ def _method_calls(scope: ast.AST, method: str) -> Iterator[ast.Call]:
             yield node
 
 
+#: ``StoryProp``'s first field, which may be given either way.
+_NAME_FIELD = "name"
+
+
 def _first_argument(call: ast.Call) -> ast.expr | None:
+    """*call*'s first positional argument, or ``None`` when it has none."""
     return call.args[0] if call.args else None
 
 
-def _parameter_names(fn: _FunctionNode) -> frozenset[str]:
-    args = fn.args
-    return frozenset(
-        arg.arg
-        for arg in (
-            *args.posonlyargs,
-            *args.args,
-            *args.kwonlyargs,
-            args.vararg,
-            args.kwarg,
+def _declared_name(call: ast.Call) -> str | None:
+    """The string literal *call* gives as the prop's declared name.
+
+    Reads the keyword form too: ``StoryProp(name="x", type_=str)`` is the
+    same declaration as ``StoryProp("x", str)``, and reading only the
+    positional slot would fall back to the constant's own identifier — which
+    makes two declarations spelling one name look like two names (#5598).
+    ``None`` when the name is not a string literal, which the caller reports
+    rather than guessing at.
+    """
+    given = _first_argument(call)
+    if given is None:
+        given = next(
+            (kw.value for kw in call.keywords if kw.arg == _NAME_FIELD), None
         )
-        if arg is not None
-    )
+    if isinstance(given, ast.Constant) and isinstance(given.value, str):
+        return given.value
+    return None
+
+
+def _parameter_names(fn: _FunctionNode) -> frozenset[str]:
+    """Every parameter name *fn* declares, starred ones included."""
+    return frozenset(arg.arg for arg in _corpus.parameters_of(fn))
 
 
 def _module_constants(
@@ -351,7 +422,7 @@ def _alias_map(fn: _FunctionNode) -> dict[str, frozenset[str]]:
     """
     aliases: dict[str, set[str]] = {}
     for target, value in _bindings(fn):
-        names = _trailing_names(value)
+        names = _corpus.trailing_names(value)
         if not names:
             continue
         elements = (
@@ -377,7 +448,7 @@ def _resolve(
     each site shape can assert its own subjects.
     """
     aliased = frozenset(aliases)
-    outright = _trailing_names(expression)
+    outright = _corpus.trailing_names(expression)
     constants = outright - parameters - aliased
     named_parameters: set[str] = set(outright & parameters)
     through_alias: set[str] = set()
@@ -404,18 +475,46 @@ def _resolve(
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class _RawParameter:
+    """A prop parameter as the signature declares it, before the roles run."""
+
+    where: str
+    function: str
+    parameter: str
+    keyword_only: bool
+    has_default: bool
+    optional: bool
+    starred: bool
+    keeps: bool
+    reads: bool
+
+
 @dataclass
 class _Accumulator:
     declarations: list[PropDeclaration] = field(default_factory=list)
-    parameters: list[PropParameter] = field(default_factory=list)
+    raw_parameters: list[_RawParameter] = field(default_factory=list)
     direct_keeps: set[str] = field(default_factory=set)
     direct_reads: set[str] = field(default_factory=set)
     aliased_keeps: set[str] = field(default_factory=set)
     strays: list[str] = field(default_factory=list)
+    unnamed: list[str] = field(default_factory=list)
     primitives: list[str] = field(default_factory=list)
     modules: set[str] = field(default_factory=set)
     #: ``(callee name, parameter) -> (keeps, reads)`` for every prop parameter.
     roles: dict[tuple[str, str], tuple[bool, bool]] = field(
+        default_factory=dict
+    )
+    #: ``(function, its parameter, callee, that callee's keyword)`` for every
+    #: call that forwards a parameter on.  The role fixed point reads these.
+    forwardings: set[tuple[str, str, str, str]] = field(default_factory=set)
+    #: ``function -> (positional parameter names in order, its ``*args``
+    #: name)``, so a call site can name the slot a positional argument
+    #: reaches.  A prop parameter must be keyword-only, so this only ever
+    #: resolves a call into code that already fails that arm — without it,
+    #: such a call would also report the prop as touched by nobody, which
+    #: would be a second and false failure.
+    signatures: dict[str, tuple[tuple[str, ...], str | None]] = field(
         default_factory=dict
     )
 
@@ -428,19 +527,13 @@ def _read_declarations(module: str, tree: ast.AST, into: _Accumulator) -> None:
             continue
         if _corpus.callee_name(value.func) != _PROP_CLASS:
             continue
-        label = _first_argument(value)
         declared.add(id(value))
+        label = _declared_name(value)
+        where = f"{module}::{target.id}"
+        if label is None:
+            into.unnamed.append(where)
         into.declarations.append(
-            PropDeclaration(
-                constant=target.id,
-                label=(
-                    label.value
-                    if isinstance(label, ast.Constant)
-                    and isinstance(label.value, str)
-                    else target.id
-                ),
-                where=f"{module}::{target.id}",
-            )
+            PropDeclaration(constant=target.id, label=label, where=where)
         )
         into.modules.add(module)
     for call in ast.walk(tree):
@@ -452,36 +545,56 @@ def _read_declarations(module: str, tree: ast.AST, into: _Accumulator) -> None:
             into.strays.append(f"{module}:{_corpus.node_line(call)}")
 
 
-def _read_sites(module: str, tree: ast.AST, into: _Accumulator) -> None:
+def _module_alias_map(source: str) -> dict[str, frozenset[str]]:
+    """Module-level renames of one name to another, as the alias map shape.
+
+    Both shapes a site may reach a prop through without naming its constant:
+    ``ALIAS = ORIGINAL`` at module level, and ``from m import P as JOINED``.
+    Read through ``_corpus.aliases`` rather than a second reading of its own
+    (CS-22-001).
+    """
+    found: dict[str, set[str]] = {}
+    for alias, original in _corpus.aliases(source):
+        found.setdefault(alias, set()).add(original)
+    return {alias: frozenset(names) for alias, names in found.items()}
+
+
+def _read_sites(
+    module: str, source: str, tree: ast.AST, into: _Accumulator
+) -> None:
     """Collect *module*'s keep and read sites, direct and by parameter."""
+    module_aliases = _module_alias_map(source)
     for fn in ast.walk(tree):
         if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        if fn.name in (_KEEP, _READ):
+        if fn.name in _PRIMITIVE_DEFINITION_EXEMPTIONS:
             # The primitive itself, which every site calls and which no
             # caller hands a prop by keyword.  Named the same way the sites
             # name it, so a rename of the method moves this with them.
             into.primitives.append(f"{module}::{fn.name}")
             continue
         parameters = _parameter_names(fn)
-        aliases = _alias_map(fn)
+        aliases = module_aliases | _alias_map(fn)
         kept_parameters: set[str] = set()
         read_parameters: set[str] = set()
-        for method, direct, aliased, by_parameter in (
-            (_KEEP, into.direct_keeps, into.aliased_keeps, kept_parameters),
-            (_READ, into.direct_reads, into.aliased_keeps, read_parameters),
+        for method, sink, by_parameter in (
+            (_KEEP, into.direct_keeps, kept_parameters),
+            (_READ, into.direct_reads, read_parameters),
         ):
             for call in _method_calls(fn, method):
                 constants, named, through_alias = _resolve(
                     _first_argument(call), aliases, parameters
                 )
-                direct.update(constants)
-                # A read reached through an alias is counted as a direct read:
-                # the prop still ends up in ``state.kept``, and only the keep
-                # side has an aliasing shape worth asserting on its own.
-                (aliased if method == _KEEP else direct).update(through_alias)
+                sink.update(constants | through_alias)
+                if method == _KEEP:
+                    # Recorded separately so the alias shape can assert its
+                    # own subject; the read side has no live aliased subject,
+                    # and one arm per live shape is what keeps a shape from
+                    # retiring unnoticed.
+                    into.aliased_keeps.update(through_alias)
                 by_parameter.update(named)
         _record_parameters(module, fn, kept_parameters, read_parameters, into)
+        _record_forwardings(fn, parameters, into)
 
 
 def _record_parameters(
@@ -492,119 +605,249 @@ def _record_parameters(
     into: _Accumulator,
 ) -> None:
     """Record each parameter of *fn* annotated as a prop, with its shape."""
-    args = fn.args
-    positional = [*args.posonlyargs, *args.args]
-    defaulted = {
-        arg.arg for arg in positional[len(positional) - len(args.defaults) :]
-    } | {
-        arg.arg
-        for arg, default in zip(args.kwonlyargs, args.kw_defaults, strict=True)
-        if default is not None
+    defaulted = _corpus.defaulted_parameters(fn)
+    keyword_only = {arg.arg for arg in fn.args.kwonlyargs}
+    starred = {
+        arg.arg for arg in (fn.args.vararg, fn.args.kwarg) if arg is not None
     }
-    keyword_only = {arg.arg for arg in args.kwonlyargs}
-    for arg in (*positional, *args.kwonlyargs):
-        if _PROP_CLASS not in _trailing_names(arg.annotation):
+    into.signatures[fn.name] = (
+        tuple(arg.arg for arg in (*fn.args.posonlyargs, *fn.args.args)),
+        fn.args.vararg.arg if fn.args.vararg is not None else None,
+    )
+    for arg in _corpus.parameters_of(fn):
+        if _PROP_CLASS not in _corpus.trailing_names(arg.annotation):
             continue
         reads, keeps = arg.arg in read, arg.arg in kept
-        into.parameters.append(
-            PropParameter(
-                where=f"{module}::{fn.name}",
+        into.raw_parameters.append(
+            _RawParameter(
+                # Qualified by line, so two same-named nested definitions in
+                # one module are distinguishable in the failure message.
+                where=f"{module}:{_corpus.node_line(fn)}::{fn.name}",
                 function=fn.name,
                 parameter=arg.arg,
-                reads=reads,
-                keeps=keeps,
                 keyword_only=arg.arg in keyword_only,
                 has_default=arg.arg in defaulted,
                 optional=_is_optional(arg.annotation),
+                starred=arg.arg in starred,
+                keeps=keeps,
+                reads=reads,
             )
         )
-        if reads or keeps:
-            was_keeping, was_reading = into.roles.get(
-                (fn.name, arg.arg), (False, False)
+
+
+def _record_forwardings(
+    fn: _FunctionNode, parameters: frozenset[str], into: _Accumulator
+) -> None:
+    """Record each call in *fn* that hands one of *fn*'s parameters on.
+
+    A wrapper that only forwards ``joined=joined`` keeps and reads nothing
+    itself, so without this its own callers' ``joined=PROP`` would be
+    attributed to no role and the prop would read as touched by nobody — a
+    composition helper reddening the gate.  :func:`_settle_roles` closes the
+    chain.
+    """
+    for call in ast.walk(fn):
+        if not isinstance(call, ast.Call):
+            continue
+        callee = _corpus.callee_name(call.func)
+        if callee is None:
+            continue
+        for keyword in call.keywords:
+            if keyword.arg is None or not isinstance(keyword.value, ast.Name):
+                continue
+            if keyword.value.id in parameters:
+                into.forwardings.add(
+                    (fn.name, keyword.value.id, callee, keyword.arg)
+                )
+
+
+def _settle_roles(into: _Accumulator) -> None:
+    """Seed the roles from the direct sites, then follow every forwarding.
+
+    A fixed point, because a wrapper may forward to a wrapper.  It terminates
+    because a role only ever gains, and both flags are bounded.
+    """
+    for raw in into.raw_parameters:
+        if not (raw.keeps or raw.reads):
+            continue
+        keeping, reading = into.roles.get(
+            (raw.function, raw.parameter), (False, False)
+        )
+        into.roles[(raw.function, raw.parameter)] = (
+            keeping or raw.keeps,
+            reading or raw.reads,
+        )
+    changed = True
+    while changed:
+        changed = False
+        for function, parameter, callee, keyword in into.forwardings:
+            downstream = into.roles.get((callee, keyword))
+            if downstream is None:
+                continue
+            keeping, reading = into.roles.get(
+                (function, parameter), (False, False)
             )
-            into.roles[(fn.name, arg.arg)] = (
-                was_keeping or keeps,
-                was_reading or reads,
-            )
+            settled = (keeping or downstream[0], reading or downstream[1])
+            if settled != (keeping, reading):
+                into.roles[(function, parameter)] = settled
+                changed = True
 
 
 def _read_call_sites(
-    module: str, tree: ast.AST, into: _Accumulator
+    module: str, source: str, tree: ast.AST, into: _Accumulator
 ) -> tuple[frozenset[str], frozenset[str]]:
     """Return the constants *module* hands to a keeping / reading parameter.
 
-    Keywords only: every prop parameter must be keyword-only
-    (:func:`test_a_prop_parameter_is_keyword_only`), so a positional one is
-    reported as that failure rather than resolved here.
+    Each argument is matched to the parameter it reaches
+    (:func:`_slots`) and its value resolved through the aliases in scope, so
+    a call site that hands over a local name, a module constant or an
+    ``import ... as`` name is a site like any other rather than a prop
+    nothing touches.
     """
+    module_aliases = _module_alias_map(source)
+    scopes: list[tuple[ast.AST, dict[str, frozenset[str]]]] = [
+        (tree, module_aliases)
+    ]
+    scopes.extend(
+        (node, module_aliases | _alias_map(node))
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    )
     keeps: set[str] = set()
     reads: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        callee = _corpus.callee_name(node.func)
-        if callee is None:
-            continue
-        for keyword in node.keywords:
-            if keyword.arg is None:
+    for scope, aliases in scopes:
+        for call in ast.walk(scope):
+            if not isinstance(call, ast.Call):
                 continue
-            role = into.roles.get((callee, keyword.arg))
-            if role is None:
-                continue
-            keeping, reading = role
-            handed = _trailing_names(keyword.value)
-            if keeping:
-                keeps.update(handed)
-            if reading:
-                reads.update(handed)
+            for keeping, reading, handed in _handed_over(call, aliases, into):
+                if keeping:
+                    keeps.update(handed)
+                if reading:
+                    reads.update(handed)
     return frozenset(keeps), frozenset(reads)
 
 
-def story_prop_sites(files: Iterable[tuple[str, ast.AST]]) -> PropSites:
+def _slots(
+    call: ast.Call, callee: str, into: _Accumulator
+) -> Iterator[tuple[str, ast.expr]]:
+    """``(parameter name, argument)`` per argument of *call* whose slot is
+    known.
+
+    Keywords name their slot outright.  A positional argument names the
+    parameter at its index, or the ``*args`` parameter once the declared
+    positionals run out: a prop parameter must be keyword-only, so a
+    positional one is already failing that arm, and reading it here is what
+    stops the same code from *also* reporting its prop as touched by nobody.
+    """
+    for keyword in call.keywords:
+        if keyword.arg is not None:
+            yield keyword.arg, keyword.value
+    positionals, vararg = into.signatures.get(callee, ((), None))
+    for index, argument in enumerate(call.args):
+        if index < len(positionals):
+            yield positionals[index], argument
+        elif vararg is not None:
+            yield vararg, argument
+
+
+def _handed_over(
+    call: ast.Call, aliases: dict[str, frozenset[str]], into: _Accumulator
+) -> Iterator[tuple[bool, bool, frozenset[str]]]:
+    """``(keeping, reading, constants)`` per argument of *call* with a role."""
+    callee = _corpus.callee_name(call.func)
+    if callee is None:
+        return
+    for parameter, value in _slots(call, callee, into):
+        role = into.roles.get((callee, parameter))
+        if role is None:
+            continue
+        constants, _, through_alias = _resolve(value, aliases, frozenset())
+        yield role[0], role[1], constants | through_alias
+
+
+def story_prop_sites(
+    files: Iterable[tuple[str, str, ast.AST]],
+) -> PropSites:
     """Every prop the given modules declare, and every site that touches it.
 
-    *files* is ``(module label, tree)`` pairs — the live corpus from
-    :func:`_live_files`, or inline sources a planted-violation test parses
-    with ``_corpus.parse_inline``.  The passes run in order because each one
-    needs the one before it: the declarations name the constants, the
-    parameter scan names the roles, and the call-site scan reads a keyword
-    only once a role is known for it.
+    *files* is ``(module label, source, tree)`` triples — the live corpus
+    from :func:`_live_files`, or inline sources a planted-violation test
+    parses with ``_corpus.parse_inline``.  The passes run in order because
+    each one needs the one before it: the declarations name the constants,
+    the signature scan finds the prop parameters, the role pass settles what
+    each one keeps or reads through any chain of forwarding wrappers, and
+    only then can the call-site scan read a keyword.
     """
     scanned = list(files)
     into = _Accumulator()
-    for module, tree in scanned:
+    for module, _, tree in scanned:
         _read_declarations(module, tree, into)
-    for module, tree in scanned:
-        _read_sites(module, tree, into)
+    for module, source, tree in scanned:
+        _read_sites(module, source, tree, into)
+    _settle_roles(into)
     passed_keeps: set[str] = set()
     passed_reads: set[str] = set()
-    for module, tree in scanned:
-        keeps, reads = _read_call_sites(module, tree, into)
+    for module, source, tree in scanned:
+        keeps, reads = _read_call_sites(module, source, tree, into)
         passed_keeps |= keeps
         passed_reads |= reads
+    roles = into.roles
     return PropSites(
         declarations=tuple(into.declarations),
-        parameters=tuple(into.parameters),
+        parameters=tuple(
+            PropParameter(
+                where=raw.where,
+                function=raw.function,
+                parameter=raw.parameter,
+                reads=roles.get((raw.function, raw.parameter), (False, False))[
+                    1
+                ],
+                keeps=roles.get((raw.function, raw.parameter), (False, False))[
+                    0
+                ],
+                keyword_only=raw.keyword_only,
+                has_default=raw.has_default,
+                optional=raw.optional,
+                starred=raw.starred,
+            )
+            for raw in into.raw_parameters
+        ),
         direct_keeps=frozenset(into.direct_keeps),
         direct_reads=frozenset(into.direct_reads),
         passed_keeps=frozenset(passed_keeps),
         passed_reads=frozenset(passed_reads),
         aliased_keeps=frozenset(into.aliased_keeps),
         strays=tuple(into.strays),
+        unnamed=tuple(into.unnamed),
         primitives=tuple(into.primitives),
         modules=frozenset(into.modules),
     )
 
 
-def _demo_files(*fragments: str) -> Iterator[tuple[str, ast.AST]]:
-    """``(repo-relative module, tree)`` for demo files mentioning a fragment."""
+def _demo_files(*fragments: str) -> Iterator[tuple[str, tuple[str, ast.AST]]]:
+    """``(module, (source, tree))`` for demo files mentioning a fragment.
+
+    The source comes with the tree because the alias readings need the text
+    (``_corpus.aliases``); both are the corpus's cached copies, read once at
+    import time (TB-13-001).
+    """
     if not fragments:
         return
     for path, tree in _corpus.files_mentioning(*fragments, under=_DEMO_DIR):
-        yield path.relative_to(_corpus.REPO_ROOT).as_posix(), tree
+        module = path.relative_to(_corpus.REPO_ROOT).as_posix()
+        yield module, (_corpus.source_of(path), tree)
 
 
-def _live_files() -> list[tuple[str, ast.AST]]:
+def _flatten(
+    found: dict[str, tuple[str, ast.AST]],
+) -> list[tuple[str, str, ast.AST]]:
+    return [
+        (module, source, tree)
+        for module, (source, tree) in sorted(found.items())
+    ]
+
+
+def _live_files() -> list[tuple[str, str, ast.AST]]:
     """Every demo module the scan must read, prefiltered in two rounds.
 
     The first round takes the modules that mention the class or either state
@@ -614,9 +857,9 @@ def _live_files() -> list[tuple[str, ast.AST]]:
     caches each parse, so a module both rounds select is parsed once.
     """
     found = dict(_demo_files(*_SEED_FRAGMENTS))
-    constants = story_prop_sites(found.items()).constants
+    constants = story_prop_sites(_flatten(found)).constants
     found.update(_demo_files(*sorted(constants)))
-    return sorted(found.items())
+    return _flatten(found)
 
 
 #: Derived once at import time, outside the per-test timeout (TB-13-001).
@@ -629,7 +872,7 @@ with _corpus.gc_paused():
 # ---------------------------------------------------------------------------
 
 
-def _assert_declarations_found(_SITES: PropSites) -> None:
+def _assert_declarations_found(sites: PropSites) -> None:
     """Fail unless props were found in both halves and in a subpackage.
 
     A function rather than a test body so
@@ -637,17 +880,22 @@ def _assert_declarations_found(_SITES: PropSites) -> None:
     corpus with no subjects and pin that it fails (DF-09-009's shape: a gate
     that resolves zero targets must fail, not pass).
     """
-    assert _SITES.declarations, (
+    assert sites.declarations, (
         "no StoryProp construction was found under vultron/demo/, so every "
         "arm of this ratchet would pass vacuously: either the declarations "
         f"have moved out of {_DEMO_DIR.name}/ or {_PROP_CLASS!r} was renamed"
     )
-    halves = {module.split("/")[2] for module in _SITES.modules}
-    assert {"helpers", "scenario"} <= halves, (
+    # Read off the observed modules rather than against the directory names
+    # the tree happens to use today, so renaming either half of
+    # ``vultron/demo/`` moves no subject out of the check and reddens
+    # nothing.
+    halves = {module.split("/")[2] for module in sites.modules}
+    assert len(halves) > 1, (
         f"props are declared only under {sorted(halves)}; the scan must "
-        "reach both the shared families and the scenarios' own modules"
+        "reach both the shared families and the scenarios' own modules, "
+        "which are two different directories of vultron/demo/"
     )
-    nested = [module for module in _SITES.modules if module.count("/") > 3]
+    nested = [module for module in sites.modules if module.count("/") > 3]
     assert nested, (
         "every prop is declared in a flat module, so a walk that skipped "
         "packages would still pass; the scan must read a module of a "
@@ -667,26 +915,37 @@ def test_the_scan_finds_props_in_both_halves_and_in_a_subpackage() -> None:
     _assert_declarations_found(_SITES)
 
 
-def _assert_site_shapes_live(_SITES: PropSites) -> None:
+def _assert_site_shapes_live(sites: PropSites) -> None:
     """Fail unless each shape of keep and read site has a live subject.
 
     A function for the same reason as :func:`_assert_declarations_found`.
+    ``aliased_keeps`` is a subset of ``direct_keeps``, so the outright arm
+    subtracts it: otherwise a corpus that aliased every keep would still
+    satisfy the outright arm, and the two shapes would stop being told apart.
+    There is no aliased *read* in the tree, so the read side is asserted as
+    one shape; the day one lands, split it here as the keep side is split.
     """
-    assert _SITES.direct_keeps & _SITES.constants, "no direct keep site"
-    assert _SITES.direct_reads & _SITES.constants, "no direct read site"
-    assert _SITES.aliased_keeps & _SITES.constants, (
-        "no prop is kept through a local alias; the alias arm now has no "
-        "subject and would pass over a corpus that reintroduced one"
+    assert (sites.direct_keeps - sites.aliased_keeps) & sites.constants, (
+        "no keep site names a prop outright; every keep now reaches its prop "
+        "through an alias, so the two shapes are no longer told apart"
     )
-    assert _SITES.passed_keeps & _SITES.constants, (
+    assert sites.direct_reads & sites.constants, "no direct read site"
+    assert sites.aliased_keeps & sites.constants, (
+        "no prop is kept through a local alias. The shape has exactly one "
+        "live subject, vendor_story/opening.py's zip loop over its note "
+        "pair, so unrolling that loop reddens this arm: retiring the shape "
+        "means deleting this assertion and the aliased_keeps field in the "
+        "same commit, not leaving an arm with nothing to find"
+    )
+    assert sites.passed_keeps & sites.constants, (
         "no prop is handed to a keeping parameter"
     )
-    assert _SITES.passed_reads & _SITES.constants, (
+    assert sites.passed_reads & sites.constants, (
         "no prop is handed to a reading parameter; that is the shape the "
-        "#5535 fix introduced, and DEMOMA-22-015 is only worth what it finds"
+        "#5535 fix introduced, and DEMOMA-22-016 is only worth what it finds"
     )
-    assert _SITES.readers, "no step reads a prop parameter"
-    assert _SITES.keepers, "no step keeps under a prop parameter"
+    assert sites.readers, "no step reads a prop parameter"
+    assert sites.keepers, "no step keeps under a prop parameter"
 
 
 def test_both_site_shapes_are_live() -> None:
@@ -757,7 +1016,7 @@ def test_every_prop_is_kept_by_a_step() -> None:
     )
 
 
-@pytest.mark.spec("DEMOMA-22-017")
+@pytest.mark.spec("DEMOMA-22-019")
 def test_every_prop_name_is_declared_once() -> None:
     """One name, one declaration: the state keys the artifact on the name.
 
@@ -782,7 +1041,25 @@ def test_every_prop_name_is_declared_once() -> None:
     )
 
 
-@pytest.mark.spec("DEMOMA-22-014")
+@pytest.mark.spec("DEMOMA-22-018")
+def test_every_prop_declares_its_name_as_a_literal() -> None:
+    """A declared name no reader can read is a prop nothing can key on.
+
+    :class:`StoryState` keys the artifact on the name, the failure messages
+    quote it, and DEMOMA-22-019 groups declarations by it.  A name given as a
+    variable or an expression leaves all three with nothing, so the fallback
+    to the constant's own identifier is reported here rather than being
+    silently taken (#5598).
+    """
+    assert not _SITES.unnamed, (
+        "these story props do not give their declared name as a string "
+        f"literal: {list(_SITES.unnamed)}. The name is what StoryState keys "
+        "the artifact under and what the failure message quotes, so it is "
+        "written at the declaration, not computed."
+    )
+
+
+@pytest.mark.spec("DEMOMA-22-018")
 def test_every_prop_construction_is_a_module_constant() -> None:
     """A prop built any other way is not reachable as a constant.
 
@@ -795,8 +1072,9 @@ def test_every_prop_construction_is_a_module_constant() -> None:
         "these StoryProp constructions are not a module-level assignment to "
         f"a single name: {list(_SITES.strays)}. A prop is declared beside "
         "the fragments that share it, so every site can name it; one built "
-        "inside a function or into a collection is reachable by nothing and "
-        "is checked by nothing."
+        "inside a function, in a class body (which a grouping refactor is "
+        "most likely to reach for) or into a collection is reachable by "
+        "nothing and is checked by nothing."
     )
 
 
@@ -824,7 +1102,7 @@ def test_a_prop_parameter_is_keyword_only() -> None:
     )
 
 
-@pytest.mark.spec("DEMOMA-22-015")
+@pytest.mark.spec("DEMOMA-22-016")
 def test_a_step_that_reads_a_prop_requires_it() -> None:
     """A continuation cannot be assembled without being told what it depends on.
 
@@ -881,7 +1159,11 @@ def _planted(*modules: tuple[str, str]) -> PropSites:
     """
     return story_prop_sites(
         [
-            (f"vultron/demo/{path}", _corpus.parse_inline(source, path))
+            (
+                f"vultron/demo/{path}",
+                source,
+                _corpus.parse_inline(source, path),
+            )
             for path, source in modules
         ]
     )
@@ -1075,7 +1357,7 @@ def test_an_empty_corpus_fails_the_non_vacuity_arm() -> None:
     """
     with pytest.raises(AssertionError, match="would pass vacuously"):
         _assert_declarations_found(_planted())
-    with pytest.raises(AssertionError, match="no direct keep site"):
+    with pytest.raises(AssertionError, match="names a prop outright"):
         _assert_site_shapes_live(_planted())
 
 
@@ -1088,7 +1370,7 @@ def test_dropping_any_one_site_shape_fails_the_shape_arm() -> None:
     Not on the Name of What Performs It").  Each row drops one shape from the
     control corpus and keeps the other two.
     """
-    with pytest.raises(AssertionError, match="no direct keep site"):
+    with pytest.raises(AssertionError, match="names a prop outright"):
         _assert_site_shapes_live(
             _planted(
                 ("helpers/vendor_story/opening.py", _ALIASED),
@@ -1126,11 +1408,11 @@ def test_dropping_any_one_site_shape_fails_the_shape_arm() -> None:
 def test_the_coverage_arm_fails_on_a_flat_corpus_and_on_one_half() -> None:
     """Subpackages and both halves of the tree are each required.
 
-    ``_story_prop_declarations``'s walk skipped packages before #5592, which
-    is how a prop in a split module escaped even the uniqueness check.  The
-    equivalent here is a scan that reads only flat modules.
+    The runtime walk this enumeration replaced skipped packages before
+    #5592, which is how a prop in a split module escaped even the uniqueness
+    check.  The equivalent here is a scan that reads only flat modules.
     """
-    with pytest.raises(AssertionError, match="props are declared only under"):
+    with pytest.raises(AssertionError, match="declared only under"):
         _assert_declarations_found(
             _planted(("helpers/coordinated_story/opening.py", _DIRECT))
         )
@@ -1154,7 +1436,7 @@ def test_the_coverage_arm_fails_on_a_flat_corpus_and_on_one_half() -> None:
         )
 
 
-@pytest.mark.spec("DEMOMA-22-015")
+@pytest.mark.spec("DEMOMA-22-016")
 @pytest.mark.parametrize(
     ("annotation", "reason"),
     [
@@ -1162,6 +1444,10 @@ def test_the_coverage_arm_fails_on_a_flat_corpus_and_on_one_half() -> None:
         ("StoryProp[str] = _NO_PROP", "has a default"),
         ("StoryProp[str] | None", "admits None"),
         ("Optional[StoryProp[str]]", "admits None"),
+        ("Union[StoryProp[str], None]", "admits None"),
+        # Quoted, which read whole removed the parameter from the scan
+        # altogether rather than reporting it (#5598).
+        ('"StoryProp[str] | None" = None', "has a default, admits None"),
     ],
 )
 def test_the_gate_catches_a_relaxed_reader_parameter(
@@ -1197,6 +1483,7 @@ def test_the_gate_catches_a_relaxed_reader_parameter(
     )
 
 
+@pytest.mark.spec("DEMOMA-22-015")
 def test_the_gate_catches_a_positional_prop_parameter() -> None:
     """A prop passed by position is reported, not resolved.
 
@@ -1220,7 +1507,7 @@ def test_the_gate_catches_a_positional_prop_parameter() -> None:
     ] == ["joined"]
 
 
-@pytest.mark.spec("DEMOMA-22-016")
+@pytest.mark.spec("DEMOMA-22-017")
 def test_a_keeper_only_parameter_may_be_optional() -> None:
     """The keep side's prop parameter is allowed to default to nothing.
 
@@ -1293,7 +1580,7 @@ def test_a_prop_handed_to_an_unrelated_keyword_is_not_a_read() -> None:
     ]
 
 
-@pytest.mark.spec("DEMOMA-22-017")
+@pytest.mark.spec("DEMOMA-22-019")
 def test_the_gate_catches_two_declarations_spelling_one_name() -> None:
     """A collision is read from the declaration sites, not from a live walk.
 
@@ -1388,3 +1675,234 @@ def test_a_long_alias_chain_and_a_cyclic_one_both_resolve() -> None:
     )
     assert sites.aliased_keeps & sites.constants == {"DEEP"}
     assert sites.without_a_keeper() == []
+
+
+@pytest.mark.spec("DEMOMA-22-018")
+def test_the_gate_catches_a_name_that_is_not_a_literal() -> None:
+    """A computed declared name is reported, never guessed at.
+
+    Falling back to the constant's own identifier would make two
+    declarations spelling one name look like two names, which is how
+    DEMOMA-22-019's arm went quiet on the keyword construction form.
+    """
+    sites = _planted(
+        (
+            "helpers/two_coordinator_story.py",
+            (
+                "LABEL = 'case the second coordinator joined'\n"
+                "JOINED: StoryProp[str] = StoryProp(LABEL, str)\n"
+                "\n"
+                "def keep_it(state: StoryState) -> None:\n"
+                "    state.keep(JOINED, case_id)\n"
+                "\n"
+                "def read_it(state: StoryState) -> None:\n"
+                "    state.kept(JOINED)\n"
+            ),
+        ),
+    )
+    assert sites.unnamed == (
+        "vultron/demo/helpers/two_coordinator_story.py::JOINED",
+    )
+    assert [found.label for found in sites.declarations] == [None]
+    # The keep and read sites still resolve, so the only finding is the name.
+    assert (sites.without_a_keeper(), sites.without_a_reader()) == ([], [])
+
+
+@pytest.mark.spec("DEMOMA-22-019")
+def test_the_declared_name_is_read_from_the_keyword_form_too() -> None:
+    """``StoryProp(name=..., type_=...)`` is the same declaration.
+
+    Reading only the positional slot fell back to the constant's own
+    identifier, so two modules declaring one name under different constants
+    collided with nothing to report it (#5598).
+    """
+    declaration = (
+        "{constant}: StoryProp[str] = StoryProp(\n"
+        "    name='case the coordinator joined', type_=str\n"
+        ")\n"
+        "\n"
+        "def keep_{constant}(state: StoryState) -> None:\n"
+        "    state.keep({constant}, case_id)\n"
+        "\n"
+        "def read_{constant}(state: StoryState) -> None:\n"
+        "    state.kept({constant})\n"
+    )
+    sites = _planted(
+        (
+            "helpers/two_coordinator_story.py",
+            declaration.format(constant="SECOND_COORDINATOR_JOINED"),
+        ),
+        (
+            "helpers/vendor_coordinator_story.py",
+            declaration.format(constant="COORDINATOR_JOINED"),
+        ),
+    )
+    assert sites.unnamed == ()
+    assert sites.collisions() == {
+        "case the coordinator joined": [
+            "vultron/demo/helpers/two_coordinator_story.py"
+            "::SECOND_COORDINATOR_JOINED",
+            "vultron/demo/helpers/vendor_coordinator_story.py"
+            "::COORDINATOR_JOINED",
+        ]
+    }
+
+
+@pytest.mark.spec("DEMOMA-22-015")
+def test_the_gate_catches_a_starred_prop_parameter() -> None:
+    """A ``*args`` prop slot cannot be keyword-only, so it is reported.
+
+    It is also resolved at its call site, so the same code does not *also*
+    report its prop as touched by nobody — a second and false failure
+    (:func:`_slots`).
+    """
+    sites = _planted(
+        (
+            "helpers/vendor_story/opening.py",
+            (
+                "VENDORS_ANSWER: StoryProp[as_Note] = StoryProp('a', as_Note)\n"
+                "\n"
+                "def keep_each(state: StoryState, *props: StoryProp[as_Note])"
+                " -> None:\n"
+                "    for prop in props:\n"
+                "        state.keep(prop, note)\n"
+                "\n"
+                "def the_reporter_asks(state: StoryState) -> None:\n"
+                "    keep_each(state, VENDORS_ANSWER)\n"
+                "\n"
+                "def the_vendor_replies(state: StoryState) -> None:\n"
+                "    state.kept(VENDORS_ANSWER)\n"
+            ),
+        ),
+    )
+    starred = [found.parameter for found in sites.starred]
+    assert starred == ["props"]
+    assert [
+        found.parameter for found in sites.parameters if not found.keyword_only
+    ] == ["props"]
+    assert (sites.without_a_keeper(), sites.without_a_reader()) == ([], [])
+
+
+@pytest.mark.spec("DEMOMA-22-016")
+def test_an_inner_optional_type_argument_is_not_a_relaxed_reader() -> None:
+    """``StoryProp[str | None]`` is a required parameter of an optional type.
+
+    The obligation is on the parameter, not on the artifact's type, so
+    reading the whole annotation subtree would fail correct code — the one
+    direction this scan must not err in.
+    """
+    sites = _planted(
+        (
+            "helpers/owner_decision_story/handover.py",
+            (
+                "def the_owner_hands_the_case_over(\n"
+                "    state: StoryState, *, joined: StoryProp[str | None]\n"
+                ") -> None:\n"
+                "    state.kept(joined)\n"
+            ),
+        ),
+    )
+    assert [found.parameter for found in sites.readers] == ["joined"]
+    assert [
+        found for found in sites.readers if found.has_default or found.optional
+    ] == []
+
+
+@pytest.mark.spec("DEMOMA-22-014")
+@pytest.mark.parametrize(
+    ("label", "handing"),
+    [
+        (
+            "a local name",
+            "    prop = C2_JOINED\n"
+            "    invitee_joins_the_case(state, C2, joined=prop)\n",
+        ),
+        (
+            "a module constant",
+            "    invitee_joins_the_case(state, C2, joined=ALIAS)\n",
+        ),
+        (
+            "an imported rename",
+            "    invitee_joins_the_case(state, C2, joined=RENAMED)\n",
+        ),
+    ],
+)
+def test_a_prop_handed_over_through_an_alias_is_still_a_site(
+    label: str, handing: str
+) -> None:
+    """A call site that names the prop indirectly is a site like any other.
+
+    Each of these is legitimate code, so reading only the constant's own
+    identifier would fail it — the invent direction.  The module-level and
+    ``import ... as`` shapes are read through ``_corpus.aliases``, the local
+    one through the enclosing function's own alias map.
+    """
+    sites = _planted(
+        (
+            "helpers/owner_decision_story/handover.py",
+            _BY_PARAMETER_HELPER,
+        ),
+        (
+            "scenario/rcvcv_demo/fragments.py",
+            "from vultron.demo.helpers.story import StoryProp\n"
+            "C2_JOINED: StoryProp[str] = StoryProp('case C2 joined', str)\n"
+            "ALIAS = C2_JOINED\n"
+            "from vultron.demo.scenario.other import C2_JOINED as RENAMED\n"
+            "\n"
+            "def c1_invites_c2(state: StoryState) -> None:\n"
+            f"{handing}"
+            "\n"
+            "def c1_hands_over(state: StoryState) -> None:\n"
+            "    the_owner_hands_the_case_over(state, joined=C2_JOINED,"
+            " owner=C1)\n",
+        ),
+    )
+    assert sites.without_a_keeper() == [], (
+        f"a prop handed over as {label} was read as kept by nobody"
+    )
+    assert sites.without_a_reader() == []
+
+
+@pytest.mark.spec("DEMOMA-22-014")
+def test_a_forwarding_wrapper_carries_the_role_to_its_callers() -> None:
+    """A wrapper that only passes a prop on is not a dead end.
+
+    A role is seeded from the step that keeps or reads, then followed through
+    every forwarding (:func:`_settle_roles`).  Without that, a composition
+    helper — the tree's stated direction of travel — would make its callers'
+    ``joined=PROP`` count for nothing and redden the gate.
+    """
+    sites = _planted(
+        ("helpers/owner_decision_story/handover.py", _BY_PARAMETER_HELPER),
+        (
+            "helpers/two_coordinator_story.py",
+            "def the_owner_decides(\n"
+            "    state: StoryState, *, joined: StoryProp[str]\n"
+            ") -> None:\n"
+            "    the_owner_hands_the_case_over(state, joined=joined,"
+            " owner=C1)\n",
+        ),
+        (
+            "scenario/rccv_handoff_demo.py",
+            "SECOND_COORDINATOR_JOINED: StoryProp[str] = StoryProp('c2', str)\n"
+            "\n"
+            "def c1_invites_c2(state: StoryState) -> None:\n"
+            "    invitee_joins_the_case(\n"
+            "        state, C2, joined=SECOND_COORDINATOR_JOINED\n"
+            "    )\n"
+            "\n"
+            "def c1_hands_over(state: StoryState) -> None:\n"
+            "    the_owner_decides(\n"
+            "        state, joined=SECOND_COORDINATOR_JOINED\n"
+            "    )\n",
+        ),
+    )
+    roles = {
+        (found.function, found.keeps, found.reads)
+        for found in sites.parameters
+    }
+    assert ("the_owner_decides", False, True) in roles, (
+        "the wrapper did not inherit the reading role of the step it "
+        f"forwards to; roles were {sorted(roles)}"
+    )
+    assert (sites.without_a_keeper(), sites.without_a_reader()) == ([], [])

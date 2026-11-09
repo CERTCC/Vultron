@@ -5453,8 +5453,7 @@ groups:
     kind: project
     statement: >-
       Every `StoryProp` declared under `vultron/demo/` MUST have at least one
-      step that keeps it and at least one step that reads it. A prop is
-      declared as a module-level constant, so every site can name it.
+      step that keeps it and at least one step that reads it.
     rationale: >-
       A prop is how a flat composed story carries the causal gate a
       hand-placed scenario carried by nesting: the step that performs an act
@@ -5465,24 +5464,26 @@ groups:
       continuations running after a timed-out roster, with every test green
       (#5535, #5598).
     adr:
-    - ADR-0098
+    - ADR-0058
     verification: >-
-      `test_every_prop_is_read_by_a_step`, `test_every_prop_is_kept_by_a_step`
-      and `test_every_prop_construction_is_a_module_constant` in
-      `test/architecture/test_story_props_have_readers.py` enumerate every
-      `StoryProp(...)` call under `vultron/demo/`, resolve the keep and read
-      sites of each — named outright, handed to a step as a keyword, or
-      carried by a local alias — and fail a prop missing either site, a
-      construction that is no module-level constant, and an empty subject set.
-      Each shape of site is pinned non-empty, and a planted violation of each
+      `test_every_prop_is_read_by_a_step` and `test_every_prop_is_kept_by_a_step`
+      in `test/architecture/test_story_props_have_readers.py` resolve the keep
+      and read sites of every `StoryProp(...)` construction under
+      `vultron/demo/` — named outright, handed to a step as an argument whose
+      parameter that step keeps or reads, or carried by a local, module-level
+      or `import ... as` alias — and fail a prop missing either site.
+      `test_the_scan_finds_props_in_both_halves_and_in_a_subpackage` and
+      `test_both_site_shapes_are_live` fail on an empty subject set and on any
+      one site shape losing its last subject, and a planted violation of each
       shape is pinned as a test in the same module.
     relationships:
-    - rel_type: implements
+    - rel_type: derives_from
       spec_id: DEMOCI-01-011
       note: >-
         A prop is the flat-sequence form of the nesting a `demo_gate` gives a
-        hand-placed scenario, so it is how DEMOCI-01-011's gate reaches a
-        dependent step in another fragment.
+        hand-placed scenario, so the prop rule is a consequence of
+        DEMOCI-01-011's gate having to reach a dependent step in another
+        fragment, not a narrower case of it.
     - rel_type: extends
       spec_id: DEMOMA-22-001
     tags:
@@ -5492,9 +5493,33 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A step that reads a `StoryProp` it is handed MUST take it as a
-      keyword-only parameter with no default, annotated as the prop type
-      rather than as one that admits `None`.
+      A `StoryProp` parameter MUST be keyword-only.
+    rationale: >-
+      A prop is handed over by name, so a call site that miscounts cannot land
+      a cast part or a label in its place, and a `*args` or `**kwargs` slot
+      cannot be named by a caller at all. The obligation covers the keep side
+      as well as the read side, because the argument's slot is what a reader of
+      the call sees (#5598).
+    adr:
+    - ADR-0058
+    verification: >-
+      `test_a_prop_parameter_is_keyword_only` in
+      `test/architecture/test_story_props_have_readers.py` reports every prop
+      parameter that is positional or starred;
+      `test_the_gate_catches_a_positional_prop_parameter` and
+      `test_the_gate_catches_a_starred_prop_parameter` plant each shape.
+    relationships:
+    - rel_type: extends
+      spec_id: DEMOMA-22-014
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-22-016
+    priority: MUST
+    kind: project
+    statement: >-
+      A step that reads a `StoryProp` it is handed MUST take it with no
+      default and with an annotation that does not admit `None`.
     rationale: >-
       The read has to be structural rather than remembered: a continuation
       that cannot be assembled without being told which act it depends on
@@ -5503,22 +5528,23 @@ groups:
       guard left the whole suite green, because every call site happened to
       pass the prop (#5535, #5598).
     adr:
-    - ADR-0098
+    - ADR-0058
     verification: >-
-      `test_a_step_that_reads_a_prop_requires_it` and
-      `test_a_prop_parameter_is_keyword_only` in
-      `test/architecture/test_story_props_have_readers.py` report every prop
-      parameter a step reads that carries a default or admits `None`, and
-      every prop parameter that is positional.
-      `test_the_gate_catches_a_relaxed_reader_parameter` plants each
-      relaxation.
+      `test_a_step_that_reads_a_prop_requires_it` in
+      `test/architecture/test_story_props_have_readers.py` reports every prop
+      parameter a step reads that carries a default or whose annotation admits
+      `None` at its top level.
+      `test_the_gate_catches_a_relaxed_reader_parameter` plants each spelling,
+      the quoted annotation included, and
+      `test_an_inner_optional_type_argument_is_not_a_relaxed_reader` pins that
+      a prop *of* an optional type is not one.
     relationships:
     - rel_type: extends
       spec_id: DEMOMA-22-014
     tags:
     - demo
     - testing
-  - id: DEMOMA-22-016
+  - id: DEMOMA-22-017
     priority: MAY
     kind: project
     statement: >-
@@ -5526,28 +5552,57 @@ groups:
       parameter optional.
     rationale: >-
       An absent prop on the keep side means no later act depends on this
-      gate, not that a gate is missing, so DEMOMA-22-015's obligation does
+      gate, not that a gate is missing, so DEMOMA-22-016's obligation does
       not reach it: `invitee_joins_the_case` keeps a prop only for a joiner
       some later act presupposes, and runs a plain `demo_check` for the rest
       (DEMOCI-01-011).
     adr:
-    - ADR-0098
+    - ADR-0058
     verification: >-
       `test_a_keeper_only_parameter_may_be_optional` in
       `test/architecture/test_story_props_have_readers.py` pins that a prop
-      parameter a step only keeps under is not reported by DEMOMA-22-015's
+      parameter a step only keeps under is not reported by DEMOMA-22-016's
       check when it carries a default and admits `None`.
     relationships:
     - rel_type: refines
-      spec_id: DEMOMA-22-015
+      spec_id: DEMOMA-22-016
     tags:
     - demo
     - testing
-  - id: DEMOMA-22-017
+  - id: DEMOMA-22-018
     priority: MUST
     kind: project
     statement: >-
-      Each `StoryProp` name MUST be declared exactly once under
+      Each `StoryProp` MUST be constructed as a module-level assignment to one
+      name, giving its declared name as a string literal.
+    rationale: >-
+      The constant is how every site names the prop and the declared name is
+      how `StoryState` keys the artifact, so a construction reachable by
+      neither is checked by nothing: one built in a function, a class body or
+      a collection is named by no site, and one whose name is a variable
+      leaves the collision check nothing to group. This is what makes the
+      enumeration complete rather than best-effort (#5598).
+    adr:
+    - ADR-0058
+    verification: >-
+      `test_every_prop_construction_is_a_module_constant` and
+      `test_every_prop_declares_its_name_as_a_literal` in
+      `test/architecture/test_story_props_have_readers.py` report every
+      `StoryProp(...)` call under `vultron/demo/` that is no module-level
+      assignment to a single name, and every declaration whose name is not a
+      string literal. `test_the_gate_catches_a_prop_built_outside_a_module_constant`
+      and `test_the_gate_catches_a_name_that_is_not_a_literal` plant each.
+    relationships:
+    - rel_type: extends
+      spec_id: DEMOMA-22-014
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-22-019
+    priority: MUST
+    kind: project
+    statement: >-
+      Each `StoryProp` declared name MUST be declared exactly once under
       `vultron/demo/`.
     rationale: >-
       The name is the key `StoryState` keeps the artifact under, and a
@@ -5558,17 +5613,18 @@ groups:
       the story having no such artifact yet — the message for a fragment
       placed before the one that makes what it reads.
     adr:
-    - ADR-0098
+    - ADR-0058
     verification: >-
       `test_every_prop_name_is_declared_once` in
       `test/architecture/test_story_props_have_readers.py` groups the declared
-      names of every `StoryProp(...)` construction under `vultron/demo/` and
-      fails a name with more than one construction;
+      names of every `StoryProp(...)` construction under `vultron/demo/`,
+      reading the keyword form as well as the positional one, and fails a name
+      with more than one construction;
       `test_the_gate_catches_two_declarations_spelling_one_name` plants the
       collision.
     relationships:
-    - rel_type: refines
-      spec_id: DEMOMA-22-014
+    - rel_type: extends
+      spec_id: DEMOMA-22-018
     tags:
     - demo
     - testing

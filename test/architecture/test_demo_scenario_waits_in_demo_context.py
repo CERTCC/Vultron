@@ -374,16 +374,10 @@ def _annotates_story_state(annotation: ast.expr | None) -> bool:
     Matched on the trailing name so the import form a module happens to use —
     bare ``StoryState``, dotted ``story.StoryState``, or a quoted forward
     reference — does not decide whether its fragments are checked.
+    ``_corpus.trailing_names`` tokenises a quoted annotation, so a
+    subscripted or unioned one inside the quotes is read too (#5598).
     """
-    if isinstance(annotation, ast.Name):
-        return annotation.id == _STORY_STATE
-    if isinstance(annotation, ast.Attribute):
-        return annotation.attr == _STORY_STATE
-    if isinstance(annotation, ast.Constant) and isinstance(
-        annotation.value, str
-    ):
-        return annotation.value.rsplit(".", 1)[-1] == _STORY_STATE
-    return False
+    return _STORY_STATE in _corpus.trailing_names(annotation)
 
 
 def _takes_story_state(fn: _FunctionNode) -> bool:
@@ -394,16 +388,9 @@ def _takes_story_state(fn: _FunctionNode) -> bool:
     (``report_fix_ready(state, name, label)``), and a keyword-only or
     starred state parameter would be the same subject written differently.
     """
-    args = fn.args
     return any(
-        arg is not None and _annotates_story_state(arg.annotation)
-        for arg in (
-            *args.posonlyargs,
-            *args.args,
-            *args.kwonlyargs,
-            args.vararg,
-            args.kwarg,
-        )
+        _annotates_story_state(arg.annotation)
+        for arg in _corpus.parameters_of(fn)
     )
 
 
