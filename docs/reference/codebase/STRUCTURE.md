@@ -12,7 +12,7 @@ stakeholder_type: [project-contributor]
 |------|---------|----------|
 | `vultron/` | Main Python package — all production source | `pyproject.toml` `[tool.setuptools.packages.find]` |
 | `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors, services, predicates, participants, scoring, case-state hypercube, and the two dispatchers (`dispatcher.py` for received activities, `trigger_dispatcher.py` for trigger verbs) | `vultron/core/AGENTS.md` |
-| `vultron/wire/` | Wire format layer: AS2 vocabulary, parser, unknown-key disposition, rehydration, semantic extractor, factories | `vultron/wire/as2/AGENTS.md` |
+| `vultron/wire/` | Wire format layer: AS2 vocabulary, parser, unknown-key disposition, rehydration, semantic extractor, factories; CSAF 2.1 pinned local copy of the schemas, pin record and generated models (`csaf/`) | `vultron/wire/as2/AGENTS.md`, `vultron/wire/csaf/__init__.py` |
 | `vultron/adapters/` | Adapter layer: driving (FastAPI HTTP, CLI, shared-inbox stub), driven (SQLite, delivery, trigger-activity adapter, wire render), connectors, outbox dead-letter and sealed-body helpers | `vultron/adapters/AGENTS.md` |
 | `vultron/semantic_registry/` | Ordered ActivityStreams pattern registry and `use_case_map()` for received activities | `vultron/semantic_registry/__init__.py` |
 | `vultron/trigger_registry/` | Verb-keyed `TRIGGER_REGISTRY` table for trigger use cases, one sub-module per domain (ADR-0110); a data table for enumeration, not a router | `vultron/trigger_registry/__init__.py` |
@@ -21,7 +21,7 @@ stakeholder_type: [project-contributor]
 | `vultron/enums/` | Shared CVD-domain enums (roles, object types) imported by config and core | `vultron/enums/roles.py`, `vultron/enums/object_types.py` |
 | `vultron/errors.py`, `vultron/primitives.py`, `vultron/logging_setup.py`, `vultron/subclasses.py` | Shared exception hierarchy, shared type aliases (`NonEmptyString`), logging configuration, the one subclass-tree walk (`all_subclasses`) | `vultron/errors.py`, `vultron/primitives.py` |
 | `vultron/demo/` | Demo CLI, scenario registry, multi-actor scenarios (`scenario/`), single-exchange demos (`exchange/`), shared helpers (`helpers/`), stochastic fuzzers (`fuzzer/`), and the in-process recorder of each scenario's canonical case ledger for the UI's Log Replay (`recordings/`, `in_process.py`) | `vultron/demo/AGENTS.md`, `vultron/demo/cli/`, `vultron/demo/recordings/__init__.py` |
-| `vultron/metadata/` | Project tooling: spec registry, history CLI, notes and ADR metadata, docs-site validators, demo-scenario sync, JSON-LD context generation (`wire_context/`), planning helpers (`planning/`), message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/AGENTS.md`, `vultron/metadata/file_loading.py` |
+| `vultron/metadata/` | Project tooling: spec registry, history CLI, notes and ADR metadata, docs-site validators, demo-scenario sync, JSON-LD context generation (`wire_context/`), CSAF model regeneration and corpus check (`csaf/`), planning helpers (`planning/`), message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/AGENTS.md`, `vultron/metadata/file_loading.py` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary and ratchet tests | `test/architecture/test_core_no_adapter_imports.py` |
 | `specs/` | Structured YAML specification files | `specs/README.md` |
@@ -128,6 +128,7 @@ stakeholder_type: [project-contributor]
 | `vultron/core/participants/` | Neutral participant-layer helpers below both `behaviors/` and `use_cases/`; resolves role-based authority (ADR-0088) | `behaviors/`, `use_cases/`, adapter imports |
 | `vultron/core/behaviors/` | py_trees trees and nodes, run through `BTBridge` | `use_cases/` imports |
 | `vultron/wire/as2/` | AS2 vocabulary (Pydantic models), parser, semantic extractor, factories | Any `vultron/core/` package other than `models/` and `states/`; FastAPI |
+| `vultron/wire/csaf/` | CSAF 2.1 pinned local copy of the schemas, its pin record, and the models generated from it (`models/`, never hand-edited) | Any `vultron/core/` package other than `models/` and `states/`; `datamodel-code-generator` (a dev tool, imported only by `vultron/metadata/csaf/`) |
 | `vultron/trigger_registry/` | One `TriggerEntry` row per trigger verb | Per-verb behavior (ADR-0110) |
 | `vultron/adapters/` | HTTP handlers, SQLite data layer, outbound delivery, CLI, connectors | Core domain logic (no business rules) |
 | `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |
