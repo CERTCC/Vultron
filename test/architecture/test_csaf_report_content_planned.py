@@ -40,6 +40,8 @@ from pathlib import Path
 
 import pytest
 
+from test.architecture import _corpus
+
 _SEND = "Tracked by #6092 (source #5131)."
 _RECEIVE = "Tracked by #6090 (source #5131)."
 _CASE = "Tracked by #6091 (source #5131)."
@@ -51,7 +53,7 @@ _RECORDS = (
 
 
 _HERE = Path(__file__).resolve()
-_TEST_ROOT = _HERE.parents[1]
+_TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_MARKER = re.compile(r"spec\(([^)]*)\)")
 _CSAF_ID = re.compile(r"""["'](CSAF-\d{2}-\d{3})["']""")
 #: The CSAF Technical Committee keeps its test documents under this path of
@@ -59,14 +61,15 @@ _CSAF_ID = re.compile(r"""["'](CSAF-\d{2}-\d{3})["']""")
 _TC_TEST_DATA = "csaf_2.1/test/"
 
 
-@cache
-def _other_test_modules() -> tuple[tuple[Path, str], ...]:
-    """Return the path and text of every test module except this one."""
-    return tuple(
-        (path, path.read_text(encoding="utf-8"))
-        for path in sorted(_TEST_ROOT.rglob("*.py"))
+def _other_modules_mentioning(fragment: str) -> list[tuple[Path, str]]:
+    """Return the test modules other than this one whose source holds ``fragment``."""
+    return [
+        (path, source)
+        for path, source in _corpus.sources_mentioning(
+            fragment, under=_TEST_ROOT
+        )
         if path.resolve() != _HERE
-    )
+    ]
 
 
 @cache
@@ -74,7 +77,7 @@ def _csaf_ids_marked_elsewhere() -> frozenset[str]:
     """Return the CSAF IDs that a ``spec`` marker in another test module names."""
     return frozenset(
         spec_id
-        for _, text in _other_test_modules()
+        for _, text in _other_modules_mentioning("CSAF-")
         for marker_args in _SPEC_MARKER.findall(text)
         for spec_id in _CSAF_ID.findall(marker_args)
     )
@@ -441,8 +444,7 @@ def test_regeneration_reproduces_the_committed_models(
 def test_the_suite_never_reads_the_tc_test_documents() -> None:
     readers = [
         str(path.relative_to(_TEST_ROOT))
-        for path, text in _other_test_modules()
-        if _TC_TEST_DATA in text
+        for path, _ in _other_modules_mentioning(_TC_TEST_DATA)
     ]
     assert readers == [], (
         f"CSAF-05-004: these test modules name the CSAF TC test data: {readers}"
