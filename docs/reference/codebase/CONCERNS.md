@@ -17,7 +17,6 @@ stakeholder_type: [project-contributor]
 | Medium | No test coverage measurement | `pyproject.toml` `[dependency-groups].dev` (no `pytest-cov`) | Coverage gaps are invisible; regressions in untested code go undetected | TB-02-001 (80% lines) and TB-02-002 (100% on critical paths) set the target; #4014 adds `pytest-cov` and the command, and keeps a CI coverage gate a separate decision |
 | Low | Process-global py_trees blackboard | `vultron/core/behaviors/bridge/lock.py` (`_BT_GLOBAL_LOCK`, an `RLock`), `vultron/core/behaviors/blackboard_scope.py`, `test/core/behaviors/conftest.py` | Executions are serialized and execution-scoped keys are snapshotted and restored, and BT tests clear storage before each test; a key outside the managed sets can still outlive its execution | Add any new execution-scoped key to the managed set (BT-17-007) |
 | Low | Architecture boundary tests fully passing | `test/architecture/test_core_no_adapter_imports.py`, `test/architecture/test_core_no_wire_imports.py` (`KNOWN_VIOLATIONS: frozenset()`) | Boundary is clean | Maintain: new violations fail the ratchet test immediately |
-| Low | One production TODO remains | `vultron/bt/report_management/_behaviors/report_to_others.py:106` (AllPartiesKnown simulated-annealing idea, in the legacy simulator); the former backlog issue #505 is closed; `vultron/core/states/cs/states.py:36` is a resolution NOTE (CONCERN-2099 / #2834) | A speculative enhancement in read-only reference code, not tech debt | Removed by #5599 |
 
 ### 2) Technical Debt
 
@@ -25,8 +24,6 @@ stakeholder_type: [project-contributor]
 |-----------|---------------|-------|-----------------|---------------|
 | `transitions` state machine library in core | Core state machines wrap `transitions`; third-party lib in domain layer | `vultron/core/states/em.py`, `rm.py`, `cs/`, `participant_embargo_consent.py`; `vultron/core/services/embargo_lifecycle/base.py` | Library API changes affect core domain directly | Decided 2026-11-02: no issue until `transitions` blocks a migration; then encapsulate it behind a domain-owned state-machine port |
 | `vultron/demo/` imports from adapters | Demo is intentionally a user of adapters, but the boundary between demo and production code is fuzzy | `vultron/demo/` | Demo code mutating shared state could silently affect production code paths | Decided 2026-11-02: no issue. Only `vultron/metadata/` (dev tooling) imports demo code, and `test/architecture/test_core_no_demo_imports.py` guards core |
-| `scipy` declared as a production dependency but never imported | No module in `vultron/` or `test/` imports it; it appears only in docs prose | `pyproject.toml` `dependencies` | Install size and supply-chain surface for no runtime use | Drop it: #5599 |
-| `help/` declared as a `uv` workspace member but absent | `[tool.uv.workspace] members = ["help"]` with no `help/` directory in the tree | `pyproject.toml` | Confusing workspace config; tooling may warn | Remove the member: #5599 |
 | Unimplemented adapter stubs | Production delivery, shared inbox and connector loading are designed but not built | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driving/shared_inbox.py`, `vultron/adapters/connectors/loader.py` | No production-ready transport or plugin path | Delivery and shared inbox are production scope (OX-10, OX-11; #892 under Someday Epic #5418). The connector loader is #5610 (ARCH-05-003), ahead of a planned VINCE connector; the Jira and VINCE modules are examples |
 
 ### 3) Security Concerns
@@ -75,7 +72,8 @@ Each answer is recorded here so a later scan does not raise it again.
 3. Personal and embargoed data in logs: Concern #5607.
 4. Coverage target: set by TB-02-001 and TB-02-002; tooling in #4014.
 5. Connector adapters: the Jira and VINCE modules are examples; the entry-point loader is #5610, ahead of a planned VINCE connector.
-6. `scipy`: drop it, with the missing `help` workspace member and the simulator TODO (#5599).
+6. `scipy`: keep it, though nothing imports it.
+   networkx computes `nx.pagerank()` with it, and `vultron/core/case_states/hypercube/model.py` calls that; the `pyproject.toml` comment says so (#5599).
 7. Oversized modules: split issues go under Epic #5417.
 
 ### 7) Evidence
@@ -90,7 +88,7 @@ Each answer is recorded here so a later scan does not raise it again.
 - `vultron/adapters/driving/shared_inbox.py`
 - `vultron/adapters/driven/prod_http_delivery.py`
 - `vultron/adapters/driven/datalayer_sqlite/schema.py`
-- `pyproject.toml` `dependencies`, `[dependency-groups].dev`, `[tool.uv.workspace]`, `[tool.ruff.lint]`
+- `pyproject.toml` `dependencies`, `[dependency-groups].dev`, `[tool.ruff.lint]`
 - `docs/adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md`
 - `specs/testability.yaml` (TB-14-006)
 - `test/metadata/test_gate_ceiling.py`
