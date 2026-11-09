@@ -19,7 +19,8 @@ Grouped by concern (CS-18-005):
 
 - ``clock`` — the one wall-clock read (``clock.datetime`` is the clock seam)
 - ``timestamps`` — the serialized timestamp form and claimed-time reading
-- ``ids`` — the object id minter and the mixed-reference id reader ``_as_id``
+- ``ids`` — the object id minter, its id source and scoped install, and the
+  mixed-reference id reader ``_as_id``
 - ``inbound`` — reading inbound and stored data: absent times, key spellings
 """
 
@@ -36,8 +37,11 @@ from vultron.core.models._helpers.clock import (
 )
 from vultron.core.models._helpers.ids import (
     URN_UUID_PREFIX,
+    IdSource,
     _as_id,
+    install_id_source,
     new_object_id,
+    system_id_source,
 )
 from vultron.core.models._helpers.inbound import (
     INBOUND_CONTEXT_KEY,
@@ -62,6 +66,7 @@ from vultron.core.models._helpers.timestamps import (
 __all__ = [
     "DuplicateKeySpellingError",
     "INBOUND_CONTEXT_KEY",
+    "IdSource",
     "MissingClaimedTimeError",
     "STORED_CONTEXT_KEY",
     "SteppingClock",
@@ -74,6 +79,7 @@ __all__ = [
     "days_from_now_utc",
     "format_timestamp",
     "from_now_utc",
+    "install_id_source",
     "new_object_id",
     "now_utc",
     "now_utc_after",
@@ -82,5 +88,6 @@ __all__ = [
     "refuse_absent_published",
     "require_future_aware",
     "strip_annotated",
+    "system_id_source",
     "timestamp_serializer",
 ]

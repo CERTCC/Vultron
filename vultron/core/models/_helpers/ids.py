@@ -13,16 +13,105 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The one object id minter (OID-01-004) and the id reader for mixed references."""
+"""The one object id minter (OID-01-004), its id source, and the id reader.
 
+The minter, :func:`new_object_id`, draws each UUID from the installed id
+source (OID-01-011, ADR-0185).  The installed source is
+:func:`system_id_source` until a run that needs repeatable ids replaces it for
+a block with :func:`install_id_source`.  Nothing else replaces the draw: a
+patch of the ``uuid`` module's draw reaches every library that draws from it,
+py_trees included.
+
+The port lives here, beside the minter, and not in ``vultron.core.ports``,
+because the wire layer's docs-example generator supplies a source and the wire
+layer may import only ``vultron.core.models`` and ``vultron.core.states``
+(ARCH-22-001).
+"""
+
+import threading
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from typing import (
     Any,
+    Protocol,
 )
+
+from vultron.errors import VultronIdSourceInstalledError
 
 URN_UUID_PREFIX = "urn:uuid:"
 """The scheme and namespace every default minted object id starts with."""
+
+
+class IdSource(Protocol):
+    """The port the minter draws its UUIDs from (ADR-0185).
+
+    One operation: calling the source returns the next version-4 UUID.  A
+    source returns a different UUID on every call within one run; a
+    reproducible run's source returns the same sequence from run to run.
+    """
+
+    def __call__(self) -> uuid.UUID: ...
+
+
+def system_id_source() -> uuid.UUID:
+    """Return a fresh random version-4 UUID: the system id source.
+
+    The one function in ``vultron/`` that draws a random UUID for an object id
+    (OID-01-004, OID-01-011), and the source every run uses unless it installs
+    another with :func:`install_id_source`.
+    """
+    return uuid.uuid4()
+
+
+class _IdSourceSlot:
+    """The process-wide slot holding the source :func:`new_object_id` draws from.
+
+    Holds :func:`system_id_source` except inside :func:`install_id_source`.
+    The lock serializes installs, not draws: a draw reads ``source`` once.
+    """
+
+    def __init__(self) -> None:
+        self.source: IdSource = system_id_source
+        self.installed = False
+        self.lock = threading.Lock()
+
+
+_SLOT = _IdSourceSlot()
+
+
+@contextmanager
+def install_id_source(source: IdSource) -> Iterator[IdSource]:
+    """Make *source* the minter's id source for the block, then restore it.
+
+    For a run that needs repeatable ids (a scenario recording, the docs
+    example generator); production installs nothing, and ``create_app()``
+    installs nothing either (ARCH-16-001).  The install is process-wide: every
+    thread that mints while the block runs draws from *source*.
+
+    The previous source comes back when the block ends, also when it raises.
+    Yields *source*, so a caller may bind it with ``as``.
+
+    Raises:
+        VultronIdSourceInstalledError: another install is active.  Two
+            reproducible runs in one block would take each other's ids, and
+            nobody would see it.
+    """
+    with _SLOT.lock:
+        if _SLOT.installed:
+            raise VultronIdSourceInstalledError(
+                "an id source is already installed; a reproducible run's "
+                "install does not nest inside another"
+            )
+        _SLOT.installed = True
+        previous = _SLOT.source
+        _SLOT.source = source
+    try:
+        yield source
+    finally:
+        with _SLOT.lock:
+            _SLOT.source = previous
+            _SLOT.installed = False
 
 
 def new_object_id(prefix: str | None = None) -> str:
@@ -31,7 +120,8 @@ def new_object_id(prefix: str | None = None) -> str:
     Core models use it as their ``id_`` default factory, and the wire layer's
     ``generate_new_id`` is the same function, so every minted id has one form
     whichever layer mints it.  By default the id is ``urn:uuid:`` followed by
-    a fresh version-4 UUID, a valid AS2 identifier that needs no server
+    the next version-4 UUID of the installed id source (OID-01-011; see
+    :func:`install_id_source`), a valid AS2 identifier that needs no server
     configuration (OID-01-001).  When *prefix* is given the UUID is appended
     to it after a ``/``, which yields HTTPS-style ids such as
     ``https://example.org/reports/{uuid}``; the caller owns *prefix*, which
@@ -40,7 +130,7 @@ def new_object_id(prefix: str | None = None) -> str:
     An id *derived* from what an activity answers is not minted; it comes from
     :func:`vultron.core.models.activity_ids.derived_activity_id`.
     """
-    minted = str(uuid.uuid4())
+    minted = str(_SLOT.source())
     if prefix is None:
         return f"{URN_UUID_PREFIX}{minted}"
     return f"{prefix}/{minted}"

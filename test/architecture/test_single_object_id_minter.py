@@ -13,12 +13,13 @@
 """Every new object id is minted by one helper the core and wire layers share.
 
 OID-01-004: ``vultron.core.models._helpers.new_object_id`` is the only
-minter.  Two checks pin it:
+minter, and it draws from the installed id source, whose default is the system
+id source (OID-01-011, ADR-0185).  Two checks pin it:
 
 * Both layers' ``id_`` default factories *are* that function, so a model built
   without an id gets one from it whichever layer the model lives in.
-* No function under ``vultron/`` but the minter names ``uuid1`` or ``uuid4``,
-  called or not, so no second minter can grow beside it.  The scan works per
+* No function under ``vultron/`` but the system id source names ``uuid1`` or
+  ``uuid4``, called or not, so no second minter can grow beside it.  The scan works per
   enclosing function, not per module, so a second minter cannot hide in a
   module that already has an allowed use.  A random UUID drawn for something
   that is not an object id is listed in :data:`NON_ID_RANDOM_UUID_EXEMPTIONS`
@@ -53,14 +54,18 @@ _VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"
 #: The scope name of code outside any function or class.
 MODULE_SCOPE = "<module>"
 
-#: The shared minter: the one function that draws an object id.
-MINTER_SITE = ("vultron/core/models/_helpers/ids.py", "new_object_id")
+#: The system id source: the one function that draws a random UUID for an
+#: object id.  The minter, ``new_object_id``, draws through the installed id
+#: source and names no ``uuid`` draw itself (OID-01-011).
+MINTER_SITE = ("vultron/core/models/_helpers/ids.py", "system_id_source")
 
 #: Functions that draw a random UUID for something other than an object id,
 #: keyed on (repo-relative path, dotted enclosing function).
 #: Pinned exemption set: each entry is a recorded decision, not a debt.
 # permanent: OID-01-004 (each entry draws, or replaces the draw of, a
-# UUID that never mints an object id)
+# UUID that never mints an object id); the two replacement entries are
+# removed when #6116 and #6117 move their runs to install_id_source
+# (OID-01-011, ADR-0185)
 NON_ID_RANDOM_UUID_EXEMPTIONS: dict[tuple[str, str], str] = {
     (
         "vultron/adapters/driving/fastapi/app.py",
@@ -213,14 +218,16 @@ def test_core_and_wire_id_default_factories_are_the_shared_minter():
 
 
 @pytest.mark.spec("OID-01-004")
-def test_no_function_but_the_shared_minter_draws_a_random_uuid():
+@pytest.mark.spec("OID-01-011")
+def test_no_function_but_the_system_id_source_draws_a_random_uuid():
     sites = _random_uuid_sites()
     assert MINTER_SITE in sites, (
-        "the scan no longer sees the shared minter draw a UUID; "
+        "the scan no longer sees the system id source draw a UUID; "
         "fix the scan before trusting it"
     )
     assert sites - {MINTER_SITE} == set(NON_ID_RANDOM_UUID_EXEMPTIONS), (
-        "a function outside the shared minter names uuid1/uuid4: mint object "
-        "ids with new_object_id (OID-01-004), or list a non-id use in "
+        "a function outside the system id source names uuid1/uuid4: mint "
+        "object ids with new_object_id (OID-01-004), supply repeatable ids "
+        "through install_id_source (OID-01-011), or list a non-id use in "
         "NON_ID_RANDOM_UUID_EXEMPTIONS with its reason"
     )
