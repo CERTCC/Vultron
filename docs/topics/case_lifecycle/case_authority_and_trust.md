@@ -144,7 +144,8 @@ The rule has two exceptions, and both happen before there is a CASE_MANAGER to r
 1. The reporter sends its report directly to the actor it chose to tell, because no case exists yet.
 2. The case-creation message, `Create(VulnerabilityCase)`, which the report receiver sends the reporter, introduces the CASE_MANAGER to the reporter.
 
-Everything after those two messages goes through the CASE_MANAGER.
+Everything after those two messages goes through the CASE_MANAGER, except the report acknowledgment, `RK`.
+RK answers the reporter's report offer outside the case, so it goes to the reporter directly ([§10.2 Routing Topology](../../reference/vultron-spec/interactions.md#102-routing-topology)).
 
 ### Messages sent on someone's behalf
 

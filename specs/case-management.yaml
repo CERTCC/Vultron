@@ -4718,13 +4718,16 @@ groups:
     statement: >-
       This codebase MUST call `CaseParticipant.copy_consent_row()` only from
       `apply_embargo_change()`, after that function checks the row's starting state
-      against the consent row machine (CM-18-003).
+      against the consent row machine (CM-18-003) and the RSVP deadline rule
+      (CM-28-013).
     rationale: >-
       The copy write takes a row as a ledger entry carries it and does not consult the
       consent table. It stays fail-closed only because its one caller first checks that
-      the row starts where the entry implies. A `Create` finds no row yet. An `Update`
-      finds a held row that one consent row trigger moves to the carried row, or an
-      `INVITED` row that gets a fresh deadline (CM-18-003, ADR-0124).
+      the row starts where the entry implies. A `Create` finds no row yet, and carries
+      an `UNINVITED` row or one that one consent row trigger moves from `UNINVITED`. An
+      `Update` finds a held row that one consent row trigger moves to the carried row
+      (CM-18-003), or an `INVITED` row that gets a fresh RSVP deadline (CM-28-013,
+      ADR-0124).
     verification: >-
       `test/core/models/test_embargo_apply.py` asserts the copy write refuses a row that
       does not start where its entry implies, and
@@ -4735,6 +4738,8 @@ groups:
       spec_id: CM-18-005
     - rel_type: uses_definition
       spec_id: CM-18-003
+    - rel_type: uses_definition
+      spec_id: CM-28-013
     adr:
     - ADR-0124
   - id: CM-18-026
