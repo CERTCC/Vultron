@@ -32,12 +32,18 @@ generated *file set* stays correct when two rows claim one name.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import BaseModel
 
-from vultron.core.models._helpers import new_object_id, now_utc
+from vultron.core.models._helpers import (
+    install_id_source,
+    new_object_id,
+    now_utc,
+)
+from vultron.errors import VultronIdSourceInstalledError
 from vultron.wire.as2.vocab.examples._base import (
     EXAMPLE_TIMESTAMP,
     _example_scope,
@@ -97,6 +103,49 @@ class TestScopedIds:
         assert all(
             id_.rsplit(":", 1)[-1][14] == "4" for id_ in _ids_drawn("alpha", 4)
         )
+
+
+class TestScopeInstallsItsIdSource:
+    """The ids come through the minter's install, not a ``uuid`` patch.
+
+    OID-01-012: nothing but the system id source may replace the ``uuid``
+    module's draw, because a patch reaches every caller of it, py_trees
+    included (ADR-0185).
+    """
+
+    def test_the_uuid_module_draw_is_untouched_inside_the_scope(self) -> None:
+        real = uuid.uuid4
+        with _example_scope("alpha"):
+            assert uuid.uuid4 is real
+            assert uuid.uuid4() != uuid.uuid4()
+
+    def test_the_minter_draws_the_scope_ids(self) -> None:
+        with _example_scope("alpha"):
+            drawn = new_object_id()
+        assert drawn == f"urn:uuid:{example_uuid('alpha/1')}"
+
+    def test_the_system_source_is_back_after_the_scope(self) -> None:
+        with _example_scope("alpha"):
+            pass
+        assert new_object_id() != _ids_drawn("alpha", 1)[0]
+
+    def test_the_system_source_is_back_after_a_raise(self) -> None:
+        with pytest.raises(RuntimeError), _example_scope("alpha"):
+            raise RuntimeError("boom")
+        assert new_object_id() != _ids_drawn("alpha", 1)[0]
+
+    def test_a_scope_inside_another_install_is_refused(self) -> None:
+        """Two streams of ids in one block would take each other's ids."""
+        with install_id_source(uuid.uuid4):
+            with pytest.raises(VultronIdSourceInstalledError):
+                with _example_scope("alpha"):
+                    pass
+
+    def test_a_scope_inside_a_scope_is_refused(self) -> None:
+        with _example_scope("alpha"):
+            with pytest.raises(VultronIdSourceInstalledError):
+                with _example_scope("beta"):
+                    pass
 
 
 class TestPinnedClock:

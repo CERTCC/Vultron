@@ -5,11 +5,10 @@ kind: plan
 tracks:
   - "#5676"   # epic: a re-recorded scenario equals the committed one
   - "#6116"   # the recording harness through the port
-  - "#6117"   # the docs-example generator through the port
 description: >
   The rest of the migration to ADR-0185: the one object id minter draws from an
-  id-source port, and the two runs that need repeatable ids still have to move
-  from patching uuid.uuid4 to the scoped install.
+  id-source port, and the recording run still has to move from patching
+  uuid.uuid4 to the scoped install.
 related_specs:
   - specs/object-ids.yaml
   - specs/architecture.yaml
@@ -20,9 +19,10 @@ related_specs:
 
 ADR-0185 decides that the one minter, `new_object_id` (OID-01-004), draws from an
 id-source port, and that a run needing repeatable ids installs its source for a
-block (OID-01-011, OID-01-012). The minter draws from the port, but two runs
-still patch `uuid.uuid4` process-wide. This note holds the order of the
-remaining work and the rules each slice keeps.
+block (OID-01-011, OID-01-012). The minter draws from the port, and the
+docs-example generator installs its source through it, but the recording run
+still patches `uuid.uuid4` process-wide. This note holds the remaining work and
+the rules each slice keeps.
 
 A run installs its source with `install_id_source(source)`, a context manager in
 `vultron.core.models._helpers`. The source is any callable that returns a
@@ -56,15 +56,11 @@ they are. A nested install raises `VultronIdSourceInstalledError`.
   that replaces or calls `uuid.uuid4` to watch the minter checks nothing once the
   minter draws from the id source, so the slice that changes the draw rewrites it.
 
-## Slices, in order
+## Remaining slice
 
-1. **Recordings** (#6116). `deterministic_run()` installs `SeededUuid4` through
-   the port and drops its `sys.modules` sweep; every recording is regenerated
-   once. `test/demo_unit/test_determinism.py` drops its tests of the sweep, and
-   `test/adapters/driving/fastapi/routers/test_datalayer_read_mints_nothing.py`
-   reads the next seeded ids through `new_object_id`, not `uuid.uuid4()`. It may
-   share that regeneration with #5760, which moves the recording clock to its port.
-2. **Docs examples** (#6117). `_example_scope()` installs `_ScopedIds` through
-   the port; the example corpus does not change.
-
-The two slices are independent of each other.
+- **Recordings** (#6116). `deterministic_run()` installs `SeededUuid4` through
+  the port and drops its `sys.modules` sweep; every recording is regenerated
+  once. `test/demo_unit/test_determinism.py` drops its tests of the sweep, and
+  `test/adapters/driving/fastapi/routers/test_datalayer_read_mints_nothing.py`
+  reads the next seeded ids through `new_object_id`, not `uuid.uuid4()`. It may
+  share that regeneration with #5760, which moves the recording clock to its port.
