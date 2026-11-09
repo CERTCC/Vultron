@@ -884,7 +884,9 @@ def test_a_handed_off_body_that_is_not_a_core_object_is_unreadable():
         update={
             "state": ObjectFetchState.FETCHED,
             "fetched_body": json.dumps(
-                {"type": "Image", "id": "urn:uuid:img"}
+                # An Article has no core class; an Image now does
+                # (AttachedImage, CSAF-01-001).
+                {"type": "Article", "id": "urn:uuid:img"}
             ),
         }
     )

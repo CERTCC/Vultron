@@ -15,6 +15,7 @@
 Issue #3872.
 """
 
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -97,8 +98,12 @@ def _claims_node() -> StoreReportClaimsRecordsNode:
 
 @pytest.mark.spec("CSAF-04-004")
 def test_claims_node_stores_one_record_per_reading_and_logs_each_skip(caplog):
+    actor = f"{VENDOR}/{uuid.uuid4()}"  # a store no other test has written
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor)
     with caplog.at_level("INFO"):
-        dl, result = _run(_claims_node())
+        result = BTBridge(datalayer=dl).execute_with_setup(
+            _claims_node(), actor_id=actor
+        )
 
     assert result.status == Status.SUCCESS
     record = dl.read(ReportClaimsRecord.build_id(REPORT, "b" * 64))
@@ -111,13 +116,17 @@ def test_claims_node_stores_one_record_per_reading_and_logs_each_skip(caplog):
 
 
 def test_claims_node_keeps_a_record_it_already_holds(caplog):
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
+    # A store of its own: in-memory stores are shared per actor id, and a
+    # record another test left behind would make the first run a no-op.
+    actor = f"{VENDOR}/{uuid.uuid4()}"
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor)
     bridge = BTBridge(datalayer=dl)
-    bridge.execute_with_setup(_claims_node(), actor_id=VENDOR)
+    bridge.execute_with_setup(_claims_node(), actor_id=actor)
     first = dl.list_objects("ReportClaimsRecord")
+    assert len(first) == 1
 
     with caplog.at_level("INFO"):
-        result = bridge.execute_with_setup(_claims_node(), actor_id=VENDOR)
+        result = bridge.execute_with_setup(_claims_node(), actor_id=actor)
 
     assert result.status == Status.SUCCESS
     assert dl.list_objects("ReportClaimsRecord") == first
