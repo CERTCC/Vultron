@@ -121,7 +121,7 @@ def _case(
     suffix: str,
     em_state: EM = EM.ACTIVE,
     *,
-    other_consent=EmbargoConsentState.AGREED,
+    other_consent: EmbargoConsentState | None = EmbargoConsentState.AGREED,
 ) -> tuple[VulnerabilityCase, SqliteDataLayer]:
     """A fixture case whose register's embargoes are stored, as in production.
 
