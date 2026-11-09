@@ -61,10 +61,11 @@ distributed ledger, production key handling, end-to-end encryption.
 
 Vultron exchanges case data with outside systems. Deliverables, in this order:
 
-1. **A receiver accepts a report whose content is a CSAF 2.1 vulnerability report**
-   (#5911). The CSAF document is the report's content in
-   `Offer(VulnerabilityReport)`, with no new wire activity. Planning #5131 comes
-   first, and it waits on the Offer(Report) receive tree rewrite (#5045, #5046).
+1. **A receiver accepts a report with an attached CSAF 2.1 vulnerability report**
+   (#5911). The CSAF document is an attachment of the report in
+   `Offer(VulnerabilityReport)`, with no new wire activity (ADR-0184). The build
+   tasks are #6089 to #6094, and the deliverable waits on the Offer(Report)
+   receive tree rewrite (#5045, #5046).
 2. **That offer carries a seeded-key proof that is verified** (#1156). A missing
    or failing proof gets 422 with its own error name (#5763), not 401: a proof is
    content, not an HTTP credential.

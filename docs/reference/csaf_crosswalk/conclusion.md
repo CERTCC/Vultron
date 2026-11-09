@@ -39,7 +39,7 @@ The comparison gives three relations between a CSAF document and a Vultron case:
 | Relation | Conclusion |
 |---|---|
 | Replacement | A CSAF document is not the case of record. It holds selected events, has one issuing party, and has no rules for change. |
-| Nested content | A CSAF document can travel inside a case as the content of a report, and Vultron could read its process fields as claims by the sender. |
+| Nested content | A CSAF document can travel inside a case as an attachment of a report. Vultron reads it only when the report is first offered, to fill the inputs of the new case ([ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)). |
 | Projection | A participant could produce a CSAF document from its copy of the case, at publication and during coordination. |
 
 ---
@@ -70,7 +70,7 @@ All follow-up items are part of the Vultron Epic [#5130 CSAF 2.1 crosswalk and i
 
 | Issue | Change | Source |
 |---|---|---|
-| [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} | Vultron could identify CSAF content in a report by its `mediaType`, and read its process fields as claims by the sender. | [Overview](overview.md#a-csaf-document-can-travel-inside-a-case) |
+| [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} | Vultron carries a CSAF document as an attachment of a report and reads it when the report is first offered. Specified; Epic [#5911](https://github.com/CERTCC/Vultron/issues/5911){:target="_blank"} tracks the implementation. | [Overview](overview.md#a-csaf-document-can-travel-inside-a-case) |
 | [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} | Vultron could add vulnerability records to the case, with CSAF or Common Vulnerabilities and Exposures (CVE) content. | [Concept mapping](concept_mapping.md#content-objects) |
 | [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} | Vultron could produce a CSAF document from the copy of a case that a participant keeps. | [Overview](overview.md#a-case-can-produce-a-csaf-document) |
 | [#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"} | Vultron could define how TLP labels appear in its data and logic. This item is a concern. | [Overview](overview.md#tlp-marks-a-projection-not-a-case) |

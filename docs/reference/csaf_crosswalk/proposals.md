@@ -34,7 +34,8 @@ Vultron keeps an embargo as a sequence of versions.
 Each version has an end time, and each participant agrees to it or refuses it ([Embargo Management](../../topics/process_models/em/index.md)).
 An embargo can be revised, and it can end before its end time ([Early Termination](../../topics/process_models/em/early_termination.md)).
 The end of an embargo and the public disclosure of the vulnerability are two different events ([Embargo Termination is Not the Same as Publication](../../topics/process_models/em/principles.md#embargo-termination-is-not-the-same-as-publication)).
-The two CSAF proposals below come from that experience.
+The first two CSAF proposals below come from that experience.
+The third comes from carrying CSAF documents inside Vultron messages.
 
 ---
 
@@ -101,6 +102,26 @@ The timeline shows why and when an embargo ended, and a tool can read it.
 **If nothing changes.**
 A projection from Vultron records the early end as a `coordination` action, and it explains the end in `summary`.
 
+### 3. A registered media type for CSAF documents
+
+**Problem.**
+CSAF registers no media type.
+The distribution feeds that the draft defines label each CSAF document `application/json`, and they name the CSAF schema in a separate field.
+
+**Consequences.**
+A message that carries a CSAF document beside other files can label it only `application/json`.
+A receiver must read each JSON attachment to find out whether it is a CSAF document, from its `$schema`, `document.csaf_version` and `document.category` values.
+Vultron carries a CSAF document in this way, as an attachment of a report ([ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)).
+
+**Proposed change.**
+The TC could register a media type for CSAF documents, for example `application/csaf+json`, with a parameter for the CSAF version.
+
+**Benefit.**
+A tool can tell a CSAF document from other JSON before it reads the document, in an email attachment, an HTTP response or a protocol message.
+
+**If nothing changes.**
+Vultron labels CSAF documents `application/json`, and a receiver identifies them from their content.
+
 ---
 
 ## Items under discussion
@@ -122,7 +143,7 @@ The Vultron project tracks each of them as a separate item for planning, under E
 
 | Issue | Change | Reason |
 |---|---|---|
-| [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} | Vultron could identify CSAF content in a report by its `mediaType`, and read the process fields of that content as claims by the sender. A claim then changes the case only through a Vultron activity. | CSAF 2.1 has a Vulnerability Report profile for exchange during coordination, so CSAF reports will arrive inside cases. |
+| [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} | Specified in [ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md), not yet built: Vultron carries a CSAF document as an attachment of a report, and reads its fields as the statement of the sender when the report is first offered. The fields then fill the inputs of the new case, and a CSAF document that arrives later changes no case data. | CSAF 2.1 has a Vulnerability Report profile for exchange during coordination, so CSAF reports will arrive inside cases. |
 | [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} | Vultron could add a list of vulnerability records to the case, and let a record carry a CSAF document or a Common Vulnerabilities and Exposures (CVE) record as its content. This could include a CSAF profile for one vulnerability without `involvement`. | The Vultron specification already expects vulnerability records on a case (CM-05-003), and the object model has not yet reached this depth. A projection needs the records to set `dl_vuln_ids`. |
 | [#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"} | Vultron could define how a Traffic Light Protocol (TLP) label appears in its data and logic, and how granular a label is. This item is a concern. | Vultron has no labels today. A projection needs a label, and a received document can carry one. |
 | [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} | Vultron could produce a CSAF document from the copy of a case that a participant keeps, at publication and during coordination. | A party outside Vultron, such as a vendor or a reporting authority, can then receive the case information in CSAF. |

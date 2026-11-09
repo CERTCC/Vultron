@@ -48,6 +48,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   Unbuilt capability-shape work: typed ports, latency budget, composites, Sentinel.
   **Load when**: designing a capability or call-out point, or routing a question to
   a capability, an ask, or a call-in monitor.
+- **`csaf-report-content.md`** · `plan`
+  Carrying, checking and reading a CSAF 2.1 attachment on a report (ADR-0184).
+  **Load when**: building the CSAF reader, its models, the claims record or the
+  draft-watch job.
 - **`cvd-recipe-injects.md`** · `plan`
   CERT Guide to CVD recipes classified as demo injects, by implementability tier.
   **Load when**: designing a failure-path demo or checking whether a recipe is tracked.
