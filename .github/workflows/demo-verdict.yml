@@ -26,6 +26,16 @@
 #   1 precisely so the `demo-verdict-change` opt-out cannot excuse a crashed
 #   recorder as a deliberate change.
 #
+# One change has no arm here, and the label cannot admit it: the *head's*
+# `read_runs` reads the traces the *base's* `write_run` wrote, so a head commit
+# that changes the check tree's JSON shape while keeping
+# `traces.py`'s two filenames makes that read raise `DemoRecordingError` —
+# exit 1, the crashed-recorder code the opt-out deliberately excludes. Renaming
+# either filename is fine: the base side then reads as no run at all, every
+# scenario differs against `(not recorded)`, and that is an ordinary exit 4 the
+# label admits. So land a check-tree *shape* change in its own pull request
+# that keeps reading the old shape, and change the writer in the next one.
+#
 # Nothing is committed and no recording is regenerated: a pull request never
 # refreshes `ui/src/recordings/` (#3901), and a stale committed recording
 # cannot make this job red or green.
@@ -245,8 +255,17 @@ jobs:
               echo '```diff'
               lines="$(wc -l < "$log")"
               bytes="$(wc -c < "$log")"
-              head -n "$SUMMARY_LINE_LIMIT" "$log" \
-                | head -c "$SUMMARY_BYTE_LIMIT"
+              # Two sequential reads through a file, never one pipeline.
+              # `head -c` exits at its cap and SIGPIPEs the `head -n` feeding
+              # it, which `pipefail` reports as 141 and `set -e` then acts on
+              # — killing this step on exactly the oversized diff the caps
+              # exist for, before the pointer and the closing fence are
+              # written, and turning a label-admitted green comparison red
+              # (DEMOCI-11-063, DEMOCI-11-064). `|| true` is not the fix: it
+              # would also swallow a real failure here (`neutering`, in
+              # test/ci/_workflows.py).
+              head -n "$SUMMARY_LINE_LIMIT" "$log" > "$RUNNER_TEMP/capped"
+              head -c "$SUMMARY_BYTE_LIMIT" "$RUNNER_TEMP/capped"
               if [ "$lines" -gt "$SUMMARY_LINE_LIMIT" ] \
                 || [ "$bytes" -gt "$SUMMARY_BYTE_LIMIT" ]; then
                 echo

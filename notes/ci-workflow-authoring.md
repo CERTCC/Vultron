@@ -11,7 +11,8 @@ description: >
   `timeout-minutes` every job needs and the reusable-workflow exemption, why an
   automated find-or-file lookup must not go through the search index, why a
   `GITHUB_TOKEN`-raised event never triggers another workflow, why a script
-  must use the spellings macOS's bash 3.2 understands, why a bot-filed issue
+  must use the spellings macOS's bash 3.2 understands, why a capping `head`
+  behind a pipe kills its own step, why a bot-filed issue
   gets a theme but no Epic parent, why an artifact name needs the run attempt,
   why a GitHub write is retried and a label swap is split, how to read a red CI
   job correctly, why a new pull-request step must be mirrored locally or
@@ -27,6 +28,7 @@ related_notes:
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
   - notes/demo-ci-diagnostics.md
+  - notes/demo-scenario-tree.md
   - notes/git-workflow-pitfalls.md
   - notes/lint-tooling.md
 related_specs:
@@ -248,6 +250,30 @@ Lookup Must Not Use the Search Index", CISEC-05-011).
 `test/ci/test_shell_script_portability.py` scans every tracked `*.sh`; it
 cannot see the empty-array case, which is a question about the script's logic
 rather than a construct.
+
+## A Capping `head` Behind a Pipe Kills Its Own Step Under `pipefail`
+
+`head -n LIMIT "$log" | head -c LIMIT` under `set -euo pipefail` exits 141 on
+exactly the oversized input the caps exist for: the right-hand `head` exits at
+its byte cap and SIGPIPEs the left-hand one, `pipefail` makes 141 the
+pipeline's status, and `set -e` ends the shell there — inside any `{ … } >>
+"$GITHUB_STEP_SUMMARY"` group, so the truncation pointer and the closing
+fence are never written and the step goes red. Read it as two sequential
+commands through a file instead:
+
+```sh
+head -n "$LINE_LIMIT" "$log" > "$RUNNER_TEMP/capped"
+head -c "$BYTE_LIMIT" "$RUNNER_TEMP/capped"
+```
+
+Not `|| true`: that hides a real failure in the same step, and
+`test/ci/_workflows.py`'s `neutering` flags it. The same shape bites any
+early-exiting reader behind a pipe (`grep -q`, `head`, an `awk` with `exit`).
+A test over the `run:` text cannot see it — presence of both `head` calls is
+what stayed true while the behaviour broke — so the check that catches it runs
+the step's own script over an oversized log and asserts the pointer landed and
+the status was zero (#6026,
+`test/ci/test_demo_verdict_workflow.py::test_an_oversized_diff_is_summarized_and_the_step_still_passes`).
 
 ## A Bot-Filed Issue Gets a Theme From the Filer, and No Parent
 

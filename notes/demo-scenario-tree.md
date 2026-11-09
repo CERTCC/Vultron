@@ -38,6 +38,7 @@ related_notes:
   - notes/demo-scenario-authoring.md
   - notes/demo-future-ideas.md
   - notes/testing-pitfalls.md
+  - notes/ci-workflow-authoring.md
 relevant_packages:
   - vultron/demo/helpers
   - vultron/demo/scenario
