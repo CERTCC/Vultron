@@ -1,8 +1,9 @@
 ---
 title: "Protocol Specification: Known Gaps"
 description: >
-  The protocol and foundation requirements that no passing test shows the
-  reference implementation's main branch meets, generated from the test suite.
+  The protocol and foundation requirements that the tests do not show the
+  reference implementation's main branch fully meets, generated from the test
+  suite.
 stakeholder_type: [platform-developer]
 level: 400
 page_type: reference
@@ -11,14 +12,16 @@ subject: neutral
 
 # Protocol Specification Known Gaps
 
-This page lists each `protocol` and `foundation` requirement of the [Vultron Protocol Specification](index.md) that no passing test shows the `main` branch of the reference implementation meets.
+This page lists each `protocol` and `foundation` requirement of the [Vultron Protocol Specification](index.md) that the tests do not show the `main` branch of the reference implementation fully meets.
 It is generated from the tests on `main`, so it cannot fall behind them.
-When a test that shows `main` meets a requirement is added, the requirement leaves this page.
+When the tests show that `main` meets all of a requirement, the requirement leaves this page.
 
-The page has two sections.
+The page has three sections.
 The first lists the requirements that a test shows `main` does not yet meet, with the issues that track the work.
-The second lists the requirements that no test checks.
-A requirement in the second section is not known to be missing from `main`: no test shows `main` does it.
+The second lists the requirements that `main` meets only in part.
+Some of their tests pass, but at least one test shows a part that `main` does not yet do, and the issues that track that part are named.
+The third lists the requirements that no test checks.
+A requirement in the third section is not known to be missing from `main`: no test shows `main` does it.
 
 The page describes the reference implementation, not the protocol.
 For the questions that the specification itself leaves unresolved, see [Open Questions](open-questions.md).

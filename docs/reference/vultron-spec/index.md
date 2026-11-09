@@ -59,7 +59,7 @@ Annexes A and B trace Coordinated Vulnerability Disclosure (CVD) cases from firs
 ## Open Questions, Known Gaps, Revision Log, and the Single-Page Edition
 
 [Open Questions](open-questions.md) collects the questions this draft of the specification leaves unresolved.
-[Known Gaps](known-gaps.md) lists the requirements that no passing test shows the reference implementation's `main` branch meets.
+[Known Gaps](known-gaps.md) lists the requirements that the tests do not show the reference implementation's `main` branch fully meets.
 The [Revision Log](revision-log.md) records each draft of the specification, its version identifier and date, and what changed in it.
 [The single-page edition](full.md) holds every section and annex in order, for printing or for searching the whole text at once.
 

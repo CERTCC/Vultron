@@ -124,8 +124,9 @@ def _report(*states: CoverageState) -> ImplementerCoverageReport:
     )
 
 
-_V, _X, _U = (
+_V, _P, _X, _U = (
     CoverageState.VERIFIED,
+    CoverageState.PARTLY_MET,
     CoverageState.XFAIL_ONLY,
     CoverageState.UNTESTED,
 )
@@ -149,16 +150,18 @@ def test_coverage_pct_zero_total():
 
 
 @pytest.mark.spec("SR-05-017")
-def test_coverage_pct_leaves_out_xfail_only():
-    """An xfail-only requirement counts in the total, never in the figure."""
-    report = _report(_V, _X, _X, _U)
-    assert report.verified_pct == 25.0
+def test_coverage_pct_leaves_out_xfail_only_and_partly_met():
+    """A held requirement counts in the total, never in the figure."""
+    report = _report(_V, _P, _X, _X, _U)
+    assert report.verified_pct == 20.0
+    assert report.partly_met == ["CVG-01-002"]
     assert report.summary.model_dump() == {
-        "total": 4,
+        "total": 5,
         "verified": 1,
+        "partly_met": 1,
         "xfail_only": 2,
         "untested": 1,
-        "verified_pct": 25.0,
+        "verified_pct": 20.0,
     }
 
 
@@ -490,7 +493,7 @@ def test_main_lists_untested_ids(
 def test_main_no_untested_section_when_fully_covered(
     spec_dir_with_protocol, test_dir_full_coverage, monkeypatch, capsys
 ):
-    """main() omits the untested and xfail-only sections when all are verified."""
+    """main() omits every held and untested section when all are verified."""
     monkeypatch.setattr(
         sys,
         "argv",
@@ -507,6 +510,7 @@ def test_main_no_untested_section_when_fully_covered(
     )
     assert "Untested" not in out
     assert "xfail-only protocol" not in out
+    assert "Partly-met protocol" not in out
 
 
 # ---------------------------------------------------------------------------
@@ -645,8 +649,8 @@ class TestCoverageStates:
         )
         assert states == {"CVG-01-001": _X, "CVG-01-002": _V, "CVG-01-003": _X}
 
-    def test_a_passing_test_beside_an_xfail_one_is_verified(self, tmp_path):
-        """AC-2: one passing marked test is enough, wherever the xfail sits."""
+    def test_a_passing_test_beside_an_xfail_one_is_partly_met(self, tmp_path):
+        """A running test and a held one, wherever the xfail sits (#6075)."""
         states = _states(
             tmp_path,
             2,
@@ -668,7 +672,23 @@ class TestCoverageStates:
                 "def test_c(x): pass\n"
             ),
         )
-        assert states == {"CVG-01-001": _V, "CVG-01-002": _V}
+        assert states == {"CVG-01-001": _P, "CVG-01-002": _P}
+
+    def test_a_passing_test_beside_a_skipped_one_is_partly_met(self, tmp_path):
+        """A skip holds its test as a strict ``xfail`` does."""
+        states = _states(
+            tmp_path,
+            2,
+            test_a=(
+                "import pytest\n"
+                "@pytest.mark.spec('CVG-01-001', 'CVG-01-002')\n"
+                "def test_runs(): pass\n"
+                "@pytest.mark.spec('CVG-01-001')\n"
+                "@pytest.mark.skip(reason='not run')\n"
+                "def test_skipped(): pass\n"
+            ),
+        )
+        assert states == {"CVG-01-001": _P, "CVG-01-002": _V}
 
     def test_a_marker_the_reader_cannot_place_stays_verified(self, tmp_path):
         """A marker outside a module- or class-level test keeps its old count."""
@@ -685,10 +705,10 @@ class TestCoverageStates:
         )
         assert states == {"CVG-01-001": _V}
 
-    def test_an_unplaced_marker_beside_a_placed_xfail_is_verified(
+    def test_an_unplaced_marker_beside_a_placed_xfail_is_partly_met(
         self, tmp_path
     ):
-        """A passing test the reader cannot place still verifies."""
+        """A test the reader cannot place still runs, beside the held one."""
         states = _states(
             tmp_path,
             1,
@@ -703,7 +723,7 @@ class TestCoverageStates:
                 "    return test_inner\n"
             ),
         )
-        assert states == {"CVG-01-001": _V}
+        assert states == {"CVG-01-001": _P}
 
     @pytest.mark.spec("SR-05-005")
     def test_a_marker_in_a_string_does_not_cover_a_requirement(self, tmp_path):
@@ -754,13 +774,15 @@ _JSON_TESTS = (
     "    @pytest.mark.spec('CVG-01-002')\n"
     "    @pytest.mark.xfail(strict=True, reason='CVG-01-002: one edge. See #7.')\n"
     "    def test_edge(self): pass\n"
+    "@pytest.mark.spec('CVG-01-004')\n"
+    "def test_verified(): pass\n"
 )
 
 
 @pytest.mark.spec("SR-05-018")
 class TestJsonOutput:
     def _run(self, tmp_path, monkeypatch, out):
-        spec_dir = _protocol_specs(tmp_path, 3)
+        spec_dir = _protocol_specs(tmp_path, 4)
         test_dir = tmp_path / "test"
         test_dir.mkdir(exist_ok=True)
         (test_dir / "test_json.py").write_text(_JSON_TESTS)
@@ -800,7 +822,7 @@ class TestJsonOutput:
                 }
             ],
         }
-        assert by_id["CVG-01-002"]["state"] == "verified"
+        assert by_id["CVG-01-002"]["state"] == "partly_met"
         assert by_id["CVG-01-002"]["xfail_tests"] == [
             {
                 "test": "test/test_json.py::TestBuilt::test_edge",
@@ -810,15 +832,24 @@ class TestJsonOutput:
         ]
         assert by_id["CVG-01-003"]["state"] == "untested"
         assert by_id["CVG-01-003"]["xfail_tests"] == []
+        assert by_id["CVG-01-004"]["state"] == "verified"
+        assert by_id["CVG-01-004"]["xfail_tests"] == []
         assert doc["summary"] == {
-            "total": 3,
+            "total": 4,
             "verified": 1,
+            "partly_met": 1,
             "xfail_only": 1,
             "untested": 1,
-            "verified_pct": 100.0 / 3,
+            "verified_pct": 25.0,
         }
         out = capsys.readouterr().out
-        assert "1/3 verified (33.3%)" in out
+        assert "1/4 verified (25.0%)" in out
+        assert "  partly met: 1\n" in out
+        assert (
+            "Partly-met protocol and foundation requirements (1):\n"
+            "  CVG-01-002\n"
+            "      CVG-01-002: one edge. See #7.\n"
+        ) in out
         assert (
             "xfail-only protocol and foundation requirements (1):\n"
             "  CVG-01-001\n"

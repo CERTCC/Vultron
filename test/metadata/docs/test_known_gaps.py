@@ -25,6 +25,7 @@ from vultron.metadata.docs.known_gaps import (
     FRAGMENT_PATH,
     ISSUE_URL,
     PAGE,
+    PARTLY_MET_HEADING,
     UNTESTED_HEADING,
     XFAIL_ONLY_HEADING,
     known_gaps_fragment,
@@ -72,14 +73,15 @@ _SPEC_FILE = {
                     "statement": f"A participant MUST do thing {n}.",
                     "rationale": "A test requirement.",
                 }
-                for n in range(1, 7)
+                for n in range(1, 8)
             ],
         }
     ],
 }
 
 #: Requirement 1 verified; 2 and 3 held, citing #11; 4 held, citing #11
-#: and #12; 5 held by a skip citing no issue; 6 untested.
+#: and #12; 5 held by a skip citing no issue; 6 untested; 7 partly met, one
+#: test passing and one held, citing #13.
 _TESTS = f"""\
 import pytest
 
@@ -105,6 +107,17 @@ def test_four():
 @pytest.mark.skip(reason="no harness yet")
 def test_five():
     pass
+
+
+@pytest.mark.spec("{_gap(7)}")
+def test_seven():
+    pass
+
+
+@pytest.mark.spec("{_gap(7)}")
+@pytest.mark.xfail(strict=True, reason="{_gap(7)}: one edge. Tracked by #13.")
+def test_seven_edge():
+    pass
 """
 
 
@@ -126,9 +139,13 @@ def _fragment(root: Path) -> str:
     return known_gaps_fragment(root, load_registry(root / "specs"))
 
 
-def _sections(fragment: str) -> tuple[str, str]:
+def _sections(fragment: str) -> tuple[str, str, str]:
+    """The xfail-only, partly-met and untested sections, in page order."""
     head, untested = fragment.split(UNTESTED_HEADING)
-    return head.split(XFAIL_ONLY_HEADING)[1], untested
+    xfail_only, partly_met = head.split(XFAIL_ONLY_HEADING)[1].split(
+        PARTLY_MET_HEADING
+    )
+    return xfail_only, partly_met, untested
 
 
 def _ids(text: str) -> list[str]:
@@ -154,17 +171,20 @@ def _link(number: int) -> str:
 @pytest.mark.spec("DF-12-019")
 class TestRenderFragment:
     def test_lists_only_the_gaps_each_in_its_section(self, tmp_path):
-        xfail_only, untested = _sections(_fragment(_checkout(tmp_path)))
+        xfail_only, partly_met, untested = _sections(
+            _fragment(_checkout(tmp_path))
+        )
         assert sorted(_ids(xfail_only)) == [
             _gap(2),
             _gap(3),
             _gap(4),
             _gap(5),
         ]
+        assert _ids(partly_met) == [_gap(7)]
         assert _ids(untested) == [_gap(6)]
 
     def test_groups_held_requirements_by_the_issues_cited(self, tmp_path):
-        xfail_only, _ = _sections(_fragment(_checkout(tmp_path)))
+        xfail_only, _, _ = _sections(_fragment(_checkout(tmp_path)))
         # A list, not a dict, so the order is checked too: groups citing an
         # issue first, in issue-number order, and the uncited group last.
         assert list(_subsections(xfail_only).items()) == [
@@ -173,8 +193,17 @@ class TestRenderFragment:
             ("No issue cited", [_gap(5)]),
         ]
 
+    def test_groups_partly_met_requirements_by_the_issues_cited(
+        self, tmp_path
+    ):
+        _, partly_met, _ = _sections(_fragment(_checkout(tmp_path)))
+        assert list(_subsections(partly_met).items()) == [
+            (f"Tracked by {_link(13)}", [_gap(7)]),
+        ]
+        assert "meets part of the requirement, but not all of it" in partly_met
+
     def test_groups_untested_requirements_by_catalog_page(self, tmp_path):
-        _, untested = _sections(_fragment(_checkout(tmp_path)))
+        _, _, untested = _sections(_fragment(_checkout(tmp_path)))
         assert _subsections(untested) == {"Vultron Protocol": [_gap(6)]}
 
     def test_untested_groups_follow_catalog_order(self, tmp_path):
@@ -201,14 +230,14 @@ class TestRenderFragment:
         (root / "specs" / "protocol-asks.yaml").write_text(
             yaml.safe_dump(ask, sort_keys=False), encoding="utf-8"
         )
-        _, untested = _sections(_fragment(root))
+        _, _, untested = _sections(_fragment(root))
         assert list(_subsections(untested).items()) == [
             ("Vultron Protocol", [_gap(6)]),
             ("Case Management", ["ASK-01-001"]),
         ]
 
     def test_labels_the_untested_section_plainly(self, tmp_path):
-        _, untested = _sections(_fragment(_checkout(tmp_path)))
+        _, _, untested = _sections(_fragment(_checkout(tmp_path)))
         assert (
             "For each requirement below, no test shows `main` does this."
             in (untested)
@@ -216,11 +245,13 @@ class TestRenderFragment:
         assert "unbuilt" not in untested.lower()
 
     def test_an_empty_state_says_so(self, tmp_path):
-        xfail_only, untested = _sections(
+        xfail_only, partly_met, untested = _sections(
             _fragment(_checkout(tmp_path, tests=None))
         )
         assert "No requirement is in this state." in xfail_only
-        assert len(_ids(untested)) == 6
+        assert "No requirement is in this state." in partly_met
+        assert _ids(xfail_only) == _ids(partly_met) == []
+        assert len(_ids(untested)) == 7
 
     def test_an_empty_untested_section_says_so(self, tmp_path):
         tests = (
@@ -232,14 +263,17 @@ def test_six():
     pass
 '''
         )
-        xfail_only, untested = _sections(_fragment(_checkout(tmp_path, tests)))
+        xfail_only, partly_met, untested = _sections(
+            _fragment(_checkout(tmp_path, tests))
+        )
         assert "No requirement is in this state." in untested
         assert _ids(untested) == []
         assert len(_ids(xfail_only)) == 4
+        assert _ids(partly_met) == [_gap(7)]
 
     def test_three_cited_issues_read_as_a_list(self, tmp_path):
         tests = _TESTS.replace("needs #12 and #11", "needs #13, #12 and #11")
-        xfail_only, _ = _sections(_fragment(_checkout(tmp_path, tests)))
+        xfail_only, _, _ = _sections(_fragment(_checkout(tmp_path, tests)))
         assert f"Tracked by {_link(11)}, {_link(12)}, and {_link(13)}" in (
             _subsections(xfail_only)
         )
@@ -269,8 +303,11 @@ def test_six():
         with pytest.raises(NotInCatalogError, match="DF-12-015"):
             _fragment(root)
 
-    def test_an_xfail_only_requirement_on_no_catalog_page_raises(
-        self, tmp_path
+    @pytest.mark.parametrize(
+        "state", [CoverageState.XFAIL_ONLY, CoverageState.PARTLY_MET]
+    )
+    def test_a_held_requirement_on_no_catalog_page_raises(
+        self, tmp_path, state
     ):
         """Refused by the generator, not first by the mkdocs build."""
         registry = load_registry(
@@ -283,7 +320,7 @@ def test_six():
                     id=spec_id,
                     kind=SpecKind.PROTOCOL,
                     statement=registry.get(spec_id).statement,
-                    state=CoverageState.XFAIL_ONLY,
+                    state=state,
                     xfail_tests=(
                         XfailTest(
                             test="test/t.py::t", reason="#1", issues=(1,)
@@ -318,7 +355,7 @@ def test_six():
         id_lines = [
             line for line in fragment.splitlines() if re.search(r'"VP-', line)
         ]
-        assert len(id_lines) == 5
+        assert len(id_lines) == 6
         assert all(line.count('"VP-') == 1 for line in id_lines)
 
 
