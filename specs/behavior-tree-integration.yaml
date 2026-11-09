@@ -2867,6 +2867,28 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: BT-24-003
+  - id: BT-24-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The suggestion context MUST be a case profile: a model class whose every field
+      has the name and type of a field of the case, or of an object the case holds,
+      and which builds itself from a case.
+    rationale: >-
+      A subclass of the case fails open, inheriting every field added to the case
+      later. A profile fails closed, so a new case field reaches the context only when
+      it is declared there. Nested objects are profiled too. The reports' content is
+      the evidence, since a report may name a vendor not yet in the case; each
+      participant keeps its actor id and roles, marking who is already included.
+    verification: >-
+      A ratchet asserts that every field the suggestion context declares, at every
+      nesting level, matches a field of the corresponding case model by name and type.
+    adr:
+    - ADR-0186
+    tracking_issue: '#3426'
+    relationships:
+    - rel_type: refines
+      spec_id: BT-24-003
   - id: BT-24-004
     priority: MUST
     kind: project

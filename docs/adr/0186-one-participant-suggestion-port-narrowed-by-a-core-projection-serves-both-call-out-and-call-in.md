@@ -3,7 +3,7 @@ status: proposed
 date: 2026-11-09
 created: 2026-11-09
 updated: 2026-11-09
-revision: 1
+revision: 2
 lint_suppress: [phantom_symbol_ref, phantom_path_ref]
 deciders: Allen D. Householder
 consulted: Claude Opus 5.5
@@ -51,6 +51,12 @@ The answer is a suggestion with a reason, not a definitive fact, and the codebas
 1. **The adapter narrows.** The port takes the whole case, and each adapter picks the fields it sends on.
 2. **Core narrows.** The port takes a core-owned suggestion context, and one core projection builds it from the case.
 
+### For the shape of the suggestion context
+
+1. **A subclass of the case** that hides the fields it does not carry.
+2. **A free-standing model** whose fields bear no checked relation to the case.
+3. **A case profile**: its own model, whose fields are a checked subset of the case's, built from a case.
+
 ## Decision Outcome
 
 ### 1. One driven port, two callers
@@ -80,7 +86,26 @@ One core projection builds the context from the case, and every caller reaches t
 The adapter-narrows option was rejected because each new adapter would make the disclosure decision again, and one careless adapter would leak the whole case.
 With a core-owned context type, an adapter cannot send what it never receives, and widening the context is a visible change to a core type.
 
-### 3. A suggestion names an identity, and nothing about timing
+### 3. The suggestion context is a declared profile of the case
+
+<a id="case-profile"></a>
+
+Chosen: **a case profile**, not a subclass of the case and not a free-standing shape.
+A case profile is its own model class, whose every field has the name and type of a field of the case or of an object the case holds.
+The class builds itself from a case (`from_case(case)`), so the projection is a defined object with one constructor, not a loose function over a case.
+The profile carries two things, and the suggester needs both.
+The reports' descriptive content is the evidence: a report may name vendors and products that are not yet in the case, and finding those parties is the point of the port.
+The participants are who is already included: each keeps its actor id and roles and nothing else, and the case's current vendors are the participants holding the VENDOR role.
+Nested objects are profiled the same way as the case.
+
+A subclass was rejected because it fails open.
+It is a case, so it inherits every field, including one added to the case later, and any code that takes a case would take it.
+A profile fails closed: a new case field reaches it only when someone declares it there, and a ratchet checks that its fields remain a subset of the case's.
+
+The profile is a reusable pattern.
+The suggestion context is its first use; a CSAF adapter, a Sentinel's view of a case, or publication may declare their own profiles the same way.
+
+### 4. A suggestion names an identity, and nothing about timing
 
 <a id="identity-only-suggestion"></a>
 
@@ -88,7 +113,7 @@ Each suggestion carries an actor id, a suggested role and a rationale, and an an
 The suggestion carries no timing.
 Scheduling an invite against the invitee's published embargo policy and the case's remaining embargo belongs to whoever receives the suggestions, which keeps the suggester a pure question of identity.
 
-### 4. Names
+### 5. Names
 
 <a id="names"></a>
 
@@ -113,4 +138,4 @@ A ratchet that no caller reaches the port except through the projection, and a t
 
 - Source: Idea #1142; reshapes Task #3426.
 - Related: ADR-0026 (CASE_MANAGER-routed suggestion), ADR-0029 (`suggest-actor-to-case`), ADR-0047 (Sentinel over inline loop), ADR-0097 (capability layer), ADR-0183 (backend answers yes, no or error).
-- Generated spec requirements: `behavior-tree-integration.yaml` BT-24-001 through BT-24-008.
+- Generated spec requirements: `behavior-tree-integration.yaml` BT-24-001 through BT-24-009.

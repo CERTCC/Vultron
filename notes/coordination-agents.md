@@ -199,6 +199,12 @@ or overridden) is what lets an Evaluator earn promotion to auto-execute.
   embargoed information leaves the actor is a disclosure decision made once
   (BT-24-002, BT-24-003, BT-24-008). An adapter that wants more input changes
   that type.
+- **The context is a case profile, not a subclass of the case.** Its fields are
+  a ratchet-checked subset of the case's, nested objects included, and it builds
+  itself with `from_case`. A subclass would inherit every future case field and
+  fail open (BT-24-009). It carries the reports' content as evidence, since a
+  report may name a vendor not yet in the case, and the participants (id and
+  roles) as who is already included; current vendors hold VENDOR.
 - **A suggestion is an identity with a reason.** Actor id, suggested role,
   rationale; no timing, because the receiver schedules invites from the
   invitee's embargo policy (BT-24-004, BT-24-006). Prefer over-suggesting
