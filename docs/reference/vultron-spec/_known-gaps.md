@@ -342,17 +342,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5732](https://github.com/CERTCC/Vultron/issues/5732)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "EMB-17-002",
-    "EMB-17-003",
-    "EMB-17-012",
-))
-```
-
 ### Tracked by [#6073](https://github.com/CERTCC/Vultron/issues/6073)
 
 ```python exec="true" idprefix=""
@@ -646,7 +635,6 @@ print(requirement_callout(
     "RMB-01-002",
     "RMB-01-003",
     "RMB-01-004",
-    "RMB-01-005",
     "RMB-02-001",
     "RMB-02-002",
     "RMB-03-001",
@@ -665,7 +653,6 @@ print(requirement_callout(
     "RMB-10-002",
     "RMB-10-003",
     "RMB-10-004",
-    "RMB-11-002",
     "RMB-11-004",
     "RMB-12-002",
     "RMB-12-003",

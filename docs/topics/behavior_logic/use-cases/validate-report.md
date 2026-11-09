@@ -76,7 +76,7 @@ A vague claim with no reproduction steps, from an unknown sender, may not be.
 
 **EvaluateReportValidity** (Evaluator) asks whether the reported condition is a real vulnerability in a product this actor is answerable for.
 A report can be entirely credible and still invalid — intended behavior, a misconfiguration, or a product this actor does not maintain.
-A duplicate is *not* an example: it describes a real vulnerability, so it is valid, and marking it invalid is specifically ruled out (RMB-11-002, discussed below).
+A duplicate is *not* an example: it describes a real vulnerability, so it is valid, and marking it invalid is specifically ruled out (VP-02-022, discussed below).
 
 The order matters.
 Credibility gates effort, validity gates ownership, and an actor that evaluates validity first ends up investigating claims it had no reason to take seriously.
@@ -110,7 +110,7 @@ The outbox owns delivery retry ([ADR-0066](../../../adr/0066-outbox-terminal-sta
 ## What conformance requires
 
 A conformant Participant need not use behavior trees, or make the same judgment calls.
-It must satisfy the RMB requirements for this step.
+It must satisfy the requirements below for this step.
 
 | Requirement | Obligation |
 |---|---|
@@ -119,12 +119,12 @@ It must satisfy the RMB requirements for this step.
 | [RMB-10-002](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-10-002) | A Participant MUST NOT close a report directly from `RM.VALID` |
 | [RMB-10-003](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-10-003) | A Participant entering `RM.VALID` SHOULD emit RV |
 | [RMB-11-001](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-11-001) | A Participant entering `RM.INVALID` SHOULD emit Report Invalid (RI) |
-| [RMB-11-002](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-11-002) | Duplicate reports SHOULD NOT be marked invalid |
+| [VP-02-022](../../../reference/vultron-spec/requirements/vultron-protocol.md#vp-02-022) | Duplicate reports SHOULD NOT be marked invalid |
 | [RMB-15-001](../../../reference/specs/project.md#rmb-15-001) | An RM write MUST validate the transition before persisting |
 
 Two of those are easy to miss.
 RMB-10-001 means validation is never the end of the path: reaching `RM.VALID` obliges the actor to decide whether to engage or defer, which is the [Prioritize report](prioritize-report.md) use case.
-RMB-11-002 rules out the most tempting use of `RM.INVALID`.
+VP-02-022 rules out the most tempting use of `RM.INVALID`.
 A duplicate is a real vulnerability that this actor already knows about.
 Marking it invalid tells other Participants something false about the vulnerability rather than something true about the report.
 

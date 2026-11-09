@@ -384,12 +384,16 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
 @pytest.mark.integration
 @pytest.mark.spec("CM-13-005")
 @pytest.mark.spec("EMB-17-003")
-def test_an_accept_after_a_reject_of_replaced_terms_is_invited_to_the_current():
+@pytest.mark.spec("CM-18-003")
+def test_an_accept_after_a_reject_of_replaced_terms_is_not_recorded_on_them():
     """A changed answer to terms no longer current is not recorded on them.
 
     The bystander withdraws from embargo B, and B is then replaced by C.  Its
     Accept of B's Invite is an Accept of stale terms: B's row stays
-    ``DECLINED``, and the CASE_MANAGER invites it to C instead (EMB-17-003).
+    ``DECLINED``.  The CASE_MANAGER would invite it to C (EMB-17-003), but
+    C's relay already invited it and that Invite is still open: an
+    ``INVITED`` row takes no ``INVITE`` (CM-18-003), so no second Invite is
+    sent and the row stays ``INVITED``.
     """
     net = LedgerNetwork("https://example.org/cases/answer-ra-replaced")
     stale_id, invite_id = _invited(net, BYSTANDER, "change-stale")
@@ -410,8 +414,7 @@ def test_an_accept_after_a_reject_of_replaced_terms_is_invited_to_the_current():
     assert accepted.disposition is HandlerDisposition.APPLIED, accepted.reason
     assert _consent(net, BYSTANDER, stale_id) == EmbargoConsentState.DECLINED
     assert _consent(net, BYSTANDER, current_id) == EmbargoConsentState.INVITED
-    fresh = net.queued(MANAGER, to=BYSTANDER, type_="Invite")[invites:]
-    assert [cast(Any, i).object_.id_ for i in fresh] == [current_id]
+    assert net.queued(MANAGER, to=BYSTANDER, type_="Invite")[invites:] == []
 
 
 @pytest.mark.spec("CM-13-005")
