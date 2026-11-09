@@ -19,6 +19,7 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Add,
     as_Announce,
     as_Invite,
     as_Offer,
@@ -91,21 +92,22 @@ class TestVocabEmbargoExamples(unittest.TestCase):
         self.assertEqual(rejected_proposal.id_, proposal.id_)
 
     def test_activate_embargo(self):
-        """The owner's Accept of the EmbargoEvent itself (ADR-0122)."""
+        """The owner adds the EmbargoEvent itself to the case (ADR-0180)."""
         activity = examples.activate_embargo()
         vendor = examples.vendor()
         case = examples.case()
         embargo = examples.embargo_event()
 
-        self.assertIsInstance(activity, as_Accept)
-        self.assertEqual(activity.type_, "Accept")
+        self.assertIsInstance(activity, as_Add)
+        self.assertEqual(activity.type_, "Add")
+        self.assertEqual(activity.in_reply_to, examples.propose_embargo().id_)
 
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.object_, embargo)
 
     def test_reject_embargo_proposal(self):
-        """The owner's Reject of the EmbargoEvent itself (ADR-0122)."""
+        """The owner's Reject of the EmbargoEvent itself (ADR-0122, ADR-0180)."""
         activity = examples.reject_embargo_proposal()
         vendor = examples.vendor()
         case = examples.case()
@@ -113,10 +115,24 @@ class TestVocabEmbargoExamples(unittest.TestCase):
 
         self.assertIsInstance(activity, as_Reject)
         self.assertEqual(activity.type_, "Reject")
+        self.assertEqual(activity.in_reply_to, examples.propose_embargo().id_)
 
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.object_, embargo)
+
+    def test_revision_decisions_name_the_revision_invite(self):
+        """An owner decision on a revision names the revision's Invite (ADR-0180)."""
+        revision = examples.propose_embargo_revision()
+        for activity in (
+            examples.activate_embargo_revision(),
+            examples.reject_embargo_revision_proposal(),
+        ):
+            with self.subTest(type_=activity.type_):
+                self.assertEqual(activity.in_reply_to, revision.id_)
+                self.assertNotEqual(
+                    activity.in_reply_to, examples.propose_embargo().id_
+                )
 
     def test_announce_embargo(self):
         activity = examples.announce_embargo()

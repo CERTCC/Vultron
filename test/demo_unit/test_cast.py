@@ -44,6 +44,7 @@ from vultron.demo.helpers.cast import (
     FIRST_OF_ROLE,
     ROLE_OF_SLOT,
     ContainerSlot,
+    cast_member_name,
     slot_for,
 )
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
@@ -311,6 +312,28 @@ class TestSlotForAnAddress:
     ) -> None:
         """``None`` rather than a guess: the caller decides what to do."""
         assert slot_for(address) is None
+
+
+class TestCastMemberName:
+    """``cast_member_name`` always answers, for the callers that need one."""
+
+    @pytest.mark.parametrize("expected", _ADDRESSES, ids=lambda e: e.slot.name)
+    def test_a_cast_container_is_named_by_its_slot(
+        self, expected: _Address
+    ) -> None:
+        assert cast_member_name(expected.compose_url) == expected.slot.name
+
+    def test_another_host_is_named_by_its_host_name(self) -> None:
+        """The ledger dump runs during teardown and the check tree's read
+        attribution runs mid-run; neither can raise here."""
+        assert cast_member_name("http://somewhere:8000/api/v2") == "somewhere"
+
+    def test_an_address_with_no_host_name_is_named_by_itself(self) -> None:
+        assert cast_member_name("/api/v2") == "/api/v2"
+
+    def test_an_empty_address_is_named_as_unresolved(self) -> None:
+        """An empty name would read as "no actor" and hide the client."""
+        assert cast_member_name("") == "unresolved-actor"
 
 
 class TestComposeMatchesTheCast:

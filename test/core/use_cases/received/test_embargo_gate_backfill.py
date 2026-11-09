@@ -29,6 +29,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -150,7 +151,7 @@ class _GateScenario:
 
         The case is in REVISE with the revision proposed, and *actor_id*'s
         participant lists the revision, so the CASE_MANAGER's receipt of the
-        owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` admits it (CM-10-004).
+        owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` admits it (CM-10-004).
         The revision ends sooner than the active terms, so the signatories
         (AGREED rows for the active terms) carry over by containment and stay
         admitted (EP-05-003).
@@ -181,7 +182,10 @@ class _GateScenario:
         # The coordinator is the case owner here as well as its manager.
         grant_case_owner_role(self.dl, CASE_ID, MANAGER_ID)
         activation = activate_embargo_activity(
-            revision, target=CASE_ID, actor=MANAGER_ID
+            revision,
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=CASE_ID,
+            actor=MANAGER_ID,
         )
         ActivateEmbargoOnCaseReceivedUseCase(
             self.dl,

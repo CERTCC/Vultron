@@ -92,6 +92,7 @@ See [Why `GI` expands](../../../topics/activity_vocabulary_design.md#why-gi-expa
    The CASE_MANAGER ledgered the answer, and your replica takes it from the ledger.
 
 The forwarded offer carries the original recommendation's ID in its `origin` field, so the Case Owner can trace the request back to you.
+If your `Offer(Actor)` includes a `content` or `summary` field, the CASE_MANAGER carries it forward as `content` on the `Offer(CaseParticipant)`, so the Case Owner reads your reason without consulting the original recommendation (CM-16-020).
 
 ---
 

@@ -24,6 +24,7 @@ from vultron.core.states.embargo_register import (
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Add,
     as_Announce,
     as_Create,
     as_Invite,
@@ -63,7 +64,7 @@ class _EmAcceptEmbargoActivity(as_Accept):
     """The actor is accepting an embargo proposal.
     It is the sender's own consent to those terms and carries no protocol
     shorthand: EA and EC are the Case Owner's decision,
-    ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (MSM-02-010).
+    ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (MSM-02-010).
     Per ActivityStreams convention: Accept(Invite(EmbargoEvent)) — the actor accepts
     the proposal activity itself, not the as_EmbargoEvent being proposed.
 
@@ -120,21 +121,27 @@ class _EmUndoEmbargoInviteActivity(as_Undo):
     context: as_VulnerabilityCaseRef = None
 
 
-class _ActivateEmbargoActivity(as_Accept):
-    """The case owner activates a proposed embargo on the case (ADR-0122).
+class _ActivateEmbargoActivity(as_Add):
+    """The case owner activates a proposed embargo on the case (ADR-0180).
 
-    ``Accept(EmbargoEvent)[target=VulnerabilityCase]``: the owner's decision
-    for the case, distinct from ``Accept(Invite(EmbargoEvent))``, which is
-    always the sender's own consent.  Only the case owner sends it.
+    ``Add(EmbargoEvent)[target=VulnerabilityCase]``: the owner's decision
+    for the case, which puts the embargo in force, as
+    ``Remove(EmbargoEvent)[origin=VulnerabilityCase]`` ends it.  A
+    participant's consent is an answer to the Invite,
+    ``Accept(Invite(EmbargoEvent))``, so the two differ by verb.  Only the
+    case owner sends it.
     object_: the as_EmbargoEvent being activated (inline, so a recipient
         reads the terms without a dereference, VAM-05-010)
     target: the VulnerabilityCase the embargo was proposed for
+    in_reply_to: the id of the ``Invite(EmbargoEvent)`` that proposed the
+        embargo (RF-08-001, ADR-0180)
     """
 
     object_: as_EmbargoEvent = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
+    in_reply_to: NonEmptyString = Field(default=...)
 
 
 class _RejectEmbargoProposalActivity(as_Reject):
@@ -145,12 +152,15 @@ class _RejectEmbargoProposalActivity(as_Reject):
     always the sender's own consent.  Only the case owner sends it.
     object_: the as_EmbargoEvent being rejected (inline, VAM-05-010)
     target: the VulnerabilityCase the embargo was proposed for
+    in_reply_to: the id of the ``Invite(EmbargoEvent)`` that proposed the
+        embargo (RF-08-001, ADR-0180)
     """
 
     object_: as_EmbargoEvent = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
+    in_reply_to: NonEmptyString = Field(default=...)
 
 
 class _WithdrawFromEmbargoActivity(as_Leave):

@@ -12,10 +12,10 @@
 | `RE` | Report Error | RM | [none](../rm.md#formal-messages-with-no-dedicated-wire-activity) |
 | `EP` | Embargo Proposal | EM | [`Invite(EmbargoEvent)[context=VulnerabilityCase]`](../em.md#embargo-proposal) |
 | `ER` | Embargo Proposal Rejection | EM | [`Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])`](../em.md#abandon-embargo-proposal), [`Reject(EmbargoEvent)[target=VulnerabilityCase]`](../em.md#reject-embargo-proposal) |
-| `EA` | Embargo Proposal Acceptance | EM | [`Accept(EmbargoEvent)[target=VulnerabilityCase]`](../em.md#embargo-proposal-acceptance) |
+| `EA` | Embargo Proposal Acceptance | EM | [`Add(EmbargoEvent)[target=VulnerabilityCase]`](../em.md#embargo-proposal-acceptance) |
 | `EV` | Embargo Revision Proposal | EM | [`Invite(EmbargoEvent)[context=VulnerabilityCase]`](../em.md#embargo-revision-proposal) |
 | `EJ` | Embargo Revision Rejection | EM | [`Reject(EmbargoEvent)[target=VulnerabilityCase]`](../em.md#embargo-revision-rejection) |
-| `EC` | Embargo Revision Acceptance | EM | [`Accept(EmbargoEvent)[target=VulnerabilityCase]`](../em.md#embargo-revision-acceptance) |
+| `EC` | Embargo Revision Acceptance | EM | [`Add(EmbargoEvent)[target=VulnerabilityCase]`](../em.md#embargo-revision-acceptance) |
 | `ET` | Embargo Termination | EM | [`Remove(EmbargoEvent)`](../em.md#embargo-termination) |
 | `EK` | Embargo Acknowledgment | EM | [none](../em.md#formal-messages-with-no-dedicated-wire-activity) |
 | `EE` | Embargo Error | EM | [none](../em.md#formal-messages-with-no-dedicated-wire-activity) |

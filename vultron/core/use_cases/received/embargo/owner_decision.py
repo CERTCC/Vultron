@@ -1,6 +1,6 @@
 """Received case-owner decisions on an embargo proposal (ADR-0122).
 
-``Accept(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
+``Add(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
 ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects it.  Only the case owner may
 send either (EP-09-005, HP-01-006); the CASE_MANAGER applies and commits the
 decision, and every replica learns it from the ledger (EP-09-007).
@@ -69,9 +69,9 @@ class _OwnerDecisionReceivedUseCase(_EmbargoEventReceivedUseCase):
 
 
 class ActivateEmbargoOnCaseReceivedUseCase(_OwnerDecisionReceivedUseCase):
-    """The case owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (EA / EC)."""
+    """The case owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (EA / EC)."""
 
-    _label = "Accept(EmbargoEvent)"
+    _label = "Add(EmbargoEvent)"
     _tree_label = "ActivateEmbargoOnCaseBT"
 
     def __init__(

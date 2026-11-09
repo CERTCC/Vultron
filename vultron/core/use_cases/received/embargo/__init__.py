@@ -10,8 +10,8 @@ One module per verb family (CS-18-001):
 - :mod:`.accept` — ``Accept(Invite(EmbargoEvent))``, including the
   late-Accept routing (EMB-17);
 - :mod:`.reject` — ``Reject(Invite(EmbargoEvent))``;
-- :mod:`.owner_decision` — the case owner's ``Accept`` and ``Reject`` of the
-  ``EmbargoEvent`` itself (ADR-0122);
+- :mod:`.owner_decision` — the case owner's ``Add`` and ``Reject`` of the
+  ``EmbargoEvent`` itself (ADR-0122, ADR-0180);
 - :mod:`.withdraw` — ``Leave(EmbargoEvent)``, a signatory's withdrawal from
   the embargo in force (MSM-07-010).
 

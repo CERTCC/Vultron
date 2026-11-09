@@ -14,7 +14,7 @@ These documents are required to implement this specification.
 | [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) | The JavaScript Object Notation (JSON) Data Interchange Format |
 | [FEP-8b32](https://codeberg.org/fediverse/fep/src/branch/main/fep/8b32/fep-8b32.md) | Object Integrity Proofs, Fediverse Enhancement Proposal. The form of the `proof` an activity carries ([§16.1 Trust Model](considerations.md#161-trust-model)) |
 | [Data Integrity EdDSA Cryptosuites](https://www.w3.org/TR/vc-di-eddsa/) | Data Integrity EdDSA Cryptosuites v1.0, W3C Recommendation. Defines the `eddsa-jcs-2022` cryptosuite |
-| [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785) | JSON Canonicalization Scheme (JCS). The canonical form that `eddsa-jcs-2022` signs |
+| [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785) | JSON Canonicalization Scheme (JCS). The canonical form that `eddsa-jcs-2022` signs, and that a case ledger entry hash covers ([§5.2 Serialization](layers.md#52-serialization)) |
 
 ### 17.2 Informative References
 

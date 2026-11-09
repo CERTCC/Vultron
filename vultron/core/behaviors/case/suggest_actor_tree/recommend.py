@@ -130,9 +130,12 @@ def create_recommend_actor_to_case_received_tree(
         recommender_id: Actor ID of the recommending participant.
         recommended_id: Actor ID of the suggested new participant.
         case_id: ID of the VulnerabilityCase.
-        offer_content: Optional ``content`` field from the inbound Offer
-            activity; forwarded to the duplicate-recommendation Note per
-            CM-16-008.
+        offer_content: Optional reason text from the inbound Offer: its
+            ``content``, or its ``summary`` when there is no content
+            (CM-16-005).  On the fresh path it becomes the ``content`` of the
+            ``Offer(CaseParticipant)`` sent to the Case Owner (CM-16-020); on
+            the pending-offer path it is appended to the
+            duplicate-recommendation Note (CM-16-008).
         suggested_roles: Role strings the received Offer carries
             (``suggestedRoles``), as the CASE_MANAGER stored it.  Injected
             into the role Evaluator on both the owner-direct and fresh paths;
@@ -331,6 +334,7 @@ def create_recommend_actor_to_case_received_tree(
                 recommender_id=recommender_id,
                 recommended_id=recommended_id,
                 case_id=case_id,
+                offer_content=offer_content,
             ),
         ],
     )

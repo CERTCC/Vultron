@@ -63,6 +63,10 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.owner_decision import (
+    seeded_activation,
+    seeded_proposal_rejection,
+)
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -127,7 +131,6 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     accept_case_participant_offer_activity,
-    activate_embargo_activity,
     add_report_to_case_activity,
     announce_embargo_activity,
     em_accept_embargo_activity,
@@ -136,7 +139,6 @@ from vultron.wire.as2.factories import (
     propose_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     reject_case_participant_offer_activity,
-    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -1274,9 +1276,9 @@ def test_embargo_reject_from_a_non_invitee_is_refused(
 @pytest.mark.parametrize(
     "factory, use_case",
     [
-        (activate_embargo_activity, ActivateEmbargoOnCaseReceivedUseCase),
+        (seeded_activation, ActivateEmbargoOnCaseReceivedUseCase),
         (
-            reject_embargo_proposal_activity,
+            seeded_proposal_rejection,
             RejectEmbargoProposalOnCaseReceivedUseCase,
         ),
     ],
@@ -1558,9 +1560,9 @@ def test_report_addition_by_a_closed_owner_is_refused(
 @pytest.mark.parametrize(
     "factory, use_case",
     [
-        (activate_embargo_activity, ActivateEmbargoOnCaseReceivedUseCase),
+        (seeded_activation, ActivateEmbargoOnCaseReceivedUseCase),
         (
-            reject_embargo_proposal_activity,
+            seeded_proposal_rejection,
             RejectEmbargoProposalOnCaseReceivedUseCase,
         ),
     ],

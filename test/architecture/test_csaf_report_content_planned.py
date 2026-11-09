@@ -45,7 +45,6 @@ from test.architecture import _corpus
 _SEND = "Tracked by #6092 (source #5131)."
 _RECEIVE = "Tracked by #6090 (source #5131)."
 _CASE = "Tracked by #6091 (source #5131)."
-_MODELS = "Tracked by #6089 (source #5131)."
 _WATCH = "Tracked by #6094 (source #5131)."
 _RECORDS = (
     "Tracked by #6093, which waits on #5132 (vulnerability records on a case)."
@@ -404,37 +403,6 @@ def test_submit_report_refuses_invalid_csaf_with_422(
     reason=f"CSAF-04-010: submit-report takes no CSAF document yet. {_SEND}",
 )
 def test_submit_report_fills_missing_fields_from_csaf(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-05-001")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-05-001: no pinned CSAF draft exists yet. {_MODELS}",
-)
-def test_one_pin_names_the_csaf_draft(request: pytest.FixtureRequest) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-05-002")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-05-002: no pinned local copy exists yet. {_MODELS}",
-)
-def test_models_come_from_the_pinned_local_copy(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-05-003")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-05-003: no generated models exist yet. {_MODELS}",
-)
-def test_regeneration_reproduces_the_committed_models(
     request: pytest.FixtureRequest,
 ) -> None:
     assert _has_behavioral_test(request)

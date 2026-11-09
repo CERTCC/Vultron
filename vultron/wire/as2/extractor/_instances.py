@@ -106,26 +106,26 @@ UndoInviteToEmbargoOnCasePattern = ActivityPattern(
 ActivateEmbargoOnCasePattern = ActivityPattern(
     description=(
         "The case owner activates a proposed embargo on a vulnerability "
-        "case: an ACCEPT whose object is the EmbargoEvent itself (not the "
-        "Invite that proposed it) and whose target is the VulnerabilityCase "
-        "(ADR-0122)."
+        "case: an ADD whose object is the EmbargoEvent itself and whose "
+        "target is the VulnerabilityCase, the pair of the REMOVE that ends "
+        "an embargo (ADR-0180)."
     ),
-    activity_=TAtype.ACCEPT,
+    activity_=TAtype.ADD,
     object_=AOtype.EVENT,
     target_=VOtype.VULNERABILITY_CASE,
     # target_ is lenient: the case target is a bare URI by design (the
     # recipient holds the case, so ``case_target_ref`` reduces it,
-    # MV-10-001).  The ACCEPT verb + EVENT object + case target discriminate
-    # this activity from ``Accept(Invite(...))`` (object is an Invite
-    # activity, not an EVENT); an embargo the receiver cannot resolve is
-    # left a bare URI, which no object_ type accepts (SE-01-006).
+    # MV-10-001).  The ADD verb tells this activity from a participant's
+    # ``Accept(Invite(EmbargoEvent))`` by type alone (ADR-0180); an embargo
+    # the receiver cannot resolve is left a bare URI, which no object_ type
+    # accepts (SE-01-006).
 )
 RejectEmbargoProposalOnCasePattern = ActivityPattern(
     description=(
         "The case owner rejects a proposed embargo on a vulnerability case: "
         "a REJECT whose object is the EmbargoEvent itself (not the Invite "
-        "that proposed it) and whose target is the VulnerabilityCase "
-        "(ADR-0122)."
+        "that proposed it, which it names in inReplyTo) and whose target "
+        "is the VulnerabilityCase (ADR-0122, ADR-0180)."
     ),
     activity_=TAtype.REJECT,
     object_=AOtype.EVENT,

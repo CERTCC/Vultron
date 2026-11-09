@@ -15,7 +15,7 @@
 
 """Ledger replay of the case owner's embargo decisions (RSH-08-004).
 
-The CASE_MANAGER commits the owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]``
+The CASE_MANAGER commits the owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]``
 and ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122, EP-09-005) and applies
 them to the canonical case.  :class:`ApplyEmbargoActivationFromLedgerNode`
 and :class:`ApplyEmbargoProposalRejectionFromLedgerNode` apply the same
@@ -23,7 +23,7 @@ decision on a participant replica from the committed entry, so the replica's
 embargo register follows the CASE_MANAGER's without the activity reaching the
 replica directly (PCR-03-001).
 
-The activation copies (ADR-0124, CM-23-016): the ``Accept`` entry is the
+The activation copies (ADR-0124, CM-23-016): the ``Add`` entry is the
 whole ``ACTIVATE`` register step, the ``SUPERSEDE`` of the embargo in force
 included, and the owner's agreement it states, applied through the one apply
 function the CASE_MANAGER uses.  Each ``CARRY_OVER`` row is its own
@@ -97,7 +97,7 @@ class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
 
     The entry's ``object`` names the embargo.  The change is the
     ``ACTIVATE`` step (with the ``SUPERSEDE`` of the embargo in force), then
-    the owner's ``AGREED`` row the ``Accept`` states, decided from the case
+    the owner's ``AGREED`` row the ``Add`` states, decided from the case
     file as the step leaves it, exactly as the CASE_MANAGER decided it
     (:func:`~vultron.core.models.embargo_consent_move.owner_agreement`).  No
     carry-over is computed here: each is its own entry (EP-05-003).
@@ -143,7 +143,7 @@ class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
             entry.payload_snapshot.get("object")
         )
         if not embargo_id:
-            raise TypeError("the Accept names no EmbargoEvent")
+            raise TypeError("the Add names no EmbargoEvent")
         return RegisterStep(kind=RegisterStepKind.ACTIVATE, embargo=embargo_id)
 
     def _stated_changes(
