@@ -21,7 +21,11 @@ The case owner's accept is its decision for the case,
 (ADR-0180).  An owner whose row for the proposal reads ``DECLINED`` sends
 the ``Accept(Invite(EmbargoEvent))`` instead: the CASE_MANAGER refuses its
 activation until it has accepted (MSM-07-037), so its first accept changes
-its answer and its next one activates.
+its answer and a later one activates.  The trigger reads the owner's own
+store: an owner that is the CASE_MANAGER holds the Accept at once, and any
+other owner holds it once its replica copies the CASE_MANAGER's entry.  An
+accept before then sends the Accept again, a repeat that changes nothing
+(CM-13-005).
 """
 
 import json

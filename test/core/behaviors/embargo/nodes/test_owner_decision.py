@@ -263,6 +263,33 @@ class TestOwnerMayActivateEmbargoNode:
         assert _tick(node) is Status.FAILURE
         assert "not found" in (node.feedback_message or "")
 
+    def test_an_internal_fault_is_raised_not_refused(
+        self, dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A wiring fault is a bug, not a refusal, so it is never answered
+        with a refusal notice (ADR-0095)."""
+        from vultron.core.behaviors.embargo.nodes import owner_decision
+        from vultron.errors import VultronWiringError
+
+        case, _, revision_id, _ = _case_with_owner(
+            dl, "may-fault", em_state=EM.ACTIVE
+        )
+        setup_blackboard(dl, actor_id=MANAGER)
+
+        def _miswired(*_args: object) -> None:
+            raise VultronWiringError("miswired")
+
+        monkeypatch.setattr(
+            owner_decision, "assert_owner_has_not_declined", _miswired
+        )
+        node = OwnerMayActivateEmbargoNode(
+            case_id=case.id_, embargo_id=revision_id
+        )
+
+        with pytest.raises(VultronWiringError):
+            _tick(node)
+        assert node.status is not Status.FAILURE
+
     @pytest.mark.spec("EMB-02-002")
     def test_fails_when_pxa_is_set(self, dl: SqliteDataLayer):
         case, _, revision_id, _ = _case_with_owner(

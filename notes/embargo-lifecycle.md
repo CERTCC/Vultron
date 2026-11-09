@@ -177,7 +177,9 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   `Add`/`Reject(EmbargoEvent)[target=VulnerabilityCase]` (MSM-07-008, MSM-07-009).
 - No operation branches on whether the sender is the owner. The accept and
   reject triggers pick by actor: an owner sends its decision, anyone else its
-  consent.
+  consent. The one exception is an owner whose row reads `DECLINED`:
+  `accept-embargo` sends its `Accept(Invite(EmbargoEvent))`, since its `Add`
+  would be refused (MSM-07-037).
 - An owner whose row is `DECLINED` cannot activate: the CASE_MANAGER refuses
   it before the commit, and the notice tells the owner to accept the Invite
   first, so one activity never both decides the case and changes the owner's

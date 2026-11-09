@@ -110,7 +110,8 @@ The receiver uses the EM state of the case (MSM-02).
    Your own consent to the terms is recorded at the same time.
    If you refused the terms in step 3, accept them first with `Accept(Invite(EmbargoEvent))`.
    The CASE_MANAGER refuses the activation of terms you refused, and its refusal notice tells you to accept them first (MSM-07-037).
-   The `accept-embargo` trigger does this for you: when you refused the terms, it sends the `Accept`, and the next call sends the `Add`.
+   The `accept-embargo` trigger does this for you: when you refused the terms, it sends the `Accept`.
+   A later call sends the `Add` once your copy of the case holds that `Accept`.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-acceptance.md" %}
 
