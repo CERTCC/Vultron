@@ -57,7 +57,7 @@ from vultron.enums.roles import describe_authority_roles
 
 
 def refusal_status(
-    node: py_trees.behaviour.Behaviour, refusal: str | None
+    node: DataLayerConditionWithPorts, refusal: str | None
 ) -> Status:
     """``SUCCESS`` when *refusal* is ``None``; otherwise refuse with it.
 
