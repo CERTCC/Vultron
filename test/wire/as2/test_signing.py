@@ -646,13 +646,23 @@ def test_load_json_refuses_what_parsers_disagree_on(
             "cannot be read",
         ),
         (b'{"name": "\xff"}', VultronJsonSyntaxError, "not JSON"),
+        ('{"name": "a"}'.encode("utf-16"), VultronJsonSyntaxError, "utf-8"),
+        ('{"name": "a"}'.encode("utf-32"), VultronJsonSyntaxError, "utf-8"),
+        (b'\xef\xbb\xbf{"name": "a"}', VultronJsonSyntaxError, "BOM"),
         (
             "[" * 100_000 + "]" * 100_000,
             VultronRefusedJsonError,
             "nested too deeply",
         ),
     ],
-    ids=["too-many-digits", "not-utf8", "deep-nesting"],
+    ids=[
+        "too-many-digits",
+        "not-utf8",
+        "utf-16",
+        "utf-32",
+        "utf-8-bom",
+        "deep-nesting",
+    ],
 )
 def test_load_json_refuses_text_python_cannot_read(
     text: str | bytes, error: type[VultronUnsignableJsonError], message: str

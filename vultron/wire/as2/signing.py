@@ -244,7 +244,8 @@ def load_json(text: str | bytes) -> Any:
 
     Raises:
         VultronJsonSyntaxError: the text is not JSON by RFC 8259's grammar:
-            it does not decode, its bytes are not UTF-8, or it holds ``NaN``
+            it does not decode, its bytes are not UTF-8 (UTF-16 and UTF-32
+            included) or start with a byte-order mark, or it holds ``NaN``
             or ``Infinity``.
         VultronRefusedJsonError: the text is JSON of one of the refused
             kinds: a duplicate key, a number too large for a double, an
@@ -252,6 +253,12 @@ def load_json(text: str | bytes) -> Any:
             parse.
     """
     try:
+        # Bytes are read as UTF-8 only (RFC 8259 section 8.1): json.loads
+        # would otherwise detect UTF-16 or UTF-32 and read them too.  A
+        # leading byte-order mark stays in the text, which json.loads
+        # refuses.
+        if isinstance(text, bytes):
+            text = text.decode("utf-8")
         return json.loads(
             text,
             object_pairs_hook=_refuse_duplicate_keys,

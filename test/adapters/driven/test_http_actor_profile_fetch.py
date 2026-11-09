@@ -249,6 +249,12 @@ def test_the_configured_fetcher_is_built_on_first_use(
         ("http://[64:ff9b::a9fe:a9fe]/actors/a", "non-public address"),
         ("http://[::ffff:169.254.169.254]/actors/a", "non-public address"),
         ("http://[2002:a9fe:a9fe::1]/actors/a", "non-public address"),
+        ("http://[::127.0.0.1]/actors/a", "non-public address"),
+        ("http://127\u30020\u30020\u30021/actors/a", "not ASCII"),
+        ("http://127\uff0e0\uff0e0\uff0e1/actors/a", "not ASCII"),
+        ("http://[::1/actors/a", "not a URL a profile can be fetched"),
+        ("http://[zz]/actors/a", "not a URL a profile can be fetched"),
+        ("http://author.example:port/actors/a", "not a URL a profile can"),
     ],
     ids=[
         "scheme",
@@ -269,6 +275,12 @@ def test_the_configured_fetcher_is_built_on_first_use(
         "nat64",
         "ipv4-mapped",
         "6to4",
+        "ipv4-compatible",
+        "ideographic-full-stop",
+        "fullwidth-full-stop",
+        "unclosed-ipv6",
+        "bad-ipv6",
+        "bad-port",
     ],
 )
 def test_a_profile_url_outside_the_fetch_rules_is_refused_without_a_fetch(
@@ -309,3 +321,4 @@ def test_the_verification_fetch_makes_one_short_attempt():
 
     assert fetcher._max_attempts == 1
     assert fetcher._timeout == 1.5
+    assert fetcher._max_body_bytes == apf.MAX_VERIFICATION_PROFILE_BYTES

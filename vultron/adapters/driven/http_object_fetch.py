@@ -34,6 +34,8 @@ at once, since the same request will never succeed (AKM-05-008, OX-13-005).
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import urllib.parse
 from dataclasses import dataclass
@@ -134,7 +136,11 @@ class HttpObjectFetcher:
         backoff_multiplier: Multiplier applied to the delay after each
             failed attempt.
         max_delay: Upper bound on the retry delay, in seconds.
-        timeout: Timeout of one attempt, in seconds.
+        timeout: Timeout of one attempt, in seconds: of each network
+            operation, and of the whole attempt, so a peer that answers a
+            byte at a time still ends the attempt.
+        max_body_bytes: The largest body read, in bytes, or ``None`` for no
+            limit; a longer body ends the fetch at once.
     """
 
     def __init__(
@@ -144,6 +150,7 @@ class HttpObjectFetcher:
         backoff_multiplier: float = DEFAULT_BACKOFF_MULTIPLIER,
         max_delay: float = DEFAULT_MAX_DELAY,
         timeout: float = DEFAULT_FETCH_TIMEOUT,
+        max_body_bytes: int | None = None,
     ) -> None:
         self._backoff = Backoff(
             attempts=max_attempts,
@@ -153,6 +160,7 @@ class HttpObjectFetcher:
         )
         self._max_attempts = max_attempts
         self._timeout = timeout
+        self._max_body_bytes = max_body_bytes
 
     async def fetch(
         self, reference: ObjectReference, requester_id: str
@@ -207,22 +215,25 @@ class HttpObjectFetcher:
     ) -> dict[str, Any]:
         """One attempt: the fetched JSON object, or the failure raised."""
         try:
-            response = await client.get(
-                url,
-                headers={
-                    REQUESTER_HEADER: requester_id,
-                    "Accept": "application/activity+json",
-                },
-                timeout=self._timeout,
-            )
-            response.raise_for_status()
+            async with asyncio.timeout(self._timeout):
+                async with client.stream(
+                    "GET",
+                    url,
+                    headers={
+                        REQUESTER_HEADER: requester_id,
+                        "Accept": "application/activity+json",
+                    },
+                    timeout=self._timeout,
+                ) as response:
+                    response.raise_for_status()
+                    content = await self._read_body(response)
         except httpx.HTTPStatusError as exc:
             if 400 <= exc.response.status_code < 500:
                 # The same request will never succeed (OX-13-005).
                 raise TerminalAttemptError(exc) from exc
             raise
         try:
-            body = response.json()
+            body = json.loads(content)
         except ValueError as exc:
             # A 2xx whose body is not JSON: a retry gets the same.
             raise TerminalAttemptError(
@@ -236,6 +247,21 @@ class HttpObjectFetcher:
                 )
             )
         return body
+
+    async def _read_body(self, response: httpx.Response) -> bytes:
+        """The body of *response*, read no further than the byte limit."""
+        limit = self._max_body_bytes
+        chunks: list[bytes] = []
+        size = 0
+        async for chunk in response.aiter_bytes():
+            size += len(chunk)
+            if limit is not None and size > limit:
+                # A retry gets the same body.
+                raise TerminalAttemptError(
+                    ValueError(f"answered with a body over {limit} bytes")
+                )
+            chunks.append(chunk)
+        return b"".join(chunks)
 
 
 def default_object_fetcher() -> HttpObjectFetcher:

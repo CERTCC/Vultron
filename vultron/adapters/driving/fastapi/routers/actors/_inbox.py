@@ -155,6 +155,23 @@ async def verified_delivery(
     return VerifiedDelivery(body=body, receiver=receiver)
 
 
+async def decoded_json_body(request: Request) -> dict[str, Any]:
+    """FastAPI dependency: the request body, decoded as the inbox decodes one.
+
+    For the outbox POST, so it answers a body it cannot read as the inbox
+    does (RFC 9110): 400 for text that is not JSON (IE-07-001), 422 for JSON
+    it refuses (IE-04-002), each in the EH-05-001 body.
+
+    Raises:
+        HTTPException: 400 ``JsonSyntaxError`` or 422 ``ValidationError``.
+    """
+    raw = await request.body()
+    try:
+        return await run_in_threadpool(decode_inbox_body, raw)
+    except VultronUnsignableJsonError as exc:
+        raise inbox_body_http_exception(exc) from exc
+
+
 def parse_activity(body: dict[str, Any]) -> as_Activity:
     """HTTP adapter: parse request body and map wire errors to HTTP responses.
 

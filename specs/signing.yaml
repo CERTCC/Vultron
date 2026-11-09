@@ -84,7 +84,7 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST take the key that verifies a `proof` only from the author's actor
-      profile, held as a copy or fetched.
+      profile, fetched from the author's URL, or a cached copy of that fetch.
     rationale: >-
       A key the receiver got anywhere else, such as from the activity itself or from a
       third actor, proves nothing about the author: anyone can sign with a key they made
@@ -120,13 +120,17 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A verifier MUST take a proof's key only from the author's profile as fetched from
-      the author's own profile URL, never from a copy it stores.
+      A verifier MUST take a proof's key only from the author's own profile as served at
+      the author's profile URL, freshly fetched or a cached copy of such a fetch, and
+      never from a profile embedded in a received activity (SIG-02-004) or any other
+      copy it did not obtain from that URL.
     rationale: >-
-      A stored copy of a peer's profile came from somewhere other than that peer, such
-      as an activity that embedded it, so a key planted in it would let the planter sign
-      as the peer. Fetching from the peer's own URL is the one source the receiver can
-      trust as far as it trusts the peer's id. Whether to pin the first key fetched
+      A copy of a peer's profile that came from somewhere other than that peer, such as
+      an activity that embedded it, may carry a planted key that would let the planter
+      sign as the peer. The peer's own URL is the one source the receiver can trust as
+      far as it trusts the peer's id, so a fetch from it, or a cache of that fetch, is
+      authoritative. The prototype fetches every time and keeps no cache; that is an
+      implementation choice, not a protocol rule. Whether to pin the first key fetched
       (trust on first use), and how a fetched key is cached or rotated, are #1184's to
       decide.
     verification: >-
@@ -148,12 +152,16 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST discard the keys of every actor profile a received activity
-      embeds, before it parses or stores the activity.
+      embeds, before it parses or stores the activity, except inside a ledger entry's
+      `payloadSnapshot`, which it keeps as received and reads no key from.
     rationale: >-
       A key embedded in a received activity was put there by its sender, who need not
       be the profile's actor. Discarding it at the parse edge means no parsed object
       and no stored copy carries a peer's key (SIG-02-003). The received body itself is
-      kept as received, as evidence (VM-08-002), and no key is read from it.
+      kept as received, as evidence (VM-08-002), and no key is read from it. A
+      `payloadSnapshot` is kept byte for byte, since its author's proof covers it
+      (SIG-04-002), so a profile inside it keeps its keys; no key is read from a
+      stored copy, so they are never used.
     verification: >-
       `test/wire/as2/test_embedded_profile_keys.py` parses activities embedding a sender
       and a peer profile with `assertionMethod` and checks the parsed objects carry no

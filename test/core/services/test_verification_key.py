@@ -13,9 +13,9 @@
 
 """The verification-key resolver reads a proof's key from its author's profile.
 
-The held copy is read first, and a profile is fetched when the held copy
-lists no key the proof names (SIG-02-001, AKM-05-012); ids are compared
-normalised (OID-01-006).
+The profile is fetched from the author's own URL on every lookup, and no
+stored copy is read (SIG-02-001, SIG-02-003); ids are compared normalised
+(OID-01-006).
 """
 
 import ast

@@ -18,12 +18,11 @@ The inbox accepts POST only; every other method is answered 405
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import Annotated, Any, cast
+from typing import Any, cast
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
-    Body,
     Depends,
     HTTPException,
     Request,
@@ -44,6 +43,7 @@ from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     VerifiedDelivery,
     _activity_addressed_to,
+    decoded_json_body,
     parse_activity,
     verified_delivery,
 )
@@ -181,7 +181,7 @@ def post_actor_outbox(
     actor_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    body: Annotated[dict[str, Any], Body()],
+    body: dict[str, Any] = Depends(decoded_json_body),
     dl: DataLayer = Depends(get_actor_dl),
 ) -> None:
     """Adds an item to the Actor's Outbox.
@@ -189,7 +189,9 @@ def post_actor_outbox(
     The body is parsed by the wire parser, as the inbox parses one, so the
     activity keeps its own type and every field it carries (its ``object``
     and ``target`` included); validating it as the bare ``as_Activity``
-    would drop them.
+    would drop them.  The body is decoded as the inbox decodes one
+    (``decoded_json_body``), so a body that is not JSON is answered 400 and
+    JSON the outbox refuses 422.
 
     Args:
         actor_id: The ID of the Actor whose Outbox to add the item to.
@@ -199,7 +201,9 @@ def post_actor_outbox(
     Returns:
         None
     Raises:
-        HTTPException: If the Actor is not found.
+        HTTPException: 404 if the Actor is not found; 400 for a body that is
+            not JSON or has no ``type``; 422 for JSON the outbox refuses or
+            that does not parse as an activity.
     """
     actor = _resolve_actor_or_404(actor_id, dl)
     canonical_actor_id = actor.id_

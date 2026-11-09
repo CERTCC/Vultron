@@ -66,10 +66,10 @@ def unsignable_http_exception(message: str) -> HTTPException:
     """A 422 for a body the outbox's signer refuses (EH-05-001).
 
     For the outbox POST: the client must change the content, and the server
-    is not at fault.  FastAPI has already decoded that body, so no syntax
-    fault reaches the signer there.  The inbox answers its own decode with
-    :func:`inbox_body_http_exception`, so :func:`translate_domain_errors`
-    maps neither.
+    is not at fault.  The outbox decodes its body as the inbox does, so a
+    syntax fault is answered 400 by :func:`inbox_body_http_exception` before
+    anything reaches the signer; :func:`translate_domain_errors` maps
+    neither.
     """
     return _error_http_exception(
         status.HTTP_422_UNPROCESSABLE_CONTENT, "ValidationError", message

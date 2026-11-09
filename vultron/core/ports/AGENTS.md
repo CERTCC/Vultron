@@ -89,8 +89,8 @@ missing port is a `VultronWiringError`, never an inline fallback.
 ### `ActorProfileFetchPort`
 
 `ActorProfileFetchPort` (`actor_profile_fetch.py`) fetches an actor's profile
-for the verification-key resolver when the held copy lists no key a proof
-names (SIG-02-001). The adapter (`HttpActorProfileFetchAdapter`) makes the
+for the verification-key resolver, which reads every key from a fetched
+profile (SIG-02-001, SIG-02-003). The adapter (`HttpActorProfileFetchAdapter`) makes the
 GET and parses the body, so core gets a `CoreActor`. Reason: core makes no
 HTTP call and parses no wire JSON (ARCH-01-001, ADR-0032).
 

@@ -178,6 +178,9 @@ def test_post_non_activity_to_actor_inbox_returns_422(
         pytest.param(b'{"ratio": NaN}', id="nan"),
         pytest.param(b'{"ratio": Infinity}', id="infinity"),
         pytest.param(b'{"name": "\xff"}', id="not-utf8"),
+        pytest.param('{"type": "Create"}'.encode("utf-16"), id="utf-16"),
+        pytest.param('{"type": "Create"}'.encode("utf-32"), id="utf-32"),
+        pytest.param(b'\xef\xbb\xbf{"type": "Create"}', id="utf-8-bom"),
     ],
 )
 def test_post_undecodable_body_to_actor_inbox_returns_400(
@@ -188,7 +191,8 @@ def test_post_undecodable_body_to_actor_inbox_returns_400(
     The inbox decodes the body itself, before it verifies the proof
     (SIG-03-003), so its answer is the inbox's, not FastAPI's default.
     ``NaN`` and ``Infinity`` are not RFC 8259 JSON, though Python's parser
-    reads them.
+    reads them, and nor is UTF-16, UTF-32 or a byte-order mark (RFC 8259
+    section 8.1), though Python's parser detects them.
     """
     actor = created_actors[0]
     resp = client_actors.post(

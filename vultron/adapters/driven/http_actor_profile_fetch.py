@@ -70,20 +70,38 @@ def check_profile_fetch_target(actor_id: str) -> None:
     literal outside the public address space (loopback, private,
     link-local such as a cloud metadata address, multicast, reserved or
     unspecified), in any spelling a resolver reads as an address, an IPv4
-    address embedded in an IPv6 one included.  A host name is fetched: the
-    multi-container demos name their peers by internal host names, and
-    resolving a name to check it here would not bind the address the client
-    then connects to.  A
+    address embedded in an IPv6 one included.  The host must be ASCII, since
+    the HTTP client maps a non-ASCII one before it connects.  A host name
+    is fetched (``localhost`` too, which a single node run on a laptop
+    fetches its own actors' profiles from): the multi-container demos name
+    their peers by internal host names, and resolving a name to check it
+    here would not bind the address the client then connects to.  A
     production allow-list or key cache is #1184.
 
     Raises:
         VultronActorProfileFetchError: *actor_id* is not such a URL; the
             message says which rule it breaks.
     """
-    parts = urlsplit(actor_id)
-    if parts.scheme not in _FETCH_SCHEMES or not parts.hostname:
+    try:
+        parts = urlsplit(actor_id)
+        hostname = parts.hostname
+        parts.port  # noqa: B018 (raises on a port that is not a number)
+    except ValueError as exc:
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} is not a URL a profile can be fetched from"
+        ) from exc
+    if parts.scheme not in _FETCH_SCHEMES or not hostname:
         raise VultronActorProfileFetchError(
             f"{actor_id!r} is not an http or https URL with a host"
+        )
+    if not hostname.isascii():
+        # The HTTP client maps a non-ASCII host (IDNA, UTS 46) before it
+        # connects, so ``127\u30020\u30020\u30021`` would reach 127.0.0.1
+        # past the address check below.  A profile URL names its host in
+        # ASCII.
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} names a host that is not ASCII, which a profile"
+            " URL may not"
         )
     if parts.username is not None or parts.password is not None:
         raise VultronActorProfileFetchError(
@@ -94,7 +112,7 @@ def check_profile_fetch_target(actor_id: str) -> None:
             f"{actor_id!r} carries a query or fragment, which a profile URL"
             " may not"
         )
-    address = _host_address(parts.hostname.rstrip("."))
+    address = _host_address(hostname.rstrip("."))
     if address is not None and not _is_public(address):
         raise VultronActorProfileFetchError(
             f"{actor_id!r} names a non-public address, which a profile is"
@@ -107,6 +125,10 @@ _NAT64_PREFIXES = (
     ipaddress.ip_network("64:ff9b::/96"),
     ipaddress.ip_network("64:ff9b:1::/48"),
 )
+
+
+#: The deprecated IPv4-compatible IPv6 block (RFC 4291 section 2.5.5.1).
+_IPV4_COMPATIBLE = ipaddress.ip_network("::/96")
 
 
 def _host_address(
@@ -133,6 +155,10 @@ def _is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     if not address.is_global:
         return False
     if isinstance(address, ipaddress.IPv6Address):
+        if address in _IPV4_COMPATIBLE:
+            # The deprecated IPv4-compatible form (``::127.0.0.1``), which
+            # ``is_global`` reads as global.
+            return False
         embedded = [address.ipv4_mapped, address.sixtofour]
         if address.teredo is not None:
             embedded.extend(address.teredo)
@@ -142,16 +168,25 @@ def _is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     return True
 
 
+#: The largest profile body the pre-verification lookup reads, in bytes.  A
+#: profile is a few hundred bytes; the cap stops a sender-chosen server from
+#: streaming an unbounded body into memory.
+MAX_VERIFICATION_PROFILE_BYTES = 256 * 1024
+
+
 def verification_object_fetcher() -> HttpObjectFetcher:
     """The fetcher for a key lookup made before the sender is verified.
 
-    One attempt, no retry, and a short timeout
-    (``verification_key_fetch_timeout_seconds``): an unsigned or forged
-    delivery must not buy the AKM-05-008 retries an object fetch gets.
+    One attempt, no retry, a short timeout
+    (``verification_key_fetch_timeout_seconds``) bounding the whole attempt,
+    and a body cap (:data:`MAX_VERIFICATION_PROFILE_BYTES`): an unsigned or
+    forged delivery must not buy the AKM-05-008 retries an object fetch
+    gets, nor hold a connection open or fill memory.
     """
     return HttpObjectFetcher(
         max_attempts=1,
         timeout=get_config().verification_key_fetch_timeout_seconds,
+        max_body_bytes=MAX_VERIFICATION_PROFILE_BYTES,
     )
 
 

@@ -225,12 +225,15 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   profile does.
 - **A key lookup runs before the sender is verified**, so an unsigned or forged delivery
   chooses the URL the receiver fetches. Keep it bounded:
-  `deps.get_actor_profile_fetcher` makes one attempt with a short timeout
-  (`verification_key_fetch_timeout_seconds`, no AKM-05-008 retries), and
-  `check_profile_fetch_target` admits only an `http`/`https` URL with no user info,
-  query or fragment and no non-public IP literal, read in every spelling the resolver
-  reads (`inet_aton` forms, a trailing dot, IPv4 inside IPv6). Host names pass: the
-  Docker demos name peers by internal names. An allow-list or key cache is #1184. The
+  `deps.get_actor_profile_fetcher` makes one attempt, its timeout
+  (`verification_key_fetch_timeout_seconds`, no AKM-05-008 retries) bounding the
+  whole attempt and its body capped (`MAX_VERIFICATION_PROFILE_BYTES`), and
+  `check_profile_fetch_target` admits only an `http`/`https` URL with an ASCII host,
+  no user info, query or fragment and no non-public IP literal, read in every spelling
+  the resolver reads (`inet_aton` forms, a trailing dot, IPv4 inside IPv6). A
+  non-ASCII host is refused because httpx maps it (IDNA) before it connects, so
+  `127。0。0。1` would reach loopback past the check. Host names pass, `localhost`
+  too: the Docker demos name peers by internal names. An allow-list is #1184. The
   addressed actor is found first, so a post to an actor the node does not host fetches
   nothing.
 - **Actor ids are compared normalised** (OID-01-006): the key's actor, the
