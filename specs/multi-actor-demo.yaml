@@ -5448,6 +5448,130 @@ groups:
     tags:
     - demo
     - testing
+  - id: DEMOMA-22-014
+    priority: MUST
+    kind: project
+    statement: >-
+      Every `StoryProp` declared under `vultron/demo/` MUST have at least one
+      step that keeps it and at least one step that reads it. A prop is
+      declared as a module-level constant, so every site can name it.
+    rationale: >-
+      A prop is how a flat composed story carries the causal gate a
+      hand-placed scenario carried by nesting: the step that performs an act
+      keeps the prop inside that act's own `demo_gate`, and the step whose
+      precondition is that act reads it first, so a failed act stops the story
+      (DEMOCI-01-011). Keeping one guarantees nothing by itself: a prop kept
+      by the roster gate and read by nobody left both owner-decision
+      continuations running after a timed-out roster, with every test green
+      (#5535, #5598).
+    adr:
+    - ADR-0098
+    verification: >-
+      `test_every_prop_is_read_by_a_step`, `test_every_prop_is_kept_by_a_step`
+      and `test_every_prop_construction_is_a_module_constant` in
+      `test/architecture/test_story_props_have_readers.py` enumerate every
+      `StoryProp(...)` call under `vultron/demo/`, resolve the keep and read
+      sites of each — named outright, handed to a step as a keyword, or
+      carried by a local alias — and fail a prop missing either site, a
+      construction that is no module-level constant, and an empty subject set.
+      Each shape of site is pinned non-empty, and a planted violation of each
+      shape is pinned as a test in the same module.
+    relationships:
+    - rel_type: implements
+      spec_id: DEMOCI-01-011
+      note: >-
+        A prop is the flat-sequence form of the nesting a `demo_gate` gives a
+        hand-placed scenario, so it is how DEMOCI-01-011's gate reaches a
+        dependent step in another fragment.
+    - rel_type: extends
+      spec_id: DEMOMA-22-001
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-22-015
+    priority: MUST
+    kind: project
+    statement: >-
+      A step that reads a `StoryProp` it is handed MUST take it as a
+      keyword-only parameter with no default, annotated as the prop type
+      rather than as one that admits `None`.
+    rationale: >-
+      The read has to be structural rather than remembered: a continuation
+      that cannot be assembled without being told which act it depends on
+      cannot be assembled without the gate. Relaxing the parameter back to
+      `joined: StoryProp[str] | None = None` behind an `if joined is not None:`
+      guard left the whole suite green, because every call site happened to
+      pass the prop (#5535, #5598).
+    adr:
+    - ADR-0098
+    verification: >-
+      `test_a_step_that_reads_a_prop_requires_it` and
+      `test_a_prop_parameter_is_keyword_only` in
+      `test/architecture/test_story_props_have_readers.py` report every prop
+      parameter a step reads that carries a default or admits `None`, and
+      every prop parameter that is positional.
+      `test_the_gate_catches_a_relaxed_reader_parameter` plants each
+      relaxation.
+    relationships:
+    - rel_type: extends
+      spec_id: DEMOMA-22-014
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-22-016
+    priority: MAY
+    kind: project
+    statement: >-
+      A step that only keeps under a `StoryProp` parameter MAY make that
+      parameter optional.
+    rationale: >-
+      An absent prop on the keep side means no later act depends on this
+      gate, not that a gate is missing, so DEMOMA-22-015's obligation does
+      not reach it: `invitee_joins_the_case` keeps a prop only for a joiner
+      some later act presupposes, and runs a plain `demo_check` for the rest
+      (DEMOCI-01-011).
+    adr:
+    - ADR-0098
+    verification: >-
+      `test_a_keeper_only_parameter_may_be_optional` in
+      `test/architecture/test_story_props_have_readers.py` pins that a prop
+      parameter a step only keeps under is not reported by DEMOMA-22-015's
+      check when it carries a default and admits `None`.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-22-015
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-22-017
+    priority: MUST
+    kind: project
+    statement: >-
+      Each `StoryProp` name MUST be declared exactly once under
+      `vultron/demo/`.
+    rationale: >-
+      The name is the key `StoryState` keeps the artifact under, and a
+      composed scenario draws fragments from more than one family's module, so
+      a second declaration spelling an existing name would have the two
+      families overwrite each other's artifact. Worse when their types differ:
+      the read checks the type it got back, so the collision is reported as
+      the story having no such artifact yet — the message for a fragment
+      placed before the one that makes what it reads.
+    adr:
+    - ADR-0098
+    verification: >-
+      `test_every_prop_name_is_declared_once` in
+      `test/architecture/test_story_props_have_readers.py` groups the declared
+      names of every `StoryProp(...)` construction under `vultron/demo/` and
+      fails a name with more than one construction;
+      `test_the_gate_catches_two_declarations_spelling_one_name` plants the
+      collision.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-22-014
+    tags:
+    - demo
+    - testing
 - id: DEMOMA-23
   title: Shared Scenario Harness
   specs:

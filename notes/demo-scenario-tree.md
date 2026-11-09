@@ -43,6 +43,7 @@ relevant_packages:
   - vultron/demo/scenario
   - vultron/demo/recordings
   - vultron/metadata/demo_scenarios
+  - test/architecture
   - test/core/use_cases/received
   - ui/src/data
 ---
@@ -251,7 +252,14 @@ vendor-first half, whose Reporter tells a Vendor.
   reads it first, so it cannot be assembled without being told what it depends
   on. Then test the pair end to end, through `run_story` with the real gates,
   because the failure lives between the two halves and no test of either half
-  alone can see it.
+  alone can see it. The rule is a gate, not a convention:
+  `test/architecture/test_story_props_have_readers.py` fails a prop with no
+  keep site or no read site, a construction that is no module-level constant,
+  and a reading parameter that gained a default or admits `None`
+  (DEMOMA-22-014, DEMOMA-22-015). Only the *reading* parameter is required —
+  the keep side stays optional, because `invitee_joins_the_case` keeps one
+  only for a joiner some later act presupposes and is a plain `demo_check`
+  for the rest.
 - **Fragments and named prefixes.** A story fragment is one step of a story,
   a callable taking the `StoryState`. A named prefix is a `Story` several
   scenarios start with. Both live in `vultron/demo/helpers/` when more than
