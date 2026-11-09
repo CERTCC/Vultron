@@ -251,6 +251,49 @@ class TestCaseLedgerEntry:
         object.__setattr__(entry, "object_id", "urn:uuid:tampered")
         assert not entry.verify_hash()
 
+    @pytest.mark.spec("SYNC-01-008")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AssertionError,
+        reason=(
+            "SYNC-01-008: the entry hash is over json.dumps(sort_keys=True, "
+            "compact separators), which escapes non-ASCII text and writes "
+            "9.0 where RFC 8785 JCS writes 9. Tracked by #3659."
+        ),
+    )
+    def test_entry_hash_is_over_the_jcs_serialization(self):
+        """The hash is SHA-256 of the RFC 8785 JCS bytes of the hashed content.
+
+        The snapshot holds the two values where JCS and Python's ``json.dumps``
+        disagree: non-ASCII text (JCS writes UTF-8, ``json.dumps`` writes
+        ``\\u00fc``) and a whole-valued float (JCS writes ``9``, ``json.dumps``
+        writes ``9.0``). The expected bytes are written out by hand, in JCS key
+        order, so the test depends on no canonicalization library.
+        """
+        entry = HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=0,
+            object_id=OBJECT_ID,
+            semantic_type="report_received",
+            payload_snapshot={"name": "Jürgen", "score": 9.0},
+            prev_log_hash=_ZERO_HASH,
+            received_at=_FIXED_CREATED_AT,
+        )
+        jcs = (
+            "{"
+            f'"case_id":"{CASE_ID}",'
+            '"log_index":0,'
+            f'"object_id":"{OBJECT_ID}",'
+            '"payload_snapshot":{"name":"Jürgen","score":9},'
+            f'"prev_log_hash":"{_ZERO_HASH}",'
+            '"received_at":"2024-01-01T00:00:00.000000+00:00",'
+            '"semantic_type":"report_received",'
+            '"term":null'
+            "}"
+        ).encode()
+
+        assert entry.entry_hash == hashlib.sha256(jcs).hexdigest()
+
     def test_verify_hash_survives_pydantic_roundtrip(self):
         """``verify_hash()`` MUST return True after a model_dump / model_validate cycle.
 

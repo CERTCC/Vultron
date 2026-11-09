@@ -74,6 +74,19 @@ A timestamp it carries from a peer keeps the offset that peer sent, so the same 
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CS-13-006", "CS-13-007", "CS-13-005"))
 ```
 
+**A ledger entry hash covers one canonical form.**
+A case ledger entry's hash is computed over the RFC 8785 JSON Canonicalization Scheme (JCS) serialization of the content it covers, its payload snapshot included.
+JCS fixes the key order, the form of each number and the escaping of each string, so a peer in any language hashes the same bytes for the same content.
+Every receiver recomputes the hash and refuses an entry whose content does not reproduce it ([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)).
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("SYNC-01-008"))
+```
+
+!!! note "The reference implementation does not hash the JCS form yet"
+    The reference implementation hashes a sorted-key, compact JSON form that escapes non-ASCII text and writes numbers in Python's form, so it is not yet JCS.
+    The requirement is listed in [Known Gaps](known-gaps.md).
+
 **Objects travel inline or by reference.**
 As AS2 allows, an Activity carries an object inline or names it by URI, and a receiver copes with either form.
 An object the recipient cannot be expected to hold is carried inline, or named by a reference the recipient can dereference ([§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).
@@ -113,11 +126,17 @@ This Representational State Transfer (REST) profile is the transport this versio
 
 - Each actor exposes an inbox endpoint, named in its actor profile, that accepts inbound Activities.
 - An outbound Activity is delivered by HTTP POST to the recipient's inbox.
+- The POST names one of the two ActivityStreams media types as its `Content-Type`: `application/activity+json`, or `application/ld+json` with the ActivityStreams profile.
+  An inbox accepts both and refuses any other media type, plain `application/json` included.
 - Authentication and authorization requirements are at [§16 Security Considerations](considerations.md#16-security-considerations-ni).
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("IE-02-001", "IE-02-002"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("IE-02-001", "IE-02-002", "HTTP-01-004", "HTTP-01-001", "HTTP-01-002", "HTTP-01-003"))
 ```
+
+!!! note "The reference implementation posts plain JSON"
+    The reference implementation delivers with `Content-Type: application/json`, and its inbox does not yet refuse other media types.
+    HTTP-01-003 and HTTP-01-004 are listed in [Known Gaps](known-gaps.md).
 
 {% include-markdown "./_oq-transport-status-codes.md" %}
 
