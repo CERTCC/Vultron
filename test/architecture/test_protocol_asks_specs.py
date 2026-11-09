@@ -593,16 +593,54 @@ def test_processing_fault_closes_the_outstanding_ask_it_names() -> None:
 
 @pytest.mark.spec("ASK-07-008")
 def test_a_processing_fault_is_never_recorded_in_the_ledger() -> None:
-    """A processing fault MUST NOT be recorded as a CaseLedgerEntry (ASK-07-008).
+    """A received Create(ProcessingFault) commits no CaseLedgerEntry (ASK-07-008).
 
-    A fault reports how a message was handled and changes nothing in the
-    case, so it is not a case event (CLP-02-013).  This placeholder checks
-    only that the fault type exists; #6057 replaces it with a behavioral
-    test at the CASE_MANAGER.
+    A CASE_MANAGER that receives a fault about an activity in a case MUST leave
+    the case ledger unchanged (ASK-07-008, CLP-02-013).  A fault with the
+    ``InternalProcessingError`` class — a class with no effect — is the minimal
+    scenario: intake archives what arrived, but no case event is ledgered.
     """
-    assert _processing_fault() is not None, (
-        "No ProcessingFault type is importable."
+    from test.support.received import received_event
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+    from vultron.core.models.events.fault import (
+        CreateProcessingFaultReceivedEvent,
     )
+    from vultron.core.use_cases.received.fault import (
+        CreateProcessingFaultReceivedUseCase,
+    )
+    from vultron.wire.as2.factories import create_processing_fault_activity
+    from vultron.wire.as2.vocab.objects.processing_fault import (
+        as_ProcessingFault,
+    )
+
+    _receiver = "https://example.org/actors/case-manager"
+    _emitter = "https://example.org/actors/participant"
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_receiver)
+    try:
+        activity = create_processing_fault_activity(
+            actor=_emitter,
+            fault=as_ProcessingFault(
+                failure_class=VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+                in_reply_to="https://example.org/activities/failed",
+            ),
+            to=[_receiver],
+        )
+        event = received_event(activity, at=dl)
+        assert isinstance(event, CreateProcessingFaultReceivedEvent)
+        CreateProcessingFaultReceivedUseCase(dl, event).execute()
+        committed = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+        ]
+        assert not committed, (
+            f"A received Create(ProcessingFault) committed "
+            f"{len(committed)} CaseLedgerEntry object(s); MUST commit none "
+            "(ASK-07-008, CLP-02-013)."
+        )
+    finally:
+        dl.close()
 
 
 @pytest.mark.spec("ASK-07-009")
