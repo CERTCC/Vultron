@@ -91,6 +91,30 @@ def _assert_vendor_case_status(case: as_VulnerabilityCase) -> None:
         raise AssertionError(f"Expected pxa final case state, found {pxa}")
 
 
+def _require_note_thread_pair(
+    question_note_id: str | None,
+    reply_note_id: str | None,
+) -> None:
+    """Refuse a note-thread assertion that names one half of the thread.
+
+    A note thread has two halves, so a caller asserts both or neither: the
+    IDs are both given or both ``None``.  Naming one alone used to leave the
+    other half unchecked with no signal (#5643).
+
+    Raises:
+        AssertionError: If exactly one ID is ``None``, naming that ID.
+    """
+    if (question_note_id is None) == (reply_note_id is None):
+        return
+    missing = (
+        "question_note_id" if question_note_id is None else "reply_note_id"
+    )
+    raise AssertionError(
+        f"{missing} is None: a note thread assertion needs both"
+        " question_note_id and reply_note_id, or neither"
+    )
+
+
 def _assert_case_notes(
     case: as_VulnerabilityCase,
     question_note_id: str | None,
@@ -105,23 +129,18 @@ def _assert_case_notes(
         AssertionError: If exactly one ID is ``None``, or a provided note ID
             is missing from the case.
     """
-    if question_note_id is None and reply_note_id is None:
-        return
+    _require_note_thread_pair(question_note_id, reply_note_id)
     if question_note_id is None or reply_note_id is None:
-        missing = (
-            "question_note_id" if question_note_id is None else "reply_note_id"
-        )
-        raise AssertionError(
-            f"{missing} is None: a note thread assertion needs both"
-            " question_note_id and reply_note_id, or neither"
-        )
+        # The pair check admitted the call, so both IDs are ``None``: a
+        # scenario that asserts no thread names neither half.
+        return
 
     note_ids = [ref_id(note) or str(note) for note in case.notes]
-    if question_note_id is not None and question_note_id not in note_ids:
+    if question_note_id not in note_ids:
         raise AssertionError(
             f"Question note {question_note_id!r} not found in case notes"
         )
-    if reply_note_id is not None and reply_note_id not in note_ids:
+    if reply_note_id not in note_ids:
         raise AssertionError(
             f"Reply note {reply_note_id!r} not found in case notes"
         )

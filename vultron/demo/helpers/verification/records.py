@@ -26,6 +26,7 @@ from vultron.demo.helpers.verification.states import (
     _assert_case_notes,
     _assert_vendor_case_status,
     _assert_vendor_participant_state,
+    _require_note_thread_pair,
 )
 from vultron.demo.utils import (
     DataLayerClient,
@@ -144,6 +145,10 @@ def verify_receiver_case_state(
         AssertionError: If any invariant is violated, or exactly one note id
             is given.
     """
+    # Refuse a one-sided thread before reading anything, so a mis-call is
+    # not masked by one of the case assertions below failing first.
+    _require_note_thread_pair(question_note_id, reply_note_id)
+
     final_case = as_VulnerabilityCase(
         **receiver_client.get(receiver_client.dl_path(case_id))
     )
