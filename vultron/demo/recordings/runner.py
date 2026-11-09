@@ -143,10 +143,8 @@ def _scenario_nodes(
     later run in the same process starts empty.  The router is installed as
     the default emitter because the routes of an isolated app fall back to it.
 
-    The py_trees blackboard is reset too (:func:`reset_blackboard`): with one
-    tree-wide seed (DEMOCI-11-025) the second run in a process redraws the
-    first run's blackboard-client ids, and py_trees refuses an id it already
-    holds with "this unique identifier has already been registered".
+    The py_trees blackboard is reset too (:func:`reset_blackboard`), so no
+    key a node of the previous run wrote is read by this one.
 
     So is the pending-assertion registry
     (:func:`reset_pending_assertion_stores`).  It is keyed by actor URI and

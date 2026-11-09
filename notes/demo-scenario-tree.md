@@ -361,8 +361,9 @@ vendor-first half, whose Reporter tells a Vendor.
   declaration really is wrong (DEMOCI-01-003, EDF-06-005).
 - **Clear process-global registries between runs.** One seed means the second
   scenario in a process redraws the first one's ids, so a runner that plays
-  more than one story must reset them — `reset_blackboard()` is the one that
-  bit, because py_trees refuses a blackboard client id it already holds.
+  more than one story must reset them — `reset_pending_assertion_stores()` is
+  the one that bit, because a pending ask keyed on the redrawn case id
+  suppressed the same ask in the next story (#5591).
 - **Byte identity is decided before the case opens.** Only a write reads the
   recording clock, so where a poll or a verification sits does not matter; how
   many actor and peer records a story writes before `create_case` does. Each
