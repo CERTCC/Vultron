@@ -78,16 +78,16 @@ groups:
       schema fixes both values, so they identify the format, and
       `document.category` then names the profile.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_receiver_recognizes_csaf_by_schema_and_version`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test attaches a CSAF 2.1 document and a
-      JSON document that is not CSAF, and checks that only the first is recognized as
-      CSAF 2.1.
+      `test/core/use_cases/received/test_submit_report_csaf.py::test_only_the_csaf_attachment_is_recognized_as_csaf`
+      delivers a report with a JSON document that is not CSAF and a CSAF 2.1
+      document attached, and checks that only the second gets a claims record.
+      `test/wire/csaf/test_reader.py::test_a_document_that_does_not_say_csaf_21_is_not_recognized`
+      checks that a document with another `$schema` or `document.csaf_version` is
+      not recognized.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6090'
 - id: CSAF-02
   title: The Sender's Statement at the Initial Report
   specs:
@@ -196,16 +196,16 @@ groups:
       receiver does for a report with no CSAF document. A schema default, such as
       the TLP label `CLEAR`, is filled in by a parser and was never sent.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_an_omitted_csaf_field_or_schema_default_is_no_statement`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test attaches a document that omits a
-      field the schema gives a default, and checks that the stored record holds no value
-      for it.
+      `test/core/use_cases/received/test_submit_report_csaf.py::test_an_omitted_field_with_a_schema_default_has_no_stored_value`
+      delivers a document whose reference omits the `category` that the schema
+      defaults to `external`, and checks that the stored record holds no value for
+      it.
+      `test/wire/csaf/test_reader.py::test_a_schema_default_is_not_claimed_from_an_invalid_document_either`
+      checks the same of a schema-invalid document.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6090'
   - id: CSAF-02-006
     priority: MUST_NOT
     kind: protocol
@@ -217,15 +217,14 @@ groups:
       not by the form of one attachment, and refusing would leave a real
       vulnerability unreported. The receiver reads what it can (CSAF-04-003).
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_broken_csaf_attachment_never_refuses_the_report`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: receive-path tests attach a schema-invalid and an
-      unparseable CSAF document, and check that the Offer is not refused.
+      `test/core/use_cases/received/test_submit_report_csaf.py::test_a_broken_csaf_attachment_never_refuses_the_report`
+      delivers a schema-invalid CSAF document, an attachment that is not JSON and
+      one whose `document` is not an object, and checks that each Offer is
+      applied, its report kept with the attachment and its case proposed.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6090'
   - id: CSAF-02-007
     priority: SHOULD_NOT
     kind: protocol
@@ -473,11 +472,11 @@ groups:
       The receiver wants to know at receipt whether the document holds together,
       and the errors tell its human what is wrong.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_receipt_records_a_schema_verdict`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a receive-path test attaches a schema-valid and a schema-invalid CSAF
-      document and reads the stored verdict and its errors.
-    tracking_issue: '#6090'
+      `test/core/use_cases/received/test_submit_report_csaf.py::test_receipt_stores_the_schema_verdict_and_its_errors`
+      delivers a schema-valid and a schema-invalid CSAF document and reads the
+      stored verdict and its errors.
+      `test/core/models/test_report_claims.py::test_a_schema_invalid_verdict_needs_its_errors`
+      checks that a verdict and its errors cannot disagree.
   - id: CSAF-04-002
     priority: MUST_NOT
     kind: project
@@ -489,14 +488,13 @@ groups:
       Committee, the schema catches few of the documents that fail a mandatory
       test.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_the_verdict_never_says_valid_csaf`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: the verdict values are the closed set schema-valid and
-      schema-invalid; a test asserts no other value is stored.
+      `test/core/models/test_report_claims.py::test_the_verdict_is_one_of_two_values`
+      refuses any verdict value but schema-valid and schema-invalid, and
+      `test/core/use_cases/received/test_submit_report_csaf.py::test_the_stored_verdict_is_only_ever_schema_valid_or_schema_invalid`
+      reads the values that receipts store.
     relationships:
     - rel_type: extends
       spec_id: CSAF-04-001
-    tracking_issue: '#6090'
   - id: CSAF-04-003
     priority: MUST
     kind: project
@@ -508,12 +506,12 @@ groups:
       A fault in one part of a document says nothing about the rest of it, and
       CSAF-02-006 keeps the report itself.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_schema_invalid_document_is_read_field_by_field`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a receive-path test attaches a schema-invalid document with one
-      malformed and one readable claim field and checks that the readable one is applied
-      and the skip is logged at INFO.
-    tracking_issue: '#6090'
+      `test/core/use_cases/received/test_submit_report_csaf.py::test_a_schema_invalid_document_is_read_field_by_field_and_logs_each_skip`
+      delivers a schema-invalid document with a malformed `disclosure_date` and a
+      readable SSVC Exploitation value, and checks that the readable one is read
+      and the skip is logged at INFO with the activity and its sender.
+      `test/wire/csaf/test_reader.py::test_each_unreadable_field_is_skipped_and_named`
+      checks the skip of each kind of unreadable field.
   - id: CSAF-04-004
     priority: MUST
     kind: project
@@ -526,11 +524,11 @@ groups:
       claims shaped the case. Fields that set no case input, such as the TLP label,
       `involvement` and `acknowledgments`, are kept for that display.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_the_report_keeps_a_record_of_what_its_csaf_claimed`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a receive-path test reads the stored record and checks one value of
-      each outcome: applied, overridden and display only.
-    tracking_issue: '#6090'
+      `test/core/use_cases/received/test_submit_report_csaf.py::test_the_report_keeps_a_record_of_what_its_csaf_claimed`
+      reads the stored record, checks that each value read starts display only,
+      and stores an overridden and an applied outcome on it.
+      `test/core/models/test_report_claims.py::test_each_outcome_is_recorded_and_survives_the_store`
+      checks that each outcome survives the store.
   - id: CSAF-04-005
     priority: MUST_NOT
     kind: project
@@ -540,14 +538,12 @@ groups:
       The record is the receiver's own judgment. Each actor that receives the
       report forms its own.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_the_claims_record_is_never_sent`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a test checks that no activity this codebase emits after receipt
-      carries the record.
+      `test/core/use_cases/received/test_submit_report_csaf.py::test_the_claims_record_is_never_sent`
+      checks that no sealed outbox body after receipt carries the record or its
+      verdict and outcome values.
     relationships:
     - rel_type: extends
       spec_id: CSAF-04-004
-    tracking_issue: '#6090'
   - id: CSAF-04-006
     priority: MUST
     kind: project

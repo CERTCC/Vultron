@@ -602,6 +602,10 @@ _UNREGISTERED_WIRE_TYPES: dict[str, str] = {
     "as_VultronApplication owns `Application`",
     f"{_BASE}.actors.as_Group": "VM-01-013 sanctioned shadow: "
     "as_VultronGroup owns `Group`",
+    f"{_BASE}.object_types.as_Document": "ARCH-25-003 (ADR-0099): the core "
+    "AttachedDocument owns `Document`, so a report's attachments are core "
+    "objects (CSAF-01-001); as_Document stays the base of Image, Page and "
+    "the other AS2 document types",
 }
 
 

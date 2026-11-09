@@ -19,6 +19,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.base import CoreObject
 
 
@@ -34,6 +35,12 @@ class VulnerabilityReport(CoreObject):
     ``vultron.wire.as2.vocab.objects.vulnerability_report`` is an alias of
     this class (ARCH-25-003, ADR-0099): a ``by_alias`` dump is its AS2 form
     (ARCH-12-013), and there is no separate wire class or projection step.
+
+    ``attachment`` holds the documents the report carries, a CSAF document
+    among them (CSAF-01-001), as core :class:`AttachedDocument` objects.  It
+    stays ``None`` when the report carries none, because the AS2 form omits
+    an absent ``attachment`` and an empty list would be a key the sender
+    never sent.
     """
 
     type_: Literal["VulnerabilityReport"] = Field(
@@ -41,6 +48,7 @@ class VulnerabilityReport(CoreObject):
         validation_alias="type",
         serialization_alias="type",
     )
+    attachment: list[AttachedDocument] | None = None
 
 
 __all__ = ["VulnerabilityReport"]

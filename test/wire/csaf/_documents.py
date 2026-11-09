@@ -16,6 +16,8 @@ The suite never reads the CSAF Technical Committee's test documents
 (CSAF-05-004), so tests build their own.
 """
 
+from typing import Any
+
 from pydantic import JsonValue
 
 
@@ -50,6 +52,87 @@ def minimal_csaf_document() -> dict[str, JsonValue]:
             },
         },
     }
+
+
+def vulnerability_report_document() -> dict[str, Any]:
+    """Return a schema-valid ``csaf_vulnerability_report`` with every claim field.
+
+    It states a title, a document-level ``summary`` and ``description`` note,
+    an acknowledgment,
+    a reference with no ``category`` (which the schema defaults to
+    ``external``), one vendor's known-affected product, and one vulnerability
+    with a CVE, a disclosure date, an SSVC Exploitation selection and a first
+    known exploitation date.
+    """
+    data: dict[str, Any] = minimal_csaf_document()
+    document = section(data, "document")
+    document["category"] = "csaf_vulnerability_report"
+    document["title"] = "Buffer overflow in Example Widget"
+    document["notes"] = [
+        {"category": "description", "text": "A longer description."},
+        {"category": "summary", "text": "A short summary."},
+    ]
+    document["acknowledgments"] = [
+        {"names": ["Pat Finder"], "summary": "Found the overflow."}
+    ]
+    document["references"] = [
+        {
+            "summary": "The reporter's write-up",
+            "url": "https://reporter.example.org/widget",
+        }
+    ]
+    data["product_tree"] = {
+        "branches": [
+            {
+                "category": "vendor",
+                "name": "Example Vendor",
+                "branches": [
+                    {
+                        "category": "product_name",
+                        "name": "Example Widget",
+                        "product": {
+                            "name": "Example Vendor Example Widget",
+                            "product_id": "WIDGET-1",
+                        },
+                    }
+                ],
+            }
+        ]
+    }
+    data["vulnerabilities"] = [
+        {
+            "cve": "CVE-2026-0001",
+            "title": "Widget overflow",
+            "disclosure_date": "2026-12-01T00:00:00Z",
+            "first_known_exploitation_dates": [
+                {
+                    "date": "2026-10-02T00:00:00Z",
+                    "exploitation_date": "2026-09-30T00:00:00Z",
+                }
+            ],
+            "metrics": [
+                {
+                    "content": {
+                        "ssvc_v2": {
+                            "schemaVersion": "2.0.0",
+                            "timestamp": "2026-10-01T00:00:00Z",
+                            "selections": [
+                                {
+                                    "namespace": "ssvc",
+                                    "key": "E",
+                                    "version": "1.1.0",
+                                    "values": [{"key": "P"}],
+                                }
+                            ],
+                        }
+                    },
+                    "products": ["WIDGET-1"],
+                }
+            ],
+            "product_status": {"known_affected": ["WIDGET-1"]},
+        }
+    ]
+    return data
 
 
 def section(data: dict[str, JsonValue], *path: str) -> dict[str, JsonValue]:
