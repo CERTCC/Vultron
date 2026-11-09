@@ -274,8 +274,9 @@ Some deliveries get no notice:
   The CASE_MANAGER's `Reject` of an `Accept` reaches the participant.
   The participant then closes its pending `Accept`.
 - A late `Accept` of the embargo in force, or of an open proposal, is recorded in the same way as an on-time `Accept` (EMB-17-002).
-  A late `Accept` of replaced terms is answered with a relayed invitation to the case's current terms — the embargo in force, or the earliest-expiring open proposal when none is in force (EMB-17-003, EP-08-002).
-  A late `Accept` of an embargo the case no longer has changes nothing, so the CASE_MANAGER records and sends nothing for it (EMB-17-004).
+  A late `Accept` of replaced terms is answered with a relayed invitation to the case's current terms — the embargo in force, or the earliest-expiring open proposal whose embargo has not ended when none is in force (EMB-17-003, EP-08-002).
+  No invitation is sent when the accepting actor's row for those terms is already `INVITED` or `AGREED` (CM-18-003).
+  A late `Accept` in a case that holds no such terms changes nothing, so the CASE_MANAGER records and sends nothing for it (EMB-17-004).
 - A failure inside the CASE_MANAGER is not a refusal, and is never answered with a notice.
 
 ## Formal messages with no dedicated wire activity

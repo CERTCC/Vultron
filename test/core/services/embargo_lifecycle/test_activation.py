@@ -105,7 +105,6 @@ def test_activate_embargo_prunes_the_proposal_from_both_records(
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.spec("MSM-07-005")
 @pytest.mark.spec("EP-05-003")
-@pytest.mark.spec("MSM-07-019")
 def test_activate_embargo_replacing_a_longer_one_carries_signatories_over(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

@@ -195,7 +195,7 @@ If the activation makes the invitation of an `INVITED` participant stale, that p
 If the owner rejects the revision instead, the old terms stand and nobody's consent changes.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-005", "MSM-07-008", "MSM-07-027", "MSM-07-028", "MSM-07-029", "MSM-07-009", "MSM-07-030", "MSM-07-032", "MSM-07-033", "MSM-07-031", "EP-05-001", "EP-05-003", "MSM-07-005", "MSM-07-021", "MSM-07-022", "MSM-07-023", "MSM-07-024", "MSM-07-019", "MSM-07-020"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-005", "MSM-07-008", "MSM-07-027", "MSM-07-028", "MSM-07-029", "MSM-07-009", "MSM-07-030", "MSM-07-032", "MSM-07-033", "MSM-07-031", "EP-05-001", "EP-05-003", "MSM-07-005", "MSM-07-021", "MSM-07-022", "MSM-07-023", "MSM-07-024", "MSM-07-020"))
 ```
 
 ### 9.4 Deadlines and the Pocket Veto

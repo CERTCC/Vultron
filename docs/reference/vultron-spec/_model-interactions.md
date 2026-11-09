@@ -94,7 +94,7 @@ That lapse is read from its rows and the register ([§9.3 Signatory and Lapsed](
 A participant that has already agreed to the revision is its signatory by lookup.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-18-005", "EP-05-001", "EP-05-003", "MSM-07-005", "MSM-07-021", "MSM-07-022", "MSM-07-023", "MSM-07-024", "MSM-07-019", "MSM-07-020"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-18-005", "EP-05-001", "EP-05-003", "MSM-07-005", "MSM-07-021", "MSM-07-022", "MSM-07-023", "MSM-07-024", "MSM-07-020"))
 ```
 
 **The Case Owner rejects the revision.**

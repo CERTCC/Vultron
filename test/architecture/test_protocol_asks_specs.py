@@ -593,16 +593,100 @@ def test_processing_fault_closes_the_outstanding_ask_it_names() -> None:
 
 @pytest.mark.spec("ASK-07-008")
 def test_a_processing_fault_is_never_recorded_in_the_ledger() -> None:
-    """A processing fault MUST NOT be recorded as a CaseLedgerEntry (ASK-07-008).
+    """A received Create(ProcessingFault) leaves the case ledger unchanged (ASK-07-008).
 
-    A fault reports how a message was handled and changes nothing in the
-    case, so it is not a case event (CLP-02-013).  This placeholder checks
-    only that the fault type exists; #6057 replaces it with a behavioral
-    test at the CASE_MANAGER.
+    A CASE_MANAGER that receives a fault about an activity in a case MUST NOT
+    record the fault as a case event (ASK-07-008, CLP-02-013).  The case
+    already holds two entries, and the fault names the activity the second
+    one records.  Its ``InternalProcessingError`` class has no effect, so
+    intake archives what arrived and the ledger stays as it was.
     """
-    assert _processing_fault() is not None, (
-        "No ProcessingFault type is importable."
+    from test.support.case_manager import make_case_with_case_manager
+    from test.support.ledger import ledger_entries
+    from test.support.received import received_event
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+    from vultron.core.models.case_ledger import HashChainLedgerRecord
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+    from vultron.core.models.events.base import MessageSemantics
+    from vultron.core.models.events.fault import (
+        CreateProcessingFaultReceivedEvent,
     )
+    from vultron.core.models.received_activity_record import (
+        ReceivedActivityRecord,
+    )
+    from vultron.core.models.use_case_result import HandlerDisposition
+    from vultron.core.use_cases.received.fault import (
+        CreateProcessingFaultReceivedUseCase,
+    )
+    from vultron.wire.as2.factories import create_processing_fault_activity
+    from vultron.wire.as2.vocab.objects.processing_fault import (
+        as_ProcessingFault,
+    )
+
+    manager = "https://example.org/actors/case-manager"
+    participant = "https://example.org/actors/participant"
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=manager)
+    try:
+        case = make_case_with_case_manager(dl, manager)
+        case_activities = (
+            (f"{case.id_}/activities/created", MessageSemantics.CREATE_CASE),
+            (
+                f"{case.id_}/activities/noted",
+                MessageSemantics.ADD_NOTE_TO_CASE,
+            ),
+        )
+        prev_hash = case.genesis_hash
+        for log_index, (object_id, semantics) in enumerate(case_activities):
+            entry = _to_persistable_entry(
+                HashChainLedgerRecord(
+                    case_id=case.id_,
+                    log_index=log_index,
+                    object_id=object_id,
+                    semantic_type=semantics.value,
+                    payload_snapshot={"type": "Create", "actor": manager},
+                    prev_log_hash=prev_hash,
+                )
+            )
+            dl.create(entry)
+            prev_hash = entry.entry_hash
+        before = [e.model_dump() for e in ledger_entries(dl, case.id_)]
+        assert len(before) == len(case_activities), before
+
+        activity = create_processing_fault_activity(
+            actor=participant,
+            fault=as_ProcessingFault(
+                failure_class=VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+                in_reply_to=case_activities[-1][0],
+            ),
+            to=[manager],
+        )
+        event = received_event(activity, at=dl)
+        assert isinstance(event, CreateProcessingFaultReceivedEvent)
+        result = CreateProcessingFaultReceivedUseCase(dl, event).execute()
+
+        assert result.disposition is HandlerDisposition.SKIPPED, result
+        # The fault did arrive and was handled: intake archived it.
+        assert isinstance(
+            dl.read(ReceivedActivityRecord.build_id(activity.id_)),
+            ReceivedActivityRecord,
+        )
+        after = [e.model_dump() for e in ledger_entries(dl, case.id_)]
+        assert after == before, (
+            "A received Create(ProcessingFault) changed the case ledger; "
+            "it MUST leave it unchanged (ASK-07-008, CLP-02-013)."
+        )
+        all_entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+        ]
+        assert len(all_entries) == len(before), (
+            "A received Create(ProcessingFault) committed a CaseLedgerEntry "
+            "outside the case it names (ASK-07-008)."
+        )
+    finally:
+        dl.close()
 
 
 @pytest.mark.spec("ASK-07-009")

@@ -775,7 +775,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CM — Case Management | [CM-23-004](../vultron-spec/requirements/case-management.md#cm-23-004), [CM-23-031](../vultron-spec/requirements/case-management.md#cm-23-031), [CM-23-032](../vultron-spec/requirements/case-management.md#cm-23-032) |
-| RMB — Report Management Behavioral Requirements | [RMB-01-005](../vultron-spec/requirements/state-behavior.md#rmb-01-005), [RMB-14-002](../vultron-spec/requirements/state-behavior.md#rmb-14-002) |
+| RMB — Report Management Behavioral Requirements | [RMB-14-002](../vultron-spec/requirements/state-behavior.md#rmb-14-002) |
 | VP — Vultron Protocol | [VP-03-013](../vultron-spec/requirements/vultron-protocol.md#vp-03-013), [VP-05-010](../vultron-spec/requirements/vultron-protocol.md#vp-05-010), [VP-05-012](../vultron-spec/requirements/vultron-protocol.md#vp-05-012) |
 
 ## [story_2022_069](story_2022_069.md)
@@ -2064,7 +2064,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | EP — Embargo Policy | [EP-05-001](../vultron-spec/requirements/state-behavior.md#ep-05-001), [EP-05-002](../vultron-spec/requirements/state-behavior.md#ep-05-002), [EP-05-003](../vultron-spec/requirements/state-behavior.md#ep-05-003), [EP-09-023](../vultron-spec/requirements/state-behavior.md#ep-09-023), [EP-09-024](../vultron-spec/requirements/state-behavior.md#ep-09-024) |
-| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-019](../vultron-spec/requirements/messages.md#msm-07-019), [MSM-07-020](../vultron-spec/requirements/messages.md#msm-07-020), [MSM-07-021](../vultron-spec/requirements/messages.md#msm-07-021), [MSM-07-022](../vultron-spec/requirements/messages.md#msm-07-022), [MSM-07-023](../vultron-spec/requirements/messages.md#msm-07-023), [MSM-07-024](../vultron-spec/requirements/messages.md#msm-07-024) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-020](../vultron-spec/requirements/messages.md#msm-07-020), [MSM-07-021](../vultron-spec/requirements/messages.md#msm-07-021), [MSM-07-022](../vultron-spec/requirements/messages.md#msm-07-022), [MSM-07-023](../vultron-spec/requirements/messages.md#msm-07-023), [MSM-07-024](../vultron-spec/requirements/messages.md#msm-07-024) |
 
 ## [story_2026_090](story_2026_090.md)
 

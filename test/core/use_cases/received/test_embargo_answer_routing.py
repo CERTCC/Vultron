@@ -395,24 +395,112 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
     net.receive(MANAGER, body)
     _deliver_all(net, OWNER)
 
-    # The accepted embargo is a pending revision, not the current one, so the
-    # manager also re-invites (EMB-17-003) and the replica ends re-invited; the
-    # expiry it replayed on the way, the CASE_MANAGER's TIMED_OUT row, is the
-    # entry in its ledger.
+    # The expiry the replica replayed, the CASE_MANAGER's TIMED_OUT row, is
+    # the entry in its ledger.  The accepted revision is still open, so the
+    # late Accept is then honoured (EMB-17-002) and the row ends AGREED.
     expiries = consent_row_updates(
         net.stores[OWNER], net.case_id, EmbargoConsentState.TIMED_OUT
     )
     assert len(expiries) == 1
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
-    # The expired row is the revision's; the re-invite names the embargo in
-    # force, so its INVITED row is a different one.
-    assert replayed.consent_for(revision_id) == EmbargoConsentState.TIMED_OUT
-    current_id = net.case(OWNER).active_embargo_id
-    assert current_id is not None and current_id != revision_id
-    assert replayed.consent_for(current_id) == EmbargoConsentState.INVITED
-    replayed_deadline = replayed.rsvp_deadline_for(current_id)
-    assert replayed_deadline is not None
-    assert replayed_deadline > datetime.now(tz=UTC)
+    assert replayed.consent_for(revision_id) == EmbargoConsentState.AGREED
+
+
+def _seed_bystander_row(
+    net: _Network,
+    bystander_pid: str,
+    embargo_id: str,
+    state: EmbargoConsentState,
+) -> None:
+    """Seed BYSTANDER's *state* row for *embargo_id*, outside the ledger.
+
+    ``INVITED`` carries a passed deadline in the CASE_MANAGER's store only,
+    so the manager's expiry finds it late; every other row is ``UNINVITED``
+    (:func:`_invited_only`).  Any other *state* is the row in every store.
+    """
+    net.bypass_ledger()
+    for actor_id in (MANAGER, OWNER):
+        dl = net.stores[actor_id]
+        participant = cast(CaseParticipant, dl.read(bystander_pid))
+        deadline = (
+            datetime.now(tz=UTC) - timedelta(hours=1)
+            if actor_id == MANAGER
+            else None
+        )
+        rows = _invited_only(participant, embargo_id, deadline)
+        if state is not EmbargoConsentState.INVITED:
+            rows = [
+                EmbargoConsent(embargo_id=embargo_id, state=state)
+                if row.embargo_id == embargo_id
+                else row
+                for row in rows
+            ]
+        dl.save(participant.model_copy(update={"embargo_consents": rows}))
+
+
+@pytest.mark.spec("EMB-17-002")
+@pytest.mark.spec("EMB-17-009")
+@pytest.mark.spec("EMB-17-012")
+@pytest.mark.spec("EMB-17-018")
+@pytest.mark.spec("MSM-07-003")
+@pytest.mark.spec("TB-06-007")
+@pytest.mark.parametrize(
+    "seeded", [EmbargoConsentState.INVITED, EmbargoConsentState.DECLINED]
+)
+def test_a_late_accept_of_an_open_revision_is_honoured(seeded):
+    """A late Accept of a still-open proposal is recorded, not dropped.
+
+    The revision is open (EM ``REVISE``) and not yet activated, so the case
+    can still answer it (MSM-07-003): the CASE_MANAGER commits the received
+    Accept verbatim, its entry carrying the ``AGREED`` row for the revision,
+    reached directly from ``TIMED_OUT`` (the expired Invite) or from
+    ``DECLINED`` (a changed answer), with no further entry for that row and
+    no re-invite (EMB-17-002, EMB-17-009, EMB-17-018).  The accepter binds
+    itself to nothing in force: its row for the Active Embargo is unchanged.
+    """
+    net = _Network(
+        f"https://example.org/cases/answer-honour-open-{seeded.value.lower()}"
+    )
+    revision_id = _propose(net, "open", 90)
+    bystander_pid = net.case(MANAGER).actor_participant_index[BYSTANDER]
+    _replay_to_bystander(net)
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
+    assert body is not None
+    _deliver_all(net, OWNER)
+    _seed_bystander_row(net, bystander_pid, revision_id, seeded)
+    active_id = net.case(MANAGER).active_embargo_id
+    assert active_id is not None and active_id != revision_id
+
+    verdict = net.receive(MANAGER, body)
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
+    _deliver_all(net, OWNER)
+
+    (accept_entry,) = [
+        e
+        for e in _entries(net, MANAGER, _ACCEPT)
+        if e.log_object_id == str(body["id"])
+    ]
+    assert accept_entry.payload_snapshot == body
+    assert (
+        consent_row_updates(
+            net.stores[MANAGER],
+            net.case_id,
+            EmbargoConsentState.AGREED,
+            BYSTANDER,
+        )
+        == []
+    )
+    assert _invites_of(net, MANAGER, BYSTANDER, active_id) == []
+    for actor_id in (MANAGER, OWNER):
+        record = cast(
+            CaseParticipant, net.stores[actor_id].read(bystander_pid)
+        )
+        assert record.consent_for(revision_id) == EmbargoConsentState.AGREED
+        assert record.consent_for(active_id) == EmbargoConsentState.UNINVITED
+        assert not record.is_signatory(active_id), actor_id
+    assert net.case(MANAGER).proposed_embargo_ids == [revision_id]
 
 
 @pytest.mark.spec("EMB-17-003")
@@ -426,9 +514,11 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
 @pytest.mark.spec("EMB-17-013")
 @pytest.mark.spec("EMB-17-014")
 def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
-    """A late Accept of a stale embargo is re-invited; a replica learns it.
+    """A late Accept of a rejected embargo is re-invited; a replica learns it.
 
-    The re-invite is a relay (ADR-0152): the manager commits the fresh
+    The owner rejected the accepted revision, so the case can no longer
+    answer it and the accepter is asked about the Active Embargo instead
+    (EMB-17-003).  The re-invite is a relay (ADR-0152): the manager commits the fresh
     Invite as ``invite_to_embargo_on_case``, ``attributedTo`` the embargo's
     proposer, which for this case's creation-time embargo is the manager
     itself.  The replica, replaying it through the relay slot, moves the
@@ -443,6 +533,8 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
     body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
     assert body is not None
+    rejected = _owner_decides(net, revision_id, accept=False)
+    assert rejected.disposition is HandlerDisposition.APPLIED, rejected.reason
     # The rows are seeded outside the ledger, so no rebuild reaches them.
     net.bypass_ledger()
     for actor_id in (MANAGER, OWNER):
@@ -470,7 +562,8 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     em_before = before.current_status.em.state
     proposals_before = list(before.proposed_embargo_ids)
     active_before = before.active_embargo_id
-    assert em_before == EM.REVISE
+    assert em_before == EM.ACTIVE
+    assert proposals_before == []
     assert active_before is not None
     assert _invites_of(net, MANAGER, BYSTANDER, active_before) == []
 
@@ -485,9 +578,10 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
         CaseParticipant, net.stores[MANAGER].read(bystander_pid)
     )
     assert active_before is not None
+    # The rejected revision's row is final: the stale Accept moves nothing
+    # (EMB-17-005, ADR-0122).
     assert (
-        manager_record.consent_for(revision_id)
-        == EmbargoConsentState.TIMED_OUT
+        manager_record.consent_for(revision_id) == EmbargoConsentState.INVITED
     )
     assert (
         manager_record.consent_for(active_before)
@@ -513,7 +607,7 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     # The replica's own store (TB-06-007): same consent and deadline, no EM move.
     assert len(_invites_of(net, OWNER, BYSTANDER, active_before)) == 1
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
-    assert replayed.consent_for(revision_id) == EmbargoConsentState.TIMED_OUT
+    assert replayed.consent_for(revision_id) == EmbargoConsentState.INVITED
     assert replayed.consent_for(active_before) == EmbargoConsentState.INVITED
     assert replayed.rsvp_deadline_for(active_before) == manager_deadline
     # The entry replays as a re-invite, never as a second proposal of the
