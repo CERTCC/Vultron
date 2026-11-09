@@ -20,9 +20,9 @@ related_specs:
 
 ADR-0185 decides that the one minter, `new_object_id` (OID-01-004), draws from an
 id-source port, and that a run needing repeatable ids installs its source for a
-block (OID-01-011). The minter draws from the port, but two runs still patch
-`uuid.uuid4` process-wide. This note holds the order of the remaining work and
-the rules each slice keeps.
+block (OID-01-011, OID-01-012). The minter draws from the port, but two runs
+still patch `uuid.uuid4` process-wide. This note holds the order of the
+remaining work and the rules each slice keeps.
 
 A run installs its source with `install_id_source(source)`, a context manager in
 `vultron.core.models._helpers`. The source is any callable that returns a

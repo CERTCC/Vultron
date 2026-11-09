@@ -18,9 +18,9 @@
 The minter, :func:`new_object_id`, draws each UUID from the installed id
 source (OID-01-011, ADR-0185).  The installed source is
 :func:`system_id_source` until a run that needs repeatable ids replaces it for
-a block with :func:`install_id_source`.  Nothing else replaces the draw: a
-patch of the ``uuid`` module's draw reaches every library that draws from it,
-py_trees included.
+a block with :func:`install_id_source`.  Nothing else replaces the draw
+(OID-01-012): a patch of the ``uuid`` module's draw reaches every library that
+draws from it, py_trees included.
 
 The port lives here, beside the minter, and not in ``vultron.core.ports``,
 because the wire layer's docs-example generator supplies a source and the wire
@@ -58,7 +58,7 @@ def system_id_source() -> uuid.UUID:
     """Return a fresh random version-4 UUID: the system id source.
 
     The one function in ``vultron/`` that draws a random UUID for an object id
-    (OID-01-004, OID-01-011), and the source every run uses unless it installs
+    (OID-01-004, OID-01-012), and the source every run uses unless it installs
     another with :func:`install_id_source`.
     """
     return uuid.uuid4()
