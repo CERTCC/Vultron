@@ -265,7 +265,10 @@ class InProcessObjectFetcher:
             return ObjectFetchResult(
                 None, f"GET {url} answered HTTP {response.status_code}", 1
             )
-        body = response.json()
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
         if not isinstance(body, dict):
             return ObjectFetchResult(
                 None, f"GET {url} answered with no JSON object", 1

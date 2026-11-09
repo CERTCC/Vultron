@@ -33,13 +33,16 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request, status
+from starlette.concurrency import run_in_threadpool
 
 from vultron.adapters.driven.actor_hosts import (
     ACTORS_SEGMENT as _ACTORS_SEGMENT,
+    canonical_actor_uri,
 )
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
     get_actor_profile_fetcher,
+    node_base_url,
 )
 from vultron.adapters.driving.fastapi.errors import (
     inbox_body_http_exception,
@@ -56,6 +59,7 @@ from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import CoreActor
 from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.proof_verification import ProofVerificationPort
 from vultron.errors import VultronProofVerificationError
 from vultron.wire.as2.errors import (
     VultronParseError,
@@ -81,11 +85,31 @@ class VerifiedDelivery:
     receiver: CoreActor
 
 
-async def verified_delivery(
+def get_proof_verifier(
     actor_id: str,
     request: Request,
     dl: DataLayer = Depends(get_actor_dl),
     fetcher: ActorProfileFetchPort = Depends(get_actor_profile_fetcher),
+) -> ProofVerificationPort:
+    """FastAPI dependency: the verification stage's port.
+
+    The real stage, :class:`ProfileKeyProofVerifier`, over the addressed
+    actor's store and the app's profile fetch.  The receiver it names on a
+    fetch is the canonical URI of the path segment, as ``get_actor_dl``
+    computes it.  A test that is not about verification may override this
+    seam with ``test.support.signing.AcceptingProofVerifier``.
+    """
+    receiver_id = canonical_actor_uri(
+        actor_id, base_url=node_base_url(request)
+    )
+    return ProfileKeyProofVerifier(dl, fetcher, receiver_id)
+
+
+async def verified_delivery(
+    actor_id: str,
+    request: Request,
+    dl: DataLayer = Depends(get_actor_dl),
+    verifier: ProofVerificationPort = Depends(get_proof_verifier),
 ) -> VerifiedDelivery:
     """FastAPI dependency: the inbox's decode and verification stage.
 
@@ -94,9 +118,8 @@ async def verified_delivery(
     is found first, so a post to an actor this node does not host is
     answered 404 with no key lookup.  The raw body is decoded with
     :func:`~vultron.adapters.driving.fastapi.inbox_verification.decode_inbox_body`
-    and every proof it needs is checked by
-    :class:`~vultron.adapters.driving.fastapi.inbox_verification.ProfileKeyProofVerifier`
-    (SIG-02-001, SIG-04-002).
+    and every proof it needs is checked by the verifier
+    (:func:`get_proof_verifier`, SIG-02-001, SIG-04-002).
 
     Raises:
         HTTPException: 404 for an actor this node does not host; 400 for a
@@ -105,11 +128,12 @@ async def verified_delivery(
             that is missing or does not verify, or whose key cannot be read
             (SIG-03-002, EH-03-005).
     """
-    receiver = _resolve_actor_or_404(actor_id, dl)
+    # Store reads and the JSON decode are blocking work: off the event loop.
+    receiver = await run_in_threadpool(_resolve_actor_or_404, actor_id, dl)
     raw = await request.body()
     try:
-        body = decode_inbox_body(raw)
-        await ProfileKeyProofVerifier(dl, fetcher, receiver.id_).verify(body)
+        body = await run_in_threadpool(decode_inbox_body, raw)
+        await verifier.verify(body)
     except VultronUnsignableJsonError as exc:
         logger.warning(
             "Refusing a delivery to actor_id=%s: its body cannot be read"

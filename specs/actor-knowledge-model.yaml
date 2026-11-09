@@ -530,9 +530,9 @@ groups:
       (CM-10-004). A participant's replica is not the case host, so only the
       CASE_MANAGER serves the read.
     note: >-
-      The requester is not authenticated: the prototype trusts the header as its inbox
-      trusts the actor an activity claims to be. Actor authentication (#509) replaces
-      that trust.
+      The requester is not authenticated: a fetch request carries no proof, unlike a
+      delivery, whose proof the inbox verifies (SIG-03-002). Request signatures
+      (#1184) replace that trust.
     verification: >-
       `test/adapters/driving/fastapi/routers/test_case_object_route.py` checks a
       participant gets an object the case names as an ActivityStreams document, and

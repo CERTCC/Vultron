@@ -95,7 +95,8 @@ class VultronNotACaseParticipantError(VultronError):
 
     The case host serves a case's objects only to the case's active
     participants (AKM-05-006, CM-10-004).  The requester is the actor the
-    request claims to be: the prototype authenticates nobody (#509).
+    request claims to be: a fetch request carries no proof, so the prototype
+    does not authenticate it (request signatures are #1184).
     """
 
     def __init__(self, case_id: str, actor_id: str):
@@ -222,9 +223,9 @@ class VultronProofVerificationError(VultronError):
     ``ProofVerificationError`` as the error name, the answer the inbox gives
     to a delivery whose proof fails (SIG-03-002).  The proof is part of the
     content, not an HTTP credential, so 401 (which asks for a
-    ``WWW-Authenticate`` challenge) does not fit.  403 does not arise at the inbox either: a verified sender's
-    entitlement is decided in core and answered with a ``Reject`` (HP-01-006,
-    HP-01-007).  The distinct name keeps a failed proof apart from a field
+    ``WWW-Authenticate`` challenge) does not fit.  403 does not arise at the
+    inbox either: a verified sender's entitlement is decided in core and
+    answered with a ``Reject`` (HP-01-006, HP-01-007).  The distinct name keeps a failed proof apart from a field
     error (:exc:`VultronValidationError`) for senders and in logs.  The
     authorization half of EH-03-005 is :exc:`VultronNotACaseParticipantError`.
 

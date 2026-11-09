@@ -140,12 +140,72 @@ def test_the_managers_own_snapshot_is_covered_by_the_outer_proof():
 
 @pytest.mark.spec("SIG-04-002")
 def test_a_snapshot_naming_no_actor_is_covered_by_the_outer_proof():
+    """SIG-04-002 asks for an author's proof only when one is named."""
     fetcher = PublishedProfileFetcher([MANAGER])
     snapshot = {k: v for k, v in _note().items() if k != "actor"}
 
     _verify(_announce(snapshot), fetcher=fetcher)
 
     assert fetcher.asked == [MANAGER]
+
+
+@pytest.mark.spec("SIG-04-002")
+def test_an_empty_snapshot_is_covered_by_the_outer_proof():
+    fetcher = PublishedProfileFetcher([MANAGER])
+
+    _verify(_announce({}), fetcher=fetcher)
+
+    assert fetcher.asked == [MANAGER]
+
+
+@pytest.mark.spec("SIG-04-002")
+@pytest.mark.parametrize(
+    ("object_key", "snapshot_key", "type_key"),
+    [
+        ("object_", "payloadSnapshot", "type"),
+        ("object", "payload_snapshot", "type"),
+        ("object_", "payload_snapshot", "type_"),
+    ],
+    ids=["object-field-name", "snapshot-field-name", "all-field-names"],
+)
+def test_a_snapshot_spelled_by_its_field_name_is_checked_too(
+    object_key: str, snapshot_key: str, type_key: str
+):
+    """The parser reads a field by its name too, so the stage does."""
+    announce = signed_body(
+        {
+            "type": "Announce",
+            "id": "https://manager.example/announces/1",
+            "actor": MANAGER,
+            object_key: {
+                type_key: "CaseLedgerEntry",
+                "id": "https://manager.example/entries/1",
+                snapshot_key: _note(),
+            },
+        }
+    )
+
+    with pytest.raises(VultronProofVerificationError, match="payloadSnapshot"):
+        _verify(announce)
+
+
+@pytest.mark.spec("SIG-04-002")
+def test_a_snapshot_that_is_not_an_object_is_refused():
+    announce = signed_body(
+        {
+            "type": "Announce",
+            "id": "https://manager.example/announces/1",
+            "actor": MANAGER,
+            "object": {
+                "type": "CaseLedgerEntry",
+                "id": "https://manager.example/entries/1",
+                "payloadSnapshot": "not an object",
+            },
+        }
+    )
+
+    with pytest.raises(VultronProofInvalidError, match="not a JSON object"):
+        _verify(announce)
 
 
 @pytest.mark.spec("SIG-04-002")

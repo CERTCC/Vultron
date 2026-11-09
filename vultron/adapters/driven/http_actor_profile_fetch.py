@@ -33,6 +33,7 @@ refusal saying the actor published no key would mislead.
 from __future__ import annotations
 
 import ipaddress
+import socket
 from urllib.parse import urlsplit
 
 from vultron.adapters.driven.http_object_fetch import (
@@ -68,7 +69,8 @@ def check_profile_fetch_target(actor_id: str) -> None:
     fetched: no user info, query or fragment, and no host that is an IP
     literal outside the public address space (loopback, private,
     link-local such as a cloud metadata address, multicast, reserved or
-    unspecified).  A host name is fetched: the multi-container demos name
+    unspecified), in any spelling a resolver reads as an address, an IPv4
+    address embedded in an IPv6 one included.  A host name is fetched: the multi-container demos name
     their peers by internal host names, and resolving a name to check it
     here would not bind the address the client then connects to.  A
     production allow-list or key cache is #1184.
@@ -91,15 +93,52 @@ def check_profile_fetch_target(actor_id: str) -> None:
             f"{actor_id!r} carries a query or fragment, which a profile URL"
             " may not"
         )
-    try:
-        address = ipaddress.ip_address(parts.hostname)
-    except ValueError:
-        return
-    if not address.is_global:
+    address = _host_address(parts.hostname.rstrip("."))
+    if address is not None and not _is_public(address):
         raise VultronActorProfileFetchError(
             f"{actor_id!r} names a non-public address, which a profile is"
             " not fetched from"
         )
+
+
+#: IPv6 prefixes that carry an IPv4 address in their last 32 bits (NAT64).
+_NAT64_PREFIXES = (
+    ipaddress.ip_network("64:ff9b::/96"),
+    ipaddress.ip_network("64:ff9b:1::/48"),
+)
+
+
+def _host_address(
+    host: str,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """The IP address *host* spells, in any form a resolver reads, or ``None``.
+
+    Besides the canonical forms, the C resolver reads a legacy IPv4 spelling
+    (``2852039166``, ``0xa9fea9fe``, ``0251.0376.0251.0376``, ``169.254.43518``)
+    as an address, so those are read here the way ``inet_aton`` reads them.
+    """
+    try:
+        return ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    try:
+        return ipaddress.IPv4Address(socket.inet_aton(host))
+    except OSError:
+        return None
+
+
+def _is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Whether *address*, and any IPv4 address it embeds, is public."""
+    if not address.is_global:
+        return False
+    if isinstance(address, ipaddress.IPv6Address):
+        embedded = [address.ipv4_mapped, address.sixtofour]
+        if address.teredo is not None:
+            embedded.extend(address.teredo)
+        if any(address in prefix for prefix in _NAT64_PREFIXES):
+            embedded.append(ipaddress.IPv4Address(int(address) & 0xFFFFFFFF))
+        return all(v4.is_global for v4 in embedded if v4 is not None)
+    return True
 
 
 def verification_object_fetcher() -> HttpObjectFetcher:

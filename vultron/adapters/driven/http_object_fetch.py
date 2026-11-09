@@ -24,8 +24,9 @@ One ``GET`` per attempt, to the object's source
 - an actor's profile, from ``{actor}/profile`` (AR-10-001).
 
 The request names the fetching actor in the :data:`REQUESTER_HEADER` header.
-That is a claim, not a proof: the prototype authenticates nobody, and the
-case host trusts the claim as its inbox trusts a claimed sender (#509).
+That is a claim, not a proof: unlike a delivery, whose proof the inbox
+verifies (SIG-03-002), a fetch request carries none, and the case host trusts
+the claim (request signatures are #1184).
 
 Attempts are bounded and back off exponentially; a 4xx answer ends the fetch
 at once, since the same request will never succeed (AKM-05-008, OX-13-005).

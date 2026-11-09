@@ -25,8 +25,8 @@ signs it here, never by hand:
 - :func:`post_delivered` posts a body that is already signed, such as one
   from ``delivered_body``, unchanged, and checks the inbox accepts it.
 - :class:`AcceptingProofVerifier` stands in for the inbox's verification
-  stage (:class:`~vultron.core.ports.proof_verification.ProofVerificationPort`)
-  in a test that replaces the ingress with a stub.
+  stage (:class:`~vultron.core.ports.proof_verification.ProofVerificationPort`),
+  through the route's ``get_proof_verifier`` dependency.
 - :class:`PublishedProfileFetcher` answers a receiving app's profile fetch
   for each named author, as that author's own profile route would, so the
   inbox's verification stage finds the key that verifies the author's proof
@@ -145,9 +145,9 @@ class AcceptingProofVerifier:
 
     Conforms to
     :class:`~vultron.core.ports.proof_verification.ProofVerificationPort`,
-    the inbox's verification stage, for a test that replaces the ingress
-    with a stub (as ``test/core/behaviors/inbox/test_process_payload.py``
-    does, posting ``{}``), so no body reaches a real verifier.
+    the inbox's verification stage, for a test that is not about
+    verification: override the route's ``get_proof_verifier`` dependency
+    with it, and every body reaches the parser.
     :attr:`verified` lists the documents it was asked to verify, so a test
     can show the stage ran.  It never derives or reads a key (SIG-05-002).
     """

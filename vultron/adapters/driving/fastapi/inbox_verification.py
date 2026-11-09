@@ -38,6 +38,8 @@ import logging
 from collections.abc import Mapping
 from typing import Any, cast
 
+from starlette.concurrency import run_in_threadpool
+
 from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
@@ -57,6 +59,7 @@ from vultron.wire.as2.errors import (
     VultronRefusedJsonError,
     VultronUnsignableJsonError,
 )
+from vultron.wire.as2.unknown_keys import normalise
 
 logger = logging.getLogger(__name__)
 
@@ -110,17 +113,49 @@ def _author(document: Mapping[str, Any], what: str) -> str:
         ) from exc
 
 
-def _ledger_snapshot(document: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    """The ``payloadSnapshot`` an ``Announce(CaseLedgerEntry)`` carries."""
-    if document.get("type") != "Announce":
-        return None
-    entry = document.get("object")
-    if not isinstance(entry, Mapping):
-        return None
-    if entry.get("type") != _LEDGER_ENTRY_TYPE:
-        return None
-    snapshot = entry.get("payloadSnapshot")
-    return snapshot if isinstance(snapshot, Mapping) else None
+def _spelled(document: Mapping[str, Any], name: str) -> list[Any]:
+    """Every value *document* holds under a spelling of the field *name*.
+
+    The parser reads a field by its alias and by its field name (CS-14-001),
+    such as ``object`` and ``object_``, or ``payloadSnapshot`` and
+    ``payload_snapshot``, and refuses other near misses (MV-11-002).  So the
+    stage reads every key that normalises to *name*, as the near-miss test
+    does: a check that read only the alias could be stepped around by the
+    field name the parser accepts in its place.
+    """
+    target = normalise(name)
+    return [
+        value for key, value in document.items() if normalise(key) == target
+    ]
+
+
+def _has_type(document: Mapping[str, Any], type_name: str) -> bool:
+    return type_name in _spelled(document, "type")
+
+
+def _ledger_snapshots(document: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """The snapshots an ``Announce(CaseLedgerEntry)`` carries, by any spelling.
+
+    Raises:
+        VultronProofInvalidError: A snapshot is not a JSON object, so no
+            author's proof on it can be read.
+    """
+    if not _has_type(document, "Announce"):
+        return []
+    snapshots: list[Mapping[str, Any]] = []
+    for entry in _spelled(document, "object"):
+        if not isinstance(entry, Mapping) or not _has_type(
+            entry, _LEDGER_ENTRY_TYPE
+        ):
+            continue
+        for snapshot in _spelled(entry, "payloadSnapshot"):
+            if not isinstance(snapshot, Mapping):
+                raise VultronProofInvalidError(
+                    "the ledger entry's payloadSnapshot is not a JSON object,"
+                    " so its author's proof cannot be read (SIG-04-002)"
+                )
+            snapshots.append(snapshot)
+    return snapshots
 
 
 class ProfileKeyProofVerifier:
@@ -150,7 +185,8 @@ class ProfileKeyProofVerifier:
         ``Announce(CaseLedgerEntry)`` whose snapshot names another actor
         also needs that author's proof on the snapshot (SIG-04-002); a
         snapshot naming the same actor, or none, is covered by the outer
-        proof, which signs every nested object (SIG-01-003).
+        proof, which signs every nested object (SIG-01-003).  The entry and
+        its snapshot are found under every spelling the parser accepts.
 
         Raises:
             VultronProofVerificationError: A proof is missing or does not
@@ -161,11 +197,29 @@ class ProfileKeyProofVerifier:
         """
         author = _author(document, "activity")
         await self._verify_as(document, author)
-        snapshot = _ledger_snapshot(document)
-        if snapshot is None or snapshot.get("actor") is None:
+        for snapshot in _ledger_snapshots(document):
+            await self._verify_snapshot(snapshot, author)
+
+    async def _verify_snapshot(
+        self, snapshot: Mapping[str, Any], relay_author: str
+    ) -> None:
+        """Verify a relayed snapshot's author's proof, unless it is the relay's.
+
+        A snapshot naming the relay's own actor is the CASE_MANAGER's own
+        act, and one naming no actor attributes its content to nobody: the
+        outer proof covers both (SIG-01-003), since SIG-04-002 asks for an
+        author's proof only when the snapshot's ``actor`` is another actor.
+        Ledger entries whose snapshot names no actor do occur (a snapshot of
+        an object, not an activity), so refusing them would refuse genuine
+        relays.  A blank ``actor`` is refused: it names an author no key can
+        be read for.
+        """
+        if snapshot.get("actor") is None:
             return
         snapshot_author = _author(snapshot, "payloadSnapshot")
-        if normalise_actor_id(snapshot_author) == normalise_actor_id(author):
+        if normalise_actor_id(snapshot_author) == normalise_actor_id(
+            relay_author
+        ):
             return
         try:
             await self._verify_as(snapshot, snapshot_author)
@@ -189,7 +243,11 @@ class ProfileKeyProofVerifier:
             requester_id=self._receiver_id,
         )
         try:
-            signing.verify(document, key.public_key_multibase)
+            # Canonicalizing and checking a large body is CPU work: off the
+            # event loop, so the server keeps answering (IE-06-002).
+            await run_in_threadpool(
+                signing.verify, document, key.public_key_multibase
+            )
         except VultronMultikeyError as exc:
             # The author published a key no proof can be checked against:
             # the key cannot be read, as when no profile lists it.

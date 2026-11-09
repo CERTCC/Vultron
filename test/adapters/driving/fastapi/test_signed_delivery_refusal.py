@@ -35,12 +35,19 @@ from test.core.use_cases.received._ledger_network import (
     LedgerNetwork,
 )
 from test.support.ledger import ledger_entries
-from test.support.signing import resigned, serve_published_profiles
+from test.support.signing import (
+    AcceptingProofVerifier,
+    resigned,
+    serve_published_profiles,
+)
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import ACTOR_PROFILE_FETCHER_STATE
+from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+    get_proof_verifier,
+)
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.multikey import Multikey
 from vultron.wire.as2 import signing
@@ -282,3 +289,28 @@ def test_a_post_to_an_actor_this_node_does_not_host_fetches_no_key():
 
     assert response.status_code == 404, response.text
     assert fetcher.asked == []
+
+
+@pytest.mark.spec("SIG-03-003")
+def test_the_stage_sees_the_body_as_received_before_the_parser(
+    served_manager: tuple[TestClient, LedgerNetwork],
+):
+    """The verifier port gets the decoded body, proof included, first.
+
+    With the stage replaced by the accepting stand-in, a schema fault is
+    the parser's to refuse, after the stage has seen the body.
+    """
+    client, net = served_manager
+    verifier = AcceptingProofVerifier()
+    cast(Any, client.app).dependency_overrides[get_proof_verifier] = lambda: (
+        verifier
+    )
+    body = _owner_note(net, "https://example.org/notes/seen-first")
+    body["published"] = "not a timestamp"
+
+    response = client.post(_INBOX, json=body)
+
+    assert response.status_code == 422, response.text
+    assert "published" in response.text
+    assert verifier.verified == [body]
+    assert "proof" in verifier.verified[0]

@@ -144,17 +144,20 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
 - **Verify as its own ingress stage**, after the body-size, media-type and
   JSON-shape checks and before the parser (SIG-03-003): the inbox route's
   `verified_delivery` dependency (`routers/actors/_inbox.py`) decodes the raw
-  body with `signing.load_json` and runs `ProfileKeyProofVerifier`
-  (`inbox_verification.py`, `ProofVerificationPort`). Never verify in
+  body with `signing.load_json` and runs the `get_proof_verifier` port
+  (`ProfileKeyProofVerifier` in `inbox_verification.py`). Never verify in
   semantic extraction or in core. The route hands the background task the
   verified body, and `FastAPIIngressAdapter.parse` takes only a body, never a
   parsed activity, which carries no proof.
-- **A replica's check is the same stage** (SIG-04-002). An
-  `Announce(CaseLedgerEntry)` whose `payloadSnapshot` names an actor other than
-  the `Announce`'s needs that author's proof on the snapshot too; either
-  failure refuses the whole delivery. It reads the body as received, since no
-  parsed copy keeps a proof. Whether the `Announce`'s actor is the
-  CASE_MANAGER stays core's check.
+- **A replica's check is the same stage** (SIG-04-002). An `Announce(CaseLedgerEntry)`
+  whose `payloadSnapshot` names an actor other than the `Announce`'s needs that author's
+  proof on the snapshot too; either failure refuses the whole delivery. Find the entry
+  and snapshot under every spelling the parser reads (`object_`, `payload_snapshot`,
+  `type_`): a check that reads only the alias is stepped around by the field name. A
+  snapshot naming no actor rests on the outer proof: genuine entries carry such
+  snapshots, so refusing them refuses real relays. It reads the body as received, since
+  no parsed copy keeps a proof. Whether the `Announce`'s actor is the CASE_MANAGER stays
+  core's check.
 - **The inbox answers a body it cannot read by RFC 9110's split.** Text that
   is not RFC 8259 JSON (`VultronJsonSyntaxError`: not JSON, not UTF-8, `NaN`,
   `Infinity`) is 400; well-formed JSON it refuses (`VultronRefusedJsonError`:
@@ -213,15 +216,16 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   discovery records a bare id, and the resolver stores no fetch. A path that
   starts storing peer keys must take them only from the actor's own profile;
   what may replace a held key is #1184's rotation question.
-- **A key lookup runs before the sender is verified**, so an unsigned or
-  forged delivery chooses the URL the receiver fetches. Keep it bounded:
+- **A key lookup runs before the sender is verified**, so an unsigned or forged delivery
+  chooses the URL the receiver fetches. Keep it bounded:
   `deps.get_actor_profile_fetcher` makes one attempt with a short timeout
   (`verification_key_fetch_timeout_seconds`, no AKM-05-008 retries), and
-  `check_profile_fetch_target` admits only an `http`/`https` URL with no user
-  info, query or fragment and no non-public IP literal. Host names pass: the
-  Docker demos name peers by internal names. An allow-list or key cache is
-  #1184. The addressed actor is found first, so a post to an actor the node
-  does not host fetches nothing.
+  `check_profile_fetch_target` admits only an `http`/`https` URL with no user info,
+  query or fragment and no non-public IP literal, read in every spelling the resolver
+  reads (`inet_aton` forms, a trailing dot, IPv4 inside IPv6). Host names pass: the
+  Docker demos name peers by internal names. An allow-list or key cache is #1184. The
+  addressed actor is found first, so a post to an actor the node does not host fetches
+  nothing.
 - **Actor ids are compared normalised** (OID-01-006): the key's actor, the
   profile id and the `controller`, each without a trailing slash. A held copy
   stored under a slashed id is missed by the read and found by the fetch.

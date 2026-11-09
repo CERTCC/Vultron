@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.testclient import TestClient
 
 from vultron.core.models.object_fetch import (
@@ -51,7 +51,9 @@ def served() -> Iterator[tuple[InProcessRouter, dict[str, Any]]]:
     app = FastAPI()
 
     @app.get("/api/v2/actors/author/profile")
-    def _profile() -> JSONResponse:
+    def _profile() -> Response:
+        if answer.get("text") is not None:
+            return Response(answer["text"], media_type="text/plain")
         return JSONResponse(answer["body"], status_code=answer["status"])
 
     router = InProcessRouter()
@@ -102,3 +104,24 @@ def test_a_body_that_is_not_an_object_is_a_failed_fetch(served):
 
     assert result.body is None
     assert "no JSON object" in result.failure
+
+
+def test_a_body_that_is_not_json_is_a_failed_fetch(served):
+    router, answer = served
+    answer["text"] = "not json"
+
+    result = _fetch(router)
+
+    assert result.body is None
+    assert "no JSON object" in result.failure
+
+
+def test_a_client_whose_app_is_not_running_is_a_failed_fetch():
+    """A client registered but not entered has no portal to serve from."""
+    router = InProcessRouter()
+    router.register(BASE, TestClient(FastAPI(), base_url=BASE))
+
+    result = _fetch(router)
+
+    assert result.body is None
+    assert "no in-process app serves" in result.failure
