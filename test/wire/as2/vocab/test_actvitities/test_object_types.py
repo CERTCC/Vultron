@@ -361,6 +361,13 @@ class TestEmProposeEmbargoActivity:
         )
 
 
+#: An owner decision names the proposal's Invite (RF-08-003, ADR-0180), so
+#: each object-type check supplies one and refuses only on the object.
+_OWNER_DECISION_FIELDS = {
+    "in_reply_to": "urn:uuid:case-123/embargo_proposals/1"
+}
+
+
 class TestActivateEmbargoActivity:
     from vultron.wire.as2.vocab.activities.embargo import (
         _ActivateEmbargoActivity,
@@ -369,10 +376,10 @@ class TestActivateEmbargoActivity:
     cls = _ActivateEmbargoActivity
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **_OWNER_DECISION_FIELDS)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **_OWNER_DECISION_FIELDS)
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
@@ -380,6 +387,7 @@ class TestActivateEmbargoActivity:
             as_EmbargoEvent(
                 context="urn:uuid:case-123", end_time=days_from_now_utc(45)
             ),
+            **_OWNER_DECISION_FIELDS,
         )
 
 
@@ -391,10 +399,10 @@ class TestRejectEmbargoProposalActivity:
     cls = _RejectEmbargoProposalActivity
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **_OWNER_DECISION_FIELDS)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **_OWNER_DECISION_FIELDS)
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
@@ -402,6 +410,7 @@ class TestRejectEmbargoProposalActivity:
             as_EmbargoEvent(
                 context="urn:uuid:case-123", end_time=days_from_now_utc(45)
             ),
+            **_OWNER_DECISION_FIELDS,
         )
 
 

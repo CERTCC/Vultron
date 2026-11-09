@@ -130,13 +130,23 @@ def deliver_relayed_invite(
     case: VulnerabilityCase,
     embargo: as_EmbargoEvent,
     make_payload: Any,
+    *,
+    invite_id: str | None = None,
 ) -> HandlerResult:
-    """Deliver ``COORD``'s relayed ``Invite(EmbargoEvent)`` to ``INVITEE``."""
+    """Deliver ``COORD``'s relayed ``Invite(EmbargoEvent)`` to ``INVITEE``.
+
+    *invite_id*, when given, is the Invite's id; otherwise the factory mints
+    one.
+    """
+    optional: dict[str, Any] = (
+        {"id_": invite_id} if invite_id is not None else {}
+    )
     invite = em_propose_embargo_activity(
         embargo=embargo,
         context=case.id_,
         actor=COORD,
         to=[INVITEE],
+        **optional,
     )
     return InviteToEmbargoOnCaseReceivedUseCase(
         dl,
@@ -148,13 +158,17 @@ def deliver_relayed_invite(
 
 
 def answers_in_outbox(dl: SqliteDataLayer, actor_id: str) -> list[str]:
-    """Types of the Accept/Reject answers *actor_id* queued to the manager."""
+    """Types of the answers and decisions *actor_id* queued to the manager.
+
+    An invitee answers with ``Accept`` or ``Reject``; a case owner decides
+    with ``Add`` (activation, ADR-0180) or ``Reject``.
+    """
     answers = []
     for activity_id in dl.outbox_list():
         activity = dl.read(activity_id)
         type_ = getattr(activity, "type_", None)
         if (
-            type_ in ("Accept", "Reject")
+            type_ in ("Accept", "Add", "Reject")
             and getattr(activity, "actor", None) == actor_id
         ):
             assert getattr(activity, "to", None) == [COORD]

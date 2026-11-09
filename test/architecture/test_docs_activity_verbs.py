@@ -183,7 +183,7 @@ _EXPECTED_QUALIFIER = MappingProxyType(
     }
 )
 
-#: A wire line's trailing bracketed qualifier, ``Accept(EmbargoEvent)`` then
+#: A wire line's trailing bracketed qualifier, ``Add(EmbargoEvent)`` then
 #: ``[target=VulnerabilityCase]`` (Wire Activity notation, Annex C).  Only the
 #: group after the last ``)`` is a qualifier, so ``_render_as2_form``'s bare
 #: form is what the first group holds.

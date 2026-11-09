@@ -40,6 +40,7 @@ from pydantic import BaseModel
 
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.failed_teardown import fail_pxa_teardown
+from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -203,7 +204,7 @@ def _set_rm(net: LedgerNetwork, member: str, rm: RM) -> None:
 @pytest.mark.spec("EMB-18-001")
 @pytest.mark.spec("TB-06-007")
 def test_a_replica_follows_the_owners_embargo_activation():
-    """Accept(EmbargoEvent): PROPOSED → ACTIVE in the manager's store and the bystander's.
+    """Add(EmbargoEvent): PROPOSED → ACTIVE in the manager's store and the bystander's.
 
     The activation is the owner's agreement too (ADR-0122), so the owner's
     row is AGREED in both stores.
@@ -216,7 +217,11 @@ def test_a_replica_follows_the_owners_embargo_activation():
     _send(
         net,
         activate_embargo_activity(
-            _embargo(net), target=net.case_id, actor=OWNER, to=[MANAGER]
+            _embargo(net),
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
         ),
     )
 
@@ -243,7 +248,11 @@ def test_a_replica_follows_the_owners_rejection_of_a_proposal():
     _send(
         net,
         reject_embargo_proposal_activity(
-            _embargo(net), target=net.case_id, actor=OWNER, to=[MANAGER]
+            _embargo(net),
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
         ),
     )
 
@@ -303,6 +312,7 @@ def _propose_revision_everywhere(
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.spec("MSM-07-005")
 @pytest.mark.spec("MSM-07-024")
+@pytest.mark.spec("EMB-05-001")
 def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
     """The owner activates a shorter revision; the bystander, a signatory of
     the embargo it replaces, is carried over in both stores."""
@@ -312,7 +322,11 @@ def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
     _send(
         net,
         activate_embargo_activity(
-            revision, target=net.case_id, actor=OWNER, to=[MANAGER]
+            revision,
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
         ),
     )
 
@@ -352,7 +366,11 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure(
     _send(
         net,
         reject_embargo_proposal_activity(
-            revision, target=net.case_id, actor=OWNER, to=[MANAGER]
+            revision,
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
         ),
     )
 
@@ -409,7 +427,11 @@ def test_a_refused_termination_commits_neither_entry(monkeypatch):
 
     monkeypatch.setattr(termination_commit, "decide_termination", _refuse)
     reject = reject_embargo_proposal_activity(
-        revision, target=net.case_id, actor=OWNER, to=[MANAGER]
+        revision,
+        in_reply_to=SEEDED_PROPOSAL_ID,
+        target=net.case_id,
+        actor=OWNER,
+        to=[MANAGER],
     )
     verdict = net.receive(MANAGER, json.loads(dump_outbound_body(reject)))
 
@@ -442,7 +464,11 @@ def test_a_termination_failing_after_its_remove_commits_neither_entry(
         ReissueStubInvitesNode, "update", lambda _self: Status.FAILURE
     )
     reject = reject_embargo_proposal_activity(
-        revision, target=net.case_id, actor=OWNER, to=[MANAGER]
+        revision,
+        in_reply_to=SEEDED_PROPOSAL_ID,
+        target=net.case_id,
+        actor=OWNER,
+        to=[MANAGER],
     )
     verdict = net.receive(MANAGER, json.loads(dump_outbound_body(reject)))
 
@@ -467,7 +493,11 @@ def test_a_redelivered_owner_activation_entry_changes_nothing():
     _send(
         net,
         activate_embargo_activity(
-            _embargo(net), target=net.case_id, actor=OWNER, to=[MANAGER]
+            _embargo(net),
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
         ),
     )
     _replay(net, BYSTANDER)
@@ -860,7 +890,7 @@ def _deliver_direct(
 @pytest.mark.spec("RSH-08-003")
 @pytest.mark.spec("TB-06-007")
 def test_embargo_activation_writes_nothing_at_a_replica():
-    """Accept(EmbargoEvent) delivered straight to a replica leaves EM untouched.
+    """Add(EmbargoEvent) delivered straight to a replica leaves EM untouched.
 
     The owner's activation writes EM state only at the CASE_MANAGER
     (RSH-08-003); a replica takes the change from the ledger, so the same
@@ -877,7 +907,11 @@ def test_embargo_activation_writes_nothing_at_a_replica():
         net,
         BYSTANDER,
         activate_embargo_activity(
-            _embargo(net), target=net.case_id, actor=OWNER, to=[BYSTANDER]
+            _embargo(net),
+            in_reply_to=SEEDED_PROPOSAL_ID,
+            target=net.case_id,
+            actor=OWNER,
+            to=[BYSTANDER],
         ),
     )
 

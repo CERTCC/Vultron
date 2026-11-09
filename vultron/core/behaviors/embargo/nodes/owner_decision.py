@@ -15,7 +15,7 @@
 
 """The case owner's decision on an embargo proposal (ADR-0122).
 
-``Accept(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
+``Add(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
 ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects it.  These are the owner's
 decisions for the case and have activities of their own, so
 ``Accept``/``Reject(Invite(EmbargoEvent))`` is always the sender's consent and
@@ -163,33 +163,35 @@ class SendOwnerEmbargoDecisionNode(SendEmbargoInviteAnswerNode):
     """Queue the case owner's decision on a proposal to the CASE_MANAGER.
 
     The owner's answer to an embargo Invite is its decision for the case, so
-    it is sent as ``Accept`` or ``Reject`` of the ``EmbargoEvent`` with the
-    case as ``target`` (ADR-0122), never of the Invite.  Addressing and the
-    raise-on-failure contract are :class:`SendEmbargoInviteAnswerNode`'s:
-    the node is an arm's action in the EMB-15 response Selector, so a
-    FAILURE must never fall through to the opposite answer.
+    it is sent as ``Add`` (activation, ADR-0180) or ``Reject`` of the
+    ``EmbargoEvent`` with the case as ``target``, never as an answer to the
+    Invite.  Both name the received Invite, *invite_id*, in ``inReplyTo``
+    (RF-08-001, ADR-0180).  Addressing and the raise-on-failure contract
+    are :class:`SendEmbargoInviteAnswerNode`'s: the node is an arm's action
+    in the EMB-15 response Selector, so a FAILURE must never fall through to
+    the opposite answer.
     """
 
     def __init__(
         self,
         case_id: str,
         embargo_id: str,
+        invite_id: str,
         *,
         accept: bool,
         name: str | None = None,
     ) -> None:
-        # The base addresses the factory by the id it resolves first; for
-        # the owner's decision that is the embargo, not an Invite.
         super().__init__(
-            case_id=case_id, invite_id=embargo_id, accept=accept, name=name
+            case_id=case_id, invite_id=invite_id, accept=accept, name=name
         )
+        self._embargo_id = embargo_id
 
     @property
     def _verb(self) -> str:
         return "Activate" if self._accept else "RejectProposal"
 
     def _call_factory(
-        self, actor_id: str, embargo_id: str, case_manager_id: str
+        self, actor_id: str, invite_id: str, case_manager_id: str
     ) -> tuple[str, object]:
         assert self.trigger_activity_factory is not None
         build = (
@@ -198,7 +200,8 @@ class SendOwnerEmbargoDecisionNode(SendEmbargoInviteAnswerNode):
             else self.trigger_activity_factory.reject_embargo_proposal
         )
         return build(
-            embargo_id=embargo_id,
+            embargo_id=self._embargo_id,
+            proposal_id=invite_id,
             case_id=self._case_id,
             actor=actor_id,
             to=[case_manager_id],

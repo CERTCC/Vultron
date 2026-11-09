@@ -24,6 +24,7 @@ receiver that applies it (CM-31-010).
 import json
 from typing import Any, cast
 
+from test.support.owner_decision import held_proposal_id
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -122,15 +123,28 @@ def _remove_body(
 
 
 def _owner_decision_body(
-    net: LedgerNetwork, embargo_id: str, *, accept: bool
+    net: LedgerNetwork,
+    embargo_id: str,
+    *,
+    accept: bool,
+    proposal_id: str | None = None,
 ) -> dict[str, Any]:
-    """OWNER's decision on *embargo_id*, built by its trigger adapter."""
+    """OWNER's decision on *embargo_id*, built by its trigger adapter.
+
+    ``inReplyTo`` names *proposal_id*, by default the Invite OWNER's store
+    records for the open proposal (ADR-0180).
+    """
     adapter = TriggerActivityAdapter(net.stores[OWNER])
     build = (
         adapter.activate_embargo if accept else adapter.reject_embargo_proposal
     )
     _, sealed = build(
-        embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
+        embargo_id=embargo_id,
+        proposal_id=proposal_id
+        or held_proposal_id(net.stores[OWNER], net.case_id, embargo_id),
+        case_id=net.case_id,
+        actor=OWNER,
+        to=[MANAGER],
     )
     return cast(dict[str, Any], json.loads(sealed))
 
@@ -148,7 +162,13 @@ def _owner_decision_on_no_proposal(tag: str, *, accept: bool) -> Scenario:
     """The embargo in force is no open proposal: refused with the notice."""
     net = _net(tag)
     return _from_body(
-        net, _owner_decision_body(net, net.initial_embargo_id, accept=accept)
+        net,
+        _owner_decision_body(
+            net,
+            net.initial_embargo_id,
+            accept=accept,
+            proposal_id=f"{net.case_id}/embargo_proposals/decided",
+        ),
     )
 
 

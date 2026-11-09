@@ -30,6 +30,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.owner_decision import held_proposal_id
 from test.support.refusal_notice import (
     assert_no_refusal_notice,
     assert_refusal_notice,
@@ -233,18 +234,29 @@ def test_an_accept_answered_with_a_reject_gets_no_notice():
 
 
 def _owner_decision(
-    net: LedgerNetwork, embargo_id: str, *, accept: bool
+    net: LedgerNetwork,
+    embargo_id: str,
+    *,
+    accept: bool,
+    proposal_id: str | None = None,
 ) -> tuple[Any, str]:
     """OWNER sends its decision on *embargo_id* to the CASE_MANAGER.
 
-    Returns the verdict and the decision's id.
+    ``inReplyTo`` names *proposal_id*, by default the Invite OWNER's store
+    records for the open proposal (ADR-0180).  Returns the verdict and the
+    decision's id.
     """
     adapter = TriggerActivityAdapter(net.stores[OWNER])
     build = (
         adapter.activate_embargo if accept else adapter.reject_embargo_proposal
     )
     activity_id, sealed = build(
-        embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
+        embargo_id=embargo_id,
+        proposal_id=proposal_id
+        or held_proposal_id(net.stores[OWNER], net.case_id, embargo_id),
+        case_id=net.case_id,
+        actor=OWNER,
+        to=[MANAGER],
     )
     return net.receive(MANAGER, json.loads(sealed)), activity_id
 
@@ -258,8 +270,13 @@ def test_an_owner_decision_on_no_open_proposal_gets_the_notice(accept: bool):
     net = _net(f"owner-no-proposal-{accept}")
     before = _entries(net)
 
+    # The embargo in force has no open proposal, so the owner names an
+    # Invite its store no longer records as open.
     verdict, decision_id = _owner_decision(
-        net, net.initial_embargo_id, accept=accept
+        net,
+        net.initial_embargo_id,
+        accept=accept,
+        proposal_id=f"{net.case_id}/embargo_proposals/decided",
     )
 
     assert verdict.disposition is HandlerDisposition.REFUSED

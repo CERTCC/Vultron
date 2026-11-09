@@ -20,6 +20,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
+from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -84,11 +85,12 @@ class TestEmbargoTermRevise:
     def test_owner_accept_of_embargo_activates_it_at_the_case_manager(
         self, make_payload
     ):
-        """The owner's Accept(EmbargoEvent) activates the proposal (ADR-0122)."""
+        """The owner's Add(EmbargoEvent) activates the proposal (ADR-0122)."""
         dl, case, embargo = self._owner_activation_case(proposed=True)
 
         activity = activate_embargo_activity(
             embargo,
+            in_reply_to=SEEDED_PROPOSAL_ID,
             target=as_VulnerabilityCase(
                 attributed_to=CASE_OWNER_ID, id_=case.id_
             ),
@@ -123,6 +125,7 @@ class TestEmbargoTermRevise:
 
         activity = activate_embargo_activity(
             embargo,
+            in_reply_to=SEEDED_PROPOSAL_ID,
             target=as_VulnerabilityCase(
                 attributed_to=CASE_OWNER_ID, id_=case.id_
             ),

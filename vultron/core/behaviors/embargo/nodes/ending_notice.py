@@ -36,8 +36,8 @@ Termination on or after the agreed end      none: that is expiry
 write: :class:`CaptureActiveEmbargoNode` records the case's active embargo
 before it, and :class:`SendEmbargoEndingNoticesNode` compares it with the
 active embargo after it and sends what is owed.  One pair serves every path
-that ends or replaces an embargo — the received ``Remove`` and
-``Add(EmbargoEvent)``, the owner's received ``Accept`` of a revision, and the
+that ends or replaces an embargo — the received ``Remove``, the
+owner's received ``Add(EmbargoEvent)`` of a revision, and the
 trigger and P/X/A cascade terminations — so no path decides on its own what
 "ended" or "shorter" means.  :func:`embargo_ending_notice_nodes` builds the
 pair.  The notice is delivery, not a record: it is queued on the outbox and

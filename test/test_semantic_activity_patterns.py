@@ -11,6 +11,8 @@ from vultron.semantic_registry import (
     find_matching_semantics,
 )
 from vultron.wire.as2.extractor import (
+    AcceptInviteToEmbargoOnCasePattern,
+    ActivateEmbargoOnCasePattern,
     ActivityPattern,
     OfferCaseOwnershipTransferActivityPattern,
     ProposeCaseOwnershipTransferActivityPattern,
@@ -1153,6 +1155,37 @@ def test_owner_embargo_decisions_are_distinct_from_invite_answers(
     example: str, expected: MessageSemantics
 ) -> None:
     assert _example_semantics("embargo", example) == expected
+
+
+@pytest.mark.spec("MSM-07-003")
+@pytest.mark.spec("MSM-07-008")
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.parametrize(
+    "activation", ["activate_embargo", "activate_embargo_revision"]
+)
+def test_an_activation_and_an_invite_accept_differ_by_type_alone(
+    activation: str,
+) -> None:
+    """``Add(EmbargoEvent)`` and ``Accept(Invite(EmbargoEvent))`` (ADR-0180).
+
+    The owner's activation adds the embargo to the case; a participant's
+    consent answers the Invite.  Each pattern is refused at the verb by the
+    other's example, so neither depends on the shape of the object.
+    """
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    add = getattr(examples, activation)()
+    accept = examples.accept_embargo()
+
+    assert add.type_ == "Add"
+    assert accept.type_ == "Accept"
+    assert ActivateEmbargoOnCasePattern.activity_ != (
+        AcceptInviteToEmbargoOnCasePattern.activity_
+    )
+    assert ActivateEmbargoOnCasePattern.match(add)
+    assert not ActivateEmbargoOnCasePattern.match(accept)
+    assert AcceptInviteToEmbargoOnCasePattern.match(accept)
+    assert not AcceptInviteToEmbargoOnCasePattern.match(add)
 
 
 # ---------------------------------------------------------------------------

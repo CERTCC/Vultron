@@ -137,8 +137,12 @@ A revision that ends later causes no such notice, because those participants nev
 ## The Case Owner's Decision
 
 The Case Owner decides each embargo proposal for the case with an activity of its own.
-The object of that activity is the proposed `EmbargoEvent` itself, not the Invite that proposed it.
+To activate a proposal, the Case Owner adds the embargo to the case with `Add(EmbargoEvent)`, as `Remove(EmbargoEvent)` takes an embargo in force away.
+To reject a proposal, it sends `Reject(EmbargoEvent)`.
+The object of each activity is the proposed `EmbargoEvent` itself, not the Invite that proposed it.
 Its target is the case.
+Its `inReplyTo` names the `Invite(EmbargoEvent)` that proposed the embargo, so a reader links the decision to the proposal it decides (RF-08-001).
+A participant's consent is an `Accept` of the Invite, so the activation and a consent differ by type.
 
 Only the Case Owner may send either activity, and it sends them to the CASE_MANAGER.
 The CASE_MANAGER refuses any other sender.
@@ -253,7 +257,7 @@ The sender closes its pending request when the notice arrives.
 | `Invite(EmbargoEvent)` (`EP`, `EV`) | the embargo has ended (EM `EXITED`), which admits no proposal. The notice is a `Reject` of the Invite, the same shape as a decline, and the proposer reads it as one (EP-09-017). |
 | `Accept(Invite(EmbargoEvent))` | the `EmbargoEvent` is neither the embargo in force nor an open proposal: the register does not hold it, or the proposal was already decided, replaced or ended (CM-18-003, MSM-07-012). |
 | `Reject(Invite(EmbargoEvent))` | the `EmbargoEvent` is neither the embargo in force nor an open proposal, or the sender agreed to the embargo in force, since withdrawal is `Leave(EmbargoEvent)` (MSM-07-014). |
-| `Accept(EmbargoEvent)[target=VulnerabilityCase]` (`EA`, `EC`) | the `EmbargoEvent` is not an open proposal of the case, or the case is public, an exploit is public, or attacks are observed (MSM-07-029, EMB-02-002). |
+| `Add(EmbargoEvent)[target=VulnerabilityCase]` (`EA`, `EC`) | the `EmbargoEvent` is not an open proposal of the case, or the case is public, an exploit is public, or attacks are observed (MSM-07-029, EMB-02-002). |
 | `Reject(EmbargoEvent)[target=VulnerabilityCase]` (`ER`, `EJ`) | the `EmbargoEvent` is not an open proposal of the case, or the termination the rejection would cause is refused (MSM-07-033, MSM-07-032). |
 | `Remove(EmbargoEvent)` (`ET`) | it claims `END_TIME_REACHED` before the embargo's end time, or a Case Owner's `Remove` names a `THREAT_SIGNAL` cause (EMB-13-005). |
 | `Leave(EmbargoEvent)` | no embargo is in force, the `EmbargoEvent` is not the embargo in force, the sender's consent to it is not `AGREED`, or the sender is the Case Owner (MSM-07-036). |

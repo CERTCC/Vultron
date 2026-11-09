@@ -15,7 +15,7 @@
 
 """The CASE_MANAGER's activation: decide, commit the entries, then apply.
 
-The case owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal
+The case owner's ``Add(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal
 (ADR-0122).  As the CASE_MANAGER, :class:`CommitAndApplyEmbargoActivationNode`
 follows the copy model (ADR-0124, #4294):
 
@@ -28,17 +28,17 @@ follows the copy model (ADR-0124, #4294):
    trial-applies every change through the one apply function, commits the
    entries in order and only then saves the result:
 
-   - the ``Accept``, which is the whole ``ACTIVATE`` register step, the
+   - the ``Add``, which is the whole ``ACTIVATE`` register step, the
      ``SUPERSEDE`` of the embargo in force included, and states the owner's
      ``AGREED`` row (CLP-07-013, MSM-07-028).  On the trigger path the node
      builds and commits it; on the received path the guarded commit
      committed it, in this act's transaction, before this node runs
      (ADR-0151), so it has no commit step here;
    - one CASE_MANAGER ``Update(EmbargoConsent)`` per ``CARRY_OVER`` row
-     (EP-05-003), after the ``Accept``.
+     (EP-05-003), after the ``Add``.
 
 A commit that fails leaves every change whose entry did not commit unwritten
-(CLP-07-013): with the ``Accept`` unrecorded, the register, EM and the consent
+(CLP-07-013): with the ``Add`` unrecorded, the register, EM and the consent
 rows are as they were.
 """
 
@@ -92,16 +92,16 @@ class CommitAndApplyEmbargoActivationNode(
 ):
     """Activate a proposal as the CASE_MANAGER, committing before writing.
 
-    *builder* is the trigger use case's ``Accept`` builder: the node commits
-    the ``Accept`` it builds, addressed to nobody, since every replica
+    *builder* is the trigger use case's ``Add`` builder: the node commits
+    the ``Add`` it builds, addressed to nobody, since every replica
     learns it from the entry (EP-09-007).  ``None`` on the received path,
-    where the guarded commit has already committed the owner's ``Accept``,
+    where the guarded commit has already committed the owner's ``Add``,
     in the same act's transaction; the received
     activity on ``/activity`` names the cause of the carry-over entries.
 
     FAILURE, with the error in ``result_out["error"]`` and nothing committed
     or written, when the decision or the trial apply refuses the activation,
-    or the Accept's commit frame fails because the case vanished after the
+    or the Add's commit frame fails because the case vanished after the
     decision.  A commit that fails raises, as every CASE_MANAGER commit does
     (BT-14-001), and so does a miswired tree (no factory, or no received
     activity to name as the carry-overs' cause).  Either way only the
@@ -151,7 +151,7 @@ class CommitAndApplyEmbargoActivationNode(
         return activity_id, blob
 
     def _commit_accept(self) -> None:
-        """Queue and commit the ``Accept``: the base frame's ``update()``.
+        """Queue and commit the ``Add``: the base frame's ``update()``.
 
         Raises:
             BtNodePreconditionError: the frame returned FAILURE (the case
@@ -159,20 +159,20 @@ class CommitAndApplyEmbargoActivationNode(
         """
         if super().update() != Status.SUCCESS:
             raise BtNodePreconditionError(
-                f"{self.name}: the Accept of embargo '{self._embargo_id}' on"
+                f"{self.name}: the Add of embargo '{self._embargo_id}' on"
                 f" case '{self._case_id}' did not commit:"
                 f" {self.feedback_message}"
             )
 
     def _cause_id(self) -> str:
-        """The ``Accept`` the carry-over entries follow."""
+        """The ``Add`` the carry-over entries follow."""
         if self._builder is not None:
             assert self._accept_id is not None  # committed first
             return self._accept_id
         event = self._event
         if not isinstance(event, VultronEvent):
             raise VultronWiringError(
-                f"{self.name}: no received Accept on the blackboard to name"
+                f"{self.name}: no received Add on the blackboard to name"
                 " as the cause of the carry-over entries (ARCH-15-001)"
             )
         return event.activity_id
@@ -259,7 +259,7 @@ class CommitAndApplyEmbargoActivationNode(
         )
         self.feedback_message = (
             f"CASE_MANAGER activated embargo '{self._embargo_id}' on case"
-            f" '{self._case_id}' after committing its Accept"
+            f" '{self._case_id}' after committing its Add"
             f" ({len(decision.carry_overs)} carry-over entr(ies),"
             f" EM {decision.em_before} → {decision.em_after})"
         )
@@ -277,7 +277,7 @@ class CommitAndApplyEmbargoActivationNode(
 class ActivationAppliesNode(DataLayerConditionWithPorts):
     """Guard: the CASE_MANAGER's decision and trial apply admit the activation.
 
-    The received owner's ``Accept`` is committed by the guarded commit before
+    The received owner's ``Add`` is committed by the guarded commit before
     its effects run (ADR-0111), so its trial runs here, among the guards: a step
     the register refuses refuses the act, and no entry is committed for it
     (ADR-0124).  Read-only.

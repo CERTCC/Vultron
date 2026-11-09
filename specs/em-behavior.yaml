@@ -382,7 +382,7 @@ groups:
       in the owner's decision), so X or A set refuses the activation as P does.
     statement: >-
       A Participant MUST NOT apply EA's transition to Active when the case is at P/X/A
-      (q^cs ∉ ···pxa). EA is the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`
+      (q^cs ∉ ···pxa). EA is the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`
       (MSM-07-008). The CASE_MANAGER refuses that activation before committing it to the
       case ledger, and sends no `Reject` of the Invite for it.
     rationale: >-
@@ -414,6 +414,8 @@ groups:
     - rel_type: uses_definition
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
+    adr:
+    - ADR-0180
     stories:
     - story_2026_033
     see_also:
@@ -929,24 +931,25 @@ groups:
       public/exploit/attack (q^cs ∈ ···pxa).
       When it receives EC for the last open proposal, it MUST move its EM state back to
       Active (q^em R → A) with the revised terms.
-      The CASE_MANAGER's commit of the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`,
+      The CASE_MANAGER's commit of the Case Owner's `Add(EmbargoEvent)[target=VulnerabilityCase]`,
       fanned out as `Announce(CaseLedgerEntry)`, discharges "Emit EK".
       No EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
-      EC says that the Case Owner accepts a revision. The revised terms replace the
+      EC says that the Case Owner activates a revision. The revised terms replace the
       terms in force, so when no other proposal is open, EM returns to Active under the
-      revised terms. The CASE_MANAGER's commit and fan-out of the owner's Accept tell
+      revised terms. The CASE_MANAGER's commit and fan-out of the owner's Add tell
       every participant of the change, so no separate EK message is necessary
       (ADR-0113).
     adr:
     - ADR-0113
     - ADR-0130
+    - ADR-0180
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
       with CS matching ...pxa and no other open proposal transitions EM back to
       ACTIVE with revised terms, and that the
       CASE_MANAGER's commit of the Case Owner's
-      `Accept(EmbargoEvent)[target=VulnerabilityCase]` and its announcement
+      `Add(EmbargoEvent)[target=VulnerabilityCase]` and its announcement
       discharge EK with no EK message queued.
     testable: true
     preconditions:
@@ -963,7 +966,7 @@ groups:
       actor: receiver
       action: >-
         CASE_MANAGER commits the Case Owner's
-        `Accept(EmbargoEvent)[target=VulnerabilityCase]` and announces the ledger entry
+        `Add(EmbargoEvent)[target=VulnerabilityCase]` and announces the ledger entry
         (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:

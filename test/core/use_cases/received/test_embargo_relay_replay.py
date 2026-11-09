@@ -25,6 +25,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.owner_decision import held_proposal_id
 from test.support.received import (
     assert_held_only_as_received,
     received_event,
@@ -122,7 +123,13 @@ def _owner_decides(
         adapter.activate_embargo if accept else adapter.reject_embargo_proposal
     )
     _, sealed = build(
-        embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
+        embargo_id=embargo_id,
+        proposal_id=held_proposal_id(
+            net.stores[OWNER], net.case_id, embargo_id
+        ),
+        case_id=net.case_id,
+        actor=OWNER,
+        to=[MANAGER],
     )
     return net.receive(MANAGER, json.loads(sealed))
 

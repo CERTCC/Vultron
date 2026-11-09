@@ -23,6 +23,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.embargo_register import propose
+from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -145,6 +146,7 @@ def test_a_slash_spelled_owner_reaches_its_case_owner_records():
     revision_id = _seed_revision(dl, case)
     reject = reject_embargo_proposal_activity(
         cast(as_EmbargoEvent, dl.read(revision_id)),
+        in_reply_to=SEEDED_PROPOSAL_ID,
         target=case.id_,
         actor=_VENDOR_AS_WRITTEN,
         to=[_CASE_ACTOR],

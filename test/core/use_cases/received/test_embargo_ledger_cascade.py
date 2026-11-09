@@ -22,6 +22,10 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.owner_decision import (
+    seeded_activation,
+    seeded_proposal_rejection,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -40,11 +44,9 @@ from vultron.core.use_cases.received.embargo import (
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
-    activate_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
-    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -62,12 +64,12 @@ class TestEmbargoLogEntryCascade:
         "factory, use_case, semantic_type",
         [
             (
-                activate_embargo_activity,
+                seeded_activation,
                 ActivateEmbargoOnCaseReceivedUseCase,
                 "activate_embargo_on_case",
             ),
             (
-                reject_embargo_proposal_activity,
+                seeded_proposal_rejection,
                 RejectEmbargoProposalOnCaseReceivedUseCase,
                 "reject_embargo_proposal_on_case",
             ),

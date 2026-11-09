@@ -313,8 +313,8 @@ def invite_to_embargo_on_case_tree(
                             ],
                         ),
                         # The owner's answer is its decision for the
-                        # case, sent as Accept/Reject of the embargo
-                        # itself (ADR-0122).
+                        # case, sent as Add/Reject of the embargo itself,
+                        # naming this Invite in inReplyTo (ADR-0180).
                         py_trees.composites.Sequence(
                             name="OwnerDecides",
                             memory=False,
@@ -333,12 +333,14 @@ def invite_to_embargo_on_case_tree(
                                     accept_bt=SendOwnerEmbargoDecisionNode(
                                         case_id=case_id,
                                         embargo_id=embargo_id,
+                                        invite_id=invite_id,
                                         accept=True,
                                         name="SendActivateEmbargo",
                                     ),
                                     reject_bt=SendOwnerEmbargoDecisionNode(
                                         case_id=case_id,
                                         embargo_id=embargo_id,
+                                        invite_id=invite_id,
                                         accept=False,
                                         name="SendRejectEmbargoProposal",
                                     ),
