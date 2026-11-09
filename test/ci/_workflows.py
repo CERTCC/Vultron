@@ -72,6 +72,8 @@ def runs_at_least_weekly(wf_data: dict[Any, Any]) -> bool:
     obligation (``notes/spec-authoring-rules.md``).
     """
     for entry in triggers(wf_data).get("schedule") or []:
+        if not isinstance(entry, dict):
+            continue
         fields = str(entry.get("cron", "")).split()
         if len(fields) == 5 and fields[2] == "*" and fields[3] == "*":
             return True

@@ -23,7 +23,6 @@ def _scheduled(*crons: str) -> dict[str, Any]:
     "cron",
     ["23 * * * *", "23 10 * * 1-5", "0 6 * * 1", "*/5 * * * *"],
 )
-@pytest.mark.spec("MS-10-029", "MS-14-031")
 def test_weekly_or_faster_cron_counts(cron: str) -> None:
     assert runs_at_least_weekly(_scheduled(cron))
 
@@ -44,3 +43,8 @@ def test_any_one_weekly_entry_is_enough() -> None:
 @pytest.mark.spec("MS-10-029", "MS-14-031")
 def test_workflow_without_a_schedule_does_not_count() -> None:
     assert not runs_at_least_weekly({"on": {"push": {"branches": ["main"]}}})
+
+
+@pytest.mark.spec("MS-10-029", "MS-14-031")
+def test_schedule_entry_that_is_not_a_mapping_does_not_count() -> None:
+    assert not runs_at_least_weekly({"on": {"schedule": ["0 6 * * 1"]}})

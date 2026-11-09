@@ -903,6 +903,8 @@ groups:
     tags:
     - documentation
     - tooling
+    adr:
+    - ADR-0101
   - id: MS-10-007
     priority: MUST
     kind: process
