@@ -33,13 +33,12 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
+import httpx2 as httpx
 import pytest
-from fastapi.testclient import TestClient
 
-from test.adapters.driving.fastapi._redelivery import served_store
+from test.adapters.driving.fastapi._redelivery import get_from_store
 from test.support.signing import published_multikeys
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2 import signing
 
 _SEEDED = (
@@ -49,14 +48,8 @@ _SEEDED = (
 )
 
 
-def _store(path: Path, actor_id: str) -> SqliteDataLayer:
-    """A store file for *actor_id*; a file, so a restart can reopen it."""
-    return SqliteDataLayer(f"sqlite:///{path}", actor_id=actor_id)
-
-
-def _key_from(client: TestClient, segment: str) -> str:
-    """The ``publicKeyMultibase`` *client* serves for the actor at *segment*."""
-    response = client.get(f"/api/v2/actors/{segment}/profile")
+def _key_from(response: httpx.Response) -> str:
+    """The one ``publicKeyMultibase`` the profile in *response* publishes."""
     if response.status_code != 200:
         pytest.fail(f"the profile was not served: {response.text}")
     keys = [
@@ -70,13 +63,9 @@ def _key_from(client: TestClient, segment: str) -> str:
 
 def _provisioned_key(path: Path, segment: str) -> str:
     """Provision the actor at *segment* in a new store at *path*; its key."""
-    actor_id = canonical_actor_uri(segment)
-    dl = _store(path, actor_id)
-    try:
-        with served_store(dl, actor_id, segment) as (client, _emitter):
-            return _key_from(client, segment)
-    finally:
-        dl.close()
+    return _key_from(
+        get_from_store(path, segment, f"/api/v2/actors/{segment}/profile")
+    )
 
 
 def _seeded_signing_key() -> Callable[[str], signing.SigningKey]:
@@ -99,20 +88,14 @@ def _seeded_signing_key() -> Callable[[str], signing.SigningKey]:
 def _resumed_key(path: Path, segment: str) -> str:
     """The key a new process serving the store at *path* publishes.
 
-    The store already holds the actor, as it does when its process restarts.
+    The store already holds the actor, as it does when its process restarts;
+    a store that does not hold it serves no profile, which fails the test.
     """
-    actor_id = canonical_actor_uri(segment)
-    dl = _store(path, actor_id)
-    try:
-        if dl.read(actor_id) is None:
-            pytest.fail("the reopened store does not hold the actor")
-        with served_store(dl, actor_id, segment, existing=True) as (
-            client,
-            _emitter,
-        ):
-            return _key_from(client, segment)
-    finally:
-        dl.close()
+    return _key_from(
+        get_from_store(
+            path, segment, f"/api/v2/actors/{segment}/profile", existing=True
+        )
+    )
 
 
 @pytest.mark.spec("ENC-01-001")

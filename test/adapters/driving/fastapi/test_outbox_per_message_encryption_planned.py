@@ -40,8 +40,9 @@ _MANAGER = "https://example.org/actors/coordinator"
 _PARTICIPANT = "https://example.org/actors/vendor"
 _CASE_ID = "urn:uuid:per-message-encryption-case"
 #: Text only the Invite's case stub carries, so finding it in a delivered
-#: body means the body is readable by anyone who holds it.
-_CLEARTEXT = "Security issue 7f3c — details shared after acceptance"
+#: body means the body is readable by anyone who holds it. ASCII only, so
+#: no serializer's escaping of non-ASCII text can hide it from the check.
+_CLEARTEXT = "Security issue 7f3c - details shared after acceptance"
 
 
 @pytest.fixture
@@ -97,6 +98,9 @@ def test_the_case_manager_encrypts_each_message_to_its_recipient(dl):
         actor=_MANAGER,
         to=[_PARTICIPANT],
     )
+    stored = dl.read(activity_id)
+    if stored is None or _CLEARTEXT not in stored.model_dump_json():
+        pytest.fail("the stored Invite does not carry the case stub's text")
     emitter = AsyncMock()
 
     asyncio.run(oh.handle_outbox_item(_MANAGER, activity_id, dl, emitter))
@@ -106,6 +110,6 @@ def test_the_case_manager_encrypts_each_message_to_its_recipient(dl):
     _, body, recipients = emitter.emit.call_args[0]
     if list(recipients) != [_PARTICIPANT]:
         pytest.fail(f"the Invite went to {recipients}, not the participant")
-    assert not _readable(str(body)), (
+    assert not _readable(body), (
         "the delivered Invite shows its case stub in cleartext"
     )

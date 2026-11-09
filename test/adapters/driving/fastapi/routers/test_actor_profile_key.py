@@ -22,7 +22,10 @@ from unittest.mock import patch
 
 import pytest
 
-from test.adapters.driving.fastapi._redelivery import served_store
+from test.adapters.driving.fastapi._redelivery import (
+    get_from_store,
+    served_store,
+)
 from test.support.signing import published_multikeys
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -39,12 +42,7 @@ from vultron.wire.as2 import signing
 
 def _get(store: Path, segment: str, path: str) -> dict[str, Any]:
     """What a fresh store at *store* serves at *path* for the actor at *segment*."""
-    actor_id = canonical_actor_uri(segment)
-    # A file per store: two in-memory stores for one actor id share their
-    # rows, so the second would find the first one's actor record.
-    dl = SqliteDataLayer(f"sqlite:///{store}", actor_id=actor_id)
-    with served_store(dl, actor_id, segment) as (client, _emitter):
-        response = client.get(path)
+    response = get_from_store(store, segment, path)
     assert response.status_code == 200, response.text
     return cast(dict[str, Any], response.json())
 

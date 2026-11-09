@@ -88,7 +88,7 @@ It does not yet generate, store or persist a key pair: it computes each actor's 
 
 **Per-message encryption.** A case participant can encrypt the messages it sends to the CASE_MANAGER.
 The CASE_MANAGER is expected to encrypt each message that it sends to a case participant individually.
-Each message is encrypted to an encryption key that the recipient publishes in its actor profile.
+An encrypted message is encrypted to an encryption key that the recipient publishes in its actor profile.
 This version does not choose an encryption scheme, so until a scheme is standardized the choice is implementation-defined.
 
 ```python exec="true" idprefix=""

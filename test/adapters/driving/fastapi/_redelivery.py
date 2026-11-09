@@ -19,13 +19,17 @@ intake archived (IE-10-001).
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
+import httpx2 as httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
 from test.support.signing import post_delivered
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
@@ -66,6 +70,29 @@ def served_store(
     with TestClient(app) as client:
         app.state.emitter = emitter
         yield client, emitter
+
+
+def get_from_store(
+    store: Path, segment: str, path: str, *, existing: bool = False
+) -> httpx.Response:
+    """GET *path* from a real app serving the store file *store*.
+
+    The store belongs to the actor at *segment*. A new store is provisioned
+    with that actor; with *existing*, the file already holds it, as it does
+    when its process restarts. A file per store: two in-memory stores for one
+    actor id share their rows, so the second would find the first one's actor
+    record.
+    """
+    actor_id = canonical_actor_uri(segment)
+    dl = SqliteDataLayer(f"sqlite:///{store}", actor_id=actor_id)
+    try:
+        with served_store(dl, actor_id, segment, existing=existing) as (
+            client,
+            _emitter,
+        ):
+            return client.get(path)
+    finally:
+        dl.close()
 
 
 #: Post an already-signed body to an inbox and check it is accepted; the
