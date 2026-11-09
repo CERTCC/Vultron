@@ -64,3 +64,5 @@ they are. A nested install raises `VultronIdSourceInstalledError`.
   `test/adapters/driving/fastapi/routers/test_datalayer_read_mints_nothing.py`
   reads the next seeded ids through `new_object_id`, not `uuid.uuid4()`. It may
   share that regeneration with #5760, which moves the recording clock to its port.
+  Import the docs examples before the install: their module enters
+  `_example_scope()` once at import, and that install raises inside another.
