@@ -44,7 +44,7 @@ path, so this module imports only the standard library and MkDocs itself.
 from __future__ import annotations
 
 import os
-import uuid
+import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -62,7 +62,7 @@ EXEC_BUILD_ENV = "VULTRON_DOCS_BUILD"
 
 def on_pre_build(*, config: MkDocsConfig) -> None:
     """Record a new build id, so per-build caches start empty."""
-    os.environ[EXEC_BUILD_ENV] = uuid.uuid4().hex
+    os.environ[EXEC_BUILD_ENV] = str(time.monotonic_ns())
 
 
 def on_pre_page(page: Page, *, config: MkDocsConfig, files: Files) -> Page:
