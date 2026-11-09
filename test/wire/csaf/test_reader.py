@@ -502,3 +502,36 @@ def test_a_reading_names_its_document_by_the_content_digest() -> None:
     ).document_digest == content_digest(
         json.dumps(minimal_csaf_document(), sort_keys=True)
     )
+
+
+def test_json_nested_too_deep_to_parse_is_not_read() -> None:
+    assert _read(_attachment("[" * 200_000)) == []
+
+
+def test_the_first_note_of_a_category_is_the_summary() -> None:
+    data = vulnerability_report_document()
+    section(data, "document")["notes"] = [
+        {"category": "summary", "text": "The first summary."},
+        {"category": "summary", "text": "A second summary."},
+    ]
+
+    assert read_csaf_document(_DOCUMENT_ID, data).claims.summary == (
+        "The first summary."
+    )
+
+
+def test_a_vendor_branch_without_a_readable_name_keeps_the_outer_vendor() -> (
+    None
+):
+    data = vulnerability_report_document()
+    widget_branch = data["product_tree"]["branches"][0]["branches"][0]
+    data["product_tree"]["branches"][0]["branches"] = [
+        {"category": "vendor", "name": 7, "branches": [widget_branch]}
+    ]
+
+    reading = read_csaf_document(_DOCUMENT_ID, data)
+
+    assert reading.claims.known_affected_vendors == ["Example Vendor"]
+    assert "$.product_tree.branches[0].branches[0].name" in [
+        s.path for s in reading.skipped
+    ]

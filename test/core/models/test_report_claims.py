@@ -185,3 +185,19 @@ def test_an_acknowledgment_that_names_no_one_is_refused() -> None:
         ClaimedAcknowledgment()
 
     assert ClaimedAcknowledgment(organization="Example CERT").names == []
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [{"report_id": 5}, {"outcomes": ["name"]}],
+    ids=["report-id-not-string", "outcomes-not-mapping"],
+)
+def test_a_malformed_record_is_refused(overrides) -> None:
+    fields = {
+        "report_id": _REPORT_ID,
+        "activity_id": _ACTIVITY_ID,
+        "reading": _reading().model_dump(),
+        **overrides,
+    }
+    with pytest.raises(ValidationError):
+        ReportClaimsRecord(**fields)
