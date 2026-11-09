@@ -26,6 +26,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import CountingClock
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import stamped
 from vultron.adapters.driven.clock import SystemClock
@@ -921,23 +922,6 @@ class TestInboundRsvpWindows:
 # ---------------------------------------------------------------------------
 
 
-class _CountingClock:
-    """An act clock that counts its reads and notes whether the lock was held."""
-
-    def __init__(self, *instants: datetime) -> None:
-        self._instants = list(instants)
-        self.reads = 0
-        self.locked_at_read: list[bool] = []
-
-    def now(self) -> datetime:
-        from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
-
-        self.locked_at_read.append(_BT_GLOBAL_LOCK._is_owned())  # type: ignore[attr-defined]
-        value = self._instants[self.reads]
-        self.reads += 1
-        return value
-
-
 class _InstantRecordingDispatch(_StubDispatchAdapter):
     """Records the act instant its dispatch sees, and may process a replay."""
 
@@ -966,7 +950,7 @@ class TestOneDeliveryIsOneAct:
     def test_reads_the_clock_once_after_the_lock_and_carries_it(
         self, report_activity
     ):
-        clock = _CountingClock(_FIRST)
+        clock = CountingClock(_FIRST)
         dispatch = _InstantRecordingDispatch()
 
         process_payload(
@@ -987,7 +971,7 @@ class TestOneDeliveryIsOneAct:
     ):
         """A held activity replayed inside the act that released it reads
         its own instant, and the outer act's comes back after it."""
-        clock = _CountingClock(_FIRST, _REPLAY)
+        clock = CountingClock(_FIRST, _REPLAY)
         inner = _InstantRecordingDispatch()
 
         def _replay() -> None:

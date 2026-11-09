@@ -18,6 +18,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import CountingClock, tree_lock_held
 from vultron.adapters.driven.clock import SystemBookkeepingClock, SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -27,7 +28,6 @@ from vultron.core.behaviors.bridge.act_instant import (
     open_act,
     read_act_instant,
 )
-from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
 from vultron.core.behaviors.helpers.ports_base import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -41,21 +41,6 @@ from vultron.errors import (
 
 _ACTOR = "https://example.org/actors/act-instant"
 _AT = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
-
-
-class _CountingClock:
-    """An act clock that counts its reads and notes whether the lock was held."""
-
-    def __init__(self, *instants: datetime) -> None:
-        self._instants = list(instants) or [_AT]
-        self.reads = 0
-        self.locked_at_read: list[bool] = []
-
-    def now(self) -> datetime:
-        self.locked_at_read.append(_BT_GLOBAL_LOCK._is_owned())  # type: ignore[attr-defined]
-        value = self._instants[min(self.reads, len(self._instants) - 1)]
-        self.reads += 1
-        return value
 
 
 class _ReadsInstant(py_trees.behaviour.Behaviour):
@@ -114,15 +99,15 @@ def _at_on_blackboard() -> bool:
 class TestOpenAct:
     @pytest.mark.spec("CS-13-002")
     def test_reads_the_clock_once_after_taking_the_tree_lock(self):
-        clock = _CountingClock()
+        clock = CountingClock()
 
         with open_act(clock) as at:
-            assert _BT_GLOBAL_LOCK._is_owned()  # type: ignore[attr-defined]
+            assert tree_lock_held()
 
         assert at == _AT
         assert clock.reads == 1
         assert clock.locked_at_read == [True]
-        assert not _BT_GLOBAL_LOCK._is_owned()  # type: ignore[attr-defined]
+        assert not tree_lock_held()
 
     @pytest.mark.spec("CS-13-001")
     def test_a_naive_instant_is_a_wiring_fault(self):
@@ -137,7 +122,7 @@ class TestOpenAct:
     @pytest.mark.spec("CS-13-002")
     def test_a_nested_act_reads_its_own_instant(self):
         later = _AT + timedelta(seconds=5)
-        clock = _CountingClock(_AT, later)
+        clock = CountingClock(_AT, later)
 
         with open_act(clock) as outer:
             with open_act(clock) as inner:

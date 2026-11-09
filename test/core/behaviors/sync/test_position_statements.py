@@ -436,6 +436,34 @@ def _participant_store() -> SqliteDataLayer:
     return store
 
 
+@pytest.mark.spec("CS-13-002")
+def test_stating_positions_is_one_act(monkeypatch) -> None:
+    """Lock, one read, and the tree run carries that instant (ADR-0176)."""
+    from test.support.act_clock import ACT_AT, CountingClock, tree_lock_held
+    from vultron.core.behaviors.bridge import BTBridge
+
+    original = BTBridge.execute_with_setup
+    seen: list[tuple[object, bool]] = []
+
+    def _spy(bridge, *args, **kwargs):
+        seen.append((kwargs.get("at"), tree_lock_held()))
+        return original(bridge, *args, **kwargs)
+
+    monkeypatch.setattr(BTBridge, "execute_with_setup", _spy)
+    clock = CountingClock()
+
+    state_ledger_positions_trigger(
+        _participant_store(),
+        SIGNATORY_ID,
+        MagicMock(spec=SyncActivityPort),
+        clock=clock,
+    )
+
+    assert clock.reads == 1
+    assert clock.locked_at_read == [True]
+    assert seen[0] == (ACT_AT, True)
+
+
 @pytest.mark.spec("SYNC-17-007")
 @pytest.mark.spec("SYNC-17-001")
 def test_participant_states_its_tail_to_the_case_manager() -> None:

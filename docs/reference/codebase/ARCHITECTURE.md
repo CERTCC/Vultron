@@ -42,6 +42,9 @@ stakeholder_type: [project-contributor]
      In a tree that declared its paths, the guard's at-the-CASE_MANAGER and at-a-participant arms are selected from the path stage's answer rather than from a second role read (ADR-0153, HP-01-008).
      A tree whose sender may already be closed on the case passes `closed_sender=ClosedSenderCheck(...)`, and its handler reads the door's result with `closed_sender_verdict()` in `vultron/core/use_cases/received/_bt_verdict/door.py`: a repeat of a closing act is `SKIPPED`, and any other act is `REFUSED` (CM-23-018, CM-23-049, ID-05-003).
      A tree whose case is resolved at run time passes the read-only `CaseResolving` steps that resolve it as `case_resolution`, which run just before the guard, or, for a ledger activity, a `LedgerActivityContext`, whose nodes read the case from the carried entry.
+  6. An act (a trigger invocation, the processing of one inbound delivery, or a sweep) reads the clock once, through the `ClockPort` in `vultron/core/ports/clock.py`, after `open_act()` takes the tree lock (ADR-0176, CS-13-002).
+     Its tree runs carry that instant as `/at`: `BTBridge.execute_with_setup(at=...)` places it for the outermost run, a nested run inherits it, and a ports node reads it with `_require_act_instant()`, which fails when the run has none.
+     `test/architecture/test_clock_reads_at_act_edge.py` names every other clock read under the slice of #5676 that removes it.
 
 ### 2) System Flow
 

@@ -32,10 +32,10 @@ equal items, so a baseline is a multiset.
 
 Loose readings, by direction (``notes/architecture-ratchet-corpus.md``):
 
-- **Can miss.** A read reached through ``getattr``, through a variable bound
-  to one of these callables, or through an import alias of the ``time`` or
-  ``datetime`` module other than ``time``, ``datetime``, ``date``, ``_dt`` or
-  ``dt``.  The package holds none today.
+- **Can miss.** A read reached through ``getattr``, or through a variable
+  bound to one of these callables at run time.  An import alias is followed
+  (``import time as t``, ``from datetime import datetime as dt``,
+  ``from time import monotonic as m``).  The package holds none today.
 - **Can invent.** A local name or attribute that shadows a helper's name, or
   an attribute ``now``/``today`` on an object merely named ``datetime`` or
   ``date``.  Narrowed to the receiver's last name; the package holds none
@@ -81,7 +81,6 @@ _TIME_FUNCS = frozenset(
         "perf_counter_ns",
     }
 )
-_MODULE_ALIASES = frozenset({"time", "datetime", "_dt", "dt"})
 
 #: Substrings at least one of which every module with a read contains.
 _FRAGMENTS = (
@@ -111,10 +110,21 @@ class _Finder(ast.NodeVisitor):
         # Names bound by ``from time import monotonic`` and the like, and
         # import aliases of the helpers, mapped to the read they stand for.
         self.bound: dict[str, str] = {}
+        # Local names for the ``time`` module, and aliases of ``datetime`` /
+        # ``date`` bound by ``from datetime import datetime as dt``.
+        self.time_modules: set[str] = {"time"}
+        self.wall_types: dict[str, str] = {
+            name: name for name in _WALL_RECEIVERS
+        }
 
     def _record(self, read: str) -> None:
         scope = ".".join(self.scope) or "<module>"
         self.reads.append((self.path, scope, read))
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            if alias.name == "time" and alias.asname:
+                self.time_modules.add(alias.asname)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         for alias in node.names:
@@ -123,6 +133,12 @@ class _Finder(ast.NodeVisitor):
                 self.bound[local] = f"time.{alias.name}"
             elif alias.name in _HELPERS and alias.asname:
                 self.bound[local] = alias.name
+            elif (
+                node.module == "datetime"
+                and alias.name in _WALL_RECEIVERS
+                and alias.asname
+            ):
+                self.wall_types[alias.asname] = alias.name
 
     def _visit_scope(self, node: ast.AST, name: str) -> None:
         self.scope.append(name)
@@ -161,12 +177,12 @@ class _Finder(ast.NodeVisitor):
         receiver = _last_name(node.value)
         if node.attr in _HELPERS:
             self._record(node.attr)
-        elif node.attr in _WALL_ATTRS and receiver in _WALL_RECEIVERS:
-            self._record(f"{receiver}.{node.attr}")
+        elif node.attr in _WALL_ATTRS and receiver in self.wall_types:
+            self._record(f"{self.wall_types[receiver]}.{node.attr}")
         elif (
             node.attr in _TIME_FUNCS
             and isinstance(node.value, ast.Name)
-            and node.value.id == "time"
+            and node.value.id in self.time_modules
         ):
             self._record(f"time.{node.attr}")
         else:

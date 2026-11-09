@@ -2335,6 +2335,46 @@ class TestSvcOfferCaseParticipantRoleUseCase:
         assert isinstance(result, RoleOfferResult)
         assert result.activity["type"] == "Offer"
 
+    @pytest.mark.spec("CS-13-002")
+    def test_runs_as_one_act_and_hands_its_instant_to_the_tree(
+        self, monkeypatch
+    ):
+        """Lock, one read, and the sender tree's run carries that instant."""
+        from test.support.act_clock import (
+            ACT_AT,
+            CountingClock,
+            tree_lock_held,
+        )
+        from vultron.core.behaviors.bridge import BTBridge
+
+        original = BTBridge.execute_with_setup
+        seen: list[tuple[object, bool]] = []
+
+        def _spy(bridge, *args, **kwargs):
+            seen.append((kwargs.get("at"), tree_lock_held()))
+            return original(bridge, *args, **kwargs)
+
+        monkeypatch.setattr(BTBridge, "execute_with_setup", _spy)
+        actor, target, dl, case = self._setup()
+        clock = CountingClock()
+        request = OfferCaseParticipantRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            target_actor_id=target.id_,
+            role=CVDRole.VENDOR,
+        )
+
+        SvcOfferCaseParticipantRoleUseCase(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            clock=clock,
+        ).execute()
+
+        assert clock.reads == 1
+        assert clock.locked_at_read == [True]
+        assert seen[0] == (ACT_AT, True)
+
     def test_happy_path_activity_persisted(self):
         """Emitted Offer activity is readable from the DataLayer."""
         actor, target, dl, case = self._setup()

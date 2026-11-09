@@ -153,6 +153,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 | Module | Purpose |
 |--------|---------|
 | `vultron/trigger_registry/` | `TRIGGER_REGISTRY`, the verb-keyed table that every trigger route, the dispatcher and the ratchets read (ADR-0110) |
+| `vultron/core/ports/clock.py` + `vultron/core/behaviors/bridge/act_instant.py` + `vultron/adapters/driven/clock.py` | The act and bookkeeping clock ports, `open_act()` and the `/at` tree-run key, and the system clocks behind the ports (ADR-0176) |
 | `vultron/core/ports/trigger_dispatcher.py` + `vultron/core/trigger_dispatcher.py` | One-method `TriggerDispatcher` port and its `RegistryTriggerDispatcher` implementation; replaced the deleted `TriggerService` facade |
 | `vultron/adapters/driving/fastapi/trigger_runner.py` | `run_trigger()`, the single call every trigger route makes; it schedules a drain of the emitting actor's outbox after the use case returns |
 | `vultron/core/use_cases/triggers/request_bodies/` | Trigger request-body models; the core `*TriggerRequest` models derive from them and add `actor_id` |

@@ -499,12 +499,15 @@ CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(
         "vultron/core/use_cases/triggers/case/leave.py",
         "vultron/core/use_cases/triggers/sync.py",
         "vultron/adapters/driving/fastapi/sender_sequence_holds.py",
+        "vultron/adapters/driving/fastapi/inbox_handler.py",
+        "vultron/demo/fuzzer/stochastic_demo.py",
         # Composition roots that hand the clock to an entry point.
         "vultron/core/trigger_dispatcher.py",
         "vultron/adapters/driving/fastapi/deps.py",
         "vultron/adapters/driving/fastapi/inbox_orchestration/pipeline.py",
         "vultron/adapters/driving/fastapi/inbox_queue_drain.py",
         "vultron/adapters/driving/fastapi/ledger_position_statements.py",
+        "vultron/adapters/driving/cli.py",
         # The bookkeeping clock's one holder.
         "vultron/adapters/driven/datalayer_sqlite/datalayer.py",
     }
@@ -581,7 +584,9 @@ def test_only_the_act_edge_holds_a_clock() -> None:
 
 _EVERY_SHAPE = """
 import time
+import time as _t
 import datetime as _dt
+from datetime import datetime as _when
 from datetime import date, datetime
 from time import monotonic
 from vultron.core.models._helpers import now_utc as _now
@@ -601,6 +606,8 @@ def reads(clock):
     date.today()
     time.time()
     monotonic()
+    _t.perf_counter()
+    _when.now()
     _now()
     from_now_utc(delta)
 """
@@ -613,8 +620,9 @@ def test_the_finder_names_each_read_shape_and_not_a_port_read() -> None:
     assert found == Counter(
         {
             ("m.py", "Stamped.at", "now_utc"): 1,
-            ("m.py", "reads", "datetime.now"): 1,
+            ("m.py", "reads", "datetime.now"): 2,
             ("m.py", "reads", "datetime.utcnow"): 1,
+            ("m.py", "reads", "time.perf_counter"): 1,
             ("m.py", "reads", "date.today"): 1,
             ("m.py", "reads", "time.time"): 1,
             ("m.py", "reads", "time.monotonic"): 1,

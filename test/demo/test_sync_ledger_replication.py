@@ -328,6 +328,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
             obj=delivered(out_of_chain_announce),
             dl=peer_dl,
             dispatcher=peer_iso.app.state.dispatcher,
+            clock=SystemClock(),
         )
         peer_reject_events = [
             cast(RejectLogEntryReceivedEvent, extract_event(activity))
@@ -476,6 +477,7 @@ def test_sync_duplicate_delivery_idempotency(
             obj=delivered(announce),
             dl=peer_dl,
             dispatcher=peer_iso.app.state.dispatcher,
+            clock=SystemClock(),
         )
 
     assert saved_case_ledger_entry_ids == [entry.id_]
@@ -581,6 +583,7 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
         obj=delivered(reads[0]),
         dl=case_actor_dl,
         dispatcher=case_actor_iso.app.state.dispatcher,
+        clock=SystemClock(),
     )
     anyio.run(
         functools.partial(

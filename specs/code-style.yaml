@@ -481,7 +481,9 @@ groups:
     statement: >-
       Application code MUST read the current time only at an act's entry point,
       through the act clock port (`ClockPort` in `vultron.core.ports.clock`),
-      once per act and after the act takes the tree lock.
+      once per act and after the act takes the tree lock, except for an
+      adapter's own bookkeeping times, read through `BookkeepingClockPort`, and
+      stopwatch reads at named sites.
     rationale: >-
       An act that reads the clock twice can decide against one instant and record
       against another, and a read that commits nothing still moves a recorded

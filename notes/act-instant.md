@@ -12,9 +12,10 @@ tracks:
   - "#5761"   # follow-on: generated ids, decided in ADR-0185
   - "#5848"   # follow-on: drift limit, after the call-out budget (#3423)
 description: >
-  The unbuilt migration to ADR-0176: each act reads the clock once at its edge,
-  tree nodes read that instant from the tree run, and core code takes time as an
-  argument and never reads or defaults it.
+  The remaining migration to ADR-0176: acts already read the clock once at
+  their edge and carry it as /at; tree nodes still to move read that instant from
+  the tree run, and core code takes time as an argument and never reads or
+  defaults it.
 related_specs:
   - specs/code-style.yaml
   - specs/case-ledger-processing.yaml
@@ -26,8 +27,10 @@ related_specs:
 
 ADR-0176 decides that an act (a trigger, the processing of one inbound delivery, or
 a sweep) reads the clock once, at its entry point, and that everything below that
-point takes the instant instead of reading the clock. The code does not do this
-yet. This note holds the order of the work and the rules each slice keeps.
+point takes the instant instead of reading the clock. The act entry points, the
+clock port and the tree-run instant exist (#5757); the reads below the edge do
+not use them yet. This note holds the order of the work and the rules each slice
+keeps.
 
 ## Rules every slice keeps
 
@@ -53,7 +56,7 @@ yet. This note holds the order of the work and the rules each slice keeps.
   another act is its own act and reads its own instant.
 - **Ordered stamps keep the microsecond bump.** Stamps written by one act share
   its instant, so the smallest step past the previous stamp is what orders them
-  (ADR-0167, CS-13-002).
+  (ADR-0167, CM-29-005).
 - **A verdict does not change.** Each migrated decision gives the same answer for
   the same instant as before; a slice that changes a verdict is a behavior change
   and needs its own issue.

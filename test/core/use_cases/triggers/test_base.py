@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import py_trees.behaviour
 import pytest
 
+from test.support.act_clock import CountingClock
 from vultron.adapters.driven.clock import SystemClock
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.use_case_result import ActivityResult, OfferResult
@@ -183,22 +184,6 @@ def test_execute_returns_captured_activity():
     )
 
 
-class _FixedClock:
-    """An act clock that counts its reads and notes whether the lock was held."""
-
-    def __init__(self, at) -> None:
-        self._at = at
-        self.reads = 0
-        self.locked_at_read: list[bool] = []
-
-    def now(self):
-        from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
-
-        self.locked_at_read.append(_BT_GLOBAL_LOCK._is_owned())  # type: ignore[attr-defined]
-        self.reads += 1
-        return self._at
-
-
 @pytest.mark.spec("CS-13-002")
 def test_a_trigger_reads_its_instant_inside_the_lock_and_its_tree_sees_it():
     """The instant is read at execute(), after the lock, not at construction;
@@ -232,7 +217,7 @@ def test_a_trigger_reads_its_instant_inside_the_lock_and_its_tree_sees_it():
         def _build_tree(self) -> py_trees.behaviour.Behaviour:
             return _ReadsInstant(name="reads-instant")
 
-    clock = _FixedClock(at)
+    clock = CountingClock(at)
     uc = _Observed(
         dl=MagicMock(),
         request=object(),
