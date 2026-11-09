@@ -29,6 +29,7 @@ from unittest.mock import patch
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -87,8 +88,8 @@ class TestCommitCaseLedgerEntryNodeFailFast:
             patch(_FACTORY_PATH) as mock_factory,
             patch(_INNER_BRIDGE_PATH) as mock_bridge,
         ):
-            result = bridge.execute_with_setup(
-                tree=node, actor_id=ACTOR_ID, activity=None
+            result = run_tree(
+                bridge, tree=node, actor_id=ACTOR_ID, activity=None
             )
         assert result.status == Status.FAILURE
         mock_factory.assert_not_called()
@@ -98,8 +99,12 @@ class TestCommitCaseLedgerEntryNodeFailFast:
         """The /case_id port holds None → FAILURE (not SUCCESS no-op)."""
         node = CommitCaseLedgerEntryNode()
         with patch(_FACTORY_PATH) as mock_factory:
-            result = bridge.execute_with_setup(
-                tree=node, actor_id=ACTOR_ID, activity=None, case_id=None
+            result = run_tree(
+                bridge,
+                tree=node,
+                actor_id=ACTOR_ID,
+                activity=None,
+                case_id=None,
             )
         assert result.status == Status.FAILURE
         mock_factory.assert_not_called()
@@ -108,8 +113,8 @@ class TestCommitCaseLedgerEntryNodeFailFast:
         """Empty string case_id → FAILURE (falsy value treated as absent)."""
         node = CommitCaseLedgerEntryNode()
         with patch(_FACTORY_PATH) as mock_factory:
-            result = bridge.execute_with_setup(
-                tree=node, actor_id=ACTOR_ID, activity=None, case_id=""
+            result = run_tree(
+                bridge, tree=node, actor_id=ACTOR_ID, activity=None, case_id=""
             )
         assert result.status == Status.FAILURE
         mock_factory.assert_not_called()

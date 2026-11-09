@@ -73,6 +73,7 @@ from test.demo._helpers import (
     patch_chain_shared,
     story_state,
 )
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_of_type
 from vultron.demo.actor_session import ActorSession
@@ -1380,13 +1381,15 @@ def _otc_make_offer(dl, proposal, case_manager_id: str) -> Any:
 
     event = received_event(proposal, receiving_actor_id=case_manager_id)
     assert isinstance(event, ProposeCaseOwnershipTransferReceivedEvent)
-    result = ProposeCaseOwnershipTransferReceivedUseCase(
-        dl,
-        event,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        ProposeCaseOwnershipTransferReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
     assert result.disposition is HandlerDisposition.APPLIED, result
     # The proposal's and the Offer's fan-out are not this test's subject;
     # drop them so only the Accept's deliveries are observed.
