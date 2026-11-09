@@ -20,7 +20,8 @@ action-rules route names it; the object, whose id may be any URI, is the
 ``object_id`` query parameter.  The requester names
 itself in the :data:`~vultron.adapters.driven.http_object_fetch.REQUESTER_HEADER`
 header; the prototype trusts that claim, since a fetch request carries no
-proof the way a delivery does (SIG-03-002; request signatures are #1184).
+proof the way a delivery does (SIG-03-002), and HTTP-level request
+authentication is not built yet (#509).
 """
 
 import logging
@@ -54,8 +55,8 @@ router = APIRouter()
         " it, to an active participant of that case (object dereference,"
         " AKM-05-006). The requester names itself in the"
         f" `{REQUESTER_HEADER}` header; the prototype trusts that claim,"
-        " since a fetch request carries no proof the way a delivery does"
-        " (#1184)."
+        " since a fetch request carries no proof the way a delivery does,"
+        " and HTTP-level request authentication is not built yet (#509)."
     ),
     operation_id="actors_get_case_object",
 )

@@ -4,6 +4,7 @@
     Activities move as plaintext AS2 JSON on HTTP.
     The adapter for signed remote delivery is a stub (OX-10).
     The prototype is a demonstration of coordination logic, not a service for deployment.
+    Concern [#509](https://github.com/CERTCC/Vultron/issues/509) records that HTTP-level authentication of who makes each inbox or outbox request is still open; the object proofs below do not resolve it.
 
     Encryption has a design.
     `specs/encryption.yaml` (ENC-01 through ENC-03) gives each actor a key pair.

@@ -96,7 +96,7 @@ class VultronNotACaseParticipantError(VultronError):
     The case host serves a case's objects only to the case's active
     participants (AKM-05-006, CM-10-004).  The requester is the actor the
     request claims to be: a fetch request carries no proof, so the prototype
-    does not authenticate it (request signatures are #1184).
+    does not authenticate it (HTTP-level request authentication is #509).
     """
 
     def __init__(self, case_id: str, actor_id: str):

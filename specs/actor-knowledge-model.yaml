@@ -531,8 +531,8 @@ groups:
       CASE_MANAGER serves the read.
     note: >-
       The requester is not authenticated: a fetch request carries no proof, unlike a
-      delivery, whose proof the inbox verifies (SIG-03-002). Request signatures
-      (#1184) replace that trust.
+      delivery, whose proof the inbox verifies (SIG-03-002). HTTP-level request
+      authentication (#509) replaces that trust.
     verification: >-
       `test/adapters/driving/fastapi/routers/test_case_object_route.py` checks a
       participant gets an object the case names as an ActivityStreams document, and

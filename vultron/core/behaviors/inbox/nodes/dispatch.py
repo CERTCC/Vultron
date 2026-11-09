@@ -161,7 +161,8 @@ class DispatchNode(_InboxNodeWithPorts):
         ``actor_id``: an activity that names none is refused at extraction
         and never reaches dispatch.  The inbox verified that sender's proof
         before it parsed the activity (SIG-03-002), so the fault goes to the
-        actor that signed it.
+        actor that signed it; who made the HTTP request is not authenticated
+        (#509).
         A raised ``Create(ProcessingFault)`` is not answered
         (:func:`answers_with_internal_error_fault`).  The fault is a notice,
         not a recovery; it carries the internal-error class and no

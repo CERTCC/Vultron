@@ -304,7 +304,8 @@ success would follow a false fault (ASK-07-007). A raise after the dispatch retu
 answered. Never answer a raised
 `Create(ProcessingFault)` with a fault (`answers_with_internal_error_fault`,
 ASK-07-019), or two peers failing alike answer each other forever. The fault goes to
-the `actor`, whose proof the inbox verified before the parse (SIG-03-002). It is never
+the `actor`, whose proof the inbox verified before the parse (SIG-03-002); who made
+the HTTP request is still not authenticated (#509). It is never
 ledgered (ASK-07-008).
 
 **The queue replay retries back to back and settles on what it saw.** A re-queued item
