@@ -98,7 +98,9 @@ is centralized instead:
 Inside a slot, the shared graph directory is mounted read-only at
 `/graphify-shared`, and `graphify-out/graph.json` (with `manifest.json`,
 `.graphify_root` and `.graphify_python`) is a symlink into it. Agents can
-`graphify query`/`path`/`explain` but cannot trigger a rebuild. The query flow's
+`graphify query`/`path`/`explain` but cannot trigger a rebuild: `graphify-out/`
+is root-owned with the sticky bit, so a slot cannot replace those symlinks with a
+local copy that would stop seeing shared rebuilds. The query flow's
 scratch (`.vocab.txt`, `memory/`) writes to a throwaway in-container `graphify-out/`
 and is discarded on teardown.
 
