@@ -28,7 +28,7 @@ the act's instant finds none.  These runners put the edge back:
 
 Inside a run that already carries an instant (a nested run, or a test that
 opened an act itself), both inherit it, as a nested production run does,
-and *at* must be omitted.
+and an *at* that differs from it is refused.
 
 *at* defaults to the wall clock when the act opens, because most fixtures
 are built relative to it ("seven days from now").
@@ -44,12 +44,14 @@ from typing import Any, Protocol, TypeVar
 
 import py_trees
 
+from test.support.act_clock import CountingClock
 from vultron.core.behaviors.bridge.act_instant import (
     act_instant_in_tree_run,
     inherited_act_instant,
     open_act,
 )
 from vultron.core.behaviors.bridge.bt_bridge import BTBridge
+from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
 from vultron.core.behaviors.bridge.result import BTExecutionResult
 
 R_co = TypeVar("R_co", covariant=True)
@@ -61,14 +63,30 @@ class _Executes(Protocol[R_co]):
     def execute(self) -> R_co: ...
 
 
-class FixedClock:
+class FixedClock(CountingClock):
     """A ``ClockPort`` that always reads *at* (the wall clock when omitted)."""
 
     def __init__(self, at: datetime | None = None) -> None:
-        self._at = at if at is not None else datetime.now(tz=UTC)
+        super().__init__(at if at is not None else datetime.now(tz=UTC))
 
-    def now(self) -> datetime:
-        return self._at
+
+def _inherited_instant(at: datetime | None) -> datetime | None:
+    """The instant of the run in progress, or ``None`` outside one.
+
+    Call it with the tree lock held: ``/at`` is on the process-global
+    blackboard, so without the lock another thread's act would read as
+    this thread's.
+
+    Raises:
+        ValueError: *at* given and differing from the instant in force.
+    """
+    inherited = inherited_act_instant()
+    if inherited is not None and at is not None and at != inherited:
+        raise ValueError(
+            f"an act at {inherited.isoformat()} is already open; a nested"
+            f" run cannot take its own instant {at.isoformat()}"
+        )
+    return inherited
 
 
 @contextmanager
@@ -76,22 +94,21 @@ def in_act(at: datetime | None = None) -> Iterator[datetime]:
     """Open one act at *at* and carry its instant in the tree run.
 
     Yields the act's instant.  Inside a run that already carries one, yields
-    that instant and opens nothing; passing *at* there is a test bug.
+    that instant and opens nothing; a different *at* there is a test bug.
 
     Raises:
         ValueError: *at* given inside a run that already carries an instant.
     """
-    inherited = inherited_act_instant()
-    if inherited is not None:
-        if at is not None and at != inherited:
-            raise ValueError(
-                f"an act at {inherited.isoformat()} is already open; a nested"
-                f" run cannot take its own instant {at.isoformat()}"
-            )
-        yield inherited
-        return
-    with open_act(FixedClock(at)) as instant, act_instant_in_tree_run(instant):
-        yield instant
+    with _BT_GLOBAL_LOCK:
+        inherited = _inherited_instant(at)
+        if inherited is not None:
+            yield inherited
+            return
+        with (
+            open_act(FixedClock(at)) as instant,
+            act_instant_in_tree_run(instant),
+        ):
+            yield instant
 
 
 def _opens_own_act(use_case: object) -> bool:
@@ -132,11 +149,16 @@ def run_tree(
 
     Inside a run that already carries an instant, runs nested and inherits
     it.  Other arguments go to ``BTBridge.execute_with_setup`` unchanged.
+
+    Raises:
+        ValueError: *at* given inside a run that already carries another
+            instant.
     """
-    if inherited_act_instant() is not None and at is None:
-        return bridge.execute_with_setup(tree, *args, **kwargs)
-    with open_act(FixedClock(at)) as instant:
-        return bridge.execute_with_setup(tree, *args, at=instant, **kwargs)
+    with _BT_GLOBAL_LOCK:
+        if _inherited_instant(at) is not None:
+            return bridge.execute_with_setup(tree, *args, **kwargs)
+        with open_act(FixedClock(at)) as instant:
+            return bridge.execute_with_setup(tree, *args, at=instant, **kwargs)
 
 
 __all__ = ["FixedClock", "in_act", "run_in_act", "run_tree"]

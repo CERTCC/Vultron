@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The test-side act runner runs each use case and tree as one act."""
 
+import threading
 from datetime import UTC, datetime, timedelta
 
 import py_trees
@@ -29,6 +30,12 @@ from vultron.core.behaviors.bridge.act_instant import (
 )
 
 _ACTOR = "https://example.org/actors/runner"
+
+
+def _bridge() -> BTBridge:
+    return BTBridge(
+        datalayer=SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
+    )
 
 
 class _ReadsInstant:
@@ -148,3 +155,62 @@ def test_a_tree_run_inside_an_act_inherits_its_instant():
 
     assert result.status == Status.SUCCESS, result.feedback_message
     assert node.seen == ACT_AT
+
+
+def test_a_nested_run_may_restate_the_open_acts_instant():
+    uc = _ReadsInstant()
+
+    with in_act(ACT_AT):
+        run_in_act(uc, at=ACT_AT)
+
+    assert uc.seen == ACT_AT
+
+
+def test_a_nested_tree_run_with_another_instant_is_refused():
+    with in_act(ACT_AT):
+        with pytest.raises(ValueError, match="already open"):
+            run_tree(
+                _bridge(),
+                _ReadNode(),
+                actor_id=_ACTOR,
+                at=ACT_AT + timedelta(seconds=1),
+            )
+
+
+def test_another_threads_open_act_is_not_inherited():
+    """The inherited check runs under the tree lock, as the bridge's does.
+
+    ``/at`` is on the process-global blackboard, so a run that checked it
+    before taking the lock would see this act as its own, run nested, and
+    find no instant once the lock let it in.
+    """
+    opened = threading.Event()
+    release = threading.Event()
+
+    def hold_an_act() -> None:
+        with in_act(ACT_AT):
+            opened.set()
+            release.wait(timeout=10)
+
+    holder = threading.Thread(target=hold_an_act)
+    holder.start()
+    assert opened.wait(timeout=10)
+    node = _ReadNode()
+    result: list[object] = []
+    runner = threading.Thread(
+        target=lambda: result.append(
+            run_tree(_bridge(), node, actor_id=_ACTOR)
+        )
+    )
+    runner.start()
+    # Give the runner time to reach its check while the act is still open.
+    # It cannot finish meanwhile: either way it waits for the tree lock.
+    runner.join(timeout=0.5)
+    release.set()
+    holder.join(timeout=10)
+    runner.join(timeout=10)
+
+    assert len(result) == 1
+    # Its own act, at the wall clock, not the other thread's instant.
+    assert node.seen is not None
+    assert node.seen != ACT_AT

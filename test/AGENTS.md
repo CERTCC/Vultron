@@ -55,6 +55,11 @@ runs those tests — `demo-integration.yml` for the first, `python-app.yml`'s
   types to structure (TB-05-004/005). Full URIs for actor/object fields.
 - Handler tests MUST verify: semantic dispatch, state transitions, outbox
   activities, error conditions, idempotency (`specs/handler-protocol.yaml`).
+- Run a use case with `run_in_act(uc)` and a tree with `run_tree(bridge, tree,
+  ...)` from `test/support/act_runner.py`, never a bare `.execute()` or
+  `execute_with_setup`: each run then enters an act carrying its instant, as in
+  production (ADR-0176). A trigger takes `FixedClock(at)` at construction.
+  `test_tests_run_acts_through_the_runner.py` refuses a direct call.
 - Testing step MUST use a single agent instance.
 - When splitting `nodes.py` → `nodes/`, mirror the split in the test layout
   (NODES-SPLIT-883) — see [pitfalls](../notes/testing-pitfalls.md) § "Test
