@@ -34,9 +34,6 @@ from typing import cast
 from unittest.mock import patch
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-    Ed25519PrivateKey,
-)
 from fastapi.testclient import TestClient
 
 from test.adapters.driving.fastapi._redelivery import served_store
@@ -213,8 +210,12 @@ def test_resuming_an_actor_makes_no_new_key_pair(tmp_path: Path):
     derive = _seeded_signing_key()
 
     with (
+        # Reached through the signing module, the one module that imports
+        # the primitives (SIG-05-003).
         patch.object(
-            Ed25519PrivateKey, "generate", wraps=Ed25519PrivateKey.generate
+            signing.Ed25519PrivateKey,
+            "generate",
+            wraps=signing.Ed25519PrivateKey.generate,
         ) as generated,
         patch.object(signing, "seeded_signing_key", wraps=derive) as computed,
     ):
