@@ -411,7 +411,9 @@ def test_exec_page_hook_records_a_new_build_id_per_build(
     """The not-yet-implemented markers are computed once per build id
     (DF-12-021), so each build, and each ``mkdocs serve`` rebuild, needs a new
     one, and none is left behind."""
-    monkeypatch.delenv(exec_page.EXEC_BUILD_ENV, raising=False)
+    # Set it first, so teardown restores whatever was there, absence included.
+    monkeypatch.setenv(exec_page.EXEC_BUILD_ENV, "before")
+    monkeypatch.delenv(exec_page.EXEC_BUILD_ENV)
     exec_page.on_pre_build(config=None)  # type: ignore[arg-type]
     first = os.environ[exec_page.EXEC_BUILD_ENV]
     exec_page.on_pre_build(config=None)  # type: ignore[arg-type]
@@ -421,6 +423,17 @@ def test_exec_page_hook_records_a_new_build_id_per_build(
     exec_page.on_pre_build(config=None)  # type: ignore[arg-type]
     exec_page.on_build_error(error=RuntimeError("build failed"))
     assert exec_page.EXEC_BUILD_ENV not in os.environ
+
+
+def test_exec_page_build_id_moves_on_when_the_clock_has_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A coarse clock that has not ticked since the last id still yields a
+    new one (DF-12-021)."""
+    monkeypatch.setattr(exec_page.time, "monotonic_ns", lambda: 5)
+    monkeypatch.setenv(exec_page.EXEC_BUILD_ENV, "5")
+    exec_page.on_pre_build(config=None)  # type: ignore[arg-type]
+    assert os.environ[exec_page.EXEC_BUILD_ENV] == "6"
 
 
 def test_exec_page_hook_is_registered() -> None:

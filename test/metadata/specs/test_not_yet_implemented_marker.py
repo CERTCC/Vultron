@@ -246,9 +246,20 @@ class TestNotYetImplementedMarker:
             NOT_YET_IMPLEMENTED_LABEL not in self._catalog(checkout)[_req(2)]
         )
 
-    def test_a_registry_without_coverage_gets_no_marker(self, checkout):
+    def test_a_registry_without_coverage_gets_no_marker(
+        self, repo, monkeypatch
+    ):
+        # The repository default marks requirement 2, so an explicit
+        # registry's unmarked page is not the repository's markers by chance.
+        default = _rows(render_catalog_page("vp", page=_PAGE, pages=_PAGES))
+        assert NOT_YET_IMPLEMENTED_LABEL in default[_req(2)]
+
+        def _unread() -> None:
+            raise AssertionError("an explicit registry read the repository")
+
+        monkeypatch.setattr(docs_pages, "_docs_not_yet_implemented", _unread)
         md = render_catalog_page(
-            "vp", load_registry(checkout / "specs"), page=_PAGE, pages=_PAGES
+            "vp", load_registry(repo / "specs"), page=_PAGE, pages=_PAGES
         )
         assert NOT_YET_IMPLEMENTED_LABEL not in md
 

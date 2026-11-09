@@ -61,8 +61,14 @@ EXEC_BUILD_ENV = "VULTRON_DOCS_BUILD"
 
 
 def on_pre_build(*, config: MkDocsConfig) -> None:
-    """Record a new build id, so per-build caches start empty."""
-    os.environ[EXEC_BUILD_ENV] = str(time.monotonic_ns())
+    """Record a new build id, so per-build caches start empty.
+
+    The id is the monotonic clock, raised past the id still recorded when the
+    clock has not ticked since (a coarse clock), so each build's id differs.
+    """
+    previous = os.environ.get(EXEC_BUILD_ENV, "")
+    floor = int(previous) + 1 if previous.isdigit() else 0
+    os.environ[EXEC_BUILD_ENV] = str(max(time.monotonic_ns(), floor))
 
 
 def on_pre_page(page: Page, *, config: MkDocsConfig, files: Files) -> Page:
