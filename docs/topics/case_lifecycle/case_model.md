@@ -39,13 +39,14 @@ ActivityStreams 2.0 defines five actor types: Person, Organization, Group, Appli
 A Case Actor is a **Service** actor — it represents software infrastructure, not a human or organizational CVD stakeholder.
 The prototype has no dedicated class for it: it is an ordinary `VultronService` named `CaseActor`.
 
-In the prototype, each case has one Case Actor, and it is the participant that holds the `CASE_MANAGER` role.
-It is also a `CaseParticipant` (as a `CaseActorParticipant`, per ADR-0051): it holds both `CVDRole.COORDINATOR` and `CVDRole.CASE_MANAGER` and moves through the RM states like every other participant.
+The reference implementation runs one Case Actor service per container, which holds the `CASE_MANAGER` role for the cases delegated to it.
+A Case Owner that does not delegate management holds the role itself, because the create-case trigger grants the creating actor both `CVDRole.CASE_OWNER` and `CVDRole.CASE_MANAGER` ([CM-02-015](../../reference/specs/project.md#cm-02-015)).
+When the Case Actor holds the role, it is also a `CaseParticipant` (as a `CaseActorParticipant`, per ADR-0051): it holds both `CVDRole.COORDINATOR` and `CVDRole.CASE_MANAGER` and moves through the RM states like every other participant.
 Embargo proposals, status updates, notes, and participant invitations all go to it, so that the ledger captures a causally ordered record of the whole coordination.
 
 The `CaseActor` name and its `.../actors/case-actor` URL are provisioning conveniences and carry no protocol meaning.
 Authority follows the role, so no protocol logic may read that name, that URL shape, or where an actor is hosted as evidence of who the authority is ([ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
-An ordinary participant that holds `CVDRole.CASE_MANAGER` is the authority just as fully as a spawned Service actor is.
+Any participant that holds `CVDRole.CASE_MANAGER` is the authority, whether it is a dedicated Case Actor service or the Case Owner acting for itself.
 
 Do not confuse the `CASE_MANAGER` role (the role that authorizes ledger writes) with the `CASE_OWNER` role (the participant who makes decisions about the case).
 

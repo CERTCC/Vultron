@@ -29,7 +29,8 @@ It is the only node whose record of the case is authoritative ([CM-02-002](../..
 An actor is the authority for a case if and only if it holds the `CASE_MANAGER` role in that case's participant list ([CM-02-011](../../reference/specs/architecture.md#cm-02-011)).
 Authority does not come from where an actor is hosted, from its name, or from the shape of its URL.
 
-The reference implementation runs a dedicated service actor, the **Case Actor**, to hold the role.
+The reference implementation runs one **Case Actor** service per container, which holds the `CASE_MANAGER` role for the cases delegated to it.
+A Case Owner that does not delegate management holds the role itself, because the create-case trigger grants the creating actor both `CASE_OWNER` and `CASE_MANAGER` ([CM-02-015](../../reference/specs/project.md#cm-02-015)).
 That name, and a URL that ends in `actors/case-actor`, are provisioning conveniences with no protocol meaning ([CM-02-013](../../reference/specs/architecture.md#cm-02-013), [ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
 Your node must not treat either as evidence of authority ([ARCH-24-004](../../reference/specs/architecture.md#arch-24-004)).
 Read the role.
