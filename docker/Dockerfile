@@ -128,8 +128,10 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
 # --exclude flags by design; add nothing to .dockerignore that this stage needs.
 #
 # Only two categories are withheld, both via .dockerignore: secrets (.env,
-# .devcontainer/*.env), and gitignored paths that start-dev.sh clobber-mounts
-# over /app at runtime (wip_notes, wip_outputs, graphify-out).
+# .devcontainer/*.env), and gitignored paths that are built here or mounted
+# over /app at runtime (wip_notes and wip_outputs by every slot; graphify-out,
+# whose graph-file symlinks are created below and would collide with a host
+# copy, by the `--build-graph` container only).
 # Being gitignored, those cannot surface as phantom deletions.
 COPY . /app/
 
@@ -161,8 +163,8 @@ RUN git -C /app rev-parse --verify --quiet refs/remotes/origin/main >/dev/null \
     # symlink is resolved on every open, so a host rebuild (which replaces
     # graph.json by rename) is visible in a running slot; a single-file bind mount
     # stays pinned to the replaced inode. The query flow's scratch (.vocab.txt,
-    # memory/) still writes locally. Created here so the later
-    # `chown -R vscode:vscode /app` owns the directory.
+    # memory/) still writes locally. The later chown hands the directory back
+    # to root with the sticky bit, so a slot cannot replace a link either.
     && mkdir -p /app/graphify-out \
     && for f in graph.json manifest.json .graphify_root .graphify_python; do \
         ln -s "/graphify-shared/$f" "/app/graphify-out/$f"; \
@@ -180,8 +182,18 @@ RUN su - vscode -c "curl -fsSL https://claude.ai/install.sh | bash"
 # Delete the inherited root-owned .venv before chowning /app so the chown
 # recurses over source files only — not thousands of venv entries (cheap).
 # uv sync below, running as vscode, recreates .venv with vscode ownership.
+#
+# Then give graphify-out back to root, world-writable with the sticky bit: the
+# query scratch still writes there, but vscode cannot rename over or delete the
+# root-owned graph-file symlinks. Without this, `graphify update .` in a slot
+# would os.replace() graph.json's link with a local file, and that slot would
+# silently stop seeing shared rebuilds until recreated.
 RUN rm -rf /app/.venv \
-    && chown -R vscode:vscode /app
+    && chown -R vscode:vscode /app \
+    && chown root:root /app/graphify-out \
+    && chown -h root:root /app/graphify-out/graph.json /app/graphify-out/manifest.json \
+        /app/graphify-out/.graphify_root /app/graphify-out/.graphify_python \
+    && chmod 1777 /app/graphify-out
 
 WORKDIR /app
 USER vscode

@@ -34,7 +34,7 @@ if [ "$BUILD_GRAPH" = false ] && [ -z "$SLOT" ]; then
     echo "  --rebuild      Remove and rebuild the Docker image from scratch."
     echo "  --build-graph  Rebuild the ONE shared knowledge graph (from origin/main,"
     echo "                 CPU-capped) that every slot mounts read-only. Run this on"
-    echo "                 demand when the graph feels stale; slots pick it up on restart."
+    echo "                 demand when the graph feels stale; running slots see it at once."
     exit 1
 fi
 
@@ -207,6 +207,14 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
         --memory-swap "$SLOT_MEMORY" "$CONTAINER_NAME" >/dev/null ||
         echo "warning: could not apply slot limits to '$CONTAINER_NAME'" >&2
     _write_heavy_slots
+    # A slot created before the shared graph was mounted as a directory still
+    # has per-file mounts, which never see a rebuild (see the mount below).
+    if ! docker inspect -f '{{range .Mounts}} {{.Destination}} {{end}}' "$CONTAINER_NAME" |
+        grep -q ' /graphify-shared '; then
+        echo "NOTE: '$CONTAINER_NAME' predates the shared-graph directory mount and will"
+        echo "      not see graph rebuilds. Remove and recreate it to switch:"
+        echo "      docker rm -f $CONTAINER_NAME && ./start-dev.sh $SLOT"
+    fi
     echo "Attaching to container '$CONTAINER_NAME'..."
     _exec_shell
     exit 0
