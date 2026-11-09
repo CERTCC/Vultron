@@ -151,12 +151,12 @@ making tampering detectable during replication. (SYNC-00-006)
 Log entries are immutable once committed. (SYNC-00-005,
 SYNC-08-001)
 
-### 3.3 Canonical Serialisation
+### 3.3 Canonical Serialization
 
 A canonical serialization form — specifying deterministic key ordering, explicit field inclusion/exclusion, and no optional whitespace — MUST be established before cryptographic signatures are added to log entries.
 Changing the serialization after entries are signed would invalidate existing hash chains.
 
-[RFC 8785 — JSON Canonicalization Scheme (JCS)](https://www.rfc-editor.org/rfc/rfc8785) is that form: a log entry's hash is computed over its JCS serialization (SYNC-01-008).
+[RFC 8785 — JSON Canonicalization Scheme (JCS)](https://www.rfc-editor.org/rfc/rfc8785) fixes the byte form: a log entry's hash is computed over the JCS serialization of the fields SYNC-01-003 covers (SYNC-01-008).
 
 The hash-chain entry format MUST be designed to be forward-compatible with a
 future Merkle Tree implementation; the hash-chain fields (`entry_hash`,

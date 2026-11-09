@@ -155,6 +155,27 @@ groups:
     stories:
     - story_2026_023
     - story_2022_089
+  - id: SYNC-01-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Each log entry MUST reference the hash of its immediate predecessor, so the
+      entries form a forward-linked hash chain (Merkle chain style).
+    rationale: >-
+      The link to the predecessor's hash fixes the entry's place in the chain. A
+      receiver can then detect an entry in the wrong place (SYNC-03-001).
+    verification: >-
+      `test_commit_tree_uses_existing_tail_hash` in
+      `test/core/behaviors/sync/test_commit_tree.py` asserts a new entry's
+      `prev_log_hash` is the current tail's hash, and
+      `test_second_entry_prev_hash_equals_first_entry_hash` in
+      `test/core/models/test_case_ledger.py` asserts the same for the ledger model.
+    relationships:
+    - rel_type: extends
+      spec_id: SYNC-01-003
+    stories:
+    - story_2026_023
+    - story_2022_089
   - id: SYNC-01-008
     priority: MUST
     kind: protocol
@@ -173,27 +194,6 @@ groups:
       non-ASCII text and writes `9.0` where JCS writes `9` (#3659).
       `test/core/models/test_case_ledger.py::TestCaseLedgerEntry::test_entry_hash_is_over_the_jcs_serialization`
       is a strict `xfail` until it does.
-    relationships:
-    - rel_type: extends
-      spec_id: SYNC-01-003
-    stories:
-    - story_2026_023
-    - story_2022_089
-  - id: SYNC-01-007
-    priority: MUST
-    kind: protocol
-    statement: >-
-      Each log entry MUST reference the hash of its immediate predecessor, so the
-      entries form a forward-linked hash chain (Merkle chain style).
-    rationale: >-
-      The link to the predecessor's hash fixes the entry's place in the chain. A
-      receiver can then detect an entry in the wrong place (SYNC-03-001).
-    verification: >-
-      `test_commit_tree_uses_existing_tail_hash` in
-      `test/core/behaviors/sync/test_commit_tree.py` asserts a new entry's
-      `prev_log_hash` is the current tail's hash, and
-      `test_second_entry_prev_hash_equals_first_entry_hash` in
-      `test/core/models/test_case_ledger.py` asserts the same for the ledger model.
     relationships:
     - rel_type: extends
       spec_id: SYNC-01-003

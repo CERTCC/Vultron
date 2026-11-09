@@ -85,8 +85,16 @@ def test_delivery_posts_an_activitystreams_media_type() -> None:
         send.return_value = response
         asyncio.run(adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI]))
 
-    send.assert_called_once()
+    # The preconditions fail with pytest.fail, not AssertionError, so a
+    # delivery that stops going through ``send`` errors instead of xfailing.
+    if send.call_count != 1:
+        pytest.fail(
+            f"expected one AsyncClient.send call, got {send.call_count}"
+        )
     request = send.call_args.args[0]
-    assert isinstance(request, httpx.Request)
+    if not isinstance(request, httpx.Request):
+        pytest.fail(
+            f"AsyncClient.send got {type(request).__name__}, not a Request"
+        )
     content_type = request.headers.get("content-type", "")
     assert _media_type(content_type) in ACTIVITYSTREAMS_MEDIA_TYPES
