@@ -170,9 +170,16 @@ def test_a_stub_nested_outside_the_invite_target_is_refused() -> None:
 
 @pytest.mark.spec("MV-10-002")
 @pytest.mark.parametrize(
-    "name", ["create_case", "create_report", "submit_report"]
+    ("name", "slot"),
+    [
+        (name, slot)
+        for name in ("create_case", "create_report", "submit_report")
+        for slot in ("context", "inReplyTo", "attachment")
+        # A report's attachment holds files only (CSAF-01-001), so a stub
+        # there is refused as no file; see the test below.
+        if not (slot == "attachment" and name != "create_case")
+    ],
 )
-@pytest.mark.parametrize("slot", ["context", "inReplyTo", "attachment"])
 def test_a_stub_inside_an_inline_domain_object_is_refused(
     name: str, slot: str
 ) -> None:
@@ -182,6 +189,17 @@ def test_a_stub_inside_an_inline_domain_object_is_refused(
     with pytest.raises(VultronParseValidationError, match="MV-10-002") as exc:
         parse_activity(body)
     assert f"at object.{slot}" in str(exc.value)
+
+
+@pytest.mark.parametrize("name", ["create_report", "submit_report"])
+def test_a_stub_in_a_reports_attachment_is_refused_as_no_file(
+    name: str,
+) -> None:
+    """A report's typed attachment list refuses a stub before the stub walk."""
+    body = _example(name)
+    body["object"]["attachment"] = [_stub()]
+    with pytest.raises(VultronParseValidationError, match="AttachedDocument"):
+        parse_activity(body)
 
 
 @pytest.mark.spec("MV-10-002")

@@ -263,8 +263,9 @@ def submit_report_received_effects(
     carried.
 
     Store the report (intake has recorded the Offer); for an Offer that
-    names a report, also write the offer record (CM-15-002) and a claims
-    record for each CSAF document the report carries (CSAF-04-004).  The
+    names a report, also write the offer record (CM-15-002), then a claims
+    record for each CSAF document the report carries (CSAF-04-004), so a
+    failed claims write never holds the offer record back.  The
     factory's door guards have already admitted the Offer (HP-01-005).
     """
     report_id = request.report_id
@@ -280,15 +281,6 @@ def submit_report_received_effects(
                 name="StoreReceivedReport",
             )
         )
-    if report_id and request.claims_readings:
-        nodes.append(
-            StoreReportClaimsRecordsNode(
-                report_id=report_id,
-                activity_id=request.activity_id,
-                sender_id=request.actor_id,
-                readings=request.claims_readings,
-            )
-        )
     # The Offer itself is intake's record, read through its receiver-keyed
     # record; nothing holds it under the id its sender chose (DL-06-006).
     activity = request.activity
@@ -299,6 +291,15 @@ def submit_report_received_effects(
                 report_id=report_id,
                 offer_actor_id=request.actor_id,
                 offer_to=list(activity.to or []),
+            )
+        )
+    if report_id and request.claims_readings:
+        nodes.append(
+            StoreReportClaimsRecordsNode(
+                report_id=report_id,
+                activity_id=request.activity_id,
+                sender_id=request.actor_id,
+                readings=request.claims_readings,
             )
         )
     return nodes

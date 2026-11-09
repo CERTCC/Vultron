@@ -15,7 +15,12 @@
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.attached_document import AttachedDocument
+from vultron.core.models.attached_document import (
+    AttachedAudio,
+    AttachedDocument,
+    AttachedImage,
+    AttachedVideo,
+)
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.parser import parse_activity
 
@@ -111,3 +116,47 @@ def test_an_attachment_that_is_no_document_is_refused_at_the_edge(
 
     with pytest.raises(VultronParseValidationError):
         parse_activity(_offer_body(attachment))
+
+
+@pytest.mark.parametrize(
+    ("type_", "cls"),
+    [
+        ("Image", AttachedImage),
+        ("Audio", AttachedAudio),
+        ("Video", AttachedVideo),
+    ],
+)
+def test_a_report_keeps_a_file_attached_beside_its_documents(
+    type_, cls
+) -> None:
+    report = _parsed_report(
+        [{"type": type_, "url": "https://x.example/f", "mediaType": "a/b"}]
+    )
+
+    assert report.attachment is not None
+    [file] = report.attachment
+    assert type(file) is cls
+
+
+def test_the_core_classes_own_the_file_types_whatever_the_import_order() -> (
+    None
+):
+    """VM-01-014: the wire file classes are aliases, so no import order wins."""
+    import subprocess
+    import sys
+
+    script = (
+        "import vultron.wire.as2.vocab.objects\n"
+        "import vultron.wire.as2.vocab.base.objects\n"
+        "from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP\n"
+        "print(WIRE_TYPE_MAP['Document'].__name__,"
+        " WIRE_TYPE_MAP['Image'].__name__)\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+
+    assert out == ["AttachedDocument", "AttachedImage"]

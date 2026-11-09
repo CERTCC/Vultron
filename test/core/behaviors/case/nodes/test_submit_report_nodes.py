@@ -80,6 +80,7 @@ def test_offer_record_node_is_idempotent():
 def _claims_node() -> StoreReportClaimsRecordsNode:
     reading = ClaimsReading(
         document_id=f"{REPORT}/csaf",
+        document_digest="b" * 64,
         document_format="CSAF 2.1",
         schema_verdict=SchemaVerdict.SCHEMA_INVALID,
         schema_errors=[SchemaError(path="$.document.title", message="bad")],
@@ -100,7 +101,7 @@ def test_claims_node_stores_one_record_per_reading_and_logs_each_skip(caplog):
         dl, result = _run(_claims_node())
 
     assert result.status == Status.SUCCESS
-    record = dl.read(ReportClaimsRecord.build_id(REPORT, f"{REPORT}/csaf"))
+    record = dl.read(ReportClaimsRecord.build_id(REPORT, "b" * 64))
     assert isinstance(record, ReportClaimsRecord)
     assert record.activity_id == OFFER
     assert record.reading.schema_verdict is SchemaVerdict.SCHEMA_INVALID

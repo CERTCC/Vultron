@@ -66,7 +66,7 @@ A CSAF document can relate to a Vultron case in three ways:
 | Relation | In Vultron |
 |---|---|
 | [A CSAF document replaces the case](#a-csaf-document-does-not-replace-the-case) | Not used. |
-| [A CSAF document travels inside the case](#a-csaf-document-can-travel-inside-a-case) | Specified, not yet built. A report carries a CSAF document as an attachment. When the report is first offered, the receiver can fill the inputs of the new case from it, and a CSAF document that arrives later changes no case data. |
+| [A CSAF document travels inside the case](#a-csaf-document-can-travel-inside-a-case) | Partly built. A report carries a CSAF document as an attachment, and the receiver records whether the document passes the CSAF 2.1 schema and what it claims. When the report is first offered, the receiver can fill the inputs of the new case from it, and a CSAF document that arrives later changes no case data. |
 | [The case produces a CSAF document](#a-case-can-produce-a-csaf-document) | Planned. |
 
 ### A CSAF document does not replace the case

@@ -93,6 +93,17 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "activity_id": f"{_URI}/a-1",
         "received_body": "{}",
     },
+    "ReportClaimsRecord": {
+        "report_id": _URI,
+        "activity_id": _URI,
+        "reading": {
+            "document_id": _URI,
+            "document_digest": "0" * 64,
+            "document_format": "CSAF 2.1",
+            "schema_verdict": "schema-valid",
+            "claims": {"name": "Example advisory"},
+        },
+    },
     "SealedOutboundBody": {"activity_id": _URI, "body": "{}"},
     "VultronOfferRecord": {
         "offer_id": f"{_URI}/offer",

@@ -33,6 +33,8 @@ from vultron.core.models.report_claims import (
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
 from vultron.wire.csaf.reader import (
     CSAF_21_FORMAT,
+    MAX_CSAF_CONTENT_CHARS,
+    content_digest,
     is_csaf_21,
     read_csaf_document,
     read_report_attachments,
@@ -473,3 +475,30 @@ def test_the_involved_parties_are_read_by_name() -> None:
     claims = read_csaf_document(_DOCUMENT_ID, data).claims
 
     assert claims.involved_parties == ["Example Vendor"]
+
+
+@pytest.mark.spec("CSAF-02-006")
+def test_an_oversized_attachment_is_not_read_and_is_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    content = json.dumps(minimal_csaf_document())
+    padded = content + " " * (MAX_CSAF_CONTENT_CHARS - len(content) + 1)
+
+    with caplog.at_level(logging.INFO, logger="vultron.wire.csaf.reader"):
+        readings = _read(_attachment(padded))
+
+    assert readings == []
+    assert any(_ACTIVITY_ID in r.getMessage() for r in caplog.records)
+
+
+def test_a_reading_names_its_document_by_the_content_digest() -> None:
+    content = json.dumps(minimal_csaf_document())
+
+    [reading] = _read(_attachment(content))
+
+    assert reading.document_digest == content_digest(content)
+    assert read_csaf_document(
+        _DOCUMENT_ID, minimal_csaf_document()
+    ).document_digest == content_digest(
+        json.dumps(minimal_csaf_document(), sort_keys=True)
+    )

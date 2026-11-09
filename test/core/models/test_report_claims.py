@@ -32,6 +32,7 @@ from vultron.core.models.report_claims import (
 
 _REPORT_ID = "https://reporter.example.org/reports/1"
 _DOCUMENT_ID = "https://reporter.example.org/reports/1/csaf"
+_DIGEST = "a" * 64
 _ACTIVITY_ID = "https://reporter.example.org/activities/offer-1"
 _RECEIVER = "https://vendor.example.org/actors/vendor"
 
@@ -56,6 +57,7 @@ def _claims() -> ReportClaims:
 def _reading(**overrides) -> ClaimsReading:
     fields = {
         "document_id": _DOCUMENT_ID,
+        "document_digest": _DIGEST,
         "document_format": "CSAF 2.1",
         "schema_verdict": SchemaVerdict.SCHEMA_VALID,
         "claims": _claims(),
@@ -154,10 +156,12 @@ def test_with_outcome_refuses_a_path_that_names_no_value() -> None:
         _record().with_outcome("summary", ClaimOutcome.APPLIED)
 
 
-def test_the_record_id_derives_from_the_report_and_the_document() -> None:
+def test_the_record_id_derives_from_the_report_and_the_content_digest() -> (
+    None
+):
     record = _record()
 
-    assert record.id_ == ReportClaimsRecord.build_id(_REPORT_ID, _DOCUMENT_ID)
+    assert record.id_ == ReportClaimsRecord.build_id(_REPORT_ID, _DIGEST)
     assert record.with_outcome("name", ClaimOutcome.APPLIED).id_ == record.id_
 
 

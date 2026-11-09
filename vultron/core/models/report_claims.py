@@ -54,6 +54,7 @@ from vultron.core.models.base import (
     CoreRecord,
     NonEmptyString,
     UriString,
+    ValidatedAssignmentMixin,
     with_record_id,
 )
 
@@ -84,7 +85,7 @@ class ClaimOutcome(StrEnum):
     DISPLAY_ONLY = "display-only"
 
 
-class _ClaimsModel(BaseModel):
+class _ClaimsModel(ValidatedAssignmentMixin):
     """Immutable, closed base for the claims value objects."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -163,6 +164,8 @@ class VulnerabilityClaims(_ClaimsModel):
         self, value: Any, handler: SerializerFunctionWrapHandler
     ) -> Any:
         """Write each date in the one fixed form (CS-13-007)."""
+        # A lone datetime reaches here only through ``model_construct``, as
+        # the CS-13-007 ratchet builds one; validated data is always a list.
         if isinstance(value, datetime):
             return format_timestamp(value)
         if isinstance(value, list):
@@ -228,13 +231,17 @@ class ClaimsReading(_ClaimsModel):
     """The wire edge's reading of one document attached to a report.
 
     ``document_id`` is the attached document's id and ``document_format``
-    names the format it was recognized as (``"CSAF 2.1"``).  The verdict and
+    names the format it was recognized as (``"CSAF 2.1"``).
+    ``document_digest`` is the SHA-256 of the document's content as received:
+    a ``Document`` its sender gave no id gets a fresh one at every parse, so
+    the content, not the id, is what names the document across a resend.  The verdict and
     its errors agree: ``SCHEMA_VALID`` carries no error and
     ``SCHEMA_INVALID`` at least one (CSAF-04-001).  ``skipped`` names each
     field that was present but could not be read (CSAF-04-003).
     """
 
     document_id: NonEmptyString
+    document_digest: NonEmptyString
     document_format: NonEmptyString
     schema_verdict: SchemaVerdict
     schema_errors: list[SchemaError] = Field(default_factory=list)
@@ -265,9 +272,10 @@ class ReportClaimsRecord(CoreRecord):
 
     ``received_at`` is when the receiver read the document, not the Offer's
     ``published``, which is the sender's claimed time (CLP-15-003); a date the
-    document states is compared with it.  The id is derived from the report
-    and document ids (:meth:`build_id`), so a resent Offer finds the record it
-    already wrote.
+    document states is compared with it.  The id is derived from the report id
+    and the document's content digest (:meth:`build_id`), so a resent Offer
+    finds the record it already wrote even when the parser minted the
+    document a new id, and two different documents never share a record.
     """
 
     type_: Literal["ReportClaimsRecord"] = Field(
@@ -284,10 +292,14 @@ class ReportClaimsRecord(CoreRecord):
     _serialize_received_at = timestamp_serializer("received_at")
 
     @classmethod
-    def build_id(cls, report_id: str, document_id: str) -> str:
-        """Return the stable DataLayer id for *document_id* on *report_id*."""
+    def build_id(cls, report_id: str, document_digest: str) -> str:
+        """Return the stable DataLayer id for a document on *report_id*.
+
+        *document_digest* is the document's content digest
+        (:attr:`ClaimsReading.document_digest`).
+        """
         report = urllib.parse.quote(report_id, safe="")
-        document = urllib.parse.quote(document_id, safe="")
+        document = urllib.parse.quote(document_digest, safe="")
         return f"report-claims/{report}/{document}"
 
     @model_validator(mode="before")
@@ -295,7 +307,7 @@ class ReportClaimsRecord(CoreRecord):
     def _derive_id_and_outcomes(cls, data: Any) -> Any:
         """Derive the id, and give every value read an outcome.
 
-        The id comes from the report and document ids.  A value the document
+        The id comes from the report id and the document's content digest.  A value the document
         claimed with no outcome given starts ``DISPLAY_ONLY``, and an outcome
         for a path the document claimed nothing at is refused (CSAF-04-004).
         Both are derived before validation, so a validated assignment never
@@ -303,12 +315,15 @@ class ReportClaimsRecord(CoreRecord):
         """
         if not isinstance(data, dict) or "reading" not in data:
             return data
-        reading = ClaimsReading.model_validate(data["reading"])
+        raw = data["reading"]
+        reading = (
+            raw if isinstance(raw, ClaimsReading) else ClaimsReading(**raw)
+        )
         data = dict(data)
         report_id = data.get("report_id")
         if isinstance(report_id, str):
             data = with_record_id(
-                data, cls.build_id(report_id, reading.document_id)
+                data, cls.build_id(report_id, reading.document_digest)
             )
         given = data.get("outcomes") or {}
         if not isinstance(given, dict):
@@ -333,12 +348,11 @@ class ReportClaimsRecord(CoreRecord):
             raise KeyError(
                 f"'{path}' names no value the document claimed (CSAF-04-004)"
             )
-        return self.model_validate(
-            {
-                **self.model_dump(),
-                "outcomes": {**self.outcomes, path: outcome},
-            }
-        )
+        fields = {
+            **self.model_dump(),
+            "outcomes": {**self.outcomes, path: outcome},
+        }
+        return type(self)(**fields)
 
 
 __all__ = [

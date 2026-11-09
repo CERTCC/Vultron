@@ -36,15 +36,19 @@ The result is a format-neutral core
 only core models (ARCH-22-001).
 """
 
+import hashlib
 import json
 import logging
 from collections.abc import Iterator, Sequence
 from datetime import datetime
-from typing import Any, TypeGuard
+from typing import TypeGuard
 
-from pydantic import AwareDatetime, TypeAdapter, ValidationError
+from pydantic import AwareDatetime, JsonValue, TypeAdapter, ValidationError
 
-from vultron.core.models.attached_document import AttachedDocument
+from vultron.core.models.attached_document import (
+    AttachedDocument,
+    AttachedFile,
+)
 from vultron.core.models.report_claims import (
     ClaimedAcknowledgment,
     ClaimedReference,
@@ -72,10 +76,17 @@ _SSVC_EXPLOITATION_KEY = "E"
 #: The document-level note categories a summary is read from, in preference.
 _SUMMARY_NOTE_CATEGORIES = ("summary", "description")
 
+#: The largest attachment content, in characters, the reader parses.  Every
+#: received report's attachments are parsed and schema-checked, so an
+#: unbounded one would let one Offer occupy the receiver; a larger one is kept
+#: with the report and not read.  The inbox-wide body limit is #4596
+#: (IE-03-002).
+MAX_CSAF_CONTENT_CHARS = 8 * 1024 * 1024
+
 _AWARE_DATETIME: TypeAdapter[datetime] = TypeAdapter(AwareDatetime)
 
 
-def is_csaf_21(data: object) -> TypeGuard[dict[str, Any]]:
+def is_csaf_21(data: object) -> TypeGuard[dict[str, JsonValue]]:
     """Whether *data*, a parsed JSON value, says it is a CSAF 2.1 document.
 
     Read from the document itself, by its ``$schema`` and its
@@ -91,20 +102,30 @@ def is_csaf_21(data: object) -> TypeGuard[dict[str, Any]]:
     )
 
 
+def content_digest(content: str) -> str:
+    """The SHA-256 of an attachment's content, as hex: the document's name."""
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
 def read_csaf_document(
-    document_id: str, data: dict[str, Any]
+    document_id: str, data: dict[str, JsonValue], *, digest: str | None = None
 ) -> ClaimsReading:
     """Check the CSAF 2.1 document *data* and read what it claims.
 
-    *document_id* is the id of the attachment that carried it.  The caller has
+    *document_id* is the id of the attachment that carried it, and *digest*
+    the digest of its content (:func:`content_digest`); without one, the
+    digest is taken of *data* written as canonical JSON.  The caller has
     already recognized *data* as CSAF 2.1 (:func:`is_csaf_21`).
     """
+    if digest is None:
+        digest = content_digest(json.dumps(data, sort_keys=True))
     try:
         parsed = CommonSecurityAdvisoryFramework.model_validate(data)
     except ValidationError as exc:
         reader = _FieldReader()
         return ClaimsReading(
             document_id=document_id,
+            document_digest=digest,
             document_format=CSAF_21_FORMAT,
             schema_verdict=SchemaVerdict.SCHEMA_INVALID,
             schema_errors=_schema_errors(exc),
@@ -115,6 +136,7 @@ def read_csaf_document(
     reader = _FieldReader()
     return ClaimsReading(
         document_id=document_id,
+        document_digest=digest,
         document_format=CSAF_21_FORMAT,
         schema_verdict=SchemaVerdict.SCHEMA_VALID,
         claims=reader.read(stated),
@@ -123,7 +145,7 @@ def read_csaf_document(
 
 
 def read_report_attachments(
-    attachments: Sequence[AttachedDocument] | None,
+    attachments: Sequence[AttachedFile] | None,
     *,
     activity_id: str,
     actor_id: str,
@@ -138,6 +160,10 @@ def read_report_attachments(
     """
     readings: list[ClaimsReading] = []
     for attachment in attachments or []:
+        # CSAF travels as a ``Document`` (CSAF-01-001); an image, audio or
+        # video file is kept with the report and not read.
+        if not isinstance(attachment, AttachedDocument):
+            continue
         data = _json_content(attachment, activity_id, actor_id)
         if data is None:
             continue
@@ -150,7 +176,12 @@ def read_report_attachments(
                 actor_id,
             )
             continue
-        readings.append(read_csaf_document(attachment.id_, data))
+        assert attachment.content is not None  # _json_content parsed it
+        readings.append(
+            read_csaf_document(
+                attachment.id_, data, digest=content_digest(attachment.content)
+            )
+        )
     return readings
 
 
@@ -159,6 +190,18 @@ def _json_content(
 ) -> object | None:
     """The attachment's content parsed as JSON, or ``None`` when it is not."""
     if attachment.content is None:
+        return None
+    if len(attachment.content) > MAX_CSAF_CONTENT_CHARS:
+        logger.info(
+            "Attachment '%s' of activity '%s' from actor '%s' holds %d"
+            " characters, more than the %d this reader parses, so it is not"
+            " read as CSAF (CSAF-02-006)",
+            attachment.id_,
+            activity_id,
+            actor_id,
+            len(attachment.content),
+            MAX_CSAF_CONTENT_CHARS,
+        )
         return None
     try:
         data: object = json.loads(attachment.content)
@@ -208,8 +251,8 @@ class _FieldReader:
         self.skipped.append(SkippedClaim(path=path, reason=reason))
 
     def _object(
-        self, container: dict[str, Any], key: str, path: str
-    ) -> dict[str, Any] | None:
+        self, container: dict[str, JsonValue], key: str, path: str
+    ) -> dict[str, JsonValue] | None:
         if key not in container:
             return None
         value = container[key]
@@ -219,8 +262,8 @@ class _FieldReader:
         return value
 
     def _items(
-        self, container: dict[str, Any], key: str, path: str
-    ) -> Iterator[tuple[str, dict[str, Any]]]:
+        self, container: dict[str, JsonValue], key: str, path: str
+    ) -> Iterator[tuple[str, dict[str, JsonValue]]]:
         """Yield each object in the list at *key*, with its path."""
         if key not in container:
             return
@@ -236,7 +279,7 @@ class _FieldReader:
                 self._skip(f"{here}[{index}]", "not an object")
 
     def _text(
-        self, container: dict[str, Any], key: str, path: str
+        self, container: dict[str, JsonValue], key: str, path: str
     ) -> str | None:
         if key not in container:
             return None
@@ -247,7 +290,7 @@ class _FieldReader:
         return None
 
     def _date(
-        self, container: dict[str, Any], key: str, path: str
+        self, container: dict[str, JsonValue], key: str, path: str
     ) -> datetime | None:
         if key not in container:
             return None
@@ -259,7 +302,7 @@ class _FieldReader:
             )
             return None
 
-    def read(self, data: dict[str, Any]) -> ReportClaims:
+    def read(self, data: dict[str, JsonValue]) -> ReportClaims:
         """Read the claims of the whole document *data*."""
         document = self._object(data, "document", "$") or {}
         vendors_by_product = self._vendors_by_product(data)
@@ -285,7 +328,7 @@ class _FieldReader:
             known_affected_vendors=list(dict.fromkeys(vendors)),
         )
 
-    def _summary(self, document: dict[str, Any]) -> str | None:
+    def _summary(self, document: dict[str, JsonValue]) -> str | None:
         """The document-level ``summary`` note, else its ``description`` note."""
         notes: dict[str, str] = {}
         for path, note in self._items(document, "notes", "$.document"):
@@ -299,7 +342,9 @@ class _FieldReader:
             (notes[c] for c in _SUMMARY_NOTE_CATEGORIES if c in notes), None
         )
 
-    def _distribution_label(self, document: dict[str, Any]) -> str | None:
+    def _distribution_label(
+        self, document: dict[str, JsonValue]
+    ) -> str | None:
         """The TLP label the document is shared under."""
         distribution = (
             self._object(document, "distribution", "$.document") or {}
@@ -310,7 +355,7 @@ class _FieldReader:
         return self._text(tlp, "label", "$.document.distribution.tlp")
 
     def _acknowledgments(
-        self, document: dict[str, Any]
+        self, document: dict[str, JsonValue]
     ) -> list[ClaimedAcknowledgment]:
         found: list[ClaimedAcknowledgment] = []
         for here, item in self._items(
@@ -329,7 +374,7 @@ class _FieldReader:
             )
         return found
 
-    def _involved_parties(self, document: dict[str, Any]) -> list[str]:
+    def _involved_parties(self, document: dict[str, JsonValue]) -> list[str]:
         """The names of the entities the document's involvement lists."""
         involvement = self._object(document, "involvement", "$.document")
         if involvement is None:
@@ -344,7 +389,7 @@ class _FieldReader:
         return list(dict.fromkeys(names))
 
     def _text_list(
-        self, container: dict[str, Any], key: str, path: str
+        self, container: dict[str, JsonValue], key: str, path: str
     ) -> list[str]:
         """The readable strings of the list at *key*; skip it if any is not."""
         if key not in container:
@@ -360,7 +405,7 @@ class _FieldReader:
         return readable
 
     def _references(
-        self, container: dict[str, Any], path: str
+        self, container: dict[str, JsonValue], path: str
     ) -> list[ClaimedReference]:
         references: list[ClaimedReference] = []
         for here, item in self._items(container, "references", path):
@@ -379,7 +424,7 @@ class _FieldReader:
         return references
 
     def _vulnerability(
-        self, vul: dict[str, Any], path: str
+        self, vul: dict[str, JsonValue], path: str
     ) -> VulnerabilityClaims:
         ids = [cve] if (cve := self._text(vul, "cve", path)) else []
         for here, item in self._items(vul, "ids", path):
@@ -402,7 +447,9 @@ class _FieldReader:
             references=self._references(vul, path),
         )
 
-    def _exploitation(self, vul: dict[str, Any], path: str) -> str | None:
+    def _exploitation(
+        self, vul: dict[str, JsonValue], path: str
+    ) -> str | None:
         """The one SSVC Exploitation value the vulnerability's metrics state.
 
         Read from each metric's ``content.ssvc_v2`` selection list, the
@@ -437,13 +484,17 @@ class _FieldReader:
             return None
         return distinct[0] if distinct else None
 
-    def _known_affected(self, vul: dict[str, Any], path: str) -> list[str]:
+    def _known_affected(
+        self, vul: dict[str, JsonValue], path: str
+    ) -> list[str]:
         status = self._object(vul, "product_status", path) or {}
         return self._text_list(
             status, "known_affected", f"{path}.product_status"
         )
 
-    def _vendors_by_product(self, data: dict[str, Any]) -> dict[str, str]:
+    def _vendors_by_product(
+        self, data: dict[str, JsonValue]
+    ) -> dict[str, str]:
         """Map each product id to the vendor branch nearest above it."""
         tree = self._object(data, "product_tree", "$") or {}
         found: dict[str, str] = {}
@@ -452,7 +503,7 @@ class _FieldReader:
 
     def _walk_branches(
         self,
-        node: dict[str, Any],
+        node: dict[str, JsonValue],
         path: str,
         vendor: str | None,
         found: dict[str, str],
@@ -475,6 +526,8 @@ __all__ = [
     "CSAF_21_FORMAT",
     "CSAF_21_SCHEMA",
     "CSAF_21_VERSION",
+    "MAX_CSAF_CONTENT_CHARS",
+    "content_digest",
     "is_csaf_21",
     "read_csaf_document",
     "read_report_attachments",

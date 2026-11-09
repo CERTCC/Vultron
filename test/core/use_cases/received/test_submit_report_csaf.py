@@ -37,7 +37,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.actor import VultronService
-from vultron.core.models.attached_document import AttachedDocument
+from vultron.core.models.attached_document import (
+    AttachedDocument,
+    AttachedFile,
+    AttachedImage,
+)
 from vultron.core.models.events.report import SubmitReportReceivedEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_claims import (
@@ -75,7 +79,7 @@ class _Receipt:
     """One delivery of a report Offer to the Vendor, and what it left behind."""
 
     def __init__(
-        self, *attachments: AttachedDocument, report_id: str = _REPORT_ID
+        self, *attachments: AttachedFile, report_id: str = _REPORT_ID
     ) -> None:
         self.report_id = report_id
         report = VulnerabilityReport(
@@ -315,3 +319,49 @@ def test_the_claims_record_is_never_sent() -> None:
     assert "ReportClaimsRecord" not in sent
     for marker in ("schema-invalid", "schema-valid", "display-only"):
         assert marker not in sent
+
+
+def test_a_resent_offer_whose_document_has_no_id_keeps_one_record() -> None:
+    """The parser mints a fresh id for an id-less Document at every parse."""
+    content = json.dumps(vulnerability_report_document())
+    first = _Receipt(
+        AttachedDocument(media_type="application/json", content=content)
+    )
+    first.handle()
+    again = _Receipt(
+        AttachedDocument(media_type="application/json", content=content)
+    )
+    assert (
+        again.event.claims_readings[0].document_id
+        != first.event.claims_readings[0].document_id
+    )
+    again.dl = first.dl
+
+    again.handle()
+
+    assert len(first.records()) == 1
+
+
+def test_two_documents_sharing_an_id_each_get_a_record() -> None:
+    other = vulnerability_report_document()
+    other["document"]["title"] = "A second advisory"
+    receipt = _Receipt(_csaf(vulnerability_report_document()), _csaf(other))
+
+    receipt.handle()
+
+    names = sorted(r.reading.claims.name or "" for r in receipt.records())
+    assert names == ["A second advisory", "Buffer overflow in Example Widget"]
+
+
+def test_an_image_beside_the_csaf_document_is_kept_and_not_read() -> None:
+    image = AttachedImage(
+        id_=_OTHER_ID, url="https://finder.example.org/shot.png"
+    )
+    receipt = _Receipt(image, _csaf(vulnerability_report_document()))
+
+    result = receipt.handle()
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    assert [r.reading.document_id for r in receipt.records()] == [_CSAF_ID]
+    stored = receipt.stored_report().attachment
+    assert stored is not None and type(stored[0]) is AttachedImage
