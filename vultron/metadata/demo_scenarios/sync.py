@@ -177,6 +177,17 @@ def desired_contents(
             splice into.
         ValueError: If a marker-block artifact's markers are missing or
             malformed.
+        DemoStoryError: If a story holds an item the plot manifest cannot
+            name (:mod:`.plots`, DEMOCI-11-034). It is raised from the demo
+            layer and left to propagate as a traceback, from here through
+            :func:`stale_artifacts`, :func:`write_artifacts` and
+            :func:`main`: neither ``--check`` nor ``--write`` can say
+            anything about a manifest that cannot be rendered at all, and
+            this module may not catch it by name — ``vultron/metadata/``
+            raises and handles no ``VultronError`` (MS-17-006), and a
+            blanket ``except`` is forbidden (CS-23-001). The demo layer's
+            message names the scenario, the item and the remedy, and the
+            traceback adds the source of the fragment.
     """
     base = root or repo_root()
     resolved = discover_scenarios() if specs is None else specs
@@ -220,7 +231,12 @@ def stale_artifacts(
     root: Path | None = None,
     specs: tuple[ScenarioSpec, ...] | None = None,
 ) -> list[str]:
-    """Return the repo-relative paths whose committed contents are stale."""
+    """Return the repo-relative paths whose committed contents are stale.
+
+    Raises:
+        FileNotFoundError, ValueError, DemoStoryError: As
+            :func:`desired_contents`.
+    """
     base = root or repo_root()
     return [path for _target, path, _desired in _out_of_date(base, specs)]
 
@@ -250,7 +266,12 @@ def write_artifacts(
     root: Path | None = None,
     specs: tuple[ScenarioSpec, ...] | None = None,
 ) -> list[str]:
-    """Rewrite every stale artifact in place; return the paths written."""
+    """Rewrite every stale artifact in place; return the paths written.
+
+    Raises:
+        FileNotFoundError, ValueError, DemoStoryError: As
+            :func:`desired_contents`.
+    """
     base = root or repo_root()
     written: list[str] = []
     for target, path, desired in _out_of_date(base, specs):

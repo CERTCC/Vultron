@@ -18,7 +18,7 @@ from __future__ import annotations
 import importlib.util
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol, TypeVar
 
@@ -187,14 +187,17 @@ class ScenarioSpec:
     #: for :attr:`path`, which :func:`~.discovery.scenario` already read off
     #: this story's choices (DEMOCI-11-019).
     #:
-    #: ``None`` only for a spec built by hand. :func:`~.discovery.scenario`
-    #: requires a story, so every *registered* scenario carries one and the
-    #: manifest covers the whole registry; a spec assembled directly in a
-    #: test — the way the tree checks make a malformed path, which no story
-    #: can hold because :class:`~vultron.demo.helpers.story.Choose` validates
-    #: each step as it is written — contributes no manifest entry rather than
-    #: an entry with no items.
-    story: AssembledStory | None = None
+    #: Out of ``__eq__`` and ``__repr__``, both deliberately. A story's
+    #: fragments are function objects compared by identity, so re-executing a
+    #: scenario module — which ``importlib.reload`` does, and a test teardown
+    #: with it — would build an unequal spec and make
+    #: :func:`~.discovery._register`'s conflict guard refuse the scenario it
+    #: just re-read. That guard exists to catch a copy-pasted decorator, and
+    #: the prose fields plus the path are what a copy gets wrong; a story is
+    #: the one field whose repr is also unreadable, several thousand
+    #: characters of nested items and memory addresses in the message a
+    #: human has to read.
+    story: AssembledStory = field(compare=False, repr=False)
 
     def __post_init__(self) -> None:
         if not _NAME_RE.match(self.name):

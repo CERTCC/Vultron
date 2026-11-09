@@ -46,6 +46,8 @@ is imported by demo or protocol code.
 
 from vultron.metadata.demo_scenarios.plots import (
     PLOT_MANIFEST,
+    PlotManifest,
+    PlotRow,
     plot_manifest,
     plot_manifest_json,
     plot_rows,
@@ -126,6 +128,8 @@ __all__ = [
     "WRITE_COMMAND",
     "HarnessSemanticTypeError",
     "PlannedScenario",
+    "PlotManifest",
+    "PlotRow",
     "ScenarioTable",
     "additional_semantic_types",
     "consistency_problems",

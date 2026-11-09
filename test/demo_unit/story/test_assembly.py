@@ -205,6 +205,19 @@ def _register_fixture(
     return registry_discovery._REGISTRY[name]
 
 
+def _fixture_spec_with(story_obj: Story) -> ScenarioSpec:
+    """A spec for ``rv`` carrying *story_obj*, built without registering it."""
+    return ScenarioSpec(
+        name="rv",
+        label="RV",
+        participants="Reporter + Vendor",
+        feature="Fixture",
+        in_pr_set=False,
+        path=tuple(story_obj.path),
+        story=story_obj,
+    )
+
+
 class TestRegisteringAStory:
     @pytest.mark.spec("DEMOCI-11-019")
     def test_a_scenarios_path_is_its_storys_choices(
@@ -233,6 +246,79 @@ class TestRegisteringAStory:
                 participants="Reporter + Vendor",
                 feature="Fixture",
                 in_pr_set=False,
+            )
+
+    @pytest.mark.spec("DEMOCI-11-001")
+    def test_re_executing_a_scenario_module_registers_the_same_spec(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Re-running a module's decorator is the same scenario, not a conflict.
+
+        ``_register`` decides "same scenario or conflict" by comparing specs,
+        and a story's fragments are function objects compared by identity, so
+        a re-executed module builds fresh ones. The spec keeps its story out
+        of ``__eq__`` for exactly this reason; without that, every
+        ``importlib.reload`` of a scenario whose story holds a fragment
+        defined in its own module — nine of the eleven — would raise, and the
+        one teardown that reloads one would go red far from its cause
+        (``test/demo/test_rcv_demo.py``).
+        """
+        monkeypatch.setattr(
+            registry_discovery,
+            "_REGISTRY",
+            dict(registry_discovery._REGISTRY),
+        )
+        first = _fixture_spec_with(rv_story())
+        # A second story built the way a re-executed module's module-level
+        # `story(...)` call builds it: equal in meaning, new objects.
+        reread = _fixture_spec_with(rv_story())
+        assert reread.story is not first.story
+
+        registry_discovery._REGISTRY["rv"] = first
+        registry_discovery._register(reread, "test.demo_unit.test_story")
+
+        assert registry_discovery._REGISTRY["rv"] is reread
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    def test_a_story_that_cannot_say_what_its_items_are_is_refused(
+        self,
+    ) -> None:
+        """The exporter reads the items long after import, so import checks them.
+
+        A stand-in carrying only ``path`` registers fine and then dies in the
+        plot-manifest exporter as an ``AttributeError`` over an anonymous
+        object, in a layer whose error messages are the product.
+        """
+
+        class _PathOnly:
+            path = (("reporter-whom-to-tell", "vendor"),)
+
+        with pytest.raises(DemoScenarioRegistryError, match="no items"):
+            scenario(
+                name="rv",
+                label="RV",
+                participants="Reporter + Vendor",
+                feature="Fixture",
+                in_pr_set=False,
+                story=_PathOnly(),  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    def test_a_story_whose_items_are_mutable_is_refused(self) -> None:
+        """A list of items could be rewritten behind the committed manifest."""
+
+        class _MutableItems:
+            path = (("reporter-whom-to-tell", "vendor"),)
+            items = [choose("reporter-whom-to-tell", "vendor", by="reporter")]
+
+        with pytest.raises(DemoScenarioRegistryError, match="not a tuple"):
+            scenario(
+                name="rv",
+                label="RV",
+                participants="Reporter + Vendor",
+                feature="Fixture",
+                in_pr_set=False,
+                story=_MutableItems(),  # type: ignore[arg-type]
             )
 
     @pytest.mark.spec("DEMOCI-11-019")

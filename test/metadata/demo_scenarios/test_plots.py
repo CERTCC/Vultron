@@ -114,8 +114,8 @@ def _reordered_story() -> Story:
     )
 
 
-def _fixture_spec(plot: Story | None) -> ScenarioSpec:
-    """A spec carrying *plot*, or no story at all when *plot* is ``None``."""
+def _fixture_spec(plot: Story) -> ScenarioSpec:
+    """A spec carrying *plot* as its story."""
     return ScenarioSpec(
         name=_FIXTURE_NAME,
         label="ZZ-plot",
@@ -125,6 +125,29 @@ def _fixture_spec(plot: Story | None) -> ScenarioSpec:
         path=((_BRANCH_POINT, _CHOICE),),
         story=plot,
     )
+
+
+def _committed_scenarios() -> dict[str, list[dict[str, str]]]:
+    """Return the committed manifest's ``scenarios`` map.
+
+    Reads the artifact once and fails naming it when it is absent or empty,
+    rather than letting ``json.loads(... or "{}")`` turn a missing file into
+    a ``KeyError`` on ``scenarios`` — the "falls back to" shape
+    ``notes/testing-pitfalls.md`` warns about.
+    """
+    text = read_committed(_REPO_ROOT / PLOT_MANIFEST)
+    assert text, (
+        f"{PLOT_MANIFEST} is missing or empty. Run '{WRITE_COMMAND}' and "
+        f"commit it (DEMOCI-11-034)."
+    )
+    payload = json.loads(text)
+    assert "scenarios" in payload, (
+        f"{PLOT_MANIFEST} holds no 'scenarios' key, so it is not a plot "
+        f"manifest. Run '{WRITE_COMMAND}' and commit it (DEMOCI-11-034)."
+    )
+    scenarios = payload["scenarios"]
+    assert isinstance(scenarios, dict), type(scenarios).__name__
+    return scenarios
 
 
 _CHOICE_ROW = {
@@ -259,11 +282,8 @@ class TestManifestShape:
         that — so no registered scenario can be missing from the manifest.
         """
         specs = discover_scenarios()
-        committed = json.loads(
-            read_committed(_REPO_ROOT / PLOT_MANIFEST) or "{}"
-        )
 
-        assert set(committed["scenarios"]) == {spec.name for spec in specs}
+        assert set(_committed_scenarios()) == {spec.name for spec in specs}
 
     @pytest.mark.spec("DEMOCI-11-034")
     def test_each_committed_entry_is_its_scenarios_story(self) -> None:
@@ -291,7 +311,6 @@ class TestManifestShape:
         future change reading one of them from somewhere else.
         """
         for spec in discover_scenarios():
-            assert spec.story is not None, spec.name
             rows = plot_rows(spec.name, spec.story)
             chosen = tuple(
                 (row["branch_point"], row["choice"])
@@ -300,16 +319,26 @@ class TestManifestShape:
             )
             assert chosen == spec.path, spec.name
 
-    @pytest.mark.spec("DEMOCI-11-034")
-    def test_a_spec_with_no_story_has_no_entry(self) -> None:
-        """A hand-built spec contributes nothing rather than an empty entry.
+    @pytest.mark.spec("DEMOCI-11-024", "DEMOCI-11-034")
+    def test_a_spec_cannot_be_built_without_a_story(self) -> None:
+        """There is no story-less spec for the manifest to leave out.
 
-        An entry with no items would read as a scenario that decides and does
-        nothing, which is not a story any scenario can register.
+        A scenario joins the manifest by existing, not by opting in:
+        ``ScenarioSpec`` requires a story and ``@scenario`` requires
+        ``story=`` (``test_a_scenario_cannot_register_without_a_story`` in
+        ``test/demo_unit/story/test_assembly.py``). Asserted here because the
+        alternative — an optional story the writer skips — would drop a
+        scenario from the artifact with the drift check still green.
         """
-        payload = plot_manifest((_fixture_spec(None),), WRITE_COMMAND)
-
-        assert payload["scenarios"] == {}
+        with pytest.raises(TypeError, match="story"):
+            ScenarioSpec(  # type: ignore[call-arg]
+                name=_FIXTURE_NAME,
+                label="ZZ-plot",
+                participants="Reporter + Vendor",
+                feature="Fixture scenario; never registered",
+                in_pr_set=False,
+                path=((_BRANCH_POINT, _CHOICE),),
+            )
 
     @pytest.mark.spec("DEMOCI-11-034")
     def test_the_manifest_names_the_command_that_rewrites_it(self) -> None:
@@ -345,10 +374,13 @@ def test_a_story_holding_an_unstable_name_is_refused_whole() -> None:
 
 @pytest.mark.spec("DEMOCI-11-034")
 def test_a_choose_is_not_read_as_a_fragment() -> None:
-    """``Choose`` is a dataclass, so a qualname test would misname it.
+    """A choice takes the choice branch, not the fragment one.
 
-    Without the ``isinstance`` branch a choice would render as
-    ``...assembly.Choose``, losing the branch point it decides.
+    ``Choose`` is a ``slots=True`` dataclass, so an instance carries
+    ``__module__`` but no ``__qualname__`` of its own: without the
+    ``isinstance`` branch a choice would not be misnamed, it would be
+    *refused* as unnameable, and the branch point it decides would never
+    reach the manifest at all.
     """
     rows = plot_rows(
         _FIXTURE_NAME,

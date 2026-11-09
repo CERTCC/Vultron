@@ -14,7 +14,8 @@ decorating its own ``main()``::
     def main(skip_health_check: bool = False, ...) -> None:
 
 The registry is then the **sole** declaration point for the set of scenarios
-that exist (DEMOCI-11-036), and `.github/demo-scenarios.json`, the scenario
+that exist (DEMOCI-11-036), and `.github/demo-scenarios.json`, the plot
+manifest at `vultron/demo/scenario/plots.json`, the scenario
 tables in `test/ci/README-case-log-ratchet.md` and
 `vultron/demo/scenario/README.md`, and the narrative index at
 `docs/topics/scenarios/index.md` are all derived from it by

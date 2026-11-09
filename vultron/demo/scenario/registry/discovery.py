@@ -97,6 +97,12 @@ def scenario(
 def _story_path(name: str, story: AssembledStory) -> tuple[PathStep, ...]:
     """Return the path *story* walks, as the scenario *name*'s path.
 
+    Both facts the registry reads off a story are checked here, because both
+    are read later by something that cannot name the scenario: the path by
+    :class:`ScenarioSpec`, and the items by the plot manifest exporter
+    (DEMOCI-11-034), which runs long after import and would otherwise die as
+    an ``AttributeError`` over an anonymous object.
+
     A required argument cannot be omitted, but it can still arrive as a
     ``None`` a module-level name resolved to, which would reach
     :class:`ScenarioSpec` as an ``AttributeError`` naming no scenario.  Tested
@@ -105,13 +111,35 @@ def _story_path(name: str, story: AssembledStory) -> tuple[PathStep, ...]:
     and report a genuine bug as a missing path.
 
     Raises:
-        DemoScenarioRegistryError: When *story* is ``None``.
+        DemoScenarioRegistryError: When *story* is ``None``, or when its
+            items cannot be read as a tuple.
     """
     if story is None:
         raise DemoScenarioRegistryError(
             f"scenario {name!r} was given None as its story, which names "
             "no path; a scenario is placed on the tree by the choices of its "
             "assembled story (DEMOCI-11-014, DEMOCI-11-019)."
+        )
+    try:
+        items = story.items
+    except AttributeError as exc:
+        # Chained, so an AttributeError raised *inside* a real `items`
+        # property is still readable underneath this message rather than
+        # reported only as a missing attribute.
+        raise DemoScenarioRegistryError(
+            f"scenario {name!r} registered a story with no items "
+            f"({story!r}); the generated plot manifest lists a story's "
+            "choices and fragments in order, so a story that cannot say "
+            "what its items are has nothing to record (DEMOCI-11-034). "
+            "Assemble it with story(...)."
+        ) from exc
+    if not isinstance(items, tuple):
+        raise DemoScenarioRegistryError(
+            f"scenario {name!r} registered a story whose items are "
+            f"{type(items).__name__}, not a tuple ({items!r}); a frozen "
+            "story holds its items immutably, so the committed plot "
+            "manifest cannot be rewritten behind the check that compares "
+            "it (DEMOCI-11-034). Assemble it with story(...)."
         )
     return tuple(story.path)
 

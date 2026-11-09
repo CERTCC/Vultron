@@ -184,13 +184,25 @@ registry takes no path parameter, so the path cannot be stated a second time
 the coordinator-first subtree, whose Reporter tells a Coordinator, and the
 vendor-first half, whose Reporter tells a Vendor.
 
-- **The API is four names.** `vultron/demo/helpers/story/` holds them:
+- **An author writes a story from four names.** `vultron/demo/helpers/story/`
+  holds them:
   `choose(branch point, choice, by=<cast name>)` declares one decision,
   `story(...)` concatenates named prefixes, choices and fragments into one flat
   sequence, `StoryState` is what a fragment runs against, and `run_story(name,
   plot, open_cast)` plays it inside `scenario_harness`. Prefer adding a
   fragment to extending the API — with one exception, the artifacts a family
-  carries between its own steps (below).
+  carries between its own steps (below). The package exports one more,
+  `fragment_name`, which nothing a story writes calls: it is how the plot
+  manifest records a step (next bullet).
+- **A story item is a named module-level callable, or it is refused.**
+  `fragment_name` records a fragment as `module.qualname`, so a lambda, a
+  closure, a `functools.partial`, a callable instance, and any fragment a
+  factory binds at module level (its qualname carries `<locals>`) raise
+  `DemoStoryError` instead of reaching the manifest (DEMOCI-11-034). The
+  reason is the diff: a name that moves when an unrelated enclosing function
+  is renamed makes every later manifest diff unreadable, which is the one
+  thing the artifact exists to keep legible. Write a parameterized helper as
+  a call *inside* a named fragment, the way the invite chain already does.
 - **A family's own artifacts are props, not state fields.** `StoryState` names
   what every story has: the case, the report, the Offer, the delivered
   Invites. What one family passes between its own steps is a
