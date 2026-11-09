@@ -25,12 +25,12 @@ from pathlib import Path
 import pytest
 import yaml
 
+from vultron.metadata.docs.exec_page import EXEC_BUILD_ENV
 from vultron.metadata.docs.requirement_catalog import CatalogPage
 from vultron.metadata.specs.coverage import compute_implementer_coverage
 from vultron.metadata.specs.docs_render import (
     pages as docs_pages,
     render_catalog_page,
-    render_for_kind,
     requirement_callout,
 )
 from vultron.metadata.specs.docs_render.rows import (
@@ -61,18 +61,19 @@ _SPEC_FILE = {
                 {
                     "id": _req(n),
                     "priority": "MUST",
-                    "kind": "protocol",
+                    "kind": "foundation" if n == 6 else "protocol",
                     "statement": f"A participant MUST do thing {n}.",
                     "rationale": "A test requirement.",
                 }
-                for n in range(1, 6)
+                for n in range(1, 7)
             ],
         }
     ],
 }
 
 #: 1 verified; 2 xfail-only, citing #11 and #12; 3 partly met, citing #13;
-#: 4 untested; 5 xfail-only under a skip citing no issue.
+#: 4 untested; 5 xfail-only under a skip citing no issue; 6, of the
+#: ``foundation`` tier, xfail-only citing #14.
 _TESTS = f"""\
 import pytest
 
@@ -103,9 +104,18 @@ def test_three_edge():
 @pytest.mark.skip(reason="no harness yet")
 def test_five():
     pass
+
+
+@pytest.mark.spec("{_req(6)}")
+@pytest.mark.xfail(strict=True, reason="{_req(6)}: inherited. See #14.")
+def test_six():
+    pass
 """
 
-_PAGES = (CatalogPage("vp", "Vultron Protocol", SpecKind.PROTOCOL, ("VP",)),)
+_PAGES = (
+    CatalogPage("vp", "Vultron Protocol", SpecKind.PROTOCOL, ("VP",)),
+    CatalogPage("inherited", "Inherited", SpecKind.FOUNDATION, ("VP",)),
+)
 _PAGE = "reference/vultron-spec/considerations.md"
 
 
@@ -124,9 +134,9 @@ def _rows(markdown: str) -> dict[str, str]:
     rows = {}
     for line in markdown.splitlines():
         cells = line.strip().split(" | ")
-        for n in range(1, 6):
-            if _req(n) in cells[0]:
-                rows[_req(n)] = line
+        for spec_id in _all_ids():
+            if spec_id in cells[0]:
+                rows[spec_id] = line
     return rows
 
 
@@ -140,12 +150,19 @@ def _without_the_hold_on_two() -> str:
     return _TESTS.replace(hold, "")
 
 
+def _bump(path: Path) -> None:
+    """Move *path*'s modification time on, so a filesystem with a coarse
+    clock still sees the edit."""
+    stat = path.stat()
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
+
+
 def _link(number: int) -> str:
     return f"[#{number}]({ISSUE_URL.format(number=number)})"
 
 
 def _all_ids() -> list[str]:
-    return [_req(n) for n in range(1, 6)]
+    return [_req(n) for n in range(1, 7)]
 
 
 @pytest.fixture
@@ -159,6 +176,7 @@ def repo(checkout, monkeypatch):
     monkeypatch.setattr(docs_pages, "repo_root", lambda: checkout)
     monkeypatch.setattr(docs_pages, "_registry_cache", {})
     monkeypatch.setattr(docs_pages, "_not_yet_implemented_cache", {})
+    monkeypatch.delenv(EXEC_BUILD_ENV, raising=False)
     return checkout
 
 
@@ -168,8 +186,11 @@ class TestNotYetImplementedMarker:
         registry = load_registry(root / "specs")
         coverage = compute_implementer_coverage(registry, root / "test")
         return _rows(
-            render_catalog_page(
-                "vp", registry, page=_PAGE, pages=_PAGES, coverage=coverage
+            "\n".join(
+                render_catalog_page(
+                    key, registry, page=_PAGE, pages=_PAGES, coverage=coverage
+                )
+                for key in ("vp", "inherited")
             )
         )
 
@@ -195,8 +216,9 @@ class TestNotYetImplementedMarker:
             for spec_id, row in rows.items()
             if NOT_YET_IMPLEMENTED_LABEL in row
         )
-        # Verified (1), partly met (3) and untested (4) carry none.
-        assert marked == [_req(2), _req(5)]
+        # Verified (1), partly met (3) and untested (4) carry none; the
+        # foundation tier (6) is marked like the protocol tier.
+        assert marked == [_req(2), _req(5), _req(6)]
 
     @pytest.mark.parametrize("render", ["_catalog", "_callout"])
     def test_marker_links_each_cited_issue(self, checkout, render):
@@ -230,19 +252,6 @@ class TestNotYetImplementedMarker:
         )
         assert NOT_YET_IMPLEMENTED_LABEL not in md
 
-    def test_per_kind_pages_carry_no_marker(self, checkout):
-        """Only the two catalog tiers have coverage states (SR-05-017)."""
-        data = yaml.safe_load(
-            (checkout / "specs" / "vultron-protocol-spec.yaml").read_text()
-        )
-        for spec in data["groups"][0]["specs"]:
-            spec["kind"] = "process"
-        (checkout / "specs" / "vultron-protocol-spec.yaml").write_text(
-            yaml.safe_dump(data), encoding="utf-8"
-        )
-        md = render_for_kind("process", load_registry(checkout / "specs"))
-        assert NOT_YET_IMPLEMENTED_LABEL not in md
-
 
 @pytest.mark.spec("DF-12-021")
 class TestRepositoryDefault:
@@ -265,10 +274,7 @@ class TestRepositoryDefault:
         )
         path = repo / "test" / "test_markers.py"
         path.write_text(_without_the_hold_on_two(), encoding="utf-8")
-        # The cache keys on modification times; move this one on, so a
-        # filesystem with a coarse clock still sees the edit.
-        stat = path.stat()
-        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
+        _bump(path)
         assert NOT_YET_IMPLEMENTED_LABEL not in requirement_callout(
             _req(2), page=_PAGE, pages=_PAGES
         )
@@ -278,3 +284,39 @@ class TestRepositoryDefault:
         (repo / "test").rmdir()
         with pytest.raises(FileNotFoundError, match="DF-12-021"):
             requirement_callout(_req(2), page=_PAGE, pages=_PAGES)
+
+    def test_an_edited_requirement_file_recomputes_the_markers(self, repo):
+        assert NOT_YET_IMPLEMENTED_LABEL in requirement_callout(
+            _req(2), page=_PAGE, pages=_PAGES
+        )
+        path = repo / "specs" / "vultron-protocol-spec.yaml"
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data["groups"][0]["specs"][1]["kind"] = "process"
+        path.write_text(yaml.safe_dump(data), encoding="utf-8")
+        _bump(path)
+        # Requirement 2 is no longer of a catalog tier, so the callout
+        # refuses it (DF-12-012); the markers were recomputed without it.
+        assert _req(2) not in docs_pages._docs_not_yet_implemented()
+
+    def test_one_build_computes_the_markers_once(self, repo, monkeypatch):
+        """During a build the cache is keyed on the build id, so an edit
+        reaches the next build, not the one in progress."""
+        monkeypatch.setenv(EXEC_BUILD_ENV, "build-1")
+        assert _req(2) in docs_pages._docs_not_yet_implemented()
+        path = repo / "test" / "test_markers.py"
+        path.write_text(_without_the_hold_on_two(), encoding="utf-8")
+        _bump(path)
+        assert _req(2) in docs_pages._docs_not_yet_implemented()
+        monkeypatch.setenv(EXEC_BUILD_ENV, "build-2")
+        assert _req(2) not in docs_pages._docs_not_yet_implemented()
+
+    def test_a_dangling_test_file_is_skipped(self, repo):
+        os.symlink(repo / "nowhere.py", repo / "test" / ".#test_lock.py")
+        assert _req(2) in docs_pages._docs_not_yet_implemented()
+
+    def test_the_tests_key_skips_pycache(self, repo):
+        cache = repo / "test" / "__pycache__"
+        cache.mkdir()
+        (cache / "stale.py").write_text("", encoding="utf-8")
+        key = docs_pages._tests_key(repo / "test")
+        assert [name for name, _ in key] == ["test_markers.py"]

@@ -16,6 +16,6 @@ Within a subsection, each requirement file has a heading of its own, and its req
 Each row gives the requirement's ID, its priority, its statement and rationale, and the requirements it relates to.
 
 A requirement can be written ahead of its code in the reference implementation.
-When every test of such a requirement is held as an expected failure, its row carries the marker "Not yet in the reference implementation", with links to the issues that track the work, and so does every callout of it.
+When every test of such a requirement is held as an expected failure or a skip, its row carries the marker "Not yet in the reference implementation", with links to the issues that track the work, and so does every callout of it.
 The marker is generated from the tests, and it leaves the row when a test of the requirement runs on `main`.
 The marker labels the reference implementation only: the requirement keeps its priority, and the protocol requires it all the same.

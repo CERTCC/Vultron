@@ -405,6 +405,24 @@ def test_exec_page_hook_records_and_forgets_the_page(
     assert exec_page.EXEC_PAGE_ENV not in os.environ
 
 
+def test_exec_page_hook_records_a_new_build_id_per_build(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The not-yet-implemented markers are computed once per build id
+    (DF-12-021), so each build, and each ``mkdocs serve`` rebuild, needs a new
+    one, and none is left behind."""
+    monkeypatch.delenv(exec_page.EXEC_BUILD_ENV, raising=False)
+    exec_page.on_pre_build(config=None)  # type: ignore[arg-type]
+    first = os.environ[exec_page.EXEC_BUILD_ENV]
+    exec_page.on_pre_build(config=None)  # type: ignore[arg-type]
+    assert os.environ[exec_page.EXEC_BUILD_ENV] != first
+    exec_page.on_post_build(config=None)  # type: ignore[arg-type]
+    assert exec_page.EXEC_BUILD_ENV not in os.environ
+    exec_page.on_pre_build(config=None)  # type: ignore[arg-type]
+    exec_page.on_build_error(error=RuntimeError("build failed"))
+    assert exec_page.EXEC_BUILD_ENV not in os.environ
+
+
 def test_exec_page_hook_is_registered() -> None:
     mkdocs_yml = Path(__file__).resolve().parents[3] / "mkdocs.yml"
     assert "vultron/metadata/docs/exec_page.py" in mkdocs_yml.read_text()

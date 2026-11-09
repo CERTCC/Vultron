@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from vultron.metadata.base import repo_root
+from vultron.metadata.docs.exec_page import EXEC_BUILD_ENV
 from vultron.metadata.docs.requirement_catalog import (
     CATALOG_KINDS,
     CATALOG_PAGES,
@@ -230,26 +231,37 @@ _TreeKey = tuple[tuple[str, int], ...]
 
 _registry_cache: dict[_TreeKey, SpecRegistry] = {}
 
-_not_yet_implemented_cache: dict[
-    tuple[_TreeKey, _TreeKey], NotYetImplemented
-] = {}
+_not_yet_implemented_cache: dict[object, NotYetImplemented] = {}
 
 
-def _tree_key(root: Path, suffix: str) -> _TreeKey:
-    """Every file under *root* ending in *suffix*, with its modification time.
+def _specs_key(spec_dir: Path) -> _TreeKey:
+    """Each top-level YAML file :func:`load_registry` reads, with its
+    modification time."""
+    return tuple(
+        (path.name, path.stat().st_mtime_ns)
+        for path in sorted(spec_dir.glob("*.yaml"))
+    )
 
-    Walked with :func:`os.walk`, which is several times faster than
-    :meth:`Path.rglob`: a page with many callouts computes this per callout.
+
+def _tests_key(test_root: Path) -> _TreeKey:
+    """Every ``*.py`` file under *test_root* outside ``__pycache__``, with its
+    modification time.
+
+    A file that cannot be stat'ed, such as a dangling symlink an editor left,
+    is skipped, as the coverage scan skips a file it cannot read.
     """
     found = []
-    for directory, subdirs, files in os.walk(root):
-        subdirs[:] = sorted(d for d in subdirs if d != "__pycache__")
+    for directory, subdirs, files in os.walk(test_root):
+        subdirs[:] = [d for d in subdirs if d != "__pycache__"]
         for name in files:
-            if name.endswith(suffix):
-                path = os.path.join(directory, name)
-                found.append(
-                    (os.path.relpath(path, root), os.stat(path).st_mtime_ns)
-                )
+            if not name.endswith(".py"):
+                continue
+            path = os.path.join(directory, name)
+            try:
+                mtime = os.stat(path).st_mtime_ns
+            except OSError:
+                continue
+            found.append((os.path.relpath(path, test_root), mtime))
     return tuple(sorted(found))
 
 
@@ -261,7 +273,7 @@ def _docs_registry() -> SpecRegistry:
     sees an edited requirement on its next rebuild.
     """
     spec_dir = repo_root() / "specs"
-    key = _tree_key(spec_dir, ".yaml")
+    key = _specs_key(spec_dir)
     if key not in _registry_cache:
         _registry_cache.clear()
         _registry_cache[key] = load_registry(spec_dir)
@@ -272,10 +284,12 @@ def _docs_not_yet_implemented() -> NotYetImplemented:
     """The repository's xfail-only requirements and the issues they cite.
 
     Computed by ``spec-coverage``'s classifier (SR-05-017) from ``specs/`` and
-    ``test/``, once per state of the two trees: the scan reads every test
-    file, and a page holds many callouts. Keyed like :func:`_docs_registry`,
-    so a test that gains a running marked test drops the marker on the next
-    build (DF-12-021).
+    ``test/``, which reads every test file, so it is computed once and reused.
+    During a docs build the key is the build id the ``exec_page.py`` hook
+    records, so a build checks neither tree again and ``mkdocs serve``
+    recomputes on each rebuild. Outside a build the key is both trees'
+    modification times. Either way an edited test drops a marker on the next
+    render (DF-12-021).
 
     Raises:
         FileNotFoundError: If the checkout has no ``test/`` tree, which would
@@ -289,9 +303,11 @@ def _docs_not_yet_implemented() -> NotYetImplemented:
             f"{test_root} is missing; the not-yet-implemented markers on "
             "requirement rows are read from its tests (DF-12-021)"
         )
-    key = (
-        _tree_key(root / "specs", ".yaml"),
-        _tree_key(test_root, ".py"),
+    build = os.environ.get(EXEC_BUILD_ENV)
+    key: object = (
+        ("build", build)
+        if build
+        else (_specs_key(root / "specs"), _tests_key(test_root))
     )
     if key not in _not_yet_implemented_cache:
         _not_yet_implemented_cache.clear()

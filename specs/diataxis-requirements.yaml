@@ -2437,9 +2437,10 @@ groups:
       `TestNotYetImplementedMarker` fails when an xfail-only requirement's catalog
       row or callout lacks the marker or a cited issue's link, when a verified,
       partly-met or untested requirement's row carries it, or when the marker
-      stays after a marked test runs. `TestRepositoryDefault` fails when the docs
-      pages' default does not read the markers from the repository's `test/`
-      tree, keeps one after an edit, or renders without that tree.
+      stays after a marked test runs, for either tier. `TestRepositoryDefault`
+      fails when the docs pages' default does not read the markers from the
+      repository's `specs/` and `test/` trees, keeps one after an edit or past
+      the build it was computed for, or renders without the `test/` tree.
     relationships:
     - rel_type: extends
       spec_id: DF-12-001
