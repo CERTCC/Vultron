@@ -17,6 +17,7 @@ stakeholder_type: [project-contributor]
 | Third-party trackers (Jira, VINCE) | Connector adapter | Translate external tracker events to/from Vultron domain; plugins are meant to be discovered via the `vultron.connectors` entry-point group | examples only; the plugin loader is a stub, to be built in #5610 | Low | `vultron/adapters/connectors/example/`, `vultron/adapters/connectors/loader.py` |
 | Docker Compose (multi-actor demo) | Orchestration | Stands up multiple actor containers sharing an AS2 network for the end-to-end demo | None (local demo) | Low | `docker/docker-compose-multi-actor.yml`, `docker/demo-entrypoint.sh` |
 | GitHub Pages | Static hosting | Publishes the MkDocs site | GitHub Actions token | Low | `.github/workflows/deploy_site.yml` |
+| `oasis-tcs/csaf` (CSAF 2.1 draft) | Upstream repository, read by CI | A weekday job checks it out at the pinned commit and at its head, and opens one issue when the draft changes what the CSAF models depend on (CSAF-05-005); nothing at runtime reads it | None (public, read-only checkout) | Low | `.github/workflows/csaf-draft-watch.yml`, `vultron/metadata/csaf/draft_watch/` |
 
 ### 2) Data Stores
 
