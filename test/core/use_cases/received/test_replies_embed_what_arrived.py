@@ -27,6 +27,7 @@ import pytest
 
 from test.support.received import received_record
 from test.support.signing import resigned
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -115,6 +116,7 @@ def test_the_accept_trigger_embeds_the_invite_as_received():
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     assert result.activity is not None

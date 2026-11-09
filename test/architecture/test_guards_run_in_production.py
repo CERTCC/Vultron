@@ -86,15 +86,19 @@ import pytest
 from test.architecture import _corpus, _guard_reachability as _reach
 
 # ---------------------------------------------------------------------------
-# Known guards with no production reference (empty: every private guard under
-# vultron/ is reached from production code).
+# Known guards with no production reference.
 #
 # Each entry would be a guard that enforces a rule nothing can ever break,
 # because nothing calls it.  Remove an entry in the same commit that wires
 # the guard up or deletes it (ARCH-18-002); a new entry needs its
 # owning issue named beside it.
 # ---------------------------------------------------------------------------
-KNOWN_UNREACHED_GUARDS: frozenset[str] = frozenset()
+# The ports nodes' act-instant reader (ADR-0176) lands before its first
+# reader: the deciding nodes of the next slice call it in update().
+# owner: #5649
+KNOWN_UNREACHED_GUARDS: frozenset[str] = frozenset(
+    {"vultron/core/behaviors/helpers/ports_base.py:75 _require_act_instant()"}
+)
 
 # ---------------------------------------------------------------------------
 # Known gating parameters no call site supplies (empty: every gated refusal

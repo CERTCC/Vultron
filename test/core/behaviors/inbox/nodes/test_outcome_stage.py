@@ -29,6 +29,7 @@ import py_trees
 import pytest
 
 from test.support.received import stamped
+from vultron.adapters.driven.clock import SystemClock
 from vultron.core.behaviors.blackboard_scope import key_aliases
 from vultron.core.behaviors.inbox import (
     InboxOutcomeStatus,
@@ -128,6 +129,7 @@ def _run(activity, dispatch, port):
         _StubIngress(activity),
         dispatch,
         received_outcome_port=port,
+        clock=SystemClock(),
     )
 
 
@@ -259,6 +261,7 @@ def test_a_run_with_no_outcome_port_still_answers_the_sender(activity):
         {},
         _StubIngress(activity),
         _StubDispatch(HandlerResult.refused(_REASON)),
+        clock=SystemClock(),
     )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED

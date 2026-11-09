@@ -30,6 +30,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driven.clock import SystemClock
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.rm import RM
@@ -103,7 +104,9 @@ def _make_use_case(dl: "_FakeDL"):
         actor_id="https://example.org/actor",
         case_id="https://example.org/case",
     )
-    return SvcAddParticipantStatusUseCase(_as_persistence(dl), request)
+    return SvcAddParticipantStatusUseCase(
+        _as_persistence(dl), request, clock=SystemClock()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +426,10 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
         before = set(self.dl.outbox_list())
         SvcAddParticipantStatusUseCase(
-            self.dl, request, trigger_activity=self.trigger_activity
+            self.dl,
+            request,
+            trigger_activity=self.trigger_activity,
+            clock=SystemClock(),
         ).execute()
         after = set(self.dl.outbox_list())
         new_ids = after - before
@@ -479,7 +485,10 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
         before = set(self.dl.outbox_list())
         SvcAddParticipantStatusUseCase(
-            self.dl, request, trigger_activity=self.trigger_activity
+            self.dl,
+            request,
+            trigger_activity=self.trigger_activity,
+            clock=SystemClock(),
         ).execute()
         (activity_id,) = set(self.dl.outbox_list()) - before
         activity = self.dl.read(activity_id)
@@ -557,7 +566,10 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
         before = set(self.dl.outbox_list())
         SvcAddParticipantStatusUseCase(
-            self.dl, request, trigger_activity=self.trigger_activity
+            self.dl,
+            request,
+            trigger_activity=self.trigger_activity,
+            clock=SystemClock(),
         ).execute()
 
         (activity_id,) = set(self.dl.outbox_list()) - before
@@ -605,6 +617,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             self.dl,
             request,
             trigger_activity=self.trigger_activity,
+            clock=SystemClock(),
         ).execute()
 
         status_id = result.status_id
@@ -663,7 +676,10 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
 
         with pytest.raises(VultronValidationError):
             SvcAddParticipantStatusUseCase(
-                self.dl, request, trigger_activity=self.trigger_activity
+                self.dl,
+                request,
+                trigger_activity=self.trigger_activity,
+                clock=SystemClock(),
             ).execute()
 
         assert set(self.dl.outbox_list()) == outbox_before
@@ -698,6 +714,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             self.dl,
             request,
             trigger_activity=self.trigger_activity,
+            clock=SystemClock(),
         )
         result = use_case.execute()
 
@@ -1642,7 +1659,10 @@ class TestValidateTriggerTransitions:
             pxa_state=pxa_state,
         )
         return SvcAddParticipantStatusUseCase(
-            self.dl, request, trigger_activity=self.trigger_activity
+            self.dl,
+            request,
+            trigger_activity=self.trigger_activity,
+            clock=SystemClock(),
         ).execute()
 
     def _status_snapshot(self) -> _StatusSnapshot:
@@ -1940,7 +1960,10 @@ class TestSoleObserverVfdGuard:
             pxa_state=pxa_state,
         )
         return SvcAddParticipantStatusUseCase(
-            self.dl, request, trigger_activity=self.trigger_activity
+            self.dl,
+            request,
+            trigger_activity=self.trigger_activity,
+            clock=SystemClock(),
         ).execute()
 
     def _status_snapshot(self) -> _StatusSnapshot:
@@ -2075,7 +2098,10 @@ class TestVendorVfdRoleGuard:
             pxa_state=pxa_state,
         )
         return SvcAddParticipantStatusUseCase(
-            self.dl, request, trigger_activity=self.trigger_activity
+            self.dl,
+            request,
+            trigger_activity=self.trigger_activity,
+            clock=SystemClock(),
         ).execute()
 
     def _status_snapshot(self, participant_id: str) -> _StatusSnapshot:
@@ -2198,7 +2224,10 @@ class TestCrossMachineEntailments:
             pxa_state=pxa_state,
         )
         return SvcAddParticipantStatusUseCase(
-            self.dl, request, trigger_activity=self.trigger_activity
+            self.dl,
+            request,
+            trigger_activity=self.trigger_activity,
+            clock=SystemClock(),
         ).execute()
 
     def _status_snapshot(self) -> _StatusSnapshot:

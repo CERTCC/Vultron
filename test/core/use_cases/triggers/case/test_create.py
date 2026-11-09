@@ -37,6 +37,7 @@ from test.support.ledger import (
 from test.support.ledger_rebuild import case_naming_its_records
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -125,6 +126,7 @@ def _use_case(
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        clock=SystemClock(),
     )
 
 
@@ -410,6 +412,7 @@ class TestSvcCreateCaseUseCase:
             trigger_activity=TriggerActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
         assert sent.activity_id is not None
         sent_activity = self.dl.read(sent.activity_id)
@@ -719,6 +722,7 @@ class TestCreateCaseTriggerLedger:
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
                 **ports,  # type: ignore[arg-type]
+                clock=SystemClock(),
             ).execute()
 
         assert self.dl.list_objects("VulnerabilityCase") == []

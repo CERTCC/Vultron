@@ -42,6 +42,7 @@ from test.support.received import (
     hold_deferred,
     intake_received,
 )
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -102,6 +103,7 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=make_dispatcher()
         ),
         received_outcome_port=FastAPIReceivedOutcomePort(dl),
+        clock=SystemClock(),
     )
 
 

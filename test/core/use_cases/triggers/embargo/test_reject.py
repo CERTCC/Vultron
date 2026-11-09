@@ -7,6 +7,7 @@ from py_trees.common import Status
 
 from test.support.ledger import committed_semantic_types, ledger_entries
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -77,6 +78,7 @@ def test_non_manager_reject_embargo_asks_the_case_manager(
         trigger_activity=TriggerActivityAdapter(finder_dl),
         sync_port=SyncActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     assert result.activity is not None
@@ -139,6 +141,7 @@ def test_each_deliberate_reject_is_a_new_activity(
         trigger_activity=adapter,
         sync_port=SyncActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
     derived_id, _ = adapter.reject_embargo(
         proposal_id=proposal.id_,
@@ -176,6 +179,7 @@ def test_manager_reject_embargo_commits_the_decision(
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        clock=SystemClock(),
     ).execute()
 
     activity = activity_of(result)
@@ -221,6 +225,7 @@ def test_non_manager_owner_reject_asks_the_manager_to_reject(
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        clock=SystemClock(),
     ).execute()
 
     activity = activity_of(result)
@@ -270,6 +275,7 @@ def test_non_owner_manager_reject_is_consent_and_moves_no_register_entry(
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        clock=SystemClock(),
     ).execute()
 
     # It reports the Update it committed (TRIG-04-001).
@@ -328,6 +334,7 @@ def _reject_as_owner(
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        clock=SystemClock(),
     ).execute()
 
 

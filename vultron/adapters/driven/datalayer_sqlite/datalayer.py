@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
 from sqlmodel import Session, SQLModel
 
+from vultron.adapters.driven.clock import SystemBookkeepingClock
 from vultron.adapters.outbox_dead_letter import (
     InboxDeadLetterEntry,
     OutboxDeadLetterEntry,
@@ -41,12 +42,16 @@ from vultron.adapters.outbox_dead_letter import (
 from vultron.core.models.case import VulnerabilityCase as _VC
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.ports.clock import BookkeepingClockPort
 from vultron.core.ports.datalayer import StorableRecord
 
 from . import crud, hydration, queries, queues
 from .engine import dispose_actor_engines, get_actor_engine, session_guard
 from .schema import VultronObjectRecord, require_outbox_pending_index
 from .transaction import open_transaction, transaction as _transaction
+
+#: The bookkeeping clock every store stamps its own records with (ADR-0176).
+_SYSTEM_BOOKKEEPING_CLOCK = SystemBookkeepingClock()
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +65,7 @@ class SqliteDataLayer:
         *,
         actor_id: str,
         enqueue_callback: Callable[[str], None] | None = None,
+        bookkeeping_clock: BookkeepingClockPort = _SYSTEM_BOOKKEEPING_CLOCK,
     ) -> None:
         """Open the store belonging to *actor_id*.
 
@@ -72,6 +78,10 @@ class SqliteDataLayer:
                 store that is not some actor's own (CM-01-001).
             enqueue_callback: Optional callback invoked with ``actor_id`` when
                 an item is appended to this actor's outbox.
+            bookkeeping_clock: The clock this store stamps its own records
+                with, such as when a delivery was dead-lettered.  Never an
+                act's instant, so never the act clock (ADR-0176); the system
+                bookkeeping clock in every deployment.
 
         Raises:
             ValueError: If *actor_id* is empty or yields no usable slug.
@@ -82,6 +92,7 @@ class SqliteDataLayer:
         self._actor_id = actor_id
         self._engine = get_actor_engine(db_url, actor_id)
         self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
+        self._bookkeeping_clock = bookkeeping_clock
         if open_transaction(self._engine) is None:
             # Under the session lock: on an in-memory store these
             # connections are the one shared connection, and closing them
@@ -183,6 +194,7 @@ class SqliteDataLayer:
             self._db_url,
             actor_id=actor_id,
             enqueue_callback=self._enqueue_callback,
+            bookkeeping_clock=self._bookkeeping_clock,
         )
 
     def set_enqueue_callback(
@@ -447,6 +459,7 @@ class SqliteDataLayer:
             total_attempts,
             failed_recipients,
             ledger_entry_id,
+            recorded_at=self._bookkeeping_clock.bookkeeping_now(),
         )
 
     def dead_letter_list(self) -> list[OutboxDeadLetterEntry]:
@@ -487,6 +500,7 @@ class SqliteDataLayer:
             reason,
             total_attempts,
             last_error,
+            recorded_at=self._bookkeeping_clock.bookkeeping_now(),
         )
 
     def inbox_dead_letter_list(self) -> list[InboxDeadLetterEntry]:

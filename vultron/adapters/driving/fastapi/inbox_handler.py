@@ -54,11 +54,16 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _trigger_activity_with_actor_config_port_factory,
 )
 from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
+from vultron.core.behaviors.bridge.act_instant import (
+    act_instant_in_tree_run,
+    open_act,
+)
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.services.sender_sequence_order import (
@@ -272,8 +277,14 @@ def handle_inbox_item(
     obj: as_Activity,
     dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
+    *,
+    clock: ClockPort,
 ) -> None:
     """Handle a single item in the Actor's inbox.
+
+    Processing the item is one act (ADR-0176): it takes the tree lock, then
+    reads *clock* once, and the dispatch's tree runs carry that instant as
+    ``/at``.
 
     Args:
         actor_id: The canonical URI of the Actor whose inbox is being processed.
@@ -281,6 +292,7 @@ def handle_inbox_item(
         dl: The DataLayer instance used for reads and dispatch.
         dispatcher: Optional per-app dispatcher.  When ``None`` the
             module-level ``_DISPATCHER_SLOT`` is used (backward-compatible).
+        clock: The act clock, supplied by the caller's composition root.
     """
     logger.info("Processing item '%s' for actor '%s'", obj.name, actor_id)
     logger.debug(
@@ -289,7 +301,8 @@ def handle_inbox_item(
     )
     event = prepare_for_dispatch(activity=obj)
     event = event.model_copy(update={"receiving_actor_id": actor_id})
-    dispatch(event=event, dl=dl, dispatcher=dispatcher)
+    with open_act(clock) as at, act_instant_in_tree_run(at):
+        dispatch(event=event, dl=dl, dispatcher=dispatcher)
 
 
 def emit_processing_fault(

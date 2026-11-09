@@ -31,6 +31,7 @@ from typing import NamedTuple
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -157,7 +158,10 @@ def _store_state(dl: SqliteDataLayer, case_id: str) -> _StoreState:
 
 def _run(dl: SqliteDataLayer, request: AddOnBehalfStatusTriggerRequest):
     return SvcAddOnBehalfStatusUseCase(
-        dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(dl),
+        clock=SystemClock(),
     ).execute()
 
 
@@ -676,4 +680,5 @@ class TestVendorImpliesVInvariant:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()

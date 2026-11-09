@@ -21,10 +21,13 @@ No HTTP framework imports permitted here.
 
 import json
 import logging
+from datetime import datetime
 
+from vultron.core.behaviors.bridge.act_instant import open_act
 from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases.triggers._helpers import (
     resolve_case,
@@ -66,12 +69,22 @@ class SvcOfferCaseParticipantRoleUseCase:
         dl: CaseOutboxPersistence,
         request: OfferCaseParticipantRoleTriggerRequest,
         trigger_activity: TriggerActivityPort | None = None,
+        *,
+        clock: ClockPort,
     ) -> None:
         self._dl = dl
         self._request = request
         self._trigger_activity = trigger_activity
+        # The act clock, read once by execute() after it takes the tree lock
+        # (ADR-0176).
+        self._clock = clock
 
     def execute(self) -> RoleOfferResult:
+        """Run the trigger as one act: lock, read the clock once, then run."""
+        with open_act(self._clock) as at:
+            return self._execute_act(at)
+
+    def _execute_act(self, at: datetime) -> RoleOfferResult:
         if self._trigger_activity is None:
             raise RuntimeError(
                 "SvcOfferCaseParticipantRoleUseCase requires a TriggerActivityPort"
@@ -109,6 +122,7 @@ class SvcOfferCaseParticipantRoleUseCase:
             trigger_activity=factory,
             failure_label="SvcOfferCaseParticipantRoleUseCase",
             activity_builder=_build_offer,
+            at=at,
         )
         activity_id, activity_dict = built["activity_id"], built["activity"]
         logger.info(

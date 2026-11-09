@@ -35,6 +35,7 @@ import py_trees.behaviour
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -52,6 +53,7 @@ from vultron.core.models.use_case_result import (
     StatusResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
@@ -110,6 +112,8 @@ class _SvcBtStubUseCase(SvcBTTriggerBase[StatusResult]):
         trigger_activity: TriggerActivityPort | None = None,
         wire_render_port: WireRenderPort | None = None,
         sync_port: SyncActivityPort | None = None,
+        *,
+        clock: ClockPort,
     ) -> None:
         super().__init__(
             dl,
@@ -117,7 +121,9 @@ class _SvcBtStubUseCase(SvcBTTriggerBase[StatusResult]):
             trigger_activity=trigger_activity,
             wire_render_port=wire_render_port,
             sync_port=sync_port,
+            clock=clock,
         )
+        self.clock = clock
         self.ports = {
             "trigger_activity": trigger_activity,
             "wire_render_port": wire_render_port,
@@ -149,8 +155,11 @@ class _SvcPlainStubUseCase:
         dl: CaseOutboxPersistence,
         request: object,
         trigger_activity: TriggerActivityPort | None = None,
+        *,
+        clock: ClockPort,
     ) -> None:
         self.trigger_activity = trigger_activity
+        self.clock = clock
         _SvcPlainStubUseCase.built.append(self)
 
     def execute(self) -> RoleOfferResult:
@@ -232,7 +241,8 @@ def test_bt_backed_row_is_built_with_the_whole_port_bundle(
     actor_and_dl, ports
 ) -> None:
     actor, dl = actor_and_dl
-    dispatcher = RegistryTriggerDispatcher(_stub_rows(), **ports)
+    clock = SystemClock()
+    dispatcher = RegistryTriggerDispatcher(_stub_rows(), **ports, clock=clock)
 
     result = dispatcher.trigger(
         _StatusStubRequest(actor_id=actor.id_, case_id=_CASE), dl
@@ -242,15 +252,17 @@ def test_bt_backed_row_is_built_with_the_whole_port_bundle(
     assert result.status_id == "urn:uuid:s"
     (built,) = _SvcBtStubUseCase.built
     assert built.ports == ports
+    assert built.clock is clock
     assert built._dl is dl
 
 
 @pytest.mark.spec("TRIG-12-004")
-def test_non_bt_backed_row_is_built_with_trigger_activity_alone(
+def test_non_bt_backed_row_is_built_with_trigger_activity_and_the_clock(
     actor_and_dl, ports
 ) -> None:
     actor, dl = actor_and_dl
-    dispatcher = RegistryTriggerDispatcher(_stub_rows(), **ports)
+    clock = SystemClock()
+    dispatcher = RegistryTriggerDispatcher(_stub_rows(), **ports, clock=clock)
 
     result = dispatcher.trigger(
         _RoleStubRequest(actor_id=actor.id_, case_id=_CASE), dl
@@ -260,6 +272,8 @@ def test_non_bt_backed_row_is_built_with_trigger_activity_alone(
     assert result.activity_id == "urn:uuid:r"
     (built,) = _SvcPlainStubUseCase.built
     assert built.trigger_activity is ports["trigger_activity"]
+    # Every trigger is an act, so every row gets the act clock (ADR-0176).
+    assert built.clock is clock
 
 
 @pytest.mark.spec("TRIG-12-004")
@@ -267,7 +281,9 @@ def test_request_type_with_no_row_is_a_lookup_failure(
     actor_and_dl, ports
 ) -> None:
     actor, dl = actor_and_dl
-    dispatcher = RegistryTriggerDispatcher(_stub_rows(), **ports)
+    dispatcher = RegistryTriggerDispatcher(
+        _stub_rows(), **ports, clock=SystemClock()
+    )
 
     with pytest.raises(VultronApiHandlerNotFoundError, match="EngageCase"):
         dispatcher.trigger(
@@ -280,7 +296,9 @@ def test_result_of_the_wrong_type_is_a_contract_breach(
     actor_and_dl, ports
 ) -> None:
     actor, dl = actor_and_dl
-    dispatcher = RegistryTriggerDispatcher(_stub_rows(), **ports)
+    dispatcher = RegistryTriggerDispatcher(
+        _stub_rows(), **ports, clock=SystemClock()
+    )
 
     with pytest.raises(TypeError, match="OfferResult, not StatusResult"):
         dispatcher.trigger(
@@ -294,7 +312,7 @@ def test_conforms_to_the_trigger_dispatcher_port(actor_and_dl, ports) -> None:
     call through the Protocol-typed name still resolves the bound subtype."""
     actor, dl = actor_and_dl
     dispatcher: TriggerDispatcher = RegistryTriggerDispatcher(
-        _stub_rows(), **ports
+        _stub_rows(), **ports, clock=SystemClock()
     )
     result = dispatcher.trigger(
         _StatusStubRequest(actor_id=actor.id_, case_id=_CASE), dl
@@ -347,7 +365,9 @@ def test_real_registry_runs_add_on_behalf_status_to_a_status_result(
         dl.create(participant)
     dl.create(case)
 
-    dispatcher = RegistryTriggerDispatcher(entries(), **ports)
+    dispatcher = RegistryTriggerDispatcher(
+        entries(), **ports, clock=SystemClock()
+    )
     result = dispatcher.trigger(
         AddOnBehalfStatusTriggerRequest(
             actor_id=actor.id_,

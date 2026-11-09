@@ -31,6 +31,7 @@ from test.support.inbox_replay import (
     hold_received,
     ledger_announce_event,
 )
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.behaviors.case.nodes.case_copy import (
@@ -1044,7 +1045,7 @@ class TestFirstSeedStatesLedgerPosition:
         assert _queued_reads(dl) == []
 
         sent = state_ledger_positions_trigger(
-            dl, _RECEIVER_ID, SyncActivityAdapter(dl)
+            dl, _RECEIVER_ID, SyncActivityAdapter(dl), clock=SystemClock()
         )
 
         assert sent == 1

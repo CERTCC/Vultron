@@ -36,6 +36,7 @@ from test.support.received import (
 )
 from test.support.signing import signed_body
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -95,6 +96,7 @@ def _answer_with(
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
     return answer

@@ -547,6 +547,27 @@ class VultronUnhostedActorError(VultronWiringError):
     """
 
 
+class VultronMissingActInstantError(VultronWiringError):
+    """Raised when time is wanted below an act's edge and no act supplied it.
+
+    An act reads the clock once, at its entry point, and its tree runs carry
+    that instant as ``/at``; a node that needs the time reads it there, never
+    the clock (ADR-0176).  A run with no instant was started outside an act,
+    so it is a composition fault, not a protocol outcome, and it is never
+    answered by reading the clock instead (ARCH-10-001).
+    """
+
+
+class VultronConflictingActInstantError(VultronWiringError):
+    """Raised when a nested tree run is handed an instant of its own.
+
+    Only an act's outermost run takes the act's instant; a nested run
+    inherits it, so one act decides and records against one instant
+    (ADR-0176).  A second instant inside a run means something below the
+    act's edge read a clock.
+    """
+
+
 class VultronStaleStoreError(VultronError):
     """Raised when a persisted store predates a change to its stored shape.
 
