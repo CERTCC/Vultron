@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Architecture invariant (DEMOMA-22-014 through DEMOMA-22-019): every story
+"""Architecture invariant (DEMOMA-22-014 through DEMOMA-22-021): every story
 prop is declared once as a named constant, kept by a step and read by a step,
 and the step that reads one is told which.
 
@@ -59,45 +59,61 @@ Three shapes of site are recognised, because all three are live:
   of props (``rv``'s note pair), a module-level rename or an
   ``import ... as``.
 
-Loose readings, with the direction each one errs in
-(``notes/architecture-ratchet-corpus.md`` § "Say, Per Loose Reading, Whether
-It Can Miss or Invent").  Every reading below can only **miss** a violation,
-and none can be narrowed without resolving bindings; the arms that could
-*invent* one — fail correct code — were removed rather than documented, since
-a red arm on correct code is what gets a ratchet switched off (#5598):
+Loose readings, with the direction each one errs in and whether the tree holds
+an instance today (``notes/architecture-ratchet-corpus.md`` § "Say, Per Loose
+Reading, Whether It Can Miss or Invent").  Every reading below can only
+**miss** a violation, and none can be narrowed without resolving bindings; a
+reading that could *invent* one — fail correct code — is a defect here rather
+than a documented limit, since a red arm on correct code is what gets a
+ratchet switched off (#5598):
 
 * ``keep`` / ``kept`` are matched on the attribute name, whatever the
   receiver, so another object's ``keep`` whose first argument names a
-  declared prop would be counted as a keep site.
-* A call site is matched by its callee's bare name, so two functions that
-  share a name share their prop-parameter roles: a prop passed as ``joined=``
-  to a same-named function that does not read it reads as read.
+  declared prop would be counted as a keep site.  No live instance: nothing
+  else under ``vultron/demo/`` defines either name (pinned by
+  :func:`test_the_state_primitives_are_the_only_definitions_excluded`).
+* A **call site** is matched by its callee's bare name, so two functions that
+  share a name share what a call site may conclude: a prop passed as
+  ``joined=`` to a same-named function that does not read it reads as read.
+  Only the call-site map is keyed this way — what a *definition's* own
+  parameter keeps or reads is keyed on the definition, so the same ambiguity
+  cannot report a keeper-only parameter as a relaxed reader
+  (:func:`_settle_roles`, :func:`test_two_same_named_steps_do_not_merge_their_roles`).
+  No live instance: the live prop parameters sit in uniquely-named steps.
 * Sites are flat sets of bare identifiers, intersected with the declared
   constants' identifiers, so two modules declaring the same identifier
   cross-credit each other: a prop touched by nobody is hidden when a
   same-named one elsewhere is kept and read.  DEMOMA-22-019 forbids two
   declarations spelling one *declared name*, not one *constant*, so the shape
   is legal; narrowing it means keying every site on the declaring module and
-  its importers.
+  its importers.  No live instance: all twelve prop constants are uniquely
+  named.  This is also why DEMOMA-22-021 is worth its own arm — a step that
+  dropped its read is hidden here whenever another step reads the prop.
 * An alias is followed by name rather than by binding, so a name rebound
   between the alias and the site still resolves to the first binding's props.
-* The annotation that marks a prop parameter is matched on the identifiers it
-  spells, so a module that aliased the class under another name would have
-  its parameters unchecked.
+  No live instance: no module rebinds a name it also uses as a prop alias.
+* The annotation that marks a prop *parameter* is matched on the identifiers
+  it spells, so a module that aliased the class under another name would have
+  its parameters unchecked.  The **construction** side is not loose this way:
+  :func:`_names_the_prop_class` resolves the callee through the module's own
+  aliases, because a construction the scan does not see is a subject of no arm
+  at all rather than one arm's miss, which would make the completeness claim
+  below false.  No live instance of either: every module imports the class
+  under its own name.
 
 One arm is deliberately strict rather than loose: a ``StoryProp(...)`` call
-that is not a module-level assignment to a single name, or whose declared
-name is not a string literal, is reported (DEMOMA-22-018).  That is what makes
-the enumeration complete rather than best-effort — every construction under
-``vultron/demo/`` is then either a subject the other arms reach or a failure
-of this one — and a prop built any other way is named by no site, which is
-how every family declares one.
+that is not a module-level assignment to a single name (DEMOMA-22-018), or
+whose declared name is not a string literal (DEMOMA-22-020), is reported.
+That is what makes the enumeration complete rather than best-effort — every
+construction under ``vultron/demo/`` is then either a subject the other arms
+reach or a failure of one of these two — and a prop built any other way is
+named by no site, which is how every family declares one.
 
 The derivation runs once at import time, outside the per-test timeout, and
 costs about 0.8 s over the two prefilter rounds; each test then reads the
 result and measures under 5 ms, within TB-13-004's budget.
 
-Spec: DEMOMA-22-014 through DEMOMA-22-019, DEMOCI-01-011, TB-13-001,
+Spec: DEMOMA-22-014 through DEMOMA-22-021, DEMOCI-01-011, TB-13-001,
 TB-13-002.
 """
 
@@ -193,8 +209,12 @@ class PropSites:
     #: Constants handed to a keeping / reading prop parameter by a caller.
     passed_keeps: frozenset[str] = frozenset()
     passed_reads: frozenset[str] = frozenset()
+    #: The subset of :attr:`direct_keeps` the keep call named itself.
+    outright_keeps: frozenset[str] = frozenset()
     #: The subset of :attr:`direct_keeps` an alias carried, rather than the
-    #: keep call naming the constant itself (``rv``'s note pair).
+    #: keep call naming the constant itself (``rv``'s note pair).  Not the
+    #: complement of :attr:`outright_keeps`: a prop kept both ways is in both,
+    #: which is why neither arm subtracts the other.
     aliased_keeps: frozenset[str] = frozenset()
     #: ``StoryProp(...)`` calls that are no module-level declaration.
     strays: tuple[str, ...] = ()
@@ -212,9 +232,10 @@ class PropSites:
 
     @property
     def keeps(self) -> frozenset[str]:
-        return (
-            self.direct_keeps | self.passed_keeps | self.aliased_keeps
-        ) & self.constants
+        # ``aliased_keeps`` is a subset of ``direct_keeps``, so unioning it in
+        # would add nothing; the shapes are told apart for the arms that
+        # assert each one is live, not for this total.
+        return (self.direct_keeps | self.passed_keeps) & self.constants
 
     @property
     def reads(self) -> frozenset[str]:
@@ -338,11 +359,23 @@ def _method_calls(scope: ast.AST, method: str) -> Iterator[ast.Call]:
 
 #: ``StoryProp``'s first field, which may be given either way.
 _NAME_FIELD = "name"
+#: ``StoryState.keep``'s and ``StoryState.kept``'s first parameter, likewise.
+_PROP_FIELD = "prop"
 
 
-def _first_argument(call: ast.Call) -> ast.expr | None:
-    """*call*'s first positional argument, or ``None`` when it has none."""
-    return call.args[0] if call.args else None
+def _first_argument(call: ast.Call, field: str) -> ast.expr | None:
+    """*call*'s first argument, whichever way the call site gives it.
+
+    ``call.args[0]`` when it is positional, else the keyword named *field*.
+    Every signature this module reads takes its first parameter
+    positional-or-keyword — ``StoryProp(name, type_)``,
+    ``StoryState.keep(prop, value)``, ``StoryState.kept(prop)`` — so reading
+    only the positional slot reports a legal call as no site at all and
+    reddens correct code, which is what gets a ratchet switched off (#5598).
+    """
+    if call.args:
+        return call.args[0]
+    return next((kw.value for kw in call.keywords if kw.arg == field), None)
 
 
 def _declared_name(call: ast.Call) -> str | None:
@@ -355,14 +388,44 @@ def _declared_name(call: ast.Call) -> str | None:
     ``None`` when the name is not a string literal, which the caller reports
     rather than guessing at.
     """
-    given = _first_argument(call)
-    if given is None:
-        given = next(
-            (kw.value for kw in call.keywords if kw.arg == _NAME_FIELD), None
-        )
+    given = _first_argument(call, _NAME_FIELD)
     if isinstance(given, ast.Constant) and isinstance(given.value, str):
         return given.value
     return None
+
+
+def _names_the_prop_class(
+    func: ast.expr, aliases: dict[str, frozenset[str]]
+) -> bool:
+    """True when *func* names ``StoryProp``, outright or through an alias.
+
+    Resolved rather than compared, because the construction is the one subject
+    the whole enumeration rests on: a module writing ``from ...story import
+    StoryProp as Prop`` and then ``ORPHAN: Prop[str] = Prop('orphan', str)``
+    would otherwise yield neither a declaration *nor* a stray, so the prop
+    would be a subject of no arm at all while the non-empty guard went on
+    passing on the other declarations — the #5535 shape exactly
+    (``notes/architecture-ratchet-corpus.md`` § "Key a Ratchet on the Act, Not
+    on the Name of What Performs It", #5598).
+
+    A fixed point over the alias map, for the reason :func:`_resolve` runs one.
+    """
+    callee = _corpus.callee_name(func)
+    if callee is None:
+        return False
+    if callee == _PROP_CLASS:
+        return True
+    frontier = {callee}
+    seen = set(frontier)
+    while frontier:
+        reached = frozenset(
+            source for name in frontier for source in aliases.get(name, ())
+        )
+        if _PROP_CLASS in reached:
+            return True
+        frontier = set(reached - seen)
+        seen |= frontier
+    return False
 
 
 def _parameter_names(fn: _FunctionNode) -> frozenset[str]:
@@ -490,24 +553,42 @@ class _RawParameter:
     reads: bool
 
 
+#: Either key the role maps use: a bare ``(function, parameter)`` for what a
+#: call site may conclude, or a ``(definition, parameter)`` pair for what the
+#: definition's own body does.  Both are two strings; the alias names which.
+_RoleKey = tuple[str, str]
+
+
 @dataclass
 class _Accumulator:
     declarations: list[PropDeclaration] = field(default_factory=list)
     raw_parameters: list[_RawParameter] = field(default_factory=list)
     direct_keeps: set[str] = field(default_factory=set)
     direct_reads: set[str] = field(default_factory=set)
+    #: The two keep shapes, disjointly: a constant the keep call names itself,
+    #: and one it reached through an alias.  Both are subsets of
+    #: :attr:`direct_keeps`, and a prop kept both ways is in both.
+    outright_keeps: set[str] = field(default_factory=set)
     aliased_keeps: set[str] = field(default_factory=set)
     strays: list[str] = field(default_factory=list)
     unnamed: list[str] = field(default_factory=list)
     primitives: list[str] = field(default_factory=list)
     modules: set[str] = field(default_factory=set)
-    #: ``(callee name, parameter) -> (keeps, reads)`` for every prop parameter.
-    roles: dict[tuple[str, str], tuple[bool, bool]] = field(
+    #: ``(callee name, parameter) -> (keeps, reads)``, what a call site that
+    #: names *callee* may conclude about the argument it puts in *parameter*.
+    roles: dict[_RoleKey, tuple[bool, bool]] = field(default_factory=dict)
+    #: ``(definition where, parameter) -> (keeps, reads)``, what that one
+    #: definition's own body and forwardings do with it.  Keyed per definition
+    #: so same-named functions do not merge (see :func:`_settle_roles`).
+    definition_roles: dict[_RoleKey, tuple[bool, bool]] = field(
         default_factory=dict
     )
-    #: ``(function, its parameter, callee, that callee's keyword)`` for every
-    #: call that forwards a parameter on.  The role fixed point reads these.
-    forwardings: set[tuple[str, str, str, str]] = field(default_factory=set)
+    #: ``(definition where, function, its parameter, callee, that callee's
+    #: keyword)`` for every call that forwards a parameter on.  The role fixed
+    #: point reads these.
+    forwardings: set[tuple[str, str, str, str, str]] = field(
+        default_factory=set
+    )
     #: ``function -> (positional parameter names in order, its ``*args``
     #: name)``, so a call site can name the slot a positional argument
     #: reaches.  A prop parameter must be keyword-only, so this only ever
@@ -519,13 +600,16 @@ class _Accumulator:
     )
 
 
-def _read_declarations(module: str, tree: ast.AST, into: _Accumulator) -> None:
+def _read_declarations(
+    module: str, source: str, tree: ast.AST, into: _Accumulator
+) -> None:
     """Collect *module*'s prop declarations, and report any other prop call."""
+    aliases = _module_alias_map(source)
     declared: set[int] = set()
     for target, value in _module_constants(tree):
         if not isinstance(value, ast.Call):
             continue
-        if _corpus.callee_name(value.func) != _PROP_CLASS:
+        if not _names_the_prop_class(value.func, aliases):
             continue
         declared.add(id(value))
         label = _declared_name(value)
@@ -539,7 +623,7 @@ def _read_declarations(module: str, tree: ast.AST, into: _Accumulator) -> None:
     for call in ast.walk(tree):
         if (
             isinstance(call, ast.Call)
-            and _corpus.callee_name(call.func) == _PROP_CLASS
+            and _names_the_prop_class(call.func, aliases)
             and id(call) not in declared
         ):
             into.strays.append(f"{module}:{_corpus.node_line(call)}")
@@ -583,22 +667,26 @@ def _read_sites(
         ):
             for call in _method_calls(fn, method):
                 constants, named, through_alias = _resolve(
-                    _first_argument(call), aliases, parameters
+                    _first_argument(call, _PROP_FIELD), aliases, parameters
                 )
                 sink.update(constants | through_alias)
                 if method == _KEEP:
-                    # Recorded separately so the alias shape can assert its
-                    # own subject; the read side has no live aliased subject,
-                    # and one arm per live shape is what keeps a shape from
-                    # retiring unnoticed.
+                    # The two keep shapes, recorded as disjoint sets so each
+                    # can assert its own subject: a prop kept both outright
+                    # and through an alias belongs to both, and subtracting
+                    # one from the other would credit it to neither. The read
+                    # side has no live aliased subject, and one arm per live
+                    # shape is what keeps a shape from retiring unnoticed.
+                    into.outright_keeps.update(constants)
                     into.aliased_keeps.update(through_alias)
                 by_parameter.update(named)
-        _record_parameters(module, fn, kept_parameters, read_parameters, into)
-        _record_forwardings(fn, parameters, into)
+        where = f"{module}:{_corpus.node_line(fn)}::{fn.name}"
+        _record_parameters(where, fn, kept_parameters, read_parameters, into)
+        _record_forwardings(where, fn, parameters, into)
 
 
 def _record_parameters(
-    module: str,
+    where: str,
     fn: _FunctionNode,
     kept: set[str],
     read: set[str],
@@ -620,9 +708,10 @@ def _record_parameters(
         reads, keeps = arg.arg in read, arg.arg in kept
         into.raw_parameters.append(
             _RawParameter(
-                # Qualified by line, so two same-named nested definitions in
-                # one module are distinguishable in the failure message.
-                where=f"{module}:{_corpus.node_line(fn)}::{fn.name}",
+                # Qualified by module and line, so two same-named nested
+                # definitions in one module are distinguishable in the failure
+                # message — and so the role pass can key on the definition.
+                where=where,
                 function=fn.name,
                 parameter=arg.arg,
                 keyword_only=arg.arg in keyword_only,
@@ -636,7 +725,10 @@ def _record_parameters(
 
 
 def _record_forwardings(
-    fn: _FunctionNode, parameters: frozenset[str], into: _Accumulator
+    where: str,
+    fn: _FunctionNode,
+    parameters: frozenset[str],
+    into: _Accumulator,
 ) -> None:
     """Record each call in *fn* that hands one of *fn*'s parameters on.
 
@@ -657,8 +749,22 @@ def _record_forwardings(
                 continue
             if keyword.value.id in parameters:
                 into.forwardings.add(
-                    (fn.name, keyword.value.id, callee, keyword.arg)
+                    (where, fn.name, keyword.value.id, callee, keyword.arg)
                 )
+
+
+def _gain(
+    roles: dict[_RoleKey, tuple[bool, bool]],
+    key: _RoleKey,
+    role: tuple[bool, bool],
+) -> bool:
+    """Add *role*'s flags to *key*'s.  True when that changed anything."""
+    keeping, reading = roles.get(key, (False, False))
+    settled = (keeping or role[0], reading or role[1])
+    if settled == (keeping, reading):
+        return False
+    roles[key] = settled
+    return True
 
 
 def _settle_roles(into: _Accumulator) -> None:
@@ -666,30 +772,36 @@ def _settle_roles(into: _Accumulator) -> None:
 
     A fixed point, because a wrapper may forward to a wrapper.  It terminates
     because a role only ever gains, and both flags are bounded.
+
+    Two maps, because the two questions have different keys.  What a *call
+    site* may conclude is keyed on the callee's bare name, since that is all
+    the call site names.  What a *definition's* own parameter keeps or reads
+    is keyed on the definition, so two same-named functions in different
+    modules do not merge their roles — read off the bare-name map, a
+    keeper-only parameter DEMOMA-22-017 permits would inherit a same-named
+    reader's role elsewhere and be reported as a relaxed reader (#5598).
     """
     for raw in into.raw_parameters:
         if not (raw.keeps or raw.reads):
             continue
-        keeping, reading = into.roles.get(
-            (raw.function, raw.parameter), (False, False)
+        _gain(
+            into.roles, (raw.function, raw.parameter), (raw.keeps, raw.reads)
         )
-        into.roles[(raw.function, raw.parameter)] = (
-            keeping or raw.keeps,
-            reading or raw.reads,
+        _gain(
+            into.definition_roles,
+            (raw.where, raw.parameter),
+            (raw.keeps, raw.reads),
         )
     changed = True
     while changed:
         changed = False
-        for function, parameter, callee, keyword in into.forwardings:
+        for where, function, parameter, callee, keyword in into.forwardings:
             downstream = into.roles.get((callee, keyword))
             if downstream is None:
                 continue
-            keeping, reading = into.roles.get(
-                (function, parameter), (False, False)
-            )
-            settled = (keeping or downstream[0], reading or downstream[1])
-            if settled != (keeping, reading):
-                into.roles[(function, parameter)] = settled
+            if _gain(into.roles, (function, parameter), downstream):
+                changed = True
+            if _gain(into.definition_roles, (where, parameter), downstream):
                 changed = True
 
 
@@ -705,18 +817,30 @@ def _read_call_sites(
     nothing touches.
     """
     module_aliases = _module_alias_map(source)
-    scopes: list[tuple[ast.AST, dict[str, frozenset[str]]]] = [
-        (tree, module_aliases)
-    ]
-    scopes.extend(
-        (node, module_aliases | _alias_map(node))
+    functions = [
+        node
         for node in ast.walk(tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+    # Each function is its own scope, with its own aliases over the module's.
+    # The module scope covers only what sits outside every function: walking
+    # the whole tree again under module aliases alone would visit each call in
+    # a function a second time, and resolve it through a strict subset of the
+    # aliases its own scope already applied, so it can add no site.
+    in_a_function = {id(node) for fn in functions for node in ast.walk(fn)}
+    scopes: list[tuple[Iterable[ast.AST], dict[str, frozenset[str]]]] = [
+        (
+            [node for node in ast.walk(tree) if id(node) not in in_a_function],
+            module_aliases,
+        )
+    ]
+    scopes.extend(
+        (ast.walk(fn), module_aliases | _alias_map(fn)) for fn in functions
     )
     keeps: set[str] = set()
     reads: set[str] = set()
     for scope, aliases in scopes:
-        for call in ast.walk(scope):
+        for call in scope:
             if not isinstance(call, ast.Call):
                 continue
             for keeping, reading, handed in _handed_over(call, aliases, into):
@@ -780,8 +904,8 @@ def story_prop_sites(
     """
     scanned = list(files)
     into = _Accumulator()
-    for module, _, tree in scanned:
-        _read_declarations(module, tree, into)
+    for module, source, tree in scanned:
+        _read_declarations(module, source, tree, into)
     for module, source, tree in scanned:
         _read_sites(module, source, tree, into)
     _settle_roles(into)
@@ -791,7 +915,8 @@ def story_prop_sites(
         keeps, reads = _read_call_sites(module, source, tree, into)
         passed_keeps |= keeps
         passed_reads |= reads
-    roles = into.roles
+    # Read per definition, never from the bare-name map: see _settle_roles.
+    roles = into.definition_roles
     return PropSites(
         declarations=tuple(into.declarations),
         parameters=tuple(
@@ -799,12 +924,8 @@ def story_prop_sites(
                 where=raw.where,
                 function=raw.function,
                 parameter=raw.parameter,
-                reads=roles.get((raw.function, raw.parameter), (False, False))[
-                    1
-                ],
-                keeps=roles.get((raw.function, raw.parameter), (False, False))[
-                    0
-                ],
+                reads=roles.get((raw.where, raw.parameter), (False, False))[1],
+                keeps=roles.get((raw.where, raw.parameter), (False, False))[0],
                 keyword_only=raw.keyword_only,
                 has_default=raw.has_default,
                 optional=raw.optional,
@@ -816,6 +937,7 @@ def story_prop_sites(
         direct_reads=frozenset(into.direct_reads),
         passed_keeps=frozenset(passed_keeps),
         passed_reads=frozenset(passed_reads),
+        outright_keeps=frozenset(into.outright_keeps),
         aliased_keeps=frozenset(into.aliased_keeps),
         strays=tuple(into.strays),
         unnamed=tuple(into.unnamed),
@@ -901,6 +1023,17 @@ def _assert_declarations_found(sites: PropSites) -> None:
         "packages would still pass; the scan must read a module of a "
         "subpackage (#5592)"
     )
+    # Both halves again, over the nested modules alone.  Satisfied by
+    # ``helpers/`` subpackages by themselves, the assertion above would pass
+    # for a scan that had stopped reaching scenario *packages* while still
+    # reaching the flat ``scenario/*.py`` modules — which is the half the
+    # retired runtime walk pinned by naming rcvcv's own fragments (#5846).
+    nested_halves = {module.split("/")[2] for module in nested}
+    assert len(nested_halves) > 1, (
+        f"props are declared in a subpackage only under {sorted(nested_halves)};"
+        " the scan must read a package of both halves of vultron/demo/, since "
+        "a scenario's own fragments live in one (#5592, #5846)"
+    )
 
 
 def test_the_scan_finds_props_in_both_halves_and_in_a_subpackage() -> None:
@@ -919,13 +1052,15 @@ def _assert_site_shapes_live(sites: PropSites) -> None:
     """Fail unless each shape of keep and read site has a live subject.
 
     A function for the same reason as :func:`_assert_declarations_found`.
-    ``aliased_keeps`` is a subset of ``direct_keeps``, so the outright arm
-    subtracts it: otherwise a corpus that aliased every keep would still
-    satisfy the outright arm, and the two shapes would stop being told apart.
-    There is no aliased *read* in the tree, so the read side is asserted as
-    one shape; the day one lands, split it here as the keep side is split.
+    Each keep shape is recorded as it is seen (``outright_keeps`` and
+    ``aliased_keeps``), so each arm reads its own set rather than subtracting
+    one from the other: a prop kept both outright *and* through an alias is in
+    both, and subtracting would credit it to neither and redden on correct
+    code.  There is no aliased *read* in the tree, so the read side is
+    asserted as one shape; the day one lands, split it here as the keep side
+    is split.
     """
-    assert (sites.direct_keeps - sites.aliased_keeps) & sites.constants, (
+    assert sites.outright_keeps & sites.constants, (
         "no keep site names a prop outright; every keep now reaches its prop "
         "through an alias, so the two shapes are no longer told apart"
     )
@@ -996,7 +1131,7 @@ def test_every_prop_is_read_by_a_step() -> None:
         "these story props are kept but read by nobody, so the act they "
         f"gate no longer stops the story: {_SITES.without_a_reader()}. The "
         "fragment whose precondition is that act must take the prop as a "
-        "required keyword and read it first (DEMOMA-22-015), or the prop "
+        "required keyword and read it first (DEMOMA-22-016), or the prop "
         "must go."
     )
 
@@ -1041,7 +1176,7 @@ def test_every_prop_name_is_declared_once() -> None:
     )
 
 
-@pytest.mark.spec("DEMOMA-22-018")
+@pytest.mark.spec("DEMOMA-22-020")
 def test_every_prop_declares_its_name_as_a_literal() -> None:
     """A declared name no reader can read is a prop nothing can key on.
 
@@ -1079,8 +1214,62 @@ def test_every_prop_construction_is_a_module_constant() -> None:
 
 
 # ---------------------------------------------------------------------------
-# DEMOMA-22-015 — the step that reads a prop is told which one
+# DEMOMA-22-015, -016 and -021 — how a step is handed the prop it needs,
+# what the step that reads one must declare, and that it does something with it
 # ---------------------------------------------------------------------------
+
+
+def _positional_prop_parameters(sites: PropSites) -> list[str]:
+    """DEMOMA-22-015's verdict: prop parameters no caller can name.
+
+    A function, not an expression inside the arm, so each planted-violation
+    and control test below varies a corpus and asks *this* reading rather than
+    re-implementing it.  A filter re-implemented per test is one an exemption
+    added to the arm leaves every planted test green over — the disarm the
+    planted tests exist to catch (CS-22-001).
+    """
+    return sorted(
+        f"{found.where}({found.parameter})"
+        for found in sites.parameters
+        if not found.keyword_only
+    )
+
+
+def _relaxed_readers(sites: PropSites) -> list[str]:
+    """DEMOMA-22-016's verdict: read prop parameters a caller may omit.
+
+    A function for the same reason as :func:`_positional_prop_parameters`.
+    """
+    return sorted(
+        f"{found.where}({found.parameter}): "
+        + ", ".join(
+            reason
+            for reason, applies in (
+                ("has a default", found.has_default),
+                ("admits None", found.optional),
+            )
+            if applies
+        )
+        for found in sites.readers
+        if found.has_default or found.optional
+    )
+
+
+def _idle_prop_parameters(sites: PropSites) -> list[str]:
+    """DEMOMA-22-021's verdict: prop parameters the step does nothing with.
+
+    A step told which act it depends on and then neither keeping under the
+    prop nor reading it is #5535 one level down: the signature still declares
+    the dependency, so every call site goes on passing the prop and the gate
+    is gone from the body.  DEMOMA-22-014's arms cannot see it whenever some
+    other step reads the same prop, because credit there is per prop rather
+    than per (prop, step) pair.
+    """
+    return sorted(
+        f"{found.where}({found.parameter})"
+        for found in sites.parameters
+        if not (found.keeps or found.reads)
+    )
 
 
 @pytest.mark.spec("DEMOMA-22-015")
@@ -1091,11 +1280,7 @@ def test_a_prop_parameter_is_keyword_only() -> None:
     prop would also let a cast part or a label land in its place at a call
     site that miscounted.
     """
-    positional = sorted(
-        f"{found.where}({found.parameter})"
-        for found in _SITES.parameters
-        if not found.keyword_only
-    )
+    positional = _positional_prop_parameters(_SITES)
     assert not positional, (
         f"these prop parameters are positional: {positional}. A prop is "
         "handed over by name: the parameter goes after the bare `*`."
@@ -1118,24 +1303,32 @@ def test_a_step_that_reads_a_prop_requires_it() -> None:
     the rest.  The guarantee is on the reading side, where an absent prop
     would mean no gate at all rather than no gate needed.
     """
-    relaxed = sorted(
-        f"{found.where}({found.parameter}): "
-        + ", ".join(
-            reason
-            for reason, applies in (
-                ("has a default", found.has_default),
-                ("admits None", found.optional),
-            )
-            if applies
-        )
-        for found in _SITES.readers
-        if found.has_default or found.optional
-    )
+    relaxed = _relaxed_readers(_SITES)
     assert not relaxed, (
         "these steps read a prop they may not have been given, so the "
         f"causal gate it carries is optional: {relaxed}. The parameter is "
         "`<name>: StoryProp[T]` with no default, so a caller that does not "
         "name the act this step depends on cannot assemble it."
+    )
+
+
+@pytest.mark.spec("DEMOMA-22-021")
+def test_a_step_handed_a_prop_keeps_or_reads_it() -> None:
+    """A step told which act it depends on does something with the prop.
+
+    The relaxation DEMOMA-22-016 forbids, made the other way round: rather
+    than making the parameter optional, delete the ``state.kept(joined)`` from
+    the body and leave the required keyword in the signature.  Every call site
+    still passes the prop, mypy and pyright still pass, and the gate is gone —
+    and DEMOMA-22-014's arms stay green whenever another step reads the same
+    prop (#5598).
+    """
+    idle = _idle_prop_parameters(_SITES)
+    assert not idle, (
+        "these steps are handed a prop and neither keep under it nor read "
+        f"it: {idle}. A prop parameter is how a step says which earlier act "
+        "it depends on, so a step that does nothing with it either dropped "
+        "its `state.kept(...)` or never needed the parameter."
     )
 
 
@@ -1252,10 +1445,15 @@ def test_the_planted_control_corpus_passes_every_arm() -> None:
     assert sites.without_a_reader() == []
     assert sites.without_a_keeper() == []
     assert sites.strays == ()
-    assert [found for found in sites.readers if found.has_default] == []
-    assert [
-        found for found in sites.parameters if not found.keyword_only
-    ] == []
+    # Every arm, through the reading the arm itself uses — including the two
+    # whose subject is the declaration rather than a parameter, so a
+    # derivation that reported every name as unliteral or every pair as a
+    # collision could not leave this control green either.
+    assert sites.unnamed == ()
+    assert sites.collisions() == {}
+    assert _relaxed_readers(sites) == []
+    assert _positional_prop_parameters(sites) == []
+    assert _idle_prop_parameters(sites) == []
     # Both shapes resolved, so the controls below vary a corpus the
     # derivation really reads rather than one it passes over.
     assert sites.direct_reads & sites.constants == {
@@ -1265,12 +1463,14 @@ def test_the_planted_control_corpus_passes_every_arm() -> None:
     }
     assert sites.passed_reads & sites.constants == {"C2_JOINED"}
     assert sites.passed_keeps & sites.constants == {"C2_JOINED"}
+    assert sites.outright_keeps & sites.constants == {"ENGAGED_CASE"}
     assert sites.aliased_keeps & sites.constants == {
         "REPORTERS_QUESTION",
         "VENDORS_ANSWER",
     }
 
 
+@pytest.mark.spec("DEMOMA-22-014")
 def test_the_gate_catches_a_prop_that_nothing_reads() -> None:
     """AC-1 / DEMOMA-22-014: the #5535 defect, as a planted module.
 
@@ -1302,6 +1502,7 @@ def test_the_gate_catches_a_prop_that_nothing_reads() -> None:
     assert sites.without_a_keeper() == []
 
 
+@pytest.mark.spec("DEMOMA-22-014")
 def test_the_gate_catches_a_prop_that_nothing_keeps() -> None:
     """The other half of DEMOMA-22-014: a read with no keep behind it."""
     sites = _planted(
@@ -1321,6 +1522,7 @@ def test_the_gate_catches_a_prop_that_nothing_keeps() -> None:
     assert sites.without_a_reader() == []
 
 
+@pytest.mark.spec("DEMOMA-22-018")
 def test_the_gate_catches_a_prop_built_outside_a_module_constant() -> None:
     """A construction the declaration reading does not recognise is reported.
 
@@ -1434,6 +1636,30 @@ def test_the_coverage_arm_fails_on_a_flat_corpus_and_on_one_half() -> None:
                 ),
             )
         )
+    # Both halves present and a subpackage read, but the subpackage is in one
+    # half: the shape of a scan that stopped reaching scenario *packages*
+    # while still reading the flat scenario modules, which is where rcvcv's
+    # own fragments live (#5846).
+    with pytest.raises(
+        AssertionError, match="declared in a subpackage only under"
+    ):
+        _assert_declarations_found(
+            _planted(
+                ("helpers/coordinated_story/opening.py", _DIRECT),
+                (
+                    "scenario/rcvv_embargo_demo.py",
+                    (
+                        "REVISED: StoryProp[str] = StoryProp('revised', str)\n"
+                        "\n"
+                        "def revise(state: StoryState) -> None:\n"
+                        "    state.keep(REVISED, revised)\n"
+                        "\n"
+                        "def publish(state: StoryState) -> None:\n"
+                        "    state.kept(REVISED)\n"
+                    ),
+                ),
+            )
+        )
 
 
 @pytest.mark.spec("DEMOMA-22-016")
@@ -1453,7 +1679,7 @@ def test_the_coverage_arm_fails_on_a_flat_corpus_and_on_one_half() -> None:
 def test_the_gate_catches_a_relaxed_reader_parameter(
     annotation: str, reason: str
 ) -> None:
-    """AC-2 / DEMOMA-22-015: each way of relaxing a read prop is reported.
+    """AC-2 / DEMOMA-22-016: each way of relaxing a read prop is reported.
 
     The first row is the mutation that left the whole suite green on PR
     #5595's head, because every call site happened to pass the prop (#5598).
@@ -1473,10 +1699,12 @@ def test_the_gate_catches_a_relaxed_reader_parameter(
         ),
     )
     assert [found.parameter for found in sites.readers] == ["joined"]
+    assert _relaxed_readers(sites), (
+        f"a reader annotated {annotation!r} was read as required"
+    )
     relaxed = [
         found for found in sites.readers if found.has_default or found.optional
     ]
-    assert relaxed, f"a reader annotated {annotation!r} was read as required"
     assert (relaxed[0].has_default, relaxed[0].optional) == (
         "has a default" in reason,
         "admits None" in reason,
@@ -1502,9 +1730,10 @@ def test_the_gate_catches_a_positional_prop_parameter() -> None:
             ),
         ),
     )
-    assert [
-        found.parameter for found in sites.parameters if not found.keyword_only
-    ] == ["joined"]
+    assert _positional_prop_parameters(sites) == [
+        "vultron/demo/helpers/owner_decision_story/keep.py:1"
+        "::the_owner_approves(joined)"
+    ]
 
 
 @pytest.mark.spec("DEMOMA-22-017")
@@ -1514,7 +1743,7 @@ def test_a_keeper_only_parameter_may_be_optional() -> None:
     ``invitee_joins_the_case`` keeps a prop only for a joiner whose roster a
     later act depends on, and runs a plain ``demo_check`` for the rest, so
     its parameter is optional by design (DEMOCI-01-011).  The guarantee
-    DEMOMA-22-015 asks for is on the reading side: an absent prop there means
+    DEMOMA-22-016 asks for is on the reading side: an absent prop there means
     no gate at all, where here it means no gate needed.
     """
     sites = _planted(
@@ -1532,9 +1761,10 @@ def test_a_keeper_only_parameter_may_be_optional() -> None:
     keeper = sites.parameters[0]
     assert (keeper.keeps, keeper.reads) == (True, False)
     assert (keeper.has_default, keeper.optional) == (True, True)
-    assert [
-        found for found in sites.readers if found.has_default or found.optional
-    ] == []
+    assert _relaxed_readers(sites) == []
+    # Nor is a keeper-only parameter idle: DEMOMA-22-021 asks that it do one
+    # of the two, and keeping is one of the two.
+    assert _idle_prop_parameters(sites) == []
 
 
 def test_a_prop_kept_through_a_local_alias_counts_as_kept() -> None:
@@ -1677,7 +1907,7 @@ def test_a_long_alias_chain_and_a_cyclic_one_both_resolve() -> None:
     assert sites.without_a_keeper() == []
 
 
-@pytest.mark.spec("DEMOMA-22-018")
+@pytest.mark.spec("DEMOMA-22-020")
 def test_the_gate_catches_a_name_that_is_not_a_literal() -> None:
     """A computed declared name is reported, never guessed at.
 
@@ -1708,7 +1938,7 @@ def test_the_gate_catches_a_name_that_is_not_a_literal() -> None:
     assert (sites.without_a_keeper(), sites.without_a_reader()) == ([], [])
 
 
-@pytest.mark.spec("DEMOMA-22-019")
+@pytest.mark.spec("DEMOMA-22-020")
 def test_the_declared_name_is_read_from_the_keyword_form_too() -> None:
     """``StoryProp(name=..., type_=...)`` is the same declaration.
 
@@ -1777,9 +2007,9 @@ def test_the_gate_catches_a_starred_prop_parameter() -> None:
     )
     starred = [found.parameter for found in sites.starred]
     assert starred == ["props"]
-    assert [
-        found.parameter for found in sites.parameters if not found.keyword_only
-    ] == ["props"]
+    assert _positional_prop_parameters(sites) == [
+        "vultron/demo/helpers/vendor_story/opening.py:3::keep_each(props)"
+    ]
     assert (sites.without_a_keeper(), sites.without_a_reader()) == ([], [])
 
 
@@ -1803,9 +2033,7 @@ def test_an_inner_optional_type_argument_is_not_a_relaxed_reader() -> None:
         ),
     )
     assert [found.parameter for found in sites.readers] == ["joined"]
-    assert [
-        found for found in sites.readers if found.has_default or found.optional
-    ] == []
+    assert _relaxed_readers(sites) == []
 
 
 @pytest.mark.spec("DEMOMA-22-014")
@@ -1906,3 +2134,276 @@ def test_a_forwarding_wrapper_carries_the_role_to_its_callers() -> None:
         f"forwards to; roles were {sorted(roles)}"
     )
     assert (sites.without_a_keeper(), sites.without_a_reader()) == ([], [])
+
+
+@pytest.mark.spec("DEMOMA-22-018")
+def test_a_prop_built_through_an_aliased_class_is_still_enumerated() -> None:
+    """The construction is found when the class arrived under another name.
+
+    Keyed on the bare callee name, this construction is neither a declaration
+    nor a stray: the prop becomes a subject of no arm at all, while
+    :func:`_assert_declarations_found` goes on passing on the other modules'
+    props.  That is the #5535 shape, and it would make the enumeration
+    best-effort rather than complete — the claim every other arm rests on
+    (#5598).
+    """
+    sites = _planted(
+        (
+            "helpers/coordinated_story/opening.py",
+            "from vultron.demo.helpers.story import StoryProp as Prop\n"
+            "\n"
+            "ORPHAN: Prop[str] = Prop('orphan', str)\n",
+        ),
+    )
+    assert [found.constant for found in sites.declarations] == ["ORPHAN"], (
+        "a prop built through an aliased class name was not enumerated, so "
+        "no arm judges it"
+    )
+    assert [found.label for found in sites.declarations] == ["orphan"]
+    # And it is a subject of the wiring arms rather than invisible to them.
+    assert sites.without_a_keeper() == [
+        "vultron/demo/helpers/coordinated_story/opening.py::ORPHAN"
+    ]
+
+
+def test_a_prop_built_through_an_aliased_class_in_a_function_is_a_stray() -> (
+    None
+):
+    """The stray arm resolves the alias too, so neither reading can hide it.
+
+    Both halves of the declaration-shape arm read the callee the same way: a
+    construction the alias reaches is enumerated when it is a module
+    constant, and reported as a stray when it is not.
+    """
+    sites = _planted(
+        (
+            "helpers/coordinated_story/opening.py",
+            "from vultron.demo.helpers.story import StoryProp as Prop\n"
+            "\n"
+            "def build(state: StoryState) -> None:\n"
+            "    local = Prop('inside a function', str)\n",
+        ),
+    )
+    assert sites.declarations == ()
+    assert sites.strays == (
+        "vultron/demo/helpers/coordinated_story/opening.py:4",
+    )
+
+
+@pytest.mark.spec("DEMOMA-22-014")
+def test_the_primitives_are_read_when_the_prop_is_given_by_keyword() -> None:
+    """``state.keep(prop=P, value=v)`` is a keep site, not an absent one.
+
+    ``StoryState.keep(prop, value)`` and ``StoryState.kept(prop)`` both take
+    the prop positional-or-keyword, so this is legal, spec-compliant code.
+    Read off ``call.args[0]`` alone it registers no site and the prop is
+    reported as kept and read by nobody — a red arm on correct code, which is
+    what gets a ratchet switched off (#5598).
+    """
+    sites = _planted(
+        (
+            "helpers/coordinated_story/opening.py",
+            "ENGAGED_CASE: StoryProp[str] = StoryProp('engaged', str)\n"
+            "\n"
+            "def the_owner_engages(state: StoryState) -> None:\n"
+            "    state.keep(prop=ENGAGED_CASE, value=str(state.case.id_))\n"
+            "\n"
+            "def the_reporter_asks(state: StoryState) -> None:\n"
+            "    state.kept(prop=ENGAGED_CASE)\n",
+        ),
+    )
+    assert (sites.without_a_keeper(), sites.without_a_reader()) == ([], [])
+    assert sites.outright_keeps & sites.constants == {"ENGAGED_CASE"}
+    assert sites.direct_reads & sites.constants == {"ENGAGED_CASE"}
+
+
+@pytest.mark.spec("DEMOMA-22-021")
+def test_the_gate_catches_a_step_that_does_nothing_with_its_prop() -> None:
+    """A required keyword whose read was deleted from the body is reported.
+
+    The #5535 relaxation written the other way round, and the one
+    DEMOMA-22-014's arms cannot see: a second step still reads the prop, so
+    it has both a keep site and a read site, while the step that declares the
+    dependency no longer honours it.
+    """
+    sites = _planted(
+        ("helpers/coordinated_story/opening.py", _DIRECT),
+        (
+            "helpers/owner_decision_story/handover.py",
+            "def the_owner_hands_the_case_over(\n"
+            "    state: StoryState, *, joined: StoryProp[str]\n"
+            ") -> None:\n"
+            "    state.open_case()\n",
+        ),
+        (
+            "scenario/rcvcv_demo/fragments.py",
+            "def c1_hands_over(state: StoryState) -> None:\n"
+            "    the_owner_hands_the_case_over(state, joined=ENGAGED_CASE)\n",
+        ),
+    )
+    # The prop itself is wired, so -014 stays green and only -021 fires.
+    assert (sites.without_a_keeper(), sites.without_a_reader()) == ([], [])
+    assert _idle_prop_parameters(sites) == [
+        "vultron/demo/helpers/owner_decision_story/handover.py:1"
+        "::the_owner_hands_the_case_over(joined)"
+    ]
+
+
+@pytest.mark.spec("DEMOMA-22-017")
+def test_two_same_named_steps_do_not_merge_their_roles() -> None:
+    """A keeper-only parameter does not inherit a namesake's reading role.
+
+    Roles are settled per definition.  Read off the bare function name, this
+    keeper-only ``_step`` would inherit the reading role of the ``_step`` in
+    the other module and be reported as a reader that may be given nothing —
+    a false failure on the shape DEMOMA-22-017 explicitly permits (#5598).
+    """
+    sites = _planted(
+        (
+            "helpers/coordinated_story/joining.py",
+            "KEPT_ONLY: StoryProp[str] = StoryProp('kept only', str)\n"
+            "\n"
+            "def _step(\n"
+            "    state: StoryState, *, joined: StoryProp[str] | None = None\n"
+            ") -> None:\n"
+            "    if joined is not None:\n"
+            "        state.keep(joined, str(state.case.id_))\n"
+            "\n"
+            "def opening(state: StoryState) -> None:\n"
+            "    _step(state, joined=KEPT_ONLY)\n"
+            "    state.kept(KEPT_ONLY)\n",
+        ),
+        (
+            "helpers/owner_decision_story/handover.py",
+            "def _step(\n"
+            "    state: StoryState, *, joined: StoryProp[str]\n"
+            ") -> None:\n"
+            "    state.kept(joined)\n",
+        ),
+    )
+    keeper = next(
+        found
+        for found in sites.parameters
+        if found.where.startswith(
+            "vultron/demo/helpers/coordinated_story/joining.py"
+        )
+    )
+    assert (keeper.keeps, keeper.reads) == (True, False), (
+        "the keeper-only parameter inherited a same-named step's role"
+    )
+    assert _relaxed_readers(sites) == []
+
+
+def test_a_prop_kept_both_outright_and_through_an_alias_suits_both_arms() -> (
+    None
+):
+    """The two keep shapes are recorded as seen, not as a partition.
+
+    Subtracting one set from the other credits a prop kept both ways to
+    neither shape, so ``_assert_site_shapes_live`` reddens on correct code.
+    """
+    sites = _planted(
+        (
+            "helpers/vendor_story/opening.py",
+            "ONE: StoryProp[str] = StoryProp('one', str)\n"
+            "\n"
+            "def opening(state: StoryState) -> None:\n"
+            "    state.keep(ONE, 'a')\n"
+            "    alias = ONE\n"
+            "    state.keep(alias, 'b')\n"
+            "\n"
+            "def later(state: StoryState) -> None:\n"
+            "    state.kept(ONE)\n",
+        ),
+    )
+    assert sites.outright_keeps & sites.constants == {"ONE"}
+    assert sites.aliased_keeps & sites.constants == {"ONE"}
+    assert sites.without_a_keeper() == []
+    # The reading `_assert_site_shapes_live` must not use: read as a
+    # partition, this corpus has no outright keep at all and the outright arm
+    # reddens on code that keeps a prop both ways.
+    assert sites.direct_keeps - sites.aliased_keeps == frozenset(), (
+        "this corpus no longer overlaps the two keep shapes, so it no longer "
+        "pins that neither arm may subtract the other"
+    )
+
+
+#: Both note props kept outright *and* through the alias loop, and read
+#: directly: every keep in it belongs to both shapes.  Used to reach
+#: :func:`_assert_site_shapes_live` on an overlapping corpus.
+_OVERLAPPING = (
+    "REPORTERS_QUESTION: StoryProp[as_Note] = StoryProp('q', as_Note)\n"
+    "VENDORS_ANSWER: StoryProp[as_Note] = StoryProp('a', as_Note)\n"
+    "\n"
+    "def the_reporter_asks_about_the_workaround(state: StoryState) -> None:\n"
+    "    state.keep(REPORTERS_QUESTION, first)\n"
+    "    state.keep(VENDORS_ANSWER, second)\n"
+    "    props: tuple[StoryProp[as_Note], ...] = (\n"
+    "        REPORTERS_QUESTION,\n"
+    "        VENDORS_ANSWER,\n"
+    "    )\n"
+    "    for prop, note in zip(props, posted, strict=False):\n"
+    "        if note is not None:\n"
+    "            state.keep(prop, note)\n"
+    "\n"
+    "def the_vendor_replies(state: StoryState) -> None:\n"
+    "    state.kept(REPORTERS_QUESTION)\n"
+    "    state.kept(VENDORS_ANSWER)\n"
+)
+
+
+def test_the_shape_arm_passes_when_every_keep_belongs_to_both_shapes() -> None:
+    """The shape arm reads each keep shape as seen, never as a partition.
+
+    All four site shapes are live here, and every outright keep is *also* an
+    aliased keep.  Read as a partition — ``direct_keeps - aliased_keeps`` —
+    the outright shape has no subject at all and the arm reports that every
+    keep now reaches its prop through an alias, which is false and is a
+    failure on correct code.  Pinned as its own corpus because the live tree
+    has no overlapping prop, so no mutation of the arm can be caught there.
+    """
+    sites = _planted(
+        ("helpers/vendor_story/opening.py", _OVERLAPPING),
+        ("helpers/owner_decision_story/handover.py", _BY_PARAMETER_HELPER),
+        ("scenario/rcvcv_demo/fragments.py", _BY_PARAMETER_FAMILY),
+    )
+    assert sites.direct_keeps - sites.aliased_keeps == frozenset(), (
+        "this corpus no longer overlaps every keep, so it no longer reaches "
+        "the partition reading the arm must not use"
+    )
+    _assert_site_shapes_live(sites)
+
+
+@pytest.mark.spec("DEMOMA-22-016")
+def test_a_positionally_defaulted_prop_parameter_is_read_as_defaulted() -> (
+    None
+):
+    """The positional half of the defaults alignment is exercised.
+
+    Every live and planted prop parameter is keyword-only, so without this
+    row only ``kw_defaults`` is ever read and an off-by-one in
+    ``_corpus.defaults_of``'s tail arithmetic would fail nothing.  The
+    parameter also fails DEMOMA-22-015, which is why the live corpus has
+    none; both arms report it.
+    """
+    sites = _planted(
+        (
+            "helpers/owner_decision_story/handover.py",
+            "def the_owner_hands_the_case_over(\n"
+            "    state: StoryState,\n"
+            "    owner: str = 'c1',\n"
+            "    joined: StoryProp[str] = _NO_PROP,\n"
+            ") -> None:\n"
+            "    state.kept(joined)\n",
+        ),
+    )
+    found = sites.parameters[0]
+    assert (found.parameter, found.has_default) == ("joined", True)
+    assert _relaxed_readers(sites) == [
+        "vultron/demo/helpers/owner_decision_story/handover.py:1"
+        "::the_owner_hands_the_case_over(joined): has a default"
+    ]
+    assert _positional_prop_parameters(sites) == [
+        "vultron/demo/helpers/owner_decision_story/handover.py:1"
+        "::the_owner_hands_the_case_over(joined)"
+    ]

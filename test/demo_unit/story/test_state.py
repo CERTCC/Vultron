@@ -20,10 +20,10 @@ mid-story.
 The rules *about* the declared props — one name per declaration, a keep site
 and a read site each, and a required keyword on the step that reads one — are
 enumerated from the declaration sites in
-``test/architecture/test_story_props_have_readers.py`` (DEMOMA-22-014,
-DEMOMA-22-015).  One enumeration serves them all, so this module pins the
-behaviour of a single prop on a single state and nothing walks the demo
-packages twice.
+``test/architecture/test_story_props_have_readers.py`` (DEMOMA-22-019,
+DEMOMA-22-014 and DEMOMA-22-016 respectively).  One enumeration serves them
+all, so this module pins the behaviour of a single prop on a single state and
+nothing walks the demo packages twice.
 """
 
 from __future__ import annotations

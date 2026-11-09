@@ -255,12 +255,16 @@ vendor-first half, whose Reporter tells a Vendor.
   because the failure lives between the two halves and no test of either half
   alone can see it. The rule is a gate, not a convention:
   `test/architecture/test_story_props_have_readers.py` fails a prop with no
-  keep site or no read site, a construction that is no module-level constant,
-  and a reading parameter that gained a default or admits `None`
-  (DEMOMA-22-014, DEMOMA-22-015). Only the *reading* parameter is required —
-  the keep side stays optional, because `invitee_joins_the_case` keeps one
-  only for a joiner some later act presupposes and is a plain `demo_check`
-  for the rest.
+  keep site or no read site (DEMOMA-22-014), a construction that is no
+  module-level constant (DEMOMA-22-018), and a reading parameter that gained a
+  default or admits `None` (DEMOMA-22-016). Only the *reading* parameter is
+  required — the keep side stays optional (DEMOMA-22-017), because
+  `invitee_joins_the_case` keeps one only for a joiner some later act
+  presupposes and is a plain `demo_check` for the rest. A step handed a prop
+  must still do one of the two with it: dropping the `state.kept(...)` and
+  leaving the required keyword is the same gap written the other way round,
+  and the per-prop arms miss it whenever another step reads the same prop
+  (DEMOMA-22-021).
 - **Fragments and named prefixes.** A story fragment is one step of a story,
   a callable taking the `StoryState`. A named prefix is a `Story` several
   scenarios start with. Both live in `vultron/demo/helpers/` when more than

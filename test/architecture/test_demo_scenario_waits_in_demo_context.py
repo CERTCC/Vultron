@@ -371,13 +371,19 @@ _FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
 def _annotates_story_state(annotation: ast.expr | None) -> bool:
     """True if *annotation* names ``StoryState``.
 
-    Matched on the trailing name so the import form a module happens to use —
-    bare ``StoryState``, dotted ``story.StoryState``, or a quoted forward
-    reference — does not decide whether its fragments are checked.
-    ``_corpus.trailing_names`` tokenises a quoted annotation, so a
-    subscripted or unioned one inside the quotes is read too (#5598).
+    Matched on the annotation's own top-level name so the import form a module
+    happens to use — bare ``StoryState``, dotted ``story.StoryState``, or a
+    quoted forward reference, subscripted or unioned inside the quotes — does
+    not decide whether its fragments are checked.
+
+    ``_corpus.top_level_names``, not ``trailing_names``: the wide helper walks
+    the whole annotation, so a parameter annotated ``Callable[[StoryState],
+    None]`` or ``Mapping[str, StoryState]`` would read as a fragment's state
+    parameter and make its function a subject of this ratchet. A function that
+    *takes a fragment* is a composer, not a fragment, and composing is the
+    direction this codebase is moving in (#5598).
     """
-    return _STORY_STATE in _corpus.trailing_names(annotation)
+    return _STORY_STATE in _corpus.top_level_names(annotation)
 
 
 def _takes_story_state(fn: _FunctionNode) -> bool:
@@ -592,7 +598,15 @@ _BARE_FRAGMENT = (
 
 
 @pytest.mark.parametrize(
-    "annotation", ["StoryState", "story.StoryState", "'StoryState'"]
+    "annotation",
+    [
+        "StoryState",
+        "story.StoryState",
+        "'StoryState'",
+        # Quoted and unioned: read whole, this spells no bare name and the
+        # fragment would be exempt (#5598).
+        "'StoryState | None'",
+    ],
 )
 def test_the_check_can_fail_on_a_story_fragment(annotation: str):
     """Guard: a fragment's bare raising wait is flagged like a phase's.
@@ -617,6 +631,29 @@ def test_a_story_fragment_wait_in_a_demo_gate_is_not_a_violation():
         "    with demo_gate('Vendor joined the case'):\n"
         "        wait_for_case_participants(state.client('v'), '1', set())\n"
     )
+    assert not _bare_wait_violations(
+        sample, frozenset({"wait_for_case_participants"})
+    )
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    ["Callable[[StoryState], None]", "Mapping[str, StoryState]", "Story"],
+)
+def test_a_function_taking_a_fragment_is_not_itself_a_fragment(
+    annotation: str,
+):
+    """A composer takes a fragment; it does not take the state.
+
+    The classification asks whether a parameter is annotated ``StoryState``,
+    which is a question about the annotation's own top-level name. Read as
+    "does the annotation mention ``StoryState`` anywhere", a composer's
+    ``Callable[[StoryState], None]`` parameter makes the composer a subject of
+    this ratchet and its own bare waits are reported against it — a violation
+    invented on correct code, in the direction the codebase is moving
+    (``notes/demo-scenario-tree.md`` § "Composition", #5598).
+    """
+    sample = _corpus.parse_inline(_BARE_FRAGMENT.format(annotation=annotation))
     assert not _bare_wait_violations(
         sample, frozenset({"wait_for_case_participants"})
     )

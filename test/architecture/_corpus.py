@@ -345,6 +345,42 @@ def trailing_names(node: ast.expr | None) -> frozenset[str]:
     return frozenset(found)
 
 
+def top_level_names(node: ast.expr | None) -> frozenset[str]:
+    """The names *node* spells at its own top level, not inside a subscript.
+
+    For a ratchet asking "is this annotation *this* class?" rather than "does
+    it mention it anywhere": ``X`` and ``mod.X`` yield ``X``, ``X[int]``
+    yields ``X`` (the subscripted value, not its arguments), a union yields
+    each operand's own top-level name, and a quoted annotation is re-parsed
+    and read the same way.
+
+    The difference from :func:`trailing_names` is load-bearing in both
+    directions. ``Callable[[X], None]`` yields ``Callable`` here and ``X``
+    there, so a reading that asks the narrow question through the wide helper
+    treats a parameter that *takes a function over* ``X`` as a parameter *of*
+    ``X`` — a subject it was never meant to judge (#5598).
+    """
+    if node is None:
+        return frozenset()
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        try:
+            inner = ast.parse(node.value, filename="<annotation>")
+        except SyntaxError:
+            return frozenset()
+        body = getattr(inner, "body", None)
+        first = body[0] if body else None
+        return top_level_names(getattr(first, "value", None))
+    if isinstance(node, ast.Name):
+        return frozenset({node.id})
+    if isinstance(node, ast.Attribute):
+        return frozenset({node.attr})
+    if isinstance(node, ast.Subscript):
+        return top_level_names(node.value)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return top_level_names(node.left) | top_level_names(node.right)
+    return frozenset()
+
+
 def parameters_of(
     fn: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
 ) -> tuple[ast.arg, ...]:
@@ -369,31 +405,46 @@ def parameters_of(
     )
 
 
+def defaults_of(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> Iterator[tuple[ast.arg, ast.expr, int | None]]:
+    """Each defaulted parameter of *fn*, with its default and its position.
+
+    The position is the declared index a *caller* would write the argument at,
+    or ``None`` for a keyword-only parameter, which no positional argument can
+    reach.
+
+    One reading of the two encodings ``ast.arguments`` uses: ``defaults``
+    aligns with the *tail* of the positional parameters, while ``kw_defaults``
+    aligns element-wise with the keyword-only ones and carries ``None`` where
+    there is no default at all.  Every reading in this package goes through
+    here, because a caller that rediscovers the tail alignment gets the
+    off-by-one wrong eventually.
+    """
+    args = fn.args
+    positional = [*args.posonlyargs, *args.args]
+    first = len(positional) - len(args.defaults)
+    for order, (argument, default) in enumerate(
+        zip(positional[first:], args.defaults, strict=True)
+    ):
+        yield argument, default, first + order
+    for argument, kw_default in zip(
+        args.kwonlyargs, args.kw_defaults, strict=True
+    ):
+        if kw_default is not None:
+            yield argument, kw_default, None
+
+
 def defaulted_parameters(
     fn: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> frozenset[str]:
     """The names of *fn*'s parameters that carry a default of any value.
 
-    ``ast.arguments`` aligns ``defaults`` with the *tail* of the positional
-    parameters and ``kw_defaults`` element-wise with the keyword-only ones,
-    carrying ``None`` where there is no default at all — two different
-    encodings a caller should not have to rediscover.  For the narrower
-    question of which parameters default to ``None`` and at what caller
-    index, see ``_guard_reachability.none_defaulted_params``.
+    For the narrower question of which parameters default to ``None`` and at
+    what caller index, see ``_guard_reachability.none_defaulted_params``;
+    both read the slots through :func:`defaults_of`.
     """
-    args = fn.args
-    positional = [*args.posonlyargs, *args.args]
-    tail = positional[len(positional) - len(args.defaults) :]
-    return frozenset(
-        [arg.arg for arg in tail]
-        + [
-            arg.arg
-            for arg, default in zip(
-                args.kwonlyargs, args.kw_defaults, strict=True
-            )
-            if default is not None
-        ]
-    )
+    return frozenset(argument.arg for argument, _, _ in defaults_of(fn))
 
 
 # ---------------------------------------------------------------------------
