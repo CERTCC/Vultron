@@ -4,6 +4,8 @@ callouts.
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
 from pathlib import Path
 
 from vultron.metadata.base import repo_root
@@ -17,6 +19,10 @@ from vultron.metadata.docs.requirement_catalog import (
     kind_page,
     requirement_anchor,
     requirement_linker,
+)
+from vultron.metadata.specs.coverage import (
+    ImplementerCoverageReport,
+    compute_implementer_coverage,
 )
 from vultron.metadata.specs.docs_render.rows import (
     _EMPTY_KIND_NOTICE,
@@ -37,11 +43,17 @@ from vultron.metadata.specs.schema import (
     SpecTag,
 )
 
+#: Maps each xfail-only requirement's ID to the issues its holds cite: the
+#: rows that carry the "not yet in the reference implementation" marker
+#: (DF-12-021). An ID absent from it gets no marker.
+NotYetImplemented = Mapping[str, tuple[int, ...]]
+
 
 def _render_group(
     lines: list[str],
     group: SpecGroup,
     href: RequirementHref,
+    not_yet_implemented: NotYetImplemented,
     heading: str = "###",
     specs: list[Spec] | None = None,
     anchor: str | None = None,
@@ -51,7 +63,8 @@ def _render_group(
     When *specs* is provided only those specs are rendered (used to suppress
     items whose effective kind does not match the page — SR-09-005).
     When *specs* is ``None`` all items in the group are rendered. *anchor*
-    overrides the heading's id, which defaults to the group ID's.
+    overrides the heading's id, which defaults to the group ID's. A row of
+    an ID in *not_yet_implemented* carries its marker (DF-12-021).
     """
     visible = specs if specs is not None else group.specs
     group_anchor = anchor or requirement_anchor(group.id)
@@ -66,7 +79,14 @@ def _render_group(
         lines.append("")
     lines.extend(_TABLE_HEADER)
     for spec in visible:
-        lines.append(render_requirement_row(spec, href, define_anchor=True))
+        lines.append(
+            render_requirement_row(
+                spec,
+                href,
+                define_anchor=True,
+                not_yet_implemented=not_yet_implemented.get(spec.id),
+            )
+        )
     lines.append("")
 
 
@@ -75,6 +95,7 @@ def _render_file(
     spec_file: SpecFile,
     href: RequirementHref,
     current_kind: SpecKind,
+    not_yet_implemented: NotYetImplemented,
     *,
     heading: str,
     anchor_prefix: str = "",
@@ -109,6 +130,7 @@ def _render_file(
             lines,
             group,
             href,
+            not_yet_implemented,
             heading=heading + "#",
             specs=matching_specs,
             anchor=anchor_prefix + requirement_anchor(group.id),
@@ -184,8 +206,10 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
         else:
             regular.append(sf)
 
+    # Only the two catalog tiers have coverage states (SR-05-017), so no row
+    # on a per-kind page carries the marker.
     for sf in regular:
-        _render_file(lines, sf, href, target_kind, heading="##")
+        _render_file(lines, sf, href, target_kind, {}, heading="##")
 
     if behavioral:
         lines.append("## Behavioral Specifications")
@@ -197,12 +221,36 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
         )
         lines.append("")
         for sf in behavioral:
-            _render_file(lines, sf, href, target_kind, heading="###")
+            _render_file(lines, sf, href, target_kind, {}, heading="###")
 
     return "\n".join(lines)
 
 
-_registry_cache: dict[tuple[tuple[str, int], ...], SpecRegistry] = {}
+_TreeKey = tuple[tuple[str, int], ...]
+
+_registry_cache: dict[_TreeKey, SpecRegistry] = {}
+
+_not_yet_implemented_cache: dict[
+    tuple[_TreeKey, _TreeKey], NotYetImplemented
+] = {}
+
+
+def _tree_key(root: Path, suffix: str) -> _TreeKey:
+    """Every file under *root* ending in *suffix*, with its modification time.
+
+    Walked with :func:`os.walk`, which is several times faster than
+    :meth:`Path.rglob`: a page with many callouts computes this per callout.
+    """
+    found = []
+    for directory, subdirs, files in os.walk(root):
+        subdirs[:] = sorted(d for d in subdirs if d != "__pycache__")
+        for name in files:
+            if name.endswith(suffix):
+                path = os.path.join(directory, name)
+                found.append(
+                    (os.path.relpath(path, root), os.stat(path).st_mtime_ns)
+                )
+    return tuple(sorted(found))
 
 
 def _docs_registry() -> SpecRegistry:
@@ -213,14 +261,60 @@ def _docs_registry() -> SpecRegistry:
     sees an edited requirement on its next rebuild.
     """
     spec_dir = repo_root() / "specs"
-    key = tuple(
-        (path.name, path.stat().st_mtime_ns)
-        for path in sorted(Path(spec_dir).glob("*.yaml"))
-    )
+    key = _tree_key(spec_dir, ".yaml")
     if key not in _registry_cache:
         _registry_cache.clear()
         _registry_cache[key] = load_registry(spec_dir)
     return _registry_cache[key]
+
+
+def _docs_not_yet_implemented() -> NotYetImplemented:
+    """The repository's xfail-only requirements and the issues they cite.
+
+    Computed by ``spec-coverage``'s classifier (SR-05-017) from ``specs/`` and
+    ``test/``, once per state of the two trees: the scan reads every test
+    file, and a page holds many callouts. Keyed like :func:`_docs_registry`,
+    so a test that gains a running marked test drops the marker on the next
+    build (DF-12-021).
+
+    Raises:
+        FileNotFoundError: If the checkout has no ``test/`` tree, which would
+            otherwise read every requirement as untested and drop every
+            marker unseen.
+    """
+    root = repo_root()
+    test_root = root / "test"
+    if not test_root.is_dir():
+        raise FileNotFoundError(
+            f"{test_root} is missing; the not-yet-implemented markers on "
+            "requirement rows are read from its tests (DF-12-021)"
+        )
+    key = (
+        _tree_key(root / "specs", ".yaml"),
+        _tree_key(test_root, ".py"),
+    )
+    if key not in _not_yet_implemented_cache:
+        _not_yet_implemented_cache.clear()
+        report = compute_implementer_coverage(_docs_registry(), test_root)
+        _not_yet_implemented_cache[key] = report.xfail_only_issues()
+    return _not_yet_implemented_cache[key]
+
+
+def _markers(
+    registry: SpecRegistry | None, coverage: ImplementerCoverageReport | None
+) -> NotYetImplemented:
+    """The marked rows for a renderer given *registry* and *coverage*.
+
+    The repository's when both are ``None``, as on every docs page; those of
+    *coverage* when it is given; and none for a caller that passes its own
+    registry without a coverage report, whose requirements the repository's
+    tests do not mark.
+    """
+    if coverage is not None:
+        return coverage.xfail_only_issues()
+    if registry is None:
+        return _docs_not_yet_implemented()
+    return {}
 
 
 def _catalog_page(key: str, pages: tuple[CatalogPage, ...]) -> CatalogPage:
@@ -238,6 +332,7 @@ def render_catalog_page(
     page: str | None = None,
     pages: tuple[CatalogPage, ...] = CATALOG_PAGES,
     heading: str | None = None,
+    coverage: ImplementerCoverageReport | None = None,
 ) -> str:
     """Render the Requirements Catalog page *key* (DF-12-001).
 
@@ -258,11 +353,15 @@ def render_catalog_page(
             is one level below it. By default ``###`` under the page's
             ``## 14.N`` heading, and ``####`` on ``full.md``, where the
             subsection sits one level deeper, under ``## 14.``.
+        coverage: The coverage states that put the "not yet in the reference
+            implementation" marker on each xfail-only row (DF-12-021); see
+            :func:`_markers` for the default.
 
     Raises:
         KeyError: If *pages* has no page *key*.
         ValueError: If the page places a file that does not exist.
     """
+    not_yet_implemented = _markers(registry, coverage)
     registry = registry if registry is not None else _docs_registry()
     catalog = _catalog_page(key, pages)
     on_page = page if page is not None else current_page()
@@ -282,6 +381,7 @@ def render_catalog_page(
             files[file_id],
             href,
             catalog.tier,
+            not_yet_implemented,
             heading=heading,
             anchor_prefix=f"{catalog.tier.value}-",
             show_file_id=False,
@@ -295,13 +395,16 @@ def requirement_callout(
     registry: SpecRegistry | None = None,
     page: str | None = None,
     pages: tuple[CatalogPage, ...] = CATALOG_PAGES,
+    coverage: ImplementerCoverageReport | None = None,
 ) -> str:
     """Render an ``info`` admonition showing the requirements *spec_ids*.
 
     The callout is how the Protocol Specification's narrative presents a
     normative requirement (DF-12-003): a table in the catalog's row format,
     each ID cell linking the requirement's catalog row and defining no anchor
-    (DF-12-010). Call it in one line from a ``markdown-exec`` block.
+    (DF-12-010). An xfail-only requirement's row carries the same marker as
+    its catalog row (DF-12-021). Call it in one line from a ``markdown-exec``
+    block.
 
     Args:
         spec_ids: The requirement IDs, in display order.
@@ -310,6 +413,8 @@ def requirement_callout(
         page: ``docs/``-relative path of the page the callout is printed on;
             the page being built when ``None``.
         pages: The placement table.
+        coverage: The coverage states that mark xfail-only rows (DF-12-021);
+            see :func:`_markers` for the default.
 
     Raises:
         ValueError: If no ID is given, an ID is given twice, or an ID names no
@@ -322,6 +427,7 @@ def requirement_callout(
     repeated = sorted({i for i in spec_ids if spec_ids.count(i) > 1})
     if repeated:
         raise ValueError(f"requirement callout repeats {', '.join(repeated)}")
+    not_yet_implemented = _markers(registry, coverage)
     registry = registry if registry is not None else _docs_registry()
     for spec_id in spec_ids:
         catalog_location(spec_id, registry, pages)
@@ -331,7 +437,12 @@ def requirement_callout(
         pages=pages,
     )
     rows = [
-        render_requirement_row(registry.get(i), href, define_anchor=False)
+        render_requirement_row(
+            registry.get(i),
+            href,
+            define_anchor=False,
+            not_yet_implemented=not_yet_implemented.get(i),
+        )
         for i in spec_ids
     ]
     body = [*_TABLE_HEADER, *rows]

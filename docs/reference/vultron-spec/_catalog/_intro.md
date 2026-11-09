@@ -14,3 +14,8 @@ They have a subsection of their own, §14.8 Inherited Requirements, and an imple
 The `protocol` tier is grouped by theme into seven subsections, from §14.1 Vultron Protocol to §14.7 Transport and Security.
 Within a subsection, each requirement file has a heading of its own, and its requirements are listed group by group.
 Each row gives the requirement's ID, its priority, its statement and rationale, and the requirements it relates to.
+
+A requirement can be written ahead of its code in the reference implementation.
+When every test of such a requirement is held as an expected failure, its row carries the marker "Not yet in the reference implementation", with links to the issues that track the work, and so does every callout of it.
+The marker is generated from the tests, and it leaves the row when a test of the requirement runs on `main`.
+The marker labels the reference implementation only: the requirement keeps its priority, and the protocol requires it all the same.

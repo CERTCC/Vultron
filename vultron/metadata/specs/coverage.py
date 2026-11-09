@@ -110,6 +110,14 @@ class RequirementCoverage(BaseModel):
     any state: a partly-met requirement has both these and a test that runs,
     and a verified one has none."""
 
+    @property
+    def cited_issues(self) -> tuple[int, ...]:
+        """The issue numbers the holds on this requirement's tests cite,
+        sorted and without repeats."""
+        return tuple(
+            sorted({n for test in self.xfail_tests for n in test.issues})
+        )
+
 
 class CoverageSummary(BaseModel):
     """The counts of each coverage state."""
@@ -159,6 +167,18 @@ class ImplementerCoverageReport(BaseModel):
     def xfail_only(self) -> list[str]:
         """IDs whose every marked test is held, sorted."""
         return self._ids(CoverageState.XFAIL_ONLY)
+
+    def xfail_only_issues(self) -> dict[str, tuple[int, ...]]:
+        """Each xfail-only ID with the issues its holds cite (SR-05-018).
+
+        The input of the "not yet in the reference implementation" marker on
+        catalog rows and callouts (DF-12-021).
+        """
+        return {
+            r.id: r.cited_issues
+            for r in self.requirements
+            if r.state is CoverageState.XFAIL_ONLY
+        }
 
     @property
     def untested(self) -> list[str]:

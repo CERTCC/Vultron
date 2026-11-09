@@ -2412,3 +2412,62 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: DF-12-019
+  - id: DF-12-021
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The Requirements Catalog row and every callout (DF-12-003) of an xfail-only
+      `protocol` or `foundation` requirement (SR-05-017) MUST carry the marker "Not
+      yet in the reference implementation", linking each issue its holds cite
+      (SR-05-018). The build generates the marker from the coverage states, so a
+      verified, partly-met or untested requirement's row carries none, and the
+      marker leaves a row once a test marked for the requirement runs. The
+      statement keeps its RFC 2119 keyword.
+    rationale: >-
+      A reader of a draft would take an unlabeled row written ahead of its code
+      for built behavior. The rule stays normative, so only the implementation
+      status is labeled and the keyword stays. A marker read from the tests
+      cannot fall behind them. A partly-met requirement is listed on the
+      known-gaps page (DF-12-019) instead. A prototype carve-out held by a strict
+      `xfail` citing its production issue takes the same marker (#6023).
+    verification: >-
+      In `test/metadata/specs/test_not_yet_implemented_marker.py`,
+      `TestNotYetImplementedMarker` fails when an xfail-only requirement's catalog
+      row or callout lacks the marker or a cited issue's link, when a verified,
+      partly-met or untested requirement's row carries it, or when the marker
+      stays after a marked test runs. `TestRepositoryDefault` fails when the docs
+      pages' default does not read the markers from the repository's `test/`
+      tree, keeps one after an edit, or renders without that tree.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-12-001
+    - rel_type: uses_definition
+      spec_id: SR-05-017
+    - rel_type: uses_definition
+      spec_id: SR-05-018
+    - rel_type: uses_definition
+      spec_id: DF-12-003
+  - id: DF-12-022
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The prose of the Protocol Specification MUST NOT describe an xfail-only
+      `protocol` or `foundation` requirement (SR-05-017) as behavior that the
+      reference implementation's `main` branch has.
+    rationale: >-
+      A marked callout (DF-12-021) is undone by a sentence beside it saying that
+      `main` does what the requirement asks, and a reader trusts the sentence.
+    verification: >-
+      Inspection: a reviewer of a change to a Protocol Specification fragment
+      confirms that no sentence around a callout carrying the DF-12-021 marker
+      says `main` does what the requirement asks. No check reads prose for this
+      claim.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-12-021
+    - rel_type: uses_definition
+      spec_id: SR-05-017
