@@ -40,7 +40,7 @@ A Case Actor is a **Service** actor — it represents software infrastructure, n
 The prototype has no dedicated class for it: it is an ordinary `VultronService` named `CaseActor`.
 
 The reference implementation runs one Case Actor service per container, which holds the `CASE_MANAGER` role for the cases delegated to it.
-A Case Owner that does not delegate management holds the role itself, because the create-case trigger grants the creating actor both `CVDRole.CASE_OWNER` and `CVDRole.CASE_MANAGER` ([CM-02-015](../../reference/vultron-spec/requirements/case-management.md#cm-02-015)).
+A Case Owner that does not delegate management holds the role itself, because the create-case trigger grants the creating actor both `CVDRole.CASE_OWNER` and `CVDRole.CASE_MANAGER` ([CM-02-015](../../reference/specs/project.md#cm-02-015)).
 When the Case Actor holds the role, it is also a `CaseParticipant` (as a `CaseActorParticipant`, per ADR-0051): it holds both `CVDRole.COORDINATOR` and `CVDRole.CASE_MANAGER` and moves through the RM states like every other participant.
 Embargo proposals, status updates, notes, and participant invitations all go to it, so that the ledger captures a causally ordered record of the whole coordination.
 
