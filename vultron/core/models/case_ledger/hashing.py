@@ -16,7 +16,9 @@
 """The per-case genesis hash and the canonical hash of ledger content.
 
 Canonical serialization is deterministic JSON (``sort_keys=True``, compact
-separators, UTF-8), compatible with RFC 8785 JCS (CLP-08-001, CLP-08-002).
+separators, UTF-8).  It is **not** RFC 8785 JCS: it escapes non-ASCII text
+and writes numbers in Python's form, so it differs from the JCS form that
+SYNC-01-008 requires.  The gap is #3659.
 """
 
 import hashlib
@@ -82,8 +84,9 @@ def compute_genesis_hash(
 def _canonical_bytes(data: dict[str, Any]) -> bytes:
     """Return deterministic UTF-8 JSON bytes for *data*.
 
-    Uses ``sort_keys=True`` and compact separators to produce a
-    RFC 8785 JCS-compatible canonical form suitable for cryptographic hashing.
+    Uses ``sort_keys=True`` and compact separators to produce a deterministic
+    form for cryptographic hashing.  This form is not RFC 8785 JCS, which
+    SYNC-01-008 requires (#3659).
     A ``datetime`` is written in the fixed form of :func:`format_timestamp`
     (CS-13-007); any other non-JSON-native value is refused.  Snapshots
     reach here as JSON-mode dumps, so neither normally occurs.
