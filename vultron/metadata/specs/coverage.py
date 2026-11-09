@@ -15,16 +15,20 @@
 Scans the test suite for ``@pytest.mark.spec("ID")`` markers and reports, for
 the requirements every implementation must obey — ``protocol`` and
 ``foundation`` kind (:data:`~vultron.metadata.specs.schema.IMPLEMENTER_KINDS`)
-— which of three states each one is in (SR-05-017):
+— which of four states each one is in (SR-05-017):
 
-* **verified** — at least one marked test runs to pass or fail;
+* **verified** — at least one marked test runs to pass or fail, and none is
+  held;
+* **partly met** — at least one marked test runs and at least one is held, so
+  a test shows that ``main`` does not meet all of it;
 * **xfail-only** — it has marked tests, and each one is held: a strict
   ``xfail`` (conditional or not) is on it, or it cannot run (an unconditional
   ``skip``, an empty parameter list), so no passing test shows that ``main``
   meets it;
 * **untested** — no marker names it.
 
-The coverage figure is verified over total. ``--json PATH`` writes each
+The coverage figure is verified over total: a partly-met requirement is left
+out, because a test shows ``main`` falls short of it. ``--json PATH`` writes each
 requirement's state, statement and xfail reasons (SR-05-018).
 
 Runnable locally::
@@ -65,7 +69,10 @@ class CoverageState(StrEnum):
     """What the test suite shows about one implementer-kind requirement."""
 
     VERIFIED = "verified"
-    """A marked test runs to pass or fail."""
+    """A marked test runs to pass or fail, and no marked test is held."""
+    PARTLY_MET = "partly_met"
+    """A marked test runs, and another is held by a strict ``xfail`` or cannot
+    run."""
     XFAIL_ONLY = "xfail_only"
     """Every marked test is held by a strict ``xfail`` or cannot run."""
     UNTESTED = "untested"
@@ -100,7 +107,8 @@ class RequirementCoverage(BaseModel):
     state: CoverageState
     xfail_tests: tuple[XfailTest, ...] = ()
     """Each strict ``xfail`` or skip on a test marked for this requirement, in
-    any state: a verified requirement can also have an xfail-marked test."""
+    any state: a partly-met requirement has both these and a test that runs,
+    and a verified one has none."""
 
 
 class CoverageSummary(BaseModel):
@@ -110,6 +118,7 @@ class CoverageSummary(BaseModel):
 
     total: int
     verified: int
+    partly_met: int
     xfail_only: int
     untested: int
     verified_pct: float
@@ -138,8 +147,13 @@ class ImplementerCoverageReport(BaseModel):
 
     @property
     def verified(self) -> list[str]:
-        """Marked IDs that are not xfail-only, sorted."""
+        """Marked IDs no hold falls on, sorted."""
         return self._ids(CoverageState.VERIFIED)
+
+    @property
+    def partly_met(self) -> list[str]:
+        """IDs with a running marked test and a held one, sorted."""
+        return self._ids(CoverageState.PARTLY_MET)
 
     @property
     def xfail_only(self) -> list[str]:
@@ -165,6 +179,7 @@ class ImplementerCoverageReport(BaseModel):
         return CoverageSummary(
             total=self.total,
             verified=len(self.verified),
+            partly_met=len(self.partly_met),
             xfail_only=len(self.xfail_only),
             untested=len(self.untested),
             verified_pct=self.verified_pct,
@@ -183,7 +198,7 @@ def marked_ids_in(sources: Iterable[str]) -> frozenset[str]:
 
     This set alone decides *untested*, so the SR-05-005 growth guard and the
     report agree on it; :mod:`~vultron.metadata.specs.marked_tests` only
-    splits the marked IDs into verified and xfail-only.
+    splits the marked IDs into verified, partly met and xfail-only.
     """
     return frozenset().union(*(marked_spec_ids(source) for source in sources))
 
@@ -249,9 +264,12 @@ def _state(
 ) -> CoverageState:
     if spec_id not in marked_ids:
         return CoverageState.UNTESTED
-    if cases and all(case.is_xfail for case in cases):
+    held = sum(case.is_xfail for case in cases)
+    if held == 0:
+        return CoverageState.VERIFIED
+    if held == len(cases):
         return CoverageState.XFAIL_ONLY
-    return CoverageState.VERIFIED
+    return CoverageState.PARTLY_MET
 
 
 def _xfail_tests(cases: Iterable[MarkedCase]) -> tuple[XfailTest, ...]:
@@ -280,9 +298,9 @@ def classify_requirements(
         cases: The marked test cases
             (:func:`~vultron.metadata.specs.marked_tests.marked_cases_in`).
             A marked ID is xfail-only when it has cases and each one is
-            held; otherwise it is verified. A marked ID with no case (its
-            call sits where the case reader does not look) counts as
-            verified.
+            held, partly met when some are held and some are not, and
+            verified when none is held. A marked ID with no case (its call
+            sits where the case reader does not look) counts as verified.
     """
     by_id: dict[str, list[MarkedCase]] = {}
     for case in cases:
@@ -397,35 +415,44 @@ def markers_dropped_by_kind_change(
     )
 
 
-def format_report(report: ImplementerCoverageReport) -> str:
-    """The text ``spec-coverage`` prints: the three counts, then the IDs.
+def _held_lines(
+    report: ImplementerCoverageReport, state: CoverageState, label: str
+) -> list[str]:
+    """The *state* IDs, each followed by the reasons of its holds."""
+    held = [r for r in report.requirements if r.state is state]
+    if not held:
+        return []
+    lines = [
+        "",
+        f"{label} protocol and foundation requirements ({len(held)}):",
+    ]
+    for requirement in held:
+        lines.append(f"  {requirement.id}")
+        reasons = dict.fromkeys(
+            t.reason or "(no reason)" for t in requirement.xfail_tests
+        )
+        lines += [f"      {reason}" for reason in reasons]
+    return lines
 
-    Each xfail-only ID is followed by the reasons of the xfails that hold it,
-    and each untested ID is listed alone.
+
+def format_report(report: ImplementerCoverageReport) -> str:
+    """The text ``spec-coverage`` prints: the four counts, then the IDs.
+
+    Each partly-met and xfail-only ID is followed by the reasons of the holds
+    on its tests, and each untested ID is listed alone.
     """
     summary = report.summary
     lines = [
         f"Protocol and foundation spec coverage: "
         f"{summary.verified}/{summary.total} verified ({summary.verified_pct:.1f}%)",
         f"  verified:   {summary.verified}",
+        f"  partly met: {summary.partly_met}",
         f"  xfail-only: {summary.xfail_only}",
         f"  untested:   {summary.untested}",
     ]
-    xfail_only = [
-        r for r in report.requirements if r.state is CoverageState.XFAIL_ONLY
-    ]
-    if xfail_only:
-        lines += [
-            "",
-            "xfail-only protocol and foundation requirements "
-            f"({len(xfail_only)}):",
-        ]
-        for requirement in xfail_only:
-            lines.append(f"  {requirement.id}")
-            reasons = dict.fromkeys(
-                t.reason or "(no reason)" for t in requirement.xfail_tests
-            )
-            lines += [f"      {reason}" for reason in reasons]
+    # The order of the known-gaps page: xfail-only, partly met, untested.
+    lines += _held_lines(report, CoverageState.XFAIL_ONLY, "xfail-only")
+    lines += _held_lines(report, CoverageState.PARTLY_MET, "Partly-met")
     if report.untested:
         lines += [
             "",
@@ -450,8 +477,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Report which protocol- and foundation-kind requirements a passing "
-            "@pytest.mark.spec test verifies, which only a strict xfail "
-            "checks, and which no marker names."
+            "@pytest.mark.spec test verifies, which a passing test and a held "
+            "one both check, which only a strict xfail checks, and which no "
+            "marker names."
         )
     )
     parser.add_argument(
