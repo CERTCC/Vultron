@@ -19,19 +19,20 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from vultron.metadata.csaf.regenerate import (
-    resolve_relative_ref,
-    schema_refs,
-)
-from vultron.wire.csaf.pin import (
+from vultron.metadata.csaf.pin import (
+    LICENCE_FILE_NAMES,
     PIN_PATH,
     PINNED_COPY_DIR,
     CsafPin,
     file_sha256,
     load_pin,
 )
+from vultron.metadata.csaf.regenerate import (
+    resolve_relative_ref,
+    schema_refs,
+)
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _CROSSWALK_VERSION = (
     _REPO_ROOT / "docs" / "reference" / "csaf_crosswalk" / "_csaf_version.md"
 )
@@ -62,11 +63,31 @@ def test_the_pin_maps_every_file_of_the_pinned_local_copy() -> None:
     on_disk = {
         path.relative_to(PINNED_COPY_DIR).as_posix()
         for path in PINNED_COPY_DIR.rglob("*")
-        if path.is_file()
+        if path.is_file() and path.name not in LICENCE_FILE_NAMES
     }
 
     assert set(pin.sources.values()) == on_disk
     assert pin.root in on_disk
+
+
+def test_every_pinned_file_has_a_licence_file_beside_or_above_it() -> None:
+    def licensed(directory: Path) -> bool:
+        while True:
+            if any(
+                (directory / name).is_file() for name in LICENCE_FILE_NAMES
+            ):
+                return True
+            if directory == PINNED_COPY_DIR:
+                return False
+            directory = directory.parent
+
+    unlicensed = sorted(
+        local
+        for local in load_pin().sources.values()
+        if not licensed((PINNED_COPY_DIR / local).parent)
+    )
+
+    assert unlicensed == []
 
 
 @pytest.mark.spec("CSAF-05-002")

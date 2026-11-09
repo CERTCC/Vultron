@@ -12,6 +12,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tooling for the pinned local copy of the CSAF 2.1 schemas (CSAF-05).
 
+- :mod:`.pin` reads the pin record, ``third_party/csaf/pin.json``, which names
+  the draft revision and maps each referenced schema to its file in the
+  pinned local copy, ``third_party/csaf/schemas/`` (CSAF-05-001).
 - :mod:`.regenerate` writes the models in ``vultron/wire/csaf/models/`` from
   the pinned local copy, or checks that they match it (``csaf-models``).
 - :mod:`.corpus` runs those models over a local clone of the CSAF Technical

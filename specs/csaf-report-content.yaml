@@ -654,9 +654,9 @@ groups:
       schemas and the models generated from them read the one record, so they
       cannot disagree about the draft.
     verification: >-
-      `test/wire/csaf/test_pin.py::test_the_crosswalk_names_the_pinned_commit`
+      `test/metadata/test_csaf_pin.py::test_the_crosswalk_names_the_pinned_commit`
       checks that the crosswalk version include names the commit, draft stage and
-      repository of the pin record, `vultron/wire/csaf/pin.json`.
+      repository of the pin record, `third_party/csaf/pin.json`.
       `test_the_pin_maps_every_file_of_the_pinned_local_copy` in the same module
       checks that the record lists exactly the files of the pinned local copy.
   - id: CSAF-05-002

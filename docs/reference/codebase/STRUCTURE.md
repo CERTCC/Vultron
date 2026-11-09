@@ -12,7 +12,7 @@ stakeholder_type: [project-contributor]
 |------|---------|----------|
 | `vultron/` | Main Python package — all production source | `pyproject.toml` `[tool.setuptools.packages.find]` |
 | `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors, services, predicates, participants, scoring, case-state hypercube, and the two dispatchers (`dispatcher.py` for received activities, `trigger_dispatcher.py` for trigger verbs) | `vultron/core/AGENTS.md` |
-| `vultron/wire/` | Wire format layer: AS2 vocabulary, parser, unknown-key disposition, rehydration, semantic extractor, factories; CSAF 2.1 pinned local copy of the schemas, pin record and generated models (`csaf/`) | `vultron/wire/as2/AGENTS.md`, `vultron/wire/csaf/__init__.py` |
+| `vultron/wire/` | Wire format layer: AS2 vocabulary, parser, unknown-key disposition, rehydration, semantic extractor, factories; CSAF 2.1 models generated from the pinned local copy of the schemas (`csaf/`) | `vultron/wire/as2/AGENTS.md`, `vultron/wire/csaf/__init__.py` |
 | `vultron/adapters/` | Adapter layer: driving (FastAPI HTTP, CLI, shared-inbox stub), driven (SQLite, delivery, trigger-activity adapter, wire render), connectors, outbox dead-letter and sealed-body helpers | `vultron/adapters/AGENTS.md` |
 | `vultron/semantic_registry/` | Ordered ActivityStreams pattern registry and `use_case_map()` for received activities | `vultron/semantic_registry/__init__.py` |
 | `vultron/trigger_registry/` | Verb-keyed `TRIGGER_REGISTRY` table for trigger use cases, one sub-module per domain (ADR-0110); a data table for enumeration, not a router | `vultron/trigger_registry/__init__.py` |
@@ -25,6 +25,7 @@ stakeholder_type: [project-contributor]
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary and ratchet tests | `test/architecture/test_core_no_adapter_imports.py` |
 | `specs/` | Structured YAML specification files | `specs/README.md` |
+| `third_party/` | Pinned local copies of third-party files, each under its own licence and never hand-edited: the CSAF 2.1 schemas and their pin record (`csaf/`), read by `vultron/metadata/csaf/` and the tests, never at runtime | `third_party/README.md`, `third_party/csaf/pin.json` |
 | `notes/` | Working notes that inform work not yet done, each declaring `kind: guidance`, `plan`, or `generated` (NF-08) | `notes/README.md`, `.agents/skills/shared/notes-writing-guide.md` |
 | `archived_notes/` | Superseded design notes kept for reference | `archived_notes/README.md` |
 | `docs/` | MkDocs documentation source | `mkdocs.yml` |
@@ -128,7 +129,7 @@ stakeholder_type: [project-contributor]
 | `vultron/core/participants/` | Neutral participant-layer helpers below both `behaviors/` and `use_cases/`; resolves role-based authority (ADR-0088) | `behaviors/`, `use_cases/`, adapter imports |
 | `vultron/core/behaviors/` | py_trees trees and nodes, run through `BTBridge` | `use_cases/` imports |
 | `vultron/wire/as2/` | AS2 vocabulary (Pydantic models), parser, semantic extractor, factories | Any `vultron/core/` package other than `models/` and `states/`; FastAPI |
-| `vultron/wire/csaf/` | CSAF 2.1 pinned local copy of the schemas, its pin record, and the models generated from it (`models/`, never hand-edited) | Any `vultron/core/` package other than `models/` and `states/`; `datamodel-code-generator` (a dev tool, imported only by `vultron/metadata/csaf/`) |
+| `vultron/wire/csaf/` | The CSAF 2.1 models generated from the pinned local copy of the schemas in `third_party/csaf/` (`models/`, never hand-edited) | Any `vultron/core/` package other than `models/` and `states/`; `datamodel-code-generator` (a dev tool, imported only by `vultron/metadata/csaf/`) |
 | `vultron/trigger_registry/` | One `TriggerEntry` row per trigger verb | Per-verb behavior (ADR-0110) |
 | `vultron/adapters/` | HTTP handlers, SQLite data layer, outbound delivery, CLI, connectors | Core domain logic (no business rules) |
 | `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |

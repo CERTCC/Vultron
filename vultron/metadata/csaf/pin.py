@@ -13,8 +13,11 @@
 """The one record of the CSAF 2.1 draft revision this codebase follows (CSAF-05-001).
 
 Every CSAF 2.1 draft uses the same ``$schema`` value, so a document cannot say
-which draft it follows. ``pin.json`` names the revision once, and the pinned
-local copy, the generated models and the crosswalk pages all read it.
+which draft it follows. ``third_party/csaf/pin.json`` names the revision once,
+and the pinned local copy, the generated models and the crosswalk pages all
+read it. The copy and the record are third-party files outside ``vultron/``;
+only the regeneration script, the corpus script and the tests read them, never
+the runtime.
 """
 
 from __future__ import annotations
@@ -33,14 +36,20 @@ from pydantic import (
 
 from vultron.primitives import NonEmptyString
 
-#: This package's directory.
-CSAF_PACKAGE_DIR = Path(__file__).resolve().parent
+#   parents[0] = csaf, [1] = metadata, [2] = vultron, [3] = <repo root>
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+#: Where the pinned local copy and its pin record sit: outside ``vultron/``,
+#: which holds only this project's own code.
+THIRD_PARTY_CSAF_DIR = _REPO_ROOT / "third_party" / "csaf"
 #: The pin record.
-PIN_PATH = CSAF_PACKAGE_DIR / "pin.json"
+PIN_PATH = THIRD_PARTY_CSAF_DIR / "pin.json"
 #: The pinned local copy of the schemas, laid out as their paths in ``sources``.
-PINNED_COPY_DIR = CSAF_PACKAGE_DIR / "schemas"
+PINNED_COPY_DIR = THIRD_PARTY_CSAF_DIR / "schemas"
+#: The names of the licence files kept beside each source's files in the copy.
+#: They are not schemas, so the pin record does not list them.
+LICENCE_FILE_NAMES = frozenset({"LICENSE", "NOTICE"})
 #: The package the models generated from the pinned local copy live in.
-MODELS_DIR = CSAF_PACKAGE_DIR / "models"
+MODELS_DIR = _REPO_ROOT / "vultron" / "wire" / "csaf" / "models"
 
 
 def _relative_posix_path(value: str) -> str:
@@ -117,10 +126,11 @@ def load_pin(path: Path = PIN_PATH) -> CsafPin:
 
 
 __all__ = [
-    "CSAF_PACKAGE_DIR",
+    "LICENCE_FILE_NAMES",
     "MODELS_DIR",
     "PINNED_COPY_DIR",
     "PIN_PATH",
+    "THIRD_PARTY_CSAF_DIR",
     "CsafPin",
     "RelativePath",
     "Sha256",

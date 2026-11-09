@@ -21,6 +21,12 @@ from pathlib import Path
 import pytest
 
 from vultron.metadata.csaf import regenerate
+from vultron.metadata.csaf.pin import (
+    MODELS_DIR,
+    PINNED_COPY_DIR,
+    CsafPin,
+    load_pin,
+)
 from vultron.metadata.csaf.regenerate import (
     GENERATED_MARKER,
     ForeignModuleError,
@@ -29,12 +35,6 @@ from vultron.metadata.csaf.regenerate import (
     stage_pinned_copy,
     stale_models,
     write_models,
-)
-from vultron.wire.csaf.pin import (
-    MODELS_DIR,
-    PINNED_COPY_DIR,
-    CsafPin,
-    load_pin,
 )
 
 

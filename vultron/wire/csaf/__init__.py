@@ -12,14 +12,14 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """CSAF 2.1 documents at the wire edge (ADR-0184, CSAF-05).
 
-- ``schemas/`` is the pinned local copy of the CSAF 2.1 draft's schema and of
-  every schema it references, byte for byte as published (CSAF-05-002).
-- ``pin.json`` records that copy's source repository, commit and draft stage
-  once, with each file's URL and SHA-256 digest; :mod:`vultron.wire.csaf.pin`
-  reads it (CSAF-05-001).
-- ``models/`` holds the Pydantic models generated from the copy, whose root is
+- ``models/`` holds the Pydantic models generated from the pinned local copy
+  of the CSAF 2.1 draft's schemas, whose root is
   ``CommonSecurityAdvisoryFramework``. Never edit them by hand: run
   ``uv run csaf-models`` (CSAF-05-003).
+
+The copy itself and its pin record are third-party files in
+``third_party/csaf/``, outside this package; :mod:`vultron.metadata.csaf.pin`
+reads them, and nothing reads them at runtime (CSAF-05-001, CSAF-05-002).
 
 A document the models accept is schema-valid, never valid CSAF: the schema
 leaves most of the mandatory tests unchecked (CSAF-04-002).

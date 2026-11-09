@@ -55,14 +55,14 @@ except ImportError as exc:  # pragma: no cover - only without the dev group
     ) from exc
 
 from vultron.metadata.base import repo_root
-from vultron.metadata.generated_files import stale_paths, write_generated
-from vultron.wire.csaf.pin import (
+from vultron.metadata.csaf.pin import (
     MODELS_DIR,
     PIN_PATH,
     PINNED_COPY_DIR,
     CsafPin,
     load_pin,
 )
+from vultron.metadata.generated_files import stale_paths, write_generated
 
 #: The keys that set a schema's base URI at its root. A remote base would make
 #: the generator resolve the file's relative references against the network.

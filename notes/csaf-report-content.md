@@ -91,11 +91,18 @@ tasks reuse them rather than add a second path.
   `CommonSecurityAdvisoryFramework`. They are generated, then `ruff`-fixed and
   formatted, and `mypy` and `pyright` skip the package; never edit it by hand
   (CSAF-05-003).
-- **Read the pin through `vultron.wire.csaf.pin.load_pin()`.** The record
+- **Read the pin through `vultron.metadata.csaf.pin.load_pin()`.** The copy
+  and its record sit in `third_party/csaf/`, outside `vultron/`, because they
+  are third-party files and nothing reads them at runtime. The record
   (`pin.json`) maps each referenced schema's URL to its path in the copy and
-  holds each file's SHA-256, so a hand edit to the copy fails a test; the
-  copy keeps the upstream repository's paths, so an upstream checkout lines up
-  with it file for file.
+  holds each file's SHA-256, so a hand edit to the copy fails a test; the copy
+  keeps the upstream repository's paths, so an upstream checkout lines up with
+  it file for file.
+- **Keep a licence file beside each source.** Each source directory under
+  `third_party/csaf/schemas/` has a `LICENSE` or `NOTICE` file, which the pin
+  record does not list; a test fails on a pinned file with none beside or above
+  it. A new source added when the pin moves needs one, and an entry in
+  `LICENSE.md`.
 - **Generate from any source with `render_models(source, pin)`** in
   `vultron.metadata.csaf.regenerate`, or `uv run csaf-models` with `--source`,
   `--pin`, `--output` and `--check`. It returns the package as text, so the

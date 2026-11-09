@@ -282,15 +282,15 @@ repos:
       - id: csaf-models-sync
         name: CSAF models in sync with the pinned local copy
         # Regenerates the models in memory from the pinned local copy and
-        # compares them byte for byte (CSAF-05-003). Inputs: the copy, the pin
-        # record, the committed models, the generator script and its
-        # comparison helper, pyproject.toml (the ruff config the output is
+        # compares them byte for byte (CSAF-05-003). Inputs: the copy and the
+        # pin record under third_party/csaf/, the committed models, the
+        # generator script, the pin reader and the comparison helper, pyproject.toml (the ruff config the output is
         # formatted with), and uv.lock, which pins the generator and ruff.
         # test_regeneration_reproduces_the_committed_models is the backstop
         # for a deletion and for CI.
         entry: uv run csaf-models --check
         language: system
-        files: ^(vultron/wire/csaf/.*|vultron/metadata/csaf/regenerate\.py|vultron/metadata/generated_files\.py|pyproject\.toml|uv\.lock)$
+        files: ^(third_party/csaf/.*|vultron/wire/csaf/.*|vultron/metadata/csaf/(regenerate|pin)\.py|vultron/metadata/generated_files\.py|pyproject\.toml|uv\.lock)$
         pass_filenames: false
 
       - id: ruff
