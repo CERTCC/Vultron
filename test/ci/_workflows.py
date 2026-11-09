@@ -63,6 +63,23 @@ def triggers(wf_data: dict[Any, Any]) -> dict[str, Any]:
     return block if isinstance(block, dict) else {}
 
 
+def runs_at_least_weekly(wf_data: dict[Any, Any]) -> bool:
+    """Return whether a ``schedule:`` cron fires the workflow every week.
+
+    A cron whose day-of-month and month fields are both ``*`` fires on its
+    day-of-week days, so at least once a week whatever its minute and hour.
+    The minute, hour and weekday stay free: they are configuration, not the
+    obligation (``notes/spec-authoring-rules.md``).
+    """
+    for entry in triggers(wf_data).get("schedule") or []:
+        if not isinstance(entry, dict):
+            continue
+        fields = str(entry.get("cron", "")).split()
+        if len(fields) == 5 and fields[2] == "*" and fields[3] == "*":
+            return True
+    return False
+
+
 def steps(wf_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Return every step across every job, in file order."""
     return [

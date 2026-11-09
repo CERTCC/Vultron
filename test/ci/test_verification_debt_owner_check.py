@@ -18,7 +18,12 @@ from typing import Any
 
 import pytest
 
-from test.ci._workflows import WORKFLOWS_DIR, load_workflow, triggers
+from test.ci._workflows import (
+    WORKFLOWS_DIR,
+    load_workflow,
+    runs_at_least_weekly,
+    triggers,
+)
 
 _WORKFLOW = WORKFLOWS_DIR / "verification-debt-owners.yml"
 _CLOSING = "spec-lint specs/ --check-closing-pr"
@@ -81,10 +86,7 @@ def test_open_owner_check_reports_and_never_fails_the_build():
     }
 
 
-@pytest.mark.spec("MS-10-024")
-def test_open_owner_check_runs_at_least_hourly():
-    """Hundreds of PRs a week: a closed owner must surface within the hour."""
-    (entry,) = triggers(load_workflow(_WORKFLOW))["schedule"]
-    minute, hour, *_ = entry["cron"].split()
-    assert minute.isdigit()
-    assert hour == "*"
+@pytest.mark.spec("MS-10-029")
+def test_open_owner_check_runs_at_least_weekly():
+    """A hand-closed owner issue is reported within a week."""
+    assert runs_at_least_weekly(load_workflow(_WORKFLOW))

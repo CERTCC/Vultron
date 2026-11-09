@@ -34,7 +34,7 @@ revision: 1
 # the change adds or changes, a first test-verified dependent of a proposed ADR without the
 # flip, a bump of updated past epoch 1 without status_override, and an epoch-3
 # Decision Outcome or Considered Options edit without a dated Amendment heading.
-# A status behind its epoch is reported hourly, never failed.
+# A status behind its epoch is reported on a schedule, never failed.
 # adr-added-reference-check refuses a backticked path or code symbol an edit
 # adds that resolves nowhere; opt out with
 # lint_suppress: [phantom_symbol_ref] or [phantom_path_ref].

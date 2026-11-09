@@ -54,9 +54,10 @@ An owner is checked against GitHub at two points, both in
   owner issue that a marker or the owner table still names. Closing the owner
   is that PR's own act, so failing it races no other PR.
 - ``spec-lint --check-debt-owners`` reports every marker or table entry naming
-  a closed issue. CI runs it hourly and on each push to ``main`` and files one
-  tracking issue rather than failing the build: an issue closed by hand is
-  caused by no PR, so failing would turn every PR in flight red (ARCH-18-009).
+  a closed issue. CI runs it on a schedule and on each push to ``main`` and
+  files one tracking issue rather than failing the build: an issue closed by
+  hand is caused by no PR, so failing would turn every PR in flight red
+  (ARCH-18-009).
 
 Runnable locally::
 
