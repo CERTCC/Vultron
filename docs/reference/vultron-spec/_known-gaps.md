@@ -321,24 +321,12 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5386](https://github.com/CERTCC/Vultron/issues/5386)
+### Tracked by [#5387](https://github.com/CERTCC/Vultron/issues/5387)
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
-    "SIG-01-003",
-    "SIG-02-001",
     "SIG-03-002",
-))
-```
-
-### Tracked by [#6073](https://github.com/CERTCC/Vultron/issues/6073)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "HTTP-03-004",
-    "IE-07-001",
 ))
 ```
 
