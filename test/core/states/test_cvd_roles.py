@@ -24,7 +24,9 @@ from enum import StrEnum
 import pytest
 
 from vultron.enums.roles import (
+    AUTHORITY_ROLES,
     CVDRole,
+    authority_roles_named,
     parse_role,
     serialize_roles,
     validate_roles,
@@ -257,3 +259,30 @@ def test_parse_role_refuses_unknown_value():
     """An unknown role string is refused."""
     with pytest.raises(ValueError):
         parse_role("no_role")
+
+
+def test_authority_roles_are_case_owner_and_case_manager():
+    assert {CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER} == AUTHORITY_ROLES
+
+
+@pytest.mark.spec("CM-20-008")
+@pytest.mark.parametrize(
+    ("roles", "expected"),
+    [
+        pytest.param([], [], id="empty"),
+        pytest.param(["vendor", CVDRole.COORDINATOR], [], id="none-named"),
+        pytest.param(
+            ["CASE_OWNER", CVDRole.CASE_MANAGER, "case_owner"],
+            [CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER],
+            id="each-once-in-order-any-case",
+        ),
+        pytest.param(
+            ["no_role", 7, None, "case_manager"],
+            [CVDRole.CASE_MANAGER],
+            id="non-roles-skipped",
+        ),
+    ],
+)
+def test_authority_roles_named(roles, expected):
+    """Only the authority roles are returned; a non-role is skipped."""
+    assert authority_roles_named(roles) == expected

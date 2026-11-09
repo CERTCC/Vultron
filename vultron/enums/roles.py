@@ -26,6 +26,7 @@ Per ``docs/adr/0031-vultron-enums-neutral-layer.md`` and
 ``specs/configuration.yaml`` CFG-07-006.
 """
 
+from collections.abc import Iterable
 from enum import StrEnum, auto
 
 
@@ -76,6 +77,38 @@ class CVDRole(StrEnum):
     CASE_OWNER = auto()
     CASE_MANAGER = auto()
     CVE_NUMBERING_AUTHORITY = auto()
+
+
+#: The roles that case creation, ownership transfer and CASE_MANAGER
+#: delegation confer.  No invitation, actor suggestion or role Offer may
+#: give one (CM-20-008, CM-33-003).
+AUTHORITY_ROLES: frozenset[CVDRole] = frozenset(
+    {CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER}
+)
+
+
+def authority_roles_named(roles: Iterable[object]) -> list[CVDRole]:
+    """The members of :data:`AUTHORITY_ROLES` that *roles* names, in order.
+
+    *roles* holds ``CVDRole`` members or role strings in any case, as a
+    received activity carries them.  An item that names no role is skipped:
+    it names no authority role, and the role parser that reads the list
+    reports it.
+    """
+    named: list[CVDRole] = []
+    for raw in roles:
+        if isinstance(raw, CVDRole):
+            role = raw
+        elif isinstance(raw, str):
+            try:
+                role = parse_role(raw)
+            except ValueError:
+                continue
+        else:
+            continue
+        if role in AUTHORITY_ROLES and role not in named:
+            named.append(role)
+    return named
 
 
 def parse_role(value: str) -> CVDRole:

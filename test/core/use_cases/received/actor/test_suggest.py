@@ -195,6 +195,63 @@ class TestOfferActorToCaseReceivedUseCase:
         offers = [q for q in queued if str(getattr(q, "type_", "")) == "Offer"]
         assert [getattr(q, "to", None) for q in offers] == [[local_actor_id]]
 
+    @pytest.mark.spec("CM-20-006")
+    @pytest.mark.spec("CM-20-008")
+    @pytest.mark.parametrize(
+        "authority_role",
+        [
+            pytest.param("case_manager", id="case-manager"),
+            pytest.param("CASE_OWNER", id="case-owner-any-case"),
+        ],
+    )
+    def test_a_suggestion_naming_an_authority_role_is_refused(
+        self, make_payload, seed_case_manager, authority_role
+    ):
+        """A Coordinator suggesting CASE_MANAGER or CASE_OWNER is refused.
+
+        The CASE_MANAGER refuses the Offer before its commit (CM-20-008): it
+        records no recommendation, forwards nothing to the Case Owner and
+        commits no entry.  It answers the recommender with the refusal
+        notice alone (CLP-05-005).  The role is never stripped and the rest
+        forwarded.
+        """
+        from test.support.refusal_notice import assert_refusal_notice
+        from vultron.enums.roles import CVDRole
+
+        dl, _, case_id = self._setup_dl(
+            seed_case_manager, recommender_roles=[CVDRole.COORDINATOR]
+        )
+        activity = recommend_actor_activity(
+            as_Actor(id_="https://example.org/actors/vendor-new"),
+            target=_case_ref(case_id),
+            actor=self._RECOMMENDER_ID,
+            to=[TEST_ACTOR_ID],
+            suggested_roles=["coordinator", authority_role],
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
+
+        result = OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-20-008" in (result.reason or ""), result.reason
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
+        assert dl.list_objects("ActorRecommendationRecord") == []
+        assert_refusal_notice(
+            dl,
+            manager=TEST_ACTOR_ID,
+            refused_id=event.activity_id,
+            asserter=self._RECOMMENDER_ID,
+            reason="CM-20-008",
+            case_id=case_id,
+        )
+        assert len(dl.outbox_list()) == 1, dl.outbox_list()
+
     @pytest.mark.spec("CM-16-020")
     @pytest.mark.spec("CM-16-005")
     @pytest.mark.parametrize(
@@ -700,6 +757,32 @@ class TestOwnerDirectInviteAtCaseManager:
         self._deliver(dl, make_payload, roles=["coordinator"])
 
         assert self._sealed_invite(dl).get("roles") == ["coordinator"]
+
+    @pytest.mark.spec("CM-20-008")
+    @pytest.mark.parametrize("authority_role", ["case_manager", "case_owner"])
+    def test_an_owner_invite_naming_an_authority_role_is_refused(
+        self, make_payload, seed_case_manager, authority_role
+    ):
+        """The owner's own Offer gets no authority role for the invitee.
+
+        Ownership moves by transfer and the CASE_MANAGER role by delegation,
+        never by an invitation (CM-20-008, CM-33-003): the CASE_MANAGER
+        sends no Invite, seats nobody and commits nothing.
+        """
+        dl = self._setup_dl(seed_case_manager)
+
+        result = self._deliver(
+            dl, make_payload, roles=["vendor", authority_role]
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-20-008" in (result.reason or ""), result.reason
+        types = [b.get("type") for b in self._sealed_bodies(dl)]
+        assert "Invite" not in types, types
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
+        case = dl.read_case(self._CASE_ID)
+        assert case is not None
+        assert self._INVITEE_ID not in case.actor_participant_index
 
     @pytest.mark.spec("CM-17-006")
     def test_invite_is_committed_to_the_case_managers_ledger(

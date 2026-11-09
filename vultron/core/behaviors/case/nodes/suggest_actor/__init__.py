@@ -47,11 +47,13 @@ from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
     AcceptedInviteeIsNotRemovedNode,
+    AcceptedRolesAreGrantableNode,
     ActorAlreadyParticipantNode,
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
     SuggestedActorIsInvitableNode,
     SuggestedActorIsNotRemovedNode,
+    SuggestedRolesAreGrantableNode,
     case_manager_admits_accepted_invitee_guard,
     case_manager_admits_suggested_actor_guard,
     case_manager_requires_recorded_rejection_guard,
@@ -78,10 +80,12 @@ from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
 __all__ = [
     "ActorAlreadyParticipantNode",
     "AcceptedInviteeIsNotRemovedNode",
+    "AcceptedRolesAreGrantableNode",
     "RecordedOfferAnswer",
     "RequireRecordedOfferAnswerNode",
     "SuggestedActorIsNotRemovedNode",
     "SuggestedActorIsInvitableNode",
+    "SuggestedRolesAreGrantableNode",
     "case_manager_admits_accepted_invitee_guard",
     "case_manager_admits_suggested_actor_guard",
     "case_manager_requires_recorded_rejection_guard",

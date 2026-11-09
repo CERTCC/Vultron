@@ -71,7 +71,10 @@ def create_recommend_actor_to_case_received_tree(
 
     Refuses, before any commit, the recommendation of a removed participant:
     it is sent no stub Invite, and only the Case Owner's
-    ``Add(CaseParticipant)`` reinstates it (CM-31-013, CM-31-011).  Otherwise
+    ``Add(CaseParticipant)`` reinstates it (CM-31-013, CM-31-011).  Refuses
+    the same way a recommendation whose suggested roles name
+    ``CASE_MANAGER`` or ``CASE_OWNER``: an invitation confers neither, and
+    the roles are never stripped (CM-20-008).  Otherwise
     commits a canonical ``CaseLedgerEntry`` for the received Offer
     (CM-16-002), then routes to one of six branches via a Selector:
 
@@ -97,7 +100,9 @@ def create_recommend_actor_to_case_received_tree(
     Tree structure::
 
         RecommendActorToCaseBT (Sequence, memory=False)
-        ├── SuggestedActorNotRemovedIfCaseManager — CM-31-013 guard
+        ├── SuggestedActorAdmitted (CASE_MANAGER path)
+        │   ├── SuggestedActorNotRemoved          — CM-31-013 guard
+        │   └── SuggestedRolesGrantable           — CM-20-008 guard
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── RecommendActorToCaseIfCaseManager (Selector)   — BT-17-001 gate
             ├── SkipIfNotCaseManager                — Inverter(CheckIsCaseManagerNode)
@@ -379,7 +384,10 @@ def create_recommend_actor_to_case_received_tree(
             OnPaths.at_case_manager(
                 "SuggestedActorAdmitted",
                 case_manager_admits_suggested_actor_guard(
-                    recommended_id=recommended_id, case_id=case_id
+                    recommendation_id=recommendation_id,
+                    recommended_id=recommended_id,
+                    case_id=case_id,
+                    suggested_roles=suggested_roles,
                 ),
             )
         ],
