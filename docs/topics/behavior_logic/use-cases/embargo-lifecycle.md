@@ -386,8 +386,8 @@ The three possible answers are all different:
 | What the late Accept refers to | What the CASE_MANAGER does |
 |---|---|
 | The case's Active Embargo, or one of its open proposals | Honor it; record the `Accept` exactly as an on-time Accept, so the Participant's consent row for that embargo moves to `AGREED` directly from `TIMED_OUT` or `DECLINED`, since a Participant that accepts after declining has changed its answer (EMB-17-002) |
-| A superseded or already-decided embargo | Send a fresh invitation carrying the case's current terms — the Active Embargo, or the earliest-expiring open proposal when none is in force — relayed like any other on behalf of that embargo's proposer. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005, EP-08-002) |
-| An embargo the case no longer has | Nothing: the `Accept` changes nothing, so record no entry, send no reply, and change no consent. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
+| A superseded or already-decided embargo | Send a fresh invitation carrying the case's current terms — the Active Embargo, or the earliest-expiring open proposal whose embargo has not ended when none is in force — relayed like any other on behalf of that embargo's proposer. If the actor's row for those terms is already `INVITED` or `AGREED`, it has been asked or has answered, so send nothing. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005, EP-08-002, CM-18-003) |
+| An embargo the case no longer has, in a case with no Active Embargo and no open proposal whose embargo has not ended | Nothing: the `Accept` changes nothing, so record no entry, send no reply, and change no consent. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
 
 None of the three rows removes the accepting actor.
 Answering late is not a protocol violation.

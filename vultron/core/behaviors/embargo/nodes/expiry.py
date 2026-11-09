@@ -40,8 +40,9 @@ A participant replica never evaluates a deadline and runs no ``TIME_OUT``:
 it copies the ``Update(EmbargoConsent)`` entry through the consent slot of
 ``create_announce_log_entry_tree`` (RSH-08-004, CM-28-030).
 
-A late Accept of the embargo in force is honoured by being recorded as an
-on-time Accept is (EMB-17-002, ADR-0152); replicas copy the row it states.
+A late Accept of the embargo in force or of an open proposal is honoured by
+being recorded as an on-time Accept is (EMB-17-002, ADR-0152); replicas copy
+the row it states.
 """
 
 from datetime import datetime

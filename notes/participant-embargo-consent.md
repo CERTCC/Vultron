@@ -390,8 +390,8 @@ an entry attributed to the invitee (ADR-0140; trees in
 |---|---|
 | `INVITED` row past its deadline | `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-009, CM-28-014) |
 | Accepted embargo is one the case can still answer: its `ACTIVE` entry or an open proposal | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, EMB-17-018, MSM-07-003, ADR-0152) |
-| Accepted embargo is stale, and the case holds terms of its own | relay a fresh Invite to the Active Embargo, or to the earliest-expiring open proposal when none is in force, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013, EP-08-002) |
-| No Active Embargo and no Proposed Embargo (EM `EXITED`/`NONE`) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004, EMB-17-015 through EMB-17-017) |
+| Accepted embargo is stale, and the case holds terms of its own | relay a fresh Invite to the Active Embargo, or to the earliest-expiring open proposal whose embargo has not ended when none is in force, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; nothing is sent when the accepter's row for those terms is already `INVITED` or `AGREED` (CM-18-003); the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013, EP-08-002) |
+| No Active Embargo and no live proposal (EM `EXITED`/`NONE`, or every open proposal's embargo has ended) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004, EMB-17-015 through EMB-17-017) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness
 to coordinate. Each decision follows decide → commit → apply (CLP-10-006,
