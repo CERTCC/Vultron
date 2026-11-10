@@ -453,6 +453,12 @@ def test_timestamp_serializer_leaves_a_non_datetime_member_alone(
     assert dump(_Closes()) == {"closed": None}
 
 
+def test_no_clock_fails_a_clock_read() -> None:
+    """The stand-in the purity tests below rely on does catch a read."""
+    with no_clock(), pytest.raises(AssertionError, match="read the clock"):
+        now_utc()
+
+
 @pytest.mark.spec("CM-29-005")
 @pytest.mark.parametrize(
     "latest",
@@ -525,7 +531,7 @@ def test_deadline_is_the_act_instant_plus_the_duration(at: datetime) -> None:
     ],
     ids=["stamp_after", "deadline_from", "days_after"],
 )
-def test_a_deadline_refuses_a_naive_instant(
+def test_the_time_helpers_refuse_a_naive_instant(
     helper: Callable[[datetime], datetime],
 ) -> None:
     with pytest.raises(ValueError, match="timezone-aware"):
@@ -548,7 +554,7 @@ def test_require_future_aware_compares_against_now_utc(
 
 
 @pytest.mark.spec("DUR-06-004")
-def test_an_interval_composed_from_now_is_in_utc() -> None:
+def test_an_interval_composed_from_an_instant_is_in_utc() -> None:
     """``days_after`` adds the interval to a UTC instant, never to a
     local-zone one, so the end it returns carries a zero offset even from an
     instant given at another offset."""

@@ -77,9 +77,15 @@ def now_utc() -> datetime:
     return datetime.now(UTC)
 
 
+def is_aware(value: datetime) -> bool:
+    """Whether *value* is timezone-aware: it has a ``tzinfo`` that gives an
+    offset (CS-13-001)."""
+    return value.tzinfo is not None and value.utcoffset() is not None
+
+
 def _require_aware_utc(at: datetime) -> datetime:
     """Return *at* in UTC; raise when it is naive (CS-13-001, CS-13-009)."""
-    if at.tzinfo is None or at.utcoffset() is None:
+    if not is_aware(at):
         raise ValueError("an act's instant must be timezone-aware")
     return at.astimezone(UTC)
 
@@ -153,7 +159,7 @@ def require_future_aware(
     """
     if value is None:
         return None
-    if value.tzinfo is None or value.utcoffset() is None:
+    if not is_aware(value):
         raise ValueError(f"{field} must be timezone-aware")
     if value <= now_utc():
         raise ValueError(f"{field} must be in the future")

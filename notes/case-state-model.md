@@ -146,8 +146,9 @@ on-behalf trigger trees. The gate is deliberately case-wide, not per vendor
   current.
 - Each `CaseStatus` the CASE_MANAGER appends takes a `published` strictly after
   the previous status's, via `stamp_after` from the act's instant (CM-29-005), so
-  time order agrees with append order. An authored `CaseStatus` carries no `updated` (CM-29-006):
-  a status never changes once appended, so `published` is its one time.
+  time order agrees with append order. An authored `CaseStatus` carries no
+  `updated` (CM-29-006): a status never changes once appended, so `published` is
+  its one time.
 - A replica applies a ledgered status whose `published` is not later than its
   current one and logs a WARNING; it never refuses the entry for it
   (CM-29-007, CM-29-008), since append order already picks the right status.

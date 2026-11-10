@@ -566,6 +566,51 @@ def test_a_contest_registers_the_revision_without_indexing_it(
     assert revision_id not in case.pending_embargo_proposal_index
 
 
+@pytest.mark.spec("CS-13-004")
+@pytest.mark.spec("EP-04-010")
+def test_the_default_embargo_ends_the_duration_after_the_act_instant(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """``CreateEmbargoEventNode`` measures the end from the act's instant.
+
+    The instant is a year past the wall clock, so an end measured from a
+    clock read would miss it by that year (ADR-0176).
+    """
+    at = datetime.now(tz=UTC) + timedelta(days=365)
+
+    status, _, _ = _run(bt_scenario, at=at)
+
+    assert status == Status.SUCCESS
+    embargo = _active_embargo(bt_scenario)
+    assert embargo is not None
+    assert embargo.end_time == at + PROTOCOL_DEFAULT
+
+
+@pytest.mark.spec("CS-13-004")
+@pytest.mark.spec("EP-04-011")
+def test_the_revision_ends_the_actor_default_after_the_act_instant(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """``ResolveCreationTimeRevisionNode`` measures the losing actor default
+    from the act's instant, a year past the wall clock (ADR-0176)."""
+    at = datetime.now(tz=UTC) + timedelta(days=365)
+
+    status, _, _ = _run(
+        bt_scenario,
+        owner_policy=ACTOR_DEFAULT,
+        sender_proposal=SENDER_PROPOSAL,
+        at=at,
+    )
+
+    assert status == Status.SUCCESS
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    (revision_id,) = case.proposed_embargo_ids
+    revision = bt_scenario.dl.read(revision_id)
+    assert isinstance(revision, EmbargoEvent)
+    assert revision.end_time == at + ACTOR_DEFAULT
+
+
 @pytest.mark.spec("EP-04-003")
 def test_a_crash_inside_the_registration_leaves_the_case_uninitialized(
     bt_scenario: BTTestScenario,

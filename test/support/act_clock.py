@@ -14,7 +14,7 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from unittest.mock import patch
 
 from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
@@ -48,10 +48,15 @@ class CountingClock:
         return value
 
 
-class _NoClock:
-    """A ``datetime`` stand-in whose ``now()`` fails, so any read is caught."""
+class NoClock(datetime):
+    """A ``datetime`` whose ``now()`` fails, so any clock read is caught.
 
-    def now(self, tz: object = None) -> datetime:
+    A subclass, so an ``isinstance`` check against ``datetime`` still holds
+    in a module whose ``datetime`` it replaces.
+    """
+
+    @classmethod
+    def now(cls, tz: tzinfo | None = None) -> datetime:  # type: ignore[override]
         raise AssertionError(
             "read the clock below an act's edge; take the act's instant"
             " instead (ADR-0176)"
@@ -66,7 +71,7 @@ def no_clock() -> Iterator[None]:
     (ADR-0176): the read raises, so the helper cannot pass by reading a clock
     that happens to agree with the instant.
     """
-    with patch.object(helpers_clock, "datetime", _NoClock()):
+    with patch.object(helpers_clock, "datetime", NoClock):
         yield
 
 

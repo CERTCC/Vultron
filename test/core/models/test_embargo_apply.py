@@ -24,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from test.support.act_clock import NoClock
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models._helpers import install_id_source, new_object_id
 from vultron.core.models.case import VulnerabilityCase
@@ -561,14 +562,6 @@ class TestASeedAheadOfTheEntry:
         )
 
 
-class _NoClock(datetime):
-    """A ``datetime`` whose clock reads fail the test (and isinstance holds)."""
-
-    @classmethod
-    def now(cls, tz=None):
-        raise AssertionError("the apply function read the clock")
-
-
 @pytest.mark.spec("CM-23-044")
 def test_the_apply_function_reads_no_clock_mints_no_id_and_reads_no_store(
     monkeypatch,
@@ -590,7 +583,7 @@ def test_the_apply_function_reads_no_clock_mints_no_id_and_reads_no_store(
     ]
     assert "vultron.core.models.case._construction" in patched
     for name in patched:
-        monkeypatch.setattr(sys.modules[name], "datetime", _NoClock)
+        monkeypatch.setattr(sys.modules[name], "datetime", NoClock)
 
     def _no_mint() -> uuid.UUID:
         raise AssertionError("the apply function minted an id")

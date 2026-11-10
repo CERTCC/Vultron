@@ -450,9 +450,37 @@ class TestEmitCaseStatusUpdateNode:
         statuses = [s for s in case.case_statuses if isinstance(s, CaseStatus)]
         assert len(statuses) == 3
         times = [s.published for s in statuses]
-        assert times[0] < times[1] < times[2]
+        tick = timedelta(microseconds=1)
+        assert times[1] == times[0] + tick
+        assert times[2] == times[1] + tick
         assert case.current_status.id_ == statuses[-1].id_
         assert all(s.updated is None for s in statuses[1:])
+
+    @pytest.mark.spec("CM-29-005")
+    def test_snapshot_published_is_the_act_instant_when_it_is_later(
+        self, populated_dl, populated_bridge
+    ):
+        """A snapshot after the seeded status takes the act's instant as is.
+
+        The instant is a day past the seeded status's time, far from any
+        clock read, so a node that stamped from the clock instead would not
+        match it (ADR-0176).
+        """
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        at = case.current_status.published + timedelta(days=1)
+
+        result = run_tree(
+            populated_bridge,
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
+            at=at,
+        )
+
+        assert result.status == Status.SUCCESS
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        assert case.current_status.published == at
 
     @pytest.mark.spec("ARCH-15-001")
     @pytest.mark.parametrize(

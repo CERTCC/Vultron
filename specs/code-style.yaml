@@ -530,7 +530,7 @@ groups:
       `deadline_from(at, delta)` and `days_after(at, n)` return the act's
       instant plus the duration, in UTC whatever offset the instant carries,
       with the clock replaced by a stand-in that fails on any read, and
-      `test_a_deadline_refuses_a_naive_instant` asserts both refuse a naive
+      `test_the_time_helpers_refuse_a_naive_instant` asserts both refuse a naive
       instant.
     statement: >-
       An embargo deadline datetime MUST be computed as the act's instant plus a
