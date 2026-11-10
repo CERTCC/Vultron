@@ -42,12 +42,6 @@ updates:
         update-types:
         - "minor"
         - "patch"
-    labels:
-    - "dependencies"
-    - "theme:full-cvd-scenario-coverage"
-    commit-message:
-      prefix: "build(ui)"
-    open-pull-requests-limit: 5
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

@@ -14,44 +14,83 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """``ui.yml`` fires on package file changes so Dependabot PRs run the checks.
 
-A Dependabot version-update PR for the ui/ npm dependencies changes only
-ui/package.json and ui/package-lock.json. The ui workflow must fire on those
-paths, or a Dependabot PR merges without running the UI lint, test, and build
-checks it exists to gate (#6172).
+A Dependabot version-update PR for the ui/ npm dependencies changes
+ui/package.json and ui/package-lock.json, and a security update for a
+transitive dependency changes only the lockfile. The ui workflow must fire on
+each of those paths alone, or a Dependabot PR merges without running the UI
+lint, test, and build checks it exists to gate (#6172).
 
-The workflow already carries ``ui/**`` as a path filter, which covers both
-files. This test pins that coverage so a future filter narrowing does not
-silently exclude them.
+The filter is read as GitHub reads it (globs, ``!`` exclusions, last match
+wins) through the CI mirror's trigger model, so any filter that still covers
+both files passes and one that stops covering either fails.
 """
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from test.ci._workflows import load_workflow, triggers
+from vultron.metadata.planning.ci_mirror._workflows import (
+    matches_filter,
+    pull_request_trigger,
+)
 
 WORKFLOW = (
     Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ui.yml"
 )
 
-
-def _triggers() -> dict[str, Any]:
-    return triggers(load_workflow(WORKFLOW))
+PACKAGE_FILES = ("ui/package.json", "ui/package-lock.json")
 
 
-@pytest.mark.parametrize("event", ["push", "pull_request"])
-def test_ui_workflow_runs_on_package_json_change(event: str) -> None:
-    """A change to ui/package.json triggers the UI workflow (#6172)."""
-    paths = _triggers()[event]["paths"]
-    # The filter is ui/**, which covers ui/package.json and ui/package-lock.json.
-    # Assert that the broad filter is present. A future narrowing to specific
-    # files must keep these two.
-    assert any(
-        pattern in ("ui/**", "ui/package.json", "ui/package-lock.json")
-        for pattern in paths
-    ), (
-        f"The {event} paths must include ui/package.json or ui/package-lock.json "
-        "or the broad ui/** filter, so a Dependabot npm PR runs the UI checks:\n"
-        + "\n".join(f"  {pattern}" for pattern in paths)
+def _pull_request_fires(wf_data: Mapping[Any, Any], path: str) -> bool:
+    trigger = pull_request_trigger(wf_data)
+    return trigger is not None and trigger.runs_for("main", [path])
+
+
+def _push_fires(wf_data: Mapping[Any, Any], path: str) -> bool:
+    push = triggers(dict(wf_data)).get("push")
+    if push is None:
+        return False
+    if not isinstance(push, dict) or "paths" not in push:
+        return True
+    return matches_filter(path, [str(p) for p in push["paths"]])
+
+
+@pytest.mark.parametrize("path", PACKAGE_FILES)
+def test_ui_workflow_runs_on_a_dependabot_pull_request(path: str) -> None:
+    """A PR to main changing only *path* runs the UI checks (#6172 AC-2)."""
+    assert _pull_request_fires(load_workflow(WORKFLOW), path), (
+        f"ui.yml's pull_request filter does not match {path}, so a Dependabot "
+        "npm PR that changes only it would merge without the UI checks."
     )
+
+
+@pytest.mark.parametrize("path", PACKAGE_FILES)
+def test_ui_workflow_runs_on_a_dependabot_merge(path: str) -> None:
+    """The merged Dependabot change re-runs the UI checks on main."""
+    assert _push_fires(load_workflow(WORKFLOW), path), (
+        f"ui.yml's push filter does not match {path}."
+    )
+
+
+@pytest.mark.parametrize(
+    "paths",
+    [
+        ["ui/src/**"],
+        ["ui/package.json"],
+        ["ui/**", "!ui/package*.json"],
+    ],
+)
+def test_a_filter_missing_a_package_file_is_caught(paths: list[str]) -> None:
+    """The check fails for a filter that misses either package file."""
+    wf = {"on": {"pull_request": {"branches": ["main"], "paths": paths}}}
+    assert not all(_pull_request_fires(wf, path) for path in PACKAGE_FILES)
+
+
+@pytest.mark.parametrize("paths", [["ui/**"], ["ui/package*.json"], ["ui/*"]])
+def test_a_filter_covering_both_package_files_passes(paths: list[str]) -> None:
+    """Any filter shape that covers both files satisfies the check."""
+    wf = {"on": {"pull_request": {"branches": ["main"], "paths": paths}}}
+    assert all(_pull_request_fires(wf, path) for path in PACKAGE_FILES)
