@@ -31,6 +31,10 @@ are **core concerns**, kept out of the simulation layer so that
   seam that turns an answer into tree behaviour, and
   :class:`~vultron.core.behaviors.call_out.guard.TimeBoundedCallOut`, the seam
   with the configured time budget that every bundle hands out (BT-18-015).
+- :class:`~vultron.core.behaviors.call_out.actuator.ActuatorBackend` and
+  :func:`~vultron.core.behaviors.call_out.actuator.actuator_call` — an
+  Actuator acts on one target per call, keyed on an idempotency id the tree
+  derives from the act and the target (BT-18-041 to BT-18-044).
 - :class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed` /
   :class:`~vultron.core.behaviors.call_out.nodes.AlwaysFail` — deterministic,
   production-usable constant backends (BT-23-002).
@@ -44,6 +48,14 @@ simulation artifacts and are injected explicitly via ``call_out=`` by demo /
 test code.
 """
 
+from vultron.core.behaviors.call_out.actuator import (
+    ACTUATOR_CONTRACT,
+    ActuationRequest,
+    ActuatorBackend,
+    ActuatorContract,
+    actuation_id,
+    actuator_call,
+)
 from vultron.core.behaviors.call_out.answer import (
     BINARY_CONTRACT,
     REFUSAL_REASON_KEY,
@@ -65,11 +77,19 @@ from vultron.core.behaviors.call_out.guard import (
 from vultron.core.behaviors.call_out.nodes import (
     AlwaysFail,
     AlwaysSucceed,
+    NoOpActuator,
     RequireCaseOwnerApprovalNode,
 )
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 __all__ = [
+    "ACTUATOR_CONTRACT",
+    "ActuationRequest",
+    "ActuatorBackend",
+    "ActuatorContract",
+    "actuation_id",
+    "actuator_call",
+    "NoOpActuator",
     "BINARY_CONTRACT",
     "REFUSAL_REASON_KEY",
     "CallOutAnswer",

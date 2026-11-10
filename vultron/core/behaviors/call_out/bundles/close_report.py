@@ -21,7 +21,7 @@ lives in the simulation layer
 Ceiling/floor mapping (BT-23-002):
 
 - ``other_close_criteria_factory`` — OtherCloseCriteriaMet (p=0.25) → AlwaysFail
-- ``pre_close_action_factory``     — PreCloseAction        (p=1.0) → AlwaysSucceed
+- ``pre_close_action_factory``     — PreCloseAction        (p=1.0) → NoOpActuator (an AlwaysSucceed)
 """
 
 from __future__ import annotations
@@ -31,12 +31,8 @@ from dataclasses import dataclass, field
 import py_trees
 
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysFail, NoOpActuator
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
 
 
 def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
@@ -59,7 +55,7 @@ class CloseReportCallOutBundle(CallOutBundle):
         default=_always_fail  # type: ignore[assignment]
     )
     pre_close_action_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=NoOpActuator  # type: ignore[assignment]
     )
 
 

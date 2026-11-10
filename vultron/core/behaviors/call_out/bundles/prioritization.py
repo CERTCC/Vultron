@@ -21,8 +21,8 @@ STOCHASTIC singleton lives in the simulation layer
 Ceiling/floor mapping (BT-23-002):
 
 - ``evaluate_priority_factory`` — EvaluateCasePriority     (p=1.0) → AlwaysSucceed
-- ``on_accept_factory``         — OnAccept                 (p=1.0) → AlwaysSucceed
-- ``on_defer_factory``          — OnDefer                  (p=1.0) → AlwaysSucceed
+- ``on_accept_factory``         — OnAccept                 (p=1.0) → NoOpActuator (an AlwaysSucceed)
+- ``on_defer_factory``          — OnDefer                  (p=1.0) → NoOpActuator (an AlwaysSucceed)
 - ``enough_info_factory``       — EnoughPrioritizationInfo (p=0.75) → AlwaysSucceed
 - ``gather_info_factory``       — GatherPrioritizationInfo (p=0.90) → AlwaysSucceed
 """
@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 import py_trees
 
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 
@@ -54,10 +54,10 @@ class PrioritizationCallOutBundle(CallOutBundle):
         default=_always_succeed  # type: ignore[assignment]
     )
     on_accept_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=NoOpActuator  # type: ignore[assignment]
     )
     on_defer_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=NoOpActuator  # type: ignore[assignment]
     )
     enough_info_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]

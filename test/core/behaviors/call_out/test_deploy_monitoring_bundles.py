@@ -30,6 +30,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import bind_test_target
 from vultron.core.behaviors.call_out import (
     AlwaysFail,
     AlwaysSucceed,
@@ -99,7 +100,7 @@ class TestDeploymentMonitoringBundle:
             b.monitor_deployment_factory,
             b.no_new_deployment_info_factory,
         ]:
-            node = factory("probe")
+            node = bind_test_target(factory("probe"))
             node.tick_once()
             assert node.status == Status.SUCCESS
 

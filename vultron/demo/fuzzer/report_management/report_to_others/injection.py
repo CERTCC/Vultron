@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from py_trees.common import Access
 
+from vultron.core.behaviors.call_out.actuator import ActuationRequest
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
@@ -166,7 +167,8 @@ class InjectParticipant(ActuatorCallOutPoint, AlwaysSucceed):
             self._bb.register_key(self.source_key, Access.WRITE)
             self._bb.register_key("potential_participants", Access.WRITE)
 
-    def answer(self) -> CallOutAnswer:
+    def act(self, request: ActuationRequest) -> CallOutAnswer:
+        """Move one queued participant; the simulation keys nothing on *request*."""
         if not self.source_key:
             return self.yes()
         try:

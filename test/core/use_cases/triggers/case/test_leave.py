@@ -7,7 +7,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_in_act
-from test.support.call_out import answer_for
+from test.support.call_out import answer_for, declines_to_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
@@ -24,13 +24,15 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.behaviors.call_out.actuator import (
+    ActuationRequest,
+    ActuatorBackend,
+)
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
-from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
     CloseReportCallOutBundle,
 )
-from vultron.core.behaviors.call_out.nodes import AlwaysFail
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -319,17 +321,15 @@ class _PreCloseRecorder:
     def factory(self, name: str) -> py_trees.behaviour.Behaviour:
         recorder = self
 
-        class _Recording(CallOutBackend):
-            def answer(self) -> CallOutAnswer:
+        class _Recording(ActuatorBackend):
+            def act(self, request: ActuationRequest) -> CallOutAnswer:
                 recorder.outbox_at_run.append(set(recorder.dl.outbox_list()))
                 return answer_for(recorder.status)
 
         return _Recording(name)
 
     def bundle(self) -> CloseReportCallOutBundle:
-        return CloseReportCallOutBundle(
-            pre_close_action_factory=self.factory  # type: ignore[arg-type]
-        )
+        return CloseReportCallOutBundle(pre_close_action_factory=self.factory)
 
 
 def _recipients(activity) -> list[str]:
@@ -426,7 +426,7 @@ class TestLeaveCaseTrigger:
         case = self._case(_OWNER)
         before = set(self.dl.outbox_list())
         failing = CloseReportCallOutBundle(
-            pre_close_action_factory=AlwaysFail  # type: ignore[arg-type]
+            pre_close_action_factory=declines_to_act
         )
 
         with pytest.raises(VultronValidationError):

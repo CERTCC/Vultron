@@ -27,6 +27,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.call_out import acting_as
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -397,6 +398,10 @@ def test_factory_field_is_wired(field, parent_idx, child_idx):
 
     def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
         sentinel["called"] = True
+        if field == "on_embargo_exit_factory":
+            marker = acting_as(name)(name)
+            marker.IS_CUSTOM_MARKER = True  # type: ignore[attr-defined]
+            return marker
 
         class _Marker(CallOutBackend):
             IS_CUSTOM_MARKER = True

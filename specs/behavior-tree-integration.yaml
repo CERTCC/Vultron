@@ -2164,6 +2164,120 @@ groups:
     - rel_type: refines
       spec_id: BT-18-028
       note: Places the Retriever that BT-18-028 defines by its output.
+  - id: BT-18-040
+    priority: MUST
+    kind: project
+    statement: >-
+      An Actuator call-out point MUST answer error, not no, when it cannot confirm
+      its side effect or its credential is rejected.
+    rationale: >-
+      A no is a decision not to act, and the tree acts on it as one. A side effect
+      that may or may not have happened is no decision, and a rejected credential
+      is a deployment fault (ADR-0183). An error leaves the act unjudged, so a
+      received message stays in holding and its re-run asks again (BT-18-034).
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: extends
+      spec_id: BT-18-028
+      note: >-
+        BT-18-028 defines the Actuator by its side effect; this entry says which
+        verdict a side effect it cannot confirm gets. BT-18-038 is the same rule
+        for an Evaluator.
+    verification: >-
+      `test_unconfirmed_side_effect_answers_error_and_leaves_the_act_unjudged` and
+      `test_rejected_credential_answers_error_not_no` in
+      `test/core/behaviors/call_out/test_actuator.py` assert that a reference
+      Actuator answers error in both cases, that the received run then fails as an
+      internal error, and that no refusal reason is written.
+  - id: BT-18-041
+    priority: MUST
+    kind: project
+    statement: >-
+      An Actuator call-out point MUST act on exactly one target per call.
+    rationale: >-
+      One call gives one verdict (BT-18-031). A call that acted on several targets
+      would need a verdict for each, and "some done, some not" has no verdict, so
+      partial success would hide inside one answer (ADR-0183). The capability
+      declaration of an Actuator says so: every call takes one target.
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-028
+      note: Places the Actuator that BT-18-028 defines by its output.
+    verification: >-
+      In `test/core/behaviors/call_out/test_actuator.py`,
+      `test_every_fuzzer_actuator_is_an_actuator_backend` and
+      `test_every_bundle_actuator_field_places_an_actuator_backend` assert that
+      every Actuator declares an `ActuatorContract` and takes one target per call,
+      `test_every_tree_binds_each_actuator_to_one_target` asserts that every core
+      tree binds each Actuator it places to one target, and
+      `test_actuator_ticked_without_a_target_raises` and
+      `test_a_non_actuator_backend_is_refused_as_an_actuator` assert that a call
+      with no target, or a backend that cannot take one, fails as an internal
+      error.
+  - id: BT-18-042
+    priority: MUST
+    kind: project
+    statement: >-
+      A tree that acts on several targets MUST make one Actuator call per target.
+    rationale: >-
+      Each call then gives its own verdict, so the tree sees which targets were
+      acted on, and what it does after a no stays its own logic (ADR-0183).
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-041
+    verification: >-
+      `test_publication_tree_makes_one_actuator_call_per_artifact` in
+      `test/core/behaviors/call_out/test_actuator.py` asserts that the publication
+      tree places one Actuator call for each artifact, each on its own target.
+  - id: BT-18-043
+    priority: MUST
+    kind: project
+    statement: >-
+      Each Actuator call MUST carry an idempotency id that the tree derives from
+      the act and the target.
+    rationale: >-
+      An error leaves a received message in holding, and the re-run asks every
+      call-out point again (BT-18-034). A call that gets the id of its first run
+      lets the backend see that it already acted. The received activity
+      identifies the act, as it does for a rebuilt send (OX-06-002). A trigger is
+      never re-run from holding, so its act takes an id of its own.
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-041
+    verification: >-
+      In `test/core/behaviors/call_out/test_actuator.py`,
+      `test_idempotency_id_is_derived_from_the_act_and_the_target` asserts that
+      one act and target give one id, and another act or target another, and
+      `test_rerun_from_holding_after_an_error_on_the_second_target_repeats_no_side_effect`
+      asserts that a re-run gives every call the id of its first run.
+  - id: BT-18-044
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      An Actuator backend MUST NOT repeat a side effect for an idempotency id it
+      has already acted on.
+    rationale: >-
+      The tree gives a re-run the ids of its first run (BT-18-043), but only the
+      backend knows what it did in the external system. A backend that acts again
+      on a known id would repeat the side effect that the id exists to prevent.
+      It answers yes instead, because the side effect happened.
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: uses_definition
+      spec_id: BT-18-043
+    verification: >-
+      `test_rerun_from_holding_after_an_error_on_the_second_target_repeats_no_side_effect`
+      in `test/core/behaviors/call_out/test_actuator.py` re-runs an act after an
+      error on its second target and asserts that the first target's side effect
+      happened once.
   - id: BT-18-031
     priority: MUST
     kind: project
