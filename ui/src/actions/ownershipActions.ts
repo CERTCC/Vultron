@@ -59,7 +59,7 @@ export function handleOfferCaseOwnership(
     timestamp: now + offset,
     consequences: [
       `${offerer.name} offers to transfer case ownership to ${target.name}`,
-      'Offer(VulnerabilityCase) → Case Actor, forwarded to the transferee (ADR-0053)',
+      'Offer(VulnerabilityCase) → CASE_MANAGER, forwarded to the transferee (ADR-0053)',
       `Awaiting ${target.name}'s acceptance`,
     ],
   })
@@ -131,7 +131,7 @@ export function handleAcceptCaseOwnership(state: DemoState, accepterId: string):
     timestamp: now + offset,
     consequences: [
       `${accepter.name} accepted the transfer and is now the CASE_OWNER`,
-      'Accept(Offer(VulnerabilityCase)) → Case Actor (ADR-0053)',
+      'Accept(Offer(VulnerabilityCase)) → CASE_MANAGER (ADR-0053)',
       previousOwner ? `${previousOwner.name} keeps its other roles and stays a participant` : 'Ownership moved',
     ],
   })

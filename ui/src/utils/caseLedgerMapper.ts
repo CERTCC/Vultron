@@ -982,7 +982,7 @@ function handleOfferActorToCase(
     'Actor Recommended',
     [
       `${recommender} recommends ${recommended} join the case`,
-      'Offer(Actor, Case) → CASE_MANAGER (ADR-0026)',
+      'Offer(CaseParticipantRole)[context=VulnerabilityCase] → CASE_MANAGER (ADR-0026)',
       'Awaiting Case Owner approval + invite',
     ],
     'Actor Recommended',
@@ -1045,7 +1045,7 @@ function handleInvite(
     inviterLane,
     x,
     'Invite Sent',
-    [`${inviterName} invites ${inviteeName} to the case`, 'Invite(Actor, Case) → invitee', 'Awaiting the invitee’s acceptance'],
+    [`${inviterName} invites ${inviteeName} to the case`, 'Invite(Actor)[target=VulnerabilityCaseStub] → invitee', 'Awaiting the invitee’s acceptance'],
     'Invite Sent',
     () => [`${inviteeName} invited to the case`],
     false
@@ -1145,7 +1145,7 @@ function handleRejectInvite(
     laneId,
     x,
     'Declined Invite',
-    [`${name} declined the invitation to the case`, 'Reject(Invite) → inviter', 'Actor does not join the case'],
+    [`${name} declined the invitation to the case`, 'Reject(Invite(Actor)[target=VulnerabilityCaseStub]) → inviter', 'Actor does not join the case'],
     'Invite Declined',
     () => [`${name} declined to join the case`],
     false
@@ -1239,7 +1239,7 @@ function handleAcceptOwnershipTransfer(
     'Ownership Accepted',
     [
       `${incomingName} accepted case ownership`,
-      'Accept(Offer) — case-manager role transferred',
+      'Accept(Offer(VulnerabilityCase)) — case-manager role transferred',
       `${incomingName} is now the Case Owner`,
     ],
     'Ownership Transferred',
@@ -1316,7 +1316,7 @@ function handleValidateReport(
     laneId,
     x,
     'Validate Report',
-    ['Accept(Offer) — report deemed legitimate', `RM: ${src} → ${shadow.rm[laneId]}`],
+    ['Accept(Offer(VulnerabilityReport)) — report deemed legitimate', `RM: ${src} → ${shadow.rm[laneId]}`],
     'Report Validated',
     () => [`${validatorName} validated the report`, `RM: → ${shadow.rm[laneId]}`],
     violation,
@@ -1329,7 +1329,7 @@ function handleValidateReport(
 
 /** The wire form that carried the note: `Create(Note)` or `Add(Note, target=Case)`. */
 function noteActivityLabel(entry: CaseLedgerEntry): string {
-  return entry.payloadSnapshot?.type === 'Create' ? 'Create(Note)' : 'Add(Note, target=Case)'
+  return entry.payloadSnapshot?.type === 'Create' ? 'Create(Note)' : 'Add(Note)[target=VulnerabilityCase]'
 }
 
 function handleNote(
