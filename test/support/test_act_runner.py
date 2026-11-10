@@ -20,7 +20,13 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_clock import ACT_AT, tree_lock_held
-from test.support.act_runner import FixedClock, in_act, run_in_act, run_tree
+from test.support.act_runner import (
+    FixedClock,
+    in_act,
+    run_dispatch,
+    run_in_act,
+    run_tree,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.bridge.act_instant import (
@@ -214,3 +220,22 @@ def test_another_threads_open_act_is_not_inherited():
     # Its own act, at the wall clock, not the other thread's instant.
     assert node.seen is not None
     assert node.seen != ACT_AT
+
+
+class _Dispatches:
+    def __init__(self) -> None:
+        self.seen: datetime | None = None
+
+    def dispatch(self, event: object, dl: object, **kwargs: object) -> object:
+        self.seen = read_act_instant()
+        return kwargs
+
+
+def test_a_dispatch_runs_in_an_act_and_passes_its_arguments_on():
+    target = _Dispatches()
+
+    assert run_dispatch(target, "event", "dl", at=ACT_AT, dispatcher="d") == {
+        "dispatcher": "d"
+    }
+
+    assert target.seen == ACT_AT

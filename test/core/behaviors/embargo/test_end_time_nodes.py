@@ -21,7 +21,7 @@ EMB-13-003).
 """
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import cast
 
 import py_trees
@@ -29,6 +29,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.embargo.nodes.conftest import setup_blackboard
+from test.support.act_runner import in_act
 from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.end_time_tree import (
@@ -40,6 +41,7 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.errors import VultronMissingActInstantError
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 ACTOR = "https://example.org/actors/manager"
@@ -64,11 +66,12 @@ def _store(end_time=None) -> tuple[SqliteDataLayer, VulnerabilityCase]:
     return dl, case
 
 
-def _tick(node, dl) -> Status:
+def _tick(node, dl, at: datetime | None = None) -> Status:
     setup_blackboard(dl, actor_id=ACTOR)
     tree = py_trees.trees.BehaviourTree(root=node)
     tree.setup()
-    tree.tick()
+    with in_act(at):
+        tree.tick()
     return cast(Status, node.status)
 
 
@@ -101,16 +104,30 @@ def test_end_time_passed_node_counts_the_end_time_itself() -> None:
     end = now_utc() - timedelta(minutes=1)
     dl, case = _store(end_time=end)
 
-    assert _tick(EmbargoEndTimePassedNode(case.id_, now=end), dl) == (
+    assert _tick(EmbargoEndTimePassedNode(case.id_), dl, at=end) == (
         Status.SUCCESS
     )
     assert (
         _tick(
-            EmbargoEndTimePassedNode(case.id_, now=end - timedelta(seconds=1)),
+            EmbargoEndTimePassedNode(case.id_),
             dl,
+            at=end - timedelta(seconds=1),
         )
         == Status.FAILURE
     )
+
+
+@pytest.mark.spec("CS-13-002")
+def test_end_time_passed_node_refuses_a_run_with_no_act_instant() -> None:
+    """The node reads the act's instant when it ticks, never the clock."""
+    dl, case = _store(end_time=now_utc() - timedelta(minutes=1))
+    setup_blackboard(dl, actor_id=ACTOR)
+    node = EmbargoEndTimePassedNode(case.id_)
+    tree = py_trees.trees.BehaviourTree(root=node)
+    tree.setup()
+
+    with pytest.raises(VultronMissingActInstantError):
+        tree.tick()
 
 
 @pytest.mark.spec("EMB-18-003")
@@ -118,7 +135,7 @@ def test_end_time_passed_node_never_ends_an_embargo_it_cannot_read(
     caplog,
 ) -> None:
     dl, case = _store()
-    node = EmbargoEndTimePassedNode(case.id_, now=now_utc())
+    node = EmbargoEndTimePassedNode(case.id_)
 
     with caplog.at_level(logging.WARNING):
         assert _tick(node, dl) == Status.FAILURE

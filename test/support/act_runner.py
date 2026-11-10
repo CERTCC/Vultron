@@ -25,6 +25,8 @@ the act's instant finds none.  These runners put the edge back:
   ``process_payload`` runs it.
 - :func:`run_tree` runs a tree through a bridge as the outermost run of an
   act at *at*.
+- :func:`run_dispatch` dispatches a received event as one act at *at*, the
+  way the inbox dispatches it.
 
 Inside a run that already carries an instant (a nested run, or a test that
 opened an act itself), both inherit it, as a nested production run does,
@@ -161,4 +163,22 @@ def run_tree(
             return bridge.execute_with_setup(tree, *args, at=instant, **kwargs)
 
 
-__all__ = ["FixedClock", "in_act", "run_in_act", "run_tree"]
+def run_dispatch(
+    target: Any,
+    event: Any,
+    dl: Any,
+    *args: Any,
+    at: datetime | None = None,
+    **kwargs: Any,
+) -> Any:
+    """Dispatch *event* as one act at *at*, as ``process_payload`` does.
+
+    *target* is anything with ``dispatch(event, dl, ...)``: the core
+    dispatcher, or the inbox handler module, which takes its own
+    ``dispatcher=``.  Other arguments go to it unchanged.
+    """
+    with in_act(at):
+        return target.dispatch(event, dl, *args, **kwargs)
+
+
+__all__ = ["FixedClock", "in_act", "run_dispatch", "run_in_act", "run_tree"]

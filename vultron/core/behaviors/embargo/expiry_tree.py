@@ -45,7 +45,6 @@ it names is still available (EMB-17-001, MSM-07-012;
 deadline decides only that the invitation closed, never the answer.
 """
 
-from datetime import datetime
 from typing import Any
 
 import py_trees
@@ -108,7 +107,6 @@ def invite_expiry_decision(
     invitee_id: str,
     invite_id: str,
     embargo_id: str,
-    now: datetime,
     result_out: dict[str, Any],
 ) -> py_trees.behaviour.Behaviour:
     """The CASE_MANAGER's lazy expiry of one invitee's Invite, a clock decision.
@@ -129,16 +127,15 @@ def invite_expiry_decision(
     the row.  A failed commit therefore leaves the invitee unchanged, and the
     stage logs it and goes on.
 
-    The deadline is compared against *now*, the CASE_MANAGER's clock; the
-    Accept only names the invitee and the embargo, so its claimed time is
-    never the evidence.
+    The deadline is compared against the act's instant, read from the tree
+    run when the evaluation ticks (ADR-0176); the Accept only names the
+    invitee and the embargo, so its claimed time is never the evidence.
 
     Args:
         case_id: The case the Invite was for.
         invitee_id: The participant answering.
         invite_id: The answered Invite, which seeds the ``Update``'s id.
         embargo_id: The embargo the Invite proposed.
-        now: The instant the deadline is compared against.
         result_out: Receives ``IS_EXPIRED_KEY`` and ``NEEDS_APPLY_KEY``
             from :class:`EvaluateInviteExpiryNode`; left unset on a store
             that is not the CASE_MANAGER, whose gate skips the decision.
@@ -168,7 +165,6 @@ def invite_expiry_decision(
                 case_id=case_id,
                 invitee_id=invitee_id,
                 embargo_id=embargo_id,
-                now=now,
                 result_out=result_out,
             ),
             commit_and_apply_if_due,

@@ -23,6 +23,7 @@ because the resend carries its own evidence.
 import json
 from typing import Any, TypeVar, cast
 
+from test.support.act_runner import run_dispatch
 from vultron.adapters.driving.fastapi.inbox_handler import (
     make_dispatcher,
     prepare_for_dispatch,
@@ -85,4 +86,4 @@ def route_archived_redelivery(
     event = archived_redelivery(
         dl, activity_id, receiving_actor_id=receiving_actor_id
     )
-    return make_dispatcher().dispatch(event, dl)
+    return cast(HandlerResult, run_dispatch(make_dispatcher(), event, dl))

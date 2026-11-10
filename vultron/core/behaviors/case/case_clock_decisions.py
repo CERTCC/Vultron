@@ -26,27 +26,22 @@ factory runs them on every tree that has a case and a sender guard
 case-scoped trigger's own tree, terminate excepted (ADR-0135).
 """
 
-from datetime import datetime
-
 import py_trees
 
 from vultron.core.behaviors.embargo.end_time_tree import (
     end_time_clock_decision,
 )
-from vultron.core.models._helpers import now_utc
 
 __all__ = ["case_clock_decisions"]
 
 
-def case_clock_decisions(
-    case_id: str, now: datetime | None = None
-) -> list[py_trees.behaviour.Behaviour]:
-    """The case-wide clock decisions for *case_id*, read against *now*.
+def case_clock_decisions(case_id: str) -> list[py_trees.behaviour.Behaviour]:
+    """The case-wide clock decisions for *case_id*.
 
-    *now* defaults to the CASE_MANAGER's clock: a clock decision decides
-    from its own clock, never from the received activity (CLP-10-025).
-    Ungated: the caller composes them into the gated stage
+    Each decides against the act's instant, read from the tree run when it
+    ticks (ADR-0176): a clock decision decides from the CASE_MANAGER's own
+    act, never from the received activity (CLP-10-025).  Ungated: the caller
+    composes them into the gated stage
     (:func:`~vultron.core.behaviors.case.nodes.clock_decision_stage.create_clock_decision_gate`).
     """
-    at = now if now is not None else now_utc()
-    return [end_time_clock_decision(case_id=case_id, now=at)]
+    return [end_time_clock_decision(case_id=case_id)]

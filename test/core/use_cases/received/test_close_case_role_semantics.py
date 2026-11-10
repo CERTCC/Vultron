@@ -36,7 +36,7 @@ import pytest
 from test.core.use_cases.received._archived_redelivery import (
     archived_redelivery,
 )
-from test.support.act_runner import run_in_act, run_tree
+from test.support.act_runner import run_dispatch, run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
@@ -1500,11 +1500,12 @@ class TestPostCloseWriteBoundary:
             _, note_event = _add_note_event(
                 "https://example.org/notes/dispatched-late-note", at=dl
             )
-            note_result = dispatcher.dispatch(note_event, dl)
+            note_result = run_dispatch(dispatcher, note_event, dl)
             assert note_result.disposition is HandlerDisposition.REFUSED
             assert set(dl.outbox_list()) == outbox_before
 
-            leave_result = dispatcher.dispatch(
+            leave_result = run_dispatch(
+                dispatcher,
                 _make_close_case_event(
                     sender_actor_id=VENDOR_ID,
                     activity_id="https://example.org/activities/leave-disp",
