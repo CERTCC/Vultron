@@ -153,7 +153,10 @@ Workflow:
 
 
 def the_case_is_active(state: StoryState) -> None:
-    """M1: the Coordinator has joined and the embargo is still active."""
+    """The Coordinator has joined and the embargo is still active.
+
+    Milestone M1 of the scenario's spec group.
+    """
     required_participants_are_present(
         state,
         check=(
@@ -164,7 +167,8 @@ def the_case_is_active(state: StoryState) -> None:
 
 
 def replicas_drain_before_the_second_vendor(state: StoryState) -> None:
-    """Wait for the opening's ledger to reach the Reporter's and Coordinator's.
+    """Everything the opening recorded has reached the Reporter's and the
+    Coordinator's replicas of the case.
 
     This scenario's own step: ``rvcv-handoff`` never drained here, and a
     fragment only one scenario tells belongs in its own module
@@ -236,16 +240,14 @@ def both_vendors_fix_the_vul(state: StoryState) -> None:
     """Both vendors report fix ready; both stop at VFd (CSB-15-002)."""
     both_vendors_report_the_fix_ready(
         state,
-        milestones=(
-            "M5: Reporter replica shows both vendors CS include F (fix ready)",
-            "M6: Reporter replica shows both vendors CS include F (fix ready)"
-            " — vendors stop at VFd",
-        ),
+        reached="M5: the Reporter and each vendor's own replica show that"
+        " vendor's CS includes F (fix ready), for both vendors",
+        stopped="M6: both vendors stopped at VFd — no fix-deployed transition",
     )
 
 
 def everyone_publishes(state: StoryState) -> None:
-    """Vendor1, as CASE_OWNER, publishes first; the Reporter reports last."""
+    """Vendor1, the Case Owner, publishes first; the Reporter reports last."""
     reports_published(state, VENDOR)
     the_embargo_ends_for(
         state,

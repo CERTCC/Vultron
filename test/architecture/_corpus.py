@@ -315,6 +315,138 @@ def node_line(node: ast.AST) -> int:
     return getattr(node, "lineno", 0)
 
 
+#: Identifier tokens inside a quoted annotation, for :func:`trailing_names`.
+_QUOTED_IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+
+
+def trailing_names(node: ast.expr | None) -> frozenset[str]:
+    """Every identifier *node* mentions, an attribute by its trailing name.
+
+    For ratchets that decide whether an annotation or an argument names a
+    class, without resolving the binding: ``X``, ``mod.X`` and the quoted
+    forward reference ``"mod.X | None"`` all yield ``X``.
+
+    A quoted annotation is **tokenised**, not split on ``.``: a subscript or a
+    union inside the quotes (``"StoryProp[str] | None"``) is one string
+    ``Constant``, so taking it whole — or taking only what follows the last
+    dot — yields a name no membership test matches, and the ratchet goes
+    quiet on one pair of quotes (#5598).
+    """
+    if node is None:
+        return frozenset()
+    found: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            found.add(child.id)
+        elif isinstance(child, ast.Attribute):
+            found.add(child.attr)
+        elif isinstance(child, ast.Constant) and isinstance(child.value, str):
+            found.update(_QUOTED_IDENTIFIER.findall(child.value))
+    return frozenset(found)
+
+
+def top_level_names(node: ast.expr | None) -> frozenset[str]:
+    """The names *node* spells at its own top level, not inside a subscript.
+
+    For a ratchet asking "is this annotation *this* class?" rather than "does
+    it mention it anywhere": ``X`` and ``mod.X`` yield ``X``, ``X[int]``
+    yields ``X`` (the subscripted value, not its arguments), a union yields
+    each operand's own top-level name, and a quoted annotation is re-parsed
+    and read the same way.
+
+    The difference from :func:`trailing_names` is load-bearing in both
+    directions. ``Callable[[X], None]`` yields ``Callable`` here and ``X``
+    there, so a reading that asks the narrow question through the wide helper
+    treats a parameter that *takes a function over* ``X`` as a parameter *of*
+    ``X`` — a subject it was never meant to judge (#5598).
+    """
+    if node is None:
+        return frozenset()
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        try:
+            inner = ast.parse(node.value, filename="<annotation>")
+        except SyntaxError:
+            return frozenset()
+        body = getattr(inner, "body", None)
+        first = body[0] if body else None
+        return top_level_names(getattr(first, "value", None))
+    if isinstance(node, ast.Name):
+        return frozenset({node.id})
+    if isinstance(node, ast.Attribute):
+        return frozenset({node.attr})
+    if isinstance(node, ast.Subscript):
+        return top_level_names(node.value)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return top_level_names(node.left) | top_level_names(node.right)
+    return frozenset()
+
+
+def parameters_of(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+) -> tuple[ast.arg, ...]:
+    """Every parameter *fn* declares, in declaration order.
+
+    Positional-only, then positional-or-keyword, then keyword-only, then
+    ``*args`` and ``**kwargs`` when present.  One reading of the five
+    ``ast.arguments`` slots, so a ratchet that judges each parameter cannot
+    silently omit one of them.
+    """
+    args = fn.args
+    return tuple(
+        arg
+        for arg in (
+            *args.posonlyargs,
+            *args.args,
+            *args.kwonlyargs,
+            args.vararg,
+            args.kwarg,
+        )
+        if arg is not None
+    )
+
+
+def defaults_of(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> Iterator[tuple[ast.arg, ast.expr, int | None]]:
+    """Each defaulted parameter of *fn*, with its default and its position.
+
+    The position is the declared index a *caller* would write the argument at,
+    or ``None`` for a keyword-only parameter, which no positional argument can
+    reach.
+
+    One reading of the two encodings ``ast.arguments`` uses: ``defaults``
+    aligns with the *tail* of the positional parameters, while ``kw_defaults``
+    aligns element-wise with the keyword-only ones and carries ``None`` where
+    there is no default at all.  Every reading in this package goes through
+    here, because a caller that rediscovers the tail alignment gets the
+    off-by-one wrong eventually.
+    """
+    args = fn.args
+    positional = [*args.posonlyargs, *args.args]
+    first = len(positional) - len(args.defaults)
+    for order, (argument, default) in enumerate(
+        zip(positional[first:], args.defaults, strict=True)
+    ):
+        yield argument, default, first + order
+    for argument, kw_default in zip(
+        args.kwonlyargs, args.kw_defaults, strict=True
+    ):
+        if kw_default is not None:
+            yield argument, kw_default, None
+
+
+def defaulted_parameters(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> frozenset[str]:
+    """The names of *fn*'s parameters that carry a default of any value.
+
+    For the narrower question of which parameters default to ``None`` and at
+    what caller index, see ``_guard_reachability.none_defaulted_params``;
+    both read the slots through :func:`defaults_of`.
+    """
+    return frozenset(argument.arg for argument, _, _ in defaults_of(fn))
+
+
 # ---------------------------------------------------------------------------
 # Definition lookup — the cached AST node for a live function object.
 # ---------------------------------------------------------------------------
@@ -461,7 +593,7 @@ def definition_summaries(
     for match, end in zip(starts, ends[: len(starts)], strict=True):
         if classes or not match.group(0).startswith("class"):
             yield match.group(1), called_names(source[match.end() : end])
-    for alias, original in _aliases(source):
+    for alias, original in aliases(source):
         yield alias, frozenset({original})
 
 
@@ -484,8 +616,13 @@ def class_spans(source: str) -> Iterator[tuple[str, frozenset[str], str]]:
         yield match.group(1), bases, span
 
 
-def _aliases(source: str) -> Iterator[tuple[str, str]]:
-    """``(alias, original)`` for each top-level alias in *source*."""
+def aliases(source: str) -> Iterator[tuple[str, str]]:
+    """``(alias, original)`` for each top-level alias in *source*.
+
+    Covers both module-level shapes a ratchet that follows a name has to
+    know about: ``ALIAS = ORIGINAL`` at module level, and
+    ``from m import ORIGINAL as ALIAS``.
+    """
     for assignment in _ASSIGNMENT_ALIAS.finditer(source):
         if assignment.group(1) != assignment.group(2):
             yield assignment.group(1), assignment.group(2)

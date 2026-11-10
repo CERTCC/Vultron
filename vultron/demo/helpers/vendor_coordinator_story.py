@@ -154,7 +154,7 @@ def unseated_coordinator_and_vendor2(
 
 
 def the_coordinator_and_vendor2_are_seeded(state: StoryState) -> None:
-    """Seed and seat the Coordinator and Vendor2.
+    """The Coordinator and Vendor2 are ready to be invited to the case.
 
     ``seed_containers_rvcv`` creates both and registers every actor as a peer
     of the other three (DEMOMA-10-001, DEMOMA-11-001); the two the shared
@@ -193,7 +193,7 @@ def the_coordinator_and_vendor2_are_seeded(state: StoryState) -> None:
 
 
 def the_vendor_invites_the_coordinator(state: StoryState) -> None:
-    """Vendor1 invites the Coordinator with ``CVDRole.COORDINATOR``.
+    """Vendor1 invites the Coordinator to coordinate the case.
 
     The Coordinator holds ``CVDRole.COORDINATOR`` and **not**
     ``CVDRole.CASE_MANAGER``, which stays with the CaseActor (DEMOMA-10-003).
@@ -256,7 +256,7 @@ def dump_vendor_coordinator_ledgers(state: StoryState) -> None:
 
 
 def every_replica_converges(state: StoryState) -> None:
-    """Verify LedgerFanout replication for the Reporter, Coordinator and Vendor2.
+    """Ledger Fanout reaches the Reporter, the Coordinator and Vendor2.
 
     Thin call to the shared sync helper (DEMOMA-23-007), naming only this
     pair's authority, replicas and late joiner.  Vendor1 is the authority in
