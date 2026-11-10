@@ -110,6 +110,15 @@ class ReportCaseInputs(BaseModel):
     outcomes: dict[NonEmptyString, ClaimOutcome] = Field(default_factory=dict)
     filled_from_document: bool = False
 
+    @classmethod
+    def from_stated(cls, stated: StatedReportFields) -> "ReportCaseInputs":
+        """The inputs when no document fills any: the stated values alone."""
+        return cls(
+            name=stated.name,
+            summary=stated.summary,
+            proposed_embargo_end=stated.proposed_embargo_end,
+        )
+
     @property
     def embargo_eligible(self) -> bool:
         """Whether the case may start under an embargo (EP-04-020)."""
@@ -238,11 +247,7 @@ def case_inputs_from_claims(
     _require_aware(reference_time)
     stated = stated or StatedReportFields()
     if not fills_case_inputs(claims):
-        return ReportCaseInputs(
-            name=stated.name,
-            summary=stated.summary,
-            proposed_embargo_end=stated.proposed_embargo_end,
-        )
+        return ReportCaseInputs.from_stated(stated)
     outcomes: dict[str, ClaimOutcome] = {}
     name = _stated_or_claimed("name", stated.name, claims.name, outcomes)
     summary = _stated_or_claimed(
@@ -351,15 +356,14 @@ def claims_signals(
     the receiver; there is one when those vendors are several, or include a
     vendor whose name is not *receiver_name*, compared without regard to case
     or surrounding space (CSAF-04-007).  A receiver with no ``name`` differs
-    from every vendor.  A document that may fill no case input raises no
-    signal (CSAF-02-002).
+    from every vendor.  A document of any category raises them: a signal
+    changes no case data and never acts (CSAF-04-008), so the limit of
+    CSAF-02-002 does not apply to it.
 
     Raises:
         ValueError: when *reference_time* has no time zone.
     """
     _require_aware(reference_time)
-    if not fills_case_inputs(claims):
-        return None, None
     return (
         _case_split_signal(claims, reference_time),
         _candidate_parties_signal(claims, receiver_name),

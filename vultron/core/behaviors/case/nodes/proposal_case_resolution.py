@@ -23,6 +23,7 @@ in the sibling ``case_proposal_received_tree/`` (BTND-07-003).
 """
 
 import logging
+from datetime import datetime
 from typing import cast
 
 from py_trees.common import Status
@@ -218,7 +219,7 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         REPORT_CASE_INPUTS_KEY: PortInformation(
-            data_type=ReportCaseInputs, required=False
+            data_type=ReportCaseInputs, required=True
         ),
     }
 
@@ -238,7 +239,9 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
             return f
         assert self.datalayer is not None and self.actor_id is not None
 
-        case = self._new_case()
+        case = self._new_case(
+            self.get_input(REPORT_CASE_INPUTS_KEY), published=now_utc()
+        )
         if self._report_id is not None:
             case.vulnerability_reports.append(self._report_id)
 
@@ -258,7 +261,9 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         )
         return Status.SUCCESS
 
-    def _new_case(self) -> VulnerabilityCase:
+    def _new_case(
+        self, inputs: ReportCaseInputs, *, published: datetime
+    ) -> VulnerabilityCase:
         """The new case, starting from its report's inputs.
 
         ``report_case_inputs`` (``ResolveReportCaseInputsNode``) gives the
@@ -269,11 +274,6 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         aware (the pX to PX invariant), so X starts with P.
         """
         case_id = new_object_id()
-        inputs = self._try_get_input(REPORT_CASE_INPUTS_KEY)
-        if not isinstance(inputs, ReportCaseInputs):
-            return VulnerabilityCase(
-                id_=case_id, published=now_utc(), attributed_to=self._owner_id
-            )
         pxa = CS_pxa(
             PxaState(
                 PublicAwareness.PUBLIC_AWARE
@@ -289,7 +289,7 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         )
         return VulnerabilityCase(
             id_=case_id,
-            published=now_utc(),
+            published=published,
             attributed_to=self._owner_id,
             name=inputs.name,
             summary=inputs.summary,

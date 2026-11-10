@@ -53,6 +53,7 @@ from vultron.core.use_cases.received.case_proposal import (
 from vultron.core.use_cases.received.report import SubmitReportReceivedUseCase
 from vultron.wire.as2.factories.report import rm_submit_report_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 VENDOR = "https://vendor.example.org/actors/vendor"
@@ -81,6 +82,7 @@ class Receipt:
         *attachments: ReportAttachment,
         report_id: str = REPORT_ID,
         receiver_name: str | None = None,
+        receiver_id: str = VENDOR,
         report_name: str | None = "Widget overflow",
         report_summary: str | None = None,
         proposed_embargo_end: datetime | None = None,
@@ -96,6 +98,7 @@ class Receipt:
         proposed = (
             as_EmbargoEvent(
                 id_=f"{report_id}/proposed-embargo",
+                start_time=RECEIVED_AT,
                 end_time=proposed_embargo_end,
                 context=report_id,
             )
@@ -103,13 +106,13 @@ class Receipt:
             else None
         )
         offer = rm_submit_report_activity(
-            report, to=VENDOR, actor=FINDER, proposed_embargo=proposed
+            report, to=receiver_id, actor=FINDER, proposed_embargo=proposed
         )
-        event = received_event(offer, receiving_actor_id=VENDOR)
+        event = received_event(offer, receiving_actor_id=receiver_id)
         assert isinstance(event, SubmitReportReceivedEvent)
         self.event = event
-        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
-        self.dl.save(VultronService(id_=VENDOR, name=receiver_name))
+        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
+        self.dl.save(VultronService(id_=receiver_id, name=receiver_name))
 
     def handle(self) -> HandlerResult:
         # The inbox runs each delivery inside an act (ADR-0176).
@@ -179,8 +182,14 @@ class CaseManager:
         self, body: dict[str, Any], at: datetime = RECEIVED_AT
     ) -> HandlerResult:
         """Deliver the sealed *body* and handle it, inside an act at *at*."""
+        return self.receive_activity(parse_activity(body), at=at)
+
+    def receive_activity(
+        self, activity: as_Activity, at: datetime = RECEIVED_AT
+    ) -> HandlerResult:
+        """Deliver *activity* and handle it, inside an act at *at*."""
         event = received_event(
-            parse_activity(body), at=self.dl, receiving_actor_id=self.actor_id
+            activity, at=self.dl, receiving_actor_id=self.actor_id
         )
         assert isinstance(event, CreateCaseProposalReceivedEvent)
         with act_instant_in_tree_run(at):
@@ -192,12 +201,15 @@ class CaseManager:
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
-    def case(self) -> VulnerabilityCase:
-        [case] = [
+    def cases(self) -> list[VulnerabilityCase]:
+        return [
             c
             for c in self.dl.list_objects("VulnerabilityCase")
             if isinstance(c, VulnerabilityCase)
         ]
+
+    def case(self) -> VulnerabilityCase:
+        [case] = self.cases()
         return case
 
     def records(self) -> list[ReportClaimsRecord]:

@@ -20,25 +20,32 @@ the Offer the proposal carries.
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 
 from test.core.use_cases.received._csaf_receipt import (
     REPORT_ID,
+    VENDOR,
     CaseManager,
     Receipt,
     csaf,
     document,
 )
 from test.wire.csaf._documents import section, vulnerability_report_document
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_claims import ClaimOutcome
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs.states import CS_pxa
 from vultron.core.states.em import EM
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Create,
+)
+from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
 pytestmark = pytest.mark.usefixtures("case_actor_service_url")
 
@@ -253,7 +260,7 @@ def test_only_the_creating_side_marks_what_shaped_the_case() -> None:
     }
     [record] = manager.records()
     assert record.reading == receipt.record().reading
-    assert record.received_at == receipt.record().received_at
+    assert record.case_id == manager.case().id_
 
 
 @pytest.mark.spec("CSAF-02-002")
@@ -311,3 +318,93 @@ def test_the_first_vulnerability_report_document_fills_the_case() -> None:
         r for r in manager.records() if r.reading.claims.name != _TITLE
     )
     assert set(second.outcomes.values()) == {ClaimOutcome.DISPLAY_ONLY}
+
+
+@pytest.mark.spec("CSAF-03-001", "CSAF-03-003")
+def test_the_reference_time_is_the_case_managers_receipt_of_the_proposal() -> (
+    None
+):
+    """A date between the receiver's receipt and the CASE_MANAGER's is past."""
+    receipt = Receipt(csaf(_quiet_document(disclosure_date=_SOONER)))
+    receipt.handle()
+    manager = CaseManager()
+    later = _when(_SOONER) + timedelta(days=1)
+
+    result = manager.receive(receipt.proposal_body(), at=later)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    case = manager.case()
+    assert case.current_status.pxa.state is CS_pxa.Pxa
+    assert case.em_state is EM.NONE
+    [record] = manager.records()
+    assert record.received_at == later
+
+
+@pytest.mark.spec("CSAF-02-003")
+def test_an_offer_embargo_that_has_run_out_sets_no_csaf_date_aside() -> None:
+    receipt = Receipt(
+        csaf(_quiet_document(disclosure_date=_SOONER)),
+        proposed_embargo_end=_when(_PAST),
+    )
+
+    manager, case = _created(receipt)
+
+    assert _embargo_end(manager, case) == _when(_SOONER)
+    [record] = manager.records()
+    assert (
+        record.outcomes["vulnerabilities[0].disclosure_date"]
+        is ClaimOutcome.APPLIED
+    )
+
+
+@pytest.mark.spec("CSAF-04-004")
+def test_two_cases_from_one_report_each_keep_their_record() -> None:
+    """A second proposer gets a case of its own (CBT-06-002), filled and
+    recorded apart from the first."""
+    manager = CaseManager()
+    document_ = csaf(_quiet_document(disclosure_date=_SOONER))
+    for receiver in (VENDOR, "https://coordinator.example.org/actors/coord"):
+        receipt = Receipt(document_, receiver_id=receiver, report_name=None)
+        receipt.handle()
+        result = manager.receive(receipt.proposal_body())
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+
+    cases = manager.cases()
+    assert len(cases) == 2
+    assert {c.name for c in cases} == {_TITLE}
+    records = manager.records()
+    assert {r.case_id for r in records} == {c.id_ for c in cases}
+    for record in records:
+        assert record.outcomes["name"] is ClaimOutcome.APPLIED
+
+
+@pytest.mark.spec("CSAF-02-002")
+def test_csaf_on_the_proposal_itself_changes_no_case_data() -> None:
+    """A proposal with no carried Offer: the document on its own report is
+    on another activity than the initial Offer, so it fills nothing."""
+    report = VulnerabilityReport(
+        id_=REPORT_ID,
+        name="Widget overflow",
+        content="The widget overflows its buffer.",
+        attachment=[
+            csaf(_quiet_document(disclosure_date=_PAST, metrics=_ssvc("A")))
+        ],
+    )
+    manager = CaseManager()
+    proposal = as_CaseProposal(
+        attributed_to=VENDOR, object_=report, target=manager.actor_id
+    )
+    activity = as_Create(
+        actor=VultronOrganization(id_=VENDOR),
+        object_=proposal,
+        to=[manager.actor_id],
+    )
+
+    result = manager.receive_activity(activity)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    case = manager.case()
+    assert case.name == "Widget overflow"
+    assert case.current_status.pxa.state is CS_pxa.pxa
+    assert case.em_state is EM.ACTIVE
+    assert manager.records() == []

@@ -12,22 +12,27 @@ tracks:
 description: >
   How this codebase carries, checks and reads a CSAF 2.1 document attached to a
   VulnerabilityReport: the module layout, the two-stage parse with generated
-  models, the receiver-local record, the pinned local copy of the schemas and the
-  job that watches the draft. The protocol rules are CSAF-01 to CSAF-03 and
-  ADR-0184; this note is the build plan for CSAF-04 and CSAF-05.
+  models, the receiver-local record and signals, how the CASE_MANAGER fills a new
+  case from the CSAF report its proposal carries, the pinned local copy of the
+  schemas and the job that watches the draft. The protocol rules are CSAF-01 to
+  CSAF-03 and ADR-0184; this note is the build plan for CSAF-02 to CSAF-05.
 related_specs:
   - specs/csaf-report-content.yaml
   - specs/embargo-policy.yaml
   - specs/message-validation.yaml
   - specs/case-management.yaml
+  - specs/case-proposal.yaml
 related_notes:
   - notes/wire-core-boundary.md
   - notes/ci-workflow-authoring.md
   - notes/datalayer-design.md
+  - notes/case-proposal.md
 relevant_packages:
   - vultron.wire
   - vultron.metadata
   - vultron.core.models
+  - vultron.core.services
+  - vultron.core.behaviors
 ---
 
 # CSAF Documents in Reports: Implementation Plan
@@ -69,7 +74,9 @@ and archive it.
 - **Only the side that creates the case marks outcomes.** The receiver's record
   keeps every value `display-only`; the CASE_MANAGER writes its own record, in
   its own store, with the `applied` and `overridden` outcomes of the case it
-  built (`StoreCaseInputClaimsRecordsNode`). A record never says a value shaped
+  built (`StoreCaseInputClaimsRecordsNode`), keyed on that case, so a second
+  proposer's case for the same report keeps its own record. A record never says
+  a value shaped
   a case it did not shape: an `auto_create_case` receiver that proposes nothing,
   or a proposal the CASE_MANAGER declines, leaves no `applied` value anywhere.
 
@@ -92,6 +99,11 @@ and archive it.
 - **"Now" is the CASE_MANAGER's receipt of the proposal**, the act's instant, not
   the Offer's `published` (CLP-15-003) and not the receiver's receipt, which no
   message carries. A `disclosure_date` equal to it counts as past (CSAF-03-003).
+  The Offer's `proposedEmbargo` is measured from the same instant
+  (`sender_embargo_proposal_inputs`), so one clock decides between the two.
+- **A `proposedEmbargo` that is no longer terms states nothing.** One already
+  ended, or about another subject, is read as no proposal: it neither shapes the
+  case nor sets the document's date aside (CSAF-02-003).
 - **The first document fills.** A report with several
   `csaf_vulnerability_report` documents fills the case from the first; the
   others stay display only, so two documents never compete for one input.
@@ -199,7 +211,8 @@ tasks reuse them rather than add a second path.
 
 - **Signals are the receiver's, at receipt.** `StoreReportClaimsRecordsNode`
   computes both with `claims_signals` against the act's instant and the
-  receiving actor's `name`, only for a `csaf_vulnerability_report` document.
+  receiving actor's `name`, for a document of any category: a signal changes
+  no case data, so CSAF-02-002's category limit does not reach it.
 - **Case split.** Recorded when the vulnerabilities disagree (CSAF-04-006). The
   Case Owner acts through the existing split trigger, never the receiver.
 - **Candidate parties.** Vendor names come from `product_tree` branches of

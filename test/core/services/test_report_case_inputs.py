@@ -166,9 +166,6 @@ def test_another_category_fills_nothing() -> None:
     assert inputs.summary is None
     assert inputs.embargo_eligible
     assert inputs.outcomes == {}
-    assert claims_signals(
-        claims, reference_time=_NOW, receiver_name="Vendor"
-    ) == (None, None)
 
 
 def test_a_naive_reference_time_is_refused() -> None:

@@ -148,7 +148,9 @@ groups:
       and
       `::test_csaf_on_a_report_that_already_has_a_case_changes_no_case_data` send
       a CSAF document of another category, and one on a report that already has a
-      case, and check that the case data does not change and no outcome is marked.
+      case, and check that the case data does not change and no outcome is marked;
+      `::test_csaf_on_the_proposal_itself_changes_no_case_data` checks that a
+      document on a proposal's own report, with no carried Offer, fills nothing.
     adr:
     - ADR-0184
     stories:
@@ -172,7 +174,10 @@ groups:
       `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_vultron_field_beats_the_csaf_value`
       offers a report whose name
       and `proposedEmbargo` differ from its CSAF document, and checks that the case
-      takes the Vultron values and the record marks the CSAF values overridden.
+      takes the Vultron values and the record marks the CSAF values overridden;
+      `::test_an_offer_embargo_that_has_run_out_sets_no_csaf_date_aside` checks
+      that a `proposedEmbargo` already ended states no value, so the document's
+      date is applied.
     adr:
     - ADR-0184
     stories:
@@ -290,7 +295,9 @@ groups:
       `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_future_disclosure_date_proposes_the_embargo_end`
       attaches a
       document with a future `disclosure_date` to an Offer with no
-      `proposedEmbargo`, and checks that the case's embargo ends on that date.
+      `proposedEmbargo`, and checks that the case's embargo ends on that date;
+      `::test_the_reference_time_is_the_case_managers_receipt_of_the_proposal`
+      checks that the date is measured against the CASE_MANAGER's receipt.
     adr:
     - ADR-0184
     stories:

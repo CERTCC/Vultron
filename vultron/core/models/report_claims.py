@@ -38,6 +38,7 @@ from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
@@ -148,9 +149,9 @@ class VulnerabilityClaims(_ClaimsModel):
 
     ids: list[NonEmptyString] = Field(default_factory=list)
     title: NonEmptyString | None = None
-    disclosure_date: datetime | None = None
+    disclosure_date: AwareDatetime | None = None
     exploitation: NonEmptyString | None = None
-    first_known_exploitation_dates: list[datetime] = Field(
+    first_known_exploitation_dates: list[AwareDatetime] = Field(
         default_factory=list
     )
     references: list[ClaimedReference] = Field(default_factory=list)
@@ -309,8 +310,11 @@ class ReportClaimsRecord(CoreRecord):
     ``received_at`` is the instant of the act that read the document, so no
     clock is read below the act's edge (ADR-0176).  It is not the Offer's
     ``published``, which is the sender's claimed time (CLP-15-003); a date the
-    document states is compared with it.  The id is derived from the report id
-    and the document's content digest (:meth:`build_id`), so a resent Offer
+    document states is compared with it.  ``case_id`` names the case the
+    document filled, on the record of the side that created that case;
+    ``None`` on a record that shaped no case.  The id is derived from the
+    report id, the document's content digest and ``case_id``
+    (:meth:`build_id`), so a resent Offer
     finds the record it already wrote even when the parser minted the
     document a new id, and two different documents never share a record.
     """
@@ -323,6 +327,7 @@ class ReportClaimsRecord(CoreRecord):
     report_id: UriString
     activity_id: NonEmptyString
     received_at: datetime
+    case_id: UriString | None = None
     reading: ClaimsReading
     outcomes: dict[NonEmptyString, ClaimOutcome] = Field(default_factory=dict)
     case_split_signal: CaseSplitSignal | None = None
@@ -331,15 +336,23 @@ class ReportClaimsRecord(CoreRecord):
     _serialize_received_at = timestamp_serializer("received_at")
 
     @classmethod
-    def build_id(cls, report_id: str, document_digest: str) -> str:
+    def build_id(
+        cls, report_id: str, document_digest: str, case_id: str | None = None
+    ) -> str:
         """Return the stable DataLayer id for a document on *report_id*.
 
         *document_digest* is the document's content digest
-        (:attr:`ClaimsReading.document_digest`).
+        (:attr:`ClaimsReading.document_digest`).  *case_id* names the case
+        the document filled, for the record of the side that created it: two
+        cases made from one report each keep what became of the claims in
+        their own record.
         """
         report = urllib.parse.quote(report_id, safe="")
         document = urllib.parse.quote(document_digest, safe="")
-        return f"report-claims/{report}/{document}"
+        record_id = f"report-claims/{report}/{document}"
+        if case_id is None:
+            return record_id
+        return f"{record_id}/{urllib.parse.quote(case_id, safe='')}"
 
     @model_validator(mode="before")
     @classmethod
@@ -361,8 +374,14 @@ class ReportClaimsRecord(CoreRecord):
         data = dict(data)
         report_id = data.get("report_id")
         if isinstance(report_id, str):
+            case_id = data.get("case_id")
             data = with_record_id(
-                data, cls.build_id(report_id, reading.document_digest)
+                data,
+                cls.build_id(
+                    report_id,
+                    reading.document_digest,
+                    case_id if isinstance(case_id, str) else None,
+                ),
             )
         given = data.get("outcomes") or {}
         if not isinstance(given, dict):

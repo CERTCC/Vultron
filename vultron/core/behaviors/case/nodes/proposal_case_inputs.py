@@ -57,7 +57,6 @@ from vultron.core.services.report_case_inputs import (
     case_inputs_from_claims,
     fills_case_inputs,
 )
-from vultron.errors import VultronAlreadyExistsError
 
 #: Blackboard key for the resolved :class:`ReportCaseInputs`.
 REPORT_CASE_INPUTS_KEY = "report_case_inputs"
@@ -145,11 +144,7 @@ class ResolveReportCaseInputsNode(DataLayerActionWithPorts):
         if self._reading is None:
             self._set_output(
                 REPORT_CASE_INPUTS_KEY,
-                ReportCaseInputs(
-                    name=self._stated.name,
-                    summary=self._stated.summary,
-                    proposed_embargo_end=self._stated.proposed_embargo_end,
-                ),
+                ReportCaseInputs.from_stated(self._stated),
             )
             return Status.SUCCESS
         received_at = self._require_act_instant()
@@ -214,10 +209,11 @@ class StoreCaseInputClaimsRecordsNode(DataLayerActionWithPorts):
     """Record what became of each value the carried CSAF document claimed.
 
     One :class:`ReportClaimsRecord` per reading, in the CASE_MANAGER's own
-    store.  The reading that filled the case carries the ``applied`` and
-    ``overridden`` outcomes of ``report_case_inputs``; every other value
-    stays display only (CSAF-04-004).  The record is never sent
-    (CSAF-04-005).  Idempotent: a record already held is kept.
+    store, keyed on the case it filled (``case_id``), so a second proposer's
+    case for the same report keeps its own record (CBT-06-002).  The reading
+    that filled the case carries the ``applied`` and ``overridden`` outcomes
+    of ``report_case_inputs``; every other value stays display only
+    (CSAF-04-004).  The record is never sent (CSAF-04-005).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -225,11 +221,15 @@ class StoreCaseInputClaimsRecordsNode(DataLayerActionWithPorts):
         REPORT_CASE_INPUTS_KEY: PortInformation(
             data_type=ReportCaseInputs, required=True
         ),
+        "case_id": PortInformation(data_type=str, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {REPORT_CASE_INPUTS_KEY: f"/{REPORT_CASE_INPUTS_KEY}"}
+        return {
+            REPORT_CASE_INPUTS_KEY: f"/{REPORT_CASE_INPUTS_KEY}",
+            "case_id": "/case_id",
+        }
 
     def __init__(
         self,
@@ -251,36 +251,30 @@ class StoreCaseInputClaimsRecordsNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         if not self._readings or self._report_id is None:
             return Status.SUCCESS
-        inputs = self._try_get_input(REPORT_CASE_INPUTS_KEY)
+        inputs: ReportCaseInputs = self.get_input(REPORT_CASE_INPUTS_KEY)
+        case_id: str = self.get_input("case_id")
         received_at = self._require_act_instant()
         for reading in self._readings:
             record = ReportClaimsRecord(
                 report_id=self._report_id,
                 activity_id=self._activity_id,
                 received_at=received_at,
+                case_id=case_id,
                 reading=reading,
             )
-            if reading is self._filling and isinstance(
-                inputs, ReportCaseInputs
-            ):
+            if reading is self._filling:
                 record = record.with_outcomes(inputs.outcomes)
-            try:
-                self.datalayer.create(record)
-            except VultronAlreadyExistsError:
-                self.logger.debug(
-                    "%s: claims record for document '%s' of report '%s'"
-                    " already held",
-                    self.name,
-                    reading.document_id,
-                    self._report_id,
-                )
-                continue
+            # Keyed on the case it filled, and written in the creation act, so
+            # a failed creation leaves none and two cases from one report keep
+            # a record each; a held one is this case's own.
+            self.datalayer.save(record)
             self.logger.info(
                 "%s: recorded what became of the claims of document '%s' on"
-                " report '%s' from activity '%s' (CSAF-04-004)",
+                " report '%s' for case '%s' from activity '%s' (CSAF-04-004)",
                 self.name,
                 reading.document_id,
                 self._report_id,
+                case_id,
                 self._activity_id,
             )
         return Status.SUCCESS

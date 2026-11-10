@@ -164,13 +164,14 @@ def test_the_receiver_as_the_only_affected_vendor_raises_no_signal() -> None:
     assert receipt.record().candidate_parties_signal is None
 
 
-def test_a_document_of_another_category_raises_no_signal() -> None:
+@pytest.mark.spec("CSAF-04-007")
+def test_a_document_of_another_category_raises_signals_too() -> None:
     data = _with_second_vendor()
     section(data, "document")["category"] = "csaf_base"
     receipt = Receipt(csaf(data), receiver_name=_RECEIVER_NAME)
 
     receipt.handle()
 
-    record = receipt.record()
-    assert record.candidate_parties_signal is None
-    assert record.case_split_signal is None
+    signal = receipt.record().candidate_parties_signal
+    assert signal is not None
+    assert signal.vendors == ["Other Vendor"]
