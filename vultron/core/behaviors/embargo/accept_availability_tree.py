@@ -72,8 +72,6 @@ from vultron.core.models.fault_classes import (
 from vultron.core.services.embargo_availability import EmbargoAvailability
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
     from vultron.config.actor import ActorConfig
 
 __all__ = [
@@ -90,9 +88,7 @@ NEVER_HELD_EMBARGO_FAULT = "NeverHeldEmbargoFault"
 UNAVAILABLE_EMBARGO_REFUSAL = "UnavailableEmbargoRefusal"
 
 
-def never_held_embargo_fault(
-    *, case_id: str, embargo_id: str, now: "datetime"
-) -> Diversion:
+def never_held_embargo_fault(*, case_id: str, embargo_id: str) -> Diversion:
     """Answer an Accept of an embargo the register never held (MSM-07-039).
 
     The Accept tree passes it first among its precondition guards: an Accept
@@ -102,7 +98,6 @@ def never_held_embargo_fault(
     Args:
         case_id: The case the Accept names.
         embargo_id: The embargo the Accept names.
-        now: The CASE_MANAGER's clock.
     """
     return Diversion(
         name=NEVER_HELD_EMBARGO_FAULT,
@@ -110,7 +105,6 @@ def never_held_embargo_fault(
             case_id=case_id,
             embargo_id=embargo_id,
             availability=EmbargoAvailability.NEVER_HELD,
-            now=now,
         ),
         effects=(
             EmitEmbargoAcceptFaultNode(
@@ -127,7 +121,6 @@ def unavailable_embargo_refusal(
     embargo_id: str,
     accepting_actor_id: str,
     answers: str | None,
-    now: "datetime",
     actor_config: "ActorConfig | None" = None,
 ) -> Diversion:
     """Refuse an Accept of an embargo held but no longer available (MSM-07-012).
@@ -144,14 +137,12 @@ def unavailable_embargo_refusal(
             the re-invite asks.
         answers: The Accept's id; the re-invite's id derives from it, so a
             redelivery rebuilds the same Invite (OX-06-002).
-        now: The CASE_MANAGER's clock, against which end times are read.
         actor_config: The CASE_MANAGER's configuration (RSVP window).
     """
     condition = EmbargoAvailabilityIsNode(
         case_id=case_id,
         embargo_id=embargo_id,
         availability=EmbargoAvailability.UNAVAILABLE,
-        now=now,
     )
     reinvite_where_terms_held = py_trees.composites.Selector(
         name="ReinviteWhereTermsHeld",
@@ -159,12 +150,11 @@ def unavailable_embargo_refusal(
         children=[
             py_trees.decorators.Inverter(
                 name="NoAvailableTerms",
-                child=CaseHoldsAvailableTermsNode(case_id=case_id, now=now),
+                child=CaseHoldsAvailableTermsNode(case_id=case_id),
             ),
             ReinviteRefusedAccepterNode(
                 case_id=case_id,
                 invitee_id=accepting_actor_id,
-                now=now,
                 actor_config=actor_config,
                 answers=answers,
             ),

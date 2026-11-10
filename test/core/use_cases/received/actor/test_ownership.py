@@ -488,9 +488,9 @@ class TestOwnershipTransferUseCases:
             and c.pop("sender_id", None) == _VENDOR_ID
             for c in calls
         )
-        # The clock decision compares the open Offer's deadline against the
-        # CASE_MANAGER's clock, read once by execute() (CLP-10-025).
-        assert all(isinstance(c.pop("now", None), datetime) for c in calls)
+        # The builder takes no time: the open-Offer guard reads the act's
+        # instant when it ticks (ADR-0176).
+        assert all("now" not in c for c in calls)
         assert calls == [
             {
                 "case_id": case_id,

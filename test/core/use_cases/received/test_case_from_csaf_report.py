@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 
 from test.core.use_cases.received._csaf_receipt import (
+    RECEIVED_AT,
     REPORT_ID,
     VENDOR,
     CaseManager,
@@ -324,11 +325,20 @@ def test_the_first_vulnerability_report_document_fills_the_case() -> None:
 def test_the_reference_time_is_the_case_managers_receipt_of_the_proposal() -> (
     None
 ):
-    """A date between the receiver's receipt and the CASE_MANAGER's is past."""
-    receipt = Receipt(csaf(_quiet_document(disclosure_date=_SOONER)))
+    """A date between the receiver's receipt and the CASE_MANAGER's is past.
+
+    Both receipts are in the past: the new case is stamped at the act's
+    instant while its ``Create`` is still stamped by the clock (ADR-0176
+    slice 4), so an act instant ahead of the clock would date the case after
+    its genesis entry (CLP-14-013).
+    """
+    between = RECEIVED_AT + timedelta(hours=12)
+    receipt = Receipt(
+        csaf(_quiet_document(disclosure_date=between.isoformat()))
+    )
     receipt.handle()
     manager = CaseManager()
-    later = _when(_SOONER) + timedelta(days=1)
+    later = between + timedelta(days=1)
 
     result = manager.receive(receipt.proposal_body(), at=later)
 
@@ -338,6 +348,8 @@ def test_the_reference_time_is_the_case_managers_receipt_of_the_proposal() -> (
     assert case.em_state is EM.NONE
     [record] = manager.records()
     assert record.received_at == later
+    # The new case is stamped at the act's instant (ADR-0176).
+    assert case.published == later
 
 
 @pytest.mark.spec("CSAF-02-003")

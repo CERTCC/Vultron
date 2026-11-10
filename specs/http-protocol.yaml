@@ -163,8 +163,9 @@ groups:
       `test/adapters/driving/fastapi/routers/actors/test_inbox.py` confirms that a
       malformed activity body is answered 400.
       `test_post_undecodable_body_to_actor_inbox_returns_400` in
-      `test/adapters/driving/fastapi/routers/test_actors.py`, a strict `xfail`, states
-      that a body that is not a JSON object is answered 422, not 400 (#6073).
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that a body that
+      is not JSON by RFC 8259's grammar (not JSON, truncated, `NaN`, `Infinity`, not
+      UTF-8) is answered 400.
     tags:
     - http
   - id: HTTP-03-005

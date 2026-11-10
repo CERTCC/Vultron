@@ -51,6 +51,11 @@ class MonitorAttacks(RetrieverCallOutPoint, AlmostAlwaysFail):
         realistic low prior probability that an attack against a specific
         vulnerability will be detected during a routine coordination cycle.
 
+    Store-held answer (BT-18-039): **can**, in part — the case's
+    attacks-observed bit (``A``) records attacks the case already knows of,
+    so a tree that places this Retriever reads that bit first and asks only
+    while it is unset.  No core tree places it today.
+
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries TI feeds and SIEM for attack signals)
       Output keys: (none — binary result only, per BT-18-006)
@@ -76,6 +81,11 @@ class MonitorExploits(RetrieverCallOutPoint, AlmostAlwaysFail):
         always to reflect the realistic low prior probability that a public
         exploit will be detected during a routine coordination cycle.
 
+    Store-held answer (BT-18-039): **can**, in part — the case's
+    exploit-public bit (``X``) records a public exploit the case already
+    knows of, so a tree that places this Retriever reads that bit first and
+    asks only while it is unset.  No core tree places it today.
+
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries exploit databases and TI platforms)
       Output keys: (none — binary result only, per BT-18-006)
@@ -99,6 +109,11 @@ class MonitorPublicReports(RetrieverCallOutPoint, UsuallyFail):
         disclosed or publicly discussed before the coordinated embargo
         expires.  Fails most of the time to reflect that premature public
         disclosure is the uncommon case during active coordination.
+
+    Store-held answer (BT-18-039): **can**, in part — the case's
+    public-awareness bit (``P``) records a disclosure the case already
+    knows of, so a tree that places this Retriever reads that bit first and
+    asks only while it is unset.  No core tree places it today.
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — scans public news feeds, mailing lists, social media)

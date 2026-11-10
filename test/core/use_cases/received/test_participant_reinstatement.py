@@ -56,6 +56,7 @@ from test.core.use_cases.received.test_participant_removal_planned import (
     _RemovalCase,
     _seed,
 )
+from test.support.act_runner import in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import terminate
 from test.support.ledger import with_genesis
@@ -775,19 +776,20 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
     # carrying the record as stored, which the replica stores as received.
     stored = case.dl.read(seeded.id_)
     assert isinstance(stored, CaseParticipant)
-    commit_emitted_activity(
-        datalayer=case.dl,
-        actor_id=MANAGER,
-        case_id=CASE_ID,
-        activity_id=stored.id_,
-        activity_blob=TriggerActivityAdapter(
-            case.dl
-        ).record_case_participant_created(
-            participant=stored, case_id=CASE_ID, actor=MANAGER
-        )[1],
-        semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
-        sync_port=SyncActivityAdapter(case.dl),
-    )
+    with in_act():
+        commit_emitted_activity(
+            datalayer=case.dl,
+            actor_id=MANAGER,
+            case_id=CASE_ID,
+            activity_id=stored.id_,
+            activity_blob=TriggerActivityAdapter(
+                case.dl
+            ).record_case_participant_created(
+                participant=stored, case_id=CASE_ID, actor=MANAGER
+            )[1],
+            semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+            sync_port=SyncActivityAdapter(case.dl),
+        )
 
     result = case.route(
         rm_accept_invite_to_case_activity(

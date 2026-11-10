@@ -1682,8 +1682,9 @@ class TestUnanchoredPeerRejectStormIsBounded:
     announce because it has no CASE_MANAGER on record (PCR-03-004), so every
     replayed entry comes back as a genesis Reject.  With a fixed cooldown the
     loop stopped only when one round trip beat it: on a loaded host it ran
-    until the test timed out (#4882).  The fake clock here advances on every
-    read, so each round looks slower than any fixed cooldown.
+    until the test timed out (#4882).  The fake act clock here advances on
+    every act it opens, so each round looks slower than any fixed cooldown:
+    the replay limits read the act's instant, never the clock (ADR-0176).
     """
 
     #: A healthy transfer makes a few dozen deliveries; the storm made
@@ -1702,10 +1703,7 @@ class TestUnanchoredPeerRejectStormIsBounded:
             return start + timedelta(seconds=3 * reads)
 
         router = _CountingRouter(cap=self._DELIVERY_CAP)
-        with patch(
-            "vultron.core.behaviors.sync.nodes.replay_guard.now_utc",
-            slow_clock,
-        ):
+        with patch("vultron.adapters.driven.clock.now_utc", slow_clock):
             with _otc_ownership_transferred(router):
                 pass
 

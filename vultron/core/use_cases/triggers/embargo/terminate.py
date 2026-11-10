@@ -152,7 +152,6 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
             return end_embargo_at_end_time_bt(
                 case_id=self._case.id_,
                 result_out=self._result_out,
-                now=self._now,
                 activity_builder=_build_activity,
             )
         return terminate_embargo_bt(

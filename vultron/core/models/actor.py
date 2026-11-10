@@ -114,7 +114,9 @@ class CoreActor(CoreObject):
             "The public keys that verify this actor's proofs, each a"
             " Multikey whose controller is this actor (ENC-01-002). The"
             " actor this node hosts publishes its own when its profile is"
-            " served; a held copy of a peer's profile keeps the peer's."
+            " served, and a profile fetched from a peer keeps the peer's."
+            " A profile embedded in a received activity loses its keys at"
+            " parse (SIG-02-004)."
         ),
     )
 

@@ -20,8 +20,6 @@ termination of an embargo that outlives disclosure (EMB-04-002), and the
 abandonment of proposed terms once P/X/A is set (EMB-16-002).
 """
 
-from datetime import datetime
-
 import py_trees
 
 from vultron.config.actor import ActorConfig
@@ -127,7 +125,6 @@ def terminate_embargo_bt(
     activity_builder: EmbargoActivityBuilder | None = None,
     requested_by: str | None = None,
     actor_config: ActorConfig | None = None,
-    terminated_at: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Shared BT for terminating the active embargo (BT-19-001, EP-09-008).
 
@@ -138,7 +135,7 @@ def terminate_embargo_bt(
     :class:`ChosenTermination` for an actor's voluntary termination, whose
     reason call-out chose the cause earlier in the same run (EMB-14-001); and
     ``END_TIME_REACHED``, with no cause, for the end-time paths, claimed at
-    *terminated_at* and refused before the embargo's end time.  The
+    the act's instant (ADR-0176) and refused before the embargo's end time.  The
     CASE_MANAGER's ``Remove`` carries the what in ``content`` and the cause
     its ``TERMINATED`` entry records as ``terminationCause`` (EMB-13-005).
     A participant's ask carries the what and any cause it may name
@@ -198,10 +195,6 @@ def terminate_embargo_bt(
             termination
             if isinstance(termination, ChosenTermination)
             else termination.participant_cause,
-            # The end-time paths hold this act's instant and pass it as
-            # *terminated_at*; the cascades hold none and the ask subtree
-            # reads one as it is built (#5591, #5650).
-            at=terminated_at,
         )
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=requested_by
@@ -224,7 +217,6 @@ def terminate_embargo_bt(
                         case_id=case_id,
                         result_out=result_out,
                         termination=termination,
-                        terminated_at=terminated_at,
                         builder=activity_builder,
                     ),
                     _make_emit_node(case_id),

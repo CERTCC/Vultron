@@ -32,11 +32,17 @@ refusal saying the actor published no key would mislead.
 
 from __future__ import annotations
 
+import ipaddress
+import socket
+from urllib.parse import urlsplit
+
 from vultron.adapters.driven.http_object_fetch import (
+    HttpObjectFetcher,
     ObjectFetcher,
     default_object_fetcher,
     parse_fetched_object,
 )
+from vultron.config import get_config
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.object_fetch import (
     ObjectFetchSource,
@@ -50,6 +56,138 @@ from vultron.errors import (
 
 #: The AS2 actor type that parses without the profile's keys.
 GENERIC_ACTOR_TYPE = "Actor"
+
+#: The URL schemes a profile is fetched over.
+_FETCH_SCHEMES = frozenset({"http", "https"})
+
+
+def check_profile_fetch_target(actor_id: str) -> None:
+    """Refuse an actor id that is not a URL a profile may be fetched from.
+
+    The key lookup runs before the sender is verified, so the URL is the
+    unverified sender's choice.  Only a plain ``http`` or ``https`` URL is
+    fetched: no user info, query or fragment, and no host that is an IP
+    literal outside the public address space (loopback, private,
+    link-local such as a cloud metadata address, multicast, reserved or
+    unspecified), in any spelling a resolver reads as an address, an IPv4
+    address embedded in an IPv6 one included.  The host must be ASCII, since
+    the HTTP client maps a non-ASCII one before it connects.  A host name
+    is fetched (``localhost`` too, which a single node run on a laptop
+    fetches its own actors' profiles from): the multi-container demos name
+    their peers by internal host names, and resolving a name to check it
+    here would not bind the address the client then connects to.  A
+    production allow-list or key cache is #1184.
+
+    Raises:
+        VultronActorProfileFetchError: *actor_id* is not such a URL; the
+            message says which rule it breaks.
+    """
+    try:
+        parts = urlsplit(actor_id)
+        hostname = parts.hostname
+        parts.port  # noqa: B018 (raises on a port that is not a number)
+    except ValueError as exc:
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} is not a URL a profile can be fetched from"
+        ) from exc
+    if parts.scheme not in _FETCH_SCHEMES or not hostname:
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} is not an http or https URL with a host"
+        )
+    if not hostname.isascii():
+        # The HTTP client maps a non-ASCII host (IDNA, UTS 46) before it
+        # connects, so ``127\u30020\u30020\u30021`` would reach 127.0.0.1
+        # past the address check below.  A profile URL names its host in
+        # ASCII.
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} names a host that is not ASCII, which a profile"
+            " URL may not"
+        )
+    if parts.username is not None or parts.password is not None:
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} carries user info, which a profile URL may not"
+        )
+    if parts.query or parts.fragment:
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} carries a query or fragment, which a profile URL"
+            " may not"
+        )
+    address = _host_address(hostname.rstrip("."))
+    if address is not None and not _is_public(address):
+        raise VultronActorProfileFetchError(
+            f"{actor_id!r} names a non-public address, which a profile is"
+            " not fetched from"
+        )
+
+
+#: IPv6 prefixes that carry an IPv4 address in their last 32 bits (NAT64).
+_NAT64_PREFIXES = (
+    ipaddress.ip_network("64:ff9b::/96"),
+    ipaddress.ip_network("64:ff9b:1::/48"),
+)
+
+
+#: The deprecated IPv4-compatible IPv6 block (RFC 4291 section 2.5.5.1).
+_IPV4_COMPATIBLE = ipaddress.ip_network("::/96")
+
+
+def _host_address(
+    host: str,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """The IP address *host* spells, in any form a resolver reads, or ``None``.
+
+    Besides the canonical forms, the C resolver reads a legacy IPv4 spelling
+    (``2852039166``, ``0xa9fea9fe``, ``0251.0376.0251.0376``, ``169.254.43518``)
+    as an address, so those are read here the way ``inet_aton`` reads them.
+    """
+    try:
+        return ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    try:
+        return ipaddress.IPv4Address(socket.inet_aton(host))
+    except OSError:
+        return None
+
+
+def _is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Whether *address*, and any IPv4 address it embeds, is public."""
+    if not address.is_global:
+        return False
+    if isinstance(address, ipaddress.IPv6Address):
+        if address in _IPV4_COMPATIBLE:
+            # The deprecated IPv4-compatible form (``::127.0.0.1``), which
+            # ``is_global`` reads as global.
+            return False
+        embedded = [address.ipv4_mapped, address.sixtofour]
+        if address.teredo is not None:
+            embedded.extend(address.teredo)
+        if any(address in prefix for prefix in _NAT64_PREFIXES):
+            embedded.append(ipaddress.IPv4Address(int(address) & 0xFFFFFFFF))
+        return all(v4.is_global for v4 in embedded if v4 is not None)
+    return True
+
+
+#: The largest profile body the pre-verification lookup reads, in bytes.  A
+#: profile is a few hundred bytes; the cap stops a sender-chosen server from
+#: streaming an unbounded body into memory.
+MAX_VERIFICATION_PROFILE_BYTES = 256 * 1024
+
+
+def verification_object_fetcher() -> HttpObjectFetcher:
+    """The fetcher for a key lookup made before the sender is verified.
+
+    One attempt, no retry, a short timeout
+    (``verification_key_fetch_timeout_seconds``) bounding the whole attempt,
+    and a body cap (:data:`MAX_VERIFICATION_PROFILE_BYTES`): an unsigned or
+    forged delivery must not buy the AKM-05-008 retries an object fetch
+    gets, nor hold a connection open or fill memory.
+    """
+    return HttpObjectFetcher(
+        max_attempts=1,
+        timeout=get_config().verification_key_fetch_timeout_seconds,
+        max_body_bytes=MAX_VERIFICATION_PROFILE_BYTES,
+    )
 
 
 class HttpActorProfileFetchAdapter:
@@ -69,10 +207,12 @@ class HttpActorProfileFetchAdapter:
         """Fetch and parse *actor_id*'s profile on behalf of *requester_id*.
 
         Raises:
-            VultronActorProfileFetchError: *actor_id* is not a URI to fetch
-                from, the fetch failed, or the body is not *actor_id*'s
-                profile as one of the concrete actor types.
+            VultronActorProfileFetchError: *actor_id* is not a URL to fetch
+                from (:func:`check_profile_fetch_target`), the fetch failed,
+                or the body is not *actor_id*'s profile as one of the
+                concrete actor types.
         """
+        check_profile_fetch_target(actor_id)
         if self._fetcher is None:
             self._fetcher = default_object_fetcher()
         try:
@@ -112,4 +252,9 @@ class HttpActorProfileFetchAdapter:
         return parsed
 
 
-__all__ = ["GENERIC_ACTOR_TYPE", "HttpActorProfileFetchAdapter"]
+__all__ = [
+    "GENERIC_ACTOR_TYPE",
+    "HttpActorProfileFetchAdapter",
+    "check_profile_fetch_target",
+    "verification_object_fetcher",
+]

@@ -63,6 +63,10 @@ class NoNewPrioritizationInfo(RetrieverCallOutPoint, ProbablySucceed):
         cycles.  A binary Retriever: the tree asks on its own tick, so this is
         a call-out, not a Sentinel (BT-18-006, BT-18-013).
 
+    Store-held answer (BT-18-039): **cannot** — whether new information
+    reached the outside sources since the last evaluation is not recorded
+    in the case file or the actor's store.
+
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries prioritization-relevant information sources)
       Output keys: (none — binary result only, per BT-18-006)
@@ -112,6 +116,10 @@ class GatherPrioritizationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
         prioritization decision (e.g., severity scores, asset inventory,
         threat landscape data).  Succeeds almost always in simulation to
         keep the workflow progressing.
+
+    Store-held answer (BT-18-039): **cannot** — it collects outside
+    context, such as scores and threat data, that the case file does not
+    record.
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries external sources directly)

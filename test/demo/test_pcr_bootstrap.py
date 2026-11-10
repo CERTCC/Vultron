@@ -48,7 +48,7 @@ from test.demo.conftest import (
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from test.support.received import delivered_body
-from test.support.signing import post_delivered
+from test.support.signing import post_delivered, serve_published_profiles
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -113,6 +113,11 @@ def participant_setup():
     participant_isolated = create_isolated_actor_app(
         base_url=_PARTICIPANT_BASE,
         router=router,
+    )
+    # No app serves the owner here, so its profile is answered as its own
+    # server would publish it, and the participant verifies its proofs.
+    serve_published_profiles(
+        participant_isolated.app, [_DIRECT_OWNER_ACTOR_ID]
     )
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]

@@ -20,6 +20,8 @@ tells the reader to expect, this test fails.
 Marked ``integration`` automatically by ``test/demo/conftest.py``.
 """
 
+import pytest
+
 from vultron.demo.in_process import (
     InProcessRouter,
     create_isolated_actor_app,
@@ -27,6 +29,15 @@ from vultron.demo.in_process import (
 from vultron.wire.as2.vocab.examples import submit_report_tutorial as t
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "SIG-03-002: the tutorial posts an unsigned report, and no server"
+        " publishes its finder's profile, so the inbox refuses it. Tracked"
+        " by #5387."
+    ),
+)
+@pytest.mark.spec("SIG-03-002")
 def test_tutorial_flow_creates_submits_and_stores_report():
     router = InProcessRouter()
     iso = create_isolated_actor_app(

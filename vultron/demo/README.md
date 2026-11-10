@@ -10,8 +10,9 @@ The demo suite walks through the Vultron Coordinated Vulnerability Disclosure
 distinct techniques:
 
 - **`exchange/`** — Individual protocol-fragment demos. Each script
-  demonstrates a single ActivityStreams message exchange using direct inbox
-  injection. These are for exploring protocol message semantics with a single
+  demonstrates a single ActivityStreams message exchange with a hand-built
+  activity, sent through its sender's own outbox on the same server. These are
+  for exploring protocol message semantics with a single
   running API server. See `exchange/README.md` for the full list.
 
 - **`scenario/`** — End-to-end multi-actor workflow demos. Each script
@@ -165,8 +166,8 @@ All demo scripts import shared helpers from `vultron.demo.utils`:
 - `DataLayerClient` — thin HTTP client for the Vultron DataLayer admin API
 - `demo_environment` — context manager that sets up a clean DataLayer
   context on entry and tears it down (even on exception) on exit
-- `post_to_inbox_and_wait` — post an ActivityStreams activity and wait for
-  processing
+- `post_to_inbox_and_wait` — send a hand-built activity through its sender's
+  outbox to a receiver's inbox, and wait for the receiver's outcome
 - `setup_clean_environment`, `reset_datalayer`, `discover_actors`,
   `check_server_availability`, and other shared helpers
 

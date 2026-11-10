@@ -178,6 +178,7 @@ def _run_as_manager(dl: SqliteDataLayer, tree: Any) -> Any:
         ),
         tree=tree,
         actor_id=_COORD,
+        at=_NOW,
     )
 
 
@@ -1832,7 +1833,6 @@ class TestAssessAndRecordInviteExpiry:
             invitee_id=_INVITEE,
             invite_id=f"{case_id}/invites/i1",
             embargo_id=embargo_id,
-            now=_NOW,
             result_out=result_out2,
         )
         result = _run_as_manager(dl, tree2)
@@ -1886,7 +1886,6 @@ class TestAssessAndRecordInviteExpiry:
                 invitee_id=_INVITEE,
                 invite_id=f"{case_id}/invites/i1",
                 embargo_id=embargo_id,
-                now=_NOW,
                 result_out={},
             ),
         )

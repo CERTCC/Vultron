@@ -25,7 +25,6 @@ narrowed to one fixed recipient: ``attributedTo`` names the current embargo's
 proposer, and it is committed as ``invite_to_embargo_on_case`` (ADR-0152).
 """
 
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from py_trees.common import Status
@@ -185,7 +184,7 @@ class ReinviteRefusedAccepterNode(ReinviteStaleAccepterNode):
     available, beside the refusal notice (CLP-10-026, MSM-07-012): the
     CASE_MANAGER asks the accepter about the terms the case holds — its
     Active Embargo, or else its earliest-expiring open proposal, either one
-    before its end time at *now*
+    before its end time at the act's instant
     (:func:`~vultron.core.services.embargo_availability.available_terms`,
     EP-08-002).  Which terms are read when the node runs, after the Invite
     expiry was recorded.  The Accept is never recorded as consent
@@ -209,7 +208,6 @@ class ReinviteRefusedAccepterNode(ReinviteStaleAccepterNode):
         name: str | None = None,
         actor_config: "ActorConfig | None" = None,
         *,
-        now: datetime,
         answers: str | None = None,
     ) -> None:
         # The embargo is resolved at tick time.
@@ -221,11 +219,12 @@ class ReinviteRefusedAccepterNode(ReinviteStaleAccepterNode):
             actor_config=actor_config,
             answers=answers,
         )
-        self._now = now
 
     def _invite_owed(self, case: VulnerabilityCase) -> bool:
         assert self.datalayer is not None
-        embargo_id = available_terms(self.datalayer, case, self._now)
+        embargo_id = available_terms(
+            self.datalayer, case, self._require_act_instant()
+        )
         if embargo_id is None:
             raise BtNodePreconditionError(
                 f"refused Accept for case '{self._case_id}' routed to the"

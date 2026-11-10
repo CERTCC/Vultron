@@ -91,6 +91,7 @@ def _run(
         ),
         tree=tree,
         actor_id=actor_id,
+        at=_NOW,
     )
     return node.status
 
@@ -208,7 +209,7 @@ def _invited_embargo_ids(dl: SqliteDataLayer) -> list[str]:
 
 def _reinvite(case: VulnerabilityCase) -> ReinviteRefusedAccepterNode:
     return ReinviteRefusedAccepterNode(
-        case_id=case.id_, invitee_id=OTHER_PARTICIPANT_ACTOR, now=_NOW
+        case_id=case.id_, invitee_id=OTHER_PARTICIPANT_ACTOR
     )
 
 
@@ -219,7 +220,6 @@ def _is(
         case_id=case.id_,
         embargo_id=embargo_id,
         availability=availability,
-        now=_NOW,
     )
 
 
@@ -386,7 +386,7 @@ def test_a_case_with_no_active_or_proposed_embargo_holds_no_terms(em_state):
 
     assert available_terms(dl, case, _NOW) is None
     assert (
-        _run(dl, CaseHoldsAvailableTermsNode(case_id=case.id_, now=_NOW))
+        _run(dl, CaseHoldsAvailableTermsNode(case_id=case.id_))
         is Status.FAILURE
     )
 
@@ -461,7 +461,7 @@ def test_the_terms_condition_holds_when_the_case_holds_terms() -> None:
     case, dl = _case("terms-node", EM.PROPOSED)
 
     assert (
-        _run(dl, CaseHoldsAvailableTermsNode(case_id=case.id_, now=_NOW))
+        _run(dl, CaseHoldsAvailableTermsNode(case_id=case.id_))
         is Status.SUCCESS
     )
 
@@ -577,7 +577,6 @@ class TestReinviteRefusedAccepterNode:
         node = ReinviteRefusedAccepterNode(
             case_id=case.id_,
             invitee_id="https://example.org/actors/stranger",
-            now=_NOW,
         )
 
         with caplog.at_level("ERROR"):
