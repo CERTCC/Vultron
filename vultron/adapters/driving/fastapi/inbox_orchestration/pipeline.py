@@ -214,8 +214,9 @@ async def run_inbox_pipeline(
 
     Calls :func:`~vultron.core.behaviors.inbox.process_payload` for the
     immediate payload, at the arrival stamp the inbox route read for it
-    before the task queued for any lock (ADR-0176), then replays every activity queued in the inbox
-    (e.g., after bootstrap dispatch) with bounded retry and dead letter
+    before the task queued for any lock (ADR-0176), then replays every
+    activity queued in the inbox (e.g., after bootstrap dispatch) with
+    bounded retry and dead letter
     (:func:`~vultron.adapters.driving.fastapi.inbox_queue_drain.drain_inbox_queue`,
     IE-06-004), and finally drains the outbox.  Last, it makes every fetch
     an activity waits on and replays the activities each one settles
