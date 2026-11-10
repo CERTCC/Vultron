@@ -104,13 +104,9 @@ Eligibility checking is a single logical capability: the full set of criteria ap
 The protocol treats it as one decision with one outcome, and does not specify how an implementation reaches that decision.
 
 !!! info "Reference implementation note"
-    The Python reference implementation splits CVE eligibility into eleven Evaluator call-out points.
-    This differs from the single call-out that BTND-05-007 describes.
-    Three are named checks: `InScope`, `ProductInCNAScope` and `IsMostAppropriateCNA`.
-    The other eight are children of the `IdAssignable` check.
-    Its ninth child, `IsOrWillBePubliclyDisclosed`, reads case state directly and is not a call-out point.
-    Consolidating the `IdAssignable` children into one Evaluator is tracked by [#2518](https://github.com/CERTCC/Vultron/issues/2518).
-    The three named checks stay separate call-out points.
+    The Python reference implementation checks CVE eligibility with one `EvaluateCveEligibility` Evaluator call-out point, as BTND-05-007 describes.
+    Three named checks come before it as separate call-out points: `InScope`, `ProductInCNAScope` and `IsMostAppropriateCNA`.
+    The publication condition, `IsOrWillBePubliclyDisclosed`, reads case state directly and is not a call-out point.
 
 #### 13.4.4 Case Owner Authority
 

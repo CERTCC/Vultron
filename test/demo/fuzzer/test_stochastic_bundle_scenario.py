@@ -141,12 +141,12 @@ def test_assign_vul_id_stochastic_bundle_end_to_end():
 
 
 # ---------------------------------------------------------------------------
-# Assign CVE-ID domain (full 16-node tree, issue #1817)
+# Assign CVE-ID domain (13-node tree, issues #1817, #2518)
 # ---------------------------------------------------------------------------
 
 
 def test_assign_cve_id_stochastic_bundle_end_to_end():
-    """STOCHASTIC bundle wires all 14 call-out points to fuzzer nodes."""
+    """STOCHASTIC bundle wires the call-out points to fuzzer nodes."""
     from vultron.core.behaviors.report.assign_cve_id_tree import (
         create_assign_cve_id_tree,
     )
