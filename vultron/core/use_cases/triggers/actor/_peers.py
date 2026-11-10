@@ -87,6 +87,13 @@ def _record_named_peer(
     posts to, and a typo'd or relative id becomes an unreachable participant
     that fails much later, in the delivery retry loop, with no trace back here.
 
+    The discovery backend runs as one tick of a ``BTBridge`` tree, acting as
+    *acting_actor_id*, so its ports are wired before ``update()`` (#2707).  A
+    backend that fails, returns RUNNING, or raises still ends in a minimal
+    peer: discovery never blocks the request.  A raise, RUNNING included, is
+    an internal error the bridge logs at ERROR with its traceback, before this
+    function's WARNING.
+
     Args:
         dl: The acting actor's own DataLayer.
         actor_id: The peer's canonical URI, as named by the request.
@@ -106,11 +113,13 @@ def _record_named_peer(
     # needs its child ticked.
     #
     # A backend that returns RUNNING violates the synchronous-answer contract
-    # and the guard rejects it by raising (BT-18-011).  The bridge reports that
-    # as a non-SUCCESS result, and this function's contract is to record a
-    # minimal peer whenever details cannot be resolved, so it degrades the same
-    # as any other non-SUCCESS rather than crashing the request.  The offending
-    # backend is still surfaced, via the WARNING.
+    # and the guard rejects it by raising (BT-18-011).  The bridge never
+    # raises: it catches that, or any other exception from the backend, logs
+    # it at ERROR with the traceback as an internal error, and reports
+    # FAILURE.  This function's contract is to record a minimal peer whenever
+    # details cannot be resolved, so it degrades the same as any other
+    # non-SUCCESS rather than crashing the request; the WARNING below carries
+    # the bridge's message, so the offending backend is named there too.
     result = BTBridge(datalayer=dl).execute_with_setup(
         backend, actor_id=acting_actor_id, max_iterations=1
     )
