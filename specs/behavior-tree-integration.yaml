@@ -1710,7 +1710,9 @@ groups:
       An Evaluator call-out point that decides to block downstream BT execution MUST
       answer no, with the reason for the decision. Reasons include an editorial
       rejection, a legal hold, a compliance failure, or any other non-approval decision.
-      The seam then fails the node.
+      The seam then fails the node. An Evaluator answers no only for a decision it
+      made: when it cannot decide, for example because a service it needs is
+      unreachable or rejects its credential, it MUST answer error, not no.
     rationale: >-
       A Sequence stops and returns FAILURE when a child returns FAILURE. That is how
       py_trees blocks a path. A field value such as `approved=False` does not stop a

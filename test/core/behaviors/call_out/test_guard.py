@@ -360,6 +360,32 @@ def test_backend_ticked_outside_the_seam_raises() -> None:
     assert "Bare" in str(excinfo.value)
 
 
+@pytest.mark.spec("BT-18-037")
+def test_backend_unwrapped_from_its_seam_refuses_a_direct_tick() -> None:
+    """A seam parent is not enough: only the seam's own tick is admitted."""
+    seam = SynchronousCallOut(AlwaysSucceed("Unwrapped"))
+    with pytest.raises(CallOutContractError) as excinfo:
+        unwrap_call_out(seam).tick_once()
+    assert "Unwrapped" in str(excinfo.value)
+    seam.tick_once()
+    assert seam.status == Status.SUCCESS
+
+
+@pytest.mark.spec("BT-18-036")
+@pytest.mark.parametrize(
+    "port_type",
+    [list[str], str | None, Any],
+    ids=["generic-alias", "union", "any"],
+)
+def test_declaration_refuses_a_port_type_the_seam_cannot_check(
+    port_type: Any,
+) -> None:
+    with pytest.raises(ValueError, match="plain class"):
+        CallOutContract(outputs={"probe_open": port_type})
+    with pytest.raises(ValueError, match="plain class"):
+        CallOutContract(refusal_fields={"probe_open": port_type})
+
+
 def test_answer_is_read_once_per_tick() -> None:
     """The seam takes the answer, so a stale one is never read again."""
     backend = FixedAnswerBackend("Once", fixed=CallOutAnswer.yes())

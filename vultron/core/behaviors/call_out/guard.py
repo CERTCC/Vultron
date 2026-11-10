@@ -53,7 +53,7 @@ References
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 
 import py_trees
 from py_trees.common import Access, Status
@@ -94,11 +94,7 @@ def _check_data(
         )
     for key, typ in declared.items():
         value = data[key]
-        if (
-            isinstance(typ, type)
-            and typ is not object
-            and not isinstance(value, typ)
-        ):
+        if not isinstance(value, typ):
             raise CallOutContractError(
                 f"Call-out backend {node!r} answered {what} with "
                 f"{key}={type(value).__name__}, not the declared "
@@ -120,10 +116,6 @@ class SynchronousCallOut(py_trees.decorators.Decorator):
     ``self.decorated``.
     """
 
-    #: Marks the seam for :class:`CallOutBackend`, which refuses a tick from
-    #: any other parent (ADR-0183).
-    is_call_out_seam = True
-
     def __init__(self, child: py_trees.behaviour.Behaviour) -> None:
         if not isinstance(child, CallOutBackend):
             raise CallOutContractError(
@@ -143,6 +135,18 @@ class SynchronousCallOut(py_trees.decorators.Decorator):
         )
         for key in (*contract.outputs, *contract.refusal_ports):
             self._bb.register_key(key, Access.WRITE)
+
+    def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
+        """Tick the backend armed for this one tick, then interpret it.
+
+        The backend refuses any tick it was not armed for, so a backend ticked
+        anywhere but here raises (BT-18-037).
+        """
+        self._backend.arm()
+        try:
+            yield from super().tick()
+        finally:
+            self._backend.disarm()
 
     def update(self) -> Status:
         """Interpret the backend's answer (ADR-0183); forbid ``RUNNING``."""

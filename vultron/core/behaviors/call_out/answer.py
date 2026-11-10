@@ -28,6 +28,11 @@ answer against.  It names the output ports written on *yes* and the refusal
 ports written on *no*.  A new kind of data extends a declaration, never the
 verdict vocabulary.
 
+Each verdict writes only its own ports, and nothing clears the other
+verdict's ports, so a port read after an earlier tick may hold that tick's
+value.  A reader trusts a port only on the branch of its own verdict: an
+output after the node succeeded, a refusal port after it failed.
+
 The seam (:class:`~vultron.core.behaviors.call_out.guard.SynchronousCallOut`)
 is the only place that interprets an answer; no tree reads one.
 
@@ -45,7 +50,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Final, Self
+from typing import Any, Final, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -76,7 +81,8 @@ class CallOutContract:
 
     Attributes:
         outputs: Output ports written on *yes*, as blackboard key → type.  A
-            binary capability declares none (BT-18-010).
+            binary capability declares none (BT-18-010).  Each type is a
+            plain class: the seam checks every value with ``isinstance``.
         refusal_reason_key: Blackboard key the *no* reason is written to.
         refusal_fields: Structured refusal ports written on *no* beside the
             reason, as blackboard key → type.
@@ -101,6 +107,16 @@ class CallOutContract:
             MappingProxyType(dict(self.refusal_fields)),
         )
         require_non_empty(self.refusal_reason_key, "refusal_reason_key")
+        for key, typ in (*self.outputs.items(), *self.refusal_fields.items()):
+            # The seam checks each value with isinstance(), which a generic
+            # alias, a union or Any cannot answer, so such a port would let
+            # any value through (BT-18-036).
+            if not isinstance(typ, type) or typ is Any:
+                raise ValueError(
+                    f"port {key!r} declares {typ!r}, not a plain class; a "
+                    "declared port type is a class the seam can check a "
+                    "value against"
+                )
         if self.refusal_reason_key in self.refusal_fields:
             raise ValueError(
                 f"refusal field {self.refusal_reason_key!r} repeats the "

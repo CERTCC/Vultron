@@ -27,7 +27,7 @@ only by the seam, so a test injects one of these instead of a raw
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from typing import Protocol
 
 from py_trees.common import Status
 
@@ -38,7 +38,6 @@ from vultron.core.behaviors.call_out.answer import (
 )
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.guard import SynchronousCallOut
-from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 #: The reason a test backend's *no* carries unless the test gives one.
 TEST_REFUSAL_REASON = "test backend declines"
@@ -75,10 +74,22 @@ class CountingBackend(FixedAnswerBackend):
         return super().answer()
 
 
+class FixedAnswerFactory(Protocol):
+    """A call-out backend factory whose product is a :class:`FixedAnswerBackend`.
+
+    Structurally a
+    :class:`~vultron.core.behaviors.call_out.protocol.CallOutBackendFactory`,
+    so a test passes it to a tree builder, and its product is typed, so a test
+    may also tick it directly with :func:`tick_call_out`.
+    """
+
+    def __call__(self, name: str) -> FixedAnswerBackend: ...
+
+
 def answering(
     fixed: CallOutAnswer,
     contract: CallOutContract = BINARY_CONTRACT,
-) -> CallOutBackendFactory:
+) -> FixedAnswerFactory:
     """A factory whose backend gives *fixed* against *contract*."""
 
     def factory(name: str) -> FixedAnswerBackend:
@@ -87,7 +98,7 @@ def answering(
     return factory
 
 
-def yes_with(outputs: dict[str, object]) -> CallOutBackendFactory:
+def yes_with(outputs: dict[str, object]) -> FixedAnswerFactory:
     """A factory whose backend answers *yes* with *outputs*, as declared."""
     return answering(
         CallOutAnswer.yes(outputs),
@@ -95,23 +106,23 @@ def yes_with(outputs: dict[str, object]) -> CallOutBackendFactory:
     )
 
 
-def no_because(reason: str = TEST_REFUSAL_REASON) -> CallOutBackendFactory:
+def no_because(reason: str = TEST_REFUSAL_REASON) -> FixedAnswerFactory:
     """A factory whose backend answers *no* with *reason*."""
     return answering(CallOutAnswer.no(reason))
 
 
 def error(
     diagnostics: str = "test backend unreachable",
-) -> CallOutBackendFactory:
+) -> FixedAnswerFactory:
     """A factory whose backend answers *error* with *diagnostics*."""
     return answering(CallOutAnswer.error(diagnostics))
 
 
 #: A factory whose backend answers *yes* with no outputs.
-yes: Callable[[str], FixedAnswerBackend] = answering(CallOutAnswer.yes())  # type: ignore[assignment]
+yes: FixedAnswerFactory = answering(CallOutAnswer.yes())
 
 #: A factory whose backend answers *no* with :data:`TEST_REFUSAL_REASON`.
-no: Callable[[str], FixedAnswerBackend] = no_because()  # type: ignore[assignment]
+no: FixedAnswerFactory = no_because()
 
 
 def tick_call_out(backend: CallOutBackend) -> Status:

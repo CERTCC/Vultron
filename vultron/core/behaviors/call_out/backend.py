@@ -23,8 +23,9 @@ answer, checks it against ``contract``, and turns it into tree behaviour.
 How the answer reaches the seam is a returned value held in a slot: the seam
 ticks the backend, the backend's ``update()`` stores what ``answer()``
 returned, and the seam takes it in its own ``update()`` immediately after.
-A backend ticked anywhere but directly under the seam raises, so no tree can
-read an answer itself.
+The seam arms the backend for that one tick (:meth:`CallOutBackend.arm`), and
+a backend ticked without it, whether in a tree or directly through
+``unwrap_call_out``, raises, so nothing but the seam reads an answer.
 """
 
 from __future__ import annotations
@@ -60,6 +61,7 @@ class CallOutBackend(py_trees.behaviour.Behaviour):
     def __init__(self, name: str = "") -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._answer: object | None = None
+        self._armed = False
 
     def answer(self) -> CallOutAnswer:
         """Return this backend's answer for the current tick."""
@@ -69,8 +71,8 @@ class CallOutBackend(py_trees.behaviour.Behaviour):
 
     def update(self) -> Status:
         """Hold :meth:`answer`'s return for the seam; never read by a tree."""
-        # The seam module imports this one, so it is recognised by a marker.
-        if not getattr(self.parent, "is_call_out_seam", False):
+        armed, self._armed = self._armed, False
+        if not armed:
             raise CallOutContractError(
                 f"Call-out backend {self.name!r} ({type(self).__name__}) was "
                 "ticked outside the call-out seam; build it through a "
@@ -85,6 +87,14 @@ class CallOutBackend(py_trees.behaviour.Behaviour):
         ):
             return Status.SUCCESS
         return Status.FAILURE
+
+    def arm(self) -> None:
+        """Admit one tick; called only by the seam, just before it ticks us."""
+        self._armed = True
+
+    def disarm(self) -> None:
+        """Withdraw an unused arm; the seam calls it when its tick ends."""
+        self._armed = False
 
     def take_answer(self) -> object | None:
         """Return the held answer and clear the slot (the seam's one read)."""
