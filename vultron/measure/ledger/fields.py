@@ -29,8 +29,8 @@ from typing import Any
 
 
 def first_present(
-    mapping: Mapping[str, Any], *names: str, default: Any = None
-) -> Any:
+    mapping: Mapping[str, object], *names: str, default: object = None
+) -> object:
     """Return the first present, non-None value among ``names``.
 
     Tolerates the camelCase/snake_case spelling split present in the source
@@ -43,20 +43,22 @@ def first_present(
     return default
 
 
-def coerce_int(value: Any, default: int) -> int:
+def coerce_int(value: object, default: int) -> int:
     """Best-effort ``int`` coercion; returns ``default`` on failure.
 
     Keeps a per-entry distiller tolerant of corrupt entries (e.g. a non-numeric
     ``logIndex``) so a single malformed field degrades one row rather than
     crashing the whole pass (DRPT-01-004, DRPT-02-003).
     """
+    if not isinstance(value, (str, bytes, bytearray, int, float)):
+        return default
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (OverflowError, ValueError):
         return default
 
 
-def actor_uri(actor: Any) -> str | None:
+def actor_uri(actor: object) -> str | None:
     """Normalize a payload ``actor`` field to a string URI, or ``None``.
 
     Tolerates both the bare-string spelling and an inline actor object
@@ -76,13 +78,13 @@ def actor_uri(actor: Any) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def payload_of(entry: Mapping[str, Any]) -> dict[str, Any]:
+def payload_of(entry: Mapping[str, object]) -> dict[str, Any]:
     """Return *entry*'s payload snapshot, or an empty dict when it has none."""
     snapshot = first_present(entry, "payload_snapshot", "payloadSnapshot")
     return snapshot if isinstance(snapshot, dict) else {}
 
 
-def case_id_of(entry: Mapping[str, Any]) -> str | None:
+def case_id_of(entry: Mapping[str, object]) -> str | None:
     """Return *entry*'s case id, or ``None`` when it is absent or blank."""
     value = first_present(entry, "case_id", "caseId")
     if isinstance(value, str) and value.strip():
@@ -90,7 +92,7 @@ def case_id_of(entry: Mapping[str, Any]) -> str | None:
     return None
 
 
-def entry_hash_of(entry: Mapping[str, Any]) -> str | None:
+def entry_hash_of(entry: Mapping[str, object]) -> str | None:
     """Return *entry*'s entry hash, or ``None`` when it is absent or blank."""
     value = first_present(entry, "entry_hash", "entryHash")
     if isinstance(value, str) and value.strip():
@@ -98,7 +100,7 @@ def entry_hash_of(entry: Mapping[str, Any]) -> str | None:
     return None
 
 
-def log_index_of(entry: Mapping[str, Any]) -> int | None:
+def log_index_of(entry: Mapping[str, object]) -> int | None:
     """Return *entry*'s log index, or ``None`` when it is not a usable position.
 
     A committed entry always carries an integer index ``>= 0`` (CLP-14-010).

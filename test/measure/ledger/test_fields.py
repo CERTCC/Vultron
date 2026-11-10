@@ -144,6 +144,8 @@ class TestEnvelopeAccessors:
         assert coerce_int("4", default=-1) == 4
         assert coerce_int("x", default=-1) == -1
         assert coerce_int(None, default=-1) == -1
+        assert coerce_int(float("inf"), default=-1) == -1
+        assert coerce_int([1], default=-1) == -1
 
     @pytest.mark.parametrize(
         ("actor", "expected"),

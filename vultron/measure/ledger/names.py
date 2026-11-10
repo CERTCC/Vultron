@@ -107,11 +107,17 @@ def friendly_actor_name(
     Checks ``actor_names`` first (a URI→display-name map built from payload
     snapshots); falls back to the URI path-segment heuristic of
     :func:`vultron.core.display.friendly_name` (``…/actors/reporter`` →
-    "Reporter").  Returns an em dash when no acting actor is recorded (e.g.
+    "Reporter"), and to the raw last segment when that heuristic leaves no
+    word.  Returns an em dash only when no acting actor is recorded (e.g.
     genesis entries).
     """
     if not actor_uri:
         return "—"
     if actor_names and actor_uri in actor_names:
         return actor_names[actor_uri]
-    return friendly_name(actor_uri)
+    label = friendly_name(actor_uri)
+    if label == "—":
+        # No word survives titleizing (e.g. ``…/actors/---``): show the raw
+        # segment, which names *something*, rather than the no-actor dash.
+        return actor_uri.rstrip("/").rsplit("/", 1)[-1]
+    return label

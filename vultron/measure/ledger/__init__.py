@@ -26,6 +26,7 @@
 
 from vultron.measure.ledger.copies import (
     CaseLedger,
+    LedgerCopy,
     LedgerRead,
     LedgerSource,
     PlacedRow,
@@ -62,6 +63,7 @@ __all__ = [
     "FLAT_SPELLINGS",
     "CaseLedger",
     "Dimension",
+    "LedgerCopy",
     "LedgerFile",
     "LedgerRead",
     "LedgerRow",

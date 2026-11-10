@@ -126,6 +126,14 @@ class TestDisplayNames:
             == "Case Actor"
         )
 
+    @pytest.mark.parametrize(
+        ("uri", "expected"),
+        [("https://x/actors/---", "---"), ("/", ""), ("-", "-")],
+    )
+    def test_a_uri_with_no_word_shows_its_raw_segment(self, uri, expected):
+        """The pre-move behavior: never the no-actor dash for a real URI."""
+        assert friendly_actor_name(uri) == expected
+
     @pytest.mark.parametrize("uri", [None, ""])
     def test_no_actor_reads_as_an_em_dash(self, uri):
         assert friendly_actor_name(uri) == "—"

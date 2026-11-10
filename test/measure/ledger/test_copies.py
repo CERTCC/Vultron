@@ -163,6 +163,39 @@ def test_a_merge_reports_the_indices_no_replica_supplied(tmp_path):
     assert _indices(case.rows) == [0, 1, 3, 4, 6]
 
 
+def test_a_complete_copy_with_an_unplaceable_row_is_not_canonical(tmp_path):
+    bad_index = _entry(2, logIndex="2")
+    path = _write(tmp_path / "a.jsonl", [_entry(0), _entry(1), bad_index])
+
+    read = read_case_ledgers([path])
+
+    case = read.cases[_CASE]
+    assert case.merged
+    assert case.missing_log_indices == []
+    assert [r.line for r in case.unusable_rows] == [3]
+    assert read.unusable_rows == case.unusable_rows
+
+
+def test_an_unparseable_row_keeps_its_file_from_being_canonical(tmp_path):
+    path = _write(tmp_path / "a.jsonl", [_entry(0), _entry(1)], "{cut off")
+
+    read = read_case_ledgers([path])
+
+    assert read.cases[_CASE].merged
+    assert read.cases[_CASE].unusable_rows == []
+    assert [r.line for r in read.unusable_rows] == [3]
+
+
+def test_a_complete_copy_beside_a_damaged_replica_is_canonical(tmp_path):
+    manager = _write(tmp_path / "m.jsonl", [_entry(i) for i in range(3)])
+    replica = _write(tmp_path / "r.jsonl", [_entry(0)], "{cut off")
+
+    case = read_case_ledgers([replica, manager]).cases[_CASE]
+
+    assert case.source is LedgerSource.CANONICAL_COPY
+    assert case.canonical_path == manager
+
+
 def test_a_merge_reports_two_copies_disagreeing_at_one_index(tmp_path):
     first = _write(tmp_path / "a.jsonl", [_entry(0), _entry(1)])
     forked = _entry(1, entryHash="forked")
@@ -175,6 +208,41 @@ def test_a_merge_reports_two_copies_disagreeing_at_one_index(tmp_path):
     assert _indices(case.rows) == [0, 1, 1]
 
 
+def test_a_replica_contradicting_a_complete_copy_blocks_canonical(tmp_path):
+    complete = _write(tmp_path / "a.jsonl", [_entry(i) for i in range(3)])
+    corrupt = _write(tmp_path / "b.jsonl", [_entry(0), _entry(2, logIndex=1)])
+
+    case = read_case_ledgers([complete, corrupt]).cases[_CASE]
+
+    assert case.merged
+    assert case.conflicting_log_indices == [1, 2]
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_one_hash_at_two_indices_is_a_conflict_in_any_order(tmp_path, reverse):
+    first = _write(tmp_path / "p.jsonl", [_entry(0), _entry(2, entryHash="h")])
+    second = _write(tmp_path / "q.jsonl", [_entry(1, entryHash="h")])
+    paths = [second, first] if reverse else [first, second]
+
+    case = read_case_ledgers(paths).cases[_CASE]
+
+    assert case.merged
+    assert case.conflicting_log_indices == [1, 2]
+    assert case.missing_log_indices == []
+    assert _indices(case.rows) == [0, 1, 2]
+
+
+def test_a_single_copy_repeating_one_hash_is_not_canonical(tmp_path):
+    path = _write(
+        tmp_path / "a.jsonl", [_entry(0), _entry(1, entryHash=f"{_CASE}#0")]
+    )
+
+    case = read_case_ledgers([path]).cases[_CASE]
+
+    assert case.merged
+    assert case.conflicting_log_indices == [0, 1]
+
+
 def test_a_file_named_twice_is_one_copy(tmp_path):
     path = _write(tmp_path / "a.jsonl", [_entry(0), _entry(1)])
 
@@ -183,6 +251,21 @@ def test_a_file_named_twice_is_one_copy(tmp_path):
     assert case.source is LedgerSource.CANONICAL_COPY
     assert case.copies == [path]
     assert _indices(case.rows) == [0, 1]
+
+
+def test_a_file_named_twice_reports_its_bad_rows_once(tmp_path):
+    path = _write(tmp_path / "a.jsonl", [_entry(0)], "{bad")
+    same_file = tmp_path / "." / "a.jsonl"
+
+    read = read_case_ledgers([path, same_file])
+
+    assert [r.line for r in read.unusable_rows] == [2]
+    assert (
+        case_ledgers_from_files(
+            [read_ledger_file(path), read_ledger_file(path)]
+        ).unusable_rows
+        == read.unusable_rows
+    )
 
 
 @pytest.mark.spec("CEH-02-007")
@@ -217,7 +300,10 @@ def test_a_malformed_row_is_reported_and_the_rest_is_read(tmp_path):
 
     case = read.cases[_CASE]
     assert _indices(case.rows) == [0, 1, 2]
-    assert case.source is LedgerSource.CANONICAL_COPY
+    # A damaged copy may be missing the entry its bad row was, so it is never
+    # read as the whole ledger.
+    assert case.merged
+    assert [r.line for r in case.unusable_rows] == [3]
     assert [(r.line, r.reason.split(":")[0]) for r in read.unusable_rows] == [
         (3, "no usable logIndex (a ledger entry needs all three)"),
         (4, "Parse error"),

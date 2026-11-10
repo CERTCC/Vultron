@@ -204,7 +204,7 @@ groups:
     verification: >-
       `test/measure/ledger/test_copies.py::test_both_naming_shapes_build_the_same_history`
       reads a ledger file under an unfamiliar name when the caller names it, and
-      test/measure/ledger/test_copies.py::test_the_layer_reads_only_the_files_it_is_named`
+      `test/measure/ledger/test_copies.py::test_the_layer_reads_only_the_files_it_is_named`
       asserts that a ledger file the caller does not name is not read.
     relationships:
     - rel_type: refines
