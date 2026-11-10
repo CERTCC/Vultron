@@ -20,8 +20,8 @@ source (OID-01-011, ADR-0185).  The installed source is
 :func:`system_id_source` until a run that needs repeatable ids replaces it for
 a block with :func:`install_id_source`.  Nothing else may replace the draw
 (OID-01-012): a patch of the ``uuid`` module's draw reaches every library that
-draws from it, py_trees included.  One run still patches it, as a listed
-exemption, until #6116 moves it to the scoped install.
+draws from it, py_trees included.  No run patches it: a run that needs
+repeatable ids installs its source.
 
 The port lives here, beside the minter, and not in ``vultron.core.ports``,
 because the wire layer's docs-example generator supplies a source and the wire

@@ -16,6 +16,32 @@ updates:
         update-types:
         - "minor"
         - "patch"
+  - package-ecosystem: "npm"
+    directory: "/ui"
+    schedule:
+      interval: "weekly"
+    groups:
+      lint-type-stack:
+        patterns:
+        - "eslint*"
+        - "@eslint/*"
+        - "typescript"
+        - "typescript-eslint"
+        - "globals"
+        - "@types/*"
+        update-types:
+        - "minor"
+        - "patch"
+      react-vite-runtime:
+        patterns:
+        - "react"
+        - "react-dom"
+        - "vite"
+        - "@vitejs/*"
+        - "vitest"
+        update-types:
+        - "minor"
+        - "patch"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

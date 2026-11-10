@@ -144,7 +144,7 @@ authorization-flavored gate:
 
 Every other bundle field (validation, prioritization, ID assignment, exploit
 acquisition, fix/mitigation deployment and monitoring, closure, publication,
-actor discovery, the remaining embargo evaluators) is a local operational
+actor resolution, the remaining embargo evaluators) is a local operational
 decision with no way to impose case state or an embargo consequence on another
 party. The ceiling/floor rule governs them (BT-23-002/006/007).
 

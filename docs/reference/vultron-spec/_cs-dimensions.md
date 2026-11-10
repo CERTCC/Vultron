@@ -78,6 +78,8 @@ When a participant writes its own status and the write would enter an ephemeral 
 A write that sets X while P is unset also sets P, and a write that sets P while V is unset also sets V.
 This compound write is the one exception to the one-dimension rule.
 It loses no ordering, because each ephemeral state has only one possible next event.
+A status received from another participant is that participant's claim, and the receiver records it exactly as sent.
+When the CASE_MANAGER adopts the claim, the case status it records is in the forced form: a claim of `pXa` makes the case `PXa`.
 A reported CS history is checked by replaying its events in order from `vfdpxa`, not by comparing timestamps.
 
 ```python exec="true" idprefix=""

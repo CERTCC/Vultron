@@ -25,9 +25,9 @@ from typing import ClassVar, cast
 
 import py_trees.behaviour
 
-from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-    ACTOR_DISCOVERY_DETERMINISTIC,
-    ActorDiscoveryCallOutBundle,
+from vultron.core.behaviors.call_out.bundles.actor_resolution import (
+    ACTOR_RESOLUTION_DETERMINISTIC,
+    ActorResolutionCallOutBundle,
 )
 from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_actor_recommendation_trigger_bt,
@@ -79,7 +79,7 @@ class _SvcRecommendActorBase(SvcActivityTriggerBase):
         dl: object,
         request: object,
         trigger_activity: object = None,
-        call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+        call_out: ActorResolutionCallOutBundle = ACTOR_RESOLUTION_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
         *,
@@ -93,7 +93,7 @@ class _SvcRecommendActorBase(SvcActivityTriggerBase):
             sync_port=sync_port,
             clock=clock,
         )
-        self._actor_discovery_call_out = call_out
+        self._actor_resolution_call_out = call_out
 
     def _prepare_recommendation(
         self,
@@ -124,7 +124,8 @@ class _SvcRecommendActorBase(SvcActivityTriggerBase):
             self._dl,
             recommended_id,
             field,
-            self._actor_discovery_call_out,
+            actor.id_,
+            self._actor_resolution_call_out,
         )
 
         self._recommended_id = recommended_id

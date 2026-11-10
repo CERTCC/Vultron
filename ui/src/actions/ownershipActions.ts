@@ -59,7 +59,7 @@ export function handleOfferCaseOwnership(
     timestamp: now + offset,
     consequences: [
       `${offerer.name} offers to transfer case ownership to ${target.name}`,
-      'Offer(VulnerabilityCase) → Case Actor, forwarded to the transferee (ADR-0053)',
+      'Offer(Offer(VulnerabilityCase)) → CASE_MANAGER, which offers the case to the transferee (ADR-0148)',
       `Awaiting ${target.name}'s acceptance`,
     ],
   })
@@ -70,7 +70,7 @@ export function handleOfferCaseOwnership(
       p.id === targetId
         ? [`${offerer.name} offered you case ownership`, 'Accept to become the new CASE_OWNER']
         : p.id === 'caseactor'
-        ? ['Ownership offer routed through the Case Actor', 'Forwarded to the transferee (ADR-0053)']
+        ? ['Ownership proposal routed through the Case Actor', 'Offer(VulnerabilityCase) → the transferee (ADR-0148)']
         : [`${offerer.name} offered case ownership to ${target.name}`]
     events.push({
       id: `${eventId}-${p.id}-consequence`,
@@ -131,7 +131,7 @@ export function handleAcceptCaseOwnership(state: DemoState, accepterId: string):
     timestamp: now + offset,
     consequences: [
       `${accepter.name} accepted the transfer and is now the CASE_OWNER`,
-      'Accept(Offer(VulnerabilityCase)) → Case Actor (ADR-0053)',
+      'Accept(Offer(VulnerabilityCase)) → CASE_MANAGER (ADR-0053)',
       previousOwner ? `${previousOwner.name} keeps its other roles and stays a participant` : 'Ownership moved',
     ],
   })
