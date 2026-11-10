@@ -192,7 +192,11 @@ def _run_as_manager(dl: SqliteDataLayer, tree: Any) -> Any:
         ),
         tree=tree,
         actor_id=_COORD,
-        at=_NOW,
+        # Read when the test runs, never at import: the case and its stamps
+        # read the clock until their defaults go (#5758), and the ledger
+        # refuses a stamp more than its tolerance past the act's instant
+        # (CLP-14-007), so an import-time instant drifts out on a slow run.
+        at=now_utc(),
     )
 
 
