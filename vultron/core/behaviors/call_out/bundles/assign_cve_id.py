@@ -13,7 +13,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Call-out bundle for the CVE ID assignment domain (BT-23-003, BT-23-005).
 
-Provides :class:`AssignCveIdCallOutBundle` (6 factory fields, one per
+Provides :class:`AssignCveIdCallOutBundle` (7 factory fields, one per
 call-out point excluding the two ProtocolInternal nodes) and the pre-built
 core DETERMINISTIC singleton :data:`ASSIGN_CVE_ID_DETERMINISTIC`.
 
@@ -40,8 +40,10 @@ Ceiling/floor mapping (BT-23-002, p→deterministic):
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Final
+from types import MappingProxyType
+from typing import ClassVar, Final
 
 import py_trees
 from py_trees.common import Access, Status
@@ -64,10 +66,12 @@ CVE_ELIGIBILITY_RATIONALE_KEY: Final[str] = "cve_eligibility_rationale"
 #: Output keys every ``EvaluateCveEligibility`` backend writes on SUCCESS
 #: (BT-18-001, BT-18-002).  The simulation node binds to this mapping rather
 #: than restating it.
-CVE_ELIGIBILITY_OUTPUT_KEYS: Final[dict[str, type]] = {
-    CVE_ELIGIBILITY_VERDICT_KEY: bool,
-    CVE_ELIGIBILITY_RATIONALE_KEY: str,
-}
+CVE_ELIGIBILITY_OUTPUT_KEYS: Final[Mapping[str, type]] = MappingProxyType(
+    {
+        CVE_ELIGIBILITY_VERDICT_KEY: bool,
+        CVE_ELIGIBILITY_RATIONALE_KEY: str,
+    }
+)
 
 
 def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
@@ -96,10 +100,12 @@ class DeterministicEvaluateCveEligibility(AlwaysSucceed):
     """
 
     #: BT-18-001: declared output keys written on SUCCESS.
-    output_keys: ClassVar[dict[str, type]] = CVE_ELIGIBILITY_OUTPUT_KEYS
+    output_keys: ClassVar[dict[str, type]] = dict(CVE_ELIGIBILITY_OUTPUT_KEYS)
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
+    def __init__(self, name: str = "") -> None:
+        super().__init__(name)
+        # Built here, not in setup(), so a tick without setup() still writes
+        # the declared outputs rather than succeeding without them (BT-23-013).
         self._eligibility_bb = self.attach_blackboard_client(
             name=f"{self.__class__.__name__}_writer"
         )
@@ -129,7 +135,7 @@ def _deterministic_evaluate_cve_eligibility(
 class AssignCveIdCallOutBundle(CallOutBundle):
     """Call-out backend bundle for the CVE ID assignment domain (BT-23-003).
 
-    6 factory fields, one per call-out point (excluding the two ProtocolInternal
+    7 factory fields, one per call-out point (excluding the two ProtocolInternal
     nodes ``IsIDAssignmentAuthority`` and ``IsOrWillBePubliclyDisclosed`` which
     are constructed inline by the tree builder).
 
@@ -184,7 +190,11 @@ class AssignCveIdCallOutBundle(CallOutBundle):
 
 
 ASSIGN_CVE_ID_DETERMINISTIC = AssignCveIdCallOutBundle()
-"""Deterministic bundle: AlwaysSucceed/AlwaysFail by ceiling/floor (BT-23-001, BT-23-002), with the output-writing eligibility default (BT-23-013)."""
+"""Deterministic bundle (BT-23-001, BT-23-002, BT-23-013).
+
+AlwaysSucceed/AlwaysFail by ceiling/floor, plus the output-writing
+eligibility default.
+"""
 
 __all__ = [
     "ASSIGN_CVE_ID_DETERMINISTIC",

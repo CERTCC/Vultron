@@ -13,9 +13,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """CVE ID assignment behavior tree composition.
 
-Implements :func:`create_assign_cve_id_tree`, which composes the 12-node
+Implements :func:`create_assign_cve_id_tree`, which composes the 13-node
 CVE ID assignment workflow grounded in CNA Operational Rules v4.1.0.
-(4 composites + 6 factory call-out leaves + 2 ProtocolInternal leaves.)
+(4 composites + 7 factory call-out leaves + 2 ProtocolInternal leaves.)
 
 Tree structure::
 
@@ -208,9 +208,9 @@ def create_assign_cve_id_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the CVE ID assignment workflow.
 
-    Composes the 12-node tree grounded in CNA Operational Rules v4.1.0.
-    (4 composites + 6 factory call-out leaves + 2 ProtocolInternal leaves.)
-    All 6 Evaluator/Retriever/Composer call-out points are injected via
+    Composes the 13-node tree grounded in CNA Operational Rules v4.1.0.
+    (4 composites + 7 factory call-out leaves + 2 ProtocolInternal leaves.)
+    All 7 Evaluator/Retriever/Composer call-out points are injected via
     :class:`~vultron.core.behaviors.call_out.bundles.assign_cve_id.AssignCveIdCallOutBundle`.
     The two ProtocolInternal nodes (``IsIDAssignmentAuthority``,
     ``IsOrWillBePubliclyDisclosed``) are constructed inline.

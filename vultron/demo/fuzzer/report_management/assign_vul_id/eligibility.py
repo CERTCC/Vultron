@@ -151,4 +151,4 @@ class EvaluateCveEligibility(EvaluatorCallOutPoint, ProbablySucceed):
     ambiguous report.
     """
 
-    output_keys: ClassVar[dict[str, type]] = CVE_ELIGIBILITY_OUTPUT_KEYS
+    output_keys: ClassVar[dict[str, type]] = dict(CVE_ELIGIBILITY_OUTPUT_KEYS)

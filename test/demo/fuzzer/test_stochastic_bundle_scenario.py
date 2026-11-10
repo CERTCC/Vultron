@@ -141,7 +141,7 @@ def test_assign_vul_id_stochastic_bundle_end_to_end():
 
 
 # ---------------------------------------------------------------------------
-# Assign CVE-ID domain (12-node tree, issues #1817, #2518)
+# Assign CVE-ID domain (13-node tree, issues #1817, #2518)
 # ---------------------------------------------------------------------------
 
 

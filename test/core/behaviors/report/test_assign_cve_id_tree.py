@@ -18,8 +18,8 @@ DETERMINISTIC default produces AlwaysSucceed/AlwaysFail nodes and an
 output-writing ``EvaluateCveEligibility`` default (BT-23-013); STOCHASTIC
 bundle produces the correct fuzzer classes; CVE eligibility is one
 ``EvaluateCveEligibility`` call-out point (BTND-05-007, BTND-05-008);
-factory injection for all 6 call-out points.
-(12 nodes = 4 composites + 6 factory call-out leaves + 2 ProtocolInternal leaves.)
+factory injection for all 7 call-out points.
+(13 nodes = 4 composites + 7 factory call-out leaves + 2 ProtocolInternal leaves.)
 """
 
 import dataclasses
@@ -161,7 +161,7 @@ def test_root_second_child_is_assign_id_if_in_scope():
 
 
 def test_tree_contains_exactly_the_named_nodes():
-    """The tree holds exactly its 12 named nodes."""
+    """The tree holds exactly its 13 named nodes."""
     expected_names = {
         "AssignVulID",
         "IdAssigned",
@@ -330,8 +330,7 @@ def test_eligibility_docstring_documents_edition_and_outputs(contract_owner):
 def test_deterministic_default_writes_declared_outputs_on_success():
     """The DETERMINISTIC default writes both declared outputs on SUCCESS (BT-23-013)."""
     node = DeterministicEvaluateCveEligibility("EvaluateCveEligibility")
-    node.setup()
-    node.tick_once()
+    node.tick_once()  # no setup(): the outputs must still be written
     assert node.status == Status.SUCCESS
     storage = py_trees.blackboard.Blackboard.storage
     assert storage[f"/{CVE_ELIGIBILITY_VERDICT_KEY}"] is True
@@ -373,7 +372,7 @@ def test_stochastic_eligibility_writes_outputs_only_on_success(
 
 
 def _path_bundle(eligibility_status=Status.SUCCESS):
-    """DETERMINISTIC bundle with marker AssignId/RequestId and a set eligibility."""
+    """DETERMINISTIC bundle whose eligibility backend returns *eligibility_status*."""
     return dataclasses.replace(
         ASSIGN_CVE_ID_DETERMINISTIC,
         evaluate_cve_eligibility_factory=_marker_factory(  # type: ignore[arg-type]
@@ -430,6 +429,8 @@ def test_non_cna_requests_id_without_eligibility_check():
     _tick(tree)
     assert tree.status == Status.SUCCESS
     assert _assign_if_possible(tree).children[4].status == Status.INVALID
+    request_id = tree.children[1].children[1].children[1]
+    assert request_id.status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------
