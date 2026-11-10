@@ -32,10 +32,10 @@ from vultron.demo.fuzzer.bundles.acquire_exploit import (
     ACQUIRE_EXPLOIT_STOCHASTIC,
     AcquireExploitCallOutBundle,
 )
-from vultron.demo.fuzzer.bundles.actor_discovery import (
-    ACTOR_DISCOVERY_DETERMINISTIC,
-    ACTOR_DISCOVERY_STOCHASTIC,
-    ActorDiscoveryCallOutBundle,
+from vultron.demo.fuzzer.bundles.actor_resolution import (
+    ACTOR_RESOLUTION_DETERMINISTIC,
+    ACTOR_RESOLUTION_STOCHASTIC,
+    ActorResolutionCallOutBundle,
 )
 from vultron.demo.fuzzer.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
@@ -101,7 +101,7 @@ from vultron.demo.fuzzer.bundles.validation import (
 
 __all__ = [
     # Bundle classes
-    "ActorDiscoveryCallOutBundle",
+    "ActorResolutionCallOutBundle",
     "AcquireExploitCallOutBundle",
     "AssignCveIdCallOutBundle",
     "DevelopFixCallOutBundle",
@@ -116,7 +116,7 @@ __all__ = [
     "StatusAuthorizationCallOutBundle",
     "ValidationCallOutBundle",
     # Deterministic singletons
-    "ACTOR_DISCOVERY_DETERMINISTIC",
+    "ACTOR_RESOLUTION_DETERMINISTIC",
     "ACQUIRE_EXPLOIT_DETERMINISTIC",
     "ASSIGN_CVE_ID_DETERMINISTIC",
     "DEVELOP_FIX_DETERMINISTIC",
@@ -131,7 +131,7 @@ __all__ = [
     "STATUS_AUTHORIZATION_PERMISSIVE",
     "VALIDATION_DETERMINISTIC",
     # Stochastic singletons
-    "ACTOR_DISCOVERY_STOCHASTIC",
+    "ACTOR_RESOLUTION_STOCHASTIC",
     "ACQUIRE_EXPLOIT_STOCHASTIC",
     "ASSIGN_CVE_ID_STOCHASTIC",
     "DEVELOP_FIX_STOCHASTIC",

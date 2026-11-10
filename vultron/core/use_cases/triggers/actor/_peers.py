@@ -27,9 +27,9 @@ from urllib.parse import urlparse
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-    ACTOR_DISCOVERY_DETERMINISTIC,
-    ActorDiscoveryCallOutBundle,
+from vultron.core.behaviors.call_out.bundles.actor_resolution import (
+    ACTOR_RESOLUTION_DETERMINISTIC,
+    ActorResolutionCallOutBundle,
 )
 from vultron.core.models.actor import CoreActor
 from vultron.errors import (
@@ -66,7 +66,7 @@ def _record_named_peer(
     actor_id: str,
     field: str,
     acting_actor_id: str,
-    call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+    call_out: ActorResolutionCallOutBundle = ACTOR_RESOLUTION_DETERMINISTIC,
 ) -> None:
     """Record *actor_id* as a peer this actor now knows, if not already known.
 
@@ -99,8 +99,8 @@ def _record_named_peer(
         actor_id: The peer's canonical URI, as named by the request.
         field: Name of the request field it came from, for the messages.
         acting_actor_id: The acting actor; the backend's tree runs as it.
-        call_out: Actor-discovery call-out bundle; defaults to
-            :data:`ACTOR_DISCOVERY_DETERMINISTIC` (``AlwaysSucceed``).
+        call_out: Actor-resolution call-out bundle; defaults to
+            :data:`ACTOR_RESOLUTION_DETERMINISTIC` (``AlwaysSucceed``).
             Inject a directory-service backend to resolve actor details.
     """
     if dl.read(actor_id) is not None:
@@ -129,7 +129,7 @@ def _record_named_peer(
         reason = f"{reason} ({result.feedback_message})"
     if status != Status.SUCCESS:
         logger.warning(
-            "actor discovery returned %s for %s '%s' — recording minimal peer"
+            "actor resolution returned %s for %s '%s' — recording minimal peer"
             " (only URI known, not details)",
             reason,
             field,
@@ -137,7 +137,7 @@ def _record_named_peer(
         )
     else:
         logger.debug(
-            "actor discovery succeeded for %s '%s' — recording peer",
+            "actor resolution succeeded for %s '%s' — recording peer",
             field,
             actor_id,
         )
