@@ -23,7 +23,6 @@ behaviour (#5510).
 
 import json
 import urllib.parse
-import uuid
 from collections.abc import Callable, Iterator
 from datetime import datetime
 from typing import Any
@@ -41,7 +40,7 @@ from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.driving.fastapi.routers.datalayer.stored import (
     _serve_stored,
 )
-from vultron.core.models._helpers import clock as helpers_clock
+from vultron.core.models._helpers import clock as helpers_clock, new_object_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -150,13 +149,13 @@ def _draws_after(
     path: str,
     reads: int,
     params: _Params | None = None,
-) -> tuple[list[uuid.UUID], datetime]:
+) -> tuple[list[str], datetime]:
     """The ids and the time a seeded run mints after *reads* GETs of *path*."""
     with deterministic_run("datalayer-read"):
         for _ in range(reads):
             response = client.get(path, params=params)
             assert response.status_code == 200, response.text
-        return [uuid.uuid4() for _ in range(3)], helpers_clock.now_utc()
+        return [new_object_id() for _ in range(3)], helpers_clock.now_utc()
 
 
 @pytest.mark.parametrize(("route", "object_type"), _READS)
@@ -292,14 +291,14 @@ def test_camel_case_participant_dump_revalidates_without_minting() -> None:
     )
     dump = participant.model_dump(by_alias=True, serialize_as_any=True)
 
-    def rebuild() -> tuple[CaseParticipant, uuid.UUID]:
+    def rebuild() -> tuple[CaseParticipant, str]:
         with deterministic_run("participant-rebuild"):
             rebuilt = CaseParticipant.model_validate(dump)
-            return rebuilt, uuid.uuid4()
+            return rebuilt, new_object_id()
 
-    def mint_only() -> uuid.UUID:
+    def mint_only() -> str:
         with deterministic_run("participant-rebuild"):
-            return uuid.uuid4()
+            return new_object_id()
 
     rebuilt, next_id = rebuild()
 

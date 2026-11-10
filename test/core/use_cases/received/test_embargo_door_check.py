@@ -26,6 +26,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.received_activity_record import (
@@ -157,9 +158,11 @@ def test_an_unaddressed_copy_is_refused_before_any_write(
     activity = _ACTIVITIES[use_case](embargo)
     before = _snapshot(dl)
 
-    result = use_case(
-        dl, make_payload(activity, receiving_actor_id=_BYSTANDER, at=dl)
-    ).execute()
+    result = run_in_act(
+        use_case(
+            dl, make_payload(activity, receiving_actor_id=_BYSTANDER, at=dl)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     reason = result.reason or ""
@@ -198,7 +201,7 @@ def test_an_answer_naming_no_invite_is_refused_before_any_write(use_case):
     request.invite_id = None
     before = _snapshot(dl)
 
-    result = use_case(dl, request).execute()
+    result = run_in_act(use_case(dl, request))
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "is missing its Invite id" in (result.reason or "")

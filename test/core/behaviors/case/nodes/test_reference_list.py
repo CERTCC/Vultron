@@ -21,6 +21,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -56,9 +57,11 @@ def dl() -> SqliteDataLayer:
 
 
 def _run(dl, node):
-    return BTBridge(
-        datalayer=dl, wire_render_port=As2WireRenderAdapter()
-    ).execute_with_setup(tree=node, actor_id=ACTOR)
+    return run_tree(
+        BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter()),
+        tree=node,
+        actor_id=ACTOR,
+    )
 
 
 def _case(dl) -> as_VulnerabilityCase:

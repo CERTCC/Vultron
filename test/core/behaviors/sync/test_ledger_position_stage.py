@@ -37,6 +37,7 @@ from test.core.behaviors.sync.nodes._embargo_gate_support import (
     seed_ledger,
 )
 from test.core.behaviors.sync.nodes.conftest import CASE_ID, _make_entry
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.ledger_position_stage import (
@@ -100,9 +101,8 @@ def _answer(
     *,
     sender: str = SIGNATORY_ID,
 ) -> Any:
-    return BTBridge(
-        datalayer=dl, sync_port=sync_port, trigger_activity=trigger
-    ).execute_with_setup(
+    return run_tree(
+        BTBridge(datalayer=dl, sync_port=sync_port, trigger_activity=trigger),
         tree=create_ledger_position_stage(CASE_ID, sender),
         actor_id=MANAGER_ID,
         activity=activity,
@@ -390,9 +390,12 @@ def test_a_store_that_is_not_the_case_manager_answers_nothing(caplog) -> None:
     split = LedgerPosition(log_index=1, entry_hash="0" * 64)
 
     with caplog.at_level(logging.DEBUG, logger=_STAGE_LOGGERS):
-        result = BTBridge(
-            datalayer=replica, sync_port=sync_port, trigger_activity=trigger
-        ).execute_with_setup(
+        result = run_tree(
+            BTBridge(
+                datalayer=replica,
+                sync_port=sync_port,
+                trigger_activity=trigger,
+            ),
             tree=create_ledger_position_stage(CASE_ID, SIGNATORY_ID),
             actor_id=NON_SIGNATORY_ID,
             activity=_note(SIGNATORY_ID, split),
@@ -408,7 +411,8 @@ def test_a_stamp_at_the_tail_needs_no_sync_port(dl) -> None:
     """Nothing is replayed at the tail, so no send port is asked for."""
     entries = seed_ledger(dl, 2)
 
-    result = BTBridge(datalayer=dl).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=dl),
         tree=create_ledger_position_stage(CASE_ID, SIGNATORY_ID),
         actor_id=MANAGER_ID,
         activity=_note(SIGNATORY_ID, _position(entries[-1])),

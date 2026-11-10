@@ -112,6 +112,7 @@ def reject_case_ledger_entry() -> Scenario:
             ),
             actor=BYSTANDER,
             to=[MANAGER],
+            in_reply_to="https://example.org/activities/prompting-announce",
         ),
     )
 

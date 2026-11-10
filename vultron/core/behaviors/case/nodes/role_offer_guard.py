@@ -46,7 +46,7 @@ from vultron.core.participants.role_offer import (
 )
 from vultron.core.participants.role_predicate import has_role
 from vultron.core.predicates.addressing import participant_id_for_actor
-from vultron.enums.roles import CVDRole
+from vultron.enums.roles import AUTHORITY_ROLES, CVDRole
 from vultron.errors import VultronBTInternalError, VultronNotFoundError
 
 
@@ -90,9 +90,7 @@ class RoleOfferAdmissibleNode(
 
     #: The roles no Offer may carry: they are held through case creation and
     #: ownership transfer, never through a role Offer (CM-33-003).
-    UNOFFERABLE_ROLES: ClassVar[frozenset[CVDRole]] = frozenset(
-        {CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER}
-    )
+    UNOFFERABLE_ROLES: ClassVar[frozenset[CVDRole]] = AUTHORITY_ROLES
 
     def __init__(
         self,

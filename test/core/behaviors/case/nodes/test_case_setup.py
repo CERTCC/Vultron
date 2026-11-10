@@ -30,6 +30,7 @@ Per specs/behavior-tree-node-design.yaml BTND-02-001, BTND-03-001, BTND-04-005
 and GitHub issue #401.
 """
 
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.case.nodes import (
     UpdateActorOutbox,
 )
@@ -153,8 +154,10 @@ class TestEnsureCaseActorHostedNode:
                 "sqlite:///:memory:", actor_id=self._VENDOR_ID
             )
             dl.create(VultronService(id_=self._VENDOR_ID, name="Vendor"))
-            result = BTBridge(datalayer=dl).execute_with_setup(
-                tree=EnsureCaseActorHostedNode(), actor_id=self._VENDOR_ID
+            result = run_tree(
+                BTBridge(datalayer=dl),
+                tree=EnsureCaseActorHostedNode(),
+                actor_id=self._VENDOR_ID,
             )
             case_actor_id = case_actor_identity()
         finally:

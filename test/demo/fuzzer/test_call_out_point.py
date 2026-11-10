@@ -15,11 +15,11 @@
 
 Verifies:
 - CallOutBackendFactory type alias is importable and callable (BT-18-004)
-- Five shape mixin classes are importable
+- The four shape mixin classes are importable, and no Sentinel mixin exists
+  (BT-18-013)
 - Each exemplar node subclasses the correct shape mixin (BT-18-001)
 - Exemplar nodes that declare output_keys write to the blackboard on SUCCESS
   (BT-18-002, BT-18-003)
-- NewValidationInfoSentinel is a valid Behaviour with correct success_rate
 """
 
 from typing import ClassVar
@@ -34,11 +34,7 @@ from vultron.demo.fuzzer.call_out_point import (
     ActuatorCallOutPoint,
     ComposerCallOutPoint,
     EvaluatorCallOutPoint,
-    NewDeploymentInfoSentinel,
-    NewPrioritizationInfoSentinel,
-    NewValidationInfoSentinel,
     RetrieverCallOutPoint,
-    SentinelCallOutPoint,
 )
 from vultron.demo.fuzzer.embargo import (
     CurrentEmbargoAcceptable,
@@ -82,6 +78,7 @@ from vultron.demo.fuzzer.report_management.deploy_fix import (
     MitigationDeployed,
     MonitorDeployment,
     MonitoringRequirement,
+    NoNewDeploymentInfo,
     PrioritizeDeployment,
 )
 from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
@@ -93,6 +90,7 @@ from vultron.demo.fuzzer.report_management.monitor_threats import (
 from vultron.demo.fuzzer.report_management.prioritize import (
     EnoughPrioritizationInfo,
     GatherPrioritizationInfo,
+    NoNewPrioritizationInfo,
     OnAccept,
     OnDefer,
 )
@@ -124,6 +122,7 @@ from vultron.demo.fuzzer.report_management.validate import (
     EvaluateReportCredibility,
     EvaluateReportValidity,
     GatherValidationInfo,
+    NoNewValidationInfo,
 )
 
 # ---------------------------------------------------------------------------
@@ -167,8 +166,11 @@ def test_actuator_mixin_importable():
     assert ActuatorCallOutPoint is not None
 
 
-def test_sentinel_mixin_importable():
-    assert SentinelCallOutPoint is not None
+def test_no_sentinel_mixin_exported():
+    """Sentinel is a call-in pattern, not a shape, so it has no mixin (BT-18-013)."""
+    from vultron.demo.fuzzer import call_out_point
+
+    assert not [n for n in dir(call_out_point) if "sentinel" in n.lower()]
 
 
 # ---------------------------------------------------------------------------
@@ -200,18 +202,6 @@ def test_prepare_report_is_composer():
     assert issubclass(PrepareReport, ComposerCallOutPoint)
 
 
-def test_new_validation_info_sentinel_is_sentinel():
-    assert issubclass(NewValidationInfoSentinel, SentinelCallOutPoint)
-
-
-def test_new_prioritization_info_sentinel_is_sentinel():
-    assert issubclass(NewPrioritizationInfoSentinel, SentinelCallOutPoint)
-
-
-def test_new_deployment_info_sentinel_is_sentinel():
-    assert issubclass(NewDeploymentInfoSentinel, SentinelCallOutPoint)
-
-
 # ---------------------------------------------------------------------------
 # All exemplar nodes are py_trees Behaviours
 # ---------------------------------------------------------------------------
@@ -224,9 +214,6 @@ _ALL_EXEMPLARS = [
     OnAccept,
     OnDefer,
     PrepareReport,
-    NewValidationInfoSentinel,
-    NewPrioritizationInfoSentinel,
-    NewDeploymentInfoSentinel,
 ]
 
 
@@ -240,35 +227,6 @@ def test_exemplar_is_behaviour(node_cls):
 def test_exemplar_has_blackboard_contract_docstring(node_cls):
     """Exemplar docstring must contain the BT-18-001 blackboard contract."""
     assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
-
-
-# ---------------------------------------------------------------------------
-# Sentinel — success_rate and no output_keys
-# ---------------------------------------------------------------------------
-
-
-def test_new_validation_info_sentinel_success_rate():
-    assert NewValidationInfoSentinel.success_rate == pytest.approx(0.10)
-
-
-def test_new_validation_info_sentinel_output_keys_empty():
-    assert NewValidationInfoSentinel.output_keys == {}
-
-
-def test_new_prioritization_info_sentinel_success_rate():
-    assert NewPrioritizationInfoSentinel.success_rate == pytest.approx(0.10)
-
-
-def test_new_prioritization_info_sentinel_output_keys_empty():
-    assert NewPrioritizationInfoSentinel.output_keys == {}
-
-
-def test_new_deployment_info_sentinel_success_rate():
-    assert NewDeploymentInfoSentinel.success_rate == pytest.approx(0.10)
-
-
-def test_new_deployment_info_sentinel_output_keys_empty():
-    assert NewDeploymentInfoSentinel.output_keys == {}
 
 
 # ---------------------------------------------------------------------------
@@ -460,6 +418,9 @@ _RM_BINARY_RETRIEVER_NODES = [
     MonitorAttacks,
     MonitorExploits,
     MonitorPublicReports,
+    NoNewValidationInfo,
+    NoNewPrioritizationInfo,
+    NoNewDeploymentInfo,
 ]
 
 _EMBARGO_BINARY_RETRIEVER_NODES = [

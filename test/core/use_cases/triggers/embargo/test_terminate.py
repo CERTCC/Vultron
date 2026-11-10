@@ -7,6 +7,7 @@ import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import (
     propose,
     write_consent_rows,
@@ -82,14 +83,16 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
         case_id=case.id_,
     )
 
-    result = SvcTerminateEmbargoUseCase(
-        owner_dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(owner_dl),
-        sync_port=SyncActivityAdapter(owner_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcTerminateEmbargoUseCase(
+            owner_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(owner_dl),
+            sync_port=SyncActivityAdapter(owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     assert result.activity is not None
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
@@ -129,14 +132,16 @@ def test_terminate_embargo_no_active_embargo_raises_via_bt_node(
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
-        SvcTerminateEmbargoUseCase(
-            owner_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(owner_dl),
-            sync_port=SyncActivityAdapter(owner_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcTerminateEmbargoUseCase(
+                owner_dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(owner_dl),
+                sync_port=SyncActivityAdapter(owner_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
 
 @pytest.mark.spec("EP-08-004")
@@ -166,14 +171,18 @@ def test_terminate_embargo_forgets_every_open_revision_via_bt_path(
     owner_dl.save(case_obj)
     write_consent_rows(owner_dl, case_obj)
 
-    SvcTerminateEmbargoUseCase(
-        owner_dl,
-        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
-        trigger_activity=TriggerActivityAdapter(owner_dl),
-        sync_port=SyncActivityAdapter(owner_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            owner_dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(owner_dl),
+            sync_port=SyncActivityAdapter(owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.EXITED
@@ -196,14 +205,18 @@ def test_terminate_embargo_queues_the_announce_in_the_outbox(
     )
     before = set(dl.outbox_list())
 
-    SvcTerminateEmbargoUseCase(
-        dl,
-        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     assert len(set(dl.outbox_list()) - before) >= 1
 
@@ -221,14 +234,18 @@ def test_manager_terminate_queues_nothing_addressed_to_itself(
     finder = _persist_actor(dl, "Finder Co")
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
 
-    SvcTerminateEmbargoUseCase(
-        dl,
-        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
+        )
+    )
 
     queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
     assert [a.to for a in queued if a.type_ == "Remove"] == [[finder.id_]]
@@ -253,14 +270,18 @@ def test_manager_teardown_is_queued_before_it_is_committed(
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
     events = record_sends_and_commits(monkeypatch, owner.id_)
 
-    SvcTerminateEmbargoUseCase(
-        dl,
-        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
+        )
+    )
 
     (remove_id,) = [
         object_id
@@ -282,13 +303,17 @@ def test_non_manager_terminate_asks_the_case_manager(
     owner = _persist_actor(finder_dl, "Vendor Co")
     case, _, _ = _build_active_embargo_case(finder_dl, owner.id_, finder.id_)
 
-    SvcTerminateEmbargoUseCase(
-        finder_dl,
-        TerminateEmbargoTriggerRequest(actor_id=finder.id_, case_id=case.id_),
-        trigger_activity=TriggerActivityAdapter(finder_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            finder_dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=finder.id_, case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     updated = cast(VulnerabilityCase, finder_dl.read(case.id_))
     assert updated.current_status.em.state == EM.ACTIVE
@@ -314,11 +339,12 @@ def _run_cascade_ask(
     does for a non-manager receiver."""
     py_trees.blackboard.Blackboard.storage["/embargo_id"] = case.active_embargo
     py_trees.blackboard.Blackboard.storage["/case_manager_id"] = manager_id
-    return BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute_with_setup(
+    return run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ),
         tree=ask_case_manager_to_terminate_once(
             case.id_, TerminationReason.EARLY
         ),
@@ -327,13 +353,15 @@ def _run_cascade_ask(
 
 
 def _terminate(dl: SqliteDataLayer, actor_id: str, case_id: str):
-    return SvcTerminateEmbargoUseCase(
-        dl,
-        TerminateEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
 
 @pytest.mark.spec("SYNC-11-002")
@@ -384,16 +412,18 @@ def test_terminate_embargo_unknown_actor_raises_not_found(
     )
 
     with pytest.raises(VultronNotFoundError):
-        SvcTerminateEmbargoUseCase(
-            dl,
-            TerminateEmbargoTriggerRequest(
-                actor_id="urn:uuid:no-such-actor", case_id=case.id_
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcTerminateEmbargoUseCase(
+                dl,
+                TerminateEmbargoTriggerRequest(
+                    actor_id="urn:uuid:no-such-actor", case_id=case.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
 
 _VENDOR_ID = "https://example.org/actors/vendor-co"
@@ -426,16 +456,18 @@ def test_an_early_request_records_its_cause_or_other(
     embargo_id = case.active_embargo_id
     assert embargo_id is not None
 
-    result = SvcTerminateEmbargoUseCase(
-        owner_dl,
-        TerminateEmbargoTriggerRequest(
-            actor_id=owner.id_, case_id=case.id_, cause=cause
-        ),
-        trigger_activity=TriggerActivityAdapter(owner_dl),
-        sync_port=SyncActivityAdapter(owner_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcTerminateEmbargoUseCase(
+            owner_dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_, cause=cause
+            ),
+            trigger_activity=TriggerActivityAdapter(owner_dl),
+            sync_port=SyncActivityAdapter(owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     expected = EmbargoTermination(
         reason=TerminationReason.EARLY, cause=recorded
@@ -488,15 +520,17 @@ def test_a_participant_ask_carries_the_requested_cause_or_other(
     owner = _persist_actor(finder_dl, "Vendor Co")
     case, _, _ = _build_active_embargo_case(finder_dl, owner.id_, finder.id_)
 
-    result = SvcTerminateEmbargoUseCase(
-        finder_dl,
-        TerminateEmbargoTriggerRequest(
-            actor_id=finder.id_, case_id=case.id_, cause=cause
-        ),
-        trigger_activity=TriggerActivityAdapter(finder_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcTerminateEmbargoUseCase(
+            finder_dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=finder.id_, case_id=case.id_, cause=cause
+            ),
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     assert result.activity is not None
     assert result.activity["to"] == [owner.id_]

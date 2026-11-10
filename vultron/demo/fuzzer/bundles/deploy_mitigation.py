@@ -23,6 +23,7 @@ Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 - ``prioritize_deployment_factory``  — PrioritizeDeployment  (p=0.90) → AlwaysSucceed
 - ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed
 - ``monitor_deployment_factory``     — MonitorDeployment     (p=1.00) → AlwaysSucceed
+- ``no_new_deployment_info_factory`` — NoNewDeploymentInfo   (p=0.75) → AlwaysSucceed
 - ``mitigation_deployed_factory``    — MitigationDeployed    (p=0.25) → AlwaysFail
 - ``mitigation_available_factory``   — MitigationAvailable   (p=0.70) → AlwaysSucceed
 - ``deploy_mitigation_factory``      — DeployMitigation      (p=0.75) → AlwaysSucceed
@@ -42,6 +43,7 @@ from vultron.demo.fuzzer.report_management.deploy_fix import (
     MitigationDeployed,
     MonitorDeployment,
     MonitoringRequirement,
+    NoNewDeploymentInfo,
     PrioritizeDeployment,
 )
 
@@ -62,6 +64,12 @@ def _stochastic_monitor_deployment(name: str) -> py_trees.behaviour.Behaviour:
     return MonitorDeployment(name)
 
 
+def _stochastic_no_new_deployment_info(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    return NoNewDeploymentInfo(name)
+
+
 def _stochastic_mitigation_deployed(name: str) -> py_trees.behaviour.Behaviour:
     return MitigationDeployed(name)
 
@@ -80,6 +88,7 @@ DEPLOY_MITIGATION_STOCHASTIC = DeployMitigationCallOutBundle(
     prioritize_deployment_factory=_stochastic_prioritize_deployment,  # type: ignore[arg-type]
     monitoring_requirement_factory=_stochastic_monitoring_requirement,  # type: ignore[arg-type]
     monitor_deployment_factory=_stochastic_monitor_deployment,  # type: ignore[arg-type]
+    no_new_deployment_info_factory=_stochastic_no_new_deployment_info,  # type: ignore[arg-type]
     mitigation_deployed_factory=_stochastic_mitigation_deployed,  # type: ignore[arg-type]
     mitigation_available_factory=_stochastic_mitigation_available,  # type: ignore[arg-type]
     deploy_mitigation_factory=_stochastic_deploy_mitigation,  # type: ignore[arg-type]

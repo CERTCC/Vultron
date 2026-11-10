@@ -40,9 +40,10 @@ A participant replica never evaluates a deadline and runs no ``TIME_OUT``:
 it copies the ``Update(EmbargoConsent)`` entry through the consent slot of
 ``create_announce_log_entry_tree`` (RSH-08-004, CM-28-030).
 
-A late Accept of the embargo in force or of an open proposal is honoured by
-being recorded as an on-time Accept is (EMB-17-002, ADR-0152); replicas copy
-the row it states.
+A late Accept is answered as an on-time one is, by whether the embargo it
+names is still available (EMB-17-001, MSM-07-012): one of the embargo in
+force or of an open proposal, before its end time, is recorded (EMB-17-002,
+ADR-0152), and replicas copy the row it states.
 """
 
 from datetime import datetime
@@ -52,7 +53,6 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.errors import VultronNotFoundError
 
@@ -79,8 +79,9 @@ class EvaluateInviteExpiryNode(DataLayerActionWithPorts):
     and writes its outcome to *result_out*:
 
     * :data:`IS_EXPIRED_KEY` — ``True`` when the deadline passed and the
-      participant is not a signatory to the active embargo.
-      Used by EMB-17 routing.
+      participant is not a signatory to the active embargo.  It decides
+      nothing about the Accept's answer, which reads the embargo's
+      availability (MSM-07-012).
     * :data:`NEEDS_APPLY_KEY` — ``True`` when the invitee is still ``INVITED``
       and the commit + effect nodes need to run.
 
@@ -156,50 +157,6 @@ class InviteExpiryNeedsApplyNode(py_trees.behaviour.Behaviour):
         return Status.FAILURE
 
 
-class InviteNotExpiredNode(py_trees.behaviour.Behaviour):
-    """Precondition guard: the clock decision found the Invite still open.
-
-    FAILURE when :class:`EvaluateInviteExpiryNode`, the Accept tree's clock
-    decision, found the invitee's deadline passed: the Accept is late, so the
-    normal answer path must not record it, whether or not the expiry entry
-    could be committed (CLP-10-025).  The Accept tree's late-Accept
-    diversions route a late Accept by its compatibility with the case's
-    embargo ahead of this guard
-    (:func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`,
-    EMB-17-001, CLP-10-026), and the backstop
-    (:func:`~vultron.core.behaviors.embargo.expiry_tree.on_time_or_honoured_accept`)
-    lets through only a late Accept the case honours (EMB-17-002).
-    SUCCESS otherwise, including on a store that is not the CASE_MANAGER,
-    where the decision does not run and *result_out* stays unset.
-    Read-only.
-    """
-
-    def __init__(
-        self,
-        result_out: dict[str, object],
-        invitee_id: str,
-        case_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._result_out = result_out
-        self._invitee_id = invitee_id
-        self._case_id = case_id
-
-    def update(self) -> Status:
-        if self._result_out.get(IS_EXPIRED_KEY):
-            self.feedback_message = (
-                f"the Invite of '{self._invitee_id}' on case"
-                f" '{self._case_id}' passed its RSVP deadline; a late Accept"
-                " is routed by its compatibility with the case's embargo,"
-                " not recorded as an answer (EMB-17-001)"
-            )
-            log = node_logger(self)
-            log.debug("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        return Status.SUCCESS
-
-
 #: Backward-compatible alias for :class:`InviteExpiryNeedsApplyNode`.
 InviteExpiryChangedConsentNode = InviteExpiryNeedsApplyNode
 
@@ -211,5 +168,4 @@ __all__ = [
     "EvaluateInviteExpiryNode",
     "InviteExpiryChangedConsentNode",
     "InviteExpiryNeedsApplyNode",
-    "InviteNotExpiredNode",
 ]

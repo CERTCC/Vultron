@@ -40,6 +40,7 @@ from test.core.use_cases.triggers.test_case_joining_trigger import (
     _participant_of,
     _send_stub_invite,
 )
+from test.support.act_runner import run_in_act, run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import (
     activate,
@@ -144,14 +145,16 @@ def _plain_case(dl: Any, manager_id: str) -> VulnerabilityCase:
 
 
 def _terminate(dl: Any, owner_id: str, case_id: str) -> None:
-    SvcTerminateEmbargoUseCase(
-        dl,
-        TerminateEmbargoTriggerRequest(actor_id=owner_id, case_id=case_id),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(actor_id=owner_id, case_id=case_id),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
 
 @pytest.mark.spec("CM-11-014")
@@ -466,19 +469,21 @@ def test_manager_refuses_a_reinvite_of_a_closed_participant(
     )
     _hold_case_owner(dl, case.id_, manager.id_)
     offer = activity_of(
-        SvcSuggestActorToCaseUseCase(
-            dl,
-            SuggestActorToCaseTriggerRequest(
-                actor_id=manager.id_,
-                case_id=case.id_,
-                suggested_actor_id=invitee.id_,
-                roles=[CVDRole.VENDOR],
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcSuggestActorToCaseUseCase(
+                dl,
+                SuggestActorToCaseTriggerRequest(
+                    actor_id=manager.id_,
+                    case_id=case.id_,
+                    suggested_actor_id=invitee.id_,
+                    roles=[CVDRole.VENDOR],
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
     )
     stored = dl.read(offer["id"])
     event = received_event(stored, at=dl).model_copy(
@@ -487,13 +492,15 @@ def test_manager_refuses_a_reinvite_of_a_closed_participant(
     assert isinstance(event, OfferActorToCaseReceivedEvent)
     before = set(dl.outbox_list())
 
-    result = OfferActorToCaseReceivedUseCase(
-        dl,
-        event,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert result.reason is not None and "RM.CLOSED" in result.reason
@@ -787,13 +794,15 @@ def _run_reissue(dl: Any, case_id: str, owner_id: str) -> BTExecutionResult:
         ReissueStubInvitesNode,
     )
 
-    return BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute_with_setup(
-        tree=ReissueStubInvitesNode(case_id=case_id), actor_id=owner_id
+    return run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ),
+        tree=ReissueStubInvitesNode(case_id=case_id),
+        actor_id=owner_id,
     )
 
 

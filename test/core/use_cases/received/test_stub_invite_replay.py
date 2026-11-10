@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -89,19 +90,21 @@ def _the_owner_invites_the_joiner(
     owner_dl.save(as_Actor(id_=OWNER))
     owner_dl.save(as_Actor(id_=MANAGER))
     before = set(owner_dl.outbox_list())
-    SvcInviteActorToCaseUseCase(
-        owner_dl,
-        InviteActorToCaseTriggerRequest(
-            actor_id=OWNER,
-            case_id=net.case_id,
-            invitee_id=JOINER,
-            roles=roles or [CVDRole.VENDOR],
-        ),
-        trigger_activity=TriggerActivityAdapter(owner_dl),
-        sync_port=SyncActivityAdapter(owner_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcInviteActorToCaseUseCase(
+            owner_dl,
+            InviteActorToCaseTriggerRequest(
+                actor_id=OWNER,
+                case_id=net.case_id,
+                invitee_id=JOINER,
+                roles=roles or [CVDRole.VENDOR],
+            ),
+            trigger_activity=TriggerActivityAdapter(owner_dl),
+            sync_port=SyncActivityAdapter(owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
     new = [i for i in owner_dl.outbox_list() if i not in before]
     assert new, "the owner queued nothing"
     for item in new:

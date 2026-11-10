@@ -23,6 +23,7 @@ relates to.
 from datetime import timedelta
 from typing import Any
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -148,13 +149,15 @@ def deliver_relayed_invite(
         to=[INVITEE],
         **optional,
     )
-    return InviteToEmbargoOnCaseReceivedUseCase(
-        dl,
-        make_payload(invite, receiving_actor_id=INVITEE),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            make_payload(invite, receiving_actor_id=INVITEE),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
 
 
 def answers_in_outbox(dl: SqliteDataLayer, actor_id: str) -> list[str]:

@@ -34,7 +34,7 @@ The protocol coordinates the case; the judgment, the data, and the side effects 
 | develop or deploy fixes | [CreateFix](#fix-development), [DeployFix](#fix-deployment) | Composer, Evaluator |
 | know whether an exploit exists | [HaveExploit, FindExploit](#exploit-management) | Retriever |
 | write or publish advisories | [DraftAdvisoryArtifact, ReviewAdvisoryDraft, SubmitAdvisoryArtifact](#publication) | Composer, Evaluator, Actuator |
-| know who else belongs in the case | [IdentifyVendors, ResolveActorDetails, InjectParticipant](#participant-and-actor-discovery) | Retriever, Actuator |
+| know who else belongs in the case | [IdentifyVendors, ResolveActorDetails, InjectParticipant](#participant-suggestion-and-actor-resolution) | Retriever, Actuator |
 | watch threat feeds | [MonitorAttacks, MonitorExploits, MonitorPublicReports](#threat-monitoring), or a [Sentinel](#the-sentinel-call-in-pattern) that reports what it sees | Retriever |
 | update your ticketing system | [OnAccept, OnDefer](#report-prioritization) and [PreCloseAction](#leaving-a-case) | Actuator |
 
@@ -104,7 +104,7 @@ Every call-out point fits a three-level hierarchy:
 Think of the shape as a job description, the capability as the open role, and your implementation as the service hired into that role.
 
 Some capabilities are sub-steps of a larger workflow.
-For example, the proposed `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
+For example, `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
 Most capabilities are not nested.
 
 !!! note "Design decisions"
@@ -193,8 +193,8 @@ A Sentinel is a long-running monitor, so building one needs different infrastruc
 The following is the current catalog of known integration points, organized by domain.
 Use this list to identify which capability you are building toward.
 
-Entries marked with a shape are call-out points: Vultron asks, and your capability answers.
-Entries marked (Sentinel) are not capabilities: they are call-in patterns that watch a condition and call a trigger on their own initiative (see [The Sentinel call-in pattern](#the-sentinel-call-in-pattern)).
+Every entry is a call-out point: Vultron asks, and your capability answers.
+A Sentinel never appears here, because it is a call-in pattern that watches a condition and calls a trigger on its own initiative (see [The Sentinel call-in pattern](#the-sentinel-call-in-pattern)).
 
 ### Report Validation
 
@@ -203,7 +203,7 @@ Entries marked (Sentinel) are not capabilities: they are call-in patterns that w
 - **EvaluateReportCredibility** (Evaluator) — is this report from a credible source?
 - **EvaluateReportValidity** (Evaluator) — does this report describe a real, in-scope vulnerability?
 - **GatherValidationInfo** (Retriever) — collect background information needed to evaluate a report
-- **NewValidationInfoSentinel** (Sentinel) — fires when new validation-relevant information becomes available
+- **NoNewValidationInfo** (Retriever) — has no new validation-relevant information arrived since the last evaluation?
 
 ### Report Prioritization
 
@@ -212,7 +212,7 @@ Entries marked (Sentinel) are not capabilities: they are call-in patterns that w
 - **EvaluateCasePriority** (Evaluator) — assign a priority score to a case; the natural home for an SSVC integration
 - **EnoughPrioritizationInfo** (Evaluator) — is there sufficient information to make a prioritization decision?
 - **GatherPrioritizationInfo** (Retriever) — collect data needed for prioritization
-- **NewPrioritizationInfoSentinel** (Sentinel) — fires when new prioritization-relevant information arrives
+- **NoNewPrioritizationInfo** (Retriever) — has no new prioritization-relevant information arrived since the last evaluation?
 - **OnAccept** / **OnDefer** (Actuators) — notification hooks when a report is accepted or deferred
 
 ### Case Admission
@@ -252,9 +252,9 @@ This domain has one extra level because the ID assignment workflow has distinct 
   - **IdAssigned** (Retriever) — does a CVE ID already exist for this vulnerability?
   - **InScope** (Evaluator) — is this vulnerability in scope for ID assignment?
   - **ProductInCNAScope** / **IsMostAppropriateCNA** (Evaluators) — CNA scoping checks
-  - **EvaluateCveEligibility** (Evaluator, proposed) — does this vulnerability meet the CNA criteria for CVE assignment?
-    This is a single judgment call that consolidates multiple CNA Operational Rules criteria.
-    See [#2518](https://github.com/CERTCC/Vultron/issues/2518).
+  - **EvaluateCveEligibility** (Evaluator) — does this vulnerability meet the CNA criteria for CVE assignment?
+    This is a single judgment call that applies the CNA Operational Rules eligibility criteria as one unit.
+    The publication condition stays a separate protocol check just before it.
   - **AssignId** (Composer) — generate and record the CVE ID
   - **RequestId** (Retriever) — request an ID from an external CNA if we are not the appropriate authority
 
@@ -269,7 +269,7 @@ This domain has one extra level because the ID assignment workflow has distinct 
 *See also: [Deployment behavior](../behavior_logic/deployment_bt.md)*
 
 - **DeployFix** / **PrioritizeDeployment** / **MonitoringRequirement** (Evaluators) — deployment decisions and monitoring judgment calls
-- **NewDeploymentInfoSentinel** (Sentinel) — fires when deployment status changes
+- **NoNewDeploymentInfo** (Retriever) — has no new deployment information arrived, so a deferred deployer can stay deferred?
 
 ### Mitigation Deployment
 
@@ -304,11 +304,12 @@ An actor closes its part in a case by calling the `leave-case` trigger, which se
 - **PreCloseAction** (Actuator) — perform any pre-closure integration actions, such as closing your own ticket; `leave-case` runs it before it sends the Leave, for every caller, and a failure stops the trigger with nothing sent
 - **OtherCloseCriteriaMet** (Evaluator) — superseded: the decision to close is the act of calling `leave-case`, so Vultron no longer asks it
 
-### Participant and Actor Discovery
+### Participant Suggestion and Actor Resolution
 
 *See also: [#1142](https://github.com/CERTCC/Vultron/issues/1142)*
 
-- **ResolveActorDetails** / **IdentifyVendors** / **IdentifyCoordinators** (Retrievers) — look up parties who should be involved in this case
+- **ResolveActorDetails** (Retriever) — actor resolution: turn one actor URI into that actor's profile; it does not find who belongs in a case, and it is a separate seam from participant suggestion
+- **IdentifyVendors** / **IdentifyCoordinators** (Retrievers) — participant suggestion: find parties who should be involved in this case
 - **AllPartiesKnown** (Evaluator) — have all relevant parties been identified?
 - **InjectParticipant** (Actuator) — add a discovered party to the case
 
@@ -397,7 +398,6 @@ So when a page says a call-out point "defaults to accept", that describes the st
 **What the shape classes are called in code.**
 The shape base classes are being renamed to `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability` ([ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), [#3421](https://github.com/CERTCC/Vultron/issues/3421)).
 Until that lands, the code uses names such as `EvaluatorCallOutPoint`.
-The fuzzer's leftover Sentinel call-out classes are being removed under [#3424](https://github.com/CERTCC/Vultron/issues/3424).
 
 ### Still open
 

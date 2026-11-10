@@ -30,6 +30,7 @@ from typing import NamedTuple
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -157,12 +158,14 @@ def _store_state(dl: SqliteDataLayer, case_id: str) -> _StoreState:
 
 
 def _run(dl: SqliteDataLayer, request: AddOnBehalfStatusTriggerRequest):
-    return SvcAddOnBehalfStatusUseCase(
-        dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(dl),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcAddOnBehalfStatusUseCase(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            clock=SystemClock(),
+        )
+    )
 
 
 def _last_status(dl: SqliteDataLayer, case_id: str, actor_id: str):
@@ -676,9 +679,11 @@ class TestVendorImpliesVInvariant:
             vf_state=CS_vf.vf,
         )
         with pytest.raises(VultronValidationError):
-            SvcAddParticipantStatusUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcAddParticipantStatusUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )

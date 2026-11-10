@@ -31,7 +31,7 @@ export function handleSubmitReport(state: DemoState): DemoState {
   // ACCEPTED rather than RECEIVED, which also makes the later `close` transition
   // legal (close is not permitted from RECEIVED).
   newState = updateParticipant(newState, 'finder', { rmState: 'ACCEPTED' })
-  newState = updateParticipant(newState, 'vendor-1', { rmState: 'RECEIVED', vfdState: 'Vfd', visible: true })
+  newState = updateParticipant(newState, 'vendor-1', { rmState: 'RECEIVED', vfd: 'Vfd', visible: true })
   newState = updateParticipant(newState, 'caseactor', { visible: true })
 
   // Get participants for lane indices
@@ -108,7 +108,7 @@ export function handleSubmitReport(state: DemoState): DemoState {
       causedBy: submitEventId,
       timestamp: now + 3,
       consequences: [
-        'Announce(Case) received in inbox',
+        'Announce(VulnerabilityCase) received in inbox',
         'Case replica created in DataLayer',
         'Finder participant record created',
         'Finder\'s RM: ACCEPTED (validated & prioritized privately before disclosure)',
@@ -340,7 +340,7 @@ export function handleFinderAddNote(state: DemoState): DemoState {
   // vendor (e.g. deferring their report, which overwrites `phase`) does not hide
   // the reply option from the other participants. Per Vultron protocol the Q&A
   // dimension is case-wide and independent of any single participant's RM state.
-  newState = { ...newState, hasPendingFinderNote: true }
+  newState = { ...newState, hasPendingReporterNote: true }
 
   // Reset hasRepliedToCurrentNote for all vendors when a new question is asked
   // Per Vultron protocol: each vendor can independently reply to notes
@@ -372,7 +372,7 @@ export function handleFinderAddNote(state: DemoState): DemoState {
     consequences: [
       'Note created: "Question from Finder"',
       'Content: "Is there a workaround available?"',
-      'Add(Note, target=Case) activity created',
+      'Add(Note)[target=VulnerabilityCase] activity created',
       'Activity sent via Finder\'s outbox',
       'Triggers delivery to participants',
     ],
@@ -398,7 +398,7 @@ export function handleFinderAddNote(state: DemoState): DemoState {
       timestamp: now + timestampOffset,
       enablesNext: true,
       consequences: [
-        'Add(Note) received in inbox',
+        'Add(Note)[target=VulnerabilityCase] received in inbox',
         `Note delivered to ${vendor.name}'s DataLayer`,
         `${vendor.name} can now see question`,
       ],
@@ -448,9 +448,9 @@ export function handleFinderNotifyPublished(state: DemoState): DemoState {
   // Defensive fallback: if the case is somehow not yet public when the Finder
   // acknowledges publication, advance PXA via the artifact's `public_becomes_aware`
   // (pxa → Pxa). Normally unreachable — the filter only offers this action once
-  // pxaState is already 'Pxa' — and `finder-notify-published` is a demo-kind
-  // acknowledgement (see protocolActions.ts), not itself a machine driver. Pegged
-  // to the JSON anyway so no machine-state literal is hardcoded in the fork.
+  // pxaState is already 'Pxa' — and `finder-notify-published` is a demo-only
+  // acknowledgement with no machine transition of its own. Pegged to the JSON
+  // anyway so no machine-state literal is hardcoded in the fork.
   if (state.pxaState === 'pxa') {
     newState = setPxaState(newState, requireNextState('pxa', state.pxaState, 'public_becomes_aware'))
   }

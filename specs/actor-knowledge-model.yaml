@@ -247,7 +247,7 @@ groups:
       `published`, `updated`, `inbox` or `outbox`. For records,
       `test/adapters/driving/fastapi/routers/test_actors.py::TestRegisterPeer::test_peer_record_holds_no_value_the_request_did_not_supply`
       checks a registered peer and
-      `test/core/use_cases/triggers/test_actor_triggers.py::TestActorDiscoveryCallOut::test_minimal_peer_holds_no_value_nobody_asserted`
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestActorResolutionCallOut::test_minimal_peer_holds_no_value_nobody_asserted`
       checks a peer recorded from a URI hold none of those fields.
     adr:
     - ADR-0159
@@ -414,7 +414,7 @@ groups:
     scope:
     - production
 - id: AKM-05
-  title: Actor Addressing and Discovery
+  title: Actor Addressing and Resolution
   specs:
   - id: AKM-05-001
     priority: MUST_NOT
@@ -439,9 +439,9 @@ groups:
     kind: architecture
     statement: >-
       When a URI first names an actor with no local record, the implementation SHOULD
-      query the `ActorDiscoveryCallOutBundle` before it mints a minimal record.
+      query the `ActorResolutionCallOutBundle` before it mints a minimal record.
     rationale: >-
-      A discovery backend can supply a peer's inbox and profile, so a minimal record
+      A resolution backend can supply a peer's inbox and profile, so a minimal record
       minted without asking it holds less than is available.
     note: >-
       The bundle is injected, and it is a Retriever call-out (ADR-0024, ADR-0025).
@@ -451,11 +451,11 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: >-
-      When the `ActorDiscoveryCallOutBundle` backend returns a FAILURE result, the
+      When the `ActorResolutionCallOutBundle` backend returns a FAILURE result, the
       implementation SHOULD log an explicit WARNING rather than fall back silently.
     rationale: >-
       A failed lookup that falls back silently looks like success, so operators would
-      not learn that discovery is broken. The WARNING makes the degraded path visible.
+      not learn that actor resolution is broken. The WARNING makes the degraded path visible.
     scope:
     - production
     relationships:

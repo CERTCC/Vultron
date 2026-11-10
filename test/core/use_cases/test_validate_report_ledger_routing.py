@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -296,16 +297,18 @@ class TestTriggerEmitsToCaseActorOutbox:
         dl, _case, offer, case_actor_id = self._setup()
 
         before = outbox_ids(self.VENDOR_ID, dl)
-        SvcValidateReportUseCase(
-            dl,
-            ValidateReportTriggerRequest(
-                actor_id=self.VENDOR_ID, offer_id=offer.id_
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                dl,
+                ValidateReportTriggerRequest(
+                    actor_id=self.VENDOR_ID, offer_id=offer.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
         after = outbox_ids(self.VENDOR_ID, dl)
 
         new_ids = after - before
@@ -336,16 +339,18 @@ class TestTriggerEmitsToCaseActorOutbox:
         dl, _case, offer, _case_actor_id = self._setup()
 
         before = outbox_ids(self.VENDOR_ID, dl)
-        SvcValidateReportUseCase(
-            dl,
-            ValidateReportTriggerRequest(
-                actor_id=self.VENDOR_ID, offer_id=offer.id_
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                dl,
+                ValidateReportTriggerRequest(
+                    actor_id=self.VENDOR_ID, offer_id=offer.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
         after = outbox_ids(self.VENDOR_ID, dl)
 
         new_ids = after - before
@@ -519,13 +524,15 @@ class TestCaseActorReceivedWritesLedgerEntry:
         dl = self._make_case_actor_dl(owner_id=self.PARTICIPANT_ID)
         event = self._at_participant(getattr(self, make_event)())
 
-        result = use_case(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            use_case(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None
@@ -546,13 +553,15 @@ class TestCaseActorReceivedWritesLedgerEntry:
         """The control: the CASE_MANAGER itself applies the declaration."""
         dl = self._make_case_actor_dl()
 
-        result = use_case(
-            dl,
-            getattr(self, make_event)(),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            use_case(
+                dl,
+                getattr(self, make_event)(),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -606,13 +615,15 @@ class TestCaseActorReceivedWritesLedgerEntry:
         ``test_invariant_5_expected_semantic_types_present[validate_report]``.
         """
         dl = self._make_case_actor_dl()
-        ValidateReportReceivedUseCase(
-            dl,
-            self._make_validate_event(),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            ValidateReportReceivedUseCase(
+                dl,
+                self._make_validate_event(),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "validate_report" in semantic_types, (
@@ -623,13 +634,15 @@ class TestCaseActorReceivedWritesLedgerEntry:
     def test_ledger_entry_links_to_correct_case(self):
         """The persisted ledger entry references the correct case_id."""
         dl = self._make_case_actor_dl()
-        ValidateReportReceivedUseCase(
-            dl,
-            self._make_validate_event(),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            ValidateReportReceivedUseCase(
+                dl,
+                self._make_validate_event(),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
         vr_entries = [
@@ -651,13 +664,15 @@ class TestCaseActorReceivedWritesLedgerEntry:
         dl = self._make_case_actor_dl()
         event = self._make_validate_event(receiving_actor_id=self.VENDOR_ID)
 
-        ValidateReportReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            ValidateReportReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "validate_report" not in semantic_types, (
@@ -682,13 +697,15 @@ class TestCaseActorReceivedWritesLedgerEntry:
         # The fixture registers VENDOR as a RM.RECEIVED participant so
         # TransitionRMtoValid can persist the status record; RECEIVED -> VALID
         # is a legal move, START -> VALID would be a gap (ISSUE-2548).
-        ValidateReportReceivedUseCase(
-            dl,
-            self._make_validate_event(),  # actor_id=VENDOR, receiving=CASE_ACTOR,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            ValidateReportReceivedUseCase(
+                dl,
+                self._make_validate_event(),  # actor_id=VENDOR, receiving=CASE_ACTOR,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
         assert (
@@ -701,13 +718,15 @@ class TestCaseActorReceivedWritesLedgerEntry:
         )
 
     def _validate(self, dl: SqliteDataLayer) -> HandlerResult:
-        return ValidateReportReceivedUseCase(
-            dl,
-            self._make_validate_event(),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        return run_in_act(
+            ValidateReportReceivedUseCase(
+                dl,
+                self._make_validate_event(),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
     @pytest.mark.spec("DUR-07-004")
     @pytest.mark.spec("EP-04-008")
@@ -794,16 +813,18 @@ class TestFullValidateReportLedgerChain:
 
         # ── Step 2: trigger validate-report on vendor_dl ─────────────────────
         before = outbox_ids(self.VENDOR_ID, vendor_dl)
-        SvcValidateReportUseCase(
-            vendor_dl,
-            ValidateReportTriggerRequest(
-                actor_id=self.VENDOR_ID, offer_id=offer.id_
-            ),
-            trigger_activity=TriggerActivityAdapter(vendor_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(vendor_dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                vendor_dl,
+                ValidateReportTriggerRequest(
+                    actor_id=self.VENDOR_ID, offer_id=offer.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(vendor_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(vendor_dl),
+                clock=SystemClock(),
+            )
+        )
         after = outbox_ids(self.VENDOR_ID, vendor_dl)
 
         new_ids = after - before
@@ -905,13 +926,15 @@ class TestFullValidateReportLedgerChain:
             )
         )
 
-        ValidateReportReceivedUseCase(
-            case_actor_dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(case_actor_dl),
-            trigger_activity=TriggerActivityAdapter(case_actor_dl),
-        ).execute()
+        run_in_act(
+            ValidateReportReceivedUseCase(
+                case_actor_dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(case_actor_dl),
+                trigger_activity=TriggerActivityAdapter(case_actor_dl),
+            )
+        )
 
         # ── Step 6: assert CaseActor ledger has the validate_report entry ─────
         semantic_types = _ledger_semantic_types(case_actor_dl)

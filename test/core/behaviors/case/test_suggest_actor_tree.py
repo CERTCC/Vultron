@@ -34,6 +34,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.clock_decisions import clock_decision_node_ids
 from test.support.refusal_effects import refusal_effect_node_ids
 from test.support.sender_sequence_stage import sender_sequence_node_ids
@@ -71,6 +72,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     RequireRecordedOfferAnswerNode,
     SeatRecordedInviteeNode,
     SuggestedActorIsInvitableNode,
+    SuggestedRolesAreGrantableNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     offer_case_participant_id,
@@ -711,9 +713,10 @@ def test_an_answer_node_without_the_published_offer_is_an_internal_error(
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
     try:
-        result = BTBridge(
-            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute_with_setup(
+        result = run_tree(
+            BTBridge(
+                datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+            ),
             node_class(answer_id=_ANSWER_ID, case_id=_CASE_ID),
             actor_id=_MANAGER,
         )
@@ -1109,6 +1112,26 @@ class TestDuplicateDetectionTreeStructure:
 
     def test_selector_has_six_children(self):
         assert len(self._duplicate_selector().children) == 6
+
+    @pytest.mark.spec("CM-20-008")
+    def test_the_authority_role_guard_runs_before_the_commit_and_every_arm(
+        self,
+    ):
+        """One guard refuses an authority role for every arm (CM-20-008).
+
+        It sits in the precondition stage, outside the arms' selector and
+        before the guarded commit, so no arm can act on such a suggestion.
+        """
+        guard = next(
+            n
+            for n in self.all_nodes
+            if isinstance(n, SuggestedRolesAreGrantableNode)
+        )
+        assert guard not in list(self._duplicate_selector().iterate())
+        order = [n.name for n in self.all_nodes]
+        assert order.index(guard.name) < order.index(
+            "GuardedCommitCaseLedgerEntryBT"
+        )
 
     @pytest.mark.spec("CM-16-009", "CM-16-022")
     def test_the_in_flight_and_participant_arms_emit_no_invite(self):

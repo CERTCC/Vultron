@@ -24,6 +24,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case_id_scope import with_case_id
@@ -63,7 +64,7 @@ def _store(*, with_case: bool = True) -> SqliteDataLayer:
 def _run(
     node: py_trees.behaviour.Behaviour, dl: SqliteDataLayer
 ) -> py_trees.behaviour.Behaviour:
-    BTBridge(datalayer=dl).execute_with_setup(tree=node, actor_id=RECEIVER_ID)
+    run_tree(BTBridge(datalayer=dl), tree=node, actor_id=RECEIVER_ID)
     return node
 
 
@@ -131,8 +132,11 @@ def test_no_case_at_all_is_refused_with_the_reason() -> None:
 def test_the_case_comes_from_the_blackboard_when_the_node_names_none() -> None:
     dl = _store()
     node = ActorHoldsRoleInCaseNode(actor_id=OWNER_ID, role=CVDRole.CASE_OWNER)
-    BTBridge(datalayer=dl).execute_with_setup(
-        tree=node, actor_id=RECEIVER_ID, case_id=CASE_ID
+    run_tree(
+        BTBridge(datalayer=dl),
+        tree=node,
+        actor_id=RECEIVER_ID,
+        case_id=CASE_ID,
     )
 
     assert node.status is Status.SUCCESS

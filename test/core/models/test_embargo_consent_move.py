@@ -31,6 +31,7 @@ from vultron.core.models.embargo_apply import (
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_move import (
+    assert_owner_has_not_declined,
     consent_row_move,
     joiner_agreement,
     joiner_decline,
@@ -40,7 +41,10 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 
 CASE_ID = "https://example.org/cases/move"
 OWNER = "https://example.org/actors/owner"
@@ -181,7 +185,7 @@ class TestOwnerAgreement:
         """A row that holds no answer the owner gave becomes AGREED.
 
         A DECLINED row is an answer the owner gave, so an activation from it
-        is refused before this move (MSM-07-037, ADR-0180; built by #6043).
+        is refused before this move (MSM-07-037, ADR-0180).
         """
         case_file = _case_file(owner={E2: held})
 
@@ -205,6 +209,53 @@ class TestOwnerAgreement:
         )
 
         assert owner_agreement(case_file, E2) is None
+
+    @pytest.mark.spec("MSM-07-028")
+    @pytest.mark.spec("CM-18-003")
+    @pytest.mark.spec("CM-23-016")
+    def test_a_copy_agrees_for_a_declined_owner_as_the_entry_states(self):
+        """A replica copies what the committed Add states (CM-23-016).
+
+        The CASE_MANAGER never decides an activation from a DECLINED row
+        (MSM-07-037), so this is only a replica copying its entry.
+        """
+        change = owner_agreement(_case_file(owner={E2: _S.DECLINED}), E2)
+
+        assert change is not None
+        assert change.row.state is _S.AGREED
+
+
+class TestAssertOwnerHasNotDeclined:
+    @pytest.mark.spec("MSM-07-037")
+    def test_a_declined_owner_is_refused_and_told_to_accept_first(self):
+        case_file = _case_file(owner={E2: _S.DECLINED})
+
+        with pytest.raises(
+            VultronInvalidStateTransitionError,
+            match="Accept the invitation to the embargo first",
+        ):
+            assert_owner_has_not_declined(case_file, E2)
+
+    @pytest.mark.spec("MSM-07-028")
+    @pytest.mark.parametrize(
+        "held", [_S.UNINVITED, _S.INVITED, _S.TIMED_OUT, _S.AGREED]
+    )
+    def test_an_owner_with_no_decline_is_admitted(self, held):
+        assert_owner_has_not_declined(_case_file(owner={E2: held}), E2)
+
+    def test_another_participants_decline_does_not_refuse(self):
+        assert_owner_has_not_declined(_case_file(joiner={E2: _S.DECLINED}), E2)
+
+    def test_an_owner_off_the_roster_or_an_unregistered_embargo_passes(self):
+        """Nothing to read: the register refuses the activation itself."""
+        case_file = _case_file(owner={E2: _S.DECLINED})
+        off_roster = EmbargoCaseFile(
+            case=case_file.case,
+            participants={JOINER: case_file.participants[JOINER]},
+        )
+
+        assert_owner_has_not_declined(off_roster, E2)
+        assert_owner_has_not_declined(case_file, f"{CASE_ID}/embargoes/9")
 
 
 class TestJoinerAgreement:

@@ -29,6 +29,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.rm_declaration import RMAnomalyProbe
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.append import (
@@ -63,9 +64,7 @@ class TestSkipIfIdempotentNode:
         seq = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[load, skip]
         )
-        result = populated_bridge.execute_with_setup(
-            tree=seq, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=seq, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     def test_already_appended_succeeds(self, populated_dl):
@@ -83,7 +82,7 @@ class TestSkipIfIdempotentNode:
         seq = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[load, skip]
         )
-        result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=seq, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
 
@@ -101,9 +100,7 @@ class TestCheckStatusNotAlreadyAppendedNode:
         seq = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[load, check]
         )
-        result = populated_bridge.execute_with_setup(
-            tree=seq, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=seq, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_already_appended_fails(self, populated_dl):
@@ -120,7 +117,7 @@ class TestCheckStatusNotAlreadyAppendedNode:
         seq = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[load, check]
         )
-        result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=seq, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
 
@@ -139,9 +136,7 @@ class TestValidateRMTransitionNode:
         seq = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[load, resolve, validate]
         )
-        result = populated_bridge.execute_with_setup(
-            tree=seq, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=seq, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_no_current_status_succeeds(self, populated_bridge):
@@ -156,9 +151,7 @@ class TestValidateRMTransitionNode:
             memory=False,
             children=[load, resolve, validate],
         )
-        result = populated_bridge.execute_with_setup(
-            tree=seq, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=seq, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_backwards_transition_fails(self, populated_dl):
@@ -195,7 +188,7 @@ class TestValidateRMTransitionNode:
             memory=False,
             children=[load, resolve, validate],
         )
-        result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=seq, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.spec("RSH-06-001")
@@ -238,8 +231,8 @@ class TestValidateRMTransitionNode:
 
         with caplog.at_level(logging.WARNING):
             seen: dict = {}
-            result = bridge.execute_with_setup(
-                tree=RMAnomalyProbe(seq, seen), actor_id=ACTOR_ID
+            result = run_tree(
+                bridge, tree=RMAnomalyProbe(seq, seen), actor_id=ACTOR_ID
             )
 
         assert result.status == Status.SUCCESS
@@ -290,8 +283,8 @@ class TestValidateRMTransitionNode:
             children=[load, resolve, validate],
         )
         seen: dict = {}
-        result = bridge.execute_with_setup(
-            tree=RMAnomalyProbe(seq, seen), actor_id=ACTOR_ID
+        result = run_tree(
+            bridge, tree=RMAnomalyProbe(seq, seen), actor_id=ACTOR_ID
         )
 
         assert result.status == Status.FAILURE
@@ -335,8 +328,8 @@ class TestValidateRMTransitionNode:
             children=[load, resolve, validate],
         )
         seen: dict = {}
-        result = bridge.execute_with_setup(
-            tree=RMAnomalyProbe(seq, seen), actor_id=ACTOR_ID
+        result = run_tree(
+            bridge, tree=RMAnomalyProbe(seq, seen), actor_id=ACTOR_ID
         )
 
         assert result.status == Status.SUCCESS

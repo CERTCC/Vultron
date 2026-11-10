@@ -31,6 +31,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     make_case_with_manager,
 )
+from test.support.act_runner import run_tree
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -155,8 +156,8 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove1"
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
+        result = run_tree(
+            bridge, tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
         )
 
         assert result.status == py_trees.common.Status.SUCCESS
@@ -197,7 +198,8 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         )
         embargo = dl.read(embargo_id)
         assert embargo is not None
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=tree,
             actor_id=CASE_MANAGER_ACTOR,
             activity=_make_remove_event(
@@ -247,8 +249,8 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove2"
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
+        result = run_tree(
+            bridge, tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
         )
 
         assert result.status == py_trees.common.Status.SUCCESS
@@ -282,8 +284,8 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove3"
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
+        result = run_tree(
+            bridge, tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
         )
 
         assert result.status == py_trees.common.Status.SUCCESS
@@ -308,12 +310,13 @@ class TestRemoveEmbargoAnnouncedOnlyByTheCaseManager:
         expected_em: EM = EM.EXITED,
     ) -> MagicMock:
         factory = _make_factory()
-        result = BTBridge(
-            datalayer=dl,
-            trigger_activity=factory,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute_with_setup(
+        result = run_tree(
+            BTBridge(
+                datalayer=dl,
+                trigger_activity=factory,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ),
             tree=remove_embargo_from_case_tree(
                 sender_rule=_REMOVE_RULE,
                 case_id=case.id_,
@@ -414,8 +417,8 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove4"
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
+        result = run_tree(
+            bridge, tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
         )
 
         assert result.status == py_trees.common.Status.FAILURE
@@ -449,8 +452,8 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove5"
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
+        result = run_tree(
+            bridge, tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
         )
 
         assert result.status == py_trees.common.Status.SUCCESS

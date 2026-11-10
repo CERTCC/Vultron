@@ -6,6 +6,7 @@
   "type": "TentativeReject",
   "id": "urn:uuid:ca2ec341-edaa-4457-a200-5a8f1c13ac6b",
   "name": "https://vultron.example/organizations/vendorco TentativeReject https://vultron.example/users/finndervul Offer FDR-8675309",
+  "inReplyTo": "urn:uuid:ee00d16a-4faf-40d3-9b00-104666aff73e",
   "content": "We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {

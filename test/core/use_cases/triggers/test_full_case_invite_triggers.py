@@ -21,6 +21,7 @@ from collections.abc import Iterator
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.received import archive_received, case_stub
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -118,14 +119,16 @@ def _hold_invite(dl, actor, case_id: str, floor: LedgerPosition) -> str:
 
 
 def _run(use_case, request, dl):
-    return use_case(
-        dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        use_case(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
 
 @pytest.mark.spec("CM-11-034")

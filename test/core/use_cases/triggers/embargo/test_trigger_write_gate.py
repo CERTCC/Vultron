@@ -23,6 +23,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     activate,
     terminate,
@@ -116,12 +117,14 @@ def test_non_manager_trigger_asks_and_writes_no_em_state(
         end_time=datetime.now(tz=UTC) + timedelta(days=7),
     )
 
-    result = SvcProposeEmbargoUseCase(
-        finder_dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(finder_dl),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcProposeEmbargoUseCase(
+            finder_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+            clock=SystemClock(),
+        )
+    )
 
     updated = cast(VulnerabilityCase, finder_dl.read(case.id_))
     assert updated.current_status.em.state == EM.NONE
@@ -152,14 +155,16 @@ def test_non_manager_trigger_asks_and_writes_no_em_state(
 def _propose(
     dl: SqliteDataLayer, actor_id: str, case_id: str, end_time: datetime
 ):
-    return SvcProposeEmbargoUseCase(
-        dl,
-        ProposeEmbargoTriggerRequest(
-            actor_id=actor_id, case_id=case_id, end_time=end_time
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcProposeEmbargoUseCase(
+            dl,
+            ProposeEmbargoTriggerRequest(
+                actor_id=actor_id, case_id=case_id, end_time=end_time
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            clock=SystemClock(),
+        )
+    )
 
 
 @pytest.mark.spec("SYNC-11-002")
@@ -234,32 +239,38 @@ def _answer_or_teardown(
     factory = TriggerActivityAdapter(dl)
     render = As2WireRenderAdapter()
     if kind == "accept":
-        return SvcAcceptEmbargoUseCase(
-            dl,
-            AcceptEmbargoTriggerRequest(
-                actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
-            ),
-            trigger_activity=factory,
-            wire_render_port=render,
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcAcceptEmbargoUseCase(
+                dl,
+                AcceptEmbargoTriggerRequest(
+                    actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
+                ),
+                trigger_activity=factory,
+                wire_render_port=render,
+                clock=SystemClock(),
+            )
+        )
     if kind == "reject":
-        return SvcRejectEmbargoUseCase(
+        return run_in_act(
+            SvcRejectEmbargoUseCase(
+                dl,
+                RejectEmbargoTriggerRequest(
+                    actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
+                ),
+                trigger_activity=factory,
+                wire_render_port=render,
+                clock=SystemClock(),
+            )
+        )
+    return run_in_act(
+        SvcTerminateEmbargoUseCase(
             dl,
-            RejectEmbargoTriggerRequest(
-                actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
-            ),
+            TerminateEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
             trigger_activity=factory,
             wire_render_port=render,
             clock=SystemClock(),
-        ).execute()
-    return SvcTerminateEmbargoUseCase(
-        dl,
-        TerminateEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
-        trigger_activity=factory,
-        wire_render_port=render,
-        clock=SystemClock(),
-    ).execute()
+        )
+    )
 
 
 @pytest.mark.spec("SYNC-11-002")
@@ -300,16 +311,18 @@ def test_non_manager_revision_asks_and_writes_no_em_state(
     owner = _persist_actor(finder_dl, "Vendor Co")
     case, _, _ = _build_active_embargo_case(finder_dl, owner.id_, finder.id_)
 
-    SvcProposeEmbargoRevisionUseCase(
-        finder_dl,
-        ProposeEmbargoRevisionTriggerRequest(
-            actor_id=finder.id_,
-            case_id=case.id_,
-            end_time=datetime.now(tz=UTC) + timedelta(days=30),
-        ),
-        trigger_activity=TriggerActivityAdapter(finder_dl),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcProposeEmbargoRevisionUseCase(
+            finder_dl,
+            ProposeEmbargoRevisionTriggerRequest(
+                actor_id=finder.id_,
+                case_id=case.id_,
+                end_time=datetime.now(tz=UTC) + timedelta(days=30),
+            ),
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+            clock=SystemClock(),
+        )
+    )
 
     updated = cast(VulnerabilityCase, finder_dl.read(case.id_))
     assert updated.current_status.em.state == EM.ACTIVE
@@ -350,12 +363,14 @@ def test_non_manager_propose_on_exited_case_is_refused_locally(
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
-        SvcProposeEmbargoUseCase(
-            finder_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(finder_dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcProposeEmbargoUseCase(
+                finder_dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(finder_dl),
+                clock=SystemClock(),
+            )
+        )
 
     assert finder_dl.outbox_list() == []
     assert finder_dl.list_objects("EmbargoEvent") == []
@@ -393,12 +408,14 @@ def test_non_manager_propose_resolves_the_manager_before_storing_terms(
     )
 
     with pytest.raises(VultronError):
-        SvcProposeEmbargoUseCase(
-            finder_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(finder_dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcProposeEmbargoUseCase(
+                finder_dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(finder_dl),
+                clock=SystemClock(),
+            )
+        )
 
     assert finder_dl.list_objects("EmbargoEvent") == []
     assert finder_dl.outbox_list() == []

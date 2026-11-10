@@ -24,6 +24,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.ledger import ledger_entries
 from test.support.received import TEST_SENDER_POSITION, received_event
 from test.support.signing import signed_body
@@ -222,7 +223,11 @@ def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
 def _genesis_request(case_id: str, sender: str) -> dict[str, Any]:
     """The objectless genesis-replay Reject *sender* sends the CASE_MANAGER."""
     return genesis_replay_reject_activity(
-        case_id, TEST_SENDER_POSITION, actor=sender, to=[MANAGER]
+        case_id,
+        TEST_SENDER_POSITION,
+        actor=sender,
+        to=[MANAGER],
+        in_reply_to="https://example.org/activities/prompting-announce",
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
@@ -279,17 +284,19 @@ def _noted(case_id: str) -> tuple[LedgerNetwork, str]:
     owner's replica has not received the entry."""
     net = LedgerNetwork(case_id, em_state=EM.NONE)
     net.stores[BYSTANDER].create(as_Service(id_=BYSTANDER, name="Vendor B"))
-    result = SvcAddNoteToCaseUseCase(
-        net.stores[BYSTANDER],
-        AddNoteToCaseTriggerRequest(
-            actor_id=BYSTANDER,
-            case_id=net.case_id,
-            note_name="Question",
-            note_content="Is there a workaround?",
-        ),
-        trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcAddNoteToCaseUseCase(
+            net.stores[BYSTANDER],
+            AddNoteToCaseTriggerRequest(
+                actor_id=BYSTANDER,
+                case_id=net.case_id,
+                note_name="Question",
+                note_content="Is there a workaround?",
+            ),
+            trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
+            clock=SystemClock(),
+        )
+    )
     assert result.note is not None
     for _type, verdict in net.deliver(BYSTANDER, to=MANAGER):
         assert verdict.disposition is HandlerDisposition.APPLIED

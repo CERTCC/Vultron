@@ -2,6 +2,7 @@ import logging
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -60,7 +61,7 @@ def test_fault_without_in_reply_to_is_logged_as_unnamed(make_payload, caplog):
     assert event.failed_activity_id is None
 
     with caplog.at_level(logging.WARNING, logger="vultron"):
-        result = CreateProcessingFaultReceivedUseCase(dl, event).execute()
+        result = run_in_act(CreateProcessingFaultReceivedUseCase(dl, event))
 
     assert result.disposition == HandlerDisposition.SKIPPED
     warning_messages = [
@@ -103,9 +104,9 @@ def test_case_diverged_fault_naming_no_announce_is_refused(make_payload):
         to=[_RECEIVER],
     )
 
-    result = CreateProcessingFaultReceivedUseCase(
-        dl, make_payload(activity, at=dl)
-    ).execute()
+    result = run_in_act(
+        CreateProcessingFaultReceivedUseCase(dl, make_payload(activity, at=dl))
+    )
 
     assert result.disposition == HandlerDisposition.REFUSED
     assert "names no case" in (result.reason or "")
@@ -133,7 +134,7 @@ def test_received_fault_is_skipped_until_ask_register_exists(make_payload):
     )
     event = make_payload(activity, at=dl)
 
-    result = CreateProcessingFaultReceivedUseCase(dl, event).execute()
+    result = run_in_act(CreateProcessingFaultReceivedUseCase(dl, event))
 
     assert result.disposition == HandlerDisposition.SKIPPED
     assert result.reason is not None and "#2883" in result.reason
@@ -166,7 +167,7 @@ def test_received_fault_is_logged_naming_its_sender_and_fault(
     event = make_payload(activity, at=dl)
 
     with caplog.at_level(logging.WARNING, logger="vultron"):
-        CreateProcessingFaultReceivedUseCase(dl, event).execute()
+        run_in_act(CreateProcessingFaultReceivedUseCase(dl, event))
 
     warning_messages = [
         r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING
@@ -238,8 +239,8 @@ def test_a_fault_about_a_report_not_held_is_answered_with_nothing(
         to=[_RECEIVER],
     )
 
-    CreateProcessingFaultReceivedUseCase(
-        dl, make_payload(activity, at=dl)
-    ).execute()
+    run_in_act(
+        CreateProcessingFaultReceivedUseCase(dl, make_payload(activity, at=dl))
+    )
 
     assert dl.outbox_list() == []

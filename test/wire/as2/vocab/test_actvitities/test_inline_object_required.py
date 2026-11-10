@@ -357,7 +357,11 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
         assert isinstance(obj.object_, _RmSubmitReportActivity)
 
     def test_reject_log_entry_accepts_typed(self):
-        obj = _RejectLogEntryActivity(actor=_ACTOR.id_, object_=_LOG_ENTRY)
+        obj = _RejectLogEntryActivity(
+            actor=_ACTOR.id_,
+            object_=_LOG_ENTRY,
+            in_reply_to="https://example.org/activities/prompting-announce",
+        )
         assert isinstance(obj.object_, as_CaseLedgerEntry)
 
     def test_announce_log_entry_still_accepts_typed(self):

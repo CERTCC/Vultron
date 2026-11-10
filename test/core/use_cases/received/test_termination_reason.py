@@ -16,6 +16,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_in_act
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import activate
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -69,13 +70,15 @@ def _case_with_embargo(case_id: str, *, ended: bool):
 
 
 def _receive(dl, event):
-    return RemoveEmbargoEventFromCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 def _ledger(dl, case_id: str) -> list[CaseLedgerEntry]:

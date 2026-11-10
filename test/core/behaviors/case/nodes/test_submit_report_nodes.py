@@ -22,6 +22,7 @@ from types import SimpleNamespace
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.submit_report import (
@@ -49,7 +50,7 @@ FINDER = "https://example.org/users/finder"
 
 def _run(node):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
-    result = BTBridge(datalayer=dl).execute_with_setup(node, actor_id=VENDOR)
+    result = run_tree(BTBridge(datalayer=dl), node, actor_id=VENDOR)
     return dl, result
 
 
@@ -76,7 +77,7 @@ def test_offer_record_node_is_idempotent():
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
     bridge = BTBridge(datalayer=dl)
     for _ in range(2):
-        result = bridge.execute_with_setup(_record_node(), actor_id=VENDOR)
+        result = run_tree(bridge, _record_node(), actor_id=VENDOR)
         assert result.status == Status.SUCCESS
 
 
@@ -103,8 +104,8 @@ def test_claims_node_stores_one_record_per_reading_and_logs_each_skip(caplog):
     actor = f"{VENDOR}/{uuid.uuid4()}"  # a store no other test has written
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor)
     with caplog.at_level("INFO"):
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            _claims_node(), actor_id=actor, at=_AT
+        result = run_tree(
+            BTBridge(datalayer=dl), _claims_node(), actor_id=actor, at=_AT
         )
 
     assert result.status == Status.SUCCESS
@@ -124,14 +125,15 @@ def test_claims_node_keeps_a_record_it_already_holds(caplog):
     actor = f"{VENDOR}/{uuid.uuid4()}"
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor)
     bridge = BTBridge(datalayer=dl)
-    bridge.execute_with_setup(_claims_node(), actor_id=actor, at=_AT)
+    run_tree(bridge, _claims_node(), actor_id=actor, at=_AT)
     first = dl.list_objects("ReportClaimsRecord")
     assert len(first) == 1
+    # caplog keeps every record since the test began, and whether the first
+    # run's INFO lines reach it depends on the level other tests left set.
+    caplog.clear()
 
     with caplog.at_level("INFO"):
-        result = bridge.execute_with_setup(
-            _claims_node(), actor_id=actor, at=_AT
-        )
+        result = run_tree(bridge, _claims_node(), actor_id=actor, at=_AT)
 
     assert result.status == Status.SUCCESS
     assert dl.list_objects("ReportClaimsRecord") == first
@@ -161,8 +163,11 @@ def test_case_creation_eligibility_reads_to_alone(to, status):
     """Eligibility comes from ``to`` only (HP-09-001), off the blackboard."""
     node = CheckOfferNamesReceiverInToNode()
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
-    result = BTBridge(datalayer=dl).execute_with_setup(
-        node, actor_id=VENDOR, activity=_offer_event(to, sender=VENDOR)
+    result = run_tree(
+        BTBridge(datalayer=dl),
+        node,
+        actor_id=VENDOR,
+        activity=_offer_event(to, sender=VENDOR),
     )
     assert result.status == status
     assert node.not_named_in_to is (status is Status.FAILURE)
@@ -176,9 +181,7 @@ def test_eligibility_without_a_received_event_is_not_a_decline(caplog):
     node = CheckOfferNamesReceiverInToNode()
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
     with caplog.at_level("ERROR"):
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            node, actor_id=VENDOR
-        )
+        result = run_tree(BTBridge(datalayer=dl), node, actor_id=VENDOR)
     assert result.status == Status.FAILURE
     assert node.not_named_in_to is False
     assert "no received event" in node.feedback_message

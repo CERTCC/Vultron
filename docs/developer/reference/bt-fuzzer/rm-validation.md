@@ -21,32 +21,12 @@ This sub-tree assesses whether an incoming vulnerability report is credible and 
 - **Automation potential**: **High** — an event subscription on the case record, or a metadata timestamp comparison.
   This check is fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.NoNewValidationInfo`
-- **Call-out point shape**: ProtocolInternal — reads a change-detection flag that the upstream `NewValidationInfoSentinel` writes (see the next entry).
-  The external seam is at that upstream writer, not at this behavior tree (BT) condition check.
-- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — ProtocolInternal condition check at the top of the root `ValidateReportBT` Selector.
+- **Call-out point shape**: Retriever (binary) — the tree asks the sources of validation information on its own tick whether anything new has arrived, and the answer is the `SUCCESS` or `FAILURE` result itself, with no output keys (BT-18-006, BT-18-010).
+  It is not ProtocolInternal, because its input comes from outside the protocol (BT-18-017).
+  It is not a Sentinel: a Sentinel acts on its own initiative through a trigger and never answers a question the tree asks (BT-18-013).
+- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — a binary Retriever call-out at the top of the root `ValidateReportBT` Selector.
   It is not wired yet.
-  The tree has `CheckRMStateValid` in that position, and the change-detection variant belongs next to it when the retry loop exists.
-
-## `NewValidationInfoSentinel` *(upstream Sentinel stub)*
-
-- **Node name**: `NewValidationInfoSentinel`
-- **btz type**: *(not a BT node — upstream agent seam)*
-- **Source file**: *(to be determined)*
-- **Parent tree**: *(runs independently, outside the BT tick loop)*
-- **Semantic function**: Sentinel — monitors the case record for new events that are relevant to validation, such as a reporter follow-up, a credibility update, or new threat intelligence.
-  The Sentinel writes a change-detection flag that `NoNewValidationInfo` reads.
-- **Input dependency**: The event stream of the case management system.
-  The Sentinel compares metadata timestamps, or subscribes to events on case fields that are relevant to validation.
-- **Notes**: This writer is the real seam that `NoNewValidationInfo` implies.
-  The writer registers with an external event source and writes a flag to the BT blackboard or the local DataLayer.
-  `NoNewValidationInfo` reads that flag each tick.
-- **Automation potential**: **High** — an event subscription on the case record, or a metadata timestamp comparison.
-  This work is fully automatable.
-- **New-arch cross-ref**: `vultron.demo.fuzzer.call_out_point.NewValidationInfoSentinel`
-- **Call-out point shape**: Sentinel — pending reclassification.
-  Sentinel is no longer a call-out shape (ADR-0097, BT-18-013), and #3424 tracks the reclassification of this entry.
-- **Factory-fn placement**: Not placed inside the BT tree.
-  It writes the change-detection flag that `NoNewValidationInfo` reads at the top of the root `ValidateReportBT` Selector in `vultron.core.behaviors.report.validate_tree.create_validate_report_tree`.
+  The tree has `CheckRMStateValid` in that position, and this call-out belongs next to it, as a `ValidationCallOutBundle` factory field, when the retry loop exists.
 
 ## `EvaluateReportCredibility`
 

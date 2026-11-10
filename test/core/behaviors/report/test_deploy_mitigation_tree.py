@@ -17,7 +17,8 @@ Covers all acceptance criteria from issue #1954:
 
 - AC-1: DeployMitigationBT Fallback with four arms (mitigation-deployed,
   stay-deferred, deploy-if-available, monitor-if-desired)
-- AC-2: Six call-out factories from DeployMitigationCallOutBundle all wired
+- AC-2: Seven call-out factories from DeployMitigationCallOutBundle all wired
+  (the seventh, NoNewDeploymentInfo, added by #3424)
 - AC-3: DETERMINISTIC default uses ceiling/floor mapping (BT-23-002)
 - AC-4: Each factory seam is individually replaceable
 - AC-5: Integration — early-exit, stay-deferred, full-deploy arm, falls-through-to-monitor
@@ -42,8 +43,6 @@ from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
 )
 from vultron.core.behaviors.report.nodes.deploy_fix import (
-    NEW_DEPLOYMENT_INFO_KEY,
-    CheckNoNewDeploymentInfoNode,
     RMinStateDeferred,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -56,6 +55,11 @@ from vultron.enums.roles import CVDRole
 CASE_ID = "https://example.org/cases/test-deploy-mitigation-001"
 DEPLOYER_ACTOR_ID = "https://example.org/actors/deployer-mit-001"
 VENDOR_ACTOR_ID = "https://example.org/actors/vendor-mit-001"
+
+#: The trees run as the deployer, so the scenario opens the deployer's store: a
+#: BT's store follows its executing actor (ADR-0073).  Without it the seeded case
+#: lives in another actor's store and every guard fails on a missing case.
+pytestmark = pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +157,7 @@ def test_tree_has_four_arms():
 
 
 def test_should_stay_deferred_arm_composition():
-    """_ShouldStayInRmDeferred = RMinStateDeferred + CheckNoNewDeploymentInfo."""
+    """_ShouldStayInRmDeferred = RMinStateDeferred + NoNewDeploymentInfo call-out."""
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID
     )
@@ -161,7 +165,7 @@ def test_should_stay_deferred_arm_composition():
     assert isinstance(arm, py_trees.composites.Sequence)
     assert len(arm.children) == 2
     assert isinstance(arm.children[0], RMinStateDeferred)
-    assert isinstance(arm.children[1], CheckNoNewDeploymentInfoNode)
+    assert arm.children[1].name == "NoNewDeploymentInfo"
 
 
 def test_deploy_mitigation_if_available_arm_composition():
@@ -191,11 +195,11 @@ def test_monitor_arm_composition():
 
 
 # ---------------------------------------------------------------------------
-# AC-2: DeployMitigationCallOutBundle has exactly 6 fields
+# AC-2: DeployMitigationCallOutBundle has exactly 7 fields
 # ---------------------------------------------------------------------------
 
 
-def test_bundle_has_six_fields():
+def test_bundle_has_seven_fields():
     import dataclasses
 
     field_names = {
@@ -208,6 +212,7 @@ def test_bundle_has_six_fields():
         "deploy_mitigation_factory",
         "monitoring_requirement_factory",
         "monitor_deployment_factory",
+        "no_new_deployment_info_factory",
     }
 
 
@@ -223,6 +228,10 @@ def test_default_call_out_children_are_deterministic():
     )
     # arm 0: mitigation_deployed p=0.25 → AlwaysFail
     assert isinstance(unwrap_call_out(tree.children[0]), AlwaysFail)
+    # no_new_deployment_info p=0.75 → AlwaysSucceed
+    assert isinstance(
+        unwrap_call_out(tree.children[1].children[1]), AlwaysSucceed
+    )
 
     deploy_arm = tree.children[2]
     monitor_arm = tree.children[3]
@@ -272,6 +281,7 @@ def _marker_factory(label: str):
 # (field, label, arm_index, child_index within arm)
 _CALL_OUT_SEAMS = [
     ("mitigation_deployed_factory", "MD", 0, None),  # arm 0 is the node itself
+    ("no_new_deployment_info_factory", "NN", 1, 1),
     ("mitigation_available_factory", "MA", 2, 1),
     ("prioritize_deployment_factory", "PD", 2, 2),
     ("deploy_mitigation_factory", "DM", 2, 3),
@@ -282,7 +292,7 @@ _CALL_OUT_SEAMS = [
 
 @pytest.mark.parametrize("field,label,arm_idx,child_idx", _CALL_OUT_SEAMS)
 def test_each_factory_is_wired(field, label, arm_idx, child_idx):
-    """Each of the 6 factory fields is individually wired into the tree."""
+    """Each of the 7 factory fields is individually wired into the tree."""
     sentinel = {"called": False}
 
     def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
@@ -313,12 +323,13 @@ def test_all_factories_replaceable():
         deploy_mitigation_factory=_marker_factory("DM"),  # type: ignore[arg-type]
         monitoring_requirement_factory=_marker_factory("MR"),  # type: ignore[arg-type]
         monitor_deployment_factory=_marker_factory("MON"),  # type: ignore[arg-type]
+        no_new_deployment_info_factory=_marker_factory("NN"),  # type: ignore[arg-type]
     )
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
     )
     tree_str = py_trees.display.ascii_tree(tree)
-    for label in ("MD", "MA", "PD", "DM", "MR", "MON"):
+    for label in ("MD", "NN", "MA", "PD", "DM", "MR", "MON"):
         assert label in tree_str
 
 
@@ -333,6 +344,7 @@ def test_stochastic_bundle_children_are_fuzzer_nodes():
         MitigationDeployed,
         MonitorDeployment,
         MonitoringRequirement,
+        NoNewDeploymentInfo,
         PrioritizeDeployment,
     )
 
@@ -340,6 +352,9 @@ def test_stochastic_bundle_children_are_fuzzer_nodes():
         case_id=CASE_ID,
         actor_id=DEPLOYER_ACTOR_ID,
         call_out=DEPLOY_MITIGATION_STOCHASTIC,
+    )
+    assert isinstance(
+        unwrap_call_out(tree.children[1].children[1]), NoNewDeploymentInfo
     )
     deploy_arm = tree.children[2]
     monitor_arm = tree.children[3]
@@ -384,6 +399,10 @@ def test_early_exit_when_mitigation_already_deployed(
     )
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     assert result.status == Status.SUCCESS
+    assert tree.children[0].status == Status.SUCCESS
+    # Neither the deploy arm nor the monitor arm was ticked.
+    assert tree.children[2].status == Status.INVALID
+    assert tree.children[3].status == Status.INVALID
 
 
 def test_stay_deferred_short_circuits(
@@ -393,7 +412,8 @@ def test_stay_deferred_short_circuits(
     """Deferred deployer, no new info → _ShouldStayInRmDeferred SUCCESS.
 
     The DETERMINISTIC mitigation_deployed_factory is AlwaysFail, so arm 0
-    fails.  With RM=DEFERRED and no new-info flag, arm 1 succeeds.
+    fails.  With RM=DEFERRED and the NoNewDeploymentInfo Retriever's
+    DETERMINISTIC default answering "no new info", arm 1 succeeds.
     """
     _seed_rm_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.DEFERRED)
 
@@ -402,6 +422,8 @@ def test_stay_deferred_short_circuits(
     )
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     assert result.status == Status.SUCCESS
+    # Arm 1 itself produced the SUCCESS, not the always-succeeding monitor arm.
+    assert tree.children[1].status == Status.SUCCESS
 
 
 def test_stay_deferred_fails_when_new_info_present(
@@ -410,22 +432,27 @@ def test_stay_deferred_fails_when_new_info_present(
 ) -> None:
     """Deferred + new deployment info → _ShouldStayInRmDeferred fails.
 
-    CheckNoNewDeploymentInfoNode returns FAILURE when the blackboard flag is
-    truthy, so the sequence fails and the tree falls through to the deploy arm.
-    The deploy arm then fails (CheckRMStateAccepted fails for DEFERRED),
-    leaving the monitor arm to succeed.
+    The NoNewDeploymentInfo Retriever answers FAILURE (new info arrived), so
+    the sequence fails and the tree falls through to the deploy arm.  The
+    deploy arm then fails (CheckRMStateAccepted fails for DEFERRED), leaving
+    the monitor arm to succeed.
     """
     _seed_rm_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.DEFERRED)
 
+    bundle = DeployMitigationCallOutBundle(
+        no_new_deployment_info_factory=AlwaysFail,  # type: ignore[arg-type]
+    )
     tree = create_deploy_mitigation_tree(
-        case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID
+        case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
     )
-    result = bt_scenario.run(
-        tree,
-        actor_id=DEPLOYER_ACTOR_ID,
-        **{NEW_DEPLOYMENT_INFO_KEY: True},
-    )
+    result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
+    stay_arm = tree.children[1]
+    assert stay_arm.children[0].status == Status.SUCCESS
+    assert stay_arm.status == Status.FAILURE
+    # The deploy arm fails at its CheckRMStateAccepted guard (RM is DEFERRED).
+    assert tree.children[2].children[0].status == Status.FAILURE
     # Monitor arm (all AlwaysSucceed by default) rescues the tree.
+    assert tree.children[3].status == Status.SUCCESS
     assert result.status == Status.SUCCESS
 
 
@@ -454,6 +481,7 @@ def test_deploy_arm_completes_when_mitigation_succeeds(
     )
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     assert result.status == Status.SUCCESS
+    assert tree.children[2].status == Status.SUCCESS
 
 
 def test_deploy_arm_falls_through_to_monitor_when_deploy_mitigation_fails(
@@ -477,14 +505,23 @@ def test_deploy_arm_falls_through_to_monitor_when_deploy_mitigation_fails(
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     # Monitor arm rescues (MonitoringRequirement and MonitorDeployment both AlwaysSucceed).
     assert result.status == Status.SUCCESS
+    deploy_arm = tree.children[2]
+    assert deploy_arm.status == Status.FAILURE
+    # It stopped at MitigationAvailable, before DeployMitigation.
+    assert deploy_arm.children[1].status == Status.FAILURE
+    assert deploy_arm.children[3].status == Status.INVALID
+    assert tree.children[3].status == Status.SUCCESS
 
 
-def test_non_deployer_role_skips_deploy_arm(
+@pytest.mark.executes_as(VENDOR_ACTOR_ID)
+def test_non_deployer_is_not_role_gated(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """Actor without DEPLOYER role → CheckDeployerRoleNode FAILURE → deploy arm skipped.
+    """Actor without DEPLOYER role, RM ACCEPTED → the deploy arm still runs.
 
-    The monitor arm (AlwaysSucceed defaults) then rescues the tree.
+    The mitigation tree carries no deployer role guard: #2664 removed
+    ``CheckDeployerRoleNode`` from it, because the role check guards the CS
+    ``d`` bit (CSB-15-002) and mitigation has no CS bit (BT-20-006).
     """
     non_deployer = CaseParticipant(
         id_="https://example.org/participants/vendor-mit-cp-001",
@@ -506,5 +543,7 @@ def test_non_deployer_role_skips_deploy_arm(
         case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID
     )
     result = bt_scenario.run(tree, actor_id=VENDOR_ACTOR_ID)
-    # Monitor arm succeeds.
     assert result.status == Status.SUCCESS
+    # The deploy arm, not the monitor arm, produced the SUCCESS.
+    assert tree.children[2].status == Status.SUCCESS
+    assert tree.children[3].status == Status.INVALID

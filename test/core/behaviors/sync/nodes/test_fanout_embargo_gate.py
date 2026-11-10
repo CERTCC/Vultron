@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
     _make_entry,
 )
+from test.support.act_runner import run_tree
 from test.support.received import peer_position, received_event
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes import (
@@ -128,7 +129,8 @@ def test_replay_sends_nothing_to_non_signatory(bridge, datalayer) -> None:
     second = _make_entry(1, first.entry_hash)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=SendMissingEntriesNode(name="SendMissingEntries"),
         actor_id=MANAGER_ID,
         sync_port=sync_port,
@@ -239,7 +241,8 @@ def test_an_admitted_replay_covering_the_pause_clears_it(
     accept_embargo(datalayer, NON_SIGNATORY_ID)
     sync_port.reset_mock()
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=SendMissingEntriesNode(name="SendMissingEntries"),
         actor_id=MANAGER_ID,
         sync_port=sync_port,
@@ -321,6 +324,7 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
         ),
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     event = cast(
         RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)
@@ -328,11 +332,12 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
     sync_port = MagicMock(spec=SyncActivityPort)
     trigger_activity = MagicMock(spec=TriggerActivityPort)
 
-    result = BTBridge(
-        datalayer=datalayer,
-        sync_port=sync_port,
-        trigger_activity=trigger_activity,
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=datalayer,
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+        ),
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
@@ -364,6 +369,7 @@ def test_genesis_pre_seed_itself_withholds_case_from_non_signatory(
         ),
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     event = cast(
         RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)
@@ -381,11 +387,12 @@ def test_genesis_pre_seed_itself_withholds_case_from_non_signatory(
         ],
     )
 
-    result = BTBridge(
-        datalayer=datalayer,
-        sync_port=sync_port,
-        trigger_activity=trigger_activity,
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=datalayer,
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+        ),
         tree=tree,
         actor_id=MANAGER_ID,
         activity=event,
@@ -401,10 +408,11 @@ def test_embargo_invite_still_reaches_non_signatory(datalayer) -> None:
     """Embargo meta-protocol is not case content: the relayed Invite goes out."""
     seed_case(datalayer, embargo_active=True)
 
-    result = BTBridge(
-        datalayer=datalayer,
-        trigger_activity=MagicMock(spec=TriggerActivityPort),
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=datalayer,
+            trigger_activity=MagicMock(spec=TriggerActivityPort),
+        ),
         tree=CollectEmbargoInviteRecipientsNode(
             case_id=CASE_ID, proposer_id=SIGNATORY_ID
         ),
@@ -584,17 +592,19 @@ def test_a_closed_peers_reject_is_answered_up_to_its_own_closure(
         ledger_position=peer_position(entries[0].entry_hash),
         actor=SIGNATORY_ID,
         to=[MANAGER_ID],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     event = cast(
         RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)
     )
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = BTBridge(
-        datalayer=datalayer,
-        sync_port=sync_port,
-        trigger_activity=MagicMock(spec=TriggerActivityPort),
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=datalayer,
+            sync_port=sync_port,
+            trigger_activity=MagicMock(spec=TriggerActivityPort),
+        ),
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,

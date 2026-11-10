@@ -285,19 +285,23 @@ This example is why the minimum window above is relative, not absolute.
 A 12-hour embargo grants a 12-hour answer window.
 That window is not an unreasonably short deadline when 12 hours is the whole embargo.
 
-**A late acceptance is not refused.**
+**A late acceptance is not refused for being late.**
 The CASE_MANAGER does not refuse a late accept on deadline grounds.
+What decides the answer, on time or late, is whether the accepted embargo is still available: the case's Active Embargo or one of its open proposals, before its end time.
 Three cases apply:
 
-- If the accepted terms are the case's Active Embargo, the CASE_MANAGER records the accept exactly as an on-time accept.
+- If the accepted embargo is available, the CASE_MANAGER records the accept exactly as an on-time accept.
   Its entry is the accept itself, and a `TIMED_OUT` or `DECLINED` row moves to `AGREED` directly.
-- If the terms are stale, the CASE_MANAGER relays a fresh invitation carrying the current terms, on behalf of their proposer.
-- If no embargo remains, the accept changes nothing.
-  The CASE_MANAGER records no entry, sends no reply and leaves the rows unchanged.
-  The participant keeps its place in the case either way.
+- If the case held the accepted embargo but it is no longer available, the CASE_MANAGER refuses the accept with the refusal notice and records nothing.
+  An embargo is no longer available when it was replaced, rejected, canceled or terminated, or when its end time has passed.
+  When the case holds current terms, the CASE_MANAGER also relays a fresh invitation carrying them, on behalf of their proposer.
+- If the case never held the accepted embargo, the CASE_MANAGER answers with a processing fault, `Create(ProcessingFault)`, and sends no refusal notice.
+  The sender's view of the case is wrong, so its accept was not understood.
+
+The participant keeps its place in the case in every case.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-17-001", "EMB-17-012", "EMB-17-002", "EMB-17-003", "EMB-17-013", "EMB-17-014", "EMB-17-004", "EMB-17-015", "EMB-17-016", "EMB-17-017", "EMB-17-008"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-17-001", "EMB-17-012", "MSM-07-012", "MSM-07-039", "EMB-17-002", "EMB-17-003", "EMB-17-013", "EMB-17-014", "EMB-17-004", "EMB-17-015", "EMB-17-016", "EMB-17-017", "EMB-17-006", "EMB-17-008"))
 ```
 
 **A time-out and a refusal reach different states.**

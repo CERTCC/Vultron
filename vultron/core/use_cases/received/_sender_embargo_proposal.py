@@ -27,7 +27,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
-from vultron.core.models._helpers import now_utc
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.models.events.case_proposal import (
     CreateCaseProposalReceivedEvent,
 )
@@ -40,8 +40,11 @@ def sender_embargo_proposal_inputs(
 ) -> dict[str, Any]:
     """Return the blackboard inputs for the Reporter's proposed terms, or ``{}``.
 
-    The duration is measured from now because that is when the embargo it
-    competes with would start.  A proposal whose ``context`` is not the
+    The duration is measured from the act's instant, the CASE_MANAGER's
+    receipt of the proposal, because that is when the embargo it competes
+    with would start; a CSAF disclosure date on the same Offer is measured
+    from the same instant (CSAF-03-001), so one clock decides between them
+    (ADR-0176).  A proposal whose ``context`` is not the
     proposal's report is not terms for this report (EP-04-009): the factory
     refuses it on the sending side, and the receiving side reads it as no
     proposal rather than adopting terms stated about something else.
@@ -61,7 +64,7 @@ def sender_embargo_proposal_inputs(
             report_id,
         )
         return {}
-    remaining = proposal.end_time - now_utc()
+    remaining = proposal.end_time - read_act_instant()
     if remaining <= timedelta(0):
         logger.warning(
             "create_case_proposal_received: the Reporter's proposed"

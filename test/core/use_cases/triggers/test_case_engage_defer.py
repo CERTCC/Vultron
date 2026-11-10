@@ -28,6 +28,7 @@ Failure semantics (documented by design):
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -177,12 +178,14 @@ class TestEngageCaseRMTransitionViaBT:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        SvcEngageCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         updated = self.dl.read(self.vendor_participant.id_)
         assert isinstance(updated, CaseParticipant)
@@ -210,12 +213,14 @@ class TestEngageCaseRMTransitionViaBT:
             case_id=case_solo.id_,
         )
         with pytest.raises(VultronValidationError):
-            SvcEngageCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcEngageCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -256,12 +261,14 @@ class TestDeferCaseRMTransitionViaBT:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        SvcDeferCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcDeferCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         updated = self.dl.read(self.vendor_participant.id_)
         assert isinstance(updated, CaseParticipant)
@@ -307,12 +314,14 @@ class TestAddNoteToCaseViaBT:
             note_name="Test Note",
             note_content="This is a test note content.",
         )
-        result = SvcAddNoteToCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAddNoteToCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         # The returned note should be non-None (BT created it)
         assert result.note is not None, (
@@ -335,11 +344,13 @@ class TestAddNoteToCaseViaBT:
             note_name="Activity Note",
             note_content="Content for activity test.",
         )
-        result = SvcAddNoteToCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAddNoteToCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert result.activity is not None, "Expected activity dict in result"

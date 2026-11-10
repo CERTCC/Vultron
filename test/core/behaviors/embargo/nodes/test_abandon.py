@@ -32,6 +32,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
     setup_blackboard,
 )
+from test.support.act_runner import run_tree
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.ledger import committed_semantic_types, fail_commits
 from test.support.received import archive_received
@@ -199,7 +200,7 @@ def _run(dl: SqliteDataLayer, case_id: str, actor_id: str) -> Status:
         sync_port=SyncActivityAdapter(dl),
     )
     tree = reject_proposed_embargo_bt(case_id=case_id, result_out={})
-    return bridge.execute_with_setup(tree, actor_id=actor_id).status
+    return run_tree(bridge, tree, actor_id=actor_id).status
 
 
 def _queued(dl: SqliteDataLayer) -> list[VultronActivity]:

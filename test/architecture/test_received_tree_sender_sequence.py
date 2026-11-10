@@ -63,6 +63,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.received import received_event, stamped
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge.bt_bridge import BTBridge
@@ -309,7 +310,7 @@ def _tree_at_the_case_manager(
     assert entry.use_case_class is not None
     with patch.object(BTBridge, "execute_with_setup", _capture):
         try:
-            entry.use_case_class(dl, event).execute()
+            run_in_act(entry.use_case_class(dl, event))
         except _TreeCaptured as captured:
             return captured.tree
         finally:

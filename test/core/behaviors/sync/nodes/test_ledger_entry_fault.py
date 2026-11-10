@@ -25,6 +25,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
@@ -88,9 +89,8 @@ def test_the_fault_names_the_announce_and_goes_to_the_case_manager(managed):
     trigger = MagicMock(spec=TriggerActivityPort)
     event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER)
 
-    result = BTBridge(
-        datalayer=managed, trigger_activity=trigger
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=managed, trigger_activity=trigger),
         tree=EmitLedgerEntryFaultNode(_CLASS, name="EmitFault"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -159,7 +159,8 @@ def test_the_node_without_a_trigger_port_is_an_internal_error(managed):
     """The bridge reports the wiring fault as internal, not a refusal."""
     event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER)
 
-    result = BTBridge(datalayer=managed).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=managed),
         tree=EmitLedgerEntryFaultNode(_CLASS, name="EmitFault"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,

@@ -24,6 +24,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.act_transaction import (
     ActTransaction,
     OneActExemption,
@@ -1307,8 +1308,8 @@ class TestClockDecisionOutcomes:
                 after,
             ],
         )
-        result = BTBridge(datalayer=datalayer).execute_with_setup(
-            tree=root, actor_id=actor_id
+        result = run_tree(
+            BTBridge(datalayer=datalayer), tree=root, actor_id=actor_id
         )
         return result, after
 

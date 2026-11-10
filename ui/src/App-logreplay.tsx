@@ -1,15 +1,16 @@
 import { useState, useCallback, useRef } from 'react'
 import type { DemoState } from './types'
 import './App.css'
-import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS, INITIAL_X_POSITION, X_INCREMENT, getVendorNodeColors } from './constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS, INITIAL_X_POSITION, X_INCREMENT, nodeColorsFor } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import { initialState } from './protocol'
 import { getActiveLanes } from './state/participantHelpers'
 import {
   parseCaseLedger,
   normalizeLedger,
-  type CaseLedgerEntry,
+  type ParsedLedger,
 } from './utils/caseLedgerParser'
+import { EMPTY_LEDGER, laneVfdState, ledgerLoadError, mergeLedgers } from './utils/replayLoad'
 import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // Committed recordings the "Load …" buttons import at build time via `?raw`.
 // A recording is the canonical case ledger (`case-actor.jsonl`) a registered
@@ -31,8 +32,9 @@ import violationLedgerRaw from './synthetic-ledgers/violations-case-ledger.jsonl
 import rvvLedgerRaw from './recordings/rvv/case-actor.jsonl?raw'
 // Coordinator scenarios (R/V/C notation: Reporter/Vendor/Coordinator, with
 // -extension vs -handoff variants).
-// The -handoff logs depict the ownership transfer as offer/accept nodes, but the
-// lanes keep their host labels, so the CASE_OWNER label does not move (deferred).
+// The -handoff logs depict the ownership transfer as offer/accept nodes. Lanes are
+// keyed on actor ids and labelled by the ledger's roles, CASE_OWNER aside, so both
+// participants keep their lanes and labels through the handoff (utils/replayLanes.ts).
 import rcvLedgerRaw from './recordings/rcv/case-actor.jsonl?raw'
 import rvcvExtLedgerRaw from './recordings/rvcv-extension/case-actor.jsonl?raw'
 import rccvExtLedgerRaw from './recordings/rccv-extension/case-actor.jsonl?raw'
@@ -179,25 +181,13 @@ const SAMPLE_SCENARIOS: SampleScenario[] = [
 
 const SCENARIO_GROUPS: ScenarioGroup[] = ['Core', 'Coordinator', 'Diagnostic']
 
-type NodePalette = { decision: string; decisionHover: string; consequence: string; consequenceHover: string }
-
-/**
- * Node color palette for a participant id. Handles any `vendor-N` (via the
- * cycling vendor palette), plus finder, caseactor, and coordinator; falls back
- * to finder's palette for anything unrecognized.
- */
-function nodeColorsFor(participantId: string): NodePalette {
-  if (participantId === 'finder') return NODE_COLORS.finder
-  if (participantId === 'caseactor') return NODE_COLORS.caseactor
-  if (participantId === 'coordinator') return NODE_COLORS.coordinator
-  const m = participantId.match(/^vendor-(\d+)$/)
-  if (m) return getVendorNodeColors(parseInt(m[1], 10))
-  return NODE_COLORS.finder
-}
-
 function AppLogReplay() {
   const [demoState, setDemoState] = useState<DemoState | null>(null)
-  const [accumulatedEntries, setAccumulatedEntries] = useState<CaseLedgerEntry[]>([])
+  // Every loaded line: the well-formed entries, and the lines that failed the
+  // shape check (parseCaseLedger), which are not replayed but listed in the
+  // replay header and the event log.
+  const [accumulated, setAccumulated] = useState<ParsedLedger>(EMPTY_LEDGER)
+  const accumulatedEntries = accumulated.entries
   const [uploadCount, setUploadCount] = useState(0)
   // Human-readable name of the pre-given scenario currently loaded (shown in the
   // Case Timeline header). Null when the case came from a manual file upload.
@@ -215,9 +205,9 @@ function AppLogReplay() {
   const playIntervalRef = useRef<number | null>(null)
 
   // Build (or rebuild) the replay state from a full set of ledger entries.
-  const rebuildFromEntries = useCallback((allEntries: CaseLedgerEntry[]) => {
-    const normalized = normalizeLedger(allEntries)
-    const state = buildTimelineFromCaseLedger(normalized)
+  const rebuildFromLedger = useCallback((ledger: ParsedLedger) => {
+    const normalized = normalizeLedger(ledger.entries)
+    const state = buildTimelineFromCaseLedger(normalized, ledger.rejected)
     setDemoState(state)
     setCurrentEventIndex(0)
   }, [])
@@ -230,51 +220,54 @@ function AppLogReplay() {
     setError(null)
 
     try {
-      const newEntries: CaseLedgerEntry[] = []
-
-      // Read all uploaded files
+      // Read all uploaded files, then either accumulate or replace.
+      const parts: ParsedLedger[] = shouldAccumulate ? [accumulated] : []
       for (let i = 0; i < files.length; i++) {
-        const content = await files[i].text()
-        newEntries.push(...parseCaseLedger(content))
+        // A folder upload names each file by its path, so the CASE_MANAGER's and
+        // each replica's `case-actor.jsonl` stay apart in the rejected list.
+        const file = files[i]
+        parts.push(parseCaseLedger(await file.text(), file.webkitRelativePath || file.name))
       }
-
-      // Either accumulate or replace
-      const allEntries = shouldAccumulate ? [...accumulatedEntries, ...newEntries] : newEntries
-      setAccumulatedEntries(allEntries)
+      const ledger = mergeLedgers(parts)
+      const loadError = ledgerLoadError('The selected files', ledger)
+      if (loadError !== null) throw new Error(loadError)
+      setAccumulated(ledger)
       setUploadCount(prev => prev + 1)
       // Manual uploads aren't one of the named catalog scenarios.
       setLoadedScenarioName(null)
 
-      rebuildFromEntries(allEntries)
+      rebuildFromLedger(ledger)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load log files')
       console.error('Error processing log files:', err)
     } finally {
       setLoading(false)
     }
-  }, [accumulatedEntries, rebuildFromEntries])
+  }, [accumulated, rebuildFromLedger])
 
   // Load a committed ledger from its raw text (no file picker needed). Shared by
-  // the happy-path sample and the synthetic violation fixture.
-  const loadRawLedger = useCallback((raw: string, label: string) => {
+  // the happy-path sample and the synthetic violation fixture. Returns whether
+  // the ledger loaded; a refused load leaves the previous replay in place.
+  const loadRawLedger = useCallback((raw: string, label: string): boolean => {
     setLoading(true)
     setError(null)
 
     try {
-      const allEntries = parseCaseLedger(raw)
-      if (allEntries.length === 0) {
-        throw new Error(`${label} was empty — try file upload instead.`)
-      }
-      setAccumulatedEntries(allEntries)
+      const ledger = parseCaseLedger(raw, label)
+      const loadError = ledgerLoadError(label, ledger)
+      if (loadError !== null) throw new Error(loadError)
+      setAccumulated(ledger)
       setUploadCount(prev => prev + 1)
-      rebuildFromEntries(allEntries)
+      rebuildFromLedger(ledger)
+      return true
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to load ${label}`)
       console.error(`Error loading ${label}:`, err)
+      return false
     } finally {
       setLoading(false)
     }
-  }, [rebuildFromEntries])
+  }, [rebuildFromLedger])
 
   // Load any catalog scenario by its raw ledger + title (data-driven picker).
   // Record its name for the timeline header, stripping the leading ▶/⚠️ glyph +
@@ -284,8 +277,11 @@ function AppLogReplay() {
   // selector, which is misleading inside a `[...]` character class).
   const handleLoadScenario = useCallback(
     (scenario: SampleScenario) => {
-      loadRawLedger(scenario.raw, scenario.title)
-      setLoadedScenarioName(scenario.title.replace(/^[^\p{L}]+/u, '').trim())
+      // Name the header only for a load that replaced the replay, so a refused
+      // recording never labels the previous timeline.
+      if (loadRawLedger(scenario.raw, scenario.title)) {
+        setLoadedScenarioName(scenario.title.replace(/^[^\p{L}]+/u, '').trim())
+      }
     },
     [loadRawLedger]
   )
@@ -298,7 +294,7 @@ function AppLogReplay() {
     }
     setIsPlaying(false)
     setDemoState(null)
-    setAccumulatedEntries([])
+    setAccumulated(EMPTY_LEDGER)
     setUploadCount(0)
     setCurrentEventIndex(0)
     setError(null)
@@ -606,7 +602,7 @@ function AppLogReplay() {
   // node in timelineEvents[0..currentEventIndex]. `getActiveLanes` first drops any
   // never-joined lane (mapper `visible` flag); the slice filter then reveals the
   // rest progressively. Effect: the case starts with just its founding roster
-  // (finder + receiver/owner + case actor) and late joiners (invited vendors /
+  // (reporter + receiver/owner + CASE_MANAGER) and late joiners (invited vendors /
   // coordinators) pop into their fixed slots as playback reaches their join — the
   // vertical layout grows with the case. Both the sidebar panels and the timeline
   // lane backgrounds derive from this same set, so they stay in lockstep.
@@ -670,22 +666,20 @@ function AppLogReplay() {
   const currentSnapshot = snapshots?.[currentStep]
   // Per-participant / case-level state readers keyed off the current snapshot.
   // A participant ABSENT from the snapshot hasn't entered the shadow at this step
-  // yet (e.g. in the FVV sample, only vendor-1 is seeded at step 0 — the finder,
-  // vendor-2 and case actor join later). Such a participant must read as the
+  // yet (e.g. in the rvv recording, only the Vendor is seeded at step 0 — the Reporter,
+  // Vendor 2 and CASE_MANAGER join later). Such a participant must read as the
   // machine's INITIAL state (not started), NOT the end-state: falling back to
   // `demoState` (the terminal snapshot) was the bug that made panels show CLOSED /
   // EXITED / VFD from the very first step.
-  // The Case Actor has no RM/VFD machine (coordinator role — makeParticipant marks
+  // The CASE_MANAGER has no RM/VFD machine (makeParticipant marks
   // it 'N/A'); the shadow never tracks it, so honor that sentinel rather than
   // reporting a bogus machine state.
   const rmStateOf = (id: string) => {
     if (demoState.participants.get(id)?.rmState === 'N/A') return 'N/A'
     return currentSnapshot?.rm[id] ?? initialState('rm')
   }
-  const vfdStateOf = (id: string) => {
-    if (demoState.participants.get(id)?.vfdState === 'N/A') return 'N/A'
-    return currentSnapshot?.vfd[id] ?? initialState('vfd')
-  }
+  const vfdStateOf = (id: string) => laneVfdState(demoState, id, currentSnapshot)
+  const rejectedLines = demoState.rejectedLines ?? []
   const emStateNow = currentSnapshot?.emState ?? initialState('em')
   const pxaStateNow = currentSnapshot?.pxaState ?? initialState('pxa')
 
@@ -745,6 +739,24 @@ function AppLogReplay() {
             }}>
               ✓ {accumulatedEntries.length} entries from {uploadCount} upload(s)
             </span>
+            {rejectedLines.length > 0 && (
+              <span
+                role="alert"
+                title={rejectedLines
+                  .map((line) => `${line.source} line ${line.lineNumber}: ${line.problems.join('; ')}`)
+                  .join('\n')}
+                style={{
+                  color: '#ffcdd2',
+                  fontSize: '0.875rem',
+                  fontWeight: 'bold',
+                  background: 'rgba(211, 47, 47, 0.3)',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '4px',
+                }}
+              >
+                ⚠️ {rejectedLines.length} malformed line(s) not replayed: see the Event Log
+              </span>
+            )}
             <input
               type="file"
               accept=".jsonl"
@@ -894,22 +906,18 @@ function AppLogReplay() {
               role={participant.role}
               color={participant.color}
               // State AS OF the current playback step (currentSnapshot), not the
-              // final end-state. PXA is case-level, shown on the Case Actor; EM is
+              // final end-state. PXA is case-level, shown on the CASE_MANAGER; EM is
               // case-level, shown on all.
               //
-              // VFD is DATA-DRIVEN (2026-07): show it for any lane the JSONL carries
-              // a VFD state for — i.e. every real participant, which `vfdStateOf`
-              // reports as anything other than the 'N/A' recorder sentinel. We do
-              // NOT gate on role: conceptually only a VENDOR develops a fix, but the
-              // generator stamps a vfdState on the finder and coordinator too, so
-              // surfacing it makes an out-of-place VFD (e.g. on a pure coordinator)
-              // VISIBLE as a signal that something is off in the generated ledger,
-              // rather than silently hiding it. Only the caseactor recorder ('N/A')
-              // has no VFD row.
+              // VFD is DATA-DRIVEN: show it for any lane the ledger carries a VFD
+              // state for (`vfdStateOf`). We do NOT gate on role, so a VFD on a lane
+              // that should have none (e.g. a pure coordinator) stays VISIBLE as a
+              // sign that something is off in the ledger, rather than being hidden.
+              // The casemanager recorder ('N/A') has no VFD row.
               rmState={rmStateOf(participant.id)}
               emState={emStateNow}
-              vfdState={vfdStateOf(participant.id) !== 'N/A' ? vfdStateOf(participant.id) : undefined}
-              pxaState={participant.id === 'caseactor' ? pxaStateNow : undefined}
+              vfd={vfdStateOf(participant.id)}
+              pxaState={participant.laneKind === 'casemanager' ? pxaStateNow : undefined}
               actions={[]} // No actions in replay mode
               onActionClick={() => {}}
               isCollapsed={collapsedParticipants.has(participant.id)}
@@ -1023,12 +1031,12 @@ function AppLogReplay() {
                     const adjustedY2 = y2 - (targetRectHalfHeight * direction)
 
                     // Arrow color = the target participant's consequence color
-                    // (works for any vendor-N via nodeColorsFor). The context-stroke
+                    // (the lane's palette key, via nodeColorsFor). The context-stroke
                     // marker inherits this color. No arrowhead when the target lane
                     // is collapsed (matches multivendor).
                     const targetParticipant = allParticipants.find(p => p.laneIndex === event.lane)
                     const arrowColor = targetParticipant
-                      ? nodeColorsFor(targetParticipant.id).consequence
+                      ? nodeColorsFor(targetParticipant.palette ?? targetParticipant.id).consequence
                       : '#999'
                     const arrowMarker = targetParticipant && !targetCollapsed ? 'url(#arrowhead-ctx)' : ''
 
@@ -1100,9 +1108,8 @@ function AppLogReplay() {
               const participant = demoState.participants.get(event.participantId || event.actor)
               if (!participant) return null
 
-              // Get the appropriate colors for this participant (any vendor-N).
-              const pid = event.participantId || event.actor
-              const participantColors = nodeColorsFor(pid)
+              // The lane's palette, from its ledger roles (utils/replayLanes.ts).
+              const participantColors = nodeColorsFor(participant.palette ?? participant.id)
 
               const fillColor = event.type === 'decision'
                 ? (hoveredEvent === event.id ? participantColors.decisionHover : participantColors.decision)
@@ -1194,6 +1201,36 @@ function AppLogReplay() {
                       </text>
                     </>
                   )}
+                  {/* Unrecognized-type annotation: the registry does not list this
+                      entry's semantic type, so the mapper drew it without
+                      interpreting it (a log from another protocol version). Grey
+                      dashed outline + ❓, distinct from a violation. */}
+                  {event.unrecognized && (
+                    <>
+                      <rect
+                        x={event.x - outlineW / 2 - 3}
+                        y={yPosition - outlineH / 2 - 3}
+                        width={outlineW + 6}
+                        height={outlineH + 6}
+                        rx="10"
+                        ry="10"
+                        fill="none"
+                        stroke="#616161"
+                        strokeWidth={3}
+                        strokeDasharray="2,3"
+                        pointerEvents="none"
+                      />
+                      <text
+                        x={event.x + outlineW / 2 - 6}
+                        y={yPosition - outlineH / 2 + 4}
+                        textAnchor="end"
+                        fontSize="20"
+                        pointerEvents="none"
+                      >
+                        ❓
+                      </text>
+                    </>
+                  )}
                 </g>
               )
               })}
@@ -1213,7 +1250,7 @@ function AppLogReplay() {
                     top: y + 60,
                     left: event.x - 140,
                     background: 'white',
-                    border: `2px solid ${event.violation ? '#d32f2f' : event.inferred ? '#f9a825' : '#333'}`,
+                    border: `2px solid ${event.violation ? '#d32f2f' : event.inferred ? '#f9a825' : event.unrecognized ? '#616161' : '#333'}`,
                     borderRadius: '8px',
                     padding: '0.75rem',
                     boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
@@ -1224,7 +1261,7 @@ function AppLogReplay() {
                   }}
                 >
                   <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    {event.violation ? '⚠️ ' : event.inferred ? 'ℹ️ ' : ''}{event.label}
+                    {event.violation ? '⚠️ ' : event.inferred ? 'ℹ️ ' : event.unrecognized ? '❓ ' : ''}{event.label}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#666' }}>
                     {event.consequences.map((c, i) => (
@@ -1251,6 +1288,17 @@ function AppLogReplay() {
                       color: '#e65100',
                     }}>
                       <strong>Inferred step:</strong> {event.inferredNote}
+                    </div>
+                  )}
+                  {event.unrecognized && event.unrecognizedNote && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      paddingTop: '0.5rem',
+                      borderTop: '1px solid #eee',
+                      fontSize: '0.75rem',
+                      color: '#424242',
+                    }}>
+                      <strong>Unrecognized:</strong> {event.unrecognizedNote}
                     </div>
                   )}
                 </div>

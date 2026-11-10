@@ -18,32 +18,49 @@ with the committed file, so every id, timestamp and hash in it must come out the
 same on every run.  Two sources vary between runs, and :func:`deterministic_run`
 replaces both:
 
-- **Ids.**  Every generated id is a ``uuid4``.  The run replaces
-  ``uuid.uuid4`` with a seeded generator, and also every module attribute bound
-  to it by ``from uuid import uuid4``, which a patch of the ``uuid`` module
-  alone does not reach.
+- **Ids.**  Every object id comes from the one minter,
+  :func:`vultron.core.models._helpers.new_object_id`, which draws from the
+  installed id source (OID-01-011).  The run installs a :class:`SeededUuid4`
+  for the block through
+  :func:`~vultron.core.models._helpers.install_id_source` and patches nothing
+  in the ``uuid`` module (OID-01-012, ADR-0185).  So py_trees, which draws
+  ``uuid.uuid4()`` for every behaviour and blackboard client it builds, keeps
+  its random ids, and adding a tree node moves no object id in a recording.
 - **The clock.**  Every timestamp comes from
   :func:`vultron.core.models._helpers.clock.now_utc`, which reads the ``datetime``
   name on its module at call time so that it can be replaced.  Replacing that
   name, not ``now_utc`` itself, also reaches the ``default_factory=now_utc``
   references that model fields captured at class creation.
 
-The patched ids are still version-4 UUIDs, and the clock still moves forward
+The seeded ids are still version-4 UUIDs, and the clock still moves forward
 on every read, so nothing that checks their shape or order sees a difference.
 """
 
 import random
-import sys
 import threading
 import uuid
 from collections.abc import Generator
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import py_trees
 
-from vultron.core.models._helpers import SteppingClock, clock as helpers_clock
+from vultron.core.models._helpers import (
+    SteppingClock,
+    clock as helpers_clock,
+    install_id_source,
+)
+
+# Imported for its import-time work, before any run installs an id source.
+# The docs examples build their shared objects at first import inside their
+# own id-source scope (#6117), which may not nest inside a recording's
+# install, and an example module first imported inside the install would
+# draw its objects' ids from the recording's seeded stream.  Loading them
+# here, with this module, keeps every first import outside the block.
+from vultron.wire.as2.vocab.examples import (  # noqa: F401
+    vocab_examples as _vocab_examples,
+)
 
 #: The instant a recording's clock starts from.  Fixed so that a recording does
 #: not change when it is regenerated on a later day.
@@ -66,18 +83,16 @@ RECORDING_CLOCK_STEP = timedelta(milliseconds=10)
 def reset_blackboard() -> None:
     """Drop everything the process-global py_trees blackboard holds.
 
-    Two kinds of leak outlive one tree, and a demo that runs several trees in
-    one process has to clear both:
+    ``BTBridge.execute_with_setup`` restores only the keys on its
+    ``managed_keys`` list, so any other key a node wrote outlives the run, and
+    a demo that runs several trees in one process starts each from whatever
+    the last one left.  ``Blackboard.clear()`` drops those keys, and with them
+    the client registry, the metadata and the activity stream, which is what
+    a run that starts from nothing wants.
 
-    * **keys.** ``BTBridge.execute_with_setup`` restores only the keys on its
-      ``managed_keys`` list, so any other key a node wrote outlives the run.
-    * **clients.** ``py_trees.blackboard.Client`` registers itself under a
-      ``uuid4`` that nothing unregisters, so a seeded id source
-      (:func:`deterministic_run`) redraws an id the registry already holds and
-      py_trees refuses the registration.
-
-    ``Blackboard.clear()`` drops both, and with them the metadata and the
-    activity stream, which is what a run that starts from nothing wants.
+    The registered clients do no harm across runs: py_trees names each one
+    by a ``uuid.uuid4()`` draw, which :func:`deterministic_run` leaves random,
+    so a second recording in one process draws no id the registry holds.
     """
     py_trees.blackboard.Blackboard.clear()
 
@@ -99,47 +114,36 @@ class SeededUuid4:
         return uuid.UUID(int=bits, version=4)
 
 
-def _modules_binding(value: object, name: str) -> list[str]:
-    """Return the loaded modules whose attribute *name* is *value*."""
-    return sorted(
-        module_name
-        for module_name, module in list(sys.modules.items())
-        if module is not None and getattr(module, name, None) is value
-    )
-
-
 @contextmanager
 def deterministic_run(
     seed: str,
     start: datetime = RECORDING_EPOCH,
     step: timedelta = RECORDING_CLOCK_STEP,
 ) -> Generator[None]:
-    """Replace the id source and the clock for the duration of the block.
+    """Install a seeded id source and a stepping clock for the block.
 
-    A module imported inside the block that runs ``from uuid import uuid4``
-    binds the seeded generator, which is correct while the block runs.  On
-    exit those bindings are put back to the real ``uuid4`` too, so a later run
-    in the same process does not depend on what this one imported.
+    The docs examples are already imported when the block starts (see the
+    import at the top of this module), so no first import of them runs
+    inside it.
+
+    The id source is installed through
+    :func:`~vultron.core.models._helpers.install_id_source`, so it restores
+    the previous source on exit, also when the block raises, and a
+    ``deterministic_run`` nested in another one (or in any other install)
+    raises :class:`~vultron.errors.VultronIdSourceInstalledError` rather than
+    sharing one stream of ids between two runs.
 
     Args:
-        seed: Seeds the id generator.  The same seed gives the same ids.
+        seed: Seeds the id source.  The same seed gives the same ids.
         start: The instant the clock starts from.
         step: How far the clock moves on each read.
     """
-    ids = SeededUuid4(seed)
     clock = SteppingClock(start, step=step)
-    real_uuid4 = uuid.uuid4
-    try:
-        with ExitStack() as stack:
-            for module_name in _modules_binding(real_uuid4, "uuid4"):
-                stack.enter_context(
-                    patch.object(sys.modules[module_name], "uuid4", ids)
-                )
-            stack.enter_context(patch.object(helpers_clock, "datetime", clock))
-            yield
-    finally:
-        for module_name in _modules_binding(ids, "uuid4"):
-            vars(sys.modules[module_name])["uuid4"] = real_uuid4
+    with (
+        install_id_source(SeededUuid4(seed)),
+        patch.object(helpers_clock, "datetime", clock),
+    ):
+        yield
 
 
 __all__ = [

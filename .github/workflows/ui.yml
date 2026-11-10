@@ -1,7 +1,8 @@
-# Lint and build the ui/ visualization demo (React 19 + TypeScript + Vite).
+# Lint, test and build the ui/ visualization demo (React 19 + TypeScript + Vite).
 # Separate from python-app.yml: distinct toolchain (Node/npm), path-filtered to
-# ui/** so Python-only changes do not spin up a Node runner. Closes the AC-4
-# decision for the demo-UI landing (PR #3754).
+# ui/** and the Python sources of its committed artifacts, so other Python
+# changes do not spin up a Node runner. Closes the AC-4 decision for the demo-UI landing
+# (PR #3754).
 
 name: UI
 
@@ -11,11 +12,32 @@ on:
     paths:
       - ui/**
       - .github/workflows/ui.yml
+      # The Python sources of the committed ui/src/data/ artifacts and
+      # recordings the UI imports. The job reads only the committed files, so
+      # this runs it on the pull request that changes their source; the
+      # regenerated files themselves are under ui/** (#4728).
+      - vultron/core/states/**
+      # The ledger-line models and the enums and primitive they use, behind
+      # ui/src/data/ledgerTypes.ts (#4729).
+      - vultron/core/models/**
+      - vultron/enums/**
+      - vultron/primitives.py
+      - vultron/semantic_registry/**
+      - vultron/demo/scenario/**
+      - vultron/metadata/demo_scenarios/**
   pull_request:
     branches: [ "main" ]
     paths:
       - ui/**
       - .github/workflows/ui.yml
+      # The generators of the UI's committed artifacts; see the push filter.
+      - vultron/core/states/**
+      - vultron/core/models/**
+      - vultron/enums/**
+      - vultron/primitives.py
+      - vultron/semantic_registry/**
+      - vultron/demo/scenario/**
+      - vultron/metadata/demo_scenarios/**
   workflow_dispatch:
 
 permissions:
@@ -48,6 +70,8 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Test
+        run: npm test
       - name: Build
         run: npm run build
 

@@ -31,6 +31,7 @@ Verifies that the add-note-to-case trigger:
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.trigger_results import activity_of, note_of
 from vultron.adapters.driven.clock import SystemClock
@@ -220,12 +221,14 @@ class TestSvcAddNoteToCaseUseCase:
             note_content=self.NOTE_CONTENT,
             in_reply_to=in_reply_to,
         )
-        return SvcAddNoteToCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcAddNoteToCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
     # ------------------------------------------------------------------
     # Return-value structure
@@ -384,12 +387,14 @@ class TestSvcAddNoteToCaseUseCase:
             note_content=self.NOTE_CONTENT,
         )
         with pytest.raises(VultronValidationError):
-            SvcAddNoteToCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcAddNoteToCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     # ------------------------------------------------------------------
     # Optional in_reply_to field
@@ -523,13 +528,15 @@ class TestSvcAddNoteToCaseUseCase:
             note_content=self.NOTE_CONTENT,
         )
 
-        result = SvcAddNoteToCaseUseCase(
-            manager_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(manager_dl),
-            sync_port=SyncActivityAdapter(manager_dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAddNoteToCaseUseCase(
+                manager_dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(manager_dl),
+                sync_port=SyncActivityAdapter(manager_dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert activity_of(result)["id"] is not None
         assert len(get_pending_assertion_store(manager.id_)) == 0
@@ -546,13 +553,15 @@ class TestSvcAddNoteToCaseUseCase:
             note_name=self.NOTE_NAME,
             note_content=self.NOTE_CONTENT,
         )
-        result = SvcAddNoteToCaseUseCase(
-            manager_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(manager_dl),
-            sync_port=SyncActivityAdapter(manager_dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAddNoteToCaseUseCase(
+                manager_dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(manager_dl),
+                sync_port=SyncActivityAdapter(manager_dl),
+                clock=SystemClock(),
+            )
+        )
         return result, manager, manager_dl, case
 
     @pytest.mark.spec("HP-08-006")

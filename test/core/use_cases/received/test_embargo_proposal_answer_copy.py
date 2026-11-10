@@ -29,6 +29,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -167,34 +168,40 @@ def _propose(net: LedgerNetwork, days: int = 30) -> Any:
         if net.case(MANAGER).embargo_in_force
         else (ProposeEmbargoTriggerRequest, SvcProposeEmbargoUseCase)
     )
-    return use_case_type(
-        net.stores[MANAGER],
-        request_type(
-            actor_id=MANAGER,
-            case_id=net.case_id,
-            end_time=days_from_now_utc(days),
-        ),
-        **_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        use_case_type(
+            net.stores[MANAGER],
+            request_type(
+                actor_id=MANAGER,
+                case_id=net.case_id,
+                end_time=days_from_now_utc(days),
+            ),
+            **_ports(net),
+            clock=SystemClock(),
+        )
+    )
 
 
 def _accept(net: LedgerNetwork) -> Any:
-    return SvcAcceptEmbargoUseCase(
-        net.stores[MANAGER],
-        AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
-        **_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcAcceptEmbargoUseCase(
+            net.stores[MANAGER],
+            AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+            **_ports(net),
+            clock=SystemClock(),
+        )
+    )
 
 
 def _reject(net: LedgerNetwork) -> Any:
-    return SvcRejectEmbargoUseCase(
-        net.stores[MANAGER],
-        RejectEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
-        **_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcRejectEmbargoUseCase(
+            net.stores[MANAGER],
+            RejectEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+            **_ports(net),
+            clock=SystemClock(),
+        )
+    )
 
 
 def _participant_proposes(net: LedgerNetwork, suffix: str, days: int) -> str:
@@ -271,12 +278,16 @@ def _manager_with_participants_revision(
 
 def _withdraw(net: LedgerNetwork) -> Any:
     """The CASE_MANAGER, a signatory and not the owner, leaves the embargo."""
-    return SvcWithdrawEmbargoUseCase(
-        net.stores[MANAGER],
-        WithdrawEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
-        **_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcWithdrawEmbargoUseCase(
+            net.stores[MANAGER],
+            WithdrawEmbargoTriggerRequest(
+                actor_id=MANAGER, case_id=net.case_id
+            ),
+            **_ports(net),
+            clock=SystemClock(),
+        )
+    )
 
 
 _ARMS: dict[
@@ -727,14 +738,16 @@ def test_a_re_issue_with_no_embargo_in_force_writes_no_row():
 
     entries = _new_entries(
         net,
-        lambda: SvcTerminateEmbargoUseCase(
-            net.stores[MANAGER],
-            TerminateEmbargoTriggerRequest(
-                actor_id=MANAGER, case_id=net.case_id
-            ),
-            **_ports(net),
-            clock=SystemClock(),
-        ).execute(),
+        lambda: run_in_act(
+            SvcTerminateEmbargoUseCase(
+                net.stores[MANAGER],
+                TerminateEmbargoTriggerRequest(
+                    actor_id=MANAGER, case_id=net.case_id
+                ),
+                **_ports(net),
+                clock=SystemClock(),
+            )
+        ),
     )
 
     assert net.case(MANAGER).active_embargo_id is None
@@ -802,12 +815,13 @@ def test_an_accept_whose_re_issued_row_did_not_commit_is_not_kept():
     assert (
         _new_entries(
             net,
-            lambda: BTBridge(
-                datalayer=dl,
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=_Sync(dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute_with_setup(
+            lambda: run_tree(
+                BTBridge(
+                    datalayer=dl,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=_Sync(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                ),
                 tree=ReissueStubInvitesNode(case_id=net.case_id),
                 actor_id=MANAGER,
             ),
@@ -823,10 +837,11 @@ def test_an_accept_whose_re_issued_row_did_not_commit_is_not_kept():
 
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("MSM-07-039")
 def test_an_answer_that_records_nothing_is_refused_before_it_is_committed():
     """An Accept of an embargo the register does not hold states a row no
-    node can write, so it is refused and nothing is committed (ADR-0122,
-    CM-18-003)."""
+    node can write, so it is answered with a processing fault and nothing is
+    committed (ADR-0122, CM-18-003, MSM-07-039)."""
     net = _net("answer-nothing")
     stranger = as_EmbargoEvent(
         id_=f"{net.case_id}/embargo_events/stranger",
@@ -854,7 +869,7 @@ def test_an_answer_that_records_nothing_is_refused_before_it_is_committed():
     verdict = net.receive(MANAGER, accept)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
-    assert "nothing to accept (CM-18-003)" in (verdict.reason or "")
+    assert "never held" in (verdict.reason or "")
     assert committed_semantic_types(net.stores[MANAGER], net.case_id) == before
 
 

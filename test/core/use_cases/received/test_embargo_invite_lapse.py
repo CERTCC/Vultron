@@ -24,6 +24,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_store_owner_as_case_manager,
 )
+from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import (
     activate,
     propose,
@@ -38,6 +39,10 @@ from test.support.ledger import (
     is_consent_row_update,
 )
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
+from test.support.refusal_notice import (
+    assert_refusal_notice,
+    refusal_notice_id,
+)
 from test.support.relayed_invite import (
     COORD as _COORD,
     INVITEE as _INVITEE,
@@ -164,12 +169,16 @@ def _make_dl(actor_id: str = _COORD) -> SqliteDataLayer:
 
 def _run_as_manager(dl: SqliteDataLayer, tree: Any) -> Any:
     """Run *tree* as the CASE_MANAGER with the ports production wires."""
-    return BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute_with_setup(tree=tree, actor_id=_COORD)
+    return run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ),
+        tree=tree,
+        actor_id=_COORD,
+    )
 
 
 def _invitee_consent(
@@ -469,13 +478,15 @@ class TestInviteReceiptStoresNoDeadline:
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         # Receipt is not a record: the deadline arrives with the ledger entry.
         fresh_case = dl.read(case_id)
@@ -613,13 +624,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         # The CASE_MANAGER adjudicates its own proposal and relays it: the
         # invitee's INVITED is written at the manager's commit of the relayed
@@ -654,13 +667,15 @@ class TestInviteeIsTheAddressee:
         event = make_payload(invite, at=dl)
         assert event.receiving_actor_id is None
 
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.consent_for(embargo_id) == EmbargoConsentState.INVITED
@@ -696,13 +711,15 @@ class TestInviteeIsTheAddressee:
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
 
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "names 0 'to' recipients" in (result.reason or "")
@@ -745,13 +762,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
-        RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.consent_for(embargo_id) == EmbargoConsentState.DECLINED
@@ -791,13 +810,15 @@ class TestInviteeIsTheAddressee:
         assert event.invitee_id is None
         assert event.to_recipients == [_OTHER, _INVITEE]
 
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "names 2 'to' recipients" in (result.reason or "")
@@ -836,13 +857,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.consent_for(embargo_id) == EmbargoConsentState.UNINVITED
@@ -879,13 +902,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "names 2 'to' recipients" in (result.reason or "")
@@ -929,13 +954,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(proposal, receiving_actor_id=_COORD, at=dl)
 
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
         coord = self._read_participant(dl, coord_p_id)
@@ -972,13 +999,15 @@ class TestInviteeIsTheAddressee:
         event = make_payload(invite, receiving_actor_id=_OTHER, at=dl)
 
         caplog.set_level("WARNING")
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         reason = result.reason or ""
@@ -1070,13 +1099,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.REFUSED
         assert "Leave(EmbargoEvent)" in (result.reason or "")
 
@@ -1143,13 +1174,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
         invitee = self._read_participant(dl, invitee_p_id)
@@ -1221,13 +1254,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
         coord = self._read_participant(dl, coord_p_id)
@@ -1291,13 +1326,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "neither the active" in (result.reason or "")
@@ -1337,13 +1374,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "neither the active" in (result.reason or "")
@@ -1380,13 +1419,15 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.SKIPPED
         assert "already declined" in (result.reason or "")
@@ -1426,25 +1467,29 @@ class TestInviteeIsTheAddressee:
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.consent_for(embargo_id) == EmbargoConsentState.INVITED
         assert answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
-        again = InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            make_payload(invite, receiving_actor_id=_INVITEE, at=dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        again = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                make_payload(invite, receiving_actor_id=_INVITEE, at=dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         assert again.disposition is HandlerDisposition.SKIPPED
         assert answers_in_outbox(dl, _INVITEE) == ["Accept"]
@@ -1596,12 +1641,14 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
         )
         event = make_payload(activation, receiving_actor_id=_COORD, at=dl)
 
-        result = ActivateEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            ActivateEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert missing_id in (result.reason or "")
@@ -1919,13 +1966,15 @@ class TestLateAcceptHandling:
         event = _make_accept_event(
             proposal, case, _INVITEE, make_payload, at=dl
         )
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -1941,8 +1990,8 @@ class TestLateAcceptHandling:
     ):
         """Run a late Accept whose expiry commit-and-apply is *commit_node*.
 
-        Returns the store, the case and embargo ids, and the list that
-        records each EMB-17 route the tree took.
+        Returns the store, the case and embargo ids, the list that records
+        each availability judgment the tree made, and the use case.
         """
         from vultron.core.behaviors.embargo import expiry_tree as _et_module
         from vultron.core.behaviors.embargo.nodes import (
@@ -1975,24 +2024,20 @@ class TestLateAcceptHandling:
                 "create_commit_and_record_expiry_tree",
                 lambda **_: commit_node,
             )
-        from py_trees.common import Status as _Status
-
-        from vultron.core.behaviors.embargo.nodes.late_accept import (
-            LateAcceptRouteIsNode,
+        from vultron.core.behaviors.embargo.nodes.accept_availability import (
+            EmbargoAvailabilityIsNode,
         )
 
-        routed: list[str] = []
-        original = LateAcceptRouteIsNode.update
+        judged: list[str] = []
+        original = EmbargoAvailabilityIsNode.update
 
         def _spy(self):
-            status = original(self)
-            if status is _Status.SUCCESS:
-                routed.append(self._case_id)
-            return status
+            judged.append(self._case_id)
+            return original(self)
 
-        # The late-Accept arms are diversions of the one tree (CLP-10-026);
-        # a route is taken when its condition holds.
-        monkeypatch.setattr(LateAcceptRouteIsNode, "update", _spy)
+        # The Accept is judged by its embargo's availability, on time or
+        # late (MSM-07-012); the spy shows the guards were reached.
+        monkeypatch.setattr(EmbargoAvailabilityIsNode, "update", _spy)
         use_case = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             _make_accept_event(proposal, case, _INVITEE, make_payload, at=dl),
@@ -2000,18 +2045,19 @@ class TestLateAcceptHandling:
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
         )
-        return dl, case_id, embargo_id, routed, use_case
+        return dl, case_id, embargo_id, judged, use_case
 
-    @pytest.mark.spec("CLP-10-025", "EMB-17-001")
-    def test_late_accept_is_routed_when_the_expiry_commit_is_refused(
+    @pytest.mark.spec("CLP-10-025", "EMB-17-001", "EMB-17-002")
+    def test_late_accept_is_judged_when_the_expiry_commit_is_refused(
         self, make_payload, monkeypatch, caplog
     ):
-        """A refused expiry commit warns; the late Accept is still routed.
+        """A refused expiry commit warns; the late Accept is still judged.
 
         The clock decision's FAILURE does not end the tree (CLP-10-025), and
-        the expiry guard still refuses the Accept as an answer, so the
-        handler routes it by EMB-17 instead of recording it (EMB-17-001).
-        No expiry entry is ledgered and the row is not timed out.
+        the Accept is then judged by its embargo's availability, as any
+        Accept is (EMB-17-001): the active embargo is available, so the
+        Accept is honoured (EMB-17-002).  No expiry entry is ledgered and the
+        row is not timed out.
         """
         import py_trees
 
@@ -2020,7 +2066,7 @@ class TestLateAcceptHandling:
                 self.feedback_message = "ledger refused the expiry entry"
                 return py_trees.common.Status.FAILURE
 
-        dl, case_id, embargo_id, routed, use_case = (
+        dl, case_id, embargo_id, judged, use_case = (
             self._late_accept_with_expiry_commit(
                 make_payload,
                 monkeypatch,
@@ -2030,10 +2076,10 @@ class TestLateAcceptHandling:
         )
 
         with caplog.at_level("WARNING"):
-            result = use_case.execute()
+            result = run_in_act(use_case)
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert routed == [case_id]
+        assert judged and set(judged) == {case_id}
         assert any(
             r.levelname == "WARNING"
             and "ledger refused the expiry entry" in r.getMessage()
@@ -2055,13 +2101,13 @@ class TestLateAcceptHandling:
         )
 
     @pytest.mark.spec("CLP-10-025")
-    def test_late_accept_with_an_internal_error_raises_and_is_not_routed(
+    def test_late_accept_with_an_internal_error_raises_and_is_not_judged(
         self, make_payload, monkeypatch
     ):
         """An internal error in the expiry decision ends the handler (ADR-0095).
 
-        The late-Accept routing must not run on a tree that crashed: the
-        handler raises instead of reporting the Accept as routed.
+        The Accept must not be judged on a tree that crashed: the handler
+        raises instead of reporting an answer.
         """
         import py_trees
 
@@ -2071,7 +2117,7 @@ class TestLateAcceptHandling:
             def update(self):
                 raise KeyError("bug")
 
-        _, _, _, routed, use_case = self._late_accept_with_expiry_commit(
+        _, _, _, judged, use_case = self._late_accept_with_expiry_commit(
             make_payload,
             monkeypatch,
             "late-crash",
@@ -2079,8 +2125,8 @@ class TestLateAcceptHandling:
         )
 
         with pytest.raises(VultronBTInternalError):
-            use_case.execute()
-        assert routed == []
+            run_in_act(use_case)
+        assert judged == []
 
     @pytest.mark.spec("EMB-17-002", "CM-18-003")
     @pytest.mark.parametrize(
@@ -2148,13 +2194,15 @@ class TestLateAcceptHandling:
             proposal, case, _INVITEE, make_payload, at=dl
         )
         applied.clear()
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -2173,6 +2221,8 @@ class TestLateAcceptHandling:
             assert PEC_Trigger.INVITE not in applied
 
     @pytest.mark.spec("EMB-17-003")
+    @pytest.mark.spec("EMB-17-005")
+    @pytest.mark.spec("MSM-07-012")
     @pytest.mark.parametrize(
         "stale_deadline",
         [_PAST, _FUTURE],
@@ -2181,10 +2231,13 @@ class TestLateAcceptHandling:
     def test_late_accept_reinvite_when_stale_embargo(
         self, make_payload, stale_deadline
     ):
-        """An Accept of stale terms → re-invite with the current embargo.
+        """An Accept of stale terms → refused, and re-invited to the current one.
 
-        AC-3 of #2213, and AC-5 of #4291: the stale entry is final, so its
-        invitation is closed whether or not its own deadline has passed.
+        AC-3 of #2213, and AC-5 of #4291: the stale entry is final, so the
+        embargo is no longer available whether or not the invitation's own
+        deadline has passed.  The Accept is refused uncommitted with the
+        refusal notice, and the accepter is asked about the embargo in force
+        (MSM-07-012, EMB-17-003).
         """
         from unittest.mock import MagicMock
 
@@ -2253,13 +2306,26 @@ class TestLateAcceptHandling:
         event = _make_accept_event(
             stale_proposal, case, _INVITEE, make_payload
         )
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=trigger_mock,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "no longer available" in (result.reason or "")
+        assert_refusal_notice(
             dl,
-            event,
-            trigger_activity=trigger_mock,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+            manager=_COORD,
+            refused_id=event.activity_id,
+            asserter=_INVITEE,
+            reason="SUPERSEDED",
+            case_id=case_id,
+        )
 
         # propose_embargo should have been called with the CURRENT embargo
         trigger_mock.propose_embargo.assert_called_once()
@@ -2290,13 +2356,20 @@ class TestLateAcceptHandling:
         assert participant.rsvp_deadline_for(current_embargo_id) == stamped
 
     @pytest.mark.spec("EMB-17-004")
-    def test_late_accept_noop_when_em_exited(self, make_payload):
-        """Late Accept after EM EXITED → a no-op, actor stays in case (AC-4 #2213).
+    @pytest.mark.spec("EMB-17-006")
+    @pytest.mark.spec("EMB-17-007")
+    @pytest.mark.spec("EMB-17-008")
+    @pytest.mark.spec("EMB-17-015")
+    @pytest.mark.spec("EMB-17-016")
+    def test_late_accept_refused_when_em_exited(self, make_payload):
+        """Late Accept after EM EXITED → refused, actor stays in case (AC-4 #2213).
 
         Termination writes no consent (ADR-0122) and, with no embargo in
-        force, nobody is a signatory; once EM is EXITED a late Accept records
-        no acceptance, so the invitee never becomes a signatory.  The Accept
-        changes nothing, so no entry is committed for it (EMB-17-004).
+        force, nobody is a signatory; once EM is EXITED the terminated
+        embargo is no longer available, so the Accept is refused uncommitted
+        with the refusal notice alone: the case holds no terms to invite to
+        (EMB-17-004, EMB-17-007).  The refusal is of the Accept, never of
+        the actor's participation (EMB-17-006, EMB-17-008).
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea3"
@@ -2326,14 +2399,18 @@ class TestLateAcceptHandling:
             proposal, case, _INVITEE, make_payload, at=dl
         )
         entries_before = _case_entries(dl, case_id)
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-        assert result.disposition is HandlerDisposition.SKIPPED
+        outbox_before = list(dl.outbox_list())
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "TERMINATED" in (result.reason or "")
 
         # Actor must still be a case participant (not removed)
         fresh_case = dl.read(case_id)
@@ -2352,33 +2429,35 @@ class TestLateAcceptHandling:
         )
         assert not participant.is_signatory(fresh_case.active_embargo_id)
 
-        # Nothing is ledgered for the no-op, and a redelivered Accept gets
-        # the same result (EMB-17-004, ADR-0152).
+        # Nothing is ledgered for the refused Accept, and the one thing sent
+        # is the refusal notice (EMB-17-015, EMB-17-016).
+        notice_id = refusal_notice_id(_COORD, event.activity_id)
         assert _case_entries(dl, case_id) == entries_before
-        again = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        assert list(dl.outbox_list()) == [*outbox_before, notice_id]
+        assert_refusal_notice(
             dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-        assert again.disposition is HandlerDisposition.SKIPPED
-        assert _case_entries(dl, case_id) == entries_before
+            manager=_COORD,
+            refused_id=event.activity_id,
+            asserter=_INVITEE,
+            reason="no longer available",
+            case_id=case_id,
+        )
 
     @pytest.mark.spec("EMB-17-004")
     @pytest.mark.spec("CM-28-025")
     @pytest.mark.spec("EMB-17-017")
+    @pytest.mark.spec("MSM-07-012")
     def test_late_accept_with_no_embargo_leaves_the_invitee_row_frozen(
         self, make_payload
     ):
-        """Late Accept with EM NONE → a no-op, and the frozen row is kept.
+        """Late Accept with EM NONE → refused, and the frozen row is kept.
 
         The invitee was invited to a proposal the owner then rejected, so EM
         is ``NONE`` and nothing is in force: the late Accept has nothing to
         sign.  The rejected entry is final, so its rows accept no trigger
         (ADR-0122): the invitation is not timed out and no expiry entry is
-        committed, and nothing is committed for the Accept either
-        (EMB-17-004).
+        committed, and the Accept is refused uncommitted with the refusal
+        notice (EMB-17-004, MSM-07-012).
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea-none"
@@ -2413,14 +2492,24 @@ class TestLateAcceptHandling:
             proposal, case, _INVITEE, make_payload, at=dl
         )
         entries_before = _case_entries(dl, case_id)
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert_refusal_notice(
             dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-        assert result.disposition is HandlerDisposition.SKIPPED
+            manager=_COORD,
+            refused_id=event.activity_id,
+            asserter=_INVITEE,
+            reason="REJECTED",
+            case_id=case_id,
+        )
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -2480,13 +2569,15 @@ class TestLateAcceptHandling:
         event = _make_accept_event(
             proposal, case, _INVITEE, make_payload, at=dl
         )
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -2542,13 +2633,15 @@ class TestLateAcceptHandling:
         dl.save(case)
 
         event = _make_accept_event(proposal, case, _COORD, make_payload, at=dl)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         # Normal path: the coordinator's consent is recorded; its Accept of
         # the Invite decides nothing for the case (ADR-0122).
@@ -2602,13 +2695,15 @@ class TestLateAcceptHandling:
         dl.save(case)
 
         event = _make_accept_event(proposal, case, _COORD, make_payload, at=dl)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         # Normal path: the coordinator's consent is recorded; its Accept of
         # the Invite decides nothing for the case (ADR-0122).
@@ -2646,13 +2741,15 @@ class TestLateAcceptHandling:
         event = _make_accept_event(
             proposal, case, _INVITEE, make_payload, at=dl
         )
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         # The CASE_MANAGER's Update(EmbargoConsent) carrying the TIMED_OUT
         # row records the expiry (CM-28-005, CM-28-009, ADR-0140).
@@ -2704,13 +2801,15 @@ class TestLateAcceptHandling:
             proposal, case, _INVITEE, make_payload, at=dl
         )
         # Must not raise VultronInvalidStateTransitionError (bug #3358).
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -2781,13 +2880,15 @@ class TestLateAcceptHandling:
             stale_proposal, case, _INVITEE, make_payload
         )
         # Must not raise VultronInvalidStateTransitionError (bug #3358).
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=trigger_mock,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=trigger_mock,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -2838,13 +2939,15 @@ class TestExpiryIsTheManagersAlone:
         )
         event = make_payload(accept, receiving_actor_id=_OTHER, at=dl)
 
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         expiry_entries = [
             e

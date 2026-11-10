@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -97,6 +98,7 @@ def _make_reject_event(
         ledger_position=peer_position(last_accepted_hash),
         actor=actor,
         to=to or [CASE_ACTOR_URI],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     return cast(RejectLogEntryReceivedEvent, received_event(activity))
 
@@ -113,6 +115,7 @@ class TestRejectLogEntryPattern:
             wire_entry,
             ledger_position=peer_position("a" * 64),
             actor=PARTICIPANT_URI,
+            in_reply_to="https://example.org/activities/prompting-announce",
         )
         event = received_event(activity)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
@@ -146,7 +149,11 @@ class TestRejectLogEntryPattern:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry0.model_dump(mode="json")
         )
-        activity = reject_log_entry_activity(wire_entry, actor=PARTICIPANT_URI)
+        activity = reject_log_entry_activity(
+            wire_entry,
+            actor=PARTICIPANT_URI,
+            in_reply_to="https://example.org/activities/prompting-announce",
+        )
         event = received_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.last_accepted_hash == ""
@@ -220,7 +227,7 @@ class TestRejectLedgerEntryReceivedUseCase:
         uc = RejectLedgerEntryReceivedUseCase(
             manager_dl, event, sync_port=SyncActivityAdapter(manager_dl)
         )
-        uc.execute()
+        run_in_act(uc)
 
         state_id = VultronReplicationState(
             case_id=CASE_URI, peer_id=PARTICIPANT_URI
@@ -250,13 +257,15 @@ class TestRejectLedgerEntryReceivedUseCase:
 
         # The copy names the store too, so the addressee door admits it and
         # the CASE_MANAGER role guard decides (HP-01-005).
-        result = RejectLedgerEntryReceivedUseCase(
-            dl,
-            self._make_event(
-                entry1, entry0.entry_hash, to=[CASE_ACTOR_URI, dl.actor_id]
-            ),
-            sync_port=sync_port,
-        ).execute()
+        result = run_in_act(
+            RejectLedgerEntryReceivedUseCase(
+                dl,
+                self._make_event(
+                    entry1, entry0.entry_hash, to=[CASE_ACTOR_URI, dl.actor_id]
+                ),
+                sync_port=sync_port,
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert "not the CASE_MANAGER" in (result.reason or "")
@@ -278,7 +287,7 @@ class TestRejectLedgerEntryReceivedUseCase:
             actor_id=PARTICIPANT_URI,
         )
         uc = RejectLedgerEntryReceivedUseCase(dl, event)
-        result = uc.execute()  # should not raise
+        result = run_in_act(uc)  # should not raise
 
         # HP-01-003: a Reject naming no entry is malformed, not a no-op.
         assert result.disposition == HandlerDisposition.REFUSED
@@ -301,9 +310,11 @@ class TestRejectLedgerEntryReceivedUseCase:
         # Participant says they only have up to entry0
         event = self._make_event(entry1, entry0.entry_hash)
         sync_port = SyncActivityAdapter(manager_dl)
-        result = RejectLedgerEntryReceivedUseCase(
-            manager_dl, event, sync_port=sync_port
-        ).execute()
+        result = run_in_act(
+            RejectLedgerEntryReceivedUseCase(
+                manager_dl, event, sync_port=sync_port
+            )
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
         # Should have queued one replay Announce (for entry1).

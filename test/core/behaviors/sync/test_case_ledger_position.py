@@ -28,6 +28,7 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from test.adapters.driven.test_sqlite_core_roundtrip import _insert_raw_row
+from test.support.act_runner import run_tree
 from test.support.ledger import (
     case_snapshot_position_violations,
     checking_each_commit,
@@ -269,7 +270,8 @@ def test_the_case_manager_commit_moves_its_case(dl: SqliteDataLayer) -> None:
     dl.save(case)
     entry = _entry(case, 0, case.genesis_hash)
 
-    result = BTBridge(datalayer=dl).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=dl),
         tree=PersistLogEntryNode(name="PersistLogEntry"),
         actor_id=OWNER,
         log_entry=entry,
@@ -288,7 +290,8 @@ def test_a_replica_store_moves_its_case() -> None:
     replica.save(case)
     entry = _entry(case, 0, case.genesis_hash)
 
-    result = BTBridge(datalayer=replica).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=replica),
         tree=PersistReceivedLogEntryNode(name="PersistReceivedLogEntry"),
         actor_id=REPLICA,
         activity=SimpleNamespace(log_entry=entry),
@@ -386,7 +389,8 @@ def test_the_case_manager_commit_fails_without_its_case(
 ) -> None:
     entry = _entry(_case(), 0, _case().genesis_hash)
 
-    result = BTBridge(datalayer=dl).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=dl),
         tree=PersistLogEntryNode(name="PersistLogEntry"),
         actor_id=OWNER,
         log_entry=entry,
@@ -403,7 +407,8 @@ def test_a_replica_store_fails_without_its_case() -> None:
     replica = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA)
     entry = _entry(_case(), 0, _case().genesis_hash)
 
-    result = BTBridge(datalayer=replica).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=replica),
         tree=PersistReceivedLogEntryNode(name="PersistReceivedLogEntry"),
         actor_id=REPLICA,
         activity=SimpleNamespace(log_entry=entry),

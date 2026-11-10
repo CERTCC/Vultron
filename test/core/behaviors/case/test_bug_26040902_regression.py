@@ -40,6 +40,7 @@ This test verifies the fix by:
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.received import with_evidence
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
@@ -190,8 +191,8 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         offer_id=_offer_id,
         reporter_actor_id=_reporter_actor_id,
     )
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=_actor_id, activity=submit_report_event
+    result = run_tree(
+        bridge, tree=tree, actor_id=_actor_id, activity=submit_report_event
     )
 
     assert result.status == Status.SUCCESS, (

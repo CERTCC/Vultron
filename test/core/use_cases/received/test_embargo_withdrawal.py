@@ -30,6 +30,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
 from test.support.refusal_notice import (
     assert_no_refusal_notice,
@@ -160,13 +161,15 @@ def _leave(
 
 
 def _run(dl: SqliteDataLayer, event: Any) -> HandlerResult:
-    return WithdrawFromEmbargoOnCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        WithdrawFromEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 def _withdraw(
@@ -387,13 +390,15 @@ def _reject(
         invite, context=_CASE_ID, actor=_FINDER, to=[_MANAGER]
     )
     event = make_payload(reject, receiving_actor_id=_MANAGER, at=dl)
-    result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
     return result, reject.id_
 
 

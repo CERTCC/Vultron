@@ -73,7 +73,7 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
   The node does not query an external system at runtime.
   There is no agent seam here: the check resolves fully in the DataLayer of the protocol.
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — ProtocolInternal condition check in the `_AssignIdIfPossible` Sequence.
-  It evaluates participant role metadata before `ProductInCNAScope`, `IsMostAppropriateCNA`, `IdAssignable`, and `AssignId`
+  It evaluates participant role metadata before `ProductInCNAScope`, `IsMostAppropriateCNA`, `IsOrWillBePubliclyDisclosed`, `EvaluateCveEligibility`, and `AssignId`
 
 ### `IdAssignable`
 
@@ -95,10 +95,9 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
 - **Call-out point shape**: Evaluator — matches the vulnerability attributes against the CNA scope rules and product-to-CNA mappings.
   The result tells whether this CNA (the `CVDRole.CVE_NUMBERING_AUTHORITY` participant) has assignment authority for this specific vulnerability.
   The node is a scope-matching evaluation, not a binary condition monitor.
-  In the production tree, `IdAssignable` is not a single leaf.
-  It is a SequenceNode subtree of 9 child nodes: exclusion guards, positive conditions, duplicate check, evidence bar, and holistic judgment.
-- **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — the factory composes the `IdAssignable` SequenceNode subtree inline in `_AssignIdIfPossible`, after `IsMostAppropriateCNA` succeeds.
-  Each of its 9 child call-out points has a factory seam
+  The production tree has no `IdAssignable` node.
+  It splits the question into the `ProductInCNAScope` and `IsMostAppropriateCNA` Evaluators, the `IsOrWillBePubliclyDisclosed` ProtocolInternal gate, and the single `EvaluateCveEligibility` Evaluator.
+- **Factory-fn placement**: none in the production tree; see [`EvaluateCveEligibility`](#evaluatecveeligibility)
 
 ### `RequestId`
 
@@ -135,14 +134,14 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
   `output_keys = {"assigned_vul_id": str}`.
   The artifact is the newly assigned ID, recorded in the case.
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Composer action node at the end of the `_AssignIdIfPossible` Sequence.
-  The tree uses it when the `IdAssignable` subtree succeeds (the CNA-direct path)
+  The tree uses it when `EvaluateCveEligibility` succeeds (the CNA-direct path)
 
 ---
 
 ## CVE ID assignment tree nodes
 
 These call-out points exist only in the production tree.
-They form the `IdAssignable` SequenceNode subtree and the `_AssignIdIfPossible` authority gate of `create_assign_cve_id_tree`.
+They form the `_AssignIdIfPossible` authority gate and eligibility check of `create_assign_cve_id_tree`.
 The section numbers cite the CNA Operational Rules v4.1.0.
 
 ### `ProductInCNAScope`
@@ -165,107 +164,35 @@ The section numbers cite the CNA Operational Rules v4.1.0.
 - **Automation potential**: **High** — first-refusal registries are machine-readable.
 - **Call-out point shape**: Evaluator — evaluates the CNA first-refusal registry and returns a judgment with rationale.
   `output_keys = {"is_most_appropriate_cna": bool, "is_most_appropriate_cna_rationale": str}`.
-- **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Evaluator in `_AssignIdIfPossible` Sequence, after `ProductInCNAScope`, before the `IdAssignable` subtree
-
-### `IsNotMaliciousCode`
-
-- **Node name**: `IsNotMaliciousCode`
-- **Source file**: `report_management/fuzzer/assign_vul_id.py`
-- **Parent tree**: `AssignVulID` → `IdAssignable` (exclusion guard, §4.1.8)
-- **Semantic function**: Exclusion guard — returns SUCCESS when the report is NOT about deliberately malicious code (§4.1.8).
-- **Automation potential**: **High** — report classification flags are on the blackboard.
-- **Call-out point shape**: Evaluator — evaluates report metadata against the §4.1.8 malicious-code exclusion criterion.
-  `output_keys = {"is_not_malicious_code_verdict": bool, "is_not_malicious_code_rationale": str}`.
-- **Factory-fn placement**: `create_assign_cve_id_tree` — first child of `IdAssignable` Sequence (cheapest guard)
-
-### `IsNotDependencyUpdate`
-
-- **Node name**: `IsNotDependencyUpdate`
-- **Source file**: `report_management/fuzzer/assign_vul_id.py`
-- **Parent tree**: `AssignVulID` → `IdAssignable` (exclusion guard, §4.1.12)
-- **Semantic function**: Exclusion guard — returns SUCCESS when the report is NOT a dependency update without a security fix (§4.1.12).
-- **Automation potential**: **High** — report type flags are on the blackboard.
-- **Call-out point shape**: Evaluator.
-  `output_keys = {"is_not_dependency_update_verdict": bool, "is_not_dependency_update_rationale": str}`.
-- **Factory-fn placement**: `create_assign_cve_id_tree` — second child of `IdAssignable` Sequence
-
-### `IsNotEOLStatusAlone`
-
-- **Node name**: `IsNotEOLStatusAlone`
-- **Source file**: `report_management/fuzzer/assign_vul_id.py`
-- **Parent tree**: `AssignVulID` → `IdAssignable` (exclusion guard, §4.1.13)
-- **Semantic function**: Exclusion guard — returns SUCCESS when the report is NOT solely about end-of-life status (§4.1.13).
-- **Automation potential**: **High** — report classification flags are on the blackboard.
-- **Call-out point shape**: Evaluator.
-  `output_keys = {"is_not_eol_status_alone_verdict": bool, "is_not_eol_status_alone_rationale": str}`.
-- **Factory-fn placement**: `create_assign_cve_id_tree` — third child of `IdAssignable` Sequence
-
-### `IsNotDeliberatelyEducational`
-
-- **Node name**: `IsNotDeliberatelyEducational`
-- **Source file**: `report_management/fuzzer/assign_vul_id.py`
-- **Parent tree**: `AssignVulID` → `IdAssignable` (exclusion guard, §4.2.18)
-- **Semantic function**: Exclusion guard — returns SUCCESS when the report is NOT about deliberately educational content (§4.2.18).
-- **Automation potential**: **High** — report metadata flags are on the blackboard.
-- **Call-out point shape**: Evaluator.
-  `output_keys = {"is_not_deliberately_educational_verdict": bool, "is_not_deliberately_educational_rationale": str}`.
-- **Factory-fn placement**: `create_assign_cve_id_tree` — fourth child of `IdAssignable` Sequence
+- **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Evaluator in `_AssignIdIfPossible` Sequence, after `ProductInCNAScope`, before `IsOrWillBePubliclyDisclosed`
 
 ### `IsOrWillBePubliclyDisclosed`
 
 - **Node name**: `IsOrWillBePubliclyDisclosed`
 - **Source file**: *(ProtocolInternal — no factory seam)*
-- **Parent tree**: `AssignVulID` → `IdAssignable` (positive condition, §4.2.2.1.2)
-- **Semantic function**: ProtocolInternal gate — returns SUCCESS when the vulnerability is already publicly disclosed (CS.P flag) or has an active publication intent.
-  Reads the disclosure plan flag and CS.P status from the blackboard.
-- **Call-out point shape**: ProtocolInternal — OR-gate that reads the publication-intent flag and the CS.P blackboard status.
-  No factory seam needed.
-- **Factory-fn placement**: `create_assign_cve_id_tree` — fifth child of `IdAssignable` Sequence (inline ProtocolInternal node)
+- **Parent tree**: `AssignVulID` → `_AssignIdIfPossible` (publication condition, §4.2.2.1.2)
+- **Semantic function**: ProtocolInternal gate — returns SUCCESS when the vulnerability has an active publication intent.
+  It reads the `publication_intent_set` flag from the blackboard.
+- **Call-out point shape**: ProtocolInternal — reads the publication intent that an earlier behavior tree step recorded.
+  The protocol owns that state, so the gate asks no capability and needs no factory seam.
+  It stays outside `EvaluateCveEligibility` for that reason.
+- **Factory-fn placement**: `create_assign_cve_id_tree` — inline ProtocolInternal node in the `_AssignIdIfPossible` Sequence, after `IsMostAppropriateCNA`, before `EvaluateCveEligibility`
 
-### `IsPubliclyAvailableProduct`
+### `EvaluateCveEligibility`
 
-- **Node name**: `IsPubliclyAvailableProduct`
-- **Source file**: `report_management/fuzzer/assign_vul_id.py`
-- **Parent tree**: `AssignVulID` → `IdAssignable` (positive condition, §4.2.10)
-- **Semantic function**: Condition — returns SUCCESS when the affected product is publicly available (§4.2.10).
-- **Automation potential**: **High** — product metadata flags are on the blackboard.
-- **Call-out point shape**: Evaluator.
-  `output_keys = {"is_publicly_available_product_verdict": bool, "is_publicly_available_product_rationale": str}`.
-- **Factory-fn placement**: `create_assign_cve_id_tree` — sixth child of `IdAssignable` Sequence
-
-### `NoDuplicateCVE`
-
-- **Node name**: `NoDuplicateCVE`
-- **Source file**: `report_management/fuzzer/assign_vul_id.py`
-- **Parent tree**: `AssignVulID` → `IdAssignable` (external duplicate check, §4.2.6, §4.2.15)
-- **Semantic function**: Condition — returns SUCCESS when no existing CVE already covers this vulnerability.
-  Makes a judgment with evidence.
-- **Automation potential**: **High** — an API can automate CVE corpus queries.
-- **Call-out point shape**: Evaluator — makes a deduplication judgment with confidence and evidence, not a binary query.
-  `output_keys = {"no_duplicate_cve_verdict": bool, "no_duplicate_cve_rationale": str}`.
-- **Factory-fn placement**: `create_assign_cve_id_tree` — seventh child of `IdAssignable` Sequence
-
-### `MeetsEvidenceBar`
-
-- **Node name**: `MeetsEvidenceBar`
-- **Source file**: `report_management/fuzzer/assign_vul_id.py`
-- **Parent tree**: `AssignVulID` → `IdAssignable` (evidence quality check, §4.2.2.1.1)
-- **Semantic function**: Condition — returns SUCCESS when the report meets the structural completeness and evidence quality bar for CVE assignment.
-- **Automation potential**: **High** — structural field checks are automatable.
-- **Call-out point shape**: Evaluator — evaluates report structural completeness against a configurable evidence bar.
-  `output_keys = {"meets_evidence_bar_verdict": bool, "meets_evidence_bar_rationale": str}`.
-- **Factory-fn placement**: `create_assign_cve_id_tree` — eighth child of `IdAssignable` Sequence
-
-### `IsRealVulnerability`
-
-- **Node name**: `IsRealVulnerability`
-- **Source file**: `report_management/fuzzer/assign_vul_id.py`
-- **Parent tree**: `AssignVulID` → `IdAssignable` (holistic §4.1 judgment, most expensive — placed last)
-- **Semantic function**: Holistic judgment — returns SUCCESS when the report describes a genuine vulnerability per §4.1/§4.4.
-  This node is different from `MeetsEvidenceBar`, which is a structural check.
-  A structurally complete report can describe a non-vulnerability.
-- **Automation potential**: **Medium** — automation can evaluate well-structured reports.
-  New or ambiguous cases can need human judgment.
-- **Call-out point shape**: Evaluator — makes a holistic §4.1 judgment.
-  `output_keys = {"is_real_vul": bool, "is_real_vul_rationale": str}`.
-- **Factory-fn placement**: `create_assign_cve_id_tree` — ninth (last) child of `IdAssignable` Sequence (most expensive, placed last per cheapest-first rule)
+- **Node name**: `EvaluateCveEligibility`
+- **btz type**: `ProbablySucceed` (p=0.67)
+- **Source file**: `vultron/demo/fuzzer/report_management/assign_vul_id/eligibility.py`
+- **Parent tree**: `AssignVulID` → `_AssignIdIfPossible` (CVE eligibility, one call-out unit)
+- **Semantic function**: Evaluator — applies every eligibility criterion of the CNA Operational Rules reference edition as one unit and returns one verdict (BTND-05-007, [ADR-0071](../../../adr/0071-cna-eligibility-reference-baseline.md)).
+  The criteria are the exclusions (deliberately malicious code §4.1.8, a dependency update with no security fix §4.1.12, end-of-life status alone §4.1.13, deliberately educational content §4.2.18).
+  They also include a publicly available product (§4.2.10), no existing CVE for the vulnerability (§4.2.6, §4.2.15), the evidence bar (§4.2.2.1.1), and the holistic judgment that the report describes a real vulnerability (§4.1, §4.4).
+  The node returns FAILURE when any criterion excludes the vulnerability.
+- **Reference rules edition**: CNA Operational Rules v4.1.0 (BTND-05-008).
+  Adopting a newer edition replaces this one capability implementation, and the surrounding tree does not change.
+- **Automation potential**: **Medium** — report and product metadata checks and CVE corpus queries are automatable.
+  The holistic real-vulnerability judgment can need a human for a new or ambiguous report.
+- **Call-out point shape**: Evaluator — records an eligibility decision with a rationale.
+  `output_keys = {"cve_eligibility_verdict": bool, "cve_eligibility_rationale": str}`.
+  The DETERMINISTIC default `DeterministicEvaluateCveEligibility` succeeds and writes both keys (BT-23-013).
+- **Factory-fn placement**: `create_assign_cve_id_tree` — `evaluate_cve_eligibility_factory` on `AssignCveIdCallOutBundle`, the Evaluator in the `_AssignIdIfPossible` Sequence after `IsOrWillBePubliclyDisclosed` and before `AssignId`

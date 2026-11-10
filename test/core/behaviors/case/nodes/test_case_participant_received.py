@@ -18,6 +18,7 @@
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.case_participant_received import (
@@ -83,7 +84,7 @@ class TestRemoveCaseParticipantFromCaseReceivedNode:
             case_id=case_id,
             removal_activity_id=REMOVE_ID,
         )
-        return bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        return run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
 
     @pytest.mark.spec("CM-31-015")
     def test_keeps_the_participant_on_the_roster(
@@ -162,7 +163,7 @@ class TestReinstateCaseParticipantReceivedNode:
         tree = ReinstateCaseParticipantReceivedNode(
             participant_id=PARTICIPANT_ID, case_id=case_id
         )
-        return bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        return run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
 
     @pytest.mark.spec("CM-31-011")
     @pytest.mark.spec("CM-31-034")
@@ -213,7 +214,7 @@ class TestReinstatementGuards:
 
     @staticmethod
     def _run(bridge, node):
-        return bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        return run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
     @pytest.mark.spec("CM-31-036")
     def test_is_removed_guard_refuses_a_participant_that_is_not_removed(

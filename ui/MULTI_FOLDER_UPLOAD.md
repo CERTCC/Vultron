@@ -153,7 +153,7 @@ This would require:
 │  📁 Select Log Files                    │
 │  Instructions: Upload from each folder  │
 └─────────────────────────────────────────┘
-                    ↓ (User uploads finder log)
+                    ↓ (User uploads reporter log)
 ┌─────────────────────────────────────────┐
 │  ✓ Loaded 14 entries from 1 upload(s)  │
 │                                          │

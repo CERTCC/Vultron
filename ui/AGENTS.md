@@ -7,7 +7,7 @@
 ## 1. What this project is
 
 A swimlane-timeline demo of the Vultron Coordinated Vulnerability Disclosure
-(CVD) protocol. Each participant (Finder, Vendor(s), Case Actor) gets a
+(CVD) protocol. Each participant (Reporter, Vendor(s), CASE_MANAGER) gets a
 horizontal **lane**; time flows left→right; protocol events are **nodes** in the
 lanes. The goal is communication and teaching, not production fidelity. Stack:
 **React 19 + TypeScript + Vite**, SVG timeline, no backend — all client-side.
@@ -30,10 +30,10 @@ npm install    # if ui/node_modules is absent or package.json changed
 npm run dev    # Vite dev server; prints a localhost URL
 npm run build  # tsc + vite build
 npm run lint   # eslint
+npm test       # vitest, one run (not watch); `npm run test:watch` to watch
 ```
 
-Nothing Python is needed at runtime: the demo imports the committed
-`src/data/protocol_states.json` and `src/data/semantic_registry.json` directly.
+Nothing Python is needed at runtime: the demo imports `src/data/` directly (§9).
 
 ## 2. Visual grammar: decision / consequence nodes
 
@@ -58,7 +58,7 @@ RM/EM/VFD/PXA state. The four machines:
 - **PXA** (Public / eXploit / Attacks, **case-level**).
 
 **Scope:** RM and VFD are stored per participant
-(`ParticipantState.rmState` / `.vfdState`); EM and PXA are single case-level
+(`ParticipantState.rmState` / `.vfd`); EM and PXA are single case-level
 values on `DemoState`. Do not model EM or PXA per-participant.
 
 ## 4. Key data types (`src/types.ts`)
@@ -67,17 +67,19 @@ values on `DemoState`. Do not model EM or PXA per-participant.
   `causedBy?`, `consequences[]`.
 - `DemoState` — the demo: `participants` map, case-level `emState` / `pxaState`,
   `timelineEvents[]`, `eventLog[]`.
-- `ParticipantState` — per participant: `role`, `rmState`, `vfdState`, `laneIndex`,
+- `ParticipantState` — per participant: `role`, `rmState`, `vfd`, `laneIndex`,
   consent/publication/closure flags.
 
 ## 5. Log Replay pipeline (`src/utils/`)
 
 `caseLedgerParser.ts` → `caseLedgerMapper.ts` → `App-logreplay.tsx`.
 
-- **`caseLedgerParser.ts`** — `parseCaseLedger()` yields one `CaseLedgerEntry`
-  per line; `normalizeLedger()` **dedups by `entryHash` and sorts by `logIndex`**
-  (NOT `receivedAt` — entries can share a wall-clock second). `actorUrlToLaneId()`
-  maps actor URLs to lanes (`case-actor` first, then `finder`, `coordinator`, `vendor-N`).
+- **`caseLedgerParser.ts`** — `parseCaseLedger()` checks each line against the
+  generated types (§9, `ledgerShape.ts`) into `entries` and `rejected` lines (shown,
+  never dropped); `vfdLadderToken()` reads VFD from `vfState`/`dState`;
+  `normalizeLedger()` **dedups by `entryHash`, sorts by `logIndex`** (NOT
+  `receivedAt`). `replayLanes.ts` keys a lane on the **actor id** and labels it by
+  the `caseRoles` its records name, CASE_OWNER aside (it moves); never by host.
 - **`caseLedgerMapper.ts`** — `buildTimelineFromCaseLedger()` pre-scans to fix
   lane order, then walks entries in `logIndex` order holding a **shadow protocol
   state**. The log records **state SNAPSHOTS, not transitions**, so the mapper
@@ -100,29 +102,32 @@ values on `DemoState`. Do not model EM or PXA per-participant.
   closure the Leave already drew, so they are logged, not flagged. Only a
   case-manager snapshot that is one legal RM step from the previous rung and
   strictly nearer `CLOSED` counts; any other snapshot is judged as a transition.
-- Entry names and phrasing come from the semantic registry artifact (§9): an
-  event-log line carries the registry's phrase; a type the registry does not
-  list is logged as unhandled, never dropped.
+- Node labels and entry log lines are the registry's phrase (§9); `ui/` picks only
+  slot values. `replay-golden/<scenario>.txt` pins each recording's replay;
+  `npm test -- -u` rewrites them after an intended change: read the diff.
 
 ## 6. How the protocol validates the log
 
 The mapper treats the artifact (via `protocol.ts`) as the authority; every step
 is checked with `isLegalTransition`. Node annotations: **violation** (red ⚠️,
-illegal from the shadow state) and **inferred** (amber ℹ️, a multi-step snapshot
-diff whose path was guessed). A clean single legal step gets none.
+illegal from the shadow state), **inferred** (amber ℹ️, a multi-step snapshot
+diff whose path was guessed) and **unrecognized** (grey ❓, a type the registry
+does not list: drawn, never only logged). A clean single legal step gets none.
 
 ## 7. Tooling and log locations
 
 - `node_modules/.bin` tools (eslint, tsc, vite) run via `npm run *`; `jq` reads `*.jsonl`.
+- **Unit tests**: Vitest, `src/**/*.test.ts` beside the module, Node environment,
+  `vitest` imports (no globals); pure modules only (no jsdom). A ledger fixture
+  loads via `?raw`, as in `App-logreplay.tsx`; `tsc -b` type-checks tests too.
 - **Two log locations — do not confuse them:**
   - **`ui/src/recordings/`** — GENERATED, COMMITTED recordings the "Load …"
     buttons import via `?raw`. In-tree, so a fresh clone builds. One dir per
     registered scenario, holding its canonical `case-actor.jsonl`; replicas
     are checked against it on every run and not stored. Regenerate with
-    `uv run export-demo-recordings`. PRs need not: the daily
-    `demo-recordings` workflow files a refresh Task when one is stale. A PR
-    that needs current recordings (a UI change) regenerates them itself.
-    Never hand-edit a recording.
+    `uv run export-demo-recordings`, then the goldens (§5); the daily
+    `demo-recordings` workflow files a refresh Task when one is stale. A UI
+    change that needs current recordings regenerates them. Never hand-edit one.
   - **`ui/src/synthetic-ledgers/`** — hand-authored ledgers with deliberate
     violations and inferred steps, for the flagging the recordings never
     trigger. Validated against `CaseLedgerEntry` like the recordings.
@@ -132,8 +137,6 @@ diff whose path was guessed). A clean single legal step gets none.
 ## 8. Working norms
 
 - Identify which of the two modes a request targets before editing.
-- Preserve the decision / consequence + `causedBy` + same-X grammar (§2).
-- Keep RM/VFD per-participant and EM/PXA case-level (§3).
 - When replay "looks wrong," decide whether it is a mapper bug (§5) or a
   missing-field-in-the-logs problem before changing code.
 
@@ -154,7 +157,12 @@ generated from `SEMANTIC_REGISTRY` by `uv run export-demo-semantics`
 and drift-tested, lists every semantic type with its wire summary and phrase
 template. `src/semanticRegistry.ts` is the only file that reads it. Do not add a
 closed list of semantic types or a phrase table to `ui/`: the Python demo
-report renders the same templates (DRPT-03-005).
+report renders the same templates (DRPT-03-005). A Wire Activity a string names
+is its occasion's registry `wire` form (Annex C); `src/wireNotation.test.ts` checks.
+
+So do the ledger line types: `src/data/ledgerTypes.ts` (`export-demo-ledger-types`,
+drift-tested) holds the models as interfaces and `LEDGER_SHAPES` field lists.
+Never hand-write a ledger field in `ui/`.
 
 The scenario tree works the same way. `src/data/scenario_tree.json`, generated
 by `uv run export-demo-tree`
@@ -182,11 +190,11 @@ export a scraped copy.
 
 - `App-multivendor.tsx` / `App-logreplay.tsx` — the two modes, imported only by
   `DemoSelector.tsx`.
-- `src/actions/*.ts` + `src/state/actionFilters.ts` — Multi-Vendor handlers and
-  filters (imported only by `App-multivendor.tsx`).
-- `src/utils/caseLedger*.ts` — the Log Replay parser and mapper.
-- `src/semanticRegistry.ts` — the ledger vocabulary (§9), read by the Log
-  Replay mapper.
-- **Shared (a change here affects both modes):** `protocol.ts`,
-  `participantHelpers.ts`, `stateUpdaters.ts`, `constants.ts`, `types.ts`,
-  `components/`.
+- `src/actions/*.ts`, `src/state/actionFilters.ts` and `src/state/stateUpdaters.ts`
+  — Multi-Vendor handlers, filters and state updaters (imported only by
+  `App-multivendor.tsx` and the handlers).
+- `src/utils/` — the Log Replay parser, lanes, mapper, line check and load rules.
+- `src/semanticRegistry.ts` — the ledger vocabulary (§9), read by the mapper.
+- **Shared (a change here affects both modes):** `protocol.ts`, `constants.ts`,
+  `types.ts`, `components/` (`ActorPanel`, `AnimatedNode`) and
+  `state/participantHelpers.ts` (Log Replay uses only `getActiveLanes`).

@@ -103,6 +103,11 @@ def trigger_propose_embargo(
         "moves no EM state. The case owner's accept is its decision for the "
         "case, Add(EmbargoEvent)[target=VulnerabilityCase], which activates the "
         "embargo (EM state → ACTIVE). "
+        "A case owner whose consent to the proposal reads DECLINED sends "
+        "Accept(Invite(EmbargoEvent)) instead, because the CASE_MANAGER "
+        "refuses its activation until it accepts (MSM-07-037); once the "
+        "owner's store holds that Accept, its next accept-embargo sends the "
+        "Add. "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_accept_embargo",

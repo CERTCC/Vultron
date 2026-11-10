@@ -394,13 +394,12 @@ DIMENSION_STATE_FIELD = "state"
 def is_dimension_model(annotation: object) -> bool:
     """Return whether *annotation* is a status dimension model class.
 
-    A dimension is a Pydantic model with a ``state`` field; it travels as
-    its bare state value (ARCH-25-005, ADR-0099).
+    A dimension is a :class:`_ScalarDimension`: it travels as its bare state
+    value (ARCH-25-005, ADR-0099).  Another model with a ``state`` field,
+    such as ``EmbargoConsent``, travels as an object and is not one.
     """
-    return (
-        isinstance(annotation, type)
-        and issubclass(annotation, BaseModel)
-        and DIMENSION_STATE_FIELD in annotation.model_fields
+    return isinstance(annotation, type) and issubclass(
+        annotation, _ScalarDimension
     )
 
 

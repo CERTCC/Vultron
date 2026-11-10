@@ -27,6 +27,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.ledger import fail_commits, ledger_entries
 from test.support.received import received_event
 from vultron.core.behaviors.case.nodes.participant import status_entries
@@ -64,7 +65,7 @@ def _invalidate(dl):
             at=dl,
         ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
     )
-    return InvalidateReportReceivedUseCase(dl, event, **_ports(dl)).execute()
+    return run_in_act(InvalidateReportReceivedUseCase(dl, event, **_ports(dl)))
 
 
 def _finder(dl) -> CaseParticipant:
@@ -151,9 +152,9 @@ def test_a_redelivered_verdict_records_the_withdrawn_status(monkeypatch):
             status_entries,
             when=lambda kwargs: kwargs["semantic_type"] == _STATUS_ENTRY,
         )
-        InvalidateReportReceivedUseCase(dl, event, **_ports(dl)).execute()
+        run_in_act(InvalidateReportReceivedUseCase(dl, event, **_ports(dl)))
 
-    InvalidateReportReceivedUseCase(dl, event, **_ports(dl)).execute()
+    run_in_act(InvalidateReportReceivedUseCase(dl, event, **_ports(dl)))
 
     assert [e.semantic_type for e in ledger_entries(dl, CASE_ID)] == [
         MessageSemantics.INVALIDATE_REPORT.value,

@@ -40,6 +40,7 @@ import pytest
 from py_trees.common import Status
 
 from test.conftest import TEST_ACTOR_ID
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.logging_setup import (
@@ -86,7 +87,8 @@ class TestBlackboardIsClearedBetweenTests:
             )
         )
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             _WriteParticipantNode(name="WriteParticipant"),
             actor_id=TEST_ACTOR_ID,
         )

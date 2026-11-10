@@ -18,6 +18,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
@@ -99,13 +100,15 @@ class TestEmbargoTermRevise:
         )
         event = make_payload(activity, receiving_actor_id=_COORD, at=dl)
 
-        result = ActivateEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            ActivateEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         stored = cast(VulnerabilityCase, dl.read(case.id_))
@@ -134,12 +137,14 @@ class TestEmbargoTermRevise:
         )
         event = make_payload(activity, receiving_actor_id=_COORD, at=dl)
 
-        result = ActivateEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            ActivateEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
         assert result.disposition is HandlerDisposition.REFUSED
         assert "not an open proposal" in (result.reason or "")
 
@@ -190,13 +195,15 @@ class TestEmbargoTermRevise:
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
 
-        result = RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)
@@ -249,13 +256,15 @@ class TestEmbargoTermRevise:
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
 
-        result = RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)
@@ -314,13 +323,15 @@ class TestEmbargoTermRevise:
         )
         event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
 
-        result = RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)

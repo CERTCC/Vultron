@@ -36,6 +36,7 @@ from test.core.use_cases.received.test_embargo_revision_relay import (
     _consent_of,
     _deliver,
 )
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     propose,
     write_consent_rows,
@@ -97,13 +98,15 @@ def _join(dl: SqliteDataLayer, case_id: str, make_payload):
 
 def _accept(dl: SqliteDataLayer, event):
     """The CASE_MANAGER processes the joiner's Accept *event*."""
-    return AcceptInviteActorToCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 def _invited_joiner(dl: SqliteDataLayer, case_id: str, make_payload):
@@ -236,13 +239,15 @@ def test_joiner_that_accepts_the_relayed_revision_holds_its_consent(
         actor=JOINER,
         to=[MANAGER],
     )
-    AcceptInviteToEmbargoOnCaseReceivedUseCase(
-        dl,
-        make_payload(accept, receiving_actor_id=MANAGER, at=dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    run_in_act(
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            make_payload(accept, receiving_actor_id=MANAGER, at=dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
 
     assert (
         _consent_of(dl, case_id, JOINER, revision.id_)
@@ -518,13 +523,15 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
         update={"receiving_actor_id": MANAGER}
     )
     assert isinstance(event, AcceptInviteActorToFullCaseReceivedEvent)
-    result = AcceptInviteActorToFullCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        AcceptInviteActorToFullCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     case = cast(VulnerabilityCase, dl.read_case(case_id))

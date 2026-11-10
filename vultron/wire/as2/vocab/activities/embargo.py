@@ -22,6 +22,7 @@ from vultron.core.states.embargo_register import (
     termination_reason_from_content,
 )
 from vultron.primitives import NonEmptyString
+from vultron.wire.as2.vocab.activities.base import RepliesToObject
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -60,7 +61,7 @@ class _EmProposeEmbargoActivity(as_Invite):
     context: as_VulnerabilityCaseRef = None
 
 
-class _EmAcceptEmbargoActivity(as_Accept):
+class _EmAcceptEmbargoActivity(RepliesToObject, as_Accept):
     """The actor is accepting an embargo proposal.
     It is the sender's own consent to those terms and carries no protocol
     shorthand: EA and EC are the Case Owner's decision,
@@ -79,7 +80,7 @@ class _EmAcceptEmbargoActivity(as_Accept):
     context: as_VulnerabilityCaseRef = None
 
 
-class _EmRejectEmbargoActivity(as_Reject):
+class _EmRejectEmbargoActivity(RepliesToObject, as_Reject):
     """The actor is rejecting an embargo proposal.
     A Participant's Reject is its own consent, declining those terms, and
     carries no protocol shorthand: ER and EJ are the Case Owner's decision,

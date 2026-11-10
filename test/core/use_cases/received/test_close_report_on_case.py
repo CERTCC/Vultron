@@ -31,6 +31,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -132,12 +133,14 @@ def _run(
     sender: str,
     event: CloseReportReceivedEvent | None = None,
 ):
-    return CloseReportReceivedUseCase(
-        dl=dl,
-        request=event if event is not None else _close_report(sender),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        CloseReportReceivedUseCase(
+            dl=dl,
+            request=event if event is not None else _close_report(sender),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 @pytest.mark.spec("CM-23-019")

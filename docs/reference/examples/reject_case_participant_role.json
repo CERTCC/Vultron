@@ -7,6 +7,7 @@
   "id": "urn:uuid:c200fb78-2e1f-4e5c-8541-12bd0eff3527",
   "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:692fbb44-6130-4f02-a903-6dfa61218850 to Coordinator LLC",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "inReplyTo": "urn:uuid:b5617700-2684-4d5a-9099-ecd350955ca8",
   "content": "We're declining the role you offered.",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"

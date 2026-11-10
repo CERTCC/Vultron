@@ -18,7 +18,7 @@ singleton :data:`DEPLOY_FIX_DETERMINISTIC`.  The matching STOCHASTIC singleton
 lives in the simulation layer
 (:data:`vultron.demo.fuzzer.bundles.deploy_fix.DEPLOY_FIX_STOCHASTIC`).
 
-:class:`DeployFixCallOutBundle` inherits the three shared monitoring fields
+:class:`DeployFixCallOutBundle` inherits the four shared deployment fields
 from :class:`~vultron.core.behaviors.call_out.bundles.deploy_monitoring.DeploymentMonitoringBundle`
 and adds ``deploy_fix_factory``.
 
@@ -27,6 +27,7 @@ Ceiling/floor mapping (BT-23-002):
 - ``prioritize_deployment_factory``  — PrioritizeDeployment  (p=0.90) → AlwaysSucceed  (inherited)
 - ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed  (inherited)
 - ``monitor_deployment_factory``     — MonitorDeployment     (p=1.0)  → AlwaysSucceed  (inherited)
+- ``no_new_deployment_info_factory`` — NoNewDeploymentInfo   (p=0.75) → AlwaysSucceed  (inherited)
 - ``deploy_fix_factory``             — DeployFix             (p=0.10) → AlwaysFail
 
 Mitigation deployment (``DeployMitigation``) is scoped OUT of this bundle
@@ -54,7 +55,7 @@ def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
 class DeployFixCallOutBundle(DeploymentMonitoringBundle):
     """Call-out backend bundle for the fix deployment domain (BT-23-003).
 
-    Inherits the three shared monitoring fields from
+    Inherits the four shared deployment fields from
     :class:`~vultron.core.behaviors.call_out.bundles.deploy_monitoring.DeploymentMonitoringBundle`
     and adds ``deploy_fix_factory``.
 

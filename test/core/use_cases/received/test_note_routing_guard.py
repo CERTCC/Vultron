@@ -21,6 +21,7 @@ falls back to ``_find_case_actor_id`` and incorrectly commits.
 
 from __future__ import annotations
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -134,12 +135,14 @@ class TestAddNoteToCaseLedgerRouting:
         )
         event = make_payload(activity, receiving_actor_id=CASE_ACTOR_ID, at=dl)
 
-        result = AddNoteToCaseReceivedUseCase(
-            dl=dl,
-            request=event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl=dl,
+                request=event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
         semantic_types = _ledger_semantic_types(dl)
@@ -169,12 +172,14 @@ class TestAddNoteToCaseLedgerRouting:
         )
         event = make_payload(activity, receiving_actor_id=VENDOR_ID, at=dl)
 
-        result = AddNoteToCaseReceivedUseCase(
-            dl=dl,
-            request=event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl=dl,
+                request=event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
         # HP-01-005: the note was the CASE_MANAGER's to record; a receiver
         # without that role refuses rather than reporting a processed no-op.
         assert result.disposition == HandlerDisposition.REFUSED
@@ -211,12 +216,14 @@ class TestAddNoteToCaseLedgerRouting:
         # Explicitly clear receiving_actor_id to exercise the fallback path.
         event = event.model_copy(update={"receiving_actor_id": None})
 
-        result = AddNoteToCaseReceivedUseCase(
-            dl=dl,
-            request=event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl=dl,
+                request=event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
         semantic_types = _ledger_semantic_types(dl)

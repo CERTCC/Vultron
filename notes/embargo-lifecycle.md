@@ -53,6 +53,7 @@ relevant_packages:
   - vultron/core/models/embargo_termination.py
   - vultron/core/services/embargo_lifecycle/
   - vultron/core/services/carried_embargo.py
+  - vultron/core/services/embargo_availability.py
   - vultron/core/behaviors/embargo/
   - vultron/core/models/pending_assertion/
   - vultron/core/use_cases/triggers/embargo/
@@ -177,13 +178,17 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   `Add`/`Reject(EmbargoEvent)[target=VulnerabilityCase]` (MSM-07-008, MSM-07-009).
 - No operation branches on whether the sender is the owner. The accept and
   reject triggers pick by actor: an owner sends its decision, anyone else its
-  consent.
-- An owner whose row is `DECLINED` may still activate: activating is the
-  owner changing its answer, so its row moves straight to `AGREED`, in either
-  mode, with one ledger entry (MSM-07-028). The received owner-decision trees
-  check P/X/A with a read-only guard ahead of the commit
-  (`OwnerMayActivateEmbargoNode`), because a replica copies the step and does
-  not re-check.
+  consent. The one exception is an owner whose row reads `DECLINED`:
+  `accept-embargo` sends its `Accept(Invite(EmbargoEvent))`, since its `Add`
+  would be refused (MSM-07-037).
+- An owner whose row is `DECLINED` cannot activate: the CASE_MANAGER refuses
+  it before the commit, and the notice tells the owner to accept the Invite
+  first, so one activity never both decides the case and changes the owner's
+  answer (MSM-07-037, ADR-0180). From `UNINVITED`, `INVITED` or `TIMED_OUT`
+  the activation agrees for the owner (MSM-07-028). The received
+  owner-decision trees check P/X/A and the decline with a read-only guard
+  ahead of the commit (`OwnerMayActivateEmbargoNode`), because a replica
+  copies the step and does not re-check.
 - A repeat of a recorded Accept or Reject is `SKIPPED` before the commit
   (`EmbargoAnswerNotRecordedNode`, CM-13-005); a `DECLINED` actor's Reject of
   an unknown embargo stays `REFUSED` (HP-01-003). An Accept after a Reject is
@@ -257,38 +262,31 @@ catch-up path.
 
 ## Late Accepts and Expiry (EMB-17, CM-23-014)
 
-- **A late `Accept(Invite(EmbargoEvent))`** — deadline passed, or row already
-  `TIMED_OUT`/`DECLINED` — first commits the CASE_MANAGER's
-  `Update(EmbargoConsent)` carrying the `TIMED_OUT` row if the row still needs
-  `TIME_OUT` (the Accept tree's clock decision,
-  CLP-10-025), then routes to honour (EMB-17-001, EMB-17-012),
-  re-invite (EMB-17-003) or no-op (EMB-17-004). **The route keys on whether the
-  case can still answer the embargo the Accept names — its `ACTIVE` entry or an
-  open proposal — never on whether that embargo is the one in force**
-  (EMB-17-002, MSM-07-003). A case under proposal has an open proposal and no
-  embargo in force, so a route read off `active_embargo_id` drops a late Accept
-  of a live proposal and hides a willing participant from the owner's decision.
-  The re-invite names the embargo in force, or the earliest-expiring open
-  proposal when none is in force (EMB-17-003, EP-08-002); the no-op's is the
-  only case with nothing to name, so a re-invite arm that finds nothing has a
-  wrong route above it, not a missing fallback. **Select only live proposals,
-  and ask only a row `INVITE` moves:** a `PROPOSED` entry stays open past its
-  embargo's `end_time` (nothing cancels it), but an Invite to it has no legal
-  RSVP deadline (EP-07-002, EP-07-006), so a case whose proposals have all ended
-  takes the no-op; and an `INVITED` or `AGREED` row is already asked or
-  answered (CM-18-003), so the re-invite sends nothing (`late_accept_terms`,
-  `ReinviteLateAccepterNode`). The honour commits the Accept
-  itself, as an on-time Accept is, and the re-invite a relayed Invite
-  attributed to the embargo's proposer, so replicas learn the outcome
-  (RSH-08-004, ADR-0152); the no-op changes nothing
-  anywhere, so it commits and sends nothing and is `SKIPPED` (ADR-0152,
-  CLP-02-013). Each runs only at the
-  CASE_MANAGER — the expiry behind the received-tree factory's clock-decision
-  gate, the routing trees in `vultron/core/behaviors/embargo/expiry_tree.py`
-  behind their own; a non-manager gets `REFUSED` and changes no consent
-  (BT-17-001). The outcome
-  table is in `notes/participant-embargo-consent.md` § "Expiry is lazy, and
-  only the CASE_MANAGER's".
+- **An `Accept(Invite(EmbargoEvent))` is answered by whether the embargo it
+  names is available, on time or late** (MSM-07-012, EMB-17-001): the Active
+  Embargo or an open proposal, before its end time. A late one first commits the
+  CASE_MANAGER's `Update(EmbargoConsent)` carrying the `TIMED_OUT` row if the row
+  still needs `TIME_OUT` (the Accept tree's clock decision, CLP-10-025); after
+  that the deadline decides nothing. An available embargo is honoured: the Accept
+  is committed as an on-time one is (EMB-17-002, ADR-0152). One the register
+  holds but that is not available is refused uncommitted with the refusal
+  notice, plus a re-invite to the case's terms when it holds any (EMB-17-003).
+  One the register never held gets `Create(ProcessingFault)` and no notice
+  (MSM-07-039). **Read availability through `embargo_availability`
+  (`vultron/core/services/embargo_availability.py`), never `active_embargo_id`
+  alone and never the register status alone**: a case under proposal has no
+  embargo in force, and an `ACTIVE` entry past its `end_time` binds nobody
+  before the clock terminates it. `available_terms` reads the re-invite's terms
+  by the same test, so the refusal and the re-invite cannot disagree, and the
+  re-invite asks only a row `INVITE` moves (an `INVITED` or `AGREED` row is
+  already asked or answered, CM-18-003; `ReinviteRefusedAccepterNode`). The
+  notice and the re-invite are one act in the `UnavailableEmbargoRefusal`
+  diversion (`vultron/core/behaviors/embargo/accept_availability_tree.py`), so a
+  failed re-invite sends no notice either (CLP-07-016). Each runs only at the
+  CASE_MANAGER: the Accept tree declares that path alone, and a non-manager gets
+  `REFUSED` and changes no consent (BT-17-001, HP-01-038). The outcome table is in
+  `notes/participant-embargo-consent.md` § "Expiry is lazy, and only the
+  CASE_MANAGER's".
 - **Owner close settles pending Invites without waiting.** After close an Invite
   can only expire, so `ExpirePendingInvitesOnCloseNode` runs right after the
   `close_case` entry, before any closure step: the CASE_MANAGER's own
@@ -563,7 +561,8 @@ another path beside it keeps the CASE_MANAGER gate, or an
 `OnPaths.at_case_manager(...)` branch, around the manager's own work. Either
 way anyone else reports `REFUSED` and writes nothing (HP-01-005). Refuse before
 the guarded commit, with
-read-only guards (`IsAnswerableEmbargoNode`, `IsOpenEmbargoProposalNode`,
+read-only guards or diversions (`IsAnswerableEmbargoNode` for a `Reject`, the
+availability diversions for an `Accept`, `IsOpenEmbargoProposalNode`,
 `OwnerMayActivateEmbargoNode`): once committed, a failing replica apply blocks
 its persist (SYNC-12-004) and stalls every later entry (SYNC-14-001).
 

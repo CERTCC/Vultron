@@ -33,6 +33,7 @@ import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
 from test.support.received import (
@@ -53,6 +54,9 @@ from vultron.adapters.outbox_sealed_body import (
     read_sealed_body_dict,
 )
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.intake import (
+    IntakeReceivedActivityNode,
+)
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     EmitRefusalNoticeNode,
     refusal_notice,
@@ -173,11 +177,16 @@ def _tree(
 
 def _run(net: LedgerNetwork, receiver: str, tree: Any, event: Any) -> Any:
     dl = net.stores[receiver]
-    return BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute_with_setup(tree=tree, actor_id=receiver, activity=event)
+    return run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ),
+        tree=tree,
+        actor_id=receiver,
+        activity=event,
+    )
 
 
 def _notices(net: LedgerNetwork, sender: str, to: str) -> list[Any]:
@@ -491,6 +500,39 @@ def test_a_notice_outside_a_refusal_stage_fails_and_queues_nothing():
     assert _notices(net, MANAGER, BYSTANDER) == []
 
 
+@pytest.mark.spec("CLP-05-001")
+def test_a_notice_takes_the_reason_its_diversion_names():
+    """A diversion's notice carries its condition's reason, outside a stage."""
+    net, _, invite_id = _network("reason-from")
+    source = py_trees.behaviours.Success(name="Condition")
+    source.feedback_message = "the embargo is moot (MSM-07-012)"
+    node = EmitRefusalNoticeNode(net.case_id, reason_from=source)
+    # Intake holds the received body the notice embeds (CLP-10-017).
+    tree = py_trees.composites.Sequence(
+        name="Diverted",
+        memory=False,
+        children=[IntakeReceivedActivityNode(), node],
+    )
+
+    result = _run(net, MANAGER, tree, _accept_event(net, invite_id))
+
+    assert result.status == Status.SUCCESS, node.feedback_message
+    (notice,) = _notices(net, MANAGER, BYSTANDER)
+    assert notice.summary == "the embargo is moot (MSM-07-012)"
+
+
+def test_a_notice_whose_reason_source_gave_none_fails_and_queues_nothing():
+    net, _, invite_id = _network("reason-from-empty")
+    source = py_trees.behaviours.Success(name="Condition")
+    node = EmitRefusalNoticeNode(net.case_id, reason_from=source)
+
+    result = _run(net, MANAGER, node, _accept_event(net, invite_id))
+
+    assert result.status == Status.FAILURE
+    assert "gave no reason" in node.feedback_message
+    assert _notices(net, MANAGER, BYSTANDER) == []
+
+
 def test_a_notice_with_no_received_activity_is_a_wiring_fault():
     node = refusal_notice("https://example.org/cases/1")
 
@@ -629,9 +671,9 @@ def test_a_notice_naming_no_case_is_refused():
     assert isinstance(routed, RefusalNoticeReceivedEvent)
     assert routed.case_id is None
 
-    verdict = RefusalNoticeReceivedUseCase(
-        net.stores[BYSTANDER], routed
-    ).execute()
+    verdict = run_in_act(
+        RefusalNoticeReceivedUseCase(net.stores[BYSTANDER], routed)
+    )
 
     assert verdict.disposition is HandlerDisposition.REFUSED
 

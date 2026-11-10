@@ -234,7 +234,7 @@ class CreateParticipantStatusNode(
         eff_vf: "CS_vf | None",
         eff_pxa: CS_pxa,
     ) -> "tuple[CS_vf | None, CS_pxa]":
-        """Apply SM-09-003 pX→PX and vP→VP forced promotions."""
+        """Apply SM-09-003 pX→PX and vP→VP promotions to the actor's own state."""
         if self._pxa_state is None:
             return eff_vf, eff_pxa
         if eff_pxa is CS_pxa.pXa:

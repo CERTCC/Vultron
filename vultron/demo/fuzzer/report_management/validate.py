@@ -46,17 +46,24 @@ from vultron.demo.fuzzer.call_out_point import (
 )
 
 
-class NoNewValidationInfo(ProbablySucceed):
+class NoNewValidationInfo(RetrieverCallOutPoint, ProbablySucceed):
     """Check whether any new information has arrived that should trigger
     re-evaluation of the report's validity.
 
     Semantic function:
-        Condition — check whether any new information has arrived that
-        should trigger re-evaluation of the report's validity.  In
-        most cases there will be no new information, so this condition
-        succeeds, avoiding redundant re-evaluation loops.
+        Condition — ask the sources of validation-relevant information
+        (reporter follow-up, credibility updates, threat intelligence)
+        whether anything new has arrived that should trigger re-evaluation
+        of the report's validity.  In most cases there will be no new
+        information, so this condition succeeds, avoiding redundant
+        re-evaluation loops.  A binary Retriever: the tree asks on its own
+        tick, so this is a call-out, not a Sentinel (BT-18-006, BT-18-013).
 
-    Input category: Environmental check / Human decision.
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries validation-relevant information sources)
+      Output keys: (none — binary result only, per BT-18-006)
+
+    Input category: Environmental check.
 
     Success probability: 0.67 (``ProbablySucceed``).
 

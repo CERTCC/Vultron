@@ -39,6 +39,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     CASE_MANAGER_ACTOR,
     make_case_with_manager,
 )
+from test.support.act_runner import run_tree
 from test.support.ledger import fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -228,13 +229,16 @@ def setup(request: pytest.FixtureRequest) -> Iterator[_Setup]:
 def _run(setup: _Setup) -> tuple[_EagerDrain, BTExecutionResult]:
     drain = _EagerDrain(setup.dl, setup.semantic_type)
     setup.dl.set_enqueue_callback(drain)
-    result = BTBridge(
-        datalayer=setup.dl,
-        trigger_activity=TriggerActivityAdapter(setup.dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(setup.dl),
-    ).execute_with_setup(
-        tree=setup.node(), actor_id=setup.actor_id, case_id=setup.case_id
+    result = run_tree(
+        BTBridge(
+            datalayer=setup.dl,
+            trigger_activity=TriggerActivityAdapter(setup.dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(setup.dl),
+        ),
+        tree=setup.node(),
+        actor_id=setup.actor_id,
+        case_id=setup.case_id,
     )
     return drain, result
 

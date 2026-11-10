@@ -34,6 +34,7 @@ from test.core.behaviors.sync.nodes._embargo_gate_support import (
     seed_ledger,
 )
 from test.core.behaviors.sync.nodes.conftest import CASE_ID, _make_entry
+from test.support.act_runner import run_in_act
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -95,9 +96,9 @@ def _answer(
     event: ReadLogEntryReceivedEvent,
     sync_port: SyncActivityPort,
 ) -> HandlerResult:
-    return ReadLedgerEntryReceivedUseCase(
-        dl, event, sync_port=sync_port
-    ).execute()
+    return run_in_act(
+        ReadLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+    )
 
 
 def _sync_port() -> MagicMock:

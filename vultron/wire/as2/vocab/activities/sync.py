@@ -67,8 +67,17 @@ class _RejectLogEntryActivity(as_Reject):
         the receiver could not apply, or absent when the receiver holds no
         entry and asks for a replay from genesis.  Then ``ledgerPosition``
         is at index -1 and ``target`` names the case (SYNC-16-027).
+    in_reply_to: the id of the inbound activity that prompted the Reject,
+        required (RF-08-003, RF-08-004).  The ``object`` is an entry, not an
+        activity, so the class cannot derive it.  On a hash mismatch and on
+        the genesis Reject for a case the sender does not hold it is the
+        ``Announce(CaseLedgerEntry)``; after a case copy ahead of the chain
+        it is the ``Announce(VulnerabilityCase)`` (SYNC-16-007).  The
+        ``Create(ProcessingFault)`` for a refused entry names its
+        ``Announce`` the same way (SYNC-16-003).
 
-    Spec: SYNC-03-001, SYNC-03-002, SYNC-16-007, SYNC-16-027, SYNC-18-001.
+    Spec: SYNC-03-001, SYNC-03-002, SYNC-16-007, SYNC-16-027, SYNC-18-001,
+    RF-08-004.
     """
 
     object_: as_CaseLedgerEntry | None = Field(  # type: ignore[assignment]
@@ -76,6 +85,7 @@ class _RejectLogEntryActivity(as_Reject):
         validation_alias="object",
         serialization_alias="object",
     )
+    in_reply_to: NonEmptyString = Field(default=...)
 
 
 class _ReadLogEntryActivity(as_Read):

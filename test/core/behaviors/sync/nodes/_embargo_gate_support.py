@@ -25,6 +25,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     _make_entry,
 )
+from test.support.act_runner import run_tree
 from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import SendMissingEntriesNode
@@ -95,7 +96,8 @@ def seed_case(datalayer, *, embargo_active: bool) -> None:
 
 
 def collect_recipients(bridge, node_cls: type) -> list[str]:
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=node_cls(case_id=CASE_ID),
         actor_id=MANAGER_ID,
         log_entry=_make_entry(0),
@@ -144,7 +146,8 @@ def close(datalayer, actor_id: str) -> None:
 
 
 def replay(bridge, entries, *, peer_id: str, from_index: int, sync_port):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=SendMissingEntriesNode(name="SendMissingEntries"),
         actor_id=MANAGER_ID,
         sync_port=sync_port,
@@ -163,7 +166,8 @@ def paused_from(datalayer, peer_id: str = NON_SIGNATORY_ID) -> int | None:
 
 
 def fan_out(bridge, entry, sync_port) -> None:
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=FanOutLogEntryNode(case_id=CASE_ID),
         actor_id=MANAGER_ID,
         log_entry=entry,

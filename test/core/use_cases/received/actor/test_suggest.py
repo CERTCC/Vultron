@@ -24,6 +24,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
@@ -134,13 +135,15 @@ class TestOfferActorToCaseReceivedUseCase:
             f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
         )
 
-        result = OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         # The ledger fan-out to the recommender (CM-16-002) shares the outbox;
@@ -180,13 +183,15 @@ class TestOfferActorToCaseReceivedUseCase:
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
-        result = OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
         queued = [dl.read(a) for a in dl.outbox_list()]
@@ -194,6 +199,80 @@ class TestOfferActorToCaseReceivedUseCase:
         assert "Invite" not in types, types
         offers = [q for q in queued if str(getattr(q, "type_", "")) == "Offer"]
         assert [getattr(q, "to", None) for q in offers] == [[local_actor_id]]
+
+    @pytest.mark.spec("CM-20-006")
+    @pytest.mark.spec("CM-20-008")
+    @pytest.mark.parametrize(
+        "authority_role",
+        [
+            pytest.param("case_manager", id="case-manager"),
+            pytest.param("CASE_OWNER", id="case-owner-any-case"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "already_seated",
+        [
+            pytest.param(False, id="fresh"),
+            pytest.param(True, id="already-participant"),
+        ],
+    )
+    def test_a_suggestion_naming_an_authority_role_is_refused(
+        self, make_payload, seed_case_manager, authority_role, already_seated
+    ):
+        """A Coordinator suggesting CASE_MANAGER or CASE_OWNER is refused.
+
+        The CASE_MANAGER refuses the Offer before its commit (CM-20-008): it
+        records no recommendation, forwards nothing to the Case Owner and
+        commits no entry.  It answers the recommender with the refusal
+        notice alone (CLP-05-005).  The role is never stripped and the rest
+        forwarded.  An actor already seated is refused the same way, not
+        answered with the already-participant Accept (CM-16-009): the guard
+        runs before every arm.
+        """
+        from test.support.refusal_notice import assert_refusal_notice
+        from vultron.enums.roles import CVDRole
+
+        dl, _, case_id = self._setup_dl(
+            seed_case_manager, recommender_roles=[CVDRole.COORDINATOR]
+        )
+        recommended_id = "https://example.org/actors/vendor-new"
+        if already_seated:
+            case = dl.read_case(case_id)
+            assert case is not None
+            seed_case_participant(dl, case, recommended_id)
+            dl.save(case)
+        activity = recommend_actor_activity(
+            as_Actor(id_=recommended_id),
+            target=_case_ref(case_id),
+            actor=self._RECOMMENDER_ID,
+            to=[TEST_ACTOR_ID],
+            suggested_roles=["coordinator", authority_role],
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
+
+        result = run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-20-008" in (result.reason or ""), result.reason
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
+        assert dl.list_objects("ActorRecommendationRecord") == []
+        assert_refusal_notice(
+            dl,
+            manager=TEST_ACTOR_ID,
+            refused_id=event.activity_id,
+            asserter=self._RECOMMENDER_ID,
+            reason="CM-20-008",
+            case_id=case_id,
+        )
+        assert len(dl.outbox_list()) == 1, dl.outbox_list()
 
     @pytest.mark.spec("CM-16-020")
     @pytest.mark.spec("CM-16-005")
@@ -239,13 +318,15 @@ class TestOfferActorToCaseReceivedUseCase:
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
-        result = OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         forwarded = [
@@ -288,13 +369,15 @@ class TestOfferActorToCaseReceivedUseCase:
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
-        result = OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "CM-23-018" in (result.reason or "")
@@ -335,13 +418,15 @@ class TestOfferActorToCaseReceivedUseCase:
         event = make_payload(activity, at=dl)
 
         with caplog.at_level(logging.WARNING):
-            result = OfferActorToCaseReceivedUseCase(
-                dl,
-                event,
-                trigger_activity=TriggerActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+            result = run_in_act(
+                OfferActorToCaseReceivedUseCase(
+                    dl,
+                    event,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
         # The store holds no such case, so the recommendation is refused.
         assert result.disposition is HandlerDisposition.REFUSED
@@ -372,12 +457,14 @@ class TestOfferActorToCaseReceivedUseCase:
         mock_event.activity = None
 
         with caplog.at_level(logging.WARNING):
-            result = OfferActorToCaseReceivedUseCase(
-                dl,
-                mock_event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+            result = run_in_act(
+                OfferActorToCaseReceivedUseCase(
+                    dl,
+                    mock_event,
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -408,13 +495,15 @@ class TestOfferActorToCaseReceivedUseCase:
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
         activity_id = activity.id_
 
-        OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         record = dl.read(
             ActorRecommendationRecord.build_id(case_id, activity_id)
@@ -459,15 +548,17 @@ class TestOfferActorToCaseReceivedUseCase:
         )
 
         for _ in range(2):
-            OfferActorToCaseReceivedUseCase(
-                dl,
-                make_payload(
-                    activity, receiving_actor_id=TEST_ACTOR_ID, at=dl
-                ),
-                trigger_activity=TriggerActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+            run_in_act(
+                OfferActorToCaseReceivedUseCase(
+                    dl,
+                    make_payload(
+                        activity, receiving_actor_id=TEST_ACTOR_ID, at=dl
+                    ),
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
         records = dl.list_objects("ActorRecommendationRecord")
         assert len(records) == 1
@@ -531,13 +622,15 @@ class TestOfferActorToCaseAtNonCaseManager:
         dl = self._vendor_store(seed_case_manager)
         event = self._event(make_payload)
 
-        result = OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None
@@ -554,13 +647,15 @@ class TestOfferActorToCaseAtNonCaseManager:
         dl = self._vendor_store(seed_case_manager)
         event = self._event(make_payload)
 
-        OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert dl.list_objects("ActorRecommendationRecord") == [], (
             "the recommender record is the CASE_MANAGER's; a copy-holder"
@@ -624,7 +719,7 @@ class TestOwnerDirectInviteAtCaseManager:
             agree_to_active_embargo(dl, case, self._OWNER_ID)
         return dl
 
-    def _deliver(self, dl, make_payload, roles=None):
+    def _event(self, dl, make_payload, roles=None):
         activity = recommend_actor_activity(
             as_Actor(id_=self._INVITEE_ID),
             target=_case_ref(self._CASE_ID),
@@ -632,14 +727,19 @@ class TestOwnerDirectInviteAtCaseManager:
             to=[TEST_ACTOR_ID],
             suggested_roles=roles,
         )
-        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
-        return OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        return make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
+
+    def _deliver(self, dl, make_payload, roles=None, event=None):
+        event = event or self._event(dl, make_payload, roles=roles)
+        return run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
     def _sealed_bodies(self, dl) -> list[dict]:
         """Sealed outbox bodies, minus the ledger fan-out.
@@ -700,6 +800,43 @@ class TestOwnerDirectInviteAtCaseManager:
         self._deliver(dl, make_payload, roles=["coordinator"])
 
         assert self._sealed_invite(dl).get("roles") == ["coordinator"]
+
+    @pytest.mark.spec("CM-20-008")
+    @pytest.mark.parametrize("authority_role", ["case_manager", "case_owner"])
+    def test_an_owner_invite_naming_an_authority_role_is_refused(
+        self, make_payload, seed_case_manager, authority_role
+    ):
+        """The owner's own Offer gets no authority role for the invitee.
+
+        Ownership moves by transfer and the CASE_MANAGER role by delegation,
+        never by an invitation (CM-20-008, CM-33-003): the CASE_MANAGER
+        sends no Invite, seats nobody and commits nothing.  It answers the
+        Case Owner with the refusal notice alone (CLP-05-005).
+        """
+        from test.support.refusal_notice import assert_refusal_notice
+
+        dl = self._setup_dl(seed_case_manager)
+        event = self._event(dl, make_payload, roles=["vendor", authority_role])
+
+        result = self._deliver(dl, make_payload, event=event)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-20-008" in (result.reason or ""), result.reason
+        types = [b.get("type") for b in self._sealed_bodies(dl)]
+        assert "Invite" not in types, types
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
+        case = dl.read_case(self._CASE_ID)
+        assert case is not None
+        assert self._INVITEE_ID not in case.actor_participant_index
+        assert_refusal_notice(
+            dl,
+            manager=TEST_ACTOR_ID,
+            refused_id=event.activity_id,
+            asserter=self._OWNER_ID,
+            reason="CM-20-008",
+            case_id=self._CASE_ID,
+        )
+        assert len(dl.outbox_list()) == 1, dl.outbox_list()
 
     @pytest.mark.spec("CM-17-006")
     def test_invite_is_committed_to_the_case_managers_ledger(
@@ -764,13 +901,15 @@ class TestOwnerDirectInviteAtCaseManager:
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
-        result = OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
         assert self._sealed_invite(dl).get("to") == [self._INVITEE_ID]
@@ -817,13 +956,15 @@ class TestSuggestionFromNonParticipant:
             to=[TEST_ACTOR_ID],
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
-        return OfferActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute(), activity
+        return run_in_act(
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        ), activity
 
     @pytest.mark.spec("CM-16-001")
     @pytest.mark.spec("HP-01-006")

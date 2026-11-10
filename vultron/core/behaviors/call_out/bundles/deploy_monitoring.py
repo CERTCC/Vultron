@@ -14,7 +14,7 @@
 """Shared base call-out bundle for deployment-monitoring domains (BT-23-002).
 
 Provides :class:`DeploymentMonitoringBundle`, a frozen ``@dataclass`` base
-with the three call-out factory fields shared between fix deployment
+with the four call-out factory fields shared between fix deployment
 (:class:`~vultron.core.behaviors.call_out.bundles.deploy_fix.DeployFixCallOutBundle`)
 and mitigation deployment
 (:class:`~vultron.core.behaviors.call_out.bundles.deploy_mitigation.DeployMitigationCallOutBundle`):
@@ -22,6 +22,11 @@ and mitigation deployment
 - ``prioritize_deployment_factory``  — PrioritizeDeployment  (p=0.90) → AlwaysSucceed
 - ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed
 - ``monitor_deployment_factory``     — MonitorDeployment     (p=1.00) → AlwaysSucceed
+- ``no_new_deployment_info_factory`` — NoNewDeploymentInfo   (p=0.75) → AlwaysSucceed
+
+``NoNewDeploymentInfo`` is a binary Retriever (BT-18-006): the stay-deferred arm
+asks it whether new deployment information has arrived.  Its permissive default
+keeps a deferred deployer deferred, which is the happy path.
 """
 
 from __future__ import annotations
@@ -55,6 +60,9 @@ class DeploymentMonitoringBundle(CallOutBundle):
         default=_always_succeed  # type: ignore[assignment]
     )
     monitor_deployment_factory: CallOutBackendFactory = field(
+        default=_always_succeed  # type: ignore[assignment]
+    )
+    no_new_deployment_info_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
 

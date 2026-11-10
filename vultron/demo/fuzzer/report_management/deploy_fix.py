@@ -50,18 +50,23 @@ from vultron.demo.fuzzer.call_out_point import (
 )
 
 
-class NoNewDeploymentInfo(UsuallySucceed):
+class NoNewDeploymentInfo(RetrieverCallOutPoint, UsuallySucceed):
     """Check whether any new deployment information has arrived.
 
     Semantic function:
-        Condition — check whether any new information about the deployment
-        state of a fix or mitigation has arrived since the last evaluation.
-        In most cases there will be no new information, so this condition
-        succeeds, avoiding unnecessary re-evaluation.  In production this
-        could be implemented as an event subscription or a case-metadata
-        timestamp comparison.
+        Condition — ask the deployment-relevant data sources (patch
+        management, CI/CD pipeline, asset inventory) whether any new
+        information about the deployment state of a fix or mitigation has
+        arrived since the last evaluation.  In most cases there will be no new
+        information, so this condition succeeds, avoiding unnecessary
+        re-evaluation.  A binary Retriever: the tree asks on its own tick, so
+        this is a call-out, not a Sentinel (BT-18-006, BT-18-013).
 
-    Input category: Environmental check / Human decision.
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries deployment-relevant data sources)
+      Output keys: (none — binary result only, per BT-18-006)
+
+    Input category: Environmental check.
 
     Success probability: 0.75 (``UsuallySucceed``).
 

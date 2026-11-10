@@ -13,12 +13,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Production-layer BT nodes for the fix deployment workflow.
 
-Six nodes implement the ``DeployFixBT`` guard/action logic:
+Five nodes implement the ``DeployFixBT`` guard/action logic:
 
 - :class:`CSinStateFixDeployed` — short-circuit: fix already deployed
 - :class:`RMinStateDeferred` — guard: actor RM is DEFERRED (stay-deferred arm)
-- :class:`CheckNoNewDeploymentInfoNode` — ProtocolInternal condition reading a
-  change-detection flag written by the upstream ``NewDeploymentInfoSentinel``
 - :class:`CheckCSFixNotYetDeployed` — guard: fix not yet deployed (d bit unset)
 - :class:`TransitionCStoFixDeployed` — persist VFD VFD snapshot (d→D)
 - :class:`EmitCDActivity` — emit CD (Fix Deployed) to the Case Actor
@@ -28,6 +26,12 @@ Six nodes implement the ``DeployFixBT`` guard/action logic:
 ``CheckRMStateAccepted`` is reused from
 ``vultron.core.behaviors.report.nodes.conditions`` (AC-3).
 
+The stay-deferred arm asks whether new deployment information has arrived
+through the ``no_new_deployment_info_factory`` call-out, a binary Retriever
+(BT-18-006), not through a node here.  No blackboard flag carries that answer:
+a Sentinel watching deployment sources would act on its own initiative through a
+trigger, never by writing into this tree (BT-18-013).
+
 References: Issue #1825; Source #1248; Concern #1813.
 Spec BT-06-001, BT-18-004; ADR-0021 CLP-10-001 (CD via Case Actor); ADR-0025.
 Catalog: ``docs/developer/reference/bt-fuzzer/rm-fix.md``.
@@ -36,7 +40,6 @@ Catalog: ``docs/developer/reference/bt-fuzzer/rm-fix.md``.
 import logging
 
 from py_trees.common import Status
-from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
@@ -63,8 +66,6 @@ from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
-
-NEW_DEPLOYMENT_INFO_KEY = "new_deployment_info"
 
 
 def _resolve_d_state(
@@ -235,62 +236,6 @@ class RMinStateDeferred(_CheckParticipantRMStateBase):
     _target_rm = RM.DEFERRED
 
 
-class CheckNoNewDeploymentInfoNode(DataLayerConditionWithPorts):
-    """ProtocolInternal condition: no new deployment info has arrived.
-
-    Reads the blackboard flag ``new_deployment_info`` written by the upstream
-    ``NewDeploymentInfoSentinel`` (FUZZ-08f).  Returns ``SUCCESS`` when the
-    flag is absent or falsy (no new info — safe to stay deferred) and
-    ``FAILURE`` when the flag is truthy (new info arrived — re-evaluate
-    deployment).
-
-    This node is NOT a call-out injection seam — the external agent seam is at
-    the Sentinel that writes the flag, not at this consuming condition
-    (see ``docs/developer/reference/bt-fuzzer/rm-fix.md``
-    § ``NoNewDeploymentInfo``).  Defaulting
-    to SUCCESS when the key is absent matches the legacy fuzzer's
-    ``UsuallySucceed`` (p=0.75) happy path: most ticks have no new info.
-
-    Per AC-4 (issue #1825).
-    """
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerConditionWithPorts.INPUT_PORTS,
-        NEW_DEPLOYMENT_INFO_KEY: PortInformation(
-            data_type=object, required=False
-        ),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {NEW_DEPLOYMENT_INFO_KEY: f"/{NEW_DEPLOYMENT_INFO_KEY}"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        try:
-            self._new_deployment_info = self.get_input(NEW_DEPLOYMENT_INFO_KEY)
-        except (NoDataAvailable, NotImplementedError):
-            self._new_deployment_info = None
-
-    def update(self) -> Status:
-        new_info = self._new_deployment_info
-
-        if new_info:
-            self.feedback_message = (
-                "new deployment info present — re-evaluate deployment"
-            )
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        self.logger.debug(
-            "%s: no new deployment info — stay deferred", self.name
-        )
-        return Status.SUCCESS
-
-
 class TransitionCStoFixDeployed(DataLayerActionWithPorts, StateWriteCapable):
     """Store the D=D ParticipantStatus snapshot the actor reports.
 
@@ -377,8 +322,6 @@ __all__ = [
     "CSinStateFixDeployed",
     "CheckCSFixNotYetDeployed",
     "RMinStateDeferred",
-    "CheckNoNewDeploymentInfoNode",
     "TransitionCStoFixDeployed",
     "EmitCDActivity",
-    "NEW_DEPLOYMENT_INFO_KEY",
 ]

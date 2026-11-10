@@ -208,6 +208,7 @@ def test_replay_does_not_answer_the_removed_participant(
             ledger_position=peer_position(first.entry_hash),
             actor=VENDOR,
             to=[MANAGER],
+            in_reply_to="https://example.org/activities/prompting-announce",
         )
     )
 

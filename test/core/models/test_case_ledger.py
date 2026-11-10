@@ -41,6 +41,7 @@ import py_trees
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_ledger import (
     CaseLedger,
@@ -740,7 +741,8 @@ class TestBTBridgeLeadershipGuard:
     def test_custom_is_leader_false_skips_execution(self):
         bridge = self._make_bridge(is_leader_fn=lambda: False)
         dummy_tree = py_trees.behaviours.Success(name="noop")
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=dummy_tree,
             actor_id="urn:uuid:actor1",
         )
@@ -753,7 +755,8 @@ class TestBTBridgeLeadershipGuard:
         """When is_leader() returns True, the tree executes normally."""
         bridge = self._make_bridge(is_leader_fn=lambda: True)
         dummy_tree = py_trees.behaviours.Success(name="noop")
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=dummy_tree,
             actor_id="urn:uuid:actor1",
         )
@@ -765,7 +768,8 @@ class TestBTBridgeLeadershipGuard:
         """Omitting is_leader defaults to always-True (single-node behaviour)."""
         bridge = self._make_bridge()
         dummy_tree = py_trees.behaviours.Success(name="noop")
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=dummy_tree,
             actor_id="urn:uuid:actor1",
         )
@@ -797,7 +801,8 @@ class TestBTBridgeLeadershipGuard:
             # Inner bridge constructed without explicit is_leader — must inherit.
             inner_bridge = BTBridge(datalayer=dl)
             dummy_tree = py_trees.behaviours.Success(name="noop")
-            result = inner_bridge.execute_with_setup(
+            result = run_tree(
+                inner_bridge,
                 tree=dummy_tree,
                 actor_id="urn:uuid:actor1",
             )
@@ -826,7 +831,8 @@ class TestBTBridgeLeadershipGuard:
             dl = MagicMock()
             inner_bridge = BTBridge(datalayer=dl)
             dummy_tree = py_trees.behaviours.Success(name="noop")
-            result = inner_bridge.execute_with_setup(
+            result = run_tree(
+                inner_bridge,
                 tree=dummy_tree,
                 actor_id="urn:uuid:actor1",
             )
@@ -856,7 +862,8 @@ class TestBTBridgeLeadershipGuard:
             # Explicitly constructed with is_leader=True — must win.
             inner_bridge = BTBridge(datalayer=dl, is_leader=lambda: True)
             dummy_tree = py_trees.behaviours.Success(name="noop")
-            result = inner_bridge.execute_with_setup(
+            result = run_tree(
+                inner_bridge,
                 tree=dummy_tree,
                 actor_id="urn:uuid:actor1",
             )

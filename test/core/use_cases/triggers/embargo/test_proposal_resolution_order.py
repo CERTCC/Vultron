@@ -39,6 +39,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     activate,
     propose,
@@ -323,14 +324,16 @@ def test_accepting_a_proposal_removes_it_from_the_open_proposal_record(
         case_id=case.id_,
         proposal_id=proposal_id,
     )
-    SvcAcceptEmbargoUseCase(
-        owner_dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(owner_dl),
-        sync_port=SyncActivityAdapter(owner_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcAcceptEmbargoUseCase(
+            owner_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(owner_dl),
+            sync_port=SyncActivityAdapter(owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.ACTIVE, (
@@ -428,14 +431,16 @@ def test_rejecting_a_proposal_removes_it_from_both_records(
         case_id=case.id_,
         proposal_id=proposal_id,
     )
-    SvcRejectEmbargoUseCase(
-        owner_dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(owner_dl),
-        sync_port=SyncActivityAdapter(owner_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcRejectEmbargoUseCase(
+            owner_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(owner_dl),
+            sync_port=SyncActivityAdapter(owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.NONE, (

@@ -26,6 +26,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     make_case_with_manager,
 )
+from test.support.act_runner import run_tree
 from test.support.ledger import committed_semantic_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -161,7 +162,7 @@ class TestTerminateEmbargoBT:
             termination=EmbargoTermination.early(),
             activity_builder=builder if use_builder else None,
         )
-        result = bridge.execute_with_setup(tree, actor_id=CASE_MANAGER_ACTOR)
+        result = run_tree(bridge, tree, actor_id=CASE_MANAGER_ACTOR)
         assert result.status == expect, result
         return case, dl, factory
 
@@ -288,9 +289,7 @@ class TestTerminateEmbargoBT:
             termination=EmbargoTermination.early(),
             activity_builder=builder,
         )
-        result = bridge.execute_with_setup(
-            tree, actor_id=OTHER_PARTICIPANT_ACTOR
-        )
+        result = run_tree(bridge, tree, actor_id=OTHER_PARTICIPANT_ACTOR)
 
         assert result.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -339,7 +338,7 @@ class TestTerminateEmbargoBT:
             termination=EmbargoTermination.early(),
             activity_builder=builder,
         )
-        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree, actor_id=ACTOR_ID)
 
         # BT fails at routing guard — no state mutation occurs (BT-19-001).
         assert result.status == py_trees.common.Status.FAILURE
@@ -367,7 +366,7 @@ class TestTerminateEmbargoBT:
             termination=EmbargoTermination.early(),
             activity_builder=lambda _to: ("", ""),
         )
-        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree, actor_id=ACTOR_ID)
 
         assert result.status == py_trees.common.Status.FAILURE
         factory.terminate_embargo.assert_not_called()
@@ -406,7 +405,7 @@ class TestTerminateEmbargoBT:
             result_out=result_out,
             termination=EmbargoTermination.early(),
         )
-        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree, actor_id=ACTOR_ID)
 
         assert result.status == py_trees.common.Status.FAILURE
 
@@ -446,7 +445,7 @@ class TestTerminateEmbargoBT:
             result_out=result_out,
             termination=EmbargoTermination.early(),
         )
-        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree, actor_id=ACTOR_ID)
 
         assert result.status == py_trees.common.Status.FAILURE
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -679,11 +678,11 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
     def _run(
         self, dl: SqliteDataLayer, node: ProposeEmbargoLifecycleNode
     ) -> py_trees.common.Status:
-        return (
-            BTBridge(datalayer=dl, sync_port=SyncActivityAdapter(dl))
-            .execute_with_setup(tree=node, actor_id=CASE_MANAGER_ACTOR)
-            .status
-        )
+        return run_tree(
+            BTBridge(datalayer=dl, sync_port=SyncActivityAdapter(dl)),
+            tree=node,
+            actor_id=CASE_MANAGER_ACTOR,
+        ).status
 
     def _accepted(self, dl: SqliteDataLayer, case_id: str, actor: str):
         case = cast(VulnerabilityCase, dl.read(case_id))
@@ -759,9 +758,11 @@ class TestLifecycleNodeInternalFaults:
         if deciding:
             node = node.deciding()
 
-        result = BTBridge(
-            datalayer=dl, sync_port=SyncActivityAdapter(dl)
-        ).execute_with_setup(tree=node, actor_id=CASE_MANAGER_ACTOR)
+        result = run_tree(
+            BTBridge(datalayer=dl, sync_port=SyncActivityAdapter(dl)),
+            tree=node,
+            actor_id=CASE_MANAGER_ACTOR,
+        )
 
         assert result.status is py_trees.common.Status.FAILURE
         assert result.internal_error

@@ -46,6 +46,7 @@ from test.core.use_cases.received.conftest import (
 from test.core.use_cases.triggers.embargo.conftest import (
     _build_active_embargo_case,
 )
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -164,19 +165,21 @@ def _send_stub_invite(
         # signatory to the embargo in force (CM-10-004, CM-23-018).
         agree_to_active_embargo(dl, case, actor_id)
     offer = activity_of(
-        SvcInviteActorToCaseUseCase(
-            dl,
-            InviteActorToCaseTriggerRequest(
-                actor_id=actor_id,
-                case_id=case_id,
-                invitee_id=invitee_id,
-                roles=[CVDRole.VENDOR],
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcInviteActorToCaseUseCase(
+                dl,
+                InviteActorToCaseTriggerRequest(
+                    actor_id=actor_id,
+                    case_id=case_id,
+                    invitee_id=invitee_id,
+                    roles=[CVDRole.VENDOR],
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
     )
     already_queued = set(dl.outbox_list())
     stored_offer = dl.read(offer["id"])
@@ -185,13 +188,15 @@ def _send_stub_invite(
         update={"receiving_actor_id": actor_id}
     )
     assert isinstance(event, OfferActorToCaseReceivedEvent)
-    result = OfferActorToCaseReceivedUseCase(
-        dl,
-        event,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
     assert result.disposition is HandlerDisposition.APPLIED, result
     for item in dl.outbox_list():
         if item in already_queued:
@@ -371,15 +376,17 @@ def test_joined_participant_never_answers_the_original_report_offer(
 
     before = set(dl.outbox_list())
     try:
-        SvcValidateReportUseCase(
-            dl,
-            ValidateReportTriggerRequest(
-                actor_id=joiner.id_, offer_id=offer.id_
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                dl,
+                ValidateReportTriggerRequest(
+                    actor_id=joiner.id_, offer_id=offer.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
     except VultronError:
         # Refusing the trigger outright also satisfies CM-11-018.  The setup
         # is otherwise complete (today the trigger succeeds and emits
@@ -423,18 +430,20 @@ def test_on_behalf_assertion_for_absent_target_is_refused(
     participants_before = list(case.case_participants)
 
     with pytest.raises(VultronError):
-        SvcAddOnBehalfStatusUseCase(
-            dl,
-            AddOnBehalfStatusTriggerRequest(
-                actor_id=manager.id_,
-                case_id=case.id_,
-                target_actor_id=outsider.id_,
-                **dimension,
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcAddOnBehalfStatusUseCase(
+                dl,
+                AddOnBehalfStatusTriggerRequest(
+                    actor_id=manager.id_,
+                    case_id=case.id_,
+                    target_actor_id=outsider.id_,
+                    **dimension,
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
 
     after = dl.read_case(case.id_)
     assert after is not None
@@ -565,14 +574,18 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
     original_id = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)["id"]
 
-    SvcTerminateEmbargoUseCase(
-        dl,
-        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     replacements = [
         invite
@@ -695,14 +708,18 @@ def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
     original_id = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)["id"]
 
-    SvcTerminateEmbargoUseCase(
-        dl,
-        TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            dl,
+            TerminateEmbargoTriggerRequest(
+                actor_id=owner.id_, case_id=case.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
     assert [
         invite
         for invite in _invites_to(dl, invitee.id_)
