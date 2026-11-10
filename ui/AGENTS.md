@@ -78,7 +78,8 @@ values on `DemoState`. Do not model EM or PXA per-participant.
   generated types (§9, `ledgerShape.ts`) into `entries` and `rejected` lines (shown,
   never dropped); `vfdLadderToken()` reads VFD from `vfState`/`dState`;
   `normalizeLedger()` **dedups by `entryHash`, sorts by `logIndex`** (NOT
-  `receivedAt`); `actorUrlToLaneId()` maps actor URLs to lanes (`case-actor` first).
+  `receivedAt`). `replayLanes.ts` keys a lane on the **actor id** and labels it by
+  the `caseRoles` its records name, CASE_OWNER aside (it moves); never by host.
 - **`caseLedgerMapper.ts`** — `buildTimelineFromCaseLedger()` pre-scans to fix
   lane order, then walks entries in `logIndex` order holding a **shadow protocol
   state**. The log records **state SNAPSHOTS, not transitions**, so the mapper
@@ -101,16 +102,17 @@ values on `DemoState`. Do not model EM or PXA per-participant.
   closure the Leave already drew, so they are logged, not flagged. Only a
   case-manager snapshot that is one legal RM step from the previous rung and
   strictly nearer `CLOSED` counts; any other snapshot is judged as a transition.
-- Entry names and phrasing come from the semantic registry artifact (§9): an
-  event-log line carries the registry's phrase; a type the registry does not
-  list is logged as unhandled, never dropped.
+- Node labels and entry log lines are the registry's phrase (§9); `ui/` picks only
+  slot values. `replay-golden/<scenario>.txt` pins each recording's replay;
+  `npm test -- -u` rewrites them after an intended change: read the diff.
 
 ## 6. How the protocol validates the log
 
 The mapper treats the artifact (via `protocol.ts`) as the authority; every step
 is checked with `isLegalTransition`. Node annotations: **violation** (red ⚠️,
-illegal from the shadow state) and **inferred** (amber ℹ️, a multi-step snapshot
-diff whose path was guessed). A clean single legal step gets none.
+illegal from the shadow state), **inferred** (amber ℹ️, a multi-step snapshot
+diff whose path was guessed) and **unrecognized** (grey ❓, a type the registry
+does not list: drawn, never only logged). A clean single legal step gets none.
 
 ## 7. Tooling and log locations
 
@@ -123,10 +125,9 @@ diff whose path was guessed). A clean single legal step gets none.
     buttons import via `?raw`. In-tree, so a fresh clone builds. One dir per
     registered scenario, holding its canonical `case-actor.jsonl`; replicas
     are checked against it on every run and not stored. Regenerate with
-    `uv run export-demo-recordings`. PRs need not: the daily
-    `demo-recordings` workflow files a refresh Task when one is stale. A PR
-    that needs current recordings (a UI change) regenerates them itself.
-    Never hand-edit a recording.
+    `uv run export-demo-recordings`, then the goldens (§5); the daily
+    `demo-recordings` workflow files a refresh Task when one is stale. A UI
+    change that needs current recordings regenerates them. Never hand-edit one.
   - **`ui/src/synthetic-ledgers/`** — hand-authored ledgers with deliberate
     violations and inferred steps, for the flagging the recordings never
     trigger. Validated against `CaseLedgerEntry` like the recordings.
@@ -192,9 +193,8 @@ export a scraped copy.
 - `src/actions/*.ts`, `src/state/actionFilters.ts` and `src/state/stateUpdaters.ts`
   — Multi-Vendor handlers, filters and state updaters (imported only by
   `App-multivendor.tsx` and the handlers).
-- `src/utils/` — the Log Replay parser, mapper, line check and load rules.
-- `src/semanticRegistry.ts` — the ledger vocabulary (§9), read by the Log
-  Replay mapper.
+- `src/utils/` — the Log Replay parser, lanes, mapper, line check and load rules.
+- `src/semanticRegistry.ts` — the ledger vocabulary (§9), read by the mapper.
 - **Shared (a change here affects both modes):** `protocol.ts`, `constants.ts`,
   `types.ts`, `components/` (`ActorPanel`, `AnimatedNode`) and
   `state/participantHelpers.ts` (Log Replay uses only `getActiveLanes`).

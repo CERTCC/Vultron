@@ -32,8 +32,9 @@ import violationLedgerRaw from './synthetic-ledgers/violations-case-ledger.jsonl
 import rvvLedgerRaw from './recordings/rvv/case-actor.jsonl?raw'
 // Coordinator scenarios (R/V/C notation: Reporter/Vendor/Coordinator, with
 // -extension vs -handoff variants).
-// The -handoff logs depict the ownership transfer as offer/accept nodes, but the
-// lanes keep their host labels, so the CASE_OWNER label does not move (deferred).
+// The -handoff logs depict the ownership transfer as offer/accept nodes. Lanes are
+// keyed on actor ids and labelled by the ledger's roles, CASE_OWNER aside, so both
+// participants keep their lanes and labels through the handoff (utils/replayLanes.ts).
 import rcvLedgerRaw from './recordings/rcv/case-actor.jsonl?raw'
 import rvcvExtLedgerRaw from './recordings/rvcv-extension/case-actor.jsonl?raw'
 import rccvExtLedgerRaw from './recordings/rccv-extension/case-actor.jsonl?raw'
@@ -665,8 +666,8 @@ function AppLogReplay() {
   const currentSnapshot = snapshots?.[currentStep]
   // Per-participant / case-level state readers keyed off the current snapshot.
   // A participant ABSENT from the snapshot hasn't entered the shadow at this step
-  // yet (e.g. in the rvv recording, only vendor-1 is seeded at step 0 — the reporter,
-  // vendor-2 and CASE_MANAGER join later). Such a participant must read as the
+  // yet (e.g. in the rvv recording, only the Vendor is seeded at step 0 — the Reporter,
+  // Vendor 2 and CASE_MANAGER join later). Such a participant must read as the
   // machine's INITIAL state (not started), NOT the end-state: falling back to
   // `demoState` (the terminal snapshot) was the bug that made panels show CLOSED /
   // EXITED / VFD from the very first step.
@@ -916,7 +917,7 @@ function AppLogReplay() {
               rmState={rmStateOf(participant.id)}
               emState={emStateNow}
               vfd={vfdStateOf(participant.id)}
-              pxaState={participant.id === 'casemanager' ? pxaStateNow : undefined}
+              pxaState={participant.laneKind === 'casemanager' ? pxaStateNow : undefined}
               actions={[]} // No actions in replay mode
               onActionClick={() => {}}
               isCollapsed={collapsedParticipants.has(participant.id)}
@@ -1030,12 +1031,12 @@ function AppLogReplay() {
                     const adjustedY2 = y2 - (targetRectHalfHeight * direction)
 
                     // Arrow color = the target participant's consequence color
-                    // (works for any vendor-N via nodeColorsFor). The context-stroke
+                    // (the lane's palette key, via nodeColorsFor). The context-stroke
                     // marker inherits this color. No arrowhead when the target lane
                     // is collapsed (matches multivendor).
                     const targetParticipant = allParticipants.find(p => p.laneIndex === event.lane)
                     const arrowColor = targetParticipant
-                      ? nodeColorsFor(targetParticipant.id).consequence
+                      ? nodeColorsFor(targetParticipant.palette ?? targetParticipant.id).consequence
                       : '#999'
                     const arrowMarker = targetParticipant && !targetCollapsed ? 'url(#arrowhead-ctx)' : ''
 
@@ -1107,9 +1108,8 @@ function AppLogReplay() {
               const participant = demoState.participants.get(event.participantId || event.actor)
               if (!participant) return null
 
-              // Get the appropriate colors for this participant (any vendor-N).
-              const pid = event.participantId || event.actor
-              const participantColors = nodeColorsFor(pid)
+              // The lane's palette, from its ledger roles (utils/replayLanes.ts).
+              const participantColors = nodeColorsFor(participant.palette ?? participant.id)
 
               const fillColor = event.type === 'decision'
                 ? (hoveredEvent === event.id ? participantColors.decisionHover : participantColors.decision)
@@ -1201,6 +1201,36 @@ function AppLogReplay() {
                       </text>
                     </>
                   )}
+                  {/* Unrecognized-type annotation: the registry does not list this
+                      entry's semantic type, so the mapper drew it without
+                      interpreting it (a log from another protocol version). Grey
+                      dashed outline + ❓, distinct from a violation. */}
+                  {event.unrecognized && (
+                    <>
+                      <rect
+                        x={event.x - outlineW / 2 - 3}
+                        y={yPosition - outlineH / 2 - 3}
+                        width={outlineW + 6}
+                        height={outlineH + 6}
+                        rx="10"
+                        ry="10"
+                        fill="none"
+                        stroke="#616161"
+                        strokeWidth={3}
+                        strokeDasharray="2,3"
+                        pointerEvents="none"
+                      />
+                      <text
+                        x={event.x + outlineW / 2 - 6}
+                        y={yPosition - outlineH / 2 + 4}
+                        textAnchor="end"
+                        fontSize="20"
+                        pointerEvents="none"
+                      >
+                        ❓
+                      </text>
+                    </>
+                  )}
                 </g>
               )
               })}
@@ -1220,7 +1250,7 @@ function AppLogReplay() {
                     top: y + 60,
                     left: event.x - 140,
                     background: 'white',
-                    border: `2px solid ${event.violation ? '#d32f2f' : event.inferred ? '#f9a825' : '#333'}`,
+                    border: `2px solid ${event.violation ? '#d32f2f' : event.inferred ? '#f9a825' : event.unrecognized ? '#616161' : '#333'}`,
                     borderRadius: '8px',
                     padding: '0.75rem',
                     boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
@@ -1231,7 +1261,7 @@ function AppLogReplay() {
                   }}
                 >
                   <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    {event.violation ? '⚠️ ' : event.inferred ? 'ℹ️ ' : ''}{event.label}
+                    {event.violation ? '⚠️ ' : event.inferred ? 'ℹ️ ' : event.unrecognized ? '❓ ' : ''}{event.label}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#666' }}>
                     {event.consequences.map((c, i) => (
@@ -1258,6 +1288,17 @@ function AppLogReplay() {
                       color: '#e65100',
                     }}>
                       <strong>Inferred step:</strong> {event.inferredNote}
+                    </div>
+                  )}
+                  {event.unrecognized && event.unrecognizedNote && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      paddingTop: '0.5rem',
+                      borderTop: '1px solid #eee',
+                      fontSize: '0.75rem',
+                      color: '#424242',
+                    }}>
+                      <strong>Unrecognized:</strong> {event.unrecognizedNote}
                     </div>
                   )}
                 </div>

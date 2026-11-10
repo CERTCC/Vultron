@@ -25,6 +25,7 @@
 import {
   D_STATE_VALUES,
   type CaseLedgerEntry as CaseLedgerEntryRecord,
+  type CaseParticipant,
   type CaseStatus,
   type ParticipantStatus,
 } from '../data/ledgerTypes'
@@ -69,6 +70,13 @@ export type CaseStatusSnapshot = Partial<CaseStatus>
 export type ParticipantStatusSnapshot = Partial<ParticipantStatus>
 
 /**
+ * A participant record (`CaseParticipant`): its actor (`attributedTo`), the CVD
+ * roles it plays (`caseRoles`, which label its replay lane, `./replayLanes`) and
+ * its statuses. Partial, as `CaseStatusSnapshot`.
+ */
+export type CaseParticipantSnapshot = Partial<CaseParticipant>
+
+/**
  * The combined VFD ladder token (`vfd`, `Vfd`, `VFd`, `VFD`) of a status, the
  * token the `vfd` machine of `src/data/protocol_states.json` names.
  *
@@ -86,13 +94,14 @@ export function vfdLadderToken(
 
 /**
  * The subset of an AS2 object the mapper reads. Covers ParticipantStatus,
- * CaseStatus, VulnerabilityCase (offer/close), Note, Offer, and EmbargoEvent
- * shapes. The status fields are the generated ones; the rest belong to models
+ * CaseStatus, CaseParticipant, VulnerabilityCase (offer/close), Note, Offer, and
+ * EmbargoEvent shapes. The status fields are the generated ones; the rest belong to models
  * the UI does not export.
  */
 export interface As2Object
   extends Omit<ParticipantStatusSnapshot, 'type' | 'id' | 'name' | 'content' | 'inReplyTo' | 'attributedTo'>,
-    Pick<CaseStatusSnapshot, 'emState' | 'pxaState'> {
+    Pick<CaseStatusSnapshot, 'emState' | 'pxaState'>,
+    Pick<CaseParticipantSnapshot, 'caseRoles'> {
   id?: string
   type?: string
   name?: string | null
@@ -104,7 +113,8 @@ export interface As2Object
   caseStatuses?: CaseStatusSnapshot[]
   /** Maps actor URL → participant URN; the case roster lives in its keys. */
   actorParticipantIndex?: Record<string, string>
-  caseParticipants?: string[]
+  /** The case's participant records, inline or by id. */
+  caseParticipants?: Array<CaseParticipantSnapshot | string>
   /** Nested per-participant statuses on the offer's target CaseParticipant. */
   participantStatuses?: ParticipantStatusSnapshot[]
 }
@@ -127,69 +137,6 @@ export interface As2Activity {
 export type CaseLedgerEntry = Omit<CaseLedgerEntryRecord, 'payloadSnapshot' | 'semanticType'> & {
   semanticType: LedgerSemanticType
   payloadSnapshot: As2Activity
-}
-
-/**
- * A demo lane id. `unknown` is returned for unrecognized actor URLs. Vendors are
- * `vendor-1`, `vendor-2`, … — the demo supports N vendors (a `vendor-${n}`
- * template literal type keeps the union open while still excluding arbitrary
- * strings from the caller's perspective).
- */
-export type LaneId = 'reporter' | `vendor-${number}` | 'coordinator' | 'casemanager' | 'unknown'
-
-/**
- * Map an actor URL to a demo lane id.
- *
- * Every scenario runs on one fixed cast of role-neutral containers
- * (DEMOCI-11-020): `actor0:` plays the first Reporter, `actor1:` the first
- * Vendor, `actor2:` the first Coordinator, and `actor3:`/`actor4:` are
- * character actors — `actor3:` is Vendor2 in the vendor scenarios and
- * Coordinator2 in `rccv-*` and `rcvcv`, `actor4:` is the VendorDeployer in
- * `rcvcv`. Both character slots keep the vendor-N machinery (`vendor-2`,
- * `vendor-3`): lane identity is keyed on the host, and these are the hosts
- * that run a second participant's steps, so `actor3:` renders as "Vendor 2"
- * even where it plays a Coordinator. The CASE_MANAGER has its own host,
- * `//case-actor:…/actors/case-actor`.
- *
- * The pre-cast hosts stay recognized for a log recorded before the rename.
- * The committed logs in this tree carry two of them, `//finder:` and
- * `//vendor:`; the rest (`//reporter:`, `//coordinator:`, `//vendorN:`,
- * `//actor5:`, `//actor6:`) are there for a log a user uploads. Those logs
- * also run the CASE_MANAGER as a sub-actor with a `case-actor-…` path segment on
- * whichever host owns the case (`//vendor:…/case-actor-<caseId>` in
- * rv/rvv/rvcv-*; `//coordinator:…/case-actor-<caseId>` in rcv/rccv-*).
- *
- * Order matters: the `case-actor` test MUST run FIRST — the recorder sub-actor's
- * URL is itself a `//vendor:` or `//coordinator:` URL, and it must resolve to the
- * casemanager lane, not to the host's participant lane. Lane identity is keyed on
- * the HOST, never on the participant's CVD role: a participant's role
- * (VENDOR / CASE_OWNER / COORDINATOR) is carried per-status in `cvdRole` and — in
- * the handoff scenarios — can migrate between participants, so it can't define a
- * stable lane. The `coordinator:` host is therefore its own lane distinct from the
- * casemanager recorder, even when the recorder is co-hosted with it.
- */
-export function actorUrlToLaneId(url?: string | null): LaneId {
-  if (!url) return 'unknown'
-  if (url.includes('case-actor')) return 'casemanager'
-  // Recorded demos name the reporter host `reporter:`; the committed sample
-  // logs still carry its earlier name, `finder:`.
-  // The fixed cast: slot 0 reports, slot 1 is the first Vendor, slot 2 the
-  // first Coordinator, slots 3 and 4 are character actors.
-  if (url.includes('//actor0:')) return 'reporter'
-  if (url.includes('//actor1:')) return 'vendor-1'
-  if (url.includes('//actor2:')) return 'coordinator'
-  if (url.includes('//actor3:')) return 'vendor-2'
-  if (url.includes('//actor4:')) return 'vendor-3'
-  // Pre-cast hosts, kept for the committed sample and synthetic logs.
-  if (url.includes('//reporter:') || url.includes('//finder:')) return 'reporter'
-  if (url.includes('//coordinator:')) return 'coordinator'
-  if (url.includes('//actor5:')) return 'vendor-2'
-  if (url.includes('//actor6:')) return 'vendor-3'
-  // `//vendorN:` (N ≥ 2) → vendor-N; the bare `//vendor:` host → vendor-1.
-  const numberedVendor = url.match(/\/\/vendor(\d+):/)
-  if (numberedVendor) return `vendor-${parseInt(numberedVendor[1], 10)}`
-  if (url.includes('//vendor:')) return 'vendor-1'
-  return 'unknown'
 }
 
 /** A ledger line `parseCaseLedger` set aside, and why. */
