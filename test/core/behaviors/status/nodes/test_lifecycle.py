@@ -93,14 +93,12 @@ def status_obj():
 
 @pytest.fixture
 def public_aware_status():
-    """ParticipantStatus with CS.P set (CS_pxa.Pxa = public-aware)."""
-    return as_ParticipantStatus(
-        id_=STATUS_ID,
-        context=CASE_ID,
-        case_status=as_CaseStatus(
-            context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
-        ),
-    )
+    """A CaseStatus with CS.P set (CS_pxa.Pxa = public-aware).
+
+    The branch reads a case's status, never a participant's claim
+    (SM-09-003, #6080).
+    """
+    return as_CaseStatus(context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa))
 
 
 @pytest.fixture
@@ -149,7 +147,7 @@ class TestThreatTerminationBranchNodeProposedEmPath:
 
     def _setup(
         self,
-        public_aware_status: as_ParticipantStatus,
+        public_aware_status: as_CaseStatus,
         *,
         store_actor: str = ACTOR_ID,
     ) -> tuple[SqliteDataLayer, BTBridge, ThreatTerminationBranchNode]:

@@ -127,7 +127,7 @@ describe('Log Replay nodes over the committed recordings', () => {
     const checked = new Set<string>()
     const mismatched: string[] = []
     for (const [path, raw] of Object.entries(RECORDINGS)) {
-      const entries = normalizeLedger(parseCaseLedger(raw))
+      const entries = normalizeLedger(parseCaseLedger(raw, path).entries)
       const { timelineEvents } = buildTimelineFromCaseLedger(entries)
       for (const entry of entries) {
         const expected = WIRE_BY_TYPE.get(entry.semanticType)

@@ -64,9 +64,6 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`encryption.md`** · `plan`
   How to build actor signing (ADR-0164), plus open options for message encryption.
   **Load when**: building signing or verification (#1156), or designing encryption.
-- **`id-source.md`** · `plan`
-  Migrating the one id minter to an id-source port, so no run patches `uuid4` (ADR-0185).
-  **Load when**: minting object ids, or changing how a recording or example gets ids.
 - **`protocol-asks.md`** · `plan`
   The ask primitive: ask and terminate, conversation-state routing, ask registers.
   **Load when**: building a gate that needs another actor's answer, or an ask/reply
@@ -117,11 +114,14 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   The DataLayer port contract, store scope, write/read shapes, and snapshots.
   **Load when**: working on a DataLayer adapter or deciding which store a write uses.
 - **`actor-knowledge-model.md`** · `guidance`
-  No cross-actor store access, the inline-object shortcut, and the actor-discovery seam.
+  No cross-actor store access, the inline-object shortcut, and the actor-resolution seam.
   **Load when**: an actor needs data another actor holds, or reviewing AKM work.
 - **`configuration.md`** · `guidance`
   YAML-backed Pydantic config: layering, key-presence checks, cache-safe tests.
   **Load when**: changing `vultron/config/` or a test that sets configuration.
+- **`id-source.md`** · `guidance`
+  The one id minter draws from an id-source port; a run installs its source (ADR-0185).
+  **Load when**: minting object ids, or changing how a recording or example gets ids.
 - **`codebase-structure.md`** · `guidance`
   Module layout rules, module splits, and small recurring coding pitfalls.
   **Load when**: adding, moving, or splitting a module.

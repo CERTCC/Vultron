@@ -1836,7 +1836,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | EMB — Embargo Management Behavioral Requirements | [EMB-17-004](../vultron-spec/requirements/state-behavior.md#emb-17-004), [EMB-17-015](../vultron-spec/requirements/state-behavior.md#emb-17-015), [EMB-17-016](../vultron-spec/requirements/state-behavior.md#emb-17-016), [EMB-17-017](../vultron-spec/requirements/state-behavior.md#emb-17-017) |
-| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-012](../vultron-spec/requirements/messages.md#msm-07-012) |
+| MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-07-012](../vultron-spec/requirements/messages.md#msm-07-012), [MSM-07-039](../vultron-spec/requirements/messages.md#msm-07-039) |
 
 ## [story_2026_065](story_2026_065.md)
 

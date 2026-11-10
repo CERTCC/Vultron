@@ -70,18 +70,13 @@ _SYSTEM_SOURCE = frozenset({"system_id_source"})
 #: Functions that draw a random UUID for something other than an object id,
 #: keyed on (repo-relative path, dotted enclosing function).
 #: Pinned exemption set: each entry is a recorded decision, not a debt.
-# permanent: OID-01-004 (each entry draws, or replaces the draw of, a
-# UUID that never mints an object id); the replacement entry is removed
-# when #6116 moves its run to install_id_source (OID-01-012, ADR-0185)
+# permanent: OID-01-004 (each entry draws a UUID that never mints an
+# object id; OID-01-012, ADR-0185)
 NON_ID_RANDOM_UUID_EXEMPTIONS: dict[tuple[str, str], str] = {
     (
         "vultron/adapters/driving/fastapi/app.py",
         "_auto_inject_isolated_datalayer",
     ): "the name of an app's private in-memory SQLite database",
-    ("vultron/demo/determinism.py", "deterministic_run"): (
-        "replaces uuid4 with a seeded stand-in for a recording run, so the "
-        "shared minter's ids repeat; it mints nothing itself"
-    ),
 }
 
 _RANDOM_UUID_NAMES = frozenset({"uuid1", "uuid4"})

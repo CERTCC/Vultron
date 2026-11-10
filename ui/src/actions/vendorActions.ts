@@ -656,9 +656,9 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
   let newState = state
 
   // VFD destination computed from the protocol artifact (fix_is_ready: Vfd → VFd).
-  const nextVfdState = requireNextState('vfd', vendor.vfdState, 'fix_is_ready')
+  const nextVfdState = requireNextState('vfd', vendor.vfd, 'fix_is_ready')
 
-  newState = updateParticipant(newState, vendorId, { vfdState: nextVfdState })
+  newState = updateParticipant(newState, vendorId, { vfd: nextVfdState })
   newState = setPhase(newState, 'fix-ready')
 
   const events = []
@@ -768,9 +768,9 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
   let newState = state
 
   // VFD destination computed from the protocol artifact (fix_is_deployed: VFd → VFD).
-  const nextVfdState = requireNextState('vfd', vendor.vfdState, 'fix_is_deployed')
+  const nextVfdState = requireNextState('vfd', vendor.vfd, 'fix_is_deployed')
 
-  newState = updateParticipant(newState, vendorId, { vfdState: nextVfdState })
+  newState = updateParticipant(newState, vendorId, { vfd: nextVfdState })
   newState = setPhase(newState, 'fix-deployed')
 
   const events = []

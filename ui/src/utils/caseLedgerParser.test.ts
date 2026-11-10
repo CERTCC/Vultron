@@ -1,5 +1,6 @@
 /**
- * Unit tests of the Log Replay parser's lane mapping (`actorUrlToLaneId`).
+ * Unit tests of the Log Replay parser's lane mapping (`actorUrlToLaneId`) and
+ * of the VFD ladder token it reads from a status (`vfdLadderToken`).
  *
  * The lane ids are plain strings compared all through the mapper and the
  * replay view, so the type checker cannot catch a missed rename; these pin the
@@ -8,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { actorUrlToLaneId } from './caseLedgerParser'
+import { actorUrlToLaneId, vfdLadderToken } from './caseLedgerParser'
 
 describe('actorUrlToLaneId', () => {
   it.each([
@@ -44,4 +45,27 @@ describe('actorUrlToLaneId', () => {
       expect(actorUrlToLaneId(url)).toBe('unknown')
     },
   )
+})
+
+describe('vfdLadderToken', () => {
+  it.each([
+    [{ vfState: 'vf' }, 'vfd'],
+    [{ vfState: 'Vf' }, 'Vfd'],
+    [{ vfState: 'VF' }, 'VFd'],
+    [{ vfState: 'VF', dState: 'd' }, 'VFd'],
+    [{ vfState: 'VF', dState: 'D' }, 'VFD'],
+  ] as const)('reads %o as %s', (status, token) => {
+    expect(vfdLadderToken(status)).toBe(token)
+  })
+
+  it('gives no token for a status with no vfState, which is not a Vendor\'s', () => {
+    expect(vfdLadderToken({})).toBeUndefined()
+    expect(vfdLadderToken({ vfState: null, dState: 'D' })).toBeUndefined()
+    expect(vfdLadderToken(undefined)).toBeUndefined()
+  })
+
+  it('does not read the retired vfdState key', () => {
+    const retired = JSON.parse('{"rmState": "ACCEPTED", "vfdState": "VFD"}') as Parameters<typeof vfdLadderToken>[0]
+    expect(vfdLadderToken(retired)).toBeUndefined()
+  })
 })

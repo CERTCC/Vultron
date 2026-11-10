@@ -94,7 +94,7 @@ export function getFinderActions(state: DemoState): Action[] {
   if (!finder) return []
 
   const activeVendors = getActiveVendors(state)
-  const anyVendorVFD = activeVendors.some(v => v.vfdState === 'VFD')
+  const anyVendorVFD = activeVendors.some(v => v.vfd === 'VFD')
 
   // Before a report exists there is exactly one action: submit it. `start` is the
   // only pre-case phase; every other phase means a case exists. (Submit itself has
@@ -382,7 +382,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // NOT gated on publicity — a vendor may (and per the shrinkwrap model, typically
   // does) advance/deploy a fix after the vuln is public.
   const canProgressVFD = vendor.rmState === 'ACCEPTED'
-  if (isLegalTransition('vfd', vendor.vfdState, 'fix_is_ready') && canProgressVFD) {
+  if (isLegalTransition('vfd', vendor.vfd, 'fix_is_ready') && canProgressVFD) {
     actions.push({
       id: 'notify-fix-ready',
       label: 'Notify Fix Ready',
@@ -390,7 +390,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       enabled: true,
     })
   }
-  if (isLegalTransition('vfd', vendor.vfdState, 'fix_is_deployed') && canProgressVFD) {
+  if (isLegalTransition('vfd', vendor.vfd, 'fix_is_deployed') && canProgressVFD) {
     actions.push({
       id: 'notify-fix-deployed',
       label: 'Notify Fix Deployed',
@@ -403,7 +403,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // `public_becomes_aware` legality IS the "not already public" check; overlay:
   // vendor only publishes once their own fix is deployed (VFD). (Composite — PXA +
   // EM terminate — so gating stays hand-written.)
-  if (vendor.vfdState === 'VFD' && isLegalTransition('pxa', state.pxaState, 'public_becomes_aware')) {
+  if (vendor.vfd === 'VFD' && isLegalTransition('pxa', state.pxaState, 'public_becomes_aware')) {
     actions.push({
       id: 'vendor-notify-published',
       label: 'Notify Published',

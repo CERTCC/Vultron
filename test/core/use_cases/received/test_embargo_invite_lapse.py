@@ -39,6 +39,10 @@ from test.support.ledger import (
     is_consent_row_update,
 )
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
+from test.support.refusal_notice import (
+    assert_refusal_notice,
+    refusal_notice_id,
+)
 from test.support.relayed_invite import (
     COORD as _COORD,
     INVITEE as _INVITEE,
@@ -1986,8 +1990,8 @@ class TestLateAcceptHandling:
     ):
         """Run a late Accept whose expiry commit-and-apply is *commit_node*.
 
-        Returns the store, the case and embargo ids, and the list that
-        records each EMB-17 route the tree took.
+        Returns the store, the case and embargo ids, the list that records
+        each availability judgment the tree made, and the use case.
         """
         from vultron.core.behaviors.embargo import expiry_tree as _et_module
         from vultron.core.behaviors.embargo.nodes import (
@@ -2020,24 +2024,20 @@ class TestLateAcceptHandling:
                 "create_commit_and_record_expiry_tree",
                 lambda **_: commit_node,
             )
-        from py_trees.common import Status as _Status
-
-        from vultron.core.behaviors.embargo.nodes.late_accept import (
-            LateAcceptRouteIsNode,
+        from vultron.core.behaviors.embargo.nodes.accept_availability import (
+            EmbargoAvailabilityIsNode,
         )
 
-        routed: list[str] = []
-        original = LateAcceptRouteIsNode.update
+        judged: list[str] = []
+        original = EmbargoAvailabilityIsNode.update
 
         def _spy(self):
-            status = original(self)
-            if status is _Status.SUCCESS:
-                routed.append(self._case_id)
-            return status
+            judged.append(self._case_id)
+            return original(self)
 
-        # The late-Accept arms are diversions of the one tree (CLP-10-026);
-        # a route is taken when its condition holds.
-        monkeypatch.setattr(LateAcceptRouteIsNode, "update", _spy)
+        # The Accept is judged by its embargo's availability, on time or
+        # late (MSM-07-012); the spy shows the guards were reached.
+        monkeypatch.setattr(EmbargoAvailabilityIsNode, "update", _spy)
         use_case = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             _make_accept_event(proposal, case, _INVITEE, make_payload, at=dl),
@@ -2045,18 +2045,19 @@ class TestLateAcceptHandling:
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
         )
-        return dl, case_id, embargo_id, routed, use_case
+        return dl, case_id, embargo_id, judged, use_case
 
-    @pytest.mark.spec("CLP-10-025", "EMB-17-001")
-    def test_late_accept_is_routed_when_the_expiry_commit_is_refused(
+    @pytest.mark.spec("CLP-10-025", "EMB-17-001", "EMB-17-002")
+    def test_late_accept_is_judged_when_the_expiry_commit_is_refused(
         self, make_payload, monkeypatch, caplog
     ):
-        """A refused expiry commit warns; the late Accept is still routed.
+        """A refused expiry commit warns; the late Accept is still judged.
 
         The clock decision's FAILURE does not end the tree (CLP-10-025), and
-        the expiry guard still refuses the Accept as an answer, so the
-        handler routes it by EMB-17 instead of recording it (EMB-17-001).
-        No expiry entry is ledgered and the row is not timed out.
+        the Accept is then judged by its embargo's availability, as any
+        Accept is (EMB-17-001): the active embargo is available, so the
+        Accept is honoured (EMB-17-002).  No expiry entry is ledgered and the
+        row is not timed out.
         """
         import py_trees
 
@@ -2065,7 +2066,7 @@ class TestLateAcceptHandling:
                 self.feedback_message = "ledger refused the expiry entry"
                 return py_trees.common.Status.FAILURE
 
-        dl, case_id, embargo_id, routed, use_case = (
+        dl, case_id, embargo_id, judged, use_case = (
             self._late_accept_with_expiry_commit(
                 make_payload,
                 monkeypatch,
@@ -2078,7 +2079,7 @@ class TestLateAcceptHandling:
             result = run_in_act(use_case)
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert routed == [case_id]
+        assert judged and set(judged) == {case_id}
         assert any(
             r.levelname == "WARNING"
             and "ledger refused the expiry entry" in r.getMessage()
@@ -2100,13 +2101,13 @@ class TestLateAcceptHandling:
         )
 
     @pytest.mark.spec("CLP-10-025")
-    def test_late_accept_with_an_internal_error_raises_and_is_not_routed(
+    def test_late_accept_with_an_internal_error_raises_and_is_not_judged(
         self, make_payload, monkeypatch
     ):
         """An internal error in the expiry decision ends the handler (ADR-0095).
 
-        The late-Accept routing must not run on a tree that crashed: the
-        handler raises instead of reporting the Accept as routed.
+        The Accept must not be judged on a tree that crashed: the handler
+        raises instead of reporting an answer.
         """
         import py_trees
 
@@ -2116,7 +2117,7 @@ class TestLateAcceptHandling:
             def update(self):
                 raise KeyError("bug")
 
-        _, _, _, routed, use_case = self._late_accept_with_expiry_commit(
+        _, _, _, judged, use_case = self._late_accept_with_expiry_commit(
             make_payload,
             monkeypatch,
             "late-crash",
@@ -2125,7 +2126,7 @@ class TestLateAcceptHandling:
 
         with pytest.raises(VultronBTInternalError):
             run_in_act(use_case)
-        assert routed == []
+        assert judged == []
 
     @pytest.mark.spec("EMB-17-002", "CM-18-003")
     @pytest.mark.parametrize(
@@ -2220,6 +2221,8 @@ class TestLateAcceptHandling:
             assert PEC_Trigger.INVITE not in applied
 
     @pytest.mark.spec("EMB-17-003")
+    @pytest.mark.spec("EMB-17-005")
+    @pytest.mark.spec("MSM-07-012")
     @pytest.mark.parametrize(
         "stale_deadline",
         [_PAST, _FUTURE],
@@ -2228,10 +2231,13 @@ class TestLateAcceptHandling:
     def test_late_accept_reinvite_when_stale_embargo(
         self, make_payload, stale_deadline
     ):
-        """An Accept of stale terms → re-invite with the current embargo.
+        """An Accept of stale terms → refused, and re-invited to the current one.
 
-        AC-3 of #2213, and AC-5 of #4291: the stale entry is final, so its
-        invitation is closed whether or not its own deadline has passed.
+        AC-3 of #2213, and AC-5 of #4291: the stale entry is final, so the
+        embargo is no longer available whether or not the invitation's own
+        deadline has passed.  The Accept is refused uncommitted with the
+        refusal notice, and the accepter is asked about the embargo in force
+        (MSM-07-012, EMB-17-003).
         """
         from unittest.mock import MagicMock
 
@@ -2300,7 +2306,7 @@ class TestLateAcceptHandling:
         event = _make_accept_event(
             stale_proposal, case, _INVITEE, make_payload
         )
-        run_in_act(
+        result = run_in_act(
             AcceptInviteToEmbargoOnCaseReceivedUseCase(
                 dl,
                 event,
@@ -2308,6 +2314,17 @@ class TestLateAcceptHandling:
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
             )
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "no longer available" in (result.reason or "")
+        assert_refusal_notice(
+            dl,
+            manager=_COORD,
+            refused_id=event.activity_id,
+            asserter=_INVITEE,
+            reason="SUPERSEDED",
+            case_id=case_id,
         )
 
         # propose_embargo should have been called with the CURRENT embargo
@@ -2339,13 +2356,20 @@ class TestLateAcceptHandling:
         assert participant.rsvp_deadline_for(current_embargo_id) == stamped
 
     @pytest.mark.spec("EMB-17-004")
-    def test_late_accept_noop_when_em_exited(self, make_payload):
-        """Late Accept after EM EXITED → a no-op, actor stays in case (AC-4 #2213).
+    @pytest.mark.spec("EMB-17-006")
+    @pytest.mark.spec("EMB-17-007")
+    @pytest.mark.spec("EMB-17-008")
+    @pytest.mark.spec("EMB-17-015")
+    @pytest.mark.spec("EMB-17-016")
+    def test_late_accept_refused_when_em_exited(self, make_payload):
+        """Late Accept after EM EXITED → refused, actor stays in case (AC-4 #2213).
 
         Termination writes no consent (ADR-0122) and, with no embargo in
-        force, nobody is a signatory; once EM is EXITED a late Accept records
-        no acceptance, so the invitee never becomes a signatory.  The Accept
-        changes nothing, so no entry is committed for it (EMB-17-004).
+        force, nobody is a signatory; once EM is EXITED the terminated
+        embargo is no longer available, so the Accept is refused uncommitted
+        with the refusal notice alone: the case holds no terms to invite to
+        (EMB-17-004, EMB-17-007).  The refusal is of the Accept, never of
+        the actor's participation (EMB-17-006, EMB-17-008).
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea3"
@@ -2375,6 +2399,7 @@ class TestLateAcceptHandling:
             proposal, case, _INVITEE, make_payload, at=dl
         )
         entries_before = _case_entries(dl, case_id)
+        outbox_before = list(dl.outbox_list())
         result = run_in_act(
             AcceptInviteToEmbargoOnCaseReceivedUseCase(
                 dl,
@@ -2384,7 +2409,8 @@ class TestLateAcceptHandling:
                 sync_port=SyncActivityAdapter(dl),
             )
         )
-        assert result.disposition is HandlerDisposition.SKIPPED
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "TERMINATED" in (result.reason or "")
 
         # Actor must still be a case participant (not removed)
         fresh_case = dl.read(case_id)
@@ -2403,35 +2429,35 @@ class TestLateAcceptHandling:
         )
         assert not participant.is_signatory(fresh_case.active_embargo_id)
 
-        # Nothing is ledgered for the no-op, and a redelivered Accept gets
-        # the same result (EMB-17-004, ADR-0152).
+        # Nothing is ledgered for the refused Accept, and the one thing sent
+        # is the refusal notice (EMB-17-015, EMB-17-016).
+        notice_id = refusal_notice_id(_COORD, event.activity_id)
         assert _case_entries(dl, case_id) == entries_before
-        again = run_in_act(
-            AcceptInviteToEmbargoOnCaseReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=SyncActivityAdapter(dl),
-            )
+        assert list(dl.outbox_list()) == [*outbox_before, notice_id]
+        assert_refusal_notice(
+            dl,
+            manager=_COORD,
+            refused_id=event.activity_id,
+            asserter=_INVITEE,
+            reason="no longer available",
+            case_id=case_id,
         )
-        assert again.disposition is HandlerDisposition.SKIPPED
-        assert _case_entries(dl, case_id) == entries_before
 
     @pytest.mark.spec("EMB-17-004")
     @pytest.mark.spec("CM-28-025")
     @pytest.mark.spec("EMB-17-017")
+    @pytest.mark.spec("MSM-07-012")
     def test_late_accept_with_no_embargo_leaves_the_invitee_row_frozen(
         self, make_payload
     ):
-        """Late Accept with EM NONE → a no-op, and the frozen row is kept.
+        """Late Accept with EM NONE → refused, and the frozen row is kept.
 
         The invitee was invited to a proposal the owner then rejected, so EM
         is ``NONE`` and nothing is in force: the late Accept has nothing to
         sign.  The rejected entry is final, so its rows accept no trigger
         (ADR-0122): the invitation is not timed out and no expiry entry is
-        committed, and nothing is committed for the Accept either
-        (EMB-17-004).
+        committed, and the Accept is refused uncommitted with the refusal
+        notice (EMB-17-004, MSM-07-012).
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea-none"
@@ -2475,7 +2501,15 @@ class TestLateAcceptHandling:
                 sync_port=SyncActivityAdapter(dl),
             )
         )
-        assert result.disposition is HandlerDisposition.SKIPPED
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert_refusal_notice(
+            dl,
+            manager=_COORD,
+            refused_id=event.activity_id,
+            asserter=_INVITEE,
+            reason="REJECTED",
+            case_id=case_id,
+        )
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)

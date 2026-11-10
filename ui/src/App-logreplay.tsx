@@ -8,8 +8,9 @@ import { getActiveLanes } from './state/participantHelpers'
 import {
   parseCaseLedger,
   normalizeLedger,
-  type CaseLedgerEntry,
+  type ParsedLedger,
 } from './utils/caseLedgerParser'
+import { EMPTY_LEDGER, laneVfdState, ledgerLoadError, mergeLedgers } from './utils/replayLoad'
 import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // Committed recordings the "Load …" buttons import at build time via `?raw`.
 // A recording is the canonical case ledger (`case-actor.jsonl`) a registered
@@ -181,7 +182,11 @@ const SCENARIO_GROUPS: ScenarioGroup[] = ['Core', 'Coordinator', 'Diagnostic']
 
 function AppLogReplay() {
   const [demoState, setDemoState] = useState<DemoState | null>(null)
-  const [accumulatedEntries, setAccumulatedEntries] = useState<CaseLedgerEntry[]>([])
+  // Every loaded line: the well-formed entries, and the lines that failed the
+  // shape check (parseCaseLedger), which are not replayed but listed in the
+  // replay header and the event log.
+  const [accumulated, setAccumulated] = useState<ParsedLedger>(EMPTY_LEDGER)
+  const accumulatedEntries = accumulated.entries
   const [uploadCount, setUploadCount] = useState(0)
   // Human-readable name of the pre-given scenario currently loaded (shown in the
   // Case Timeline header). Null when the case came from a manual file upload.
@@ -199,9 +204,9 @@ function AppLogReplay() {
   const playIntervalRef = useRef<number | null>(null)
 
   // Build (or rebuild) the replay state from a full set of ledger entries.
-  const rebuildFromEntries = useCallback((allEntries: CaseLedgerEntry[]) => {
-    const normalized = normalizeLedger(allEntries)
-    const state = buildTimelineFromCaseLedger(normalized)
+  const rebuildFromLedger = useCallback((ledger: ParsedLedger) => {
+    const normalized = normalizeLedger(ledger.entries)
+    const state = buildTimelineFromCaseLedger(normalized, ledger.rejected)
     setDemoState(state)
     setCurrentEventIndex(0)
   }, [])
@@ -214,51 +219,54 @@ function AppLogReplay() {
     setError(null)
 
     try {
-      const newEntries: CaseLedgerEntry[] = []
-
-      // Read all uploaded files
+      // Read all uploaded files, then either accumulate or replace.
+      const parts: ParsedLedger[] = shouldAccumulate ? [accumulated] : []
       for (let i = 0; i < files.length; i++) {
-        const content = await files[i].text()
-        newEntries.push(...parseCaseLedger(content))
+        // A folder upload names each file by its path, so the CASE_MANAGER's and
+        // each replica's `case-actor.jsonl` stay apart in the rejected list.
+        const file = files[i]
+        parts.push(parseCaseLedger(await file.text(), file.webkitRelativePath || file.name))
       }
-
-      // Either accumulate or replace
-      const allEntries = shouldAccumulate ? [...accumulatedEntries, ...newEntries] : newEntries
-      setAccumulatedEntries(allEntries)
+      const ledger = mergeLedgers(parts)
+      const loadError = ledgerLoadError('The selected files', ledger)
+      if (loadError !== null) throw new Error(loadError)
+      setAccumulated(ledger)
       setUploadCount(prev => prev + 1)
       // Manual uploads aren't one of the named catalog scenarios.
       setLoadedScenarioName(null)
 
-      rebuildFromEntries(allEntries)
+      rebuildFromLedger(ledger)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load log files')
       console.error('Error processing log files:', err)
     } finally {
       setLoading(false)
     }
-  }, [accumulatedEntries, rebuildFromEntries])
+  }, [accumulated, rebuildFromLedger])
 
   // Load a committed ledger from its raw text (no file picker needed). Shared by
-  // the happy-path sample and the synthetic violation fixture.
-  const loadRawLedger = useCallback((raw: string, label: string) => {
+  // the happy-path sample and the synthetic violation fixture. Returns whether
+  // the ledger loaded; a refused load leaves the previous replay in place.
+  const loadRawLedger = useCallback((raw: string, label: string): boolean => {
     setLoading(true)
     setError(null)
 
     try {
-      const allEntries = parseCaseLedger(raw)
-      if (allEntries.length === 0) {
-        throw new Error(`${label} was empty — try file upload instead.`)
-      }
-      setAccumulatedEntries(allEntries)
+      const ledger = parseCaseLedger(raw, label)
+      const loadError = ledgerLoadError(label, ledger)
+      if (loadError !== null) throw new Error(loadError)
+      setAccumulated(ledger)
       setUploadCount(prev => prev + 1)
-      rebuildFromEntries(allEntries)
+      rebuildFromLedger(ledger)
+      return true
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to load ${label}`)
       console.error(`Error loading ${label}:`, err)
+      return false
     } finally {
       setLoading(false)
     }
-  }, [rebuildFromEntries])
+  }, [rebuildFromLedger])
 
   // Load any catalog scenario by its raw ledger + title (data-driven picker).
   // Record its name for the timeline header, stripping the leading ▶/⚠️ glyph +
@@ -268,8 +276,11 @@ function AppLogReplay() {
   // selector, which is misleading inside a `[...]` character class).
   const handleLoadScenario = useCallback(
     (scenario: SampleScenario) => {
-      loadRawLedger(scenario.raw, scenario.title)
-      setLoadedScenarioName(scenario.title.replace(/^[^\p{L}]+/u, '').trim())
+      // Name the header only for a load that replaced the replay, so a refused
+      // recording never labels the previous timeline.
+      if (loadRawLedger(scenario.raw, scenario.title)) {
+        setLoadedScenarioName(scenario.title.replace(/^[^\p{L}]+/u, '').trim())
+      }
     },
     [loadRawLedger]
   )
@@ -282,7 +293,7 @@ function AppLogReplay() {
     }
     setIsPlaying(false)
     setDemoState(null)
-    setAccumulatedEntries([])
+    setAccumulated(EMPTY_LEDGER)
     setUploadCount(0)
     setCurrentEventIndex(0)
     setError(null)
@@ -666,10 +677,8 @@ function AppLogReplay() {
     if (demoState.participants.get(id)?.rmState === 'N/A') return 'N/A'
     return currentSnapshot?.rm[id] ?? initialState('rm')
   }
-  const vfdStateOf = (id: string) => {
-    if (demoState.participants.get(id)?.vfdState === 'N/A') return 'N/A'
-    return currentSnapshot?.vfd[id] ?? initialState('vfd')
-  }
+  const vfdStateOf = (id: string) => laneVfdState(demoState, id, currentSnapshot)
+  const rejectedLines = demoState.rejectedLines ?? []
   const emStateNow = currentSnapshot?.emState ?? initialState('em')
   const pxaStateNow = currentSnapshot?.pxaState ?? initialState('pxa')
 
@@ -729,6 +738,24 @@ function AppLogReplay() {
             }}>
               ✓ {accumulatedEntries.length} entries from {uploadCount} upload(s)
             </span>
+            {rejectedLines.length > 0 && (
+              <span
+                role="alert"
+                title={rejectedLines
+                  .map((line) => `${line.source} line ${line.lineNumber}: ${line.problems.join('; ')}`)
+                  .join('\n')}
+                style={{
+                  color: '#ffcdd2',
+                  fontSize: '0.875rem',
+                  fontWeight: 'bold',
+                  background: 'rgba(211, 47, 47, 0.3)',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '4px',
+                }}
+              >
+                ⚠️ {rejectedLines.length} malformed line(s) not replayed: see the Event Log
+              </span>
+            )}
             <input
               type="file"
               accept=".jsonl"
@@ -881,18 +908,14 @@ function AppLogReplay() {
               // final end-state. PXA is case-level, shown on the CASE_MANAGER; EM is
               // case-level, shown on all.
               //
-              // VFD is DATA-DRIVEN (2026-07): show it for any lane the JSONL carries
-              // a VFD state for — i.e. every real participant, which `vfdStateOf`
-              // reports as anything other than the 'N/A' recorder sentinel. We do
-              // NOT gate on role: conceptually only a VENDOR develops a fix, but the
-              // generator stamps a vfdState on the reporter and coordinator too, so
-              // surfacing it makes an out-of-place VFD (e.g. on a pure coordinator)
-              // VISIBLE as a signal that something is off in the generated ledger,
-              // rather than silently hiding it. Only the casemanager recorder ('N/A')
-              // has no VFD row.
+              // VFD is DATA-DRIVEN: show it for any lane the ledger carries a VFD
+              // state for (`vfdStateOf`). We do NOT gate on role, so a VFD on a lane
+              // that should have none (e.g. a pure coordinator) stays VISIBLE as a
+              // sign that something is off in the ledger, rather than being hidden.
+              // The casemanager recorder ('N/A') has no VFD row.
               rmState={rmStateOf(participant.id)}
               emState={emStateNow}
-              vfdState={vfdStateOf(participant.id) !== 'N/A' ? vfdStateOf(participant.id) : undefined}
+              vfd={vfdStateOf(participant.id)}
               pxaState={participant.id === 'casemanager' ? pxaStateNow : undefined}
               actions={[]} // No actions in replay mode
               onActionClick={() => {}}
