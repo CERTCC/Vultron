@@ -104,6 +104,13 @@ describe('ledgerLineProblems', () => {
     ])
   })
 
+  it('refuses a duration or a payload of the wrong kind', () => {
+    expect(ledgerLineProblems({ ...entry(), duration: 5, payloadSnapshot: [] })).toEqual([
+      'duration: expected a duration string, got number 5',
+      'payloadSnapshot: expected an object, got an array',
+    ])
+  })
+
   it('refuses a timestamp that is not a date-time', () => {
     expect(ledgerLineProblems({ ...entry(), published: 'yesterday' })).toEqual([
       'published: "yesterday" is not a date-time',
