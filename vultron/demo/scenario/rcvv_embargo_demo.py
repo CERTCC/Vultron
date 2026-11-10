@@ -219,7 +219,7 @@ def vendor1_proposes_a_revision(state: StoryState) -> None:
 
 
 def vendor2_joins_under_the_revision(state: StoryState) -> None:
-    """Seed and invite Vendor2 once the revision is active; it signs it.
+    """Vendor2 is invited once the revision is active, and signs it.
 
     Vendor2's container is seeded here rather than in the shared opening
     (DEMOCI-11-018): ``seed_containers_rcvv`` creates it and registers it as a
@@ -292,10 +292,11 @@ def both_vendors_report_the_fix_ready(state: StoryState) -> None:
 
 
 def reporter_publishes_and_the_embargo_collapses(state: StoryState) -> None:
-    """The Reporter publishes; CS.P ends the embargo with nobody terminating it.
+    """The Reporter publishes, and that alone ends the embargo.
 
-    The collapse is the protocol's own consequence of the P-transition
-    (DEMOMA-21-014): this fragment never calls ``terminate_embargo``.
+    Public awareness collapses the embargo as the protocol's own consequence
+    of the P-transition (``CS.P``, DEMOMA-21-014); nobody terminates it and
+    this fragment never calls ``terminate_embargo``.
     """
     reports_published(state, REPORTER)
 

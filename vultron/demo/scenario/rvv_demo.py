@@ -141,7 +141,7 @@ Workflow:
 
 
 def the_second_vendor_is_seeded(state: StoryState) -> None:
-    """Seed and seat Vendor2, this scenario's one character actor.
+    """Vendor2 is ready to be invited to the case.
 
     ``seed_containers_rvv`` creates Vendor2 and registers every actor as a
     peer of the other two (DEMOMA-09-001); the two the shared opening already
@@ -167,7 +167,7 @@ def the_second_vendor_is_seeded(state: StoryState) -> None:
 
 
 def vendor1_invites_the_second_vendor(state: StoryState) -> None:
-    """Vendor1 invites Vendor2 with ``CVDRole.VENDOR``; Vendor2 joins.
+    """Vendor1 invites Vendor2 as a second Vendor; Vendor2 joins.
 
     Vendor1 is CASE_OWNER, so it invites directly rather than through the
     ADR-0026 suggest/approve chain (DEMOMA-09-002).  Vendor2 joined by
@@ -195,7 +195,10 @@ def vendor1_invites_the_second_vendor(state: StoryState) -> None:
 
 
 def the_case_is_active(state: StoryState) -> None:
-    """M1: all four participants are seated and the embargo is active."""
+    """All four participants are seated and the embargo is active.
+
+    Milestone M1 of the scenario's spec group.
+    """
     required_participants_are_present(
         state,
         check=(
@@ -206,7 +209,9 @@ def the_case_is_active(state: StoryState) -> None:
 
 
 def every_replica_converges(state: StoryState) -> None:
-    """M2: verify LedgerFanout replication for the Reporter and Vendor2.
+    """Ledger Fanout reaches the Reporter and Vendor2.
+
+    Milestone M2 of the scenario's spec group.
 
     Thin call to the shared sync helper (DEMOMA-23-007), naming only this
     scenario's authority, replicas and late joiner (DEMOMA-09-004).
@@ -266,7 +271,7 @@ def both_vendors_fix_the_vul(state: StoryState) -> None:
 
 
 def everyone_publishes(state: StoryState) -> None:
-    """Vendor1, as CASE_OWNER, publishes first; then Vendor2 and the Reporter."""
+    """Vendor1, the Case Owner, publishes first; then Vendor2 and the Reporter."""
     reports_published(state, VENDOR)
     the_embargo_ends_for(
         state,

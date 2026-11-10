@@ -96,9 +96,9 @@ sequenceDiagram
 
     note over F,V2: Phase 2 — Replica Synchronization Verification
 
-    V1-->>F: ledger tail replicated (LedgerFanout)
-    V1-->>V2: ledger tail replicated (LedgerFanout)
-    note over F,V2: ✓ M2 — Reporter and Vendor2 DataLayers synchronized (LedgerFanout verified)
+    V1-->>F: ledger tail replicated (Ledger Fanout)
+    V1-->>V2: ledger tail replicated (Ledger Fanout)
+    note over F,V2: ✓ M2 — Reporter and Vendor2 case replicas synchronized (Ledger Fanout verified)
 
     note over F,V2: Phase 3 — Notes Exchange
 
@@ -148,7 +148,7 @@ and Vendor2 have a local case record.
 The demo runner waits for both Reporter and Vendor2 to hold every ledger entry the Vendor1 container holds, then compares each replica with it: the participant index, the active embargo id, and the ledger tail hash must all match.
 
 **M2 verified when:**
-Both Reporter and Vendor2 DataLayers are synchronized with Vendor1.
+Both the Reporter's and Vendor2's case replicas are synchronized with Vendor1's.
 
 ### Phase 3 — Notes exchange
 
@@ -195,7 +195,7 @@ The Case Actor's own store is where every closure is checked.
 |:-------|:--------------|
 | `✓ Vendor2 joined case` | Vendor1's replica lists Vendor2, so its RM triage can start (no numbered milestone) |
 | `✅ M1:` | ≥4 participants, EM.ACTIVE, Reporter and Vendor2 have replicas |
-| `✓ M2:` | Reporter and Vendor2 DataLayers synchronized (Ledger Fanout verified) |
+| `✓ M2:` | Reporter and Vendor2 case replicas synchronized (Ledger Fanout verified) |
 | `✓ Notes exchange complete` | Question and replies committed to the case ledger (no numbered milestone) |
 | `✅ M4:` | Reporter replica: both vendors CS includes F (fix ready) |
 | `✅ M5:` | Reporter replica: both vendors still at VFd |
