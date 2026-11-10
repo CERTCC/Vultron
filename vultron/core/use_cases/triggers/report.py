@@ -25,6 +25,7 @@ No HTTP framework imports (FastAPI, Starlette) are permitted here.
 """
 
 import logging
+from datetime import datetime
 from typing import Any, cast
 
 import py_trees.behaviour
@@ -45,6 +46,11 @@ from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import OfferResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import is_addressed_to
+from vultron.core.services.report_case_inputs import (
+    StatedReportFields,
+    case_inputs_from_claims,
+)
+from vultron.core.services.submitted_csaf import submitted_csaf_violations
 from vultron.core.use_cases.triggers._base import (
     SvcActivityTriggerBase,
     SvcBTTriggerBase,
@@ -60,6 +66,7 @@ from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
 from vultron.errors import (
+    Violation,
     VultronAlreadyExistsError,
     VultronNotFoundError,
     VultronValidationError,
@@ -272,6 +279,14 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
     Offer as ``proposedEmbargo`` (EP-04-004).  The Reporter keeps the event
     under the id the Offer names: the CASE_MANAGER keeps that identity when
     the terms win, so the Reporter can recognise its own terms on the case.
+
+    When the request carries a CSAF document, ``_prepare()`` refuses it,
+    before anything is stored or sent, when it fails the CSAF 2.1 schema or
+    is not a ``csaf_vulnerability_report`` (CSAF-04-009, CSAF-02-007).  A
+    document it takes is attached to the report as a ``Document``
+    (CSAF-01-001, CSAF-01-002) and fills the report name, summary and
+    proposed embargo end the request leaves out, by the CSAF-03 mapping
+    measured against this act's instant (CSAF-04-010, CSAF-02-004).
     """
 
     def _prepare(self) -> None:
@@ -279,10 +294,17 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
+        fields = self._report_fields(request)
         report = VulnerabilityReport(
-            name=request.report_name,
+            name=fields.name,
+            summary=fields.summary,
             content=request.report_content,
             attributed_to=self._actor_id,
+            attachment=(
+                [request.csaf_document.attachment]
+                if request.csaf_document is not None
+                else None
+            ),
         )
         try:
             self._dl.create(report)
@@ -293,7 +315,7 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
 
         logger.info(
             "Created VulnerabilityReport '%s' (id: '%s')",
-            request.report_name,
+            report.name,
             report.id_,
         )
 
@@ -314,13 +336,88 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
         self._report_id = report.id_
         self._recipient_id = request.recipient_id
         self._proposed_embargo_id = self._store_proposed_embargo(
-            report, request
+            report, fields.proposed_embargo_end
         )
+
+    def _report_fields(
+        self, request: SubmitReportTriggerRequest
+    ) -> StatedReportFields:
+        """The report's name, summary and proposed embargo end.
+
+        Each one the request states; one it leaves out, from the attached
+        CSAF document by the CSAF-03 mapping, measured against this act's
+        instant (CSAF-04-010).  A stated embargo end is kept even when the
+        document sets P, X or A, for which the mapping proposes none: the
+        Reporter's terms are its to state, and the receiver decides
+        (EP-04-020).
+
+        Raises:
+            VultronValidationError: the CSAF document has a fault that keeps
+                it off the report (CSAF-04-009), each one named, or the report
+                would have no name (CSAF-04-010).
+        """
+        stated = StatedReportFields(
+            name=request.report_name,
+            summary=request.report_summary,
+            proposed_embargo_end=request.proposed_embargo_end_time,
+        )
+        submission = request.csaf_document
+        if submission is None:
+            return stated
+        violations = submitted_csaf_violations(submission)
+        if violations:
+            raise VultronValidationError(
+                f"submit-report refuses the CSAF document of actor"
+                f" '{self._actor_id}': it has {len(violations)} fault(s)"
+                " (CSAF-04-009)",
+                violations=violations,
+            )
+        filled = case_inputs_from_claims(
+            submission.reading.claims, reference_time=self._at, stated=stated
+        )
+        fields = StatedReportFields(
+            name=filled.name,
+            summary=filled.summary,
+            proposed_embargo_end=stated.proposed_embargo_end
+            or filled.proposed_embargo_end,
+        )
+        if fields.name is None:
+            # A title of only whitespace passes the schema but reads as no
+            # title, so the document named nothing and neither did the
+            # request.
+            raise VultronValidationError(
+                f"submit-report refuses a nameless report from actor"
+                f" '{self._actor_id}': the request gives no report_name and"
+                " the CSAF document no readable document.title"
+                " (CSAF-04-010)",
+                violations=[
+                    Violation(
+                        "report_name is required: the CSAF document's"
+                        " document.title reads as no name (CSAF-04-010)",
+                        dimensions=("report_name",),
+                    )
+                ],
+            )
+        filled_names = [
+            name
+            for name in ("name", "summary", "proposed_embargo_end")
+            if getattr(stated, name) is None
+            and getattr(fields, name) is not None
+        ]
+        if filled_names:
+            logger.info(
+                "Actor '%s' fills report %s from CSAF document '%s'"
+                " (CSAF-04-010)",
+                self._actor_id,
+                ", ".join(filled_names),
+                submission.attachment.id_,
+            )
+        return fields
 
     def _store_proposed_embargo(
         self,
         report: VulnerabilityReport,
-        request: SubmitReportTriggerRequest,
+        end_time: datetime | None,
     ) -> str | None:
         """Persist the Reporter's proposed terms for *report*, if any stated.
 
@@ -328,11 +425,11 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
         proposes nothing.  The event names the report as its ``context``
         (EP-04-009); the case does not exist yet.
         """
-        if request.proposed_embargo_end_time is None:
+        if end_time is None:
             return None
         proposal = EmbargoEvent(
             context=report.id_,
-            end_time=request.proposed_embargo_end_time,
+            end_time=end_time,
         )
         self._dl.create(proposal)
         logger.info(

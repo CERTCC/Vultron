@@ -232,7 +232,7 @@ example as a Note.
   invitee's embargo policy (BT-24-004, BT-24-006). Prefer over-suggesting
   (BT-24-005).
 - **Name it a suggestion, not a discovery.** The answer is not definitive, and
-  "actor discovery" is the URI-to-profile seam, being renamed ActorResolution.
+  "actor resolution" is the URI-to-profile seam (ActorResolution).
 - **A CSAF suggester is an adapter, not a port type.** It turns the suggestion
   context into CSAF for an outside service; core never depends on CSAF.
 - **The demo answers from a declared table** (BT-24-007): no directory or

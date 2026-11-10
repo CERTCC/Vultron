@@ -31,7 +31,7 @@ export function handleSubmitReport(state: DemoState): DemoState {
   // ACCEPTED rather than RECEIVED, which also makes the later `close` transition
   // legal (close is not permitted from RECEIVED).
   newState = updateParticipant(newState, 'finder', { rmState: 'ACCEPTED' })
-  newState = updateParticipant(newState, 'vendor-1', { rmState: 'RECEIVED', vfdState: 'Vfd', visible: true })
+  newState = updateParticipant(newState, 'vendor-1', { rmState: 'RECEIVED', vfd: 'Vfd', visible: true })
   newState = updateParticipant(newState, 'caseactor', { visible: true })
 
   // Get participants for lane indices
@@ -108,7 +108,7 @@ export function handleSubmitReport(state: DemoState): DemoState {
       causedBy: submitEventId,
       timestamp: now + 3,
       consequences: [
-        'Announce(Case) received in inbox',
+        'Announce(VulnerabilityCase) received in inbox',
         'Case replica created in DataLayer',
         'Finder participant record created',
         'Finder\'s RM: ACCEPTED (validated & prioritized privately before disclosure)',
@@ -372,7 +372,7 @@ export function handleFinderAddNote(state: DemoState): DemoState {
     consequences: [
       'Note created: "Question from Finder"',
       'Content: "Is there a workaround available?"',
-      'Add(Note, target=Case) activity created',
+      'Add(Note)[target=VulnerabilityCase] activity created',
       'Activity sent via Finder\'s outbox',
       'Triggers delivery to participants',
     ],
@@ -398,7 +398,7 @@ export function handleFinderAddNote(state: DemoState): DemoState {
       timestamp: now + timestampOffset,
       enablesNext: true,
       consequences: [
-        'Add(Note) received in inbox',
+        'Add(Note)[target=VulnerabilityCase] received in inbox',
         `Note delivered to ${vendor.name}'s DataLayer`,
         `${vendor.name} can now see question`,
       ],

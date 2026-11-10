@@ -31,6 +31,7 @@ never a default its schema declares (CSAF-02-005).  An absent scalar is
 list is empty.
 """
 
+import json
 import urllib.parse
 from collections.abc import Mapping
 from datetime import datetime
@@ -51,6 +52,7 @@ from vultron.core.models._helpers import (
     format_timestamp,
     timestamp_serializer,
 )
+from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.base import (
     CoreRecord,
     NonEmptyString,
@@ -58,6 +60,7 @@ from vultron.core.models.base import (
     ValidatedAssignmentMixin,
     with_record_id,
 )
+from vultron.errors import VultronValidationError
 
 
 class SchemaVerdict(StrEnum):
@@ -296,6 +299,92 @@ class ClaimsReading(_ClaimsModel):
         return self
 
 
+#: The largest attachment content, in characters, that a reader parses as a
+#: document's claims.  Every received report's attachments are parsed and
+#: schema-checked, so an unbounded one would let one Offer occupy the
+#: receiver; a larger one is kept with the report and not read.  A sender
+#: that attaches a larger one sends a document no receiver reads.  The
+#: inbox-wide body limit is #4596 (IE-03-002).
+MAX_CSAF_CONTENT_CHARS = 8 * 1024 * 1024
+
+
+def csaf_document_text(document: Mapping[str, object]) -> str:
+    """The JSON text a submitted CSAF document is attached as (CSAF-01-001).
+
+    The one place that text is made, so what the trigger checks is what it
+    sends.  It is checked before the document is parsed as CSAF, so an
+    oversized one is never parsed.
+
+    Raises:
+        VultronValidationError: the text is not valid Unicode (a lone
+            surrogate, which no UTF-8 body can carry), or it is longer than
+            the :data:`MAX_CSAF_CONTENT_CHARS` a receiver reads, so no
+            receiver would read the document (CSAF-04-009).  The message
+            never repeats the text, so the 422 that reports it can always
+            be written.
+    """
+    text = json.dumps(document, ensure_ascii=False)
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise VultronValidationError(
+            "csaf_document holds text that is not valid Unicode"
+            f" ({exc.reason}), so it cannot be sent as UTF-8 JSON"
+            " (CSAF-04-009)"
+        ) from exc
+    if len(text) > MAX_CSAF_CONTENT_CHARS:
+        raise VultronValidationError(
+            f"csaf_document is {len(text)} characters as JSON text, more than"
+            f" the {MAX_CSAF_CONTENT_CHARS} a receiver reads as CSAF"
+            " (CSAF-04-009)"
+        )
+    return text
+
+
+class SubmittedCsafDocument(_ClaimsModel):
+    """A CSAF document a Reporter asks the submit-report trigger to attach.
+
+    The trigger's edge reads the JSON object the request carries:
+    ``attachment`` is the ``Document`` that would carry it, its JSON text as
+    ``content`` and ``application/json`` as ``media_type`` (CSAF-01-001,
+    CSAF-01-002), and ``reading`` is the schema check and the claims of that
+    same text, naming that same attachment.  Nothing here judges the
+    document: the trigger refuses one that a receiver would not take as the
+    sender's statement (CSAF-04-009), so this model carries an invalid one
+    as faithfully as a valid one.  Only content no receiver would read at
+    all, longer than :data:`MAX_CSAF_CONTENT_CHARS`, is refused here.
+    """
+
+    attachment: AttachedDocument
+    reading: ClaimsReading
+
+    @model_validator(mode="after")
+    def _reading_is_of_the_attachment(self) -> "SubmittedCsafDocument":
+        if self.reading.document_id != self.attachment.id_:
+            raise ValueError(
+                f"the reading names document {self.reading.document_id!r},"
+                f" not the attachment {self.attachment.id_!r} it was read from"
+            )
+        if self.attachment.content is None:
+            raise ValueError(
+                "a submitted CSAF document's attachment needs its JSON text"
+                " as content (CSAF-01-001)"
+            )
+        if len(self.attachment.content) > MAX_CSAF_CONTENT_CHARS:
+            raise ValueError(
+                f"a submitted CSAF document of {len(self.attachment.content)}"
+                f" characters is more than the {MAX_CSAF_CONTENT_CHARS} a"
+                " receiver reads (CSAF-04-009)"
+            )
+        if self.attachment.media_type != "application/json":
+            raise ValueError(
+                "a submitted CSAF document's attachment needs the media type"
+                f" application/json, not {self.attachment.media_type!r}"
+                " (CSAF-01-002)"
+            )
+        return self
+
+
 class ReportClaimsRecord(CoreRecord):
     """The receiver's record of what a report's attached document claimed.
 
@@ -443,10 +532,13 @@ __all__ = [
     "ClaimedAcknowledgment",
     "ClaimedReference",
     "ClaimsReading",
+    "MAX_CSAF_CONTENT_CHARS",
     "ReportClaims",
     "ReportClaimsRecord",
     "SchemaError",
     "SchemaVerdict",
     "SkippedClaim",
+    "SubmittedCsafDocument",
     "VulnerabilityClaims",
+    "csaf_document_text",
 ]

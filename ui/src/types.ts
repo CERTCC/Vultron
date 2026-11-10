@@ -2,13 +2,15 @@
  * Type definitions for the Vultron multi-vendor demo
  */
 
+import type { RejectedLedgerLine } from './utils/caseLedgerParser'
+
 export interface ParticipantState {
   id: string
   name: string
   role: string
   color: string
   rmState: string
-  vfdState: string
+  vfd: string
   embargoAccepted: boolean
   embargoProposedToParticipant?: boolean  // Track if embargo was proposed to this participant (for late joiners)
   hasPublished: boolean
@@ -71,6 +73,8 @@ export interface DemoState {
                                   // revealed). The side panels index this by the
                                   // playback position so status reflects the current
                                   // step, not the final end-state. See caseLedgerMapper.
+  rejectedLines?: RejectedLedgerLine[]  // Log Replay only: ledger lines that failed the
+                                        // shape check and were not replayed (parseCaseLedger).
 }
 
 /**

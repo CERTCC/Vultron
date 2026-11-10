@@ -31,7 +31,7 @@ function App() {
       role: PARTICIPANT_ROLES.reporter,
       color: PARTICIPANT_COLORS.reporter,
       rmState: 'START',
-      vfdState: 'vfd',
+      vfd: 'vfd',
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
@@ -48,7 +48,7 @@ function App() {
       role: 'VENDOR',
       color: PARTICIPANT_COLORS.vendor1,
       rmState: 'START',
-      vfdState: 'vfd',
+      vfd: 'vfd',
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
@@ -63,7 +63,7 @@ function App() {
       role: PARTICIPANT_ROLES.casemanager,
       color: PARTICIPANT_COLORS.casemanager,
       rmState: 'N/A',
-      vfdState: 'N/A',
+      vfd: 'N/A',
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
@@ -280,7 +280,7 @@ function App() {
       role: PARTICIPANT_ROLES.reporter,
       color: PARTICIPANT_COLORS.reporter,
       rmState: 'START',
-      vfdState: 'vfd',
+      vfd: 'vfd',
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
@@ -294,7 +294,7 @@ function App() {
       role: 'VENDOR',  // base label; CASE_OWNER badge derived from caseOwnerId at render
       color: PARTICIPANT_COLORS.vendor1,
       rmState: 'START',
-      vfdState: 'vfd',
+      vfd: 'vfd',
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
@@ -308,7 +308,7 @@ function App() {
       role: PARTICIPANT_ROLES.casemanager,
       color: PARTICIPANT_COLORS.casemanager,
       rmState: 'N/A',
-      vfdState: 'N/A',
+      vfd: 'N/A',
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
@@ -576,7 +576,7 @@ function App() {
                 color={participant.color}
                 rmState={participant.rmState}
                 emState={demoState.emState}
-                vfdState={participant.id.startsWith('vendor-') && participant.vfdState !== 'N/A' ? participant.vfdState : undefined}
+                vfd={participant.id.startsWith('vendor-') && participant.vfd !== 'N/A' ? participant.vfd : undefined}
                 pxaState={participant.id === 'caseactor' ? demoState.pxaState : undefined}
                 actions={
                   participant.id === 'finder'

@@ -571,9 +571,8 @@ class TestScenarioNodes:
     def test_the_blackboard_registry_is_cleared_around_a_run(self):
         """A second run must not meet the first run's py_trees clients.
 
-        The registry is process-global and keyed by a uuid4 that nothing
-        unregisters, so with one tree-wide seed (DEMOCI-11-025) the second run
-        redraws the first run's client ids and py_trees refuses them.
+        The registry is process-global and nothing unregisters a client, so
+        without the reset every run in a process would add to it.
         """
         registry = py_trees.blackboard.Blackboard.clients
         py_trees.blackboard.Client(name="left over by an earlier run")

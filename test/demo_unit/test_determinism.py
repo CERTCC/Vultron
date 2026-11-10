@@ -13,18 +13,21 @@
 
 """Tests for the seeded ids and stepping clock of a recording run (#3901)."""
 
-import importlib
+import subprocess
 import sys
+import textwrap
 import threading
-import types
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import py_trees
 import pytest
 
+from test.support.child_env import REPO_ROOT, child_env
 from vultron.core.models._helpers import (
     URN_UUID_PREFIX,
     clock as helpers_clock,
+    install_id_source,
     new_object_id,
     now_utc,
 )
@@ -37,17 +40,15 @@ from vultron.demo.determinism import (
     SteppingClock,
     deterministic_run,
 )
+from vultron.errors import VultronIdSourceInstalledError
 
 _START = datetime(2026, 3, 1, tzinfo=UTC)
 
 
-@pytest.fixture
-def from_import_user(monkeypatch) -> types.ModuleType:
-    """A throwaway module binding ``uuid4`` as ``from uuid import uuid4`` does."""
-    module = types.ModuleType("from_import_uuid_user")
-    vars(module)["uuid4"] = uuid.uuid4
-    monkeypatch.setitem(sys.modules, module.__name__, module)
-    return module
+def _seeded_ids(seed: str, count: int) -> list[str]:
+    """The first *count* object ids a run seeded with *seed* mints."""
+    expected = SeededUuid4(seed)
+    return [f"{URN_UUID_PREFIX}{expected()}" for _ in range(count)]
 
 
 class TestSeededUuid4:
@@ -135,46 +136,131 @@ class TestDeterministicRun:
         assert entry.published.year == _START.year
         assert entry.published.month == _START.month
 
-    def test_module_and_from_import_bindings_are_both_seeded(
-        self, from_import_user
-    ):
-        expected = SeededUuid4("rv")
-        with deterministic_run("rv"):
-            assert uuid.uuid4() == expected()
-            assert from_import_user.uuid4() == expected()
-
     @pytest.mark.spec("OID-01-004")
     def test_the_shared_minter_repeats_its_ids(self):
-        expected = SeededUuid4("rv")
         with deterministic_run("rv"):
-            assert new_object_id() == f"{URN_UUID_PREFIX}{expected()}"
-            assert CoreRecord().id_ == f"{URN_UUID_PREFIX}{expected()}"
+            minted = [new_object_id(), CoreRecord().id_]
+        assert minted == _seeded_ids("rv", 2)
 
-    def test_everything_is_restored_on_exit(self, from_import_user):
+    @pytest.mark.spec("OID-01-012")
+    def test_no_uuid4_binding_is_patched(self):
+        # Covers `uuid.uuid4` and every `from uuid import uuid4` binding a
+        # loaded module holds, such as the FastAPI app's.
+        import vultron.adapters.driving.fastapi.app  # noqa: F401
+
         real_uuid4 = uuid.uuid4
+        with deterministic_run("rv"):
+            assert uuid.uuid4 is real_uuid4
+            replaced = sorted(
+                name
+                for name, module in list(sys.modules.items())
+                if module is not None
+                and "uuid4" in vars(module)
+                and vars(module)["uuid4"] is not real_uuid4
+            )
+            drawn = uuid.uuid4()
+        assert replaced == []
+        assert drawn != uuid.UUID(
+            _seeded_ids("rv", 1)[0].removeprefix(URN_UUID_PREFIX)
+        )
+
+    @pytest.mark.spec("OID-01-011")
+    def test_building_py_trees_behaviours_draws_no_seeded_id(self):
+        # py_trees draws `uuid.uuid4()` for each behaviour and blackboard
+        # client; under the scoped install those draws stay random, so a
+        # tree's shape moves no object id (ADR-0185).
+        with deterministic_run("rv"):
+            tree = py_trees.composites.Sequence(
+                name="root",
+                memory=False,
+                children=[
+                    py_trees.behaviours.Success(name=f"leaf-{n}")
+                    for n in range(5)
+                ],
+            )
+            client = py_trees.blackboard.Client(name="recording-test")
+            minted = new_object_id()
+        assert minted == _seeded_ids("rv", 1)[0]
+        seeded = {
+            uuid.UUID(i.removeprefix(URN_UUID_PREFIX))
+            for i in _seeded_ids("rv", 10)
+        }
+        assert tree.id not in seeded
+        assert not {child.id for child in tree.children} & seeded
+        assert client.id() not in seeded
+
+    def test_everything_is_restored_on_exit(self):
         real_datetime = helpers_clock.datetime
         with deterministic_run("rv"):
             pass
-        assert uuid.uuid4 is real_uuid4
-        assert from_import_user.uuid4 is real_uuid4
         assert helpers_clock.datetime is real_datetime
-
-    def test_a_module_imported_inside_the_block_is_restored(
-        self, tmp_path, monkeypatch
-    ):
-        (tmp_path / "late_uuid_user.py").write_text("from uuid import uuid4\n")
-        monkeypatch.syspath_prepend(str(tmp_path))
-        monkeypatch.delitem(sys.modules, "late_uuid_user", raising=False)
-        real_uuid4 = uuid.uuid4
-        with deterministic_run("rv"):
-            late = importlib.import_module("late_uuid_user")
-            assert isinstance(late.uuid4, SeededUuid4)
-        assert late.uuid4 is real_uuid4
+        # The seeded source is uninstalled: the minter no longer draws from
+        # it, and another install is admitted.
+        assert new_object_id() != _seeded_ids("rv", 1)[0]
+        with install_id_source(SeededUuid4("after")):
+            assert new_object_id() == _seeded_ids("after", 1)[0]
 
     def test_everything_is_restored_when_the_block_raises(self):
-        real_uuid4 = uuid.uuid4
         real_datetime = helpers_clock.datetime
         with pytest.raises(RuntimeError), deterministic_run("rv"):
             raise RuntimeError("boom")
-        assert uuid.uuid4 is real_uuid4
         assert helpers_clock.datetime is real_datetime
+        assert new_object_id() != _seeded_ids("rv", 1)[0]
+        with install_id_source(SeededUuid4("after")):
+            assert new_object_id() == _seeded_ids("after", 1)[0]
+
+    def test_a_nested_run_is_refused(self):
+        real_datetime = helpers_clock.datetime
+        with deterministic_run("rv"):
+            with (
+                pytest.raises(VultronIdSourceInstalledError),
+                deterministic_run("rcv"),
+            ):
+                pass
+            # The refused run leaves the outer one's ids in place.
+            assert new_object_id() == _seeded_ids("rv", 1)[0]
+        assert helpers_clock.datetime is real_datetime
+
+
+def _run_fresh(code: str) -> subprocess.CompletedProcess[str]:
+    """Run *code* in a fresh interpreter, so no earlier test imported anything.
+
+    Under the unit tier's 30-second test timeout, so a hung child fails here.
+    """
+    return subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(code)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+        cwd=REPO_ROOT,
+        env=child_env(),
+    )
+
+
+class TestDocsExamplesLoadBeforeTheInstall:
+    """No first import of the docs examples runs inside a recording's install.
+
+    The examples build shared objects at first import inside their own
+    id-source scope (#6117), which may not nest inside another install, and a
+    first import inside the block would draw from the seeded stream.
+    """
+
+    @pytest.mark.spec("OID-01-011")
+    def test_the_harness_loads_the_examples_before_its_ids(self):
+        result = _run_fresh(
+            """
+            import sys
+
+            from vultron.core.models._helpers import new_object_id
+            from vultron.demo.determinism import SeededUuid4, deterministic_run
+
+            assert "vultron.wire.as2.vocab.examples._base" in sys.modules
+            assert "vultron.wire.as2.vocab.examples.vocab_examples" in sys.modules
+            with deterministic_run("rv"):
+                import vultron.wire.as2.vocab.examples.vocab_examples  # noqa
+                minted = new_object_id()
+            assert minted == f"urn:uuid:{SeededUuid4('rv')()}", minted
+            """
+        )
+        assert result.returncode == 0, result.stderr

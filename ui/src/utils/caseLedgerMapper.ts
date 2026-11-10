@@ -53,6 +53,8 @@ import {
   type CaseLedgerEntry,
   type CaseStatusSnapshot,
   type LaneId,
+  type RejectedLedgerLine,
+  vfdLadderToken,
 } from './caseLedgerParser'
 import { isRegisteredSemanticType, renderPhrase } from '../semanticRegistry'
 
@@ -106,10 +108,10 @@ interface ParsedTokens {
 /**
  * Tokenize a status `name` like "ACCEPTED VFD ACTIVE Pxa" into its machine
  * components by exact, case-sensitive set membership. Used only as a cross-check;
- * first-class fields (`object.rmState`/`vfdState`, `caseStatus.emState`/`pxaState`)
+ * first-class fields (`object.rmState`/`vfState`/`dState`, `caseStatus.emState`/`pxaState`)
  * are authoritative — the `name` is unreliable for EM (see CaseStatusSnapshot).
  */
-function parseStatusName(name: string | undefined): ParsedTokens {
+function parseStatusName(name: string | null | undefined): ParsedTokens {
   const out: ParsedTokens = {}
   if (!name) return out
   for (const tok of name.trim().split(/\s+/)) {
@@ -187,7 +189,7 @@ function makeParticipant(
       role: PARTICIPANT_ROLES.reporter,
       color: PARTICIPANT_COLORS.reporter,
       rmState: 'START',
-      vfdState: 'vfd',
+      vfd: 'vfd',
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
@@ -202,7 +204,7 @@ function makeParticipant(
       role: PARTICIPANT_ROLES.casemanager,
       color: PARTICIPANT_COLORS.casemanager,
       rmState: 'N/A',
-      vfdState: 'N/A',
+      vfd: 'N/A',
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
@@ -223,7 +225,7 @@ function makeParticipant(
       role: PARTICIPANT_ROLES.coordinator,
       color: PARTICIPANT_COLORS.coordinator,
       rmState: 'START',
-      vfdState: 'vfd',
+      vfd: 'vfd',
       embargoAccepted: false,
       hasPublished: false,
       hasClosed: false,
@@ -239,7 +241,7 @@ function makeParticipant(
     role: PARTICIPANT_ROLES.vendor,
     color: getVendorColor(n),
     rmState: 'START',
-    vfdState: 'vfd',
+    vfd: 'vfd',
     embargoAccepted: false,
     hasPublished: false,
     hasClosed: false,
@@ -530,8 +532,15 @@ const TRIGGER_LABEL: Record<string, string> = {
  * meaningful entry and increments the visual column ONLY when a cluster is
  * emitted — so seed-only / no-op entries leave no x-gap (this is the bug the old
  * mapper had: an early `return` that skipped the increment, ui/AGENTS.md §5 #2).
+ *
+ * `rejected` is the lines `parseCaseLedger` set aside. They are not replayed, but
+ * each one heads the event log with its problems and is carried on the returned
+ * state (`rejectedLines`) for the replay view to show.
  */
-export function buildTimelineFromCaseLedger(entries: CaseLedgerEntry[]): DemoState {
+export function buildTimelineFromCaseLedger(
+  entries: CaseLedgerEntry[],
+  rejected: readonly RejectedLedgerLine[] = []
+): DemoState {
   const participants = new Map<string, ParticipantState>()
   // Pre-scan the whole ledger for the full roster + stable lane ordering, then
   // pre-create every participant. Replay knows all actors up front, so lanes get
@@ -552,7 +561,7 @@ export function buildTimelineFromCaseLedger(entries: CaseLedgerEntry[]): DemoSta
     leftFrom: {},
   }
   const timelineEvents: TimelineEvent[] = []
-  const eventLog: string[] = []
+  const eventLog: string[] = rejected.flatMap(rejectedLineLog)
   const stepSnapshots: StepSnapshot[] = []
   let visualEventIndex = 0
 
@@ -602,7 +611,16 @@ export function buildTimelineFromCaseLedger(entries: CaseLedgerEntry[]): DemoSta
     invitedVendors: new Set<string>(),
     hasPendingReporterNote: shadow.pendingQuestionBy !== null,
     stepSnapshots,
+    rejectedLines: [...rejected],
   }
+}
+
+/** The event-log lines that report one rejected ledger line. */
+function rejectedLineLog(line: RejectedLedgerLine): string[] {
+  return [
+    `⚠️ REJECTED ${line.source} line ${line.lineNumber}: not a well-formed CaseLedgerEntry, not replayed`,
+    ...line.problems.map((problem) => `  ↳ ${problem}`),
+  ]
 }
 
 /** Push the shadow's machine states onto the participant records (for the panels). */
@@ -615,7 +633,7 @@ function syncParticipantsToShadow(
     const vfd = shadow.vfd[id]
     const updates: Partial<ParticipantState> = {}
     if (rm !== undefined && rm !== p.rmState) updates.rmState = rm
-    if (vfd !== undefined && vfd !== p.vfdState) updates.vfdState = vfd
+    if (vfd !== undefined && vfd !== p.vfd) updates.vfd = vfd
     if (rm === 'CLOSED' && !p.hasClosed) updates.hasClosed = true
     if (Object.keys(updates).length > 0) participants.set(id, { ...p, ...updates })
   }
@@ -638,7 +656,7 @@ function handleEntry(
       return handleCreateCase(entry, participants, shadow, x, laneIndex)
     case 'validate_report':
       return handleValidateReport(entry, participants, shadow, x, laneIndex)
-    // A note reaches the case as an `Add(Note, target=Case)` carrying the note
+    // A note reaches the case as an `Add(Note)[target=VulnerabilityCase]` carrying the note
     // (`add_note_to_case`). `create_note` is the pre-2026-10 verb (a received
     // `Create(Note)`, retired by #4707), kept for replaying older uploaded logs.
     case 'create_note':
@@ -982,7 +1000,7 @@ function handleOfferActorToCase(
     'Actor Recommended',
     [
       `${recommender} recommends ${recommended} join the case`,
-      'Offer(Actor, Case) → CASE_MANAGER (ADR-0026)',
+      'Offer(Actor)[target=VulnerabilityCase] → CASE_MANAGER (ADR-0026)',
       'Awaiting Case Owner approval + invite',
     ],
     'Actor Recommended',
@@ -1045,7 +1063,7 @@ function handleInvite(
     inviterLane,
     x,
     'Invite Sent',
-    [`${inviterName} invites ${inviteeName} to the case`, 'Invite(Actor, Case) → invitee', 'Awaiting the invitee’s acceptance'],
+    [`${inviterName} invites ${inviteeName} to the case`, 'Invite(Actor)[target=VulnerabilityCaseStub] → invitee', 'Awaiting the invitee’s acceptance'],
     'Invite Sent',
     () => [`${inviteeName} invited to the case`],
     false
@@ -1145,7 +1163,7 @@ function handleRejectInvite(
     laneId,
     x,
     'Declined Invite',
-    [`${name} declined the invitation to the case`, 'Reject(Invite) → inviter', 'Actor does not join the case'],
+    [`${name} declined the invitation to the case`, 'Reject(Invite(Actor)[target=VulnerabilityCaseStub]) → inviter', 'Actor does not join the case'],
     'Invite Declined',
     () => [`${name} declined to join the case`],
     false
@@ -1239,7 +1257,7 @@ function handleAcceptOwnershipTransfer(
     'Ownership Accepted',
     [
       `${incomingName} accepted case ownership`,
-      'Accept(Offer) — case-manager role transferred',
+      'Accept(Offer(VulnerabilityCase)) — case-manager role transferred',
       `${incomingName} is now the Case Owner`,
     ],
     'Ownership Transferred',
@@ -1316,7 +1334,7 @@ function handleValidateReport(
     laneId,
     x,
     'Validate Report',
-    ['Accept(Offer) — report deemed legitimate', `RM: ${src} → ${shadow.rm[laneId]}`],
+    ['Accept(Offer(VulnerabilityReport)) — report deemed legitimate', `RM: ${src} → ${shadow.rm[laneId]}`],
     'Report Validated',
     () => [`${validatorName} validated the report`, `RM: → ${shadow.rm[laneId]}`],
     violation,
@@ -1327,9 +1345,9 @@ function handleValidateReport(
 
 // --- create_note / add_note_to_case → question / answer (demo-kind, no machine slot) ------
 
-/** The wire form that carried the note: `Create(Note)` or `Add(Note, target=Case)`. */
+/** The wire form that carried the note: `Create(Note)` or `Add(Note)[target=VulnerabilityCase]`. */
 function noteActivityLabel(entry: CaseLedgerEntry): string {
-  return entry.payloadSnapshot?.type === 'Create' ? 'Create(Note)' : 'Add(Note, target=Case)'
+  return entry.payloadSnapshot?.type === 'Create' ? 'Create(Note)' : 'Add(Note)[target=VulnerabilityCase]'
 }
 
 function handleNote(
@@ -1408,7 +1426,7 @@ function handleParticipantStatus(
   // apply below.
   const isRecorder = laneId === 'casemanager'
   const rmNext = isRecorder ? undefined : obj?.rmState ?? tokens.rm
-  const vfdNext = isRecorder ? undefined : obj?.vfdState ?? tokens.vfd
+  const vfdNext = isRecorder ? undefined : vfdLadderToken(obj) ?? tokens.vfd
   const logLines: string[] = []
 
   // Track the changes this entry represents; pick a primary for the node label.

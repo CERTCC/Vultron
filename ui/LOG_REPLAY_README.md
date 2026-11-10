@@ -109,6 +109,12 @@ machine state; a type the registry does not list is logged as unhandled.
 
 ## Supported Log Fields
 
+The ledger line and status types come from the Python models through the
+generated [src/data/ledgerTypes.ts](src/data/ledgerTypes.ts)
+(`uv run export-demo-ledger-types`; never edit it by hand). Loading checks every
+line against them: a line that is not JSON, or whose shape is wrong, is not
+replayed, and the replay header and the event log name it with every problem.
+
 From each `CaseLedgerEntry`:
 
 - `logIndex` — ordering key (entries are sorted by this, **not** `receivedAt`)
@@ -116,7 +122,9 @@ From each `CaseLedgerEntry`:
 - `entryHash` / `prevLogHash` — dedup + chain integrity
 - `payloadSnapshot` — the ActivityStreams activity, including:
   - `payloadSnapshot.actor` — who performed the action
-  - `payloadSnapshot.object.rmState` / `.vfdState` — per-participant RM/VFD
+  - `payloadSnapshot.object.rmState` — per-participant RM
+  - `payloadSnapshot.object.vfState` / `.dState` — a VENDOR's and a DEPLOYER's
+    fix states, combined into the VFD ladder token (`VF` + `D` → `VFD`)
   - `payloadSnapshot.object.caseStatus` / `caseStatuses[0]` — case-level EM/PXA
     (or `object.emState` / `object.pxaState` directly on `add_case_status_to_case`)
 

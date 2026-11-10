@@ -222,18 +222,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5131](https://github.com/CERTCC/Vultron/issues/5131) and [#6092](https://github.com/CERTCC/Vultron/issues/6092)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CSAF-01-001",
-    "CSAF-01-002",
-    "CSAF-02-004",
-    "CSAF-02-007",
-))
-```
-
 ### Tracked by [#5132](https://github.com/CERTCC/Vultron/issues/5132) and [#6093](https://github.com/CERTCC/Vultron/issues/6093)
 
 ```python exec="true" idprefix=""

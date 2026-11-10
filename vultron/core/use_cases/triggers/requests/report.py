@@ -15,7 +15,10 @@
 
 """Core trigger requests for the report verbs."""
 
+from pydantic import model_validator
+
 from vultron.core.models.base import NonEmptyString
+from vultron.core.models.report_claims import SubmittedCsafDocument
 from vultron.core.models.use_case_result import (
     ActivityResult,
     OfferResult,
@@ -24,8 +27,9 @@ from vultron.core.use_cases.triggers.request_bodies import (
     AckReportRequest,
     InvalidateReportRequest,
     ReportTriggerRequest,
-    SubmitReportRequest,
+    SubmitReportFields,
     ValidateReportRequest,
+    require_report_name_or_csaf,
 )
 from vultron.core.use_cases.triggers.requests._base import TriggerRequest
 
@@ -64,10 +68,23 @@ class RejectReportTriggerRequest(OfferTriggerRequest):
 
 
 class SubmitReportTriggerRequest(
-    TriggerRequest[OfferResult], SubmitReportRequest
+    TriggerRequest[OfferResult], SubmitReportFields
 ):
     """Trigger request for a finder to create and offer a vulnerability report.
 
     Creates a ``VulnerabilityReport`` in the actor's DataLayer and queues an
     ``RmSubmitReportActivity`` offer to the specified recipient.
+
+    ``csaf_document`` is the edge's reading of the CSAF document the body
+    carried (``vultron.wire.csaf.reader.read_submitted_csaf_document``), so
+    core judges and reads it without importing wire (ARCH-01-001, ADR-0032).
+    Deliberately not derived from ``SubmitReportRequest``, whose
+    ``csaf_document`` is the raw JSON object.
     """
+
+    csaf_document: SubmittedCsafDocument | None = None
+
+    @model_validator(mode="after")
+    def _named_or_csaf(self) -> "SubmitReportTriggerRequest":
+        require_report_name_or_csaf(self.report_name, self.csaf_document)
+        return self
