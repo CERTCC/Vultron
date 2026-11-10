@@ -192,7 +192,7 @@ export a scraped copy.
 - `src/actions/*.ts`, `src/state/actionFilters.ts` and `src/state/stateUpdaters.ts`
   — Multi-Vendor handlers, filters and state updaters (imported only by
   `App-multivendor.tsx` and the handlers).
-- `src/utils/caseLedger*.ts`, `ledgerShape.ts` — Log Replay parser, mapper, check.
+- `src/utils/` — the Log Replay parser, mapper, line check and load rules.
 - `src/semanticRegistry.ts` — the ledger vocabulary (§9), read by the Log
   Replay mapper.
 - **Shared (a change here affects both modes):** `protocol.ts`, `constants.ts`,

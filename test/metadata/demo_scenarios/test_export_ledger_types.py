@@ -32,7 +32,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from pydantic import computed_field
+from pydantic import Field, computed_field
 
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -263,6 +263,40 @@ class _Computed(CoreObject):
     @property
     def derived(self) -> str:
         return "x"
+
+
+class _Bounded(CoreObject):
+    """No ``type_``, so it is not registered in the core vocabulary."""
+
+    count: int = Field(default=0, ge=0, lt=10)
+    tags: list[str] = Field(default_factory=lambda: ["x"], min_length=1)
+
+
+class _Patterned(CoreObject):
+    """No ``type_``, so it is not registered in the core vocabulary."""
+
+    code: str = Field(default="A", pattern=r"^[A-Z]$")
+
+
+def test_integer_bounds_and_minimum_lengths_are_projected() -> None:
+    shapes, _ = project((LedgerType(_Bounded, "received"),))
+    by_key = {field.key: field.shape for field in shapes["_Bounded"]}
+    assert by_key["count"] == {"kind": "integer", "minimum": 0, "maximum": 9}
+    assert by_key["tags"]["minItems"] == 1
+
+
+def test_the_log_index_minimum_reaches_the_ui(
+    fields: dict[str, dict[str, export_ledger_types.FieldDef]],
+) -> None:
+    assert fields["CaseLedgerEntry"]["logIndex"].shape == {
+        "kind": "integer",
+        "minimum": -1,
+    }
+
+
+def test_a_constraint_the_projection_cannot_carry_fails_the_export() -> None:
+    with pytest.raises(TypeError, match="constraint"):
+        project((LedgerType(_Patterned, "received"),))
 
 
 def test_an_unknown_annotation_fails_the_export() -> None:

@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
 
 import { LEDGER_SHAPES } from '../data/ledgerTypes'
 import { parseCaseLedger } from './caseLedgerParser'
-import { ledgerLineProblems } from './ledgerShape'
+import { ledgerLineProblems, valueProblems } from './ledgerShape'
 
 const LEDGERS = import.meta.glob<string>(
   ['../recordings/*/case-actor.jsonl', '../synthetic-ledgers/*.jsonl'],
@@ -108,6 +108,30 @@ describe('ledgerLineProblems', () => {
     expect(ledgerLineProblems({ ...entry(), duration: 5, payloadSnapshot: [] })).toEqual([
       'duration: expected a duration string, got number 5',
       'payloadSnapshot: expected an object, got an array',
+    ])
+  })
+
+  it('accepts an ISO 8601 duration and refuses any other string', () => {
+    expect(ledgerLineProblems({ ...entry(), duration: 'P1DT2H3.5S' })).toEqual([])
+    expect(ledgerLineProblems({ ...entry(), duration: '-PT5S' })).toEqual([])
+    expect(ledgerLineProblems({ ...entry(), duration: 'banana' })).toEqual([
+      'duration: "banana" is not an ISO 8601 duration',
+    ])
+    expect(ledgerLineProblems({ ...entry(), duration: 'PT' })).toEqual(['duration: "PT" is not an ISO 8601 duration'])
+  })
+
+  it('refuses a logIndex below the model\'s minimum', () => {
+    expect(ledgerLineProblems({ ...entry(), logIndex: -1 })).toEqual([])
+    expect(ledgerLineProblems({ ...entry(), logIndex: -5 })).toEqual(['logIndex: number -5 is below the minimum -1'])
+  })
+
+  it('names the array member that fails a union, and an empty @context list', () => {
+    expect(ledgerLineProblems({ ...entry(), '@context': ['a', 5] })).toEqual([
+      '@context: matches none of its forms (expected a string, got an array; ' +
+        '[1]: expected a string, got number 5)',
+    ])
+    expect(ledgerLineProblems({ ...entry(), '@context': [] })).toEqual([
+      '@context: matches none of its forms (expected a string, got an array; must hold at least 1 item(s))',
     ])
   })
 
@@ -219,5 +243,14 @@ describe('parseCaseLedger', () => {
         text: bad,
       },
     ])
+  })
+})
+
+describe('valueProblems', () => {
+  it('checks both integer bounds the exporter can write', () => {
+    const shape = { kind: 'integer', minimum: 0, maximum: 9 } as const
+    expect(valueProblems(9, shape)).toEqual([])
+    expect(valueProblems(10, shape)).toEqual(['value: number 10 is above the maximum 9'])
+    expect(valueProblems(-1, shape)).toEqual(['value: number -1 is below the minimum 0'])
   })
 })

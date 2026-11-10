@@ -29,6 +29,12 @@ function isLedgerTypeName(value: unknown): value is LedgerTypeName {
   return typeof value === 'string' && TYPE_NAMES.has(value)
 }
 
+/**
+ * An ISO 8601 duration as Pydantic writes a `timedelta` (`P1DT2H3.5S`, `-PT5S`):
+ * at least one component, and a time part only when it holds one.
+ */
+const ISO_DURATION = /^-?P(?!$)(\d+(\.\d+)?Y)?(\d+(\.\d+)?M)?(\d+(\.\d+)?W)?(\d+(\.\d+)?D)?(T(?=\d)(\d+(\.\d+)?H)?(\d+(\.\d+)?M)?(\d+(\.\d+)?S)?)?$/
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -84,7 +90,7 @@ class ShapeChecker {
     }
   }
 
-  private checkValue(value: unknown, shape: FieldShape, path: string): void {
+  checkValue(value: unknown, shape: FieldShape, path: string): void {
     const problem = this.valueProblem(value, shape, path)
     if (problem !== null) this.problems.push(`${path}: ${problem}`)
   }
@@ -98,14 +104,20 @@ class ShapeChecker {
         if (typeof value !== 'string') return `expected a string, got ${describe(value)}`
         return shape.nonEmpty && value.trim() === '' ? 'must not be empty' : null
       case 'datetime':
+        if (typeof value !== 'string') return `expected a datetime string, got ${describe(value)}`
+        return Number.isNaN(Date.parse(value)) ? `${describe(value)} is not a date-time` : null
       case 'duration':
-        if (typeof value !== 'string') return `expected a ${shape.kind} string, got ${describe(value)}`
-        if (shape.kind === 'datetime' && Number.isNaN(Date.parse(value))) {
-          return `${describe(value)} is not a date-time`
+        if (typeof value !== 'string') return `expected a duration string, got ${describe(value)}`
+        return ISO_DURATION.test(value) ? null : `${describe(value)} is not an ISO 8601 duration`
+      case 'integer':
+        if (!Number.isInteger(value)) return `expected an integer, got ${describe(value)}`
+        if (shape.minimum !== undefined && (value as number) < shape.minimum) {
+          return `${describe(value)} is below the minimum ${shape.minimum}`
+        }
+        if (shape.maximum !== undefined && (value as number) > shape.maximum) {
+          return `${describe(value)} is above the maximum ${shape.maximum}`
         }
         return null
-      case 'integer':
-        return Number.isInteger(value) ? null : `expected an integer, got ${describe(value)}`
       case 'boolean':
         return typeof value === 'boolean' ? null : `expected a boolean, got ${describe(value)}`
       case 'object':
@@ -119,6 +131,9 @@ class ShapeChecker {
       case 'array':
         if (!Array.isArray(value)) return `expected an array, got ${describe(value)}`
         value.forEach((item, i) => this.checkValue(item, shape.items, join(path, i)))
+        if (shape.minItems !== undefined && value.length < shape.minItems) {
+          return `must hold at least ${shape.minItems} item(s)`
+        }
         return null
       case 'ref':
         this.checkObject(value, shape.type, path)
@@ -135,7 +150,8 @@ class ShapeChecker {
       const trial = new ShapeChecker()
       trial.checkValue(value, member, path)
       if (trial.problems.length === 0) return null
-      failures.push(...trial.problems.map((p) => p.slice(path.length + 2)))
+      // Keep a member's own sub-path (`[1]: …`); drop only the shared prefix.
+      failures.push(...trial.problems.map((p) => p.slice(path.length).replace(/^: /, '')))
     }
     return `matches none of its forms (${failures.join('; ')})`
   }
@@ -166,5 +182,16 @@ export function ledgerLineProblems(line: unknown): string[] {
   const checker = new ShapeChecker()
   checker.checkObject(line, 'CaseLedgerEntry', '')
   if (isRecord(line)) checker.walk(line.payloadSnapshot, 'payloadSnapshot')
+  return checker.problems
+}
+
+/**
+ * Every problem of one value against one field shape. `ledgerLineProblems`
+ * reaches only the shapes the exported models use; this checks any shape the
+ * exporter can write, such as a bound no exported field has yet.
+ */
+export function valueProblems(value: unknown, shape: FieldShape, path = 'value'): string[] {
+  const checker = new ShapeChecker()
+  checker.checkValue(value, shape, path)
   return checker.problems
 }

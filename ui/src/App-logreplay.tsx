@@ -8,9 +8,9 @@ import { getActiveLanes } from './state/participantHelpers'
 import {
   parseCaseLedger,
   normalizeLedger,
-  type CaseLedgerEntry,
-  type RejectedLedgerLine,
+  type ParsedLedger,
 } from './utils/caseLedgerParser'
+import { EMPTY_LEDGER, laneVfdState, ledgerLoadError, mergeLedgers } from './utils/replayLoad'
 import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // Committed recordings the "Load …" buttons import at build time via `?raw`.
 // A recording is the canonical case ledger (`case-actor.jsonl`) a registered
@@ -182,10 +182,11 @@ const SCENARIO_GROUPS: ScenarioGroup[] = ['Core', 'Coordinator', 'Diagnostic']
 
 function AppLogReplay() {
   const [demoState, setDemoState] = useState<DemoState | null>(null)
-  const [accumulatedEntries, setAccumulatedEntries] = useState<CaseLedgerEntry[]>([])
-  // Lines the loaded files held that failed the shape check (parseCaseLedger).
-  // They are not replayed; the replay header and the event log list each one.
-  const [accumulatedRejected, setAccumulatedRejected] = useState<RejectedLedgerLine[]>([])
+  // Every loaded line: the well-formed entries, and the lines that failed the
+  // shape check (parseCaseLedger), which are not replayed but listed in the
+  // replay header and the event log.
+  const [accumulated, setAccumulated] = useState<ParsedLedger>(EMPTY_LEDGER)
+  const accumulatedEntries = accumulated.entries
   const [uploadCount, setUploadCount] = useState(0)
   // Human-readable name of the pre-given scenario currently loaded (shown in the
   // Case Timeline header). Null when the case came from a manual file upload.
@@ -203,9 +204,9 @@ function AppLogReplay() {
   const playIntervalRef = useRef<number | null>(null)
 
   // Build (or rebuild) the replay state from a full set of ledger entries.
-  const rebuildFromEntries = useCallback((allEntries: CaseLedgerEntry[], rejected: RejectedLedgerLine[]) => {
-    const normalized = normalizeLedger(allEntries)
-    const state = buildTimelineFromCaseLedger(normalized, rejected)
+  const rebuildFromLedger = useCallback((ledger: ParsedLedger) => {
+    const normalized = normalizeLedger(ledger.entries)
+    const state = buildTimelineFromCaseLedger(normalized, ledger.rejected)
     setDemoState(state)
     setCurrentEventIndex(0)
   }, [])
@@ -218,34 +219,27 @@ function AppLogReplay() {
     setError(null)
 
     try {
-      const newEntries: CaseLedgerEntry[] = []
-      const newRejected: RejectedLedgerLine[] = []
-
-      // Read all uploaded files
+      // Read all uploaded files, then either accumulate or replace.
+      const parts: ParsedLedger[] = shouldAccumulate ? [accumulated] : []
       for (let i = 0; i < files.length; i++) {
-        const content = await files[i].text()
-        const parsed = parseCaseLedger(content, files[i].name)
-        newEntries.push(...parsed.entries)
-        newRejected.push(...parsed.rejected)
+        parts.push(parseCaseLedger(await files[i].text(), files[i].name))
       }
-
-      // Either accumulate or replace
-      const allEntries = shouldAccumulate ? [...accumulatedEntries, ...newEntries] : newEntries
-      const allRejected = shouldAccumulate ? [...accumulatedRejected, ...newRejected] : newRejected
-      setAccumulatedEntries(allEntries)
-      setAccumulatedRejected(allRejected)
+      const ledger = mergeLedgers(parts)
+      const loadError = ledgerLoadError('The selected files', ledger)
+      if (loadError !== null) throw new Error(loadError)
+      setAccumulated(ledger)
       setUploadCount(prev => prev + 1)
       // Manual uploads aren't one of the named catalog scenarios.
       setLoadedScenarioName(null)
 
-      rebuildFromEntries(allEntries, allRejected)
+      rebuildFromLedger(ledger)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load log files')
       console.error('Error processing log files:', err)
     } finally {
       setLoading(false)
     }
-  }, [accumulatedEntries, accumulatedRejected, rebuildFromEntries])
+  }, [accumulated, rebuildFromLedger])
 
   // Load a committed ledger from its raw text (no file picker needed). Shared by
   // the happy-path sample and the synthetic violation fixture.
@@ -254,26 +248,19 @@ function AppLogReplay() {
     setError(null)
 
     try {
-      const { entries, rejected } = parseCaseLedger(raw, label)
-      if (entries.length === 0) {
-        throw new Error(
-          rejected.length > 0
-            ? `${label} has no well-formed ledger lines: ${rejected.length} rejected, ` +
-                `first at line ${rejected[0].lineNumber}: ${rejected[0].problems[0]}`
-            : `${label} was empty — try file upload instead.`
-        )
-      }
-      setAccumulatedEntries(entries)
-      setAccumulatedRejected(rejected)
+      const ledger = parseCaseLedger(raw, label)
+      const loadError = ledgerLoadError(label, ledger)
+      if (loadError !== null) throw new Error(loadError)
+      setAccumulated(ledger)
       setUploadCount(prev => prev + 1)
-      rebuildFromEntries(entries, rejected)
+      rebuildFromLedger(ledger)
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to load ${label}`)
       console.error(`Error loading ${label}:`, err)
     } finally {
       setLoading(false)
     }
-  }, [rebuildFromEntries])
+  }, [rebuildFromLedger])
 
   // Load any catalog scenario by its raw ledger + title (data-driven picker).
   // Record its name for the timeline header, stripping the leading ▶/⚠️ glyph +
@@ -297,8 +284,7 @@ function AppLogReplay() {
     }
     setIsPlaying(false)
     setDemoState(null)
-    setAccumulatedEntries([])
-    setAccumulatedRejected([])
+    setAccumulated(EMPTY_LEDGER)
     setUploadCount(0)
     setCurrentEventIndex(0)
     setError(null)
@@ -682,15 +668,7 @@ function AppLogReplay() {
     if (demoState.participants.get(id)?.rmState === 'N/A') return 'N/A'
     return currentSnapshot?.rm[id] ?? initialState('rm')
   }
-  // A lane has a VFD row only if the ledger gives it a VFD state at some step:
-  // statuses carry `vfState` for a VENDOR alone (ADR-0075), so a Reporter's or
-  // Coordinator's lane has none. Before its first VFD step a lane reads as the
-  // machine's initial state, as RM does.
-  const vfdStateOf = (id: string) => {
-    if (demoState.participants.get(id)?.vfd === 'N/A') return undefined
-    if (!snapshots?.some((snapshot) => snapshot.vfd[id] !== undefined)) return undefined
-    return currentSnapshot?.vfd[id] ?? initialState('vfd')
-  }
+  const vfdStateOf = (id: string) => laneVfdState(demoState, id, currentSnapshot)
   const rejectedLines = demoState.rejectedLines ?? []
   const emStateNow = currentSnapshot?.emState ?? initialState('em')
   const pxaStateNow = currentSnapshot?.pxaState ?? initialState('pxa')

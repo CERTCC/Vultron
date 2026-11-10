@@ -14,13 +14,13 @@ export type FieldShape =
   | { readonly kind: 'string'; readonly nonEmpty: boolean }
   | { readonly kind: 'datetime' }
   | { readonly kind: 'duration' }
-  | { readonly kind: 'integer' }
+  | { readonly kind: 'integer'; readonly minimum?: number; readonly maximum?: number }
   | { readonly kind: 'boolean' }
   | { readonly kind: 'any' }
   | { readonly kind: 'object' }
   | { readonly kind: 'literal'; readonly value: string }
   | { readonly kind: 'enum'; readonly type: string; readonly values: readonly string[] }
-  | { readonly kind: 'array'; readonly items: FieldShape }
+  | { readonly kind: 'array'; readonly items: FieldShape; readonly minItems?: number }
   | { readonly kind: 'ref'; readonly type: LedgerTypeName }
   | { readonly kind: 'union'; readonly of: readonly FieldShape[] }
 
@@ -205,9 +205,9 @@ export const LEDGER_SHAPES = {
       { key: "bcc", required: false, nullable: true, shape: { kind: "any" } },
       { key: "audience", required: false, nullable: true, shape: { kind: "any" } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true } }] } },
+      { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "caseId", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
-      { key: "logIndex", required: true, nullable: false, shape: { kind: "integer" } },
+      { key: "logIndex", required: true, nullable: false, shape: { kind: "integer", minimum: -1 } },
       { key: "term", required: false, nullable: true, shape: { kind: "integer" } },
       { key: "logObjectId", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
       { key: "semanticType", required: true, nullable: false, shape: { kind: "string", nonEmpty: true } },
@@ -248,7 +248,7 @@ export const LEDGER_SHAPES = {
       { key: "bcc", required: false, nullable: true, shape: { kind: "any" } },
       { key: "audience", required: false, nullable: true, shape: { kind: "any" } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true } }] } },
+      { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "rmState", required: false, nullable: false, shape: { kind: "enum", type: "RmState", values: RM_STATE_VALUES } },
       { key: "vfState", required: false, nullable: true, shape: { kind: "enum", type: "VfState", values: VF_STATE_VALUES } },
       { key: "dState", required: false, nullable: true, shape: { kind: "enum", type: "DState", values: D_STATE_VALUES } },
@@ -289,7 +289,7 @@ export const LEDGER_SHAPES = {
       { key: "bcc", required: false, nullable: true, shape: { kind: "any" } },
       { key: "audience", required: false, nullable: true, shape: { kind: "any" } },
       { key: "attributedTo", required: false, nullable: true, shape: { kind: "string", nonEmpty: true } },
-      { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true } }] } },
+      { key: "@context", required: false, nullable: true, shape: { kind: "union", of: [{ kind: "string", nonEmpty: true }, { kind: "array", items: { kind: "string", nonEmpty: true }, minItems: 1 }] } },
       { key: "emState", required: false, nullable: false, shape: { kind: "enum", type: "EmState", values: EM_STATE_VALUES } },
       { key: "pxaState", required: false, nullable: false, shape: { kind: "enum", type: "PxaState", values: PXA_STATE_VALUES } },
     ],

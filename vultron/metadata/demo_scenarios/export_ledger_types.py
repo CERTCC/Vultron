@@ -75,6 +75,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
 
+import annotated_types
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
@@ -190,7 +191,8 @@ class _Projector:
         origin = typing.get_origin(annotation)
         args = typing.get_args(annotation)
         if origin is typing.Annotated:
-            return self.shape(args[0], enum_name, probe)
+            shape = self.shape(args[0], enum_name, probe)
+            return _constrained(shape, _metadata(args[1:]), annotation)
         if origin is Literal and len(args) == 1 and isinstance(args[0], str):
             return {"kind": "literal", "value": args[0]}
         if origin is dict:
@@ -240,6 +242,57 @@ class _Projector:
                 f"{known.values} and {enum.values}"
             )
         return {"kind": "enum", "type": name}
+
+
+def _metadata(items: Sequence[object]) -> list[object]:
+    """Flatten ``Annotated`` metadata; a ``Field(...)`` carries its own list."""
+    flat: list[object] = []
+    for item in items:
+        if isinstance(item, FieldInfo):
+            flat.extend(item.metadata)
+        else:
+            flat.append(item)
+    return flat
+
+
+def _constrained(
+    shape: dict[str, Any], metadata: Sequence[object], annotation: object
+) -> dict[str, Any]:
+    """Add each known constraint in *metadata* to *shape*; refuse the rest.
+
+    A constraint the projection cannot carry would leave the UI accepting a
+    value the model refuses, so it fails the export instead.
+    """
+    shape = dict(shape)
+    for item in metadata:
+        bound = _integer_bound(item) if shape["kind"] == "integer" else None
+        if bound is not None:
+            shape[bound[0]] = bound[1]
+        elif (
+            isinstance(item, annotated_types.MinLen)
+            and shape["kind"] == "array"
+        ):
+            shape["minItems"] = item.min_length
+        else:
+            raise TypeError(
+                f"No ledger shape for constraint {item!r} on {annotation!r}. "
+                "Teach export_ledger_types.py to carry it rather than "
+                "dropping it."
+            )
+    return shape
+
+
+def _integer_bound(item: object) -> tuple[str, int] | None:
+    """``("minimum" | "maximum", n)`` for an integer bound, else ``None``."""
+    if isinstance(item, annotated_types.Ge) and isinstance(item.ge, int):
+        return "minimum", item.ge
+    if isinstance(item, annotated_types.Gt) and isinstance(item.gt, int):
+        return "minimum", item.gt + 1
+    if isinstance(item, annotated_types.Le) and isinstance(item.le, int):
+        return "maximum", item.le
+    if isinstance(item, annotated_types.Lt) and isinstance(item.lt, int):
+        return "maximum", item.lt - 1
+    return None
 
 
 def _is_union(annotation: object) -> bool:
@@ -372,13 +425,13 @@ export type FieldShape =
   | {{ readonly kind: 'string'; readonly nonEmpty: boolean }}
   | {{ readonly kind: 'datetime' }}
   | {{ readonly kind: 'duration' }}
-  | {{ readonly kind: 'integer' }}
+  | {{ readonly kind: 'integer'; readonly minimum?: number; readonly maximum?: number }}
   | {{ readonly kind: 'boolean' }}
   | {{ readonly kind: 'any' }}
   | {{ readonly kind: 'object' }}
   | {{ readonly kind: 'literal'; readonly value: string }}
   | {{ readonly kind: 'enum'; readonly type: string; readonly values: readonly string[] }}
-  | {{ readonly kind: 'array'; readonly items: FieldShape }}
+  | {{ readonly kind: 'array'; readonly items: FieldShape; readonly minItems?: number }}
   | {{ readonly kind: 'ref'; readonly type: LedgerTypeName }}
   | {{ readonly kind: 'union'; readonly of: readonly FieldShape[] }}
 
@@ -447,7 +500,12 @@ def _ts_shape(shape: dict[str, Any], enums: dict[str, EnumType]) -> str:
         )
     if kind == "array":
         items = _ts_shape(shape["items"], enums)
-        return f"{{ kind: {_ts(kind)}, items: {items} }}"
+        rest = "".join(
+            f", {key}: {_ts(value)}"
+            for key, value in shape.items()
+            if key not in ("kind", "items")
+        )
+        return f"{{ kind: {_ts(kind)}, items: {items}{rest} }}"
     if kind == "union":
         members = ", ".join(_ts_shape(m, enums) for m in shape["of"])
         return f"{{ kind: {_ts(kind)}, of: [{members}] }}"
