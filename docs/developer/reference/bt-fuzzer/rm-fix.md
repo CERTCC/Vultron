@@ -199,4 +199,4 @@ The fix tree records the case state (CS) `d → D` transition and emits a `CD` m
 The mitigation tree does neither, because mitigation has no CS state bit and no protocol message.
 
 That is why `MitigationDeployed` and `MitigationAvailable` are Retriever call-outs rather than CS-state condition nodes.
-The two trees share the `DeploymentMonitoringBundle` seams (`PrioritizeDeployment`, `MonitoringRequirement`, `MonitorDeployment`).
+The two trees share the `DeploymentMonitoringBundle` seams (`NoNewDeploymentInfo`, `PrioritizeDeployment`, `MonitoringRequirement`, `MonitorDeployment`).
