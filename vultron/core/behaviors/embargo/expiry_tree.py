@@ -63,7 +63,6 @@ replicas replay it through the relay slot
 """
 
 from collections.abc import Mapping
-from datetime import datetime
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
@@ -140,7 +139,6 @@ def invite_expiry_decision(
     invitee_id: str,
     invite_id: str,
     embargo_id: str,
-    now: datetime,
     result_out: dict[str, Any],
 ) -> py_trees.behaviour.Behaviour:
     """The CASE_MANAGER's lazy expiry of one invitee's Invite, a clock decision.
@@ -161,16 +159,15 @@ def invite_expiry_decision(
     the row.  A failed commit therefore leaves the invitee unchanged, and the
     stage logs it and goes on.
 
-    The deadline is compared against *now*, the CASE_MANAGER's clock; the
-    Accept only names the invitee and the embargo, so its claimed time is
-    never the evidence.
+    The deadline is compared against the act's instant, read from the tree
+    run when the evaluation ticks (ADR-0176); the Accept only names the
+    invitee and the embargo, so its claimed time is never the evidence.
 
     Args:
         case_id: The case the Invite was for.
         invitee_id: The participant answering.
         invite_id: The answered Invite, which seeds the ``Update``'s id.
         embargo_id: The embargo the Invite proposed.
-        now: The instant the deadline is compared against.
         result_out: Receives ``IS_EXPIRED_KEY`` and ``NEEDS_APPLY_KEY``
             from :class:`EvaluateInviteExpiryNode`; left unset on a store
             that is not the CASE_MANAGER, whose gate skips the decision.
@@ -200,7 +197,6 @@ def invite_expiry_decision(
                 case_id=case_id,
                 invitee_id=invitee_id,
                 embargo_id=embargo_id,
-                now=now,
                 result_out=result_out,
             ),
             commit_and_apply_if_due,
@@ -226,7 +222,6 @@ def _late_accept_condition(
     accepting_actor_id: str,
     route: LateAcceptRoute,
     result_out: dict[str, Any],
-    now: datetime,
 ) -> py_trees.behaviour.Behaviour:
     """The Invite expired, and its late Accept takes the *route* arm."""
     children: list[py_trees.behaviour.Behaviour] = [
@@ -243,7 +238,6 @@ def _late_accept_condition(
             embargo_id=embargo_id,
             accepting_actor_id=accepting_actor_id,
             route=route,
-            now=now,
         ),
     ]
     return py_trees.composites.Sequence(
@@ -260,7 +254,6 @@ def late_accept_diversions(
     accepting_actor_id: str,
     answers: str | None,
     result_out: dict[str, Any],
-    now: datetime,
     actor_config: "ActorConfig | None" = None,
 ) -> list[Diversion]:
     """The CASE_MANAGER's two diverted answers to a late embargo Accept (EMB-17).
@@ -294,8 +287,6 @@ def late_accept_diversions(
         accepting_actor_id: The late accepter.
         answers: The late Accept's id; the re-invite's id derives from it.
         result_out: The Invite expiry decision's findings.
-        now: The CASE_MANAGER's clock, against which a proposal's end time
-            is read (``late_accept_terms``).
         actor_config: The CASE_MANAGER's configuration (RSVP window).
     """
 
@@ -306,7 +297,6 @@ def late_accept_diversions(
             accepting_actor_id=accepting_actor_id,
             route=route,
             result_out=result_out,
-            now=now,
         )
 
     reinvite = Diversion(
@@ -316,7 +306,6 @@ def late_accept_diversions(
             ReinviteLateAccepterNode(
                 case_id=case_id,
                 invitee_id=accepting_actor_id,
-                now=now,
                 actor_config=actor_config,
                 answers=answers,
             ),
@@ -342,7 +331,6 @@ def on_time_or_honoured_accept(
     embargo_id: str,
     accepting_actor_id: str,
     result_out: dict[str, Any],
-    now: datetime,
 ) -> py_trees.behaviour.Behaviour:
     """Guard: the Accept is on time, or a late Accept the case honours.
 
@@ -367,7 +355,6 @@ def on_time_or_honoured_accept(
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
                 route=LateAcceptRoute.HONOUR,
-                now=now,
             ),
         ],
     )

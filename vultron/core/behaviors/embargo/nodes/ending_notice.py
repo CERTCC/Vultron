@@ -48,6 +48,7 @@ names another participant.
 :mod:`~vultron.core.behaviors.embargo.nodes.ending_notice_replica`.
 """
 
+from datetime import datetime
 from enum import StrEnum
 from typing import cast
 
@@ -59,7 +60,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.participants.recipients import (
     embargo_ending_notice_recipients,
@@ -101,6 +101,7 @@ def embargo_ending_notice(
     *,
     before: str | None,
     after: str | None,
+    at: datetime,
 ) -> EmbargoEndingNotice | None:
     """Decide the CM-31-009 or CM-31-030 notice a change of active embargo owes.
 
@@ -108,7 +109,8 @@ def embargo_ending_notice(
     write.  ``None`` means no notice is owed: nothing was in force, nothing
     changed, the revision ends later than the embargo it replaces (its
     signatories never agreed to it), or the embargo was terminated on or
-    after its agreed end (expiry, which every signatory already knows).
+    after its agreed end (expiry, which every signatory already knows), judged
+    at *at*, the act's instant (ADR-0176).
     A revision that ends at the same instant counts as no later: it is the
     EP-05-003 carry-over arm, so the bound participant is now bound by it.
 
@@ -119,7 +121,7 @@ def embargo_ending_notice(
     if before is None or before == after:
         return None
     if after is None:
-        if read_embargo_event(store, before).end_time <= now_utc():
+        if read_embargo_event(store, before).end_time <= at:
             return None
         return EmbargoEndingNotice(
             kind=EmbargoEndingKind.TERMINATED,
@@ -275,7 +277,10 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
         # One capture serves one notice: a re-tick must capture again.
         self._snapshot.captured = False
         notice = embargo_ending_notice(
-            datalayer, before=before, after=case.active_embargo_id
+            datalayer,
+            before=before,
+            after=case.active_embargo_id,
+            at=self._require_act_instant(),
         )
         if notice is None:
             self.feedback_message = (

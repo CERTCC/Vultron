@@ -120,6 +120,7 @@ def _run(
         ),
         tree=tree,
         actor_id=actor_id,
+        at=_NOW,
     )
     return node.status
 
@@ -205,7 +206,7 @@ def _invited_embargo_ids(dl: SqliteDataLayer) -> list[str]:
 
 def _reinvite(case: VulnerabilityCase) -> ReinviteLateAccepterNode:
     return ReinviteLateAccepterNode(
-        case_id=case.id_, invitee_id=OTHER_PARTICIPANT_ACTOR, now=_NOW
+        case_id=case.id_, invitee_id=OTHER_PARTICIPANT_ACTOR
     )
 
 
@@ -217,7 +218,6 @@ def _route_node(
         embargo_id=embargo_id,
         accepting_actor_id=OTHER_PARTICIPANT_ACTOR,
         route=route,
-        now=_NOW,
     )
 
 
@@ -448,7 +448,6 @@ class TestReinviteLateAccepterNode:
         node = ReinviteLateAccepterNode(
             case_id=case.id_,
             invitee_id="https://example.org/actors/stranger",
-            now=_NOW,
         )
 
         with caplog.at_level("ERROR"):

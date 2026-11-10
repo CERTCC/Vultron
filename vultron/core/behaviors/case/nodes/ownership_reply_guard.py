@@ -34,7 +34,6 @@ The guards on the owner's proposal are in
 re-exports these names.
 """
 
-from datetime import datetime
 from enum import Enum
 
 import py_trees
@@ -43,7 +42,6 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
-from vultron.core.models._helpers import now_utc
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
     recorded_ownership_offer,
@@ -157,7 +155,6 @@ class OwnershipOfferOpenNode(
         reply_id: str,
         sender_id: str,
         party: OfferParty,
-        now: datetime | None = None,
         name: str | None = None,
     ) -> None:
         """Create the guard.
@@ -170,8 +167,6 @@ class OwnershipOfferOpenNode(
                 check has already established its standing.
             party: The party whose reply it is; it picks the requirements a
                 refusal cites.
-            now: The instant the deadline is compared against.  ``None``
-                reads the clock when the guard runs.
             name: Optional node name.
         """
         super().__init__(name=name or self.__class__.__name__)
@@ -180,7 +175,6 @@ class OwnershipOfferOpenNode(
         self._reply_id = reply_id
         self._sender_id = sender_id
         self._party = party
-        self._now = now
         self.is_redelivery = False
         """``True`` when the last run found the reply already ledgered as
         the one that closed the Offer: a benign no-op, not a refusal."""
@@ -236,7 +230,8 @@ class OwnershipOfferOpenNode(
                 f" '{offer.answer_id}' ({offer.closed_by_semantic_type})",
                 f"{_CLOSED_SPEC[self._party]}, CM-21-014",
             )
-        if offer.is_past_deadline(self._now or now_utc()):
+        # The deadline is judged at the act's instant (ADR-0176).
+        if offer.is_past_deadline(self._require_act_instant()):
             return self._refuse_late(offer)
         return Status.SUCCESS
 
@@ -317,7 +312,6 @@ def case_manager_ownership_offer_open_guard(
     reply_id: str,
     sender_id: str,
     party: OfferParty,
-    now: datetime | None = None,
     *,
     transferee_must_be_active: bool = False,
 ) -> OnPaths:
@@ -342,7 +336,6 @@ def case_manager_ownership_offer_open_guard(
             reply_id=reply_id,
             sender_id=sender_id,
             party=party,
-            now=now,
         )
     ]
     if transferee_must_be_active:

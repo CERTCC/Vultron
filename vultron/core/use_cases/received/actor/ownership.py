@@ -11,7 +11,7 @@ from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_reject_ownership_transfer_tree,
     create_undo_ownership_transfer_tree,
 )
-from vultron.core.models._helpers import _as_id, now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
@@ -112,7 +112,6 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
             transferee_id=transferee_id,
             proposal_id=request.activity_id,
             answer_deadline=request.proposed_answer_deadline,
-            now=now_utc(),
             sender_rule=self.sender_entitlement,
             sender_id=request.actor_id,
         )
@@ -269,14 +268,12 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
-        now = now_utc()
 
         tree = create_accept_ownership_transfer_tree(
             case_id=case_id,
             offer_id=request.object_id,
             sender_id=request.actor_id,
             answer_id=request.activity_id,
-            now=now,
             sender_rule=self.sender_entitlement,
         )
         return run_offer_reply_tree(
@@ -333,14 +330,12 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
-        now = now_utc()
 
         tree = create_reject_ownership_transfer_tree(
             case_id=case_id,
             offer_id=request.object_id,
             sender_id=request.actor_id,
             answer_id=request.activity_id,
-            now=now,
             sender_rule=self.sender_entitlement,
         )
         return run_offer_reply_tree(
@@ -400,7 +395,6 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
-        now = now_utc()
         proposal_id = request.proposal_id
         # The Undo names the owner's proposal; the CASE_MANAGER withdraws the
         # Offer it made from it, whose id it derives the way it did when it
@@ -425,7 +419,6 @@ class UndoCaseOwnershipTransferReceivedUseCase:
             offer_id=offer_id,
             sender_id=request.actor_id,
             undo_id=request.activity_id,
-            now=now,
             sender_rule=self.sender_entitlement,
         )
         return run_offer_reply_tree(

@@ -38,7 +38,6 @@ the register, EM and the consent rows as they were, and the queued
 a retry can still end the embargo.
 """
 
-from datetime import datetime
 from typing import cast
 
 from py_trees.common import Status
@@ -88,9 +87,10 @@ class CommitAndApplyEmbargoTerminationNode(
 
     *termination* is how the embargo ends (ADR-0122); a
     :class:`ChosenTermination` is read when this node runs (EMB-14-001).
-    *terminated_at* is the time an ``END_TIME_REACHED`` termination is
-    claimed at.  *builder* is
-    the trigger use case's own ``Remove`` builder; ``None`` (the end-time
+    The CASE_MANAGER's own termination is claimed at the act's instant, read
+    from the tree run when the node ticks (ADR-0176), so an
+    ``END_TIME_REACHED`` one is judged against it.  *builder* is the trigger
+    use case's own ``Remove`` builder; ``None`` (the end-time
     check and the threat cascades) builds it through the trigger-activity
     factory, carrying the decided termination's what in ``content`` and its
     why, the cause the ``TERMINATED`` entry records (a threat cascade's
@@ -111,7 +111,6 @@ class CommitAndApplyEmbargoTerminationNode(
         case_id: str,
         result_out: dict[str, object],
         termination: TerminationRequest | ChosenTermination,
-        terminated_at: datetime | None = None,
         builder: EmbargoActivityBuilder | None = None,
         name: str | None = None,
     ) -> None:
@@ -123,7 +122,6 @@ class CommitAndApplyEmbargoTerminationNode(
         )
         self._result_out = result_out
         self._termination = termination
-        self._terminated_at = terminated_at
         self._builder = builder
         self._step: RegisterStep | None = None
         self._ended: VulnerabilityCase | None = None
@@ -189,7 +187,7 @@ class CommitAndApplyEmbargoTerminationNode(
         termination = resolve_chosen(self._termination)
         try:
             step = decide_termination(
-                dl, case, termination, self._terminated_at
+                dl, case, termination, self._require_act_instant()
             )
         except VultronError as exc:
             return self._refuse(exc)

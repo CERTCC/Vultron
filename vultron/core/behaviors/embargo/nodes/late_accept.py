@@ -136,8 +136,9 @@ class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
     (AC-1, #1474), whether the case can still answer *embargo_id*
     (:meth:`~vultron.core.models.case.VulnerabilityCase.can_answer_embargo`,
     the test the Accept tree's ``IsAnswerableEmbargoNode`` makes) and the
-    terms a re-invite would name at *now* (:func:`late_accept_terms`), when
-    the node runs, after the Invite expiry has been recorded.  SUCCESS when
+    terms a re-invite would name at the act's instant
+    (:func:`late_accept_terms`), when the node runs, after the Invite expiry
+    has been recorded.  SUCCESS when
     :func:`late_accept_route` names *route*, logged at INFO; FAILURE
     otherwise.  Read-only.  A case or an open proposal the CASE_MANAGER
     cannot read raises an internal error: it holds its own case (Regime 1,
@@ -151,7 +152,6 @@ class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
         accepting_actor_id: str,
         route: LateAcceptRoute,
         *,
-        now: datetime,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -159,7 +159,6 @@ class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
         self._embargo_id = embargo_id
         self._accepting_actor_id = accepting_actor_id
         self.route = route
-        self._now = now
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -173,7 +172,10 @@ class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
         # The terms matter only to an Accept the case cannot answer.
         has_terms = (
             not answerable
-            and late_accept_terms(self.datalayer, case, self._now) is not None
+            and late_accept_terms(
+                self.datalayer, case, self._require_act_instant()
+            )
+            is not None
         )
         route = late_accept_route(
             em_state, answerable=answerable, has_terms=has_terms

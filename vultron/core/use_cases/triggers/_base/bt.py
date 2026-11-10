@@ -334,7 +334,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         """
         if not self._takes_case_clock_decisions:
             return []
-        return case_clock_decisions(case_id, now=self._at)
+        return case_clock_decisions(case_id)
 
     def _activity_fields(self) -> dict[str, Any]:
         """The two keys every :class:`ActivityResult` body carries.

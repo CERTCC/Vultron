@@ -35,14 +35,11 @@ Invite and Accept trees (CLP-10-026), so it runs after their clock
 decisions, the sweep included.
 """
 
-from datetime import datetime
-
 import py_trees
 
 from vultron.core.behaviors.embargo.nodes.invitation_expiry import (
     ExpireOverdueInvitesNode,
 )
-from vultron.core.models._helpers import now_utc
 
 __all__ = ["OVERDUE_INVITES_SWEEP_NAME", "embargo_clock_decisions"]
 
@@ -51,17 +48,17 @@ OVERDUE_INVITES_SWEEP_NAME = "SweepOverdueEmbargoInvites"
 
 
 def embargo_clock_decisions(
-    case_id: str, now: datetime | None = None
+    case_id: str,
 ) -> list[py_trees.behaviour.Behaviour]:
-    """The embargo clock decisions for *case_id*, read against *now*.
+    """The embargo clock decisions for *case_id*.
 
-    *now* defaults to the CASE_MANAGER's clock: a clock decision decides
-    from its own clock, never from the received activity (CLP-10-025).
-    Ungated: the caller composes them into the gated stage.
+    Each decides against the act's instant, read from the tree run when it
+    ticks (ADR-0176): a clock decision decides from the CASE_MANAGER's own
+    act, never from the received activity (CLP-10-025).  Ungated: the caller
+    composes them into the gated stage.
     """
-    at = now if now is not None else now_utc()
     return [
         ExpireOverdueInvitesNode(
-            case_id=case_id, now=at, name=OVERDUE_INVITES_SWEEP_NAME
+            case_id=case_id, name=OVERDUE_INVITES_SWEEP_NAME
         )
     ]

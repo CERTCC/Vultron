@@ -24,7 +24,8 @@ A direct call is a call of ``.execute()`` with no arguments, or of
 method of that name is a test double's own body and is not counted.
 
 :data:`DIRECT_RUN_EXEMPTIONS` is a pinned exemption set (ARCH-18-001): the
-files that test the bridge's own act handling, which must call it bare.
+files that test the bridge's own act handling, or a run with no act, which
+must call it bare.
 
 Spec: CS-13-002 (time enters at the act's edge), ARCH-18-001.
 """
@@ -42,12 +43,14 @@ _RUNNER = "test/support/act_runner.py"
 _DIRECT_NAMES = ("execute", "execute_with_setup")
 
 # Pinned exemption set: files that test how the bridge carries an act's
-# instant, so they call it without the runner on purpose.
+# instant, or what a run with no act does, so they call it without the
+# runner on purpose.
 # permanent: ADR-0176 (the runner is built on the behavior these files test)
 DIRECT_RUN_EXEMPTIONS: frozenset[str] = frozenset(
     {
         "test/core/behaviors/test_act_instant.py",
         "test/core/behaviors/test_bridge.py",
+        "test/core/behaviors/test_tree_nodes_read_act_instant.py",
     }
 )
 

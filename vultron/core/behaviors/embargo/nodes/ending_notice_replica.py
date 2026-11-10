@@ -290,7 +290,10 @@ class ApplyAnnouncedEmbargoRevisionNode(_ObservedRevisionActivationNode):
         try:
             self._hold_announced_embargo(datalayer, case)
             notice = embargo_ending_notice(
-                datalayer, before=current, after=self.embargo_id
+                datalayer,
+                before=current,
+                after=self.embargo_id,
+                at=self._require_act_instant(),
             )
         except INTERNAL_FAULTS:
             raise  # never a refusal, so never answered (ADR-0095)

@@ -83,7 +83,7 @@ from vultron.core.behaviors.embargo.owner_decision_tree import (
 from vultron.core.behaviors.embargo.withdrawal_tree import (
     withdraw_from_embargo_on_case_tree,
 )
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo.accept import (
@@ -133,7 +133,6 @@ def _accept(case_id: str, embargo_id: str) -> py_trees.behaviour.Behaviour:
         accepting_actor_id=OTHER_PARTICIPANT_ACTOR,
         invite_id=_INVITE,
         sender_rule=AcceptInviteToEmbargoOnCaseReceivedUseCase.sender_entitlement,
-        now=now_utc(),
     )
 
 

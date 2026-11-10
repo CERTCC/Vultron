@@ -23,7 +23,6 @@ narrowed to one fixed recipient: ``attributedTo`` names the current embargo's
 proposer, and it is committed as ``invite_to_embargo_on_case`` (ADR-0152).
 """
 
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from py_trees.common import Status
@@ -207,7 +206,6 @@ class ReinviteLateAccepterNode(ReinviteStaleAccepterNode):
         name: str | None = None,
         actor_config: "ActorConfig | None" = None,
         *,
-        now: datetime,
         answers: str | None = None,
     ) -> None:
         # The embargo is resolved at tick time.
@@ -219,11 +217,12 @@ class ReinviteLateAccepterNode(ReinviteStaleAccepterNode):
             actor_config=actor_config,
             answers=answers,
         )
-        self._now = now
 
     def _invite_owed(self, case: VulnerabilityCase) -> bool:
         assert self.datalayer is not None
-        embargo_id = late_accept_terms(self.datalayer, case, self._now)
+        embargo_id = late_accept_terms(
+            self.datalayer, case, self._require_act_instant()
+        )
         if embargo_id is None:
             raise BtNodePreconditionError(
                 f"late Accept for case '{self._case_id}' routed to the"

@@ -22,7 +22,6 @@ proposal it was made from (CM-21-015).  Each judges the Offer against its own
 """
 
 import logging
-from datetime import datetime
 from typing import NamedTuple
 
 import py_trees
@@ -66,7 +65,6 @@ def _reply_stages(
     sender_id: str,
     reply_id: str,
     party: OfferParty,
-    now: datetime | None,
     *,
     transferee_must_be_active: bool = False,
 ) -> _ReplyStages:
@@ -95,7 +93,6 @@ def _reply_stages(
             reply_id=reply_id,
             sender_id=sender_id,
             party=party,
-            now=now,
             transferee_must_be_active=transferee_must_be_active,
         )
     ]
@@ -107,7 +104,6 @@ def create_accept_ownership_transfer_tree(
     offer_id: str | None,
     sender_id: str,
     answer_id: str,
-    now: datetime | None = None,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
@@ -131,9 +127,6 @@ def create_accept_ownership_transfer_tree(
             which the open-Offer guard then requires to be open; at a
             replica it must be the CASE_MANAGER.
         answer_id: The Accept's own id, so a redelivery is recognised.
-        now: The instant the Offer's ``end_time`` is compared against by
-            the open-Offer guard; an Accept at or after it is refused
-            (CM-21-016).  ``None`` reads the clock when the guard runs.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
@@ -153,7 +146,6 @@ def create_accept_ownership_transfer_tree(
         sender_id,
         answer_id,
         OfferParty.TRANSFEREE,
-        now,
         transferee_must_be_active=True,
     )
     tree = create_receive_activity_tree(
@@ -198,7 +190,6 @@ def create_reject_ownership_transfer_tree(
     offer_id: str | None,
     sender_id: str,
     answer_id: str,
-    now: datetime | None = None,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
@@ -217,7 +208,6 @@ def create_reject_ownership_transfer_tree(
         offer_id: The Offer the Reject names, the CASE_MANAGER's own.
         sender_id: The Reject's sender, checked as for the Accept.
         answer_id: The Reject's own id, so a redelivery is recognised.
-        now: As for the Accept: a Reject after the deadline is refused.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
@@ -232,7 +222,7 @@ def create_reject_ownership_transfer_tree(
             "Reject(ownership transfer) names no case",
         )
     stages = _reply_stages(
-        case_id, offer_id, sender_id, answer_id, OfferParty.TRANSFEREE, now
+        case_id, offer_id, sender_id, answer_id, OfferParty.TRANSFEREE
     )
     tree = create_receive_activity_tree(
         name="RejectOwnershipTransferBT",
@@ -264,7 +254,6 @@ def create_undo_ownership_transfer_tree(
     offer_id: str | None,
     sender_id: str,
     undo_id: str,
-    now: datetime | None = None,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
@@ -288,7 +277,6 @@ def create_undo_ownership_transfer_tree(
         sender_id: The Undo's sender: at the CASE_MANAGER it must be the
             offerer, still the Case Owner; at a replica, the CASE_MANAGER.
         undo_id: The Undo's own id, so a redelivery is recognised.
-        now: As for the Accept: an expired Offer cannot be withdrawn.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
 
@@ -302,7 +290,7 @@ def create_undo_ownership_transfer_tree(
             "UndoOwnershipTransferBT", "Undo(ownership transfer) names no case"
         )
     stages = _reply_stages(
-        case_id, offer_id, sender_id, undo_id, OfferParty.OFFERER, now
+        case_id, offer_id, sender_id, undo_id, OfferParty.OFFERER
     )
     tree = create_receive_activity_tree(
         name="UndoOwnershipTransferBT",
