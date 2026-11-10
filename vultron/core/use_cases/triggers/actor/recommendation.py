@@ -124,6 +124,7 @@ class _SvcRecommendActorBase(SvcActivityTriggerBase):
             self._dl,
             recommended_id,
             field,
+            actor.id_,
             self._actor_discovery_call_out,
         )
 

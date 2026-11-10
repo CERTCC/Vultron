@@ -26,11 +26,11 @@ from urllib.parse import urlparse
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.bundles.actor_discovery import (
     ACTOR_DISCOVERY_DETERMINISTIC,
     ActorDiscoveryCallOutBundle,
 )
-from vultron.core.behaviors.call_out.guard import CallOutContractError
 from vultron.core.models.actor import CoreActor
 from vultron.errors import (
     VultronValidationError,
@@ -65,6 +65,7 @@ def _record_named_peer(
     dl: Any,
     actor_id: str,
     field: str,
+    acting_actor_id: str,
     call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
 ) -> None:
     """Record *actor_id* as a peer this actor now knows, if not already known.
@@ -90,6 +91,7 @@ def _record_named_peer(
         dl: The acting actor's own DataLayer.
         actor_id: The peer's canonical URI, as named by the request.
         field: Name of the request field it came from, for the messages.
+        acting_actor_id: The acting actor; the backend's tree runs as it.
         call_out: Actor-discovery call-out bundle; defaults to
             :data:`ACTOR_DISCOVERY_DETERMINISTIC` (``AlwaysSucceed``).
             Inject a directory-service backend to resolve actor details.
@@ -98,23 +100,24 @@ def _record_named_peer(
         return
     _require_deliverable_actor_uri(actor_id, field)
     backend = call_out.resolve_actor_factory("ResolveActorDetails")
-    # Tick the node rather than calling update() directly: the bundle now hands
-    # out a SynchronousCallOut guard wrapper (BT-18-011), whose update() reads
-    # its child's status and so requires the child to have been ticked first.
+    # Run the node through a BTBridge so py_trees setup() and initialise() run
+    # and the backend's ports (datalayer, actor_id) are wired (#2707); the
+    # bundle hands out a SynchronousCallOut guard wrapper (BT-18-011) that
+    # needs its child ticked.
     #
-    # A backend that returns RUNNING violates the synchronous-answer contract and
-    # the guard rejects it by raising (BT-18-011). This is a procedural, single-
-    # tick call with no tree to busy-loop, and the function's contract is to
-    # record a minimal peer whenever details cannot be resolved — so a contract
-    # violation degrades the same as any other non-SUCCESS rather than crashing
-    # the request. The offending backend is still surfaced, via the WARNING.
-    try:
-        backend.tick_once()
-        status = backend.status
-        reason = status.name
-    except CallOutContractError:
-        status = Status.INVALID
-        reason = "a non-synchronous (RUNNING) backend — BT-18-011 violation"
+    # A backend that returns RUNNING violates the synchronous-answer contract
+    # and the guard rejects it by raising (BT-18-011).  The bridge reports that
+    # as a non-SUCCESS result, and this function's contract is to record a
+    # minimal peer whenever details cannot be resolved, so it degrades the same
+    # as any other non-SUCCESS rather than crashing the request.  The offending
+    # backend is still surfaced, via the WARNING.
+    result = BTBridge(datalayer=dl).execute_with_setup(
+        backend, actor_id=acting_actor_id, max_iterations=1
+    )
+    status = result.status
+    reason = status.name
+    if result.feedback_message and status != Status.SUCCESS:
+        reason = f"{reason} ({result.feedback_message})"
     if status != Status.SUCCESS:
         logger.warning(
             "actor discovery returned %s for %s '%s' — recording minimal peer"

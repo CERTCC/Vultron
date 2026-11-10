@@ -154,6 +154,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
             self._dl,
             request.transferee_id,
             "transferee_id",
+            offering_actor_id,
             self._actor_discovery_call_out,
         )
 
