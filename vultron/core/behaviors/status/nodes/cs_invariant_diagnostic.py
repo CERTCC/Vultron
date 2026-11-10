@@ -35,7 +35,6 @@ from vultron.core.behaviors.note.case_manager_note import (
 from vultron.core.behaviors.status.nodes.threat_termination import (
     resolve_pxa_threat_state,
 )
-from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.composite_state_invariants import (
     violation_pxa_em_entailment,
 )
@@ -46,8 +45,8 @@ logger = logging.getLogger(__name__)
 class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
     """Post-cascade PXA↔EM cross-machine invariant check (CSB-18-002..004).
 
-    Reads fresh EM state from the DataLayer after a participant's P/X/A
-    report is adopted and
+    Reads the case's fresh EM state and current ``CaseStatus`` from the
+    DataLayer after a participant's P/X/A report is adopted and
     :class:`~vultron.core.behaviors.status.nodes.threat_termination.ThreatTerminationBranchNode`
     has run. When the invariant is still violated — embargo active with PXA
     P/X/A bit set — the CASE_MANAGER records a note naming the violation and
@@ -78,7 +77,6 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
 
     def __init__(
         self,
-        status_obj: PersistableModel | None,
         case_id: str | None,
         name: str | None = None,
     ):
@@ -86,22 +84,10 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
         super().__init__(
             case_id=case_id or "", name=name or self.__class__.__name__
         )
-        self.status_obj = status_obj
         self.case_id = case_id
-
-    def _get_pxa_state(self):
-        """Return PXA state from status_obj if a threat is present; None otherwise."""
-        case_status = getattr(self.status_obj, "case_status", None)
-        if case_status is None:
-            case_status = self.status_obj
-        return resolve_pxa_threat_state(case_status)
 
     def _compose(self) -> CaseManagerNote | None:
         if not self.case_id:
-            return None
-
-        pxa = self._get_pxa_state()
-        if pxa is None:
             return None
 
         assert self.datalayer is not None
@@ -111,6 +97,17 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
         # to diagnose (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
         if case is None:
+            return None
+
+        # The case's own status, never the sender's claim: the note is the
+        # CASE_MANAGER's conclusion, and the adoption wrote that status in
+        # the forced form (SM-09-003, #6080).
+        try:
+            current = case.current_status
+        except ValueError:
+            return None  # no CaseStatus yet: no P, X or A to diagnose
+        pxa = resolve_pxa_threat_state(current)
+        if pxa is None:
             return None
 
         violation = violation_pxa_em_entailment(pxa, case.em_state)

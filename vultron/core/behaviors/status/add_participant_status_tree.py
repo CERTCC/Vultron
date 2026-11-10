@@ -243,14 +243,15 @@ def add_participant_status_tree(
     CaseStatus, adding every P, X or A latch the report sets and clearing
     none, directly to the case ledger and fans it out to participants
     (RSH-01-003, RSH-04-006).  ``ThreatTerminationBranchNode`` then runs
-    directly, in the same act, and ends the embargo when the received
+    directly, in the same act, and ends the embargo when the case's
     CaseStatus has P=True, X=True, or A=True (RSH-03-001 to RSH-03-003): the
     adoption is also the authorization of that teardown, so no second gate
     asks again (ADR-0166).  A ``FailureIsSuccess`` wrapper keeps the act when
     the teardown itself fails, so ``PxaEmInvariantDiagnosticNode`` still
     reads the post-teardown EM and commits a CSB-18 note when an adopted P, X
     or A sits beside an embargo that is still in force (CSB-18-002..004,
-    #4829).
+    #4829).  Both read the case's status, the CASE_MANAGER's own conclusion
+    in the forced form, never the sender's claim (SM-09-003, #6080).
 
     Args:
         request: The parsed inbound domain event.
@@ -399,16 +400,12 @@ def add_participant_status_tree(
                     TeardownOrSkip(
                         case_id=tree_case_id,
                         child=ThreatTerminationBranchNode(
-                            # Prefer the peer's embedded CaseStatus for the
-                            # PXA check: it was accepted whole, so it is the
-                            # stored copy the emit adopted (RSH-09-001).
-                            # Enable DataLayer fallback so that when it is
-                            # absent _threat_present reads the case's
-                            # current_status (written by
-                            # EmitCaseStatusUpdateNode just above).
-                            status_obj=getattr(
-                                status_obj, "case_status", None
-                            ),
+                            # The teardown and its cause are the
+                            # CASE_MANAGER's conclusion, so they read the
+                            # case's current status, which the emit above
+                            # wrote in the forced form, never the sender's
+                            # claim (SM-09-003, EMB-13-005, #6080).
+                            status_obj=None,
                             case_id=tree_case_id,
                             name="ThreatTerminationBranch",
                             use_datalayer_fallback=True,
@@ -418,7 +415,6 @@ def add_participant_status_tree(
                     # replicated (#4829); it reads the post-teardown EM, so a
                     # teardown that failed is reported (CSB-18-002..004).
                     PxaEmInvariantDiagnosticNode(
-                        status_obj=status_obj,
                         case_id=tree_case_id,
                         name="PxaEmInvariantDiagnostic",
                     ),

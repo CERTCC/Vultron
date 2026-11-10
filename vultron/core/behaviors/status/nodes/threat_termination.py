@@ -81,12 +81,6 @@ def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
     return cast(CS_pxa, pxa_state)
 
 
-def _status_of(status_obj: object) -> object:
-    """The status a cascade reacts to: a wrapper's ``case_status``, or itself."""
-    case_status = getattr(status_obj, "case_status", None)
-    return status_obj if case_status is None else case_status
-
-
 def pxa_embargo_teardown_bt(
     *,
     case_id: str,
@@ -163,7 +157,7 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
 
     def _threat_present(self) -> bool:
         """Return True if pxa state has at least one of P, X, or A set."""
-        case_status = _status_of(self.status_obj)
+        case_status: object = self.status_obj
 
         # When status_obj carries no PXA info AND the caller has explicitly
         # opted in to the DataLayer fallback (set only by callers that know
@@ -207,6 +201,12 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
     (any ``CS_pxa`` state other than ``pxa``) AND the case has an active
     embargo or an open proposal.
 
+    *status_obj* is a ``CaseStatus``, never a ``ParticipantStatus``: the
+    teardown and its cause are the CASE_MANAGER's conclusion, so they never
+    read a sender's claim (SM-09-003, #6080).  The received status tree
+    passes ``None`` with ``use_datalayer_fallback=True``, so the branch reads
+    the case's current status, which the adoption wrote in the forced form.
+
     Does NOT gate on sender role (RSH-03-002) — authorization was
     already verified at StatusAdoptionGate before this node is reached, and
     that adoption also authorizes this teardown (ADR-0166).
@@ -236,7 +236,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
         result_out: dict[str, object] = {}
         # The signals of the triggering status when it names them; else the
         # case's PXA at the write (the DataLayer-fallback callers).
-        threat = resolve_pxa_threat_state(_status_of(status_obj))
+        threat = resolve_pxa_threat_state(status_obj)
         signals = (
             threat_signals_of(threat) or None
             if isinstance(threat, CS_pxa)
