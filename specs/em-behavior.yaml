@@ -3541,7 +3541,6 @@ groups:
   - id: EMB-17-007
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       When the case has no Active Embargo and no Proposed Embargo (EM state is
       EXITED or NONE), the CASE_MANAGER MUST NOT issue a fresh embargo invitation
@@ -3549,6 +3548,14 @@ groups:
     rationale: >-
       There is no active embargo to invite the actor to; a fresh invitation would
       manufacture a negotiation nobody requested. See ADR-0065.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_a_late_accept_with_no_terms_gets_the_refusal_notice_alone`) drives a late
+      Accept into a case in EM EXITED and asserts the refusal notice is the only
+      activity queued, so no Invite is sent.
+      `test/core/behaviors/embargo/nodes/test_accept_availability.py`
+      (`test_a_case_with_no_active_or_proposed_embargo_holds_no_terms`) asserts such a
+      case holds no terms to invite to.
     relationships:
     - rel_type: derives_from
       spec_id: EMB-17-004
@@ -3559,7 +3566,6 @@ groups:
   - id: EMB-17-008
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       When the case has no Active Embargo and no Proposed Embargo (EM state is
       EXITED or NONE), the CASE_MANAGER MUST NOT remove the accepting actor from
@@ -3567,6 +3573,13 @@ groups:
     rationale: >-
       Case participation is independent of embargo consent; the actor's
       willingness to coordinate must not result in their removal. See ADR-0065.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_invite_lapse.py`
+      (`test_late_accept_refused_when_em_exited`) and
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_a_late_accept_with_no_terms_gets_the_refusal_notice_alone`) drive a late
+      Accept into a case in EM EXITED and assert the accepter is still in the case's
+      participant index afterwards.
     relationships:
     - rel_type: derives_from
       spec_id: EMB-17-004

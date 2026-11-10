@@ -157,6 +157,7 @@ class InviteExpiryNeedsApplyNode(py_trees.behaviour.Behaviour):
         return Status.FAILURE
 
 
+#: Backward-compatible alias for :class:`InviteExpiryNeedsApplyNode`.
 InviteExpiryChangedConsentNode = InviteExpiryNeedsApplyNode
 
 
