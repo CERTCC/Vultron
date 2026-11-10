@@ -36,6 +36,7 @@ from test.support.act_clock import CountingClock, tree_lock_held
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
 from test.support.received import delivered_body
+from test.support.signing import serve_published_profiles
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -171,10 +172,15 @@ class _InstantProbe:
 
 @pytest.fixture
 def route() -> Generator[tuple[TestClient, SqliteDataLayer, CountingClock]]:
-    """The real inbox route, its act clock pinned to 11:59, then 12:02."""
+    """The real inbox route, its act clock pinned to 11:59, then 12:02.
+
+    The senders' profiles are served, so the verification stage reads each
+    author's key and admits the signed body (SIG-02-002).
+    """
     app = create_app(docs_url=None, openapi_url=None)
     clock = CountingClock(_ARRIVED, _PROCESSED)
     app.dependency_overrides[get_act_clock] = lambda: clock
+    serve_published_profiles(app)
     with TestClient(app) as client:
         store: SqliteDataLayer = app.dependency_overrides[get_actor_dl](_SLUG)
         store.create(
