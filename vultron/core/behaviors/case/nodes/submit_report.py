@@ -53,6 +53,10 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.events.report import SubmitReportReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report_claims import (
+    ClaimsReading,
+    ReportClaimsRecord,
+)
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -100,6 +104,94 @@ class StoreSubmitReportOfferRecordNode(DataLayerActionWithPorts):
             "Stored VultronOfferRecord for offer '%s'", self._offer_id
         )
         return Status.SUCCESS
+
+
+class StoreReportClaimsRecordsNode(DataLayerActionWithPorts):
+    """Keep what each CSAF document attached to the report claimed.
+
+    Writes one :class:`~vultron.core.models.report_claims.ReportClaimsRecord`
+    per reading the wire edge made, apart from the report, which stays as
+    received (VM-08-002, CSAF-04-004).  The record is the receiver's own and
+    no emitted activity carries it (CSAF-04-005).  Each field the reader
+    skipped is logged at INFO with the Offer and its sender (CSAF-04-003).
+
+    A schema-invalid document is recorded like any other: reading a document
+    never refuses the Offer, so this node fails only when the DataLayer is
+    missing (CSAF-02-006).  Idempotent: a record already held is kept as it
+    is, so a resent Offer neither rewrites nor re-logs it.
+    """
+
+    def __init__(
+        self,
+        report_id: str,
+        activity_id: str,
+        sender_id: str,
+        readings: list[ClaimsReading],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._report_id = report_id
+        self._activity_id = activity_id
+        self._sender_id = sender_id
+        self._readings = list(readings)
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        if not self._readings:
+            return Status.SUCCESS
+        received_at = self._require_act_instant()
+        for reading in self._readings:
+            record = ReportClaimsRecord(
+                report_id=self._report_id,
+                activity_id=self._activity_id,
+                received_at=received_at,
+                reading=reading,
+            )
+            try:
+                self.datalayer.create(record)
+            except VultronAlreadyExistsError:
+                self.logger.debug(
+                    "%s: claims record for document '%s' of report '%s'"
+                    " in activity '%s' from actor '%s' already held",
+                    self.name,
+                    reading.document_id,
+                    self._report_id,
+                    self._activity_id,
+                    self._sender_id,
+                )
+                continue
+            self._log_stored(reading)
+        return Status.SUCCESS
+
+    def _log_stored(self, reading: ClaimsReading) -> None:
+        for skipped in reading.skipped:
+            self.logger.info(
+                "%s: skipped %s field '%s' of document '%s' in activity '%s'"
+                " from actor '%s': %s (CSAF-04-003)",
+                self.name,
+                reading.document_format,
+                skipped.path,
+                reading.document_id,
+                self._activity_id,
+                self._sender_id,
+                skipped.reason,
+            )
+        self.logger.info(
+            "%s: stored the %s claims of document '%s' on report '%s' from"
+            " activity '%s', actor '%s': %s with %d schema error(s), %d"
+            " field(s) skipped",
+            self.name,
+            reading.document_format,
+            reading.document_id,
+            self._report_id,
+            self._activity_id,
+            self._sender_id,
+            reading.schema_verdict.value,
+            len(reading.schema_errors),
+            len(reading.skipped),
+        )
 
 
 class CheckOfferNamesReceiverInToNode(DataLayerConditionWithPorts):
@@ -177,8 +269,10 @@ def submit_report_received_effects(
     carried.
 
     Store the report (intake has recorded the Offer); for an Offer that
-    names a report, also write the offer record (CM-15-002).  The factory's
-    door guards have already admitted the Offer (HP-01-005).
+    names a report, also write the offer record (CM-15-002), then a claims
+    record for each CSAF document the report carries (CSAF-04-004), so a
+    failed claims write never holds the offer record back.  The
+    factory's door guards have already admitted the Offer (HP-01-005).
     """
     report_id = request.report_id
     nodes: list[py_trees.behaviour.Behaviour] = []
@@ -205,11 +299,21 @@ def submit_report_received_effects(
                 offer_to=list(activity.to or []),
             )
         )
+    if report_id and request.claims_readings:
+        nodes.append(
+            StoreReportClaimsRecordsNode(
+                report_id=report_id,
+                activity_id=request.activity_id,
+                sender_id=request.actor_id,
+                readings=request.claims_readings,
+            )
+        )
     return nodes
 
 
 __all__ = [
     "CheckOfferNamesReceiverInToNode",
+    "StoreReportClaimsRecordsNode",
     "StoreSubmitReportOfferRecordNode",
     "submit_report_received_effects",
 ]

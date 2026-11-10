@@ -586,6 +586,12 @@ _BASE = f"{_VOCAB}.base.objects"
 #: deliberately not what that value deserializes to, each with the reason
 #: (VM-01-011).  ``test_every_exemption_is_live`` keeps this set from outliving
 #: its members.
+_CORE_FILE_TYPE = (
+    "ARCH-25-003 (ADR-0099): a core attached-file class owns this `type`, so "
+    "a report's attachments are core objects (CSAF-01-001); the wire class "
+    "declares itself an alias (VM-01-014)"
+)
+
 _UNREGISTERED_WIRE_TYPES: dict[str, str] = {
     f"{_BASE}.base.as_Object": "abstract root of the AS2 object branch; the "
     "class an unresolved inline object is left to, not a type Vultron emits",
@@ -602,6 +608,10 @@ _UNREGISTERED_WIRE_TYPES: dict[str, str] = {
     "as_VultronApplication owns `Application`",
     f"{_BASE}.actors.as_Group": "VM-01-013 sanctioned shadow: "
     "as_VultronGroup owns `Group`",
+    f"{_BASE}.object_types.as_Audio": _CORE_FILE_TYPE,
+    f"{_BASE}.object_types.as_Document": _CORE_FILE_TYPE,
+    f"{_BASE}.object_types.as_Image": _CORE_FILE_TYPE,
+    f"{_BASE}.object_types.as_Video": _CORE_FILE_TYPE,
 }
 
 

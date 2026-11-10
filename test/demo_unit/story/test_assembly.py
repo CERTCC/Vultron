@@ -501,9 +501,9 @@ def test_the_named_prefixes_were_collected() -> None:
 
     An empty derivation makes ``parametrize`` emit one skipped test and a
     green run (``empty_parameter_set_mark`` defaults to ``skip``), so the
-    zero-target case needs its own assertion (DF-09-007).  Its sibling
-    :func:`test_every_story_prop_name_is_unique` carries the same guard
-    inline, where its subject is a dict it builds itself.
+    zero-target case needs its own assertion (DF-09-007).  The prop
+    enumeration in ``test/architecture/test_story_props_have_readers.py``
+    carries the same guard, as ``_assert_declarations_found``.
     """
     assert _NAMED_PREFIXES, (
         "no named prefix was collected, so the check below proves nothing; "

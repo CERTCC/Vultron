@@ -65,6 +65,7 @@ uv run pytest test/test_config.py --tb=short
 | API contract | Yes | Trigger/demo route set and response keys | `test/adapters/driving/fastapi/test_trigger_registry_routes.py` and `test_trigger_routes_contract.py` (TRIG-12-007, TRIG-12-001, TRIG-12-002) |
 | Guard set | Yes | The limit- and agreement-enforcing tests whose inputs are Markdown, `specs/`, `AGENTS.md` or `notes/` | `.github/workflows/guard-tests.yml`, which runs them on every pull request with no `paths` filter, because `python-app.yml`'s filter lists none of those inputs (PAD-18-023); the local mirror no longer runs them, and `test/ci/test_guard_tests_workflow.py` pins the list |
 | E2E (demo CI) | Yes | Multi-actor demo via Docker Compose | `.github/workflows/demo-integration.yml`, matrix from `.github/demo-scenarios.json`; separate from the pytest suite |
+| Demo verdict (base vs. head) | Yes | What a composed scenario records and checks, between a pull request's merge base and its head | `.github/workflows/demo-verdict.yml` records every registered scenario in-process at both commits and runs `compare-demo-runs`; a difference fails the job unless the pull request carries `demo-verdict-change` (DEMOCI-11-054 to DEMOCI-11-064), and `test/ci/test_demo_verdict_workflow.py` pins the job |
 | Demo UI (`ui/`) | Lint and build only | ESLint and `tsc -b && vite build` | `.github/workflows/ui.yml`; `ui/package.json` declares no test script |
 | Docker config | Yes | Compose file validity + env-var wiring | `test/docker/test_compose_env_vars.py`, `test/docker/test_docker_compose_config.sh`, `test/demo/test_multi_actor_compose.py` |
 
@@ -123,6 +124,8 @@ uv run pytest test/test_config.py --tb=short
 - `.github/workflows/python-app.yml`
 - `.github/workflows/guard-tests.yml`
 - `.github/workflows/demo-integration.yml`
+- `.github/workflows/demo-verdict.yml`
+- `test/ci/test_demo_verdict_workflow.py`
 - `.github/workflows/ui.yml`
 - `test/metadata/test_gate_ceiling.py`
 - `test/demo_recordings/test_recorder_smoke.py`
