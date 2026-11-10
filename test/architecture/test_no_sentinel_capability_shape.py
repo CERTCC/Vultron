@@ -35,7 +35,6 @@ import dataclasses
 import importlib
 import pkgutil
 import re
-from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -143,10 +142,10 @@ _SENTENCE_END = re.compile(r"(?<=[.;:])\s+")
 _DocNode = ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
 
 
-def sentinel_writer_claims(source: str, label: str) -> list[str]:
+def sentinel_writer_claims(tree: ast.AST, label: str) -> list[str]:
     """Name each docstring sentence crediting a Sentinel with a written key."""
     claims: list[str] = []
-    for node in ast.walk(ast.parse(source)):
+    for node in ast.walk(tree):
         if not isinstance(node, _DocNode):
             continue
         doc = ast.get_docstring(node)
@@ -165,14 +164,17 @@ def sentinel_writer_claims(source: str, label: str) -> list[str]:
 
 @pytest.mark.spec("BT-18-013")
 def test_no_docstring_credits_a_sentinel_with_a_blackboard_write() -> None:
-    sources = sorted((_corpus.REPO_ROOT / "vultron").rglob("*.py"))
-    assert sources, "found no source files to scan"
+    scanned = list(
+        _corpus.files_mentioning(
+            "Sentinel", under=_corpus.REPO_ROOT / "vultron"
+        )
+    )
+    assert scanned, "found no source file that mentions a Sentinel"
     claims = [
         claim
-        for path in sources
+        for path, tree in scanned
         for claim in sentinel_writer_claims(
-            path.read_text(encoding="utf-8"),
-            Path(path).relative_to(_corpus.REPO_ROOT).as_posix(),
+            tree, path.relative_to(_corpus.REPO_ROOT).as_posix()
         )
     ]
     assert claims == []
@@ -186,7 +188,7 @@ def test_docstring_check_catches_a_sentinel_writer_claim() -> None:
         "    A Sentinel never writes into this tree.\n"
         '    """\n'
     )
-    claims = sentinel_writer_claims(source, "planted.py")
+    claims = sentinel_writer_claims(_corpus.parse_inline(source), "planted.py")
     assert claims == [
         "planted.py:Reads: Reads the flag written by the upstream FooSentinel.",
         "planted.py:Reads: A Sentinel writes the change-detection flag this "
