@@ -404,7 +404,8 @@ dev = [
     # 3.8.0's `loadgroup` rename of `item._nodeid` is dropped and every
     # `xdist_group` mark does nothing (#6181; pytest #15303, pytest-xdist #1386).
     # Lift it once a pytest-xdist release carries both #1388 (the fix) and #1402
-    # (its late-deselection crash, #1399); `test/test_xdist_loadgroup.py` decides.
+    # (the fix for #1388's late-deselection crash, #1399);
+    # `test/test_xdist_loadgroup.py` decides.
     "pytest>=9.1.1,<9.2",
     "pytest-timeout>=0.5",
     "pytest-xdist>=3.8.0",

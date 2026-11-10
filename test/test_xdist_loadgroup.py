@@ -21,11 +21,13 @@ nothing (pytest #15303, pytest-xdist #1386), so a pytest or xdist bump can break
 the grouping with no failing test anywhere but those pairs — and only when a run
 happens to split them.
 
-The session below runs with this repo's real ``addopts`` and enough workers that
-an ungrouped split is certain. Its conftest also drops a test in a ``trylast``
-collection hook, as ``test/conftest.py`` and ``test/demo/conftest.py`` change the
-collection after xdist's own hook runs; pytest-xdist #1399 crashes or mislabels
-groups in exactly that case.
+The session below runs with this repo's real ``addopts`` on enough workers that
+broken grouping splits the group in practice (40 of 40 runs under plain
+``load``), though not with certainty. Its conftest also drops a test in a
+``trylast`` collection hook, after xdist's own hook has run. pytest-xdist #1399
+crashes or mislabels groups in that case, and this repo reaches it for real:
+``-m 'not integration'`` in ``addopts`` deselects the tests that
+``test/demo/conftest.py`` marks ``integration``.
 """
 
 import json
