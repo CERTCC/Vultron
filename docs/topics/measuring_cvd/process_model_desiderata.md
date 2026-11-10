@@ -292,18 +292,19 @@ Thus a measure sees only the deployers that join, and a case that invites no dep
 Some preferences are not orderings of two events.
 These preferences are about the shape of a history: how many steps the history has, or how the participants reached a decision.
 
-| Preference | Process model |
+| Preference | Measure |
 |---|---|
-| A participant answers an embargo Invite before its RSVP deadline, rather than leaving it to a pocket veto | PEC: `AGREED` or `DECLINED` over `TIMED_OUT`, not counting the Invites the case's close times out (CM-23-014) |
-| A case revises its embargo few times | EM: few passes through Revise |
-| An embargo is as short as the fixes allow | [EM Principles](../process_models/em/principles.md) |
-| A report is judged correctly: a real vul is Valid and a bogus report is Invalid | RM: validation accuracy |
+| A participant answers an embargo Invite before its RSVP deadline, rather than leaving it to a pocket veto | For each participant, the Invites answered before they time out, out of those Invites and the Invites that time out at their RSVP deadline, not counting the Invites the case's close times out (CM-23-014) |
+| A case revises its embargo few times | For the case, the number of embargo revisions: the `SUPERSEDED` entries in the embargo register |
+| An embargo is as short as the fixes allow ([EM Principles](../process_models/em/principles.md)) | For the case, the embargo duration divided by the time from embargo start until the last vendor's fix is ready |
+| A report is judged correctly: a real vul is Valid and a bogus report is Invalid | For each participant, the validation decisions known to be correct out of those whose correctness is known |
 
-[Reward Functions](./reward_functions.md) already uses these preferences as criteria for reward functions over RM and EM histories.
-This page lists these preferences to make the list complete, not as new proposals.
+[Reward Functions](./reward_functions.md) defines each measure and the events that it reads.
+Each measure is a simple count or ratio from the event history, and no measure combines them into one reward function ([ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md)).
+The preferences come from the criteria for reward functions over RM and EM histories in the original research, so this page lists them to make the list complete, not as new proposals.
 Order desiderata and path preferences need different measures.
 An order desideratum fits the skill coefficient ($\alpha_d$), which counts how often the order holds.
-A path preference needs a score over the whole history.
+A path preference is not an order of two events, so it has a count or ratio of its own instead.
 
 ---
 
