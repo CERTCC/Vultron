@@ -39,6 +39,7 @@ related_notes:
   - notes/demo-scenario-authoring.md
   - notes/demo-future-ideas.md
   - notes/testing-pitfalls.md
+  - notes/ci-workflow-authoring.md
 relevant_packages:
   - vultron/demo/helpers
   - vultron/demo/scenario
@@ -424,11 +425,17 @@ vendor-first half, whose Reporter tells a Vendor.
   `triages=`: a vendor judges the report it was invited over, a coordinator joining to
   coordinate does not.
 - **A demo PR is checked by recording base and head, not by the committed files.** On
-  a PR that changes `vultron/demo/`, CI records every registered scenario in-process
-  at the base commit and at the head and compares each scenario's two runs
+  a PR that changes `vultron/demo/`, `demo-verdict.yml` records every registered
+  scenario in-process at both commits and compares each scenario's two runs
   (DEMOCI-11-054, DEMOCI-11-055). Nothing is committed, so no PR regenerates a
   recording (#3901) and a stale committed recording does not matter. Core-only PRs are
   not consolidations; the daily `demo-recordings.yml` run covers their drift.
+- **The two commits are the merge base and the head, each recorded by its own code.**
+  The base branch's tip is not one of them: a tip that moved ahead would attribute
+  `main`'s own verdict changes to this PR. The base side runs in a `git worktree` at
+  the merge base, under that commit's own `uv sync --dev --frozen`, because recording
+  it with the head's installed code compares the head with itself and reports every
+  scenario unchanged. The head's code then reads both written sides and compares them.
 - **Two traces, because each is blind to what the other sees.** The normalized ledger
   shows an added act, a changed note text or a changed argument. The check tree shows
   every `demo_step`, `demo_check` and `demo_gate` the run entered, nested as it ran,
@@ -456,26 +463,44 @@ vendor-first half, whose Reporter tells a Vendor.
   the diff to its summary, so the opt-out shows what it admits (DEMOCI-11-063,
   DEMOCI-11-064). The two halves are declared separately: `compare-demo-runs` takes
   `--allow-difference`, which prints every difference and exits zero, and the job
-  passes that flag exactly when the pull request carries the label (#6026). A
-  difference exits 4 rather than 1, so an opt-out keyed on "non-zero" cannot excuse a
-  crashed recorder as a deliberate change. The comparison fails on an empty scenario
-  set (DEMOCI-11-062, DF-09-009).
+  passes that flag exactly when the pull request carries the label. A difference exits
+  4 rather than 1, so an opt-out keyed on "non-zero" cannot excuse a crashed recorder
+  as a deliberate change. The comparison fails on an empty scenario set
+  (DEMOCI-11-062, DF-09-009).
+- **The label is a trigger, not just a condition, and the `CI gate` carries the same
+  two types.** `demo-verdict.yml` adds `labeled` and `unlabeled` to its
+  `pull_request` types, so applying the label turns the job green and removing it
+  turns the job red again, neither needing a hand re-run. The second direction is the
+  one that matters: an opt-out that survives its own removal admits every later
+  difference too. `ci-gate.yml` needs both types for the same reason — it judges once
+  per pull-request event and is the one required check, so an event it misses leaves
+  its earlier verdict standing over a check that has since turned red, and the
+  ruleset admits the merge. The rule generalizes: the gate's types cover every other
+  pull-request workflow's, which `test/ci/test_ci_gate.py` pins. A label a workflow's
+  own `GITHUB_TOKEN` applies raises no event, so the size label re-runs neither
+  ([ci-workflow-authoring](ci-workflow-authoring.md)).
+- **The job's verdict is the command's exit status, propagated.** It decides nothing
+  itself: 4 is a difference, 3 an empty scenario set, 1 a crashed recorder, and a job
+  that re-derived any of the three from the log would be a second place for them to be
+  confused. It owns only which two commits to record, whether the label is on, and
+  writing the comparison's output to its step summary — on the failing arm as well,
+  since the diff a reader needs is on exactly the run that failed.
 - **The plot manifest catches a reorder for free.** It lists each story's choices and
   fragment names, read without running anything, and drift-fails on any change in
   order (DEMOCI-11-034, DEMOCI-11-035). `TestSharedPrefixes` compares two *committed*
   recordings with each other, so a reordered shared fragment moves both alike and
-  still passes it. Until the base-versus-head job is built (#6026), run the comparison
-  by hand in a PR that edits *inside* a fragment. That is the one change the manifest
-  cannot see; a reorder drift-fails the manifest instead. On the base commit run
-  `uv run compare-demo-runs --write /tmp/runs/base`, on the head `--write
-  /tmp/runs/head`, then
-  `uv run compare-demo-runs --base /tmp/runs/base --head /tmp/runs/head`. **Two
+  still passes it. `demo-verdict.yml` is what catches the reorder a PR makes. Running
+  the comparison by hand is for reading a difference before pushing, most of all in a
+  PR that edits *inside* a fragment: that is the one change the manifest cannot see,
+  while a reorder drift-fails the manifest instead. On the base commit run `uv run
+  compare-demo-runs --write /tmp/runs/base`, on the head `--write /tmp/runs/head`,
+  then `uv run compare-demo-runs --base /tmp/runs/base --head /tmp/runs/head`. **Two
   directories, outside the repository**: one name in both positions makes the head
   write overwrite the base and the comparison compare a directory with itself, which
   reports every scenario unchanged — the silent pass of #5589 again, so the command
   refuses it. It reads both traces, so it needs no clean tree and overwrites no
-  committed file, and nothing is left to be read against the base by hand. Step-mark
-  drift stays the scheduled `demo-recordings` run's business: a mark can move to a
+  committed file. Step-mark drift stays the scheduled `demo-recordings` run's
+  business: a mark can move to a
   different ledger tail with the ledger unchanged, and the comparison *compares*
   neither the marks nor the committed files. It does still **read** the marks — a run
   that leaves none, or leaves them out of its declared path's order, fails
@@ -535,6 +560,5 @@ point stops a run there.
 2. The clock-reading read paths that keep a shared stretch from being
    byte-stable: #5649, #5650, #5651 and #5652. The plot manifest they follow is
    committed.
-3. Verdict evidence: the check-tree capture and compare command (#6025), then
-   the base-versus-head CI job that calls it (#6026). The story rendering
-   (#6028) needed only the plot manifest, so nothing blocks it.
+3. The story rendering (#6028) needs only the plot manifest, so nothing blocks
+   it.
