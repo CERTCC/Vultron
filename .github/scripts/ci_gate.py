@@ -20,7 +20,7 @@ What counts as "every other check":
 - The latest run of each workflow on the head commit, except this gate's own
   workflow. A run superseded on the same commit (its concurrency group
   cancelled it, or an ``edited`` event re-ran it) is not judged; only its
-  newest run is. Waiting on workflow runs, not only on check runs, is what
+  newest run is, and a cancelled run never outranks one that was not. Waiting on workflow runs, not only on check runs, is what
   catches a job whose check run does not exist yet because it ``needs:`` a job
   still running, and a run that failed before any job started.
 - The check runs of those latest runs, which name the red jobs.
@@ -93,14 +93,31 @@ def _path(run: Record) -> str:
     return str(run.get("path", "")).split("@", 1)[0]
 
 
+def _is_cancelled(run: Record) -> bool:
+    return run.get("conclusion") == "cancelled"
+
+
 def latest_runs(runs: Iterable[Record], own_path: str) -> list[Record]:
-    """The newest run of each workflow, without this gate's own workflow."""
+    """The newest run of each workflow, without this gate's own workflow.
+
+    A cancelled run never outranks a run of the same workflow that was not
+    cancelled. A burst of events (Dependabot's ``opened`` then one ``labeled``
+    per label) starts several runs of one workflow at once, and its concurrency
+    group lets one survive. GitHub does not admit them in id order, so the
+    survivor can carry the lower id, and judging by id alone would judge the run
+    the group cancelled (PR #6209). A workflow whose every run was cancelled is
+    judged by its newest, and that verdict is red.
+    """
     newest: dict[Any, Record] = {}
     for run in runs:
         if _path(run) == own_path:
             continue
         key = run["workflow_id"]
-        if key not in newest or run["id"] > newest[key]["id"]:
+        held = newest.get(key)
+        if held is None or (_is_cancelled(held), run["id"]) > (
+            _is_cancelled(run),
+            held["id"],
+        ):
             newest[key] = run
     return sorted(newest.values(), key=lambda r: r["id"])
 
