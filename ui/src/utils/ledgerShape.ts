@@ -33,6 +33,13 @@ function isLedgerTypeName(value: unknown): value is LedgerTypeName {
  * An ISO 8601 duration as Pydantic writes a `timedelta` (`P1DT2H3.5S`, `-PT5S`):
  * at least one component, and a time part only when it holds one.
  */
+/**
+ * An ISO 8601 date-time as Pydantic writes a `datetime`
+ * (`2026-01-01T00:00:00Z`, `2026-01-01T00:00:00.5+00:00`). `Date.parse` alone
+ * is not the check: it also takes `"1"` or `"March 7"`.
+ */
+const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/
+
 const ISO_DURATION = /^-?P(?!$)(\d+(\.\d+)?Y)?(\d+(\.\d+)?M)?(\d+(\.\d+)?W)?(\d+(\.\d+)?D)?(T(?=\d)(\d+(\.\d+)?H)?(\d+(\.\d+)?M)?(\d+(\.\d+)?S)?)?$/
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,7 +112,9 @@ class ShapeChecker {
         return shape.nonEmpty && value.trim() === '' ? 'must not be empty' : null
       case 'datetime':
         if (typeof value !== 'string') return `expected a datetime string, got ${describe(value)}`
-        return Number.isNaN(Date.parse(value)) ? `${describe(value)} is not a date-time` : null
+        return ISO_DATETIME.test(value) && !Number.isNaN(Date.parse(value))
+          ? null
+          : `${describe(value)} is not an ISO 8601 date-time`
       case 'duration':
         if (typeof value !== 'string') return `expected a duration string, got ${describe(value)}`
         return ISO_DURATION.test(value) ? null : `${describe(value)} is not an ISO 8601 duration`
@@ -143,7 +152,13 @@ class ShapeChecker {
     }
   }
 
-  /** A union holds when any member does; each member is tried on its own. */
+  /**
+   * A union holds when any member does; each member is tried on its own.
+   *
+   * A trial's checker is thrown away, with the objects it checked, so a `ref`
+   * member would be checked again by `walk`. No exported union holds a `ref`;
+   * one that does needs the passing trial's objects marked checked here.
+   */
   private unionProblem(value: unknown, members: readonly FieldShape[], path: string): string | null {
     const failures: string[] = []
     for (const member of members) {

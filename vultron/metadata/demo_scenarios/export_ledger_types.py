@@ -195,7 +195,7 @@ class _Projector:
             return _constrained(shape, _metadata(args[1:]), annotation)
         if origin is Literal and len(args) == 1 and isinstance(args[0], str):
             return {"kind": "literal", "value": args[0]}
-        if origin is dict:
+        if origin is dict and _is_json_object(args):
             return {"kind": "object"}
         if origin is list and len(args) == 1:
             item_probe: Probe = lambda value: probe([value])[0]  # noqa: E731
@@ -204,7 +204,15 @@ class _Projector:
                 "items": self.shape(args[0], enum_name, item_probe),
             }
         if _is_union(annotation):
-            shape, _ = self.field_shape(annotation, enum_name, probe)
+            shape, nullable = self.field_shape(annotation, enum_name, probe)
+            if nullable:
+                # Only a field carries `nullable`; a nested `X | None` would
+                # be projected as non-null and refuse what the model admits.
+                raise TypeError(
+                    f"No ledger shape for nested optional {annotation!r} "
+                    f"(enum name {enum_name!r}). Teach export_ledger_types.py "
+                    "a nullable shape rather than dropping the None."
+                )
             return shape
         return self._class_shape(annotation, enum_name, probe)
 
@@ -219,7 +227,10 @@ class _Projector:
             if isinstance(states, type) and issubclass(states, Enum):
                 return self._enum(
                     enum_name,
-                    [probe(dimension(state=m)) for m in states],
+                    [
+                        probe(dimension(**{DIMENSION_STATE_FIELD: m}))
+                        for m in states
+                    ],
                 )
         if annotation in self._exported:
             return {"kind": "ref", "type": self._exported[annotation]}  # type: ignore[index]
@@ -293,6 +304,17 @@ def _integer_bound(item: object) -> tuple[str, int] | None:
     if isinstance(item, annotated_types.Lt) and isinstance(item.lt, int):
         return "maximum", item.lt - 1
     return None
+
+
+def _is_json_object(args: tuple[object, ...]) -> bool:
+    """Whether ``dict[*args]`` is an untyped JSON object: string keys, any values.
+
+    A mapping with typed values says more than ``Record<string, unknown>``,
+    so it is not projected as one.
+    """
+    return (
+        len(args) == 2 and args[0] in (str, NonEmptyString) and args[1] is Any
+    )
 
 
 def _is_union(annotation: object) -> bool:

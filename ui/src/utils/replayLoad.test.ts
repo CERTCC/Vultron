@@ -11,8 +11,8 @@ import { EMPTY_LEDGER, laneVfdState, ledgerLoadError, mergeLedgers } from './rep
 
 const rv = parseCaseLedger(rvLedgerRaw, 'rv')
 
-function rejectedLine(source: string, lineNumber: number): RejectedLedgerLine {
-  return { source, lineNumber, problems: [`problem at ${lineNumber}`], text: '{}' }
+function rejectedLine(source: string, lineNumber: number, text = `{"line": ${lineNumber}}`): RejectedLedgerLine {
+  return { source, lineNumber, problems: [`problem at ${lineNumber}`], text }
 }
 
 describe('mergeLedgers', () => {
@@ -22,6 +22,13 @@ describe('mergeLedgers', () => {
     const merged = mergeLedgers([first, second])
     expect(merged.entries).toEqual(rv.entries.slice(0, 3))
     expect(merged.rejected.map((line) => line.source)).toEqual(['a.jsonl', 'b.jsonl'])
+  })
+
+  it('lists a line rejected again in a later part once, at its first source', () => {
+    const replica: ParsedLedger = { entries: [], rejected: [rejectedLine('actor1/case-actor.jsonl', 4, '{"bad": 1}')] }
+    const canonical: ParsedLedger = { entries: [], rejected: [rejectedLine('case-actor/case-actor.jsonl', 4, '{"bad": 1}')] }
+    const merged = mergeLedgers([replica, canonical, replica])
+    expect(merged.rejected.map((line) => line.source)).toEqual(['actor1/case-actor.jsonl'])
   })
 
   it('starts from nothing, which is also what Start Over returns to', () => {
@@ -63,7 +70,11 @@ describe('laneVfdState', () => {
     expect(laneVfdState(state, 'reporter', last)).toBeUndefined()
   })
 
-  it('gives no VFD row to the CASE_MANAGER', () => {
-    expect(laneVfdState(state, 'casemanager', last)).toBeUndefined()
+  it('gives no VFD row to the CASE_MANAGER, even with a VFD token at the step', () => {
+    // The mapper never records one for the CASE_MANAGER; the 'N/A' rule must
+    // hold on its own if a step ever does.
+    const withToken = { ...last, vfd: { ...last.vfd, casemanager: 'vfd' } }
+    const seeded = { ...state, stepSnapshots: [...snapshots, withToken] }
+    expect(laneVfdState(seeded, 'casemanager', withToken)).toBeUndefined()
   })
 })

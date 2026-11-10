@@ -222,7 +222,10 @@ function AppLogReplay() {
       // Read all uploaded files, then either accumulate or replace.
       const parts: ParsedLedger[] = shouldAccumulate ? [accumulated] : []
       for (let i = 0; i < files.length; i++) {
-        parts.push(parseCaseLedger(await files[i].text(), files[i].name))
+        // A folder upload names each file by its path, so the CASE_MANAGER's and
+        // each replica's `case-actor.jsonl` stay apart in the rejected list.
+        const file = files[i]
+        parts.push(parseCaseLedger(await file.text(), file.webkitRelativePath || file.name))
       }
       const ledger = mergeLedgers(parts)
       const loadError = ledgerLoadError('The selected files', ledger)
@@ -242,8 +245,9 @@ function AppLogReplay() {
   }, [accumulated, rebuildFromLedger])
 
   // Load a committed ledger from its raw text (no file picker needed). Shared by
-  // the happy-path sample and the synthetic violation fixture.
-  const loadRawLedger = useCallback((raw: string, label: string) => {
+  // the happy-path sample and the synthetic violation fixture. Returns whether
+  // the ledger loaded; a refused load leaves the previous replay in place.
+  const loadRawLedger = useCallback((raw: string, label: string): boolean => {
     setLoading(true)
     setError(null)
 
@@ -254,9 +258,11 @@ function AppLogReplay() {
       setAccumulated(ledger)
       setUploadCount(prev => prev + 1)
       rebuildFromLedger(ledger)
+      return true
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to load ${label}`)
       console.error(`Error loading ${label}:`, err)
+      return false
     } finally {
       setLoading(false)
     }
@@ -270,8 +276,11 @@ function AppLogReplay() {
   // selector, which is misleading inside a `[...]` character class).
   const handleLoadScenario = useCallback(
     (scenario: SampleScenario) => {
-      loadRawLedger(scenario.raw, scenario.title)
-      setLoadedScenarioName(scenario.title.replace(/^[^\p{L}]+/u, '').trim())
+      // Name the header only for a load that replaced the replay, so a refused
+      // recording never labels the previous timeline.
+      if (loadRawLedger(scenario.raw, scenario.title)) {
+        setLoadedScenarioName(scenario.title.replace(/^[^\p{L}]+/u, '').trim())
+      }
     },
     [loadRawLedger]
   )

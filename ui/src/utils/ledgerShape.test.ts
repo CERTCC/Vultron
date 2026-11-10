@@ -135,10 +135,27 @@ describe('ledgerLineProblems', () => {
     ])
   })
 
-  it('refuses a timestamp that is not a date-time', () => {
+  it('refuses a timestamp that is not an ISO 8601 date-time', () => {
     expect(ledgerLineProblems({ ...entry(), published: 'yesterday' })).toEqual([
-      'published: "yesterday" is not a date-time',
+      'published: "yesterday" is not an ISO 8601 date-time',
     ])
+    // Date.parse takes both of these; the model's serializer writes neither.
+    expect(ledgerLineProblems({ ...entry(), published: '1' })).toEqual([
+      'published: "1" is not an ISO 8601 date-time',
+    ])
+    expect(ledgerLineProblems({ ...entry(), published: 'March 7, 2026' })).toEqual([
+      'published: "March 7, 2026" is not an ISO 8601 date-time',
+    ])
+    // Shaped right, but no such date.
+    expect(ledgerLineProblems({ ...entry(), published: '2026-13-40T00:00:00Z' })).toEqual([
+      'published: "2026-13-40T00:00:00Z" is not an ISO 8601 date-time',
+    ])
+  })
+
+  it('accepts each date-time form the model writes', () => {
+    for (const published of ['2026-01-01T00:00:00Z', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00.123456-05:00']) {
+      expect(ledgerLineProblems({ ...entry(), published })).toEqual([])
+    }
   })
 
   it('accepts either form of the JSON-LD @context and refuses any other', () => {
@@ -154,6 +171,18 @@ describe('ledgerLineProblems', () => {
       'payloadSnapshot.object.cvdRole[1]: "FINDER" is not a CvdRole (' +
         'REPORTER, VENDOR, DEPLOYER, COORDINATOR, OBSERVER, CASE_OWNER, CASE_MANAGER, ' +
         'CVE_NUMBERING_AUTHORITY)',
+    ])
+  })
+
+  it('refuses a wrong boolean, a wrong type literal and a non-object status', () => {
+    expect(ledgerLineProblems(entry({ ...participantStatus(), caseEngagement: 'yes' }))).toEqual([
+      'payloadSnapshot.object.caseEngagement: expected a boolean, got "yes"',
+    ])
+    expect(ledgerLineProblems({ ...entry(), type: 'Activity' })).toEqual([
+      'type: expected "CaseLedgerEntry", got "Activity"',
+    ])
+    expect(ledgerLineProblems(entry({ ...participantStatus(), caseStatus: 'x' }))).toEqual([
+      'payloadSnapshot.object.caseStatus: expected a CaseStatus object, got "x"',
     ])
   })
 

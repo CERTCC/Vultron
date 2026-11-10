@@ -13,12 +13,21 @@ export const EMPTY_LEDGER: ParsedLedger = { entries: [], rejected: [] }
 /**
  * Join parsed ledgers in order: the entries of all, and every rejected line of
  * all, so a later upload never hides an earlier upload's rejected lines.
+ *
+ * A rejected line whose text an earlier part already rejected is listed once,
+ * at its first source: uploading every replica's folder, or the same file
+ * again, repeats each line, as `normalizeLedger` dedups the entries by hash.
  */
 export function mergeLedgers(parts: readonly ParsedLedger[]): ParsedLedger {
-  return {
-    entries: parts.flatMap((part) => part.entries),
-    rejected: parts.flatMap((part) => part.rejected),
-  }
+  const seen = new Set<string>()
+  const rejected = parts
+    .flatMap((part) => part.rejected)
+    .filter((line) => {
+      if (seen.has(line.text)) return false
+      seen.add(line.text)
+      return true
+    })
+  return { entries: parts.flatMap((part) => part.entries), rejected }
 }
 
 /**

@@ -278,6 +278,40 @@ class _Patterned(CoreObject):
     code: str = Field(default="A", pattern=r"^[A-Z]$")
 
 
+class _TypedMapping(CoreObject):
+    """No ``type_``, so it is not registered in the core vocabulary."""
+
+    counts: dict[str, int] = {}
+
+
+class _NestedOptional(CoreObject):
+    """No ``type_``, so it is not registered in the core vocabulary."""
+
+    labels: list[str | None] = []
+
+
+def test_a_typed_mapping_fails_the_export_rather_than_typing_it_loosely() -> (
+    None
+):
+    # Only dict[str, Any] is an untyped JSON object; dict[str, int] says more.
+    with pytest.raises(TypeError, match="No ledger shape"):
+        project((LedgerType(_TypedMapping, "received"),))
+
+
+def test_the_payload_snapshot_is_an_untyped_object(
+    fields: dict[str, dict[str, export_ledger_types.FieldDef]],
+) -> None:
+    shape = fields["CaseLedgerEntry"]["payloadSnapshot"].shape
+    assert shape == {"kind": "object"}
+
+
+def test_a_nested_optional_fails_the_export_rather_than_dropping_none() -> (
+    None
+):
+    with pytest.raises(TypeError, match="nested optional"):
+        project((LedgerType(_NestedOptional, "received"),))
+
+
 def test_integer_bounds_and_minimum_lengths_are_projected() -> None:
     shapes, _ = project((LedgerType(_Bounded, "received"),))
     by_key = {field.key: field.shape for field in shapes["_Bounded"]}
