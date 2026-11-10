@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Unit tests for the Reject-replay convergence guard (SYNC-15-003)."""
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -20,6 +20,9 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
     should_replay,
 )
 from vultron.core.models.replication_state import VultronReplicationState
+
+#: The act's instant every check and record here is judged at (ADR-0176).
+_AT = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)
 
 
 class TestReplayFromHash:
@@ -52,7 +55,11 @@ def claim_replay_position(datalayer, *, case_id, peer_id, from_hash) -> bool:
     common path where entries do go out.
     """
     if not should_replay(
-        datalayer, case_id=case_id, peer_id=peer_id, from_hash=from_hash
+        datalayer,
+        case_id=case_id,
+        peer_id=peer_id,
+        from_hash=from_hash,
+        at=_AT,
     ):
         return False
     record_replay(
@@ -61,6 +68,7 @@ def claim_replay_position(datalayer, *, case_id, peer_id, from_hash) -> bool:
         peer_id=peer_id,
         from_hash=from_hash,
         through_index=0,
+        at=_AT,
     )
     return True
 
@@ -337,6 +345,7 @@ class TestZeroEntryReplayDoesNotRecordPosition:
             case_id=CASE_ID,
             peer_id=PARTICIPANT_ACTOR_ID,
             from_hash="tail",
+            at=_AT,
         )
         # No record_replay() — the caller sent zero entries.
         state_id = VultronReplicationState(
@@ -351,6 +360,7 @@ class TestZeroEntryReplayDoesNotRecordPosition:
             case_id=CASE_ID,
             peer_id=PARTICIPANT_ACTOR_ID,
             from_hash="tail",
+            at=_AT,
         )
         # Ledger has since grown; the peer Rejects at the same position, and a
         # real suffix is now missing.  It must not be suppressed.
@@ -359,6 +369,7 @@ class TestZeroEntryReplayDoesNotRecordPosition:
             case_id=CASE_ID,
             peer_id=PARTICIPANT_ACTOR_ID,
             from_hash="tail",
+            at=_AT,
         )
 
 
@@ -369,6 +380,7 @@ def _record(datalayer, *, from_hash: str, through_index: int | None) -> None:
         peer_id=PARTICIPANT_ACTOR_ID,
         from_hash=from_hash,
         through_index=through_index,
+        at=_AT,
     )
 
 
@@ -378,6 +390,7 @@ def _answered(datalayer, rejected_index: int | None) -> bool:
         case_id=CASE_ID,
         peer_id=PARTICIPANT_ACTOR_ID,
         rejected_index=rejected_index,
+        at=_AT,
     )
 
 

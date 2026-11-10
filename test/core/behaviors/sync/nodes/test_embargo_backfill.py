@@ -18,6 +18,7 @@ fan-out send refusing when it cannot decide the gate, and the genesis pre-seed
 for a peer the gate admits.
 """
 
+from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -86,7 +87,11 @@ def _admitted_paused_finder(datalayer) -> None:
     seed_case(datalayer, embargo_active=True)
     seed_ledger(datalayer, 3)
     record_embargo_pause(
-        datalayer, case_id=CASE_ID, peer_id=NON_SIGNATORY_ID, from_index=1
+        datalayer,
+        case_id=CASE_ID,
+        peer_id=NON_SIGNATORY_ID,
+        from_index=1,
+        at=datetime.now(UTC),
     )
     accept_embargo(datalayer, NON_SIGNATORY_ID)
 

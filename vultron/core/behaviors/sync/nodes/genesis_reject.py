@@ -25,7 +25,6 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
     MAX_REPLAY_COOLDOWN_SECONDS,
     cooldown_elapsed,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.services.genesis_reject_limit import (
@@ -79,13 +78,17 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
                 f"{self.name}: a DataLayer must be injected to limit genesis"
                 " Rejects (SYNC-15-021)"
             )
+        # The check and the stamp both use the act's instant (ADR-0176).
+        at = self._require_act_instant()
         # The read, the check and the write are one unit, so two deliveries
         # cannot both find no recent Reject and both send one.
         with self.datalayer.transaction():
             last_sent_at = last_genesis_reject_at(
                 self.datalayer, entry.case_id
             )
-            if not cooldown_elapsed(last_sent_at, MAX_REPLAY_COOLDOWN_SECONDS):
+            if not cooldown_elapsed(
+                last_sent_at, MAX_REPLAY_COOLDOWN_SECONDS, at=at
+            ):
                 self.logger.info(
                     "%s: holding entry '%s' (index=%d) for missing case '%s'"
                     " without a genesis Reject: actor '%s' sent one at %s,"
@@ -100,7 +103,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
                 )
                 self.withheld = True
                 return
-            asked_at = now_utc()
+            asked_at = at
             self.logger.warning(
                 "%s: case '%s' of log entry '%s' is not held; sending a"
                 " genesis Reject(CaseLedgerEntry) to '%s' (SYNC-15-001)",

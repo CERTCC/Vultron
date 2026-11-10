@@ -753,6 +753,7 @@ def _receive_reject(
         actor_id=OWNER_ACTOR_ID,
         activity=_make_event(entry, tail_hash=tail_hash),
         sync_port=sync_port,
+        at=helpers_clock.now_utc(),
     )
     assert result.status == Status.SUCCESS
 
@@ -862,6 +863,7 @@ def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
         actor_id=OWNER_ACTOR_ID,
         activity=_make_event(entries[0], tail_hash=""),
         sync_port=sync_port,
+        at=helpers_clock.now_utc(),
     )
 
     assert result.status == Status.FAILURE
@@ -878,6 +880,7 @@ def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
                 case_id=CASE_ID,
                 peer_id=PEER_ID,
                 rejected_index=rejected_index,
+                at=helpers_clock.now_utc(),
             )
             is declined
         )
@@ -910,6 +913,7 @@ def test_genesis_reject_naming_no_entry_is_not_declined(
         actor_id=OWNER_ACTOR_ID,
         activity=event,
         sync_port=sync_port,
+        at=helpers_clock.now_utc(),
     )
 
     assert result.status == Status.SUCCESS
@@ -977,6 +981,7 @@ def _sender_refused(datalayer, event) -> Status:
         activity=event,
         sync_port=sync_port,
         trigger_activity=trigger_activity,
+        at=helpers_clock.now_utc(),
     )
     if event.actor_id:  # a blank sender cannot even name a state record
         state_id = VultronReplicationState(

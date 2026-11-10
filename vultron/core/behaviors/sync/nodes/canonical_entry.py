@@ -38,7 +38,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
-from vultron.core.models._helpers import as_utc, now_utc, parse_published
+from vultron.core.models._helpers import as_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.predicates.addressing import snapshot_actor_id
@@ -215,6 +215,7 @@ def _validate_entry_timestamps(
     future_tolerance: timedelta | None,
     staleness_window: timedelta | None,
     skew_tolerance: timedelta,
+    at: datetime,
 ) -> None:
     """Enforce the claimed-timestamp invariants at the commit boundary.
 
@@ -261,6 +262,8 @@ def _validate_entry_timestamps(
         future_tolerance: CLP-14-007 ceiling; ``None`` disables the check.
         staleness_window: CLP-14-008 window; ``None`` disables the check.
         skew_tolerance: Slack allowed on CLP-14-013 for unsynchronised clocks.
+        at: The act's instant, which CLP-14-007 and CLP-14-008 measure
+            against; the guard reads no clock (ADR-0176).
 
     Raises:
         VultronCanonicalEntryError: On any claimed-timestamp violation.
@@ -331,10 +334,9 @@ def _validate_entry_timestamps(
             "within" if regression <= skew_tolerance else "outside",
             skew_tolerance,
         )
-    now = now_utc()
     if (
         future_tolerance is not None
-        and entry_published > now + future_tolerance
+        and entry_published > at + future_tolerance
     ):
         raise VultronCanonicalEntryError(  # CLP-14-007
             f"{semantic_type}: CLP-14-007 — entry published {entry_published} "
@@ -342,7 +344,7 @@ def _validate_entry_timestamps(
         )
     if (
         staleness_window is not None
-        and entry_published < now - staleness_window
+        and entry_published < at - staleness_window
     ):
         raise VultronCanonicalEntryError(  # CLP-14-008
             f"{semantic_type}: CLP-14-008 — entry published {entry_published} "
@@ -360,6 +362,7 @@ def _validate_canonical_entry(
     future_tolerance: timedelta | None = timedelta(minutes=5),
     staleness_window: timedelta | None = timedelta(days=7),
     skew_tolerance: timedelta = timedelta(minutes=5),
+    at: datetime,
 ) -> None:
     # Runs before idempotency check so malformed entries never reach the
     # equivalence lookup (CLP-07).
@@ -416,4 +419,5 @@ def _validate_canonical_entry(
         future_tolerance=future_tolerance,
         staleness_window=staleness_window,
         skew_tolerance=skew_tolerance,
+        at=at,
     )

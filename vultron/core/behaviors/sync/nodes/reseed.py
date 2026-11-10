@@ -56,7 +56,7 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
     read_replication_state,
     update_replication_state,
 )
-from vultron.core.models._helpers import _as_id, as_utc, now_utc
+from vultron.core.models._helpers import _as_id, as_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
@@ -87,9 +87,10 @@ RESEED_COOLDOWN_SECONDS: float = 30.0
 
 
 def should_reseed(
-    datalayer: CasePersistence, *, case_id: str, peer_id: str
+    datalayer: CasePersistence, *, case_id: str, peer_id: str, at: datetime
 ) -> bool:
-    """True unless *peer_id* was re-seeded within the cooldown.
+    """True unless *peer_id* was re-seeded within the cooldown before *at*,
+    the act's instant.
 
     Read-only: :func:`record_reseed` records a re-seed once it is queued.
 
@@ -99,6 +100,7 @@ def should_reseed(
     return cooldown_elapsed(
         None if state is None else state.last_reseeded_at,
         RESEED_COOLDOWN_SECONDS,
+        at=at,
     )
 
 
@@ -108,20 +110,21 @@ def record_reseed(
     case_id: str,
     peer_id: str,
     position: LedgerPosition,
+    at: datetime,
 ) -> None:
-    """Record that *peer_id* was just re-seeded with a copy at *position*.
+    """Record that *peer_id* was re-seeded at *at* with a copy at *position*.
 
     Kept in the peer's persisted replication state, beside its replay
     record, so the bound survives a restart (SYNC-04-002, SYNC-16-004).
+    *at* is the act's instant (ADR-0176).
     """
-    now = now_utc()
 
     def _record(state: VultronReplicationState) -> None:
-        state.last_reseeded_at = now
+        state.last_reseeded_at = at
         state.last_reseed_position = position
 
     update_replication_state(
-        datalayer, case_id=case_id, peer_id=peer_id, change=_record
+        datalayer, case_id=case_id, peer_id=peer_id, change=_record, at=at
     )
 
 
@@ -214,6 +217,7 @@ class ReseedPeerNode(_EmitSingleActivityBase):
             return f
         assert self.actor_id is not None
         datalayer = cast(CasePersistence, self.datalayer)
+        at = self._require_act_instant()
         try:
             self.withheld = peer_is_withheld(
                 datalayer, case_id=self.case_id, peer_id=self.peer_id
@@ -232,7 +236,7 @@ class ReseedPeerNode(_EmitSingleActivityBase):
             )
             return Status.SUCCESS
         if not should_reseed(
-            datalayer, case_id=self.case_id, peer_id=self.peer_id
+            datalayer, case_id=self.case_id, peer_id=self.peer_id, at=at
         ):
             self.rate_limited = True
             self.logger.info(
@@ -263,6 +267,7 @@ class ReseedPeerNode(_EmitSingleActivityBase):
                     case_id=self.case_id,
                     peer_id=self.peer_id,
                     position=position,
+                    at=at,
                 )
         except (VultronError, ValueError) as exc:
             # ValueError: a model's own validation (a pydantic

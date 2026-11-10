@@ -2294,6 +2294,8 @@ def _deliver_early_entry(
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID),
         sync_port=SyncActivityAdapter(datalayer),
+        # The act opens at the frozen clock, as the inbox's act clock would.
+        at=helpers_clock.now_utc(),
     )
 
 
@@ -2428,7 +2430,8 @@ def test_an_unheld_early_entry_inside_the_interval_names_the_withheld_reject(
             _make_event(second, actor_id=CASE_ACTOR_ACTOR_ID),
             sync_port=SyncActivityAdapter(datalayer),
             trigger_activity=TriggerActivityAdapter(datalayer),
-        )
+        ),
+        at=helpers_clock.now_utc(),
     )
 
     assert result.disposition == HandlerDisposition.REFUSED

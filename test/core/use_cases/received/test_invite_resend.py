@@ -21,7 +21,7 @@ its position.  ``test_invite_resend_after_queue_expiry.py`` drives both
 stores through the inbox pipeline.
 """
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import cast
 
@@ -326,7 +326,11 @@ def test_a_closed_or_off_roster_peer_is_owed_nothing(make_payload):
         return [
             invite.invite_id
             for invite in invite_resend.owed_invites(
-                case, dl, manager_id=MANAGER, peer_id=peer
+                case,
+                dl,
+                manager_id=MANAGER,
+                peer_id=peer,
+                at=datetime.now(UTC),
             )
         ]
 
@@ -774,7 +778,7 @@ def test_a_failed_cooldown_record_keeps_no_resend(make_payload, monkeypatch):
     case_id = "https://example.org/cases/resend-record-fails"
     dl, _ = _joined(case_id, make_payload)
 
-    def _fail(*_args: object) -> None:
+    def _fail(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError("record write failed")
 
     monkeypatch.setattr(invite_resend, "_record_resend", _fail)
@@ -796,9 +800,14 @@ def test_an_invite_for_an_embargo_the_register_lacks_is_not_owed(
         CaseParticipant, dl.read(case.actor_participant_index[JOINER])
     )
 
-    assert invite_resend._embargo_invite_owed(case, participant, revision_id)
+    assert invite_resend._embargo_invite_owed(
+        case, participant, revision_id, at=datetime.now(UTC)
+    )
     assert not invite_resend._embargo_invite_owed(
-        case, participant, "https://example.org/embargoes/not-registered"
+        case,
+        participant,
+        "https://example.org/embargoes/not-registered",
+        at=datetime.now(UTC),
     )
 
 

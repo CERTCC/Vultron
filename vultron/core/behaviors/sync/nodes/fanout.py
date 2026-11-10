@@ -244,6 +244,7 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
                 case_id=entry.case_id,
                 peer_id=peer_id,
                 from_index=entry.log_index,
+                at=self._require_act_instant(),
             )
         case_obj = datalayer.read(entry.case_id)
         if not isinstance(case_obj, VulnerabilityCase):

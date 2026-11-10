@@ -54,6 +54,7 @@ from ._ledger_network import (
     OWNER,
     PROPOSER,
     LedgerNetwork,
+    commit_entries_in_act,
 )
 
 _CAUSE = "https://example.org/activities/the-act"
@@ -381,14 +382,10 @@ def test_an_acknowledgement_short_of_the_reseed_is_no_error(
     or a hash this ledger does not hold, has shown no sign of applying that
     copy, so the repeat fault is a WARNING.
     """
-    from vultron.core.behaviors.embargo.copy_commit import (
-        commit_and_apply_embargo_entries,
-    )
-
     net, announce_id = _diverged(f"reseed-ack-{acknowledged}")
     first, *_ = ledger_entries(net.stores[MANAGER], net.case_id)
     change = net.consent_row_change(PROPOSER, EmbargoConsentState.DECLINED)
-    commit_and_apply_embargo_entries(
+    commit_entries_in_act(
         net.stores[MANAGER],
         net.case_id,
         [net.planned_consent_entry(change, _CAUSE)],
@@ -444,14 +441,10 @@ def test_a_divergence_past_the_last_reseed_is_routine(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A refused entry newer than the last copy is ordinary recovery."""
-    from vultron.core.behaviors.embargo.copy_commit import (
-        commit_and_apply_embargo_entries,
-    )
-
     net, _ = _diverged("reseed-newer")
     _report(net)
     change = net.consent_row_change(PROPOSER, EmbargoConsentState.DECLINED)
-    commit_and_apply_embargo_entries(
+    commit_entries_in_act(
         net.stores[MANAGER],
         net.case_id,
         [net.planned_consent_entry(change, _CAUSE)],

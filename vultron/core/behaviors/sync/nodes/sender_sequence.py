@@ -62,7 +62,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
-from vultron.core.models._helpers import _as_id, now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.base import LedgerPositionedEvent
 from vultron.core.models.sender_sequence import SenderSequenceOrder
 from vultron.core.participants.role_predicate import has_role
@@ -359,7 +359,8 @@ class HoldPastGapNode(DataLayerActionWithPorts):
     waited out the wait (``ledger.sender_sequence_hold_cap`` and
     ``ledger.sender_sequence_hold_seconds``, SYNC-21-011, SYNC-21-012,
     SYNC-21-021); its activities are then due for their replay in number
-    order.  A store failure raises.
+    order.  The hold is timed from the act's instant (ADR-0176).  A store
+    failure raises.
     """
 
     def __init__(
@@ -382,7 +383,7 @@ class HoldPastGapNode(DataLayerActionWithPorts):
             order,
             number,
             self._classify.activity_id,
-            now_utc(),
+            self._require_act_instant(),
             cap=ledger.sender_sequence_hold_cap,
             wait=ledger.sender_sequence_hold,
         )
