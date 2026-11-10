@@ -27,6 +27,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -330,7 +331,7 @@ class TestEmitCaseStatusUpdateNode:
         CaseStatus entry (#5123)."""
         case = populated_dl.read(CASE_ID)
         assert isinstance(case, CoreCase)
-        case.append_case_status(pxa=CS_pxa.Pxa)
+        case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
         populated_dl.save(case)
         first = run_tree(
             populated_bridge,
@@ -401,31 +402,28 @@ class TestEmitCaseStatusUpdateNode:
 
     @pytest.mark.spec("CM-29-005")
     def test_snapshot_published_is_strictly_after_the_previous_status(
-        self, populated_dl, populated_bridge, monkeypatch
+        self, populated_dl, populated_bridge
     ):
-        """Two snapshots with the clock fixed get strictly rising times.
+        """Two snapshots at one act's instant get strictly rising times.
 
-        The clock is pinned before the seeded status's time, so it has also
-        stepped back: only ``now_utc_after`` keeps each snapshot after the
-        status it follows, and the last appended stays current.
+        Both acts run at an instant before the seeded status's time, so the
+        clock has also stepped back: only the ``stamp_after`` bump keeps each
+        snapshot after the status it follows, and the last appended stays
+        current.
         """
-        from vultron.core.models._helpers import clock as helpers_clock
         from vultron.core.models.embargo_register import RegisterChange
         from vultron.core.states.embargo_register import RegisterTrigger
-        from vultron.demo.determinism import SteppingClock
 
         case = populated_dl.read(CASE_ID)
         assert isinstance(case, CoreCase)
         seeded = case.current_status
         pinned = seeded.published - timedelta(seconds=1)
-        monkeypatch.setattr(
-            helpers_clock, "datetime", SteppingClock(pinned, step=timedelta(0))
-        )
 
         first = run_tree(
             populated_bridge,
             tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
             actor_id=ACTOR_ID,
+            at=pinned,
         )
         assert first.status == Status.SUCCESS
         case = populated_dl.read(CASE_ID)
@@ -443,6 +441,7 @@ class TestEmitCaseStatusUpdateNode:
             populated_bridge,
             tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
             actor_id=ACTOR_ID,
+            at=pinned,
         )
         assert second.status == Status.SUCCESS
 
@@ -683,6 +682,7 @@ class TestEmitCaseStatusUpdateNode:
         bb.register_key(key="datalayer", access=py_trees.common.Access.WRITE)
         bb.register_key(key="actor_id", access=py_trees.common.Access.WRITE)
         bb.register_key(key="is_leader", access=py_trees.common.Access.WRITE)
+        bb.register_key(key="at", access=py_trees.common.Access.WRITE)
         bb.register_key(
             key="wire_render_port", access=py_trees.common.Access.WRITE
         )
@@ -693,6 +693,9 @@ class TestEmitCaseStatusUpdateNode:
         bb.datalayer = populated_dl
         bb.actor_id = ACTOR_ID
         bb.is_leader = lambda: False
+        # The act's instant an outer run would carry (ADR-0176), so the node
+        # reaches the leader guard rather than failing on a missing /at.
+        bb.at = ACT_AT
         bb.wire_render_port = As2WireRenderAdapter()
         bb.trigger_activity_factory = TriggerActivityAdapter(populated_dl)
 
@@ -707,6 +710,8 @@ class TestEmitCaseStatusUpdateNode:
             for key in [
                 "is_leader",
                 "/is_leader",
+                "at",
+                "/at",
                 "datalayer",
                 "/datalayer",
                 "actor_id",

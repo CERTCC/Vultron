@@ -41,6 +41,7 @@ from pydantic import BaseModel
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.failed_teardown import fail_pxa_teardown
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -57,7 +58,7 @@ from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
 from vultron.core.behaviors.embargo.nodes import termination_commit
-from vultron.core.models._helpers import _as_id, days_from_now_utc, now_utc
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -297,7 +298,7 @@ def _propose_revision_everywhere(
     revision = as_EmbargoEvent(
         id_=f"{net.case_id}/embargo_events/revision",
         context=net.case_id,
-        end_time=days_from_now_utc(days),
+        end_time=days_from_now(days),
     )
     for dl in net.stores.values():
         dl.create(revision)

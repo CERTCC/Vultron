@@ -28,13 +28,13 @@ from test.core.behaviors.embargo.nodes.conftest import (
     OTHER_PARTICIPANT_ACTOR,
     make_case_with_manager,
 )
+from test.support.future_dates import days_from_now
 from vultron.core.behaviors.embargo.decided_entries import (
     consent_row_changes,
     decide_embargo_act,
     decide_on_stage,
 )
 from vultron.core.behaviors.embargo_case_file import read_embargo_case_file
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
@@ -265,7 +265,7 @@ class TestDecideOnStage:
                 as_EmbargoEvent(
                     id_=f"{case.id_}/embargo_events/stray",
                     context=case.id_,
-                    end_time=days_from_now_utc(10),
+                    end_time=days_from_now(10),
                 )
             )
             return None

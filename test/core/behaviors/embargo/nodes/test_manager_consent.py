@@ -28,6 +28,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.call_out import no as call_out_no
 from test.support.embargo_register import propose
+from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
@@ -36,7 +37,6 @@ from vultron.core.behaviors.embargo.nodes.manager_consent import (
     record_manager_embargo_consent_tree,
 )
 from vultron.core.behaviors.sync import commit_tree
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent_semantic_types import (
@@ -95,7 +95,7 @@ def _seed(
         # The row the proposal wrote for every participant (ADR-0122).
         record.write_uninvited_rows([EMBARGO_ID])
     embargo = as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(30)
+        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(30)
     )
     scenario.seed(*records, case, embargo)
 

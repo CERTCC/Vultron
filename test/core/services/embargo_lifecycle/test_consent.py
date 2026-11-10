@@ -28,12 +28,13 @@ from test.support.embargo_register import (
     reject,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo_case_file import (
     read_embargo_case_file,
     save_case_file,
 )
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
@@ -341,7 +342,7 @@ def test_record_embargo_invite_invites_an_unasked_participant(
     propose(case, embargo.id_)
     dl.save(case)
     write_consent_rows(dl, case)
-    deadline = days_from_now_utc(7)
+    deadline = days_from_now(7)
 
     result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
         case_id=case.id_,
@@ -450,8 +451,8 @@ def test_a_fresh_invite_restamps_an_invited_rows_deadline(
     propose(case, embargo.id_)
     dl.save(case)
     write_consent_rows(dl, case)
-    first = days_from_now_utc(3)
-    second = days_from_now_utc(7)
+    first = days_from_now(3)
+    second = days_from_now(7)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     lifecycle.record_embargo_invite(

@@ -43,7 +43,7 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.models._helpers import _as_id, now_utc_after
+from vultron.core.models._helpers import _as_id, stamp_after
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.events.base import MessageSemantics
@@ -333,13 +333,15 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             return done
         # Strictly after the status it follows, so time order agrees with
         # the append order that picks the current status (CM-29-005), even
-        # for two snapshots in one clock tick or after the clock steps back.
+        # for two snapshots in one act or after the clock steps back.
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
             em=em,
             pxa=pxa,
-            published=now_utc_after(current.published),
+            published=stamp_after(
+                self._require_act_instant(), current.published
+            ),
         )
 
         # The entry records the CASE_MANAGER's own Add(CaseStatus), built by

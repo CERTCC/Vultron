@@ -73,7 +73,7 @@ import logging
 from collections.abc import Callable, Sequence
 from datetime import timedelta
 
-from vultron.core.models._helpers import from_now_utc
+from vultron.core.models._helpers import deadline_from, now_utc
 from vultron.demo.helpers.embargo import publish_embargo_policy
 from vultron.demo.helpers.embargo_outcome import (
     assert_window_is,
@@ -170,7 +170,7 @@ def _run_negotiated_submission(
                 client, vendor, timedelta(days=receiver_default_days)
             )
 
-    proposed_end = from_now_utc(timedelta(days=reporter_days))
+    proposed_end = deadline_from(now_utc(), timedelta(days=reporter_days))
     with demo_gate(
         f"Step 2: Reporter submits the report proposing a {reporter_days}-day"
         " embargo"

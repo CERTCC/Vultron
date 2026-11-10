@@ -27,6 +27,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
 )
 from test.support.act_runner import run_tree
+from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -43,7 +44,6 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
     ProposeEmbargoLifecycleNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -99,7 +99,7 @@ def _store_active_embargo(
         as_EmbargoEvent(
             id_=_embargo_id(case),
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
     )
 
@@ -670,7 +670,7 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
         revision = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/revision",
             context=case.id_,
-            end_time=days_from_now_utc(90),
+            end_time=days_from_now(90),
         )
         dl.create(revision)
         return dl, case, revision.id_

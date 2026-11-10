@@ -62,12 +62,13 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from test.support.embargo_register import activate, write_consent_rows
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models._helpers import _as_id, days_from_now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -256,7 +257,7 @@ def _seed(
         case.case_participants.append(record.id_)
         case.actor_participant_index[actor_id] = record.id_
     embargo = as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
+        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(60)
     )
     dl.create(embargo)
     activate(case, EMBARGO_ID)

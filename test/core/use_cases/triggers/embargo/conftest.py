@@ -10,11 +10,12 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.participant_embargo_consent import (
@@ -45,7 +46,7 @@ def _build_active_embargo_case(
         attributed_to=owner_id,
         stub_summary="Security issue — details shared after acceptance",
     )
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=owner_id
     )
@@ -102,7 +103,7 @@ def _build_exited_case(
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     case.case_participants = [owner_participant.id_]
     case.actor_participant_index = {owner_id: owner_participant.id_}
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
     activate(case, embargo.id_)
     terminate(case)
     dl.create(case)
@@ -138,7 +139,7 @@ def _build_active_embargo_case_with_case_manager(
         name="Active embargo revision case",
         attributed_to=actor_id,
     )
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
 
     owner_participant = VendorParticipant(
         attributed_to=actor_id,
@@ -289,7 +290,7 @@ def _case_with_open_proposal(
 ) -> tuple[VulnerabilityCase, str]:
     """A case at EM.PROPOSED whose only open proposal is the owner's."""
     case = _build_unbound_case_with_case_manager(dl, owner_id)
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=owner_id
     )
@@ -315,7 +316,7 @@ def _open_revision(
     from typing import cast
 
     case = cast(VulnerabilityCase, dl.read(case_id))
-    revision = as_EmbargoEvent(context=case_id, end_time=days_from_now_utc(90))
+    revision = as_EmbargoEvent(context=case_id, end_time=days_from_now(90))
     proposal = em_propose_embargo_activity(
         revision, context=case_id, actor=owner_id
     )
@@ -348,7 +349,7 @@ def _case_owned_by_non_manager(
     case = VulnerabilityCase(
         name="Owner is not the manager", attributed_to=owner_id
     )
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=manager_id
     )

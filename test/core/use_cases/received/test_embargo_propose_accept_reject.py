@@ -23,8 +23,10 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_store_owner_as_case_manager,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose, write_consent_rows
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import assert_held_only_as_received
 from vultron.adapters.driven.clock import SystemClock
@@ -34,7 +36,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -95,7 +96,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em2/embargo_events/e2",
             content="Proposed embargo",
             context="https://example.org/cases/case_em2",
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         # The vendor's replica receives the CASE_MANAGER's relayed Invite.
         case_manager_id = "https://example.org/users/case-manager"
@@ -153,7 +154,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em3/embargo_events/e3",
             content="Embargo",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         # Use inline objects (not string IDs) so rehydration skips DataLayer lookup
         proposal = em_propose_embargo_activity(
@@ -232,7 +233,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em3_warn/embargo_events/e3",
             content="Embargo",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -306,7 +307,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em5/embargo_events/e5",
             content="Embargo",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         participant = CaseParticipant(
             id_="https://example.org/cases/case_em5/participants/coord",
@@ -378,7 +379,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em6/embargo_events/e6",
             content="Embargo",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         propose(case, embargo.id_)
         seed_store_owner_as_case_manager(dl, case)
@@ -426,7 +427,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em4/embargo_events/e4",
             content="Embargo",
             context="https://example.org/cases/case_em4",
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -483,7 +484,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_eval_invalid/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -574,12 +575,12 @@ def _make_pxa_case(
         name="PXA Guard Test",
         attributed_to=coordinator_id,
     )
-    case.append_case_status(pxa=CS_pxa[pxa_state_name])
+    case.append_case_status(ACT_AT, pxa=CS_pxa[pxa_state_name])
     embargo = as_EmbargoEvent(
         id_=embargo_id,
         content="PXA test embargo",
         context=case_id,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     # The register derives *em_state*: PROPOSED holds the embargo as an open
     # proposal, NONE holds no entry.
@@ -800,7 +801,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
             id_=f"{case_id}/embargo_events/e1",
             content="clear embargo",
             context=case_id,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -942,7 +943,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             id_=f"{case_id}/embargo_events/e1",
             content="clear embargo",
             context=case_id,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         propose(case, embargo.id_)
         dl.create(case)
@@ -1162,7 +1163,7 @@ class _AnsweredInvite:
             id_="https://example.org/cases/case_em_dup/embargo_events/e1",
             content="Embargo",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         self._proposal = em_propose_embargo_activity(
             embargo,
@@ -1288,7 +1289,7 @@ def _closed_invitee_store(closed: bool) -> tuple[Any, Any, Any, str]:
         id_=f"{_CLOSED_CASE}/embargo_events/e1",
         content="Embargo",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     manager = CaseParticipant(
         id_=f"{_CLOSED_CASE}/participants/coord",

@@ -30,7 +30,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
-from vultron.core.models._helpers import days_from_now_utc
+from test.support.future_dates import days_from_now
 from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.parser import parse_activity
@@ -61,7 +61,7 @@ def _enriched_stub() -> dict:
             "type": "EmbargoEvent",
             "id": f"{_CASE_ID}/embargoes/e0",
             "context": _CASE_ID,
-            "endTime": days_from_now_utc(30).isoformat(),
+            "endTime": days_from_now(30).isoformat(),
         },
         "caseStatus": {
             "type": "CaseStatus",
@@ -271,7 +271,7 @@ def _invite(target: object) -> dict:
         "id": "urn:uuid:invite-enriched",
         "actor": _ACTOR,
         "to": [_INVITEE],
-        "published": days_from_now_utc(0).isoformat(),
+        "published": days_from_now(0).isoformat(),
         "object": {"type": "Organization", "id": _INVITEE},
         "target": target,
         "context": _CASE_ID,

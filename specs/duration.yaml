@@ -297,7 +297,8 @@ groups:
     verification: >-
       `test/core/models/test_helpers.py`
       (`test_an_interval_composed_from_now_is_in_utc`) confirms an interval composed
-      from now ends at a UTC instant, never a local-zone one.
+      from an instant given at another offset ends at a UTC instant, never a
+      local-zone one.
     relationships:
     - rel_type: extends
       spec_id: DUR-06-003

@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Shared far-future date for tests that need a future embargo end_time or deadline.
+"""Shared future dates for tests that need a future embargo end_time or deadline.
 
 Tests that used a hardcoded ``datetime(2030, ...)`` literal would time-bomb
 once real time passes that date: any validator that checks ``end_time >
@@ -57,7 +57,30 @@ An idiom 2 or idiom 3 site stays as it is, carrying a one-line reason that says
 which it is.  See also ``notes/testing-pitfalls.md`` § "Assertion Quality".
 """
 
-from vultron.core.models._helpers.clock import days_from_now_utc
+from datetime import datetime, timedelta
+
+from vultron.core.models._helpers.clock import (
+    days_after,
+    deadline_from,
+    now_utc,
+)
+
+
+def from_now(delta: timedelta) -> datetime:
+    """Return the UTC instant *delta* after the wall clock, for test data.
+
+    The core deadline helpers take an act's instant and read no clock
+    (ADR-0176, CS-13-004).  A test that builds data outside an act and needs a
+    date relative to the wall clock (a deadline a validator compares with the
+    clock, say) reads the clock here, once, and measures from it.
+    """
+    return deadline_from(now_utc(), delta)
+
+
+def days_from_now(days: int) -> datetime:
+    """Return the UTC instant *days* days after the wall clock, for test data."""
+    return days_after(now_utc(), days)
+
 
 #: A far-future UTC datetime: five years from today's import-time clock read.
 #:
@@ -72,4 +95,4 @@ from vultron.core.models._helpers.clock import days_from_now_utc
 #: fraction at all (CS-13-007).  A clock-read microsecond would make the two
 #: forms coincide, so such an assertion would stop telling them apart — and
 #: would break outright on the one read in a million that lands on zero.
-FAR_FUTURE = days_from_now_utc(365 * 5).replace(microsecond=0)
+FAR_FUTURE = days_from_now(365 * 5).replace(microsecond=0)

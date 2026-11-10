@@ -33,6 +33,7 @@ import pytest
 
 from test.support.act_runner import run_tree
 from test.support.embargo_register import register
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -43,7 +44,6 @@ from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import EmitInviteActorToCaseNode
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -196,7 +196,7 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
     embargo = EmbargoEvent(
         id_=f"{case_id}/embargoes/e0",
         context=case_id,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     # A participant holds a row for every register entry (ADR-0122).
     manager.write_uninvited_rows([embargo.id_])

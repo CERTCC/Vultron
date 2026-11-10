@@ -18,6 +18,7 @@
 Grouped by concern (CS-18-005):
 
 - ``clock`` — the one wall-clock read (``clock.datetime`` is the clock seam)
+  and the pure ordered-stamp and deadline helpers that take the act's instant
 - ``timestamps`` — the serialized timestamp form and claimed-time reading
 - ``ids`` — the object id minter, its id source and scoped install, and the
   mixed-reference id reader ``_as_id``
@@ -29,11 +30,11 @@ Grouped by concern (CS-18-005):
 # every layer, including ones other open changes own (CS-18-003).
 from vultron.core.models._helpers.clock import (
     SteppingClock,
-    days_from_now_utc,
-    from_now_utc,
+    days_after,
+    deadline_from,
     now_utc,
-    now_utc_after,
     require_future_aware,
+    stamp_after,
 )
 from vultron.core.models._helpers.ids import (
     URN_UUID_PREFIX,
@@ -75,17 +76,17 @@ __all__ = [
     "blank_times_as_none",
     "claimed_published_iso",
     "collapse_duplicate_spellings",
-    "days_from_now_utc",
+    "days_after",
+    "deadline_from",
     "format_timestamp",
-    "from_now_utc",
     "install_id_source",
     "new_object_id",
     "now_utc",
-    "now_utc_after",
     "parse_published",
     "project_wire_snapshot_to_core",
     "refuse_absent_published",
     "require_future_aware",
+    "stamp_after",
     "strip_annotated",
     "timestamp_serializer",
 ]

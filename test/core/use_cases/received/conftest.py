@@ -14,11 +14,12 @@ from typing import cast
 import py_trees
 import pytest
 
+from test.support.future_dates import days_from_now
+
 # imported for vocabulary registration side-effect
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
@@ -449,7 +450,7 @@ def make_embargo_case_with_actor(
         id_=f"{case_id}/embargo_events/e1",
         content="Cascade test embargo",
         context=case_id,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(embargo)
 

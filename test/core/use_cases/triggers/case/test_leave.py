@@ -15,6 +15,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -30,7 +31,6 @@ from vultron.core.behaviors.call_out.bundles.close_report import (
     CloseReportCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -82,7 +82,7 @@ def _stored_embargo(
     embargo = as_EmbargoEvent(
         id_=f"{case.id_}/embargo_events/{suffix}",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(embargo)
     return embargo

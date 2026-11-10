@@ -30,7 +30,9 @@ from py_trees.common import Status
 
 from test.conftest import seed_case_owner_participant
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate, propose, terminate
+from test.support.future_dates import from_now
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
@@ -44,7 +46,7 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseNotEmbargoEligibleNode,
 )
 from vultron.core.behaviors.embargo.nodes import em_state as em_state_module
-from vultron.core.models._helpers import _as_id, from_now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronOrganization, VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -134,7 +136,7 @@ def _store_policy_record(
 
 def _set_pxa(bt_scenario: BTTestScenario) -> None:
     case = cast(Any, bt_scenario.dl.read(CASE_ID))
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     bt_scenario.dl.save(case)
 
 
@@ -176,7 +178,7 @@ def _run(
             extra.setdefault(
                 "sender_proposed_embargo",
                 EmbargoEvent(
-                    context=REPORT_ID, end_time=from_now_utc(sender_proposal)
+                    context=REPORT_ID, end_time=from_now(sender_proposal)
                 ),
             )
     result = bt_scenario.run(
@@ -915,7 +917,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
         """A rerun of the sender branch adopts the Reporter's own event,
         under the Reporter's id (``persist_creation_time_embargo``)."""
         sender_event = EmbargoEvent(
-            context=REPORT_ID, end_time=from_now_utc(SENDER_PROPOSAL)
+            context=REPORT_ID, end_time=from_now(SENDER_PROPOSAL)
         )
         run_args: dict[str, Any] = {
             "sender_proposal": SENDER_PROPOSAL,
@@ -1003,7 +1005,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
             bt_scenario,
             sender_proposal=SENDER_PROPOSAL,
             sender_proposed_embargo=_sender_event(
-                from_now_utc(SENDER_PROPOSAL), event_id=event_id
+                from_now(SENDER_PROPOSAL), event_id=event_id
             ),
         )
 
@@ -1286,13 +1288,13 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
     def _sender_event(self) -> EmbargoEvent:
         """The sender's terms, built once so a rerun carries the same ones.
 
-        A second ``from_now_utc`` would give the rerun a different
+        A second ``from_now`` would give the rerun a different
         ``end_time``, which the stored twin then refuses (EP-04-004).
         """
         return EmbargoEvent(
             id_=self.SENDER_EVENT_ID,
             context=REPORT_ID,
-            end_time=from_now_utc(SENDER_PROPOSAL),
+            end_time=from_now(SENDER_PROPOSAL),
         )
 
     def _run_contest(self, bt_scenario: BTTestScenario) -> Status:
@@ -1507,7 +1509,7 @@ class TestTheRevisionIsConsentedToByItsProposer:
             owner_profile=_profile(timedelta(days=10)),
             sender_proposed_embargo_duration=SENDER_PROPOSAL,
             sender_proposed_embargo=EmbargoEvent(
-                context=REPORT_ID, end_time=from_now_utc(SENDER_PROPOSAL)
+                context=REPORT_ID, end_time=from_now(SENDER_PROPOSAL)
             ),
         )
 

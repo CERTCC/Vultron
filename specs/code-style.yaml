@@ -522,14 +522,28 @@ groups:
   - id: CS-13-004
     priority: MUST
     kind: project
-    verification_debt: '#2575'
-    statement: Embargo deadline datetimes MUST be computed using the `from_now_utc(delta)` / `days_from_now_utc(n)` helpers in `vultron.core.models._helpers` rather than inline arithmetic
+    adr:
+    - ADR-0176
+    verification: >-
+      In `test/core/models/test_helpers.py`,
+      `test_deadline_is_the_act_instant_plus_the_duration` asserts that
+      `deadline_from(at, delta)` and `days_after(at, n)` return the act's
+      instant plus the duration, in UTC whatever offset the instant carries,
+      with the clock replaced by a stand-in that fails on any read, and
+      `test_a_deadline_refuses_a_naive_instant` asserts both refuse a naive
+      instant.
+    statement: >-
+      An embargo deadline datetime MUST be computed as the act's instant plus a
+      duration, through the `deadline_from(at, delta)` / `days_after(at, n)`
+      helpers in `vultron.core.models._helpers`, rather than by inline arithmetic
+      or from a clock read.
     rationale: >-
       An embargo deadline is a protocol commitment that every Participant compares
-      with its own clock. The helpers build each deadline from `now_utc()`, so it is
-      timezone-aware and in UTC. Inline arithmetic can start from
-      a naive or local time and give a deadline that peers read as a different
-      instant.
+      with its own clock. The helpers measure each deadline from the act's
+      instant, so the deadline agrees with the act that set it (ADR-0176), and
+      they return it in UTC and refuse a naive instant, so it is timezone-aware.
+      Inline arithmetic can start from a naive or local time and give a deadline
+      that peers read as a different instant.
   - id: CS-13-005
     priority: MUST
     kind: protocol

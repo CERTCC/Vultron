@@ -24,7 +24,7 @@ import logging
 from vultron.config.app import get_config
 from vultron.core.behaviors.case.nodes.embargo import creation_time_embargo_id
 from vultron.core.behaviors.store_scope import store_for_actor
-from vultron.core.models._helpers import from_now_utc
+from vultron.core.models._helpers import deadline_from, now_utc
 from vultron.core.models.activity_ids import derived_object_id
 from vultron.core.models.actor import VultronService, hosted_endpoints
 from vultron.core.models.case import VulnerabilityCase
@@ -197,7 +197,7 @@ def _seed_active_embargo(case_obj, dl) -> None:
     embargo = EmbargoEvent(
         id_=creation_time_embargo_id(case_id),
         context=case_id,
-        end_time=from_now_utc(resolved.duration),
+        end_time=deadline_from(now_utc(), resolved.duration),
     )
     # The EM write goes through the lifecycle service like the tree's own
     # (EMB-18-001): one save at EM.ACTIVE, with the owner's consent recorded

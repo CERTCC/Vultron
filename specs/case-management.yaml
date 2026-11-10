@@ -9345,12 +9345,16 @@ groups:
       The current status is the last appended (CM-29-001), so a status's place in
       the history is its order. Its `published` then agrees with that order, and a
       reader who sorts the history by time gets the same order. The clock alone
-      does not ensure this: two statuses can be stamped in one clock tick, and a
-      clock can step back.
+      does not ensure this: two statuses stamped in one act share its instant
+      (ADR-0176), and a clock can step back.
     verification: >-
       `test_snapshot_published_is_strictly_after_the_previous_status` in
-      `test/core/behaviors/status/nodes/test_case_status.py` commits two snapshots with
-      the clock fixed and asserts the second `published` is later than the first.
+      `test/core/behaviors/status/nodes/test_case_status.py` commits two snapshots at
+      one act's instant, set before the seeded status's time, and asserts each
+      `published` is later than the one before.
+      `test_two_appends_in_one_act_sort_in_append_order` in
+      `test/core/models/test_case.py` asserts two `append_case_status` calls at one
+      instant sort in append order.
     stories:
     - story_2022_075
     relationships:

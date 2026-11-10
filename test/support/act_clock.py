@@ -48,6 +48,28 @@ class CountingClock:
         return value
 
 
+class _NoClock:
+    """A ``datetime`` stand-in whose ``now()`` fails, so any read is caught."""
+
+    def now(self, tz: object = None) -> datetime:
+        raise AssertionError(
+            "read the clock below an act's edge; take the act's instant"
+            " instead (ADR-0176)"
+        )
+
+
+@contextmanager
+def no_clock() -> Iterator[None]:
+    """Fail any read of the wall clock behind ``now_utc`` while it is held.
+
+    For a test that a helper is a pure function of the instant it is given
+    (ADR-0176): the read raises, so the helper cannot pass by reading a clock
+    that happens to agree with the instant.
+    """
+    with patch.object(helpers_clock, "datetime", _NoClock()):
+        yield
+
+
 @contextmanager
 def clock_at(at: datetime) -> Iterator[None]:
     """Hold the clock at *at*, a microsecond per read, while an act at *at*

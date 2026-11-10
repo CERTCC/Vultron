@@ -33,8 +33,10 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     setup_blackboard,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import propose
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -48,7 +50,7 @@ from vultron.core.behaviors.embargo.nodes import (
     RejectEmbargoProposalLifecycleNode,
     SendOwnerEmbargoDecisionNode,
 )
-from vultron.core.models._helpers import _as_id, days_from_now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -99,7 +101,7 @@ def _case_with_owner(
         revision = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/revision",
             context=case.id_,
-            end_time=days_from_now_utc(90),
+            end_time=days_from_now(90),
         )
         dl.create(revision)
         propose(case, revision)
@@ -296,7 +298,7 @@ class TestOwnerMayActivateEmbargoNode:
         case, _, revision_id, _ = _case_with_owner(
             dl, "may-pxa", em_state=EM.ACTIVE
         )
-        case.append_case_status(pxa=CS_pxa.Pxa)
+        case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
         dl.save(case)
         setup_blackboard(dl, actor_id=MANAGER)
 
@@ -573,7 +575,7 @@ class TestRejectEmbargoProposalLifecycleNode:
         case, active_id, revision_id, _ = _case_with_owner(
             dl, "rej-pxa", em_state=EM.ACTIVE
         )
-        case.append_case_status(pxa=CS_pxa.Pxa)
+        case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
         dl.save(case)
         setup_blackboard(dl, actor_id=MANAGER)
         result_out: dict[str, object] = {}
@@ -601,7 +603,7 @@ def _owner_store(*, with_manager: bool = True) -> SqliteDataLayer:
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
     dl.create(
         as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
         )
     )
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER)

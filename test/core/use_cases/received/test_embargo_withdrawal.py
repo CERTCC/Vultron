@@ -32,6 +32,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
+from test.support.future_dates import days_from_now
 from test.support.refusal_notice import (
     assert_no_refusal_notice,
     assert_refusal_notice,
@@ -42,7 +43,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -82,7 +82,7 @@ _UPDATE_CONSENT = UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
 
 def _embargo(embargo_id: str, days: int) -> as_EmbargoEvent:
     return as_EmbargoEvent(
-        id_=embargo_id, context=_CASE_ID, end_time=days_from_now_utc(days)
+        id_=embargo_id, context=_CASE_ID, end_time=days_from_now(days)
     )
 
 

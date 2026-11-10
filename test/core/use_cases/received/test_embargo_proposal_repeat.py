@@ -41,6 +41,7 @@ from test.core.use_cases.received.test_embargo_revision_relay import (
     _unbound_case,
 )
 from test.support.embargo_register import propose
+from test.support.future_dates import days_from_now
 from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
     EmbargoTermsNotHeldNode,
@@ -48,7 +49,6 @@ from vultron.core.behaviors.embargo.nodes.proposal_repeat import (
 from vultron.core.behaviors.embargo.nodes.relay_guards import (
     case_manager_admits_proposal_guard,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
@@ -196,7 +196,7 @@ def test_different_terms_are_still_registered_and_relayed(make_payload):
     _sign_active(dl, case_id, OTHER_A)
     invites_before = len(_relayed_invites(dl))
 
-    other = _terms(dl, case_id, "different", days_from_now_utc(91))
+    other = _terms(dl, case_id, "different", days_from_now(91))
     verdict = _deliver(
         dl,
         _proposal(
@@ -278,7 +278,7 @@ def test_the_guard_admits_new_terms_and_flags_held_ones():
     in_force = cast(as_EmbargoEvent, dl.read(_active_id(dl, case_id)))
 
     assert _guard_status(
-        dl, case_id, _terms(dl, case_id, "new", days_from_now_utc(120))
+        dl, case_id, _terms(dl, case_id, "new", days_from_now(120))
     ) == (Status.SUCCESS, False)
     assert _guard_status(
         dl, case_id, _terms(dl, case_id, "held", in_force.end_time)
@@ -377,7 +377,7 @@ def test_an_unreadable_pending_entry_is_left_out_with_a_warning(caplog):
     missing_id = f"{case_id}/embargo_events/never-stored"
     propose(case, missing_id)
     dl.save(case)
-    terms = _terms(dl, case_id, "judged", days_from_now_utc(60))
+    terms = _terms(dl, case_id, "judged", days_from_now(60))
 
     with caplog.at_level(logging.WARNING):
         assert _guard_status(dl, case_id, terms) == (Status.SUCCESS, False)

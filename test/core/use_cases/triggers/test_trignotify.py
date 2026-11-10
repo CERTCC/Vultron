@@ -32,6 +32,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -42,7 +43,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -451,7 +451,7 @@ class TestEmbargoTriggerToField:
     def test_evaluate_embargo_to_field_addresses_case_actor_only(self):
         """SvcAcceptEmbargoUseCase queues activity addressed only to Case Actor."""
         embargo = as_EmbargoEvent(
-            context=self.case.id_, end_time=days_from_now_utc(45)
+            context=self.case.id_, end_time=days_from_now(45)
         )
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -495,7 +495,7 @@ class TestEmbargoTriggerToField:
     def test_terminate_embargo_to_field_addresses_case_actor_only(self):
         """SvcTerminateEmbargoUseCase queues activity addressed only to Case Actor."""
         embargo = as_EmbargoEvent(
-            context=self.case.id_, end_time=days_from_now_utc(45)
+            context=self.case.id_, end_time=days_from_now(45)
         )
         self.dl.create(embargo)
         activate(self.case, embargo.id_)
@@ -530,7 +530,7 @@ class TestEmbargoTriggerToField:
     def test_reject_embargo_to_field_addresses_case_actor_only(self):
         """SvcRejectEmbargoUseCase queues activity addressed only to Case Actor."""
         embargo = as_EmbargoEvent(
-            context=self.case.id_, end_time=days_from_now_utc(45)
+            context=self.case.id_, end_time=days_from_now(45)
         )
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -570,7 +570,7 @@ class TestEmbargoTriggerToField:
     def test_propose_embargo_revision_to_field_addresses_case_actor_only(self):
         """SvcProposeEmbargoRevisionUseCase queues activity to only Case Actor."""
         embargo = as_EmbargoEvent(
-            context=self.case.id_, end_time=days_from_now_utc(45)
+            context=self.case.id_, end_time=days_from_now(45)
         )
         self.dl.create(embargo)
         activate(self.case, embargo.id_)

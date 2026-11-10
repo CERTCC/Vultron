@@ -31,8 +31,10 @@ import pytest
 from test.core.use_cases.received import (
     test_embargo_ending_notices as notices,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
+from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import case_file_differences
 from test.support.relayed_invite import (
@@ -52,7 +54,6 @@ from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body_dict,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -446,7 +447,7 @@ def test_an_invite_redelivered_after_its_pxa_refusal_is_refused_once(
     )
     stored = dl.read_case(case.id_)
     assert stored is not None
-    stored.append_case_status(pxa=CS_pxa.Pxa)
+    stored.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     dl.save(stored)
     invite = em_propose_embargo_activity(
         embargo=embargo, context=case.id_, actor=COORD, to=[INVITEE]
@@ -475,7 +476,7 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
         revision = as_EmbargoEvent(
             id_=notices.REVISION_ID,
             context=notices.CASE_ID,
-            end_time=days_from_now_utc(30),
+            end_time=days_from_now(30),
         )
         announce = announce_embargo_activity(
             revision,

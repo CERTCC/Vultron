@@ -34,6 +34,7 @@ from collections.abc import Callable, Iterator
 import py_trees
 import pytest
 
+from test.support.future_dates import days_from_now
 from vultron.core.behaviors.case.nodes.role_gates import (
     CheckIsCaseManagerNode,
 )
@@ -51,7 +52,6 @@ from vultron.core.behaviors.embargo.nodes.termination_commit import (
 from vultron.core.behaviors.embargo.terminate_active_embargo_tree import (
     create_terminate_active_embargo_tree,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
@@ -67,7 +67,7 @@ def _builder(_to: list[str] | None) -> tuple[str, str]:
 
 
 def _embargo() -> EmbargoEvent:
-    return EmbargoEvent(context=_CASE, end_time=days_from_now_utc(30))
+    return EmbargoEvent(context=_CASE, end_time=days_from_now(30))
 
 
 _FACTORIES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {

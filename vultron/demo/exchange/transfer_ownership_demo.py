@@ -58,7 +58,7 @@ CaseActor's Offer by its properties rather than by the proposal's id
 import logging
 from collections.abc import Callable, Sequence
 
-from vultron.core.models._helpers import from_now_utc
+from vultron.core.models._helpers import deadline_from, now_utc
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.exchange.transfer_ownership_steps import (
     ANSWER_WINDOW,
@@ -128,7 +128,7 @@ def demo_transfer_ownership_accept(
     # Confirm initial owner is vendor
     initial_owner(client, case, case_actor_id)
 
-    deadline = from_now_utc(ANSWER_WINDOW)
+    deadline = deadline_from(now_utc(), ANSWER_WINDOW)
     with demo_step(
         "Step 2: Vendor offers case ownership to coordinator via the"
         " CaseActor, with a deadline to answer"

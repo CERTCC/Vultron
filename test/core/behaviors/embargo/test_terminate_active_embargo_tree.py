@@ -32,6 +32,7 @@ from test.support.embargo_register import (
     agree_to_active_embargo,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -61,7 +62,6 @@ from vultron.core.behaviors.embargo.terminate_active_embargo_tree import (
     create_terminate_active_embargo_tree,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     ReporterParticipant,
@@ -489,7 +489,7 @@ class _World:
             name="Voluntary termination", attributed_to=self.manager.id_
         )
         self.embargo = as_EmbargoEvent(
-            context=case.id_, end_time=days_from_now_utc(10)
+            context=case.id_, end_time=days_from_now(10)
         )
         owner = self._vendor(
             self.manager.id_, case.id_, fix_ready=manager_fix_ready

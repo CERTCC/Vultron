@@ -13,7 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The one wall-clock read of the core model, and deadlines measured from it.
+"""The one wall-clock read of the core model, and the pure time helpers.
+
+:func:`stamp_after`, :func:`deadline_from` and :func:`days_after` read no
+clock: each takes the act's instant as an argument (ADR-0176).
 
 :func:`now_utc` looks up ``datetime`` on this module at call time, so a test or
 a deterministic demo run replaces ``clock.datetime`` to control the clock.
@@ -74,34 +77,54 @@ def now_utc() -> datetime:
     return datetime.now(UTC)
 
 
-def now_utc_after(latest: datetime | None) -> datetime:
-    """Return ``now_utc()``, or one microsecond after *latest* if later.
+def _require_aware_utc(at: datetime) -> datetime:
+    """Return *at* in UTC; raise when it is naive (CS-13-001, CS-13-009)."""
+    if at.tzinfo is None or at.utcoffset() is None:
+        raise ValueError("an act's instant must be timezone-aware")
+    return at.astimezone(UTC)
 
-    For a stamp that must sort strictly after *latest* (CM-29-005): when the
-    clock has not passed *latest* (two reads in one clock tick, or a *latest*
-    from a peer whose clock runs ahead), the result is *latest* plus the
-    smallest step a stored time can show.  The bump is returned in UTC
-    whatever offset *latest* carries (CS-13-001).
+
+def stamp_after(at: datetime, latest: datetime | None) -> datetime:
+    """Return *at*, or one microsecond after *latest* if *at* is not later.
+
+    The stamp for a record that must sort strictly after *latest*
+    (CM-29-005), computed from the act's instant *at* and read from no clock
+    (ADR-0176).  Stamps one act writes share its instant, so the second of
+    them, and any stamp after a *latest* from a peer whose clock runs ahead,
+    is *latest* plus the smallest step a stored time can show (ADR-0167).
+    The result is in UTC whatever offset *at* or *latest* carries
+    (CS-13-001, CS-13-009).
+
+    Raises:
+        ValueError: when *at* is naive.
     """
-    now = now_utc()
-    if latest is None or latest < now:
-        return now
+    stamp = _require_aware_utc(at)
+    if latest is None or latest < stamp:
+        return stamp
     return latest.astimezone(UTC) + timedelta(microseconds=1)
 
 
-def from_now_utc(delta: timedelta) -> datetime:
-    """Return the UTC instant *delta* from now (CS-13-004).
+def deadline_from(at: datetime, delta: timedelta) -> datetime:
+    """Return the UTC instant *delta* after the act's instant *at* (CS-13-004).
 
-    The one place embargo-deadline arithmetic lives: a resolved duration
-    (``InitialEmbargoDuration.duration``) becomes an ``end_time`` here, so
+    The one place deadline arithmetic lives: a resolved duration
+    (``InitialEmbargoDuration.duration``) becomes an ``end_time`` here,
+    measured from the act's instant and read from no clock (ADR-0176), so
     every deadline the application produces is aware and UTC.
+
+    Raises:
+        ValueError: when *at* is naive.
     """
-    return now_utc() + delta
+    return _require_aware_utc(at) + delta
 
 
-def days_from_now_utc(days: int) -> datetime:
-    """Return a UTC datetime *days* in the future."""
-    return from_now_utc(timedelta(days=days))
+def days_after(at: datetime, days: int) -> datetime:
+    """Return the UTC instant *days* days after the act's instant *at*.
+
+    Raises:
+        ValueError: when *at* is naive.
+    """
+    return deadline_from(at, timedelta(days=days))
 
 
 @overload

@@ -24,6 +24,7 @@ receiver that applies it (CM-31-010).
 import json
 from typing import Any, cast
 
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import (
     decided_proposal_id,
     owner_decision_body,
@@ -31,7 +32,6 @@ from test.support.owner_decision import (
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.embargo_termination import OtherCause
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.embargo_register import TerminationReason
@@ -91,7 +91,7 @@ def _proposal_body(net: LedgerNetwork, tag: str) -> dict[str, Any]:
         id_=f"{net.case_id}/embargo_events/{tag}",
         content=f"Terms {tag}",
         context=net.case_id,
-        end_time=days_from_now_utc(90),
+        end_time=days_from_now(90),
     )
     proposal = em_propose_embargo_activity(
         revision,
@@ -322,7 +322,7 @@ def announce_embargo_to_a_paused_replica() -> Scenario:
     revision = as_EmbargoEvent(
         id_=_PAUSED_REVISION,
         context=_PAUSED_CASE_ID,
-        end_time=days_from_now_utc(30),
+        end_time=days_from_now(30),
     )
     activity = announce_embargo_activity(
         revision,

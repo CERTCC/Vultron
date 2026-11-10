@@ -24,12 +24,12 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.em import EM
@@ -69,7 +69,7 @@ def make_case_and_embargo(
     embargo = as_EmbargoEvent(
         id_=f"https://example.org/cases/case_{case_suffix}/embargo_events/e1",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     _drive_register_to(case, embargo, em_state)
     return case, embargo
