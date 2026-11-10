@@ -12,9 +12,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """End-to-end verification of the "Submit a report" tutorial flow.
 
-Runs the exact sequence the tutorial documents — create an actor, submit a
-``Create(VulnerabilityReport)`` to its inbox, read the report back — against an
-isolated FastAPI ``TestClient``.  If the API drifts from what the tutorial
+Runs the exact sequence the tutorial documents — create the vendor and the
+finder, hand a ``Create(VulnerabilityReport)`` to the finder's outbox, which
+signs it and delivers it to the vendor's inbox, read the report back — against
+an isolated FastAPI ``TestClient``.  If the API drifts from what the tutorial
 tells the reader to expect, this test fails.
 
 Marked ``integration`` automatically by ``test/demo/conftest.py``.
@@ -22,6 +23,10 @@ Marked ``integration`` automatically by ``test/demo/conftest.py``.
 
 import pytest
 
+from vultron.adapters.driving.fastapi.outbox_handler import (
+    configure_default_emitter,
+    get_default_emitter,
+)
 from vultron.demo.in_process import (
     InProcessRouter,
     create_isolated_actor_app,
@@ -29,41 +34,52 @@ from vultron.demo.in_process import (
 from vultron.wire.as2.vocab.examples import submit_report_tutorial as t
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SIG-03-002: the tutorial posts an unsigned report, and no server"
-        " publishes its finder's profile, so the inbox refuses it. Tracked"
-        " by #5387."
-    ),
-)
 @pytest.mark.spec("SIG-03-002")
 def test_tutorial_flow_creates_submits_and_stores_report():
+    """The tutorial's report reaches the vendor signed and verified.
+
+    The finder's outbox signs the report, and the vendor's inbox fetches the
+    finder's profile from the same server to verify the proof before it
+    stores anything (SIG-01-001, SIG-02-001, SIG-03-002).
+    """
     router = InProcessRouter()
     iso = create_isolated_actor_app(
         t.SERVER_ORIGIN, router, actor_slug=t.VENDOR_SLUG
     )
 
-    with iso.client as client:
-        result = t.run_end_to_end(client)
+    # The finder's outbox delivers to the vendor through the router, as the
+    # reference server delivers to its own inbox over HTTP.
+    previous_emitter = get_default_emitter()
+    configure_default_emitter(router)  # type: ignore[arg-type]
+    try:
+        with iso.client as client:
+            result = t.run_end_to_end(client)
+    finally:
+        configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+        iso.close()
 
-    create, submit, reports = (
+    create, create_finder, submit, reports = (
         result["create"],
+        result["create_finder"],
         result["submit"],
         result["reports"],
     )
 
-    # Step 3: creating the vendor actor returns 201 with the actor record.
+    # Step 3: creating each actor returns 201 with the actor record.
     assert create.status_code == 201
     created = create.json()
     assert created["name"] == t.VENDOR_NAME
     assert created["type"] == t.VENDOR_ACTOR_TYPE
-    assert created["id"].endswith(f"/actors/{t.VENDOR_SLUG}")
+    assert created["id"] == t.VENDOR_ID
+    assert create_finder.status_code == 201
+    finder = create_finder.json()
+    assert finder["name"] == t.FINDER_NAME
+    assert finder["type"] == t.FINDER_ACTOR_TYPE
+    assert finder["id"] == t.FINDER_ID
 
-    # Step 4: the actor acknowledges the report with 202 Accepted, and the
-    # answer carries no body (IE-08-001), as the tutorial says.
-    assert submit.status_code == 202
-    assert submit.content == b""
+    # Step 4: the finder's outbox takes the report with 200 OK; it signs the
+    # report and delivers it to the vendor's inbox.
+    assert submit.status_code == 200, submit.text
 
     # Step 5: the report is now in the vendor's store, keyed by its id.  Pin the
     # whole record: the tutorial renders ``STORED_REPORT_RESPONSE`` verbatim, so

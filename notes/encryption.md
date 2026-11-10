@@ -185,12 +185,15 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   profile from the node that serves it; the single-node demo `client`
   fixture installs the same fetcher on `app_v2`. An unsigned body a test posts
   on purpose is a refusal test, or a strict `xfail` naming the Task that signs
-  it (the tutorial's report, #5387).
+  it.
 - **Demo and harness code never signs as an actor.** Only an actor's own
   outbox signs (SIG-05-004). An exchange demo's hand-built activity goes
   through the sender's outbox on the same server (`post_to_inbox_and_wait`
   posts it to `/actors/{sender}/outbox/`), which signs it as its owner; a
-  scenario step goes through a trigger. Tests sign only through
+  scenario step goes through a trigger. A docs walkthrough does the same:
+  the submit-a-report tutorial creates its finder on the reader's server and
+  posts the report to the finder's outbox, so the vendor can fetch the
+  finder's key. Tests sign only through
   `test/support/signing.py`, never from `vultron/`.
 - **Resolve a key with `resolve_verification_key`**
   (`vultron/core/services/verification_key.py`), never by hand. It takes the
