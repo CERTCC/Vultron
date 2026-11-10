@@ -16,7 +16,7 @@
 A backend implements one method, :meth:`CallOutBackend.answer`, which returns
 a :class:`~vultron.core.behaviors.call_out.answer.CallOutAnswer`.  It declares
 the data each verdict carries in its ``contract`` class attribute.  It never
-writes the blackboard and never chooses a ``Status``: the seam
+writes its declared ports itself and never chooses a ``Status``: the seam
 (:class:`~vultron.core.behaviors.call_out.guard.SynchronousCallOut`) reads the
 answer, checks it against ``contract``, and turns it into tree behaviour.
 

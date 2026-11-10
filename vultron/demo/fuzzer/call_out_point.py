@@ -45,8 +45,6 @@ References
 
 from __future__ import annotations
 
-from typing import Any
-
 from vultron.core.behaviors.call_out_point import (
     CallOutBackendFactory,
 )
@@ -130,7 +128,7 @@ class ActuatorCallOutPoint:
       - Document a blackboard contract section in their docstring (BT-18-001).
     """
 
-    def __init_subclass__(cls, **kwargs: Any) -> None:
+    def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
         contract = getattr(cls, "contract", None)
         if contract is not None and contract.outputs:

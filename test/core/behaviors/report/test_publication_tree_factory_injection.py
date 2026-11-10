@@ -20,8 +20,13 @@ leaf has been replaced by the draft-review-submit pipeline (ADR-0030 / BT-20-004
 """
 
 import py_trees
-from py_trees.common import Access, Status
+from py_trees.common import Status
 
+from test.support.call_out import (
+    no as call_out_no,
+    yes as call_out_yes,
+    yes_with,
+)
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.report.publication_intent import (
@@ -61,20 +66,8 @@ class _RecordingSubmit(CallOutBackend):
 
 
 def _intent_factory(decision):
-    """Return an Evaluator factory that writes a fixed intent record."""
-
-    class _FixedIntents(CallOutBackend):
-        def setup(self, **kwargs):
-            self.blackboard = self.attach_blackboard_client(name=self.name)
-            self.blackboard.register_key(
-                key=INTENT_DECISION_KEY, access=Access.WRITE
-            )
-
-        def answer(self) -> CallOutAnswer:
-            setattr(self.blackboard, INTENT_DECISION_KEY, decision)
-            return CallOutAnswer.yes()
-
-    return lambda name: _FixedIntents(name=name)
+    """Return an Evaluator factory that answers *yes* with a fixed intent record."""
+    return yes_with({INTENT_DECISION_KEY: decision})
 
 
 def _tick_to_completion(tree):
@@ -87,12 +80,7 @@ def _tick_to_completion(tree):
     return bt.root.status
 
 
-def _always_succeed_factory(name):
-    class _AlwaysSucceed(CallOutBackend):
-        def answer(self) -> CallOutAnswer:
-            return CallOutAnswer.yes()
-
-    return _AlwaysSucceed(name=name)
+_always_succeed_factory = call_out_yes
 
 
 def _build(decision, ran):
@@ -175,15 +163,11 @@ def test_prepare_failure_fails_intended_arm():
     """A genuine Prepare failure in an intended arm fails the whole tree."""
     ran: set[str] = set()
 
-    class _FailingPrepare(CallOutBackend):
-        def answer(self) -> CallOutAnswer:
-            return CallOutAnswer.no("test backend declines")
-
     bundle = PublicationCallOutBundle(
         prioritize_publication_intents_factory=_intent_factory(  # type: ignore[arg-type]
             PublicationIntentDecision(publish_fix=True, publish_report=True)
         ),
-        prepare_fix_factory=lambda n: _FailingPrepare(name=n),  # type: ignore[arg-type]
+        prepare_fix_factory=call_out_no,  # type: ignore[arg-type]
         prepare_report_factory=lambda n: _RecordingPrepare(n, ran),  # type: ignore[arg-type]
         draft_advisory_artifact_factory=_always_succeed_factory,  # type: ignore[arg-type]
         review_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]

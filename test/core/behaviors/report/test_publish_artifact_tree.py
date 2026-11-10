@@ -24,6 +24,7 @@ import py_trees
 import pytest
 from py_trees.common import Access, Status
 
+from test.support.call_out import no as call_out_no, yes_with
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
@@ -269,22 +270,9 @@ def test_submit_factory_used():
 # ---------------------------------------------------------------------------
 
 
-class _WritingReview(CallOutBackend):
-    """Evaluator stub that writes a fixed AdvisoryReviewDecision."""
-
-    def __init__(self, name, decision):
-        super().__init__(name=name)
-        self._decision = decision
-
-    def setup(self, **kwargs):
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(
-            key=REVIEW_DECISION_KEY, access=Access.WRITE
-        )
-
-    def answer(self) -> CallOutAnswer:
-        setattr(self.blackboard, REVIEW_DECISION_KEY, self._decision)
-        return CallOutAnswer.yes()
+def _WritingReview(name, decision):
+    """Evaluator stand-in that answers *yes* with a fixed AdvisoryReviewDecision."""
+    return yes_with({REVIEW_DECISION_KEY: decision})(name)
 
 
 class _Recording(CallOutBackend):
@@ -349,13 +337,9 @@ def test_draft_failure_fails_pipeline():
     """A Draft failure propagates to the root Sequence."""
     ran: set[str] = set()
 
-    class _Fail(CallOutBackend):
-        def answer(self) -> CallOutAnswer:
-            return CallOutAnswer.no("test backend declines")
-
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
-        draft_advisory_artifact_factory=lambda name: _Fail(name=name),
+        draft_advisory_artifact_factory=call_out_no,
         review_advisory_draft_factory=_marker_factory("Review"),
         revise_advisory_draft_factory=_marker_factory("Revise"),
         submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
@@ -369,14 +353,10 @@ def test_review_failure_fails_pipeline():
     """A Review failure propagates to the root Sequence."""
     ran: set[str] = set()
 
-    class _Fail(CallOutBackend):
-        def answer(self) -> CallOutAnswer:
-            return CallOutAnswer.no("test backend declines")
-
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
         draft_advisory_artifact_factory=_marker_factory("Draft"),
-        review_advisory_draft_factory=lambda name: _Fail(name=name),
+        review_advisory_draft_factory=call_out_no,
         revise_advisory_draft_factory=_marker_factory("Revise"),
         submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
     )
@@ -389,17 +369,13 @@ def test_revise_failure_fails_pipeline():
     """When revision is required, a Revise failure propagates to root."""
     ran: set[str] = set()
 
-    class _Fail(CallOutBackend):
-        def answer(self) -> CallOutAnswer:
-            return CallOutAnswer.no("test backend declines")
-
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
         draft_advisory_artifact_factory=_marker_factory("Draft"),
         review_advisory_draft_factory=lambda name: _WritingReview(
             name, AdvisoryReviewDecision(needs_revision=True)
         ),
-        revise_advisory_draft_factory=lambda name: _Fail(name=name),
+        revise_advisory_draft_factory=call_out_no,
         submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
     )
     status = _tick_tree(tree)
@@ -410,16 +386,12 @@ def test_revise_failure_fails_pipeline():
 def test_submit_failure_fails_pipeline():
     """When Submit fails, the root Sequence returns FAILURE."""
 
-    class _Fail(CallOutBackend):
-        def answer(self) -> CallOutAnswer:
-            return CallOutAnswer.no("test backend declines")
-
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
         draft_advisory_artifact_factory=_marker_factory("Draft"),
         review_advisory_draft_factory=_marker_factory("Review"),
         revise_advisory_draft_factory=_marker_factory("Revise"),
-        submit_advisory_artifact_factory=lambda name: _Fail(name=name),
+        submit_advisory_artifact_factory=call_out_no,
     )
     status = _tick_tree(tree)
     assert status == Status.FAILURE

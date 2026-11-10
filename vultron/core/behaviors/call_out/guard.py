@@ -146,6 +146,17 @@ class SynchronousCallOut(py_trees.decorators.Decorator):
 
     def update(self) -> Status:
         """Interpret the backend's answer (ADR-0183); forbid ``RUNNING``."""
+        answer = self._take_answer()
+        if answer.verdict is CallOutVerdict.ERROR:
+            self._raise_error(answer)
+        self._write(self._checked_data(answer))
+        if answer.verdict is CallOutVerdict.YES:
+            return Status.SUCCESS
+        self.feedback_message = answer.reason or ""
+        return Status.FAILURE
+
+    def _take_answer(self) -> CallOutAnswer:
+        """The backend's answer for this tick; raise if it gave none."""
         backend = self._backend
         if backend.status == Status.RUNNING:
             raise CallOutContractError(
@@ -165,33 +176,46 @@ class SynchronousCallOut(py_trees.decorators.Decorator):
                 f"({type(backend).__name__}) gave {answer!r}, not a "
                 "CallOutAnswer of yes, no or error (ADR-0183)."
             )
-        contract = backend.contract
+        return answer
+
+    def _checked_data(self, answer: CallOutAnswer) -> dict[str, object]:
+        """The blackboard data of a *yes* or *no*, checked against the contract."""
+        name = self._backend.name
+        contract = self._backend.contract
         if answer.verdict is CallOutVerdict.YES:
-            _check_data(backend.name, "yes", answer.outputs, contract.outputs)
-            for key, value in answer.outputs.items():
-                setattr(self._bb, key, value)
-            return Status.SUCCESS
-        if answer.verdict is CallOutVerdict.NO:
-            # The model guarantees a reason on a no answer.
-            assert answer.reason is not None
-            payload: dict[str, object] = {
-                contract.refusal_reason_key: answer.reason,
-                **answer.refusal,
-            }
-            _check_data(backend.name, "no", payload, contract.refusal_ports)
-            for key, value in payload.items():
-                setattr(self._bb, key, value)
-            self.feedback_message = answer.reason
-            return Status.FAILURE
+            _check_data(name, "yes", answer.outputs, contract.outputs)
+            return dict(answer.outputs)
+        if contract.refusal_reason_key in answer.refusal:
+            raise CallOutContractError(
+                f"Call-out backend {name!r} answered no with a refusal field "
+                f"named {contract.refusal_reason_key!r}, its reason key; the "
+                "reason travels only as the answer's reason (ADR-0183)."
+            )
+        # The model guarantees a reason on a no answer.
+        assert answer.reason is not None
+        payload = {
+            contract.refusal_reason_key: answer.reason,
+            **answer.refusal,
+        }
+        _check_data(name, "no", payload, contract.refusal_ports)
+        return payload
+
+    def _write(self, data: Mapping[str, object]) -> None:
+        for key, value in data.items():
+            setattr(self._bb, key, value)
+
+    def _raise_error(self, answer: CallOutAnswer) -> None:
+        """Log and raise an *error* answer; nothing reaches the blackboard."""
         # The model guarantees diagnostics on an error answer.
         assert answer.diagnostics is not None
+        name = self._backend.name
         node_logger(self).warning(
             "Call-out backend %r answered error; the message is not judged:"
             " %s",
-            backend.name,
+            name,
             answer.diagnostics,
         )
-        raise CallOutBackendError(backend.name, answer.diagnostics)
+        raise CallOutBackendError(name, answer.diagnostics)
 
 
 def guard_call_out_factory(

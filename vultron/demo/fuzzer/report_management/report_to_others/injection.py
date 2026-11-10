@@ -135,7 +135,9 @@ class InjectParticipant(ActuatorCallOutPoint, AlwaysSucceed):
         succeeds as a no-op; the ``More*`` guard upstream prevents this
         node from running when the list is already exhausted.
         Specialized by ``InjectVendor`` and ``InjectCoordinator`` for
-        role-specific injection.
+        role-specific injection.  The queue mutation is the simulated side
+        effect of this Actuator, standing in for a case-management write; it
+        is not a declared output, so it bypasses the seam (BT-18-028).
 
     Blackboard contract (BT-18-001):
       Input keys:  <source_key>: list  (READ/WRITE; key may be absent)

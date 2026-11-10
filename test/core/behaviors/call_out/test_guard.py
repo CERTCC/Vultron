@@ -174,6 +174,8 @@ def test_declaration_refuses_a_blank_or_repeated_reason_key() -> None:
         CallOutContract(refusal_reason_key=" ")
     with pytest.raises(ValueError):
         CallOutContract(refusal_reason_key="r", refusal_fields={"r": str})
+    with pytest.raises(ValueError):
+        CallOutContract(outputs={"k": str}, refusal_fields={"k": str})
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +274,13 @@ def test_no_answer_is_a_protocol_failure_not_internal(
             id="no-undeclared-port",
         ),
         pytest.param(CallOutAnswer.no("r"), id="no-missing-field"),
+        pytest.param(
+            CallOutAnswer.no(
+                "r",
+                {"probe_refusal_code": "X", "probe_refusal_reason": ""},
+            ),
+            id="no-refusal-field-replaces-the-reason",
+        ),
         pytest.param(
             CallOutAnswer.model_construct(verdict="maybe"),  # type: ignore[arg-type]
             id="verdict-outside-the-three",

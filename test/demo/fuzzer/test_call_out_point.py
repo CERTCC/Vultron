@@ -18,7 +18,7 @@ Verifies:
 - The four shape mixin classes are importable, and no Sentinel mixin exists
   (BT-18-013)
 - Each exemplar node subclasses the correct shape mixin (BT-18-001)
-- Exemplar nodes that declare output_keys write to the blackboard on SUCCESS
+- Exemplar nodes that declare outputs have them written to the blackboard on yes
   (BT-18-002, BT-18-003)
 """
 
@@ -233,7 +233,7 @@ def test_exemplar_has_blackboard_contract_docstring(node_cls):
 
 
 # ---------------------------------------------------------------------------
-# Actuator — no output_keys
+# Actuator — no declared outputs
 # ---------------------------------------------------------------------------
 
 
@@ -256,7 +256,7 @@ def test_binary_retriever_answers_by_verdict_alone():
 
 
 # ---------------------------------------------------------------------------
-# Evaluator exemplar — writes output key on SUCCESS (BT-18-002, BT-18-003)
+# Evaluator exemplar — its output key written on yes (BT-18-002, BT-18-003)
 # ---------------------------------------------------------------------------
 
 
@@ -268,7 +268,7 @@ def test_evaluate_report_credibility_output_keys_declared():
 
 
 def test_evaluate_report_credibility_writes_blackboard_on_success():
-    """EvaluateReportCredibility writes report_credibility_verdict on SUCCESS."""
+    """EvaluateReportCredibility writes report_credibility_verdict on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
     from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
@@ -294,7 +294,7 @@ def test_evaluate_report_validity_output_keys_declared():
 
 
 # ---------------------------------------------------------------------------
-# Retriever exemplar — writes output key on SUCCESS
+# Retriever exemplar — its output key written on yes
 # ---------------------------------------------------------------------------
 
 
@@ -303,7 +303,7 @@ def test_gather_validation_info_output_keys_declared():
 
 
 def test_gather_validation_info_writes_blackboard_on_success():
-    """GatherValidationInfo writes validation_info_gathered on SUCCESS."""
+    """GatherValidationInfo writes validation_info_gathered on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
     from vultron.demo.fuzzer.call_out_point import RetrieverCallOutPoint
 
@@ -325,7 +325,7 @@ def test_gather_validation_info_writes_blackboard_on_success():
 
 
 # ---------------------------------------------------------------------------
-# Composer exemplar — writes output key on SUCCESS
+# Composer exemplar — its output key written on yes
 # ---------------------------------------------------------------------------
 
 
@@ -334,7 +334,7 @@ def test_prepare_report_output_keys_declared():
 
 
 def test_prepare_report_writes_blackboard_on_success():
-    """PrepareReport writes prepared_report_artifact on SUCCESS."""
+    """PrepareReport writes prepared_report_artifact on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
     from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
@@ -410,14 +410,14 @@ _RM_RETRIEVER_NODES = [
     (ChooseRecipient, "chosen_recipient"),
 ]
 
-# Nodes whose output_keys declare str values
+# Nodes whose contract outputs declare str values
 _RM_RETRIEVER_STR_NODES = [
     (GatherPrioritizationInfo, "prioritization_info_gathered"),
     (RequestId, "assigned_id"),
     (ChooseRecipient, "chosen_recipient"),
 ]
 
-# Nodes whose output_keys declare list values (multi-actor ID collections)
+# Nodes whose contract outputs declare list values (multi-actor ID collections)
 _RM_RETRIEVER_LIST_NODES = [
     (IdentifyVendors, "identified_vendors"),
     (IdentifyCoordinators, "identified_coordinators"),
@@ -500,7 +500,7 @@ def test_rm_retriever_node_has_blackboard_contract_docstring(
 
 
 # ---------------------------------------------------------------------------
-# Binary Retriever nodes — subclass RetrieverCallOutPoint, empty output_keys
+# Binary Retriever nodes — subclass RetrieverCallOutPoint, empty contract outputs
 # (BT-18-006)
 # ---------------------------------------------------------------------------
 
@@ -539,7 +539,7 @@ def test_embargo_binary_retriever_node_has_blackboard_contract_docstring(
 
 # ---------------------------------------------------------------------------
 # Composer nodes (FUZZ-08g) — subclass ComposerCallOutPoint, declare
-# output_keys, and write artifact to blackboard on SUCCESS (BT-18-001/02/03)
+# contract outputs, and have the artifact written to the blackboard on yes (BT-18-001/02/03)
 # ---------------------------------------------------------------------------
 
 _RM_COMPOSER_NODES = [
@@ -576,7 +576,7 @@ def test_rm_composer_node_has_blackboard_contract_docstring(
 
 
 def test_rm_composer_node_writes_blackboard_on_success():
-    """A Composer node writes its output key to the blackboard on SUCCESS."""
+    """A Composer node writes its output key to the blackboard on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
 
     class _AlwaysSucceedComposer(ComposerCallOutPoint, AlwaysSucceed):
@@ -595,7 +595,7 @@ def test_rm_composer_node_writes_blackboard_on_success():
 
 
 # ---------------------------------------------------------------------------
-# Actuator nodes (FUZZ-08h) — subclass ActuatorCallOutPoint, no output_keys,
+# Actuator nodes (FUZZ-08h) — subclass ActuatorCallOutPoint, no declared outputs,
 # blackboard contract documented (BT-18-001/02/03)
 # ---------------------------------------------------------------------------
 
@@ -667,7 +667,7 @@ def test_actuator_node_does_not_write_blackboard_on_success():
 # EvaluateExploitStrategy (Collapse 1) is covered by its own tree test at
 # test/core/behaviors/report/test_acquire_exploit_strategy_tree.py.
 # The three nodes below are the remaining acquire_exploit call-out points
-# with non-empty output_keys: EvaluateExploitPriority (AlwaysSucceed base),
+# with non-empty contract outputs: EvaluateExploitPriority (AlwaysSucceed base),
 # DevelopExploit (OftenSucceed — deterministic wrapper required per BT Factory
 # Determinism rule), and PurchaseExploit (RarelySucceed — same rule).
 # ---------------------------------------------------------------------------

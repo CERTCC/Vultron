@@ -25,17 +25,14 @@ import time
 from functools import partial
 from unittest.mock import MagicMock
 
-import py_trees
-import py_trees.behaviour
 import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.call_out import yes as call_out_yes
 from test.support.embargo_register import register
 from test.support.participant_status import advance_participant_rm
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.call_out.answer import CallOutAnswer
-from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
@@ -56,14 +53,8 @@ logger = logging.getLogger(__name__)
 _PERF_ACTOR_ID = "https://example.org/vendor"
 
 
-def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
-    """Deterministic factory for performance tests: always returns SUCCESS."""
-
-    class _AlwaysSucceed(CallOutBackend):
-        def answer(self) -> CallOutAnswer:
-            return CallOutAnswer.yes()
-
-    return _AlwaysSucceed(name)
+#: Deterministic factory: its backend always answers *yes*.
+_always_succeed_factory = call_out_yes
 
 
 def _make_always_succeed_bundle():

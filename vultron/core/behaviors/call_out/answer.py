@@ -49,7 +49,7 @@ from typing import Final, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from vultron.primitives import NonEmptyString
+from vultron.primitives import NonEmptyString, require_non_empty
 
 #: Blackboard key the seam writes a refusal reason to when a capability does
 #: not name its own.  A capability whose reason a tree or record reads names
@@ -100,12 +100,16 @@ class CallOutContract:
             "refusal_fields",
             MappingProxyType(dict(self.refusal_fields)),
         )
-        if not self.refusal_reason_key.strip():
-            raise ValueError("refusal_reason_key must be non-empty")
+        require_non_empty(self.refusal_reason_key, "refusal_reason_key")
         if self.refusal_reason_key in self.refusal_fields:
             raise ValueError(
                 f"refusal field {self.refusal_reason_key!r} repeats the "
                 "refusal reason key"
+            )
+        if overlap := sorted(set(self.outputs) & set(self.refusal_ports)):
+            raise ValueError(
+                f"ports {overlap} are declared both as outputs and as "
+                "refusal ports; a key belongs to one verdict"
             )
 
     @property
@@ -137,9 +141,7 @@ class CallOutAnswer(BaseModel):
             otherwise.
     """
 
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", arbitrary_types_allowed=True
-    )
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     verdict: CallOutVerdict
     outputs: dict[str, object] = Field(default_factory=dict)
