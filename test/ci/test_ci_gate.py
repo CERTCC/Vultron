@@ -53,10 +53,14 @@ def run(
     status: str = "completed",
     conclusion: str | None = "success",
     path: str | None = None,
+    created_at: str | None = None,
+    updated_at: str | None = None,
 ) -> dict[str, Any]:
     """A workflow-run record, with a fresh run id and check suite."""
     run_id = next(_ids)
+    stamps = {"created_at": created_at, "updated_at": updated_at}
     return {
+        **{key: value for key, value in stamps.items() if value is not None},
         "id": run_id,
         "name": name,
         "workflow_id": workflow_id,
@@ -165,6 +169,82 @@ def test_a_superseded_run_on_the_same_commit_is_not_judged() -> None:
     verdict = gate.judge([second, first], checks, OWN)
     assert verdict.red == []
     assert verdict.green == ["PR Closes No Owner: success"]
+
+
+def test_a_cancelled_run_with_the_newer_id_does_not_outrank_its_survivor() -> (
+    None
+):
+    # Recorded on PR #6209: Dependabot's label burst started two runs of
+    # Verification Debt Owners, and its concurrency group cancelled the one
+    # GitHub had given the higher id.
+    survivor = run(
+        "Verification Debt Owners",
+        3,
+        created_at="2026-11-09T10:00:00Z",
+        updated_at="2026-11-09T10:01:30Z",
+    )
+    cancelled = run(
+        "Verification Debt Owners",
+        3,
+        conclusion="cancelled",
+        created_at="2026-11-09T10:00:02Z",
+        updated_at="2026-11-09T10:00:05Z",
+    )
+    assert cancelled["id"] > survivor["id"]
+    checks = [
+        check("PR Closes No Owner", suite(survivor)),
+        check("PR Closes No Owner", suite(cancelled), conclusion="cancelled"),
+    ]
+    verdict = gate.judge([survivor, cancelled], checks, OWN)
+    assert verdict.red == []
+    assert verdict.green == ["PR Closes No Owner: success"]
+
+
+def test_a_survivor_still_running_is_waited_on() -> None:
+    survivor = run("Verification Debt Owners", 3, status="in_progress")
+    cancelled = run("Verification Debt Owners", 3, conclusion="cancelled")
+    verdict = gate.judge([survivor, cancelled], None, OWN)
+    assert verdict.pending == [
+        "Verification Debt Owners (workflow, in_progress)"
+    ]
+
+
+def test_a_workflow_whose_every_run_was_cancelled_is_red() -> None:
+    first = run("Verification Debt Owners", 3, conclusion="cancelled")
+    second = run("Verification Debt Owners", 3, conclusion="cancelled")
+    checks = [
+        check("PR Closes No Owner", suite(first), conclusion="cancelled"),
+        check("PR Closes No Owner", suite(second), conclusion="cancelled"),
+    ]
+    verdict = gate.judge([first, second], checks, OWN)
+    assert verdict.red == ["PR Closes No Owner: cancelled"]
+
+
+@pytest.mark.parametrize(
+    "older_finished",
+    ["2026-11-09T10:01:30Z", None],
+    ids=["finished-before-the-newer-run", "no-timestamp"],
+)
+def test_a_cancelled_newer_run_outranks_a_run_that_had_already_finished(
+    older_finished: str | None,
+) -> None:
+    # A timeout, a person or a re-run attempt cancelled the newer run; the
+    # older run finished first, so it cannot be the group's survivor, and its
+    # green verdict is stale.
+    older = run("Verification Debt Owners", 3, updated_at=older_finished)
+    newer = run(
+        "Verification Debt Owners",
+        3,
+        conclusion="cancelled",
+        created_at="2026-11-09T10:05:00Z",
+    )
+    checks = [
+        check("PR Closes No Owner", suite(older)),
+        check("PR Closes No Owner", suite(newer), conclusion="cancelled"),
+    ]
+    verdict = gate.judge([older, newer], checks, OWN)
+    assert verdict.red == ["PR Closes No Owner: cancelled"]
+    assert verdict.green == []
 
 
 def test_a_run_that_failed_to_start_is_named() -> None:
@@ -531,10 +611,14 @@ def test_it_holds_read_permissions_only(workflow: dict[str, Any]) -> None:
     }
 
 
-def test_a_new_push_cancels_the_running_gate(workflow: dict[str, Any]) -> None:
-    concurrency = workflow["concurrency"]
-    assert concurrency["cancel-in-progress"] is True
-    assert "pull_request.number" in concurrency["group"]
+def test_no_gate_run_is_ever_cancelled(workflow: dict[str, Any]) -> None:
+    # The ruleset judges one `CI gate` check run per head commit, and it is not
+    # always the run that finished: on PR #6209 it judged a run the gate's own
+    # concurrency group cancelled during a label burst, and blocked the merge.
+    # With no group, every gate run ends green or red on the same commit.
+    assert "concurrency" not in workflow
+    for job in workflow["jobs"].values():
+        assert "concurrency" not in job
 
 
 def test_its_deadline_ends_before_the_job_cap(

@@ -20,9 +20,10 @@ What counts as "every other check":
 - The latest run of each workflow on the head commit, except this gate's own
   workflow. A run superseded on the same commit (its concurrency group
   cancelled it, or an ``edited`` event re-ran it) is not judged; only its
-  newest run is. Waiting on workflow runs, not only on check runs, is what
-  catches a job whose check run does not exist yet because it ``needs:`` a job
-  still running, and a run that failed before any job started.
+  newest run is, and a cancelled run never outranks a run that overlapped it
+  and was not cancelled. Waiting on workflow runs, not only on check runs, is
+  what catches a job whose check run does not exist yet because it ``needs:`` a
+  job still running, and a run that failed before any job started.
 - The check runs of those latest runs, which name the red jobs.
 - Check runs in no workflow run's check suite, such as a GitHub App's code
   scanning result, each judged by its newest run of that name.
@@ -44,6 +45,7 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -93,16 +95,64 @@ def _path(run: Record) -> str:
     return str(run.get("path", "")).split("@", 1)[0]
 
 
+def _is_cancelled(run: Record) -> bool:
+    return run.get("conclusion") == "cancelled"
+
+
+def _overlapped(run: Record, cancelled: Record) -> bool:
+    """Whether ``run`` was still going when ``cancelled`` was created.
+
+    Only such a run can be the survivor its concurrency group cancelled
+    ``cancelled`` for. A run that had already finished cannot, so a missing
+    timestamp counts as no overlap.
+    """
+    if run.get("status") != "completed":
+        return True
+    finished = run.get("updated_at")
+    created = cancelled.get("created_at")
+    if not finished or not created:
+        return False
+    return _instant(str(finished)) >= _instant(str(created))
+
+
+def _instant(stamp: str) -> datetime:
+    return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+
+
+def _judged_run(runs: Sequence[Record]) -> Record:
+    """The run that speaks for one workflow: its newest, unless cancelled.
+
+    A burst of events (Dependabot's ``opened`` then one ``labeled`` per label)
+    starts several runs of one workflow at once, and its concurrency group lets
+    one survive. GitHub does not admit them in id order, so the survivor can
+    carry the lower id, and judging by id alone would judge the run the group
+    cancelled (PR #6209). So a newest run that was cancelled gives way to the
+    newest run that was not cancelled and overlapped it. A run that finished
+    before the cancelled one existed does not: the cancel came from a timeout,
+    a person or a re-run attempt, and the older verdict is stale. Otherwise
+    the newest run is judged, and a cancelled one is red.
+    """
+    newest = max(runs, key=lambda r: r["id"])
+    if not _is_cancelled(newest):
+        return newest
+    survivors = [
+        r for r in runs if not _is_cancelled(r) and _overlapped(r, newest)
+    ]
+    return max(survivors, key=lambda r: r["id"]) if survivors else newest
+
+
 def latest_runs(runs: Iterable[Record], own_path: str) -> list[Record]:
-    """The newest run of each workflow, without this gate's own workflow."""
-    newest: dict[Any, Record] = {}
+    """The judged run of each workflow, without this gate's own workflow.
+
+    See ``_judged_run`` for which run of a workflow is judged.
+    """
+    by_workflow: dict[Any, list[Record]] = {}
     for run in runs:
         if _path(run) == own_path:
             continue
-        key = run["workflow_id"]
-        if key not in newest or run["id"] > newest[key]["id"]:
-            newest[key] = run
-    return sorted(newest.values(), key=lambda r: r["id"])
+        by_workflow.setdefault(run["workflow_id"], []).append(run)
+    judged = [_judged_run(group) for group in by_workflow.values()]
+    return sorted(judged, key=lambda r: r["id"])
 
 
 def judged_check_runs(
