@@ -71,6 +71,7 @@ sense the docs actually use.
 
 *[DC3]: U.S. Department of Defense Cyber Crime Center
 *[DDoS]: Distributed Denial of Service
+*[DEMOMA]: Multi-Actor Demo (spec family)
 *[DFA]: Deterministic Finite Automaton
 *[DFAs]: Deterministic Finite Automata
 *[DFIR]: Digital Forensics and Incident Response
@@ -271,6 +272,7 @@ sense the docs actually use.
 *[VEX]: Vulnerability Exploitability eXchange
 *[VF]: Vendor aware, Fix ready — the vendor fix path dimensions
 *[VFD]: Vendor aware, Fix ready, fix Deployed — the vendor-path case state dimensions
+*[VFd]: Vendor aware, Fix ready, fix not yet Deployed — a vendor-path case state in vfd notation
 *[VINCE]: Vulnerability Information and Coordination Environment
 *[VM]: Vulnerability Management
 *[VMs]: Virtual Machines

@@ -139,3 +139,7 @@ The Vendor, having rejected the invitation, has no close entry.
 | Unobservable step | Why not in ledger |
 |---|---|
 | Reporter submits report to Coordinator | Report submission precedes the case. |
+
+## The story as the code tells it
+
+{% include-markdown "./_rcv-reject-story.md" %}

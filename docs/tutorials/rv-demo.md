@@ -189,7 +189,7 @@ Use the milestone lines as anchor points when reading the output.
 | Marker | What it means |
 |:-------|:--------------|
 | `✅ M1:` | Required participants (Vendor, Reporter, Case Actor), `EM.ACTIVE`, and the Reporter holds a case copy |
-| `✓ M2:` | Reporter DataLayer synchronized (Ledger Fanout verified) |
+| `✓ M2:` | The Reporter's case replica is synchronized with the Vendor's (Ledger Fanout verified) |
 | `✅ M3:` | Vendor container holds the authoritative final case state |
 | `✅ M4:` | Both copies show CS includes `F` (fix ready) |
 | `✅ M5:` | Neither copy records a fix deployed for the Vendor, so it stops at `VFd` |

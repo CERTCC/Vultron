@@ -59,12 +59,16 @@ NARRATIVE_INDEX = f"{NARRATIVE_DIR}/index.md"
 MATURITY_CLAIM_KEYS: tuple[str, ...] = ("status", "maturity")
 
 
-def _narrative_dir(base: Path) -> Path:
+def narrative_dir(base: Path) -> Path:
     """Return the narrative directory, failing if it moved.
 
     A missing directory is an error, not an empty result: a check that finds no
     pages and reports success would drop every page out of coverage at once
     (DF-09-009).
+
+    Public because :mod:`.stories`, which checks the generated story each page
+    includes, asks the same question of the same directory and may not answer
+    it a second time.
     """
     directory = base / NARRATIVE_DIR
     if not directory.is_dir():
@@ -97,7 +101,7 @@ def unregistered_narrative_pages(
     registered = {spec.narrative_path for spec in resolved}
     return [
         relative
-        for page in sorted(_narrative_dir(base).glob("*.md"))
+        for page in sorted(narrative_dir(base).glob("*.md"))
         if not page.name.startswith("_")
         and (relative := page.relative_to(base).as_posix()) != NARRATIVE_INDEX
         and relative not in registered
@@ -141,6 +145,7 @@ __all__ = [
     "MATURITY_CLAIM_KEYS",
     "NARRATIVE_DIR",
     "NARRATIVE_INDEX",
+    "narrative_dir",
     "narrative_status_claims",
     "unregistered_narrative_pages",
 ]

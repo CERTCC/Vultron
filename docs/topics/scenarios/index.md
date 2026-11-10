@@ -45,3 +45,7 @@ Each narrative's front matter declares the causal edges the protocol must produc
 Because the narratives are written independently of the code, they can contradict the implementation, which is what makes them useful for catching regressions ([ADR-0058](../../adr/0058-causal-gating-in-demo-scenarios.md), [ADR-0079](../../adr/0079-case-ledger-causal-ordering.md)).
 The demo integration workflow's invariant harness checks every declared edge against the case ledger each scenario run produces (DEMOMA-22-005).
 A step the ledger does not record, such as the initial report submission, is declared as unobservable and excluded from that check.
+
+Each narrative ends with a section titled "The story as the code tells it", which is generated from the demo code rather than written.
+It numbers the scenario's steps and decisions in the order the code composes them, each step in the words of the fragment that runs it, so a reader can check the narrative above it against what the demo actually runs.
+It is deliberately the weaker of the two: a rendering of the code can only ever agree with the code, which is why it comes after the narrative and never replaces it.

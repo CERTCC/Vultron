@@ -89,7 +89,7 @@ LATE_JOIN_TIMEOUT = 40.0
 
 
 def replicas_drain_before_the_second_coordinator(state: StoryState) -> None:
-    """Wait for the opening's ledger to reach every replica.
+    """Everything the opening recorded has reached every replica of the case.
 
     Added as a workaround for #2819 when the CaseActor queued its ledger
     fan-out ahead of ``Create(VulnerabilityCase)`` and every replica rejected
@@ -112,7 +112,7 @@ def replicas_drain_before_the_second_coordinator(state: StoryState) -> None:
 
 
 def seed_the_second_coordinator_and_vendor(state: StoryState) -> None:
-    """Seed and seat C2 and V2, the scenario's two character actors.
+    """C2 and V2 are ready to be invited to the case.
 
     ``seed_containers_rcvcv`` creates both and registers every actor as a peer
     of the other four (DEMOMA-19-002, DEMOMA-19-012, DEMOMA-19-013); the three
@@ -155,7 +155,7 @@ C2_JOINED: StoryProp[str] = StoryProp("case C2 joined", str)
 
 
 def c1_invites_the_second_coordinator(state: StoryState) -> None:
-    """C1 invites C2 with ``CVDRole.COORDINATOR``; C2 accepts and joins.
+    """C1 invites C2 to coordinate too; C2 accepts and joins.
 
     C2 runs no RM triage: it joins to help coordinate, not to judge the
     report, so it engages no case of its own (CM-11-022 applies to the
@@ -214,7 +214,7 @@ def c2_suggests_the_vendor_deployer(state: StoryState) -> None:
 
 
 def every_replica_converges(state: StoryState) -> None:
-    """Verify LedgerFanout replication for all participant replicas."""
+    """Ledger Fanout reaches every participant's replica of the case."""
     run_sync_verification_phase(
         auth_client=state.client(C1),
         auth_label=C1_LABEL,
@@ -272,7 +272,8 @@ def the_joiners_add_their_notes(state: StoryState) -> None:
 
 
 def both_vendors_run_the_fix_lifecycle(state: StoryState) -> None:
-    """Advance V1 to VFd and V2 to VFD (DEMOMA-19-004, DEMOMA-19-026).
+    """Vendor1 reports its fix ready and Vendor2 reports it deployed
+    (DEMOMA-19-004, DEMOMA-19-026).
 
     V1 (VENDOR only) stops at VFd — fix-ready, no deploy step.  V2 (VENDOR +
     DEPLOYER) advances to VFD — fix-ready then fix-deployed.  ``rcv``'s own
@@ -411,7 +412,7 @@ def v1_publishes_then_the_others(state: StoryState) -> None:
 
 
 def all_five_close_the_case(state: StoryState) -> None:
-    """Close the case from all five participants and verify terminal state.
+    """All five participants leave the case, and it reaches its terminal state.
 
     V1, V2, C2 and the Reporter leave first; C1, the Case Owner, leaves last,
     once their departures are recorded (CM-23-015) in the CASE_MANAGER's store

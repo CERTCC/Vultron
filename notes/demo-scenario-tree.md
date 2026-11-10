@@ -506,14 +506,13 @@ vendor-first half, whose Reporter tells a Vendor.
   that leaves none, or leaves them out of its declared path's order, fails
   `record_scenario` outright (exit 1, a crashed recorder), so that is the one kind of
   step-mark defect the comparison does report.
-- **The plot renders as a story a domain expert can read.** Every fragment the
-  manifest names opens its docstring with one sentence in CVD domain terms, with no
-  code identifier, helper or container (DEMOCI-11-065, DEMOCI-11-066). Each narrative
-  page includes, after its hand-written narrative, a generated numbered story:
-  fragments by that sentence, choices by deciding role and the branch-point table's
-  presenter label (DEMOCI-11-067 to DEMOCI-11-069). The rendering can only agree with
-  the code, so it never replaces the narrative, which is written without the code so
-  that it can contradict it (#2204).
+- **The plot renders as a story a domain expert can read.** How to write a
+  fragment's opening sentence, and what a new scenario's narrative page must end
+  with, are in `demo-scenario-registry.md` § "What the decorator carries" and
+  § "The generate-vs-check split" (DEMOCI-11-065 to DEMOCI-11-069). Both the
+  rendering and the hand-written narrative stay: the narrative is written without
+  the code so that it can contradict it, and a rendering of the code can only
+  agree (#2204).
 
 ## Test starting points
 
@@ -560,5 +559,3 @@ point stops a run there.
 2. The clock-reading read paths that keep a shared stretch from being
    byte-stable: #5649, #5650, #5651 and #5652. The plot manifest they follow is
    committed.
-3. The story rendering (#6028) needs only the plot manifest, so nothing blocks
-   it.
