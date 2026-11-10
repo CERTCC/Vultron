@@ -29,8 +29,8 @@ Sub-modules
   ``wait_for_reporter_introduction``,
   and all ``wait_for_*`` helpers (``_poll_until`` lives in
   :mod:`~vultron.demo.helpers.polling._poll`).
-- :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory and
-  ``publish_embargo_policy`` (``PUT /actors/{slug}/embargo-policy``, EP-02).
+- :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory, the
+  ``case_minted_at`` instant it is dated from, and ``publish_embargo_policy`` (``PUT /actors/{slug}/embargo-policy``, EP-02).
 - :mod:`~vultron.demo.helpers.embargo_outcome` — creation-time embargo outcome
   checks for the negotiated path (``verify_reporter_terms_active``,
   ``verify_pending_revision``, ``verify_uncontested``,
@@ -121,6 +121,7 @@ from vultron.demo.helpers.closure import (
     wait_for_owner_replica_embargo_state,
 )
 from vultron.demo.helpers.embargo import (
+    case_minted_at,
     make_embargo_event,
     publish_embargo_policy,
 )

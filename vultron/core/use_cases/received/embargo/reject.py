@@ -12,10 +12,10 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.embargo.answer_trees import (
     reject_invite_to_embargo_tree,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
 )
@@ -70,10 +70,10 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # This delivery's instant, read once before anything decides
-        # anything: the pending-ask lookup below judges against it rather
-        # than reading the clock itself (#5591).
-        at = now_utc()
+        # This delivery's instant, its arrival stamp, taken from the act
+        # before anything decides anything: the pending-ask lookup below
+        # judges against it, and nothing here reads the clock (ADR-0176).
+        at = read_act_instant()
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )

@@ -46,7 +46,7 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.core.states.em import EM, is_em_embargo_active
-from vultron.demo.helpers.embargo import make_embargo_event
+from vultron.demo.helpers.embargo import case_minted_at, make_embargo_event
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     owner_activates_embargo,
@@ -103,7 +103,7 @@ def demo_propose_embargo_accept(
     # 5 verifies their effect and must stay in sequence after them, so it
     # nests with them.
     with demo_step("Step 2: Coordinator proposes embargo"):
-        embargo = make_embargo_event(case, days=90)
+        embargo = make_embargo_event(case, case_minted_at(case), days=90)
         proposal = em_propose_embargo_activity(
             embargo,
             id_=f"{case.id_}/embargo_proposals/1",
@@ -185,7 +185,7 @@ def demo_propose_embargo_reject(
     # rather than reading a None sentinel after it (ADR-0058, #3038).  Step 4
     # verifies its effect and must stay in sequence after it, so it nests too.
     with demo_step("Step 2: Coordinator proposes embargo"):
-        embargo = make_embargo_event(case, days=45)
+        embargo = make_embargo_event(case, case_minted_at(case), days=45)
         proposal = em_propose_embargo_activity(
             embargo,
             id_=f"{case.id_}/embargo_proposals/1",

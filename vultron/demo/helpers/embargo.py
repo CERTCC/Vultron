@@ -14,12 +14,11 @@
 """Embargo object factory helpers shared across demo scenarios."""
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import isodate  # type: ignore[import-untyped]
 
 from vultron.adapters.utils import parse_id
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -72,8 +71,27 @@ def publish_embargo_policy(
     return policy
 
 
+def case_minted_at(case: as_VulnerabilityCase) -> datetime:
+    """The instant *case* was minted: its ``published``, as the server stamped it.
+
+    A demo step that dates something it builds for *case* takes its time from
+    the case rather than reading the clock, so building it moves no recording
+    (ADR-0176).
+
+    Raises:
+        ValueError: *case* carries no ``published``.
+    """
+    if case.published is None:
+        raise ValueError(
+            f"case '{case.id_}' carries no published time to date its"
+            " embargo proposal from"
+        )
+    return case.published
+
+
 def make_embargo_event(
     case: as_VulnerabilityCase,
+    at: datetime,
     days: int = 90,
     seq: int | None = None,
 ) -> as_EmbargoEvent:
@@ -84,8 +102,14 @@ def make_embargo_event(
     the same duration within a single case (e.g., in the reject-then-repropose
     demo where two embargo events differ only by sequence number).
 
+    The helper reads no clock: *at* is the caller's instant, so the same
+    *at* builds the same event (ADR-0176).
+
     Args:
         case: The :class:`as_VulnerabilityCase` this embargo event belongs to.
+        at: The instant the embargo is proposed at, timezone-aware: its
+            ``start_time`` to the minute, and the base its end is counted
+            from.
         days: Embargo duration in days (default 90).
         seq: Optional integer sequence suffix appended to the event ID to
             ensure uniqueness within a multi-proposal workflow.  When
@@ -93,9 +117,15 @@ def make_embargo_event(
 
     Returns:
         A new :class:`as_EmbargoEvent` with start/end times set.
+
+    Raises:
+        ValueError: *at* is naive.
     """
-    now = now_utc()
-    now = now.replace(second=0, microsecond=0)
+    if at.tzinfo is None or at.utcoffset() is None:
+        raise ValueError(
+            f"make_embargo_event needs a timezone-aware instant, got {at!r}"
+        )
+    now = at.replace(second=0, microsecond=0)
     end_at = (now + timedelta(days=days)).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
@@ -107,5 +137,9 @@ def make_embargo_event(
         context=case.id_,
         start_time=now,
         end_time=end_at,
+        # Stamped from *at* too, so building the event reads no clock
+        # through the stamps' defaults (ADR-0176).
+        published=now,
+        updated=now,
         content=f"Proposed {days}-day embargo for {case.name}.",
     )
