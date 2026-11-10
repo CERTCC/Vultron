@@ -496,15 +496,7 @@ def _binds_in_own_scope(node: ast.AST, name: str) -> bool:
     the unbound check's own scope rule is unchanged.
     """
     if isinstance(node, ast.Lambda):
-        args = node.args
-        declared = [
-            *args.posonlyargs,
-            *args.args,
-            *args.kwonlyargs,
-            *([args.vararg] if args.vararg else []),
-            *([args.kwarg] if args.kwarg else []),
-        ]
-        return any(arg.arg == name for arg in declared)
+        return any(arg.arg == name for arg in _corpus.parameters_of(node))
     if isinstance(node, _COMPREHENSIONS):
         return any(name in _store_names(gen.target) for gen in node.generators)
     return False

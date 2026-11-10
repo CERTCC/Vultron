@@ -6,6 +6,7 @@ import pytest
 
 from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -48,6 +49,7 @@ def test_propose_embargo_invalid_state_does_not_persist_embargo(
             trigger_activity=TriggerActivityAdapter(finder_dl),
             sync_port=SyncActivityAdapter(finder_dl),
             wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
         ).execute()
 
     after = len(list(finder_dl.list_objects("EmbargoEvent")))
@@ -77,6 +79,7 @@ def test_propose_embargo_updates_case_state_via_bt_path(
         trigger_activity=TriggerActivityAdapter(finder_dl),
         sync_port=SyncActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
+        clock=SystemClock(),
     ).execute()
 
     assert result.activity is not None

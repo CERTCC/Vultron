@@ -46,6 +46,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from test.support.scenario_specs import FIRST_STEP, fixture_spec
+from vultron.demo.helpers.story import StoryState, choose, story
 from vultron.demo.scenario.registry import (
     ScenarioSpec,
     discover_scenarios,
@@ -66,6 +68,7 @@ from vultron.metadata.demo_scenarios.semantic_types import (
     additional_semantic_types,
     harness_semantic_types,
 )
+from vultron.metadata.demo_scenarios.stories import story_path
 from vultron.metadata.demo_scenarios.sync import (
     ARTIFACTS,
     BEGIN_MARKER,
@@ -87,35 +90,65 @@ _REPO_ROOT = Path(__file__).parents[2]
 _SYNC_HOOK_ID = "demo-scenarios-sync"
 
 #: Inputs the artifacts are derived from, standing in for "any change that makes
-#: them stale": a scenario module (the registry) and a renderer (the projection).
+#: them stale": a scenario module (the registry), a story helper that holds the
+#: fragments and ``choose(...)`` items a shared prefix is assembled from (the
+#: plot manifest lists them in order, so a reorder there makes it stale,
+#: DEMOCI-11-034, and each fragment's opening docstring sentence is the line
+#: its step renders as in the generated story, DEMOCI-11-065) and a renderer
+#: (the projection).
 _ARTIFACT_INPUTS = (
     "vultron/demo/scenario/rv_demo.py",
+    "vultron/demo/helpers/coordinated_story/opening.py",
+    "vultron/demo/helpers/coordinated_embargo_story.py",
     "vultron/metadata/demo_scenarios/render.py",
+    "vultron/metadata/demo_scenarios/stories.py",
 )
 
+
+def _artifact_paths(
+    specs: tuple[ScenarioSpec, ...] | None = None,
+) -> list[str]:
+    """Every committed artifact path, in ``desired_contents`` order.
+
+    The declared artifacts, then one generated story per registered scenario
+    (DEMOCI-11-067). Derived rather than listed, because that set's
+    membership *is* the registry.
+    """
+    resolved = discover_scenarios() if specs is None else specs
+    return [artifact.path for artifact in ARTIFACTS] + [
+        story_path(spec.name) for spec in resolved
+    ]
+
+
+def _fixture_fragment(state: StoryState) -> None:
+    """Stand in for a story fragment; only its name reaches an artifact."""
+
+
 #: A registry that differs from the committed one, used to make every artifact
-#: stale at once without touching the real scenario modules.
-_EXTRA_SPEC = ScenarioSpec(
+#: stale at once without touching the real scenario modules. It carries a
+#: story because the plot manifest is a projection of the story, not of the
+#: decorator's prose fields: a spec with no story would leave that one
+#: artifact in sync and the "every artifact" claim below false
+#: (DEMOCI-11-034).
+_EXTRA_SPEC = fixture_spec(
     name="zz-fake",
     label="ZZ-fake",
-    participants="Reporter + Vendor",
-    feature="Fixture scenario; never registered",
     in_pr_set=True,
-    path=(("reporter-whom-to-tell", "vendor"),),
+    story=story(choose(*FIRST_STEP, by="reporter"), _fixture_fragment),
 )
 
 
 @pytest.fixture
 def artifact_root(tmp_path: Path) -> Path:
-    """A throwaway tree holding copies of the three committed artifacts.
+    """A throwaway tree holding copies of every committed artifact.
 
     Copied rather than generated so the staleness tests start from exactly what
     is committed; a fixture that wrote its own starting state could pass while
     the real files were already wrong.
     """
-    for artifact in ARTIFACTS:
-        source = _REPO_ROOT / artifact.path
-        target = tmp_path / artifact.path
+    for path in _artifact_paths():
+        source = _REPO_ROOT / path
+        target = tmp_path / path
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
     return tmp_path
@@ -182,14 +215,15 @@ def test_check_detects_a_hand_edited_table(
 def test_check_detects_every_artifact_when_the_registry_changes(
     artifact_root: Path,
 ) -> None:
-    """Adding a scenario makes all three artifacts stale at once.
+    """Adding a scenario makes every artifact stale at once.
 
     The registry is passed explicitly: the point is that a *registry* change,
     not a file edit, is what the gate exists to propagate.
     """
     specs = (*discover_scenarios(), _EXTRA_SPEC)
     assert stale_artifacts(artifact_root, specs) == [
-        artifact.path for artifact in ARTIFACTS
+        *(artifact.path for artifact in ARTIFACTS),
+        story_path(_EXTRA_SPEC.name),
     ]
 
 
@@ -197,7 +231,10 @@ def test_write_then_check_round_trips(artifact_root: Path) -> None:
     """``--write`` makes ``--check`` clean, and is idempotent afterwards."""
     specs = (*discover_scenarios(), _EXTRA_SPEC)
     written = write_artifacts(artifact_root, specs)
-    assert written == [artifact.path for artifact in ARTIFACTS]
+    assert written == [
+        *(artifact.path for artifact in ARTIFACTS),
+        story_path(_EXTRA_SPEC.name),
+    ]
     assert stale_artifacts(artifact_root, specs) == []
     assert write_artifacts(artifact_root, specs) == []
 
@@ -255,8 +292,8 @@ def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
     """DEMOCI-06-002's statement names exactly the ``in_pr_set`` scenarios.
 
     Without this, ``in_pr_set`` is the one registry field nothing outside the
-    registry can contradict.  Flipping one ``True`` to ``False`` regenerates all
-    three artifacts self-consistently, so ``--check`` stays green;
+    registry can contradict.  Flipping one ``True`` to ``False`` regenerates
+    every artifact self-consistently, so ``--check`` stays green;
     ``test_all_ci_scenarios_have_a_harness_module`` only pins the *count*, which
     does not change; and the scenario silently stops running on ``pull_request``
     events.  Before ADR-0098 the flag lived in a short committed JSON where a
@@ -475,13 +512,13 @@ def test_console_script_is_declared() -> None:
 
 @pytest.mark.parametrize(
     "path",
-    [artifact.path for artifact in ARTIFACTS] + list(_ARTIFACT_INPUTS),
+    _artifact_paths() + list(_ARTIFACT_INPUTS),
     ids=lambda path: path,
 )
 def test_pre_commit_hook_watches_every_input_and_artifact(path: str) -> None:
     """The hook fires on a change to any artifact *or* to any of its inputs.
 
-    All three halves matter and they fail differently. Watching only the
+    Every half matters and they fail differently. Watching only the
     artifacts catches a hand-edit but not the cases that actually happen: a
     scenario added or re-flagged in a decorator, or a renderer that changes a
     column — either of which makes every artifact stale without touching one.

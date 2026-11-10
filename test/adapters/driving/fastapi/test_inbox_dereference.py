@@ -33,6 +33,7 @@ from test.support.case_manager import (
 from test.support.embargo_register import activate
 from test.support.received import TEST_SENDER_POSITION
 from test.support.signing import signed_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_object_fetch import ObjectFetchResult
 from vultron.adapters.driving.fastapi import (
@@ -294,6 +295,7 @@ def test_the_activity_is_deferred_not_dropped_while_the_fetch_is_open():
         run.dispatch,
         run.queue,
         dereference_port=run.dereference,
+        clock=SystemClock(),
     )
 
     assert outcome.status.value == "deferred"
@@ -352,6 +354,7 @@ def test_two_activities_naming_one_object_wait_on_one_fetch():
             run.dispatch,
             run.queue,
             dereference_port=run.dereference,
+            clock=SystemClock(),
         )
 
     (fetch,) = _fetches(dl)
@@ -581,6 +584,7 @@ def test_the_startup_replay_makes_a_fetch_an_earlier_run_left_open():
         run.dispatch,
         run.queue,
         dereference_port=run.dereference,
+        clock=SystemClock(),
     )
     fetcher = _FakeFetcher(
         {replaced.id_: ObjectFetchResult(_body(replaced), None, 1)}
@@ -847,6 +851,7 @@ def test_a_redelivery_of_a_waiting_activity_waits_once():
             run.dispatch,
             run.queue,
             dereference_port=run.dereference,
+            clock=SystemClock(),
         )
         assert outcome.status.value == "deferred"
 
@@ -884,7 +889,9 @@ def test_a_handed_off_body_that_is_not_a_core_object_is_unreadable():
         update={
             "state": ObjectFetchState.FETCHED,
             "fetched_body": json.dumps(
-                {"type": "Image", "id": "urn:uuid:img"}
+                # An Article has no core class; an Image now does
+                # (AttachedImage, CSAF-01-001).
+                {"type": "Article", "id": "urn:uuid:img"}
             ),
         }
     )

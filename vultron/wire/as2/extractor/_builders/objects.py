@@ -45,6 +45,10 @@ def _build_report_object(obj: object) -> dict[str, Any]:
                 context=_get_id(getattr(obj, "context", None)),
                 published=_get_timestamp(obj, "published"),
                 updated=_get_timestamp(obj, "updated"),
+                # Carried as received, so the stored report keeps the
+                # documents it came with, a CSAF document among them
+                # (CSAF-01-001, VM-08-002).
+                attachment=getattr(obj, "attachment", None),
             )
         }
     return {}

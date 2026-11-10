@@ -2,10 +2,11 @@
 
 from typing import TYPE_CHECKING, Literal, cast
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.report_claims import ClaimsReading
 
 if TYPE_CHECKING:
     from vultron.core.models.activity import VultronActivity
@@ -38,12 +39,18 @@ class SubmitReportReceivedEvent(VultronEvent):
     when the Offer carried them (EP-04-004); its ``context`` is the report
     (EP-04-009).  Extraction surfaces it here so no use case re-reads the
     stored wire activity for it (ADR-0035, DL-06-002).
+
+    ``claims_readings`` holds the wire edge's reading of each CSAF 2.1
+    document among the report's attachments: its schema verdict and what it
+    claims (CSAF-04-001, CSAF-04-003).  It is empty when the report carries
+    none.  Reading a document never refuses the Offer (CSAF-02-006).
     """
 
     semantic_type: Literal[MessageSemantics.SUBMIT_REPORT] = (
         MessageSemantics.SUBMIT_REPORT
     )
     proposed_embargo: EmbargoEvent | None = None
+    claims_readings: list[ClaimsReading] = Field(default_factory=list)
 
     @property
     def report_id(self) -> str | None:

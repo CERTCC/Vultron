@@ -33,10 +33,12 @@ import logging
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge.act_instant import open_act
 from vultron.core.behaviors.sync.state_positions_tree import (
     create_state_ledger_positions_tree,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronBTInternalError
 
@@ -47,6 +49,7 @@ def state_ledger_positions_trigger(
     dl: CaseOutboxPersistence,
     actor_id: str,
     sync_port: SyncActivityPort,
+    clock: ClockPort,
 ) -> int:
     """Queue ``Read(CaseLedgerEntry)`` for each case replica *actor_id* holds.
 
@@ -61,6 +64,8 @@ def state_ledger_positions_trigger(
         dl: The actor's own store; its outbox receives the statements.
         actor_id: The participant stating its positions.
         sync_port: Builds and queues each ``Read(CaseLedgerEntry)``.
+        clock: The act clock.  Stating the positions is one act: it takes
+            the tree lock, then reads the clock once (ADR-0176).
 
     Returns:
         The number of statements queued.
@@ -69,9 +74,10 @@ def state_ledger_positions_trigger(
         VultronBTInternalError: The tree failed.
     """
     tree = create_state_ledger_positions_tree()
-    result = BTBridge(datalayer=dl, sync_port=sync_port).execute_with_setup(
-        tree=tree, actor_id=actor_id
-    )
+    with open_act(clock) as at:
+        result = BTBridge(
+            datalayer=dl, sync_port=sync_port
+        ).execute_with_setup(tree=tree, actor_id=actor_id, at=at)
     if result.status != Status.SUCCESS:
         raise VultronBTInternalError(
             f"StateLedgerPositionsBT: {result.feedback_message}"

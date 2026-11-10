@@ -433,3 +433,36 @@ def test_offer_role_body_parses_role_case_insensitively() -> None:
         {"case_id": _CASE, "target_actor_id": _ACTOR, "role": "VENDOR"}
     )
     assert built.role is CVDRole.VENDOR
+
+
+@pytest.mark.spec("CM-20-009")
+@pytest.mark.parametrize(("model", "actor_field"), _ROLE_LIST_BODIES)
+@pytest.mark.parametrize(
+    "roles", [["coordinator", "case_manager"], ["CASE_OWNER"]]
+)
+def test_role_list_bodies_refuse_an_authority_role(
+    model: type[BaseModel], actor_field: str, roles: list[str]
+) -> None:
+    """No suggestion or invitation offers CASE_MANAGER or CASE_OWNER.
+
+    The CASE_MANAGER would refuse the Offer (CM-20-008), so the trigger
+    never builds it (CM-20-009).
+    """
+    with pytest.raises(ValidationError, match="CM-20-009"):
+        model.model_validate(
+            {"case_id": _CASE, actor_field: _ACTOR, "roles": roles}
+        )
+
+
+@pytest.mark.spec("CM-20-009")
+@pytest.mark.parametrize("role", ["case_manager", "Case_Owner"])
+def test_offer_role_body_refuses_an_authority_role(role: str) -> None:
+    """The offer-role trigger never offers CASE_MANAGER or CASE_OWNER.
+
+    The CASE_MANAGER would refuse the Offer (CM-33-003), so the trigger
+    never builds it (CM-20-009).
+    """
+    with pytest.raises(ValidationError, match="CM-20-009"):
+        OfferCaseParticipantRoleRequest.model_validate(
+            {"case_id": _CASE, "target_actor_id": _ACTOR, "role": role}
+        )

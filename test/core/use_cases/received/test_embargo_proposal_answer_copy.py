@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import committed_semantic_types, fail_commits
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -174,6 +175,7 @@ def _propose(net: LedgerNetwork, days: int = 30) -> Any:
             end_time=days_from_now_utc(days),
         ),
         **_ports(net),
+        clock=SystemClock(),
     ).execute()
 
 
@@ -182,6 +184,7 @@ def _accept(net: LedgerNetwork) -> Any:
         net.stores[MANAGER],
         AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_ports(net),
+        clock=SystemClock(),
     ).execute()
 
 
@@ -190,6 +193,7 @@ def _reject(net: LedgerNetwork) -> Any:
         net.stores[MANAGER],
         RejectEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_ports(net),
+        clock=SystemClock(),
     ).execute()
 
 
@@ -271,6 +275,7 @@ def _withdraw(net: LedgerNetwork) -> Any:
         net.stores[MANAGER],
         WithdrawEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_ports(net),
+        clock=SystemClock(),
     ).execute()
 
 
@@ -728,6 +733,7 @@ def test_a_re_issue_with_no_embargo_in_force_writes_no_row():
                 actor_id=MANAGER, case_id=net.case_id
             ),
             **_ports(net),
+            clock=SystemClock(),
         ).execute(),
     )
 

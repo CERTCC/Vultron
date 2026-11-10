@@ -46,6 +46,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.received import with_evidence
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -303,6 +304,7 @@ class TestTriggerEmitsToCaseActorOutbox:
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
         after = outbox_ids(self.VENDOR_ID, dl)
 
@@ -342,6 +344,7 @@ class TestTriggerEmitsToCaseActorOutbox:
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            clock=SystemClock(),
         ).execute()
         after = outbox_ids(self.VENDOR_ID, dl)
 
@@ -799,6 +802,7 @@ class TestFullValidateReportLedgerChain:
             trigger_activity=TriggerActivityAdapter(vendor_dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(vendor_dl),
+            clock=SystemClock(),
         ).execute()
         after = outbox_ids(self.VENDOR_ID, vendor_dl)
 

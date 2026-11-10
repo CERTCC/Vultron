@@ -196,3 +196,7 @@ Vendor2, the Coordinator, and the Reporter leave first; Vendor1, the Case Owner,
 | Unobservable step | Why not in ledger |
 |---|---|
 | Reporter submits report to Vendor1 | Report submission precedes the case. |
+
+## The story as the code tells it
+
+{% include-markdown "./_rvcv-extension-story.md" %}

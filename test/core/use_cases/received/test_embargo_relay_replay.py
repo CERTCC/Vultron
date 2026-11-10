@@ -32,6 +32,7 @@ from test.support.received import (
     received_record,
 )
 from test.support.signing import resigned, signed_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -767,6 +768,7 @@ def _manager_revises(net: _Network, *, days: int = 90) -> str:
             end_time=days_from_now_utc(days),
         ),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     (revision_id,) = net.case(MANAGER).proposed_embargo_ids
     return revision_id
@@ -805,6 +807,7 @@ def test_a_replica_follows_the_managing_owners_revision_by_trigger():
         dl,
         AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     assert net.queued(MANAGER, to=MANAGER) == []
     _replay_to_bystander(net)
@@ -842,6 +845,7 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
         dl,
         AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
 
     bystander = _participant(net, MANAGER, BYSTANDER)
@@ -891,6 +895,7 @@ def test_a_replica_follows_the_managing_owners_first_proposal_by_trigger():
             end_time=days_from_now_utc(90),
         ),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     (proposal_id,) = net.case(MANAGER).proposed_embargo_ids
     assert net.queued(MANAGER, to=MANAGER) == []
@@ -917,6 +922,7 @@ def test_a_replica_follows_the_managing_owners_rejection_by_trigger():
         net.stores[MANAGER],
         RejectEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     assert net.queued(MANAGER, to=MANAGER) == []
     _replay_to_bystander(net)
@@ -950,6 +956,7 @@ def test_a_replica_follows_the_managing_owners_termination_by_trigger():
         net.stores[MANAGER],
         TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     assert net.queued(MANAGER, to=MANAGER) == []
     (remove,) = net.queued(MANAGER, to=BYSTANDER, type_="Remove")
@@ -991,6 +998,7 @@ def test_termination_leaves_nobody_a_signatory_in_every_store():
         net.stores[MANAGER],
         TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
+        clock=SystemClock(),
     ).execute()
     _replay_to_bystander(net)
 

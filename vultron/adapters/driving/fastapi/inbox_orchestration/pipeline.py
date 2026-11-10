@@ -25,6 +25,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, cast
 
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.http_object_fetch import ObjectFetcher
 from vultron.adapters.driving.fastapi import inbox_port_factories
 from vultron.adapters.driving.fastapi.inbox_dereference import (
@@ -109,6 +110,9 @@ class _InboxRun:
         # (EP-07-001, EP-07-002); None applies the protocol defaults.
         self.actor_config = inbox_port_factories._resolve_actor_config()
         self.max_attempts = get_config().max_inbox_retry_attempts
+        # The act clock: each delivery, and each replay, reads it once after
+        # taking the tree lock (ADR-0176).
+        self.clock = SystemClock()
 
     def drain_queue(self) -> None:
         """Replay every item queued in the actor's inbox (IE-06-004)."""
@@ -122,6 +126,7 @@ class _InboxRun:
             self.max_attempts,
             self.dereference,
             self.outcome,
+            clock=self.clock,
         )
 
 
@@ -267,6 +272,7 @@ def _process_one(
         actor_config=run.actor_config,
         dereference_port=run.dereference,
         received_outcome_port=run.outcome,
+        clock=run.clock,
     )
     logger.debug(
         "inbox pipeline: status=%s context_id=%s",

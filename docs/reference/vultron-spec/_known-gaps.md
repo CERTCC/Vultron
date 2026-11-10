@@ -6,6 +6,18 @@ Each requirement below has tests, and every one of them is held by a strict expe
 So a test shows that `main` does not yet meet the requirement.
 The requirements are grouped by the issues that the held tests cite.
 
+### Tracked by [#1184](https://github.com/CERTCC/Vultron/issues/1184)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ENC-01-001",
+    "ENC-01-004",
+    "ENC-01-005",
+    "ENC-01-006",
+))
+```
+
 ### Tracked by [#2883](https://github.com/CERTCC/Vultron/issues/2883)
 
 ```python exec="true" idprefix=""
@@ -210,17 +222,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5131](https://github.com/CERTCC/Vultron/issues/5131) and [#6090](https://github.com/CERTCC/Vultron/issues/6090)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CSAF-01-003",
-    "CSAF-02-005",
-    "CSAF-02-006",
-))
-```
-
 ### Tracked by [#5131](https://github.com/CERTCC/Vultron/issues/5131) and [#6091](https://github.com/CERTCC/Vultron/issues/6091)
 
 ```python exec="true" idprefix=""
@@ -271,6 +272,15 @@ print(requirement_callout(
 ))
 ```
 
+### Tracked by [#5388](https://github.com/CERTCC/Vultron/issues/5388)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "ENC-02-002",
+))
+```
+
 ### Tracked by [#5636](https://github.com/CERTCC/Vultron/issues/5636)
 
 ```python exec="true" idprefix=""
@@ -286,15 +296,6 @@ print(requirement_callout(
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "VP-05-021",
-))
-```
-
-### Tracked by [#5640](https://github.com/CERTCC/Vultron/issues/5640)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CM-20-006",
 ))
 ```
 
@@ -814,12 +815,7 @@ print(requirement_callout(
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
-    "ENC-01-001",
-    "ENC-01-004",
-    "ENC-01-005",
-    "ENC-01-006",
     "ENC-02-001",
-    "ENC-02-002",
     "IE-11-002",
 ))
 ```

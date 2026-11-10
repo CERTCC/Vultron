@@ -197,19 +197,26 @@ repos:
         # every error message, README step and AGENTS.md entry names.
         entry: uv run demo-scenarios --check
         language: system
-        # Three kinds of input make the committed artifacts stale, so all three
+        # Four kinds of input make the committed artifacts stale, so all four
         # are watched (DEMOCI-11-005): the @scenario decorators in the scenario
-        # modules, the renderers that turn them into tables and JSON, and the
-        # artifacts themselves — the last so a hand-edit is caught too. The
-        # scenario narrative pages are watched as well, because --check also
-        # refuses a page for an unregistered scenario or one that declares a
-        # maturity claim (DEMOCI-11-012).
+        # modules, the story helpers under vultron/demo/helpers/ that hold the
+        # fragments and choose(...) items a shared prefix is assembled from —
+        # the plot manifest lists them in order, so reordering one there makes
+        # it stale (DEMOCI-11-034, DEMOCI-11-035), and each fragment's opening
+        # docstring sentence is the line its step renders as in the generated
+        # story (DEMOCI-11-065, DEMOCI-11-067) — the renderers that turn
+        # them into tables, JSON and stories, and the artifacts themselves,
+        # the last so a hand-edit is caught too. The scenario narrative pages
+        # are watched as well: they hold the generated stories, and --check
+        # also refuses a page for an unregistered scenario, one that declares
+        # a maturity claim (DEMOCI-11-012), or one that does not end with its
+        # story (DEMOCI-11-067).
         #
         # Not covered: a commit that *only deletes* a scenario module and its
         # derived files. pre-commit's staged-file list excludes deletions, so no
         # pattern can match one; test_committed_artifacts_are_in_sync in
         # test/metadata/test_demo_scenario_artifacts.py is the backstop there.
-        files: ^(vultron/demo/scenario/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md|docs/topics/scenarios/.*\.md)$
+        files: ^(vultron/demo/scenario/.*\.py|vultron/demo/helpers/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|vultron/demo/scenario/plots\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md|docs/topics/scenarios/.*\.md)$
         pass_filenames: false
 
       - id: demo-recordings-sync

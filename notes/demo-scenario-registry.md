@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Implementation guidance for the self-registering demo scenario registry
   (ADR-0098): what the decorator carries and what is derived by convention, that
-  a scenario is a module or a package of one name, why
+  a scenario is a module or a package of one name, how a fragment's docstring
+  opens with the one domain sentence its generated story renders it as, why
   planned scenarios stay out of it, how the MS-13-003 marker selects the spec
   groups that specify a scenario, why discovery must walk the package, why
   `.github/demo-scenarios.json` stays committed, which consumers are generated
@@ -36,8 +37,9 @@ related_notes:
 # Demo Scenario Registry — Self-Registration, Derived Paths, and the Generate-vs-Check Split
 
 Each demo module declares itself with `@scenario`
-(`vultron/demo/scenario/registry/`), and every scenario table, the CI matrix
-and the CLI derive from that one source (ADR-0098, DEMOCI-11). The renderers,
+(`vultron/demo/scenario/registry/`), and every scenario table, the CI matrix,
+the plot manifest and the CLI derive from that one source (ADR-0098,
+DEMOCI-11). The renderers,
 checks and the `--check`/`--write` dumper live in
 `vultron/metadata/demo_scenarios/` (`uv run demo-scenarios`); the
 `demo-scenarios-sync` pre-commit hook runs `--check`. This note records what the
@@ -56,6 +58,24 @@ see `registry/spec.py`). A stored path can be wrong about itself; a derived path
 either resolves or fails a check (DEMOCI-11-003). If a scenario cannot satisfy a
 convention, change the convention or rename the file: an override field re-opens
 the drift channel for every scenario.
+
+**A fragment's docstring opens with one domain sentence.** That sentence is
+the line the step renders as in the scenario's generated story, so it says what
+the step does in CVD domain terms and names no identifier, helper or container:
+no backtick, no `snake_case` or `SCREAMING_SNAKE` name, no dotted `Name.Member`
+notation, no leading `M<N>:` demo milestone marker, and no word naming a
+container — a cast slug or the bare word itself (DEMOCI-11-065,
+DEMOCI-11-066). `fragment_sentence` in
+`vultron/demo/helpers/story/assembly.py` refuses the rest, reporting every
+violation at once, and the rest of the docstring is the body, which no story
+shows. A requirement or decision id in parentheses is a citation, not a code
+identifier, so a sentence may carry one: the narrative pages cite requirements
+in prose themselves, and the citation is how a reader checks the step against
+the spec. A new scenario's narrative page therefore ends with a
+`## The story as the code tells it` section holding one include of its
+generated story, after the hand-written narrative — the narrative is written
+without reading the code so that it can contradict it, and a rendering of the
+code can only agree (DEMOCI-11-067).
 
 **A scenario is a module or a package of one name.** A scenario over the
 module-size threshold (CS-18-001) becomes a `<name_>_demo/` package: its
@@ -197,6 +217,7 @@ Route each consumer by what it is:
 |---|---|---|
 | `docs/` pages (`docs/topics/scenarios/index.md`, `docs/tutorials/container_demos.md`) | build-time render (DEMOCI-11-009) | Inside the mkdocs tree, so `markdown-exec` calls the renderer and nothing is committed; mind the link form (below) |
 | `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
+| `vultron/demo/scenario/plots.json` | generate + `--check` | Built by importing the stories, so a reordered fragment fails a PR check instead of the next recordings run (DEMOCI-11-034) |
 | `test/ci/README-case-log-ratchet.md`, `vultron/demo/scenario/README.md` | generate + `--check` | Outside the mkdocs tree, read raw, so an include directive would render literally |
 | `notes/` scenario tables | check in place (DEMOCI-11-042/007) | Rows interleave hand-written columns; a generator would have to write cells nobody wrote |
 | `vultron/demo/cli/` sub-commands | built at import time (DEMOCI-11-011) | No committed copy at all |
@@ -204,7 +225,8 @@ Route each consumer by what it is:
 | `ui/src/recordings/` (`case-actor.jsonl` and `steps.json` per scenario) | generate (`uv run export-demo-recordings`); `--check` hook on the recorded set and its two files; content checked daily on `main`, which files a refresh Task; every pair checked byte for byte by the shared-prefix test | A run of every scenario takes minutes, and a stale recording is work to schedule, not a reason to block a PR: a few days of lag is accepted, so no PR has to regenerate |
 | `specs/` DEMOCI-06-002/003 and per-scenario DEMOMA-16 | check only | A requirement keeps its prose so it stays citable |
 | `mkdocs.yml` nav | check completeness | Hand-written labels |
-| `docs/topics/scenarios/*.md` narrative pages | check page set and frontmatter (DEMOCI-11-012, DEMOCI-11-046) | Hand-written prose |
+| `docs/topics/scenarios/*.md` narrative pages | check page set, frontmatter and the closing story section (DEMOCI-11-012, DEMOCI-11-046, DEMOCI-11-067) | Hand-written prose that ends with one generated include |
+| `docs/topics/scenarios/_<name>-story.md` | generate + `--check` | The same plot in domain terms, one file per scenario so a page can include it; the set's membership is the registry, not a declaration (DEMOCI-11-067, DEMOCI-11-069) |
 | Any consumer's prose count | check absence (DEMOCI-11-008) | A count is another copy; the table is the count |
 
 **Name each column's authority.** In the checked `notes/` tables, `Scenario`

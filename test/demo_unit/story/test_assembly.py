@@ -15,12 +15,19 @@
 
 Pins :mod:`vultron.demo.helpers.story.assembly`: :func:`choose` and
 :func:`story`, the path a scenario's registration reads off its story
-(DEMOCI-11-019, DEMOCI-11-024), and the named prefixes the registered
-scenarios share (DEMOMA-17-001, DEMOMA-17-002).
+(DEMOCI-11-019, DEMOCI-11-024), the named prefixes the registered
+scenarios share (DEMOMA-17-001, DEMOMA-17-002), :func:`fragment_name`, the
+stable name the plot manifest records a fragment by (DEMOCI-11-034), and
+:func:`fragment_sentence`, the one domain sentence each fragment's docstring
+opens with, which the generated story renders its step as (DEMOCI-11-065,
+DEMOCI-11-066).
 """
 
 from __future__ import annotations
 
+import functools
+import re
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -30,10 +37,14 @@ from test.demo_unit.story._support import (
     make_fragment,
     rv_story,
 )
+from test.support.scenario_specs import fixture_spec
 from vultron.demo.helpers.story import (
     Choose,
     Story,
+    StoryState,
     choose,
+    fragment_name,
+    fragment_sentence,
     story,
 )
 from vultron.demo.scenario import registry
@@ -200,6 +211,13 @@ def _register_fixture(
     return registry_discovery._REGISTRY[name]
 
 
+def _fixture_spec_with(story_obj: Story) -> ScenarioSpec:
+    """A spec for ``rv`` carrying *story_obj*, built without registering it."""
+    return fixture_spec(
+        name="rv", label="RV", feature="Fixture", story=story_obj
+    )
+
+
 class TestRegisteringAStory:
     @pytest.mark.spec("DEMOCI-11-019")
     def test_a_scenarios_path_is_its_storys_choices(
@@ -229,6 +247,92 @@ class TestRegisteringAStory:
                 feature="Fixture",
                 in_pr_set=False,
             )
+
+    @pytest.mark.spec("DEMOCI-11-001")
+    def test_re_executing_a_scenario_module_registers_the_same_spec(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Re-running a module's decorator is the same scenario, not a conflict.
+
+        ``_register`` decides "same scenario or conflict" by comparing specs,
+        and a story's fragments are function objects compared by identity, so
+        a re-executed module builds fresh ones. The spec keeps its story out
+        of ``__eq__`` for exactly this reason; without that, every
+        ``importlib.reload`` of a scenario whose story holds a fragment
+        defined in its own module — most of them — would raise, and the
+        one teardown that reloads one would go red far from its cause
+        (``test/demo/test_rcv_demo.py``).
+        """
+        monkeypatch.setattr(
+            registry_discovery,
+            "_REGISTRY",
+            dict(registry_discovery._REGISTRY),
+        )
+        first = _fixture_spec_with(rv_story())
+        # A second story built the way a re-executed module's module-level
+        # `story(...)` call builds it: equal in meaning, new objects.
+        reread = _fixture_spec_with(rv_story())
+        assert reread.story is not first.story
+
+        registry_discovery._REGISTRY["rv"] = first
+        registry_discovery._register(reread, "test.demo_unit.test_story")
+
+        assert registry_discovery._REGISTRY["rv"] is reread
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    def test_a_story_that_cannot_say_what_its_items_are_is_refused(
+        self,
+    ) -> None:
+        """The exporter reads the items long after import, so import checks them.
+
+        A stand-in carrying only ``path`` registers fine and then dies in the
+        plot-manifest exporter as an ``AttributeError`` over an anonymous
+        object, in a layer whose error messages are the product. The scenario
+        name is asserted because naming it is the whole point of refusing
+        here rather than there.
+        """
+
+        class _PathOnly:
+            path = (("reporter-whom-to-tell", "vendor"),)
+
+        with pytest.raises(
+            DemoScenarioRegistryError, match="no items"
+        ) as raised:
+            scenario(
+                name="rv",
+                label="RV",
+                participants="Reporter + Vendor",
+                feature="Fixture",
+                in_pr_set=False,
+                story=_PathOnly(),  # type: ignore[arg-type]
+            )
+
+        assert "rv" in str(raised.value)
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    def test_a_story_whose_items_are_mutable_is_refused(self) -> None:
+        """A list of items could be rewritten behind the committed manifest.
+
+        The scenario name is asserted for the same reason as above.
+        """
+
+        class _MutableItems:
+            path = (("reporter-whom-to-tell", "vendor"),)
+            items = [choose("reporter-whom-to-tell", "vendor", by="reporter")]
+
+        with pytest.raises(
+            DemoScenarioRegistryError, match="not a tuple"
+        ) as raised:
+            scenario(
+                name="rv",
+                label="RV",
+                participants="Reporter + Vendor",
+                feature="Fixture",
+                in_pr_set=False,
+                story=_MutableItems(),  # type: ignore[arg-type]
+            )
+
+        assert "rv" in str(raised.value)
 
     @pytest.mark.spec("DEMOCI-11-019")
     def test_a_story_that_names_no_path_is_refused(self) -> None:
@@ -397,9 +501,9 @@ def test_the_named_prefixes_were_collected() -> None:
 
     An empty derivation makes ``parametrize`` emit one skipped test and a
     green run (``empty_parameter_set_mark`` defaults to ``skip``), so the
-    zero-target case needs its own assertion (DF-09-007).  Its sibling
-    :func:`test_every_story_prop_name_is_unique` carries the same guard
-    inline, where its subject is a dict it builds itself.
+    zero-target case needs its own assertion (DF-09-007).  The prop
+    enumeration in ``test/architecture/test_story_props_have_readers.py``
+    carries the same guard, as ``_assert_declarations_found``.
     """
     assert _NAMED_PREFIXES, (
         "no named prefix was collected, so the check below proves nothing; "
@@ -550,3 +654,408 @@ def test_the_embargo_pair_shares_the_proposal_opening() -> None:
             module.STORY.items[:shared] == REPORTER_PROPOSES_EMBARGO.items
         ), f"{stem} does not start from REPORTER_PROPOSES_EMBARGO"
         assert isinstance(module.STORY.items[shared], Choose)
+
+
+# ---------------------------------------------------------------------------
+# How a written-down fragment is named (DEMOCI-11-034)
+# ---------------------------------------------------------------------------
+
+
+def reporter_submits_the_report(state: StoryState) -> None:
+    """Stand in for a module-level fragment; only its name is read here."""
+
+
+def _nested_fragment() -> Callable[[StoryState], None]:
+    """Return a closure, whose qualified name holds ``<locals>``."""
+
+    def inner(state: StoryState) -> None:
+        """Stand in for a step written inside another function."""
+
+    return inner
+
+
+class _CallableStep:
+    """A callable instance, which carries no ``__qualname__`` of its own."""
+
+    def __call__(self, state: StoryState) -> None:
+        """Stand in for a step written as an object."""
+
+
+class TestFragmentNames:
+    """``fragment_name`` is what the plot manifest records a fragment by.
+
+    Its consumer is ``vultron/metadata/demo_scenarios/plots.py``, whose own
+    tests pin the artifact; these pin the rule.
+    """
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    def test_a_module_level_fragment_is_named_by_module_and_qualname(
+        self,
+    ) -> None:
+        assert (
+            fragment_name(reporter_submits_the_report, scenario="rv")
+            == f"{__name__}.reporter_submits_the_report"
+        )
+
+    @pytest.mark.spec("DEMOCI-11-034")
+    @pytest.mark.parametrize(
+        ("fragment", "match"),
+        [
+            (lambda state: None, "synthetic segment"),
+            (_nested_fragment(), "synthetic segment"),
+            (
+                functools.partial(reporter_submits_the_report),
+                "no __module__ and __qualname__ pair",
+            ),
+            (_CallableStep(), "no __module__ and __qualname__ pair"),
+        ],
+        ids=["lambda", "closure", "partial", "callable-instance"],
+    )
+    def test_an_unstable_name_is_refused(
+        self, fragment: Callable[[StoryState], None], match: str
+    ) -> None:
+        """No name is handed back for one that says nothing about the step.
+
+        A closure and a lambda are both ``<...>``-named, and neither a
+        ``functools.partial`` nor a callable instance has a ``__qualname__``
+        of its own — each would record a row that moves on an unrelated
+        rename, or no row at all.
+        """
+        with pytest.raises(DemoStoryError, match=match) as raised:
+            fragment_name(fragment, scenario="rv")
+
+        assert "rv" in str(raised.value)
+
+
+def the_vendor_validates_the_report(state: StoryState) -> None:
+    """The Vendor validates the Reporter's report and engages the case."""
+
+
+def the_vendor_tells_the_coordinator(state: StoryState) -> None:
+    """The Vendor tells the Coordinator it has validated the report and
+    engaged the case.
+
+    Body prose a story never shows, because a step's line is its opening
+    sentence alone.
+    """
+
+
+def _fragment_with_no_docstring(state: StoryState) -> None:
+    pass
+
+
+def _fragment_with_no_full_stop(state: StoryState) -> None:
+    """The Vendor validates the Reporter's report"""
+
+
+def _fragment_with_two_sentences(state: StoryState) -> None:
+    """The Vendor validates the report. Then it engages the case."""
+
+
+def _fragment_with_two_sentences_split_on_a_question(
+    state: StoryState,
+) -> None:
+    """Does the Vendor accept? It accepts and triages the report."""
+
+
+def _fragment_with_two_sentences_split_on_an_exclamation(
+    state: StoryState,
+) -> None:
+    """The embargo holds! The Vendor keeps the fix unreleased."""
+
+
+def _fragment_with_two_sentences_split_inside_a_quote(
+    state: StoryState,
+) -> None:
+    """The Vendor answers "it holds." The Reporter agrees."""
+
+
+def _fragment_with_two_sentences_split_inside_a_paren(
+    state: StoryState,
+) -> None:
+    """The Vendor engages (as agreed.) The Reporter is told."""
+
+
+def _fragment_with_a_word_ending_in_an_abbreviation(
+    state: StoryState,
+) -> None:
+    """The Vendor's revs. The Reporter replies."""
+
+
+def _fragment_naming_dotted_code(state: StoryState) -> None:
+    """The Reporter publishes; CS.P ends the embargo."""
+
+
+def _fragment_naming_a_dotted_name_and_its_tail(state: StoryState) -> None:
+    """The role CVDRole.CASE_OWNER decides."""
+
+
+def _fragment_naming_the_container_word_twice(state: StoryState) -> None:
+    """The container holds containers."""
+
+
+def _fragment_naming_an_abbreviated_place(state: StoryState) -> None:
+    """The Vendor, a U.S. supplier, engages the case."""
+
+
+def _fragment_naming_the_container_word(state: StoryState) -> None:
+    """The Vendor's container holds the authoritative case."""
+
+
+def _fragment_with_a_milestone_marker(state: StoryState) -> None:
+    """M1: the Reporter and the Vendor are seated."""
+
+
+def _fragment_with_an_abbreviation(state: StoryState) -> None:
+    """The Vendor, Acme Inc. of Pittsburgh, engages the case."""
+
+
+def _fragment_ending_in_a_quote(state: StoryState) -> None:
+    '''The Vendor answers "the embargo holds."'''
+
+
+def _fragment_with_a_backtick(state: StoryState) -> None:
+    """The fix being ready leaves the embargo in force (``EM.ACTIVE``)."""
+
+
+def _fragment_naming_an_identifier(state: StoryState) -> None:
+    """The Vendor, as CASE_OWNER, publishes its advisory first."""
+
+
+def _fragment_naming_a_container(state: StoryState) -> None:
+    """The Reporter submits its report to actor1."""
+
+
+def _fragment_naming_the_case_actor_container(state: StoryState) -> None:
+    """The case-actor records the Vendor's engagement."""
+
+
+class TestFragmentSentences:
+    """``fragment_sentence`` is how a fragment says what its step does.
+
+    Its consumer is ``vultron/metadata/demo_scenarios/stories.py``, whose own
+    tests pin the generated artifact; these pin the rule (DEMOCI-11-065,
+    DEMOCI-11-066).
+    """
+
+    @pytest.mark.spec("DEMOCI-11-065")
+    def test_the_opening_sentence_is_the_docstrings_first_sentence(
+        self,
+    ) -> None:
+        assert (
+            fragment_sentence(the_vendor_validates_the_report, scenario="rv")
+            == "The Vendor validates the Reporter's report and engages the "
+            "case."
+        )
+
+    @pytest.mark.spec("DEMOCI-11-065")
+    def test_a_wrapped_summary_is_joined_into_one_line(self) -> None:
+        """A summary long enough to wrap is still one sentence.
+
+        Reading only the docstring's first physical line would cut it in
+        half and render half a sentence as the step.
+        """
+        assert fragment_sentence(
+            the_vendor_tells_the_coordinator, scenario="rv"
+        ) == (
+            "The Vendor tells the Coordinator it has validated the report "
+            "and engaged the case."
+        )
+
+    @pytest.mark.spec("DEMOCI-11-065", "DEMOCI-11-066")
+    @pytest.mark.parametrize(
+        ("fragment", "match"),
+        [
+            (_fragment_with_no_docstring, "has no docstring"),
+            (_fragment_with_no_full_stop, "does not end in a full stop"),
+            (_fragment_with_two_sentences, "more than one sentence"),
+            (
+                _fragment_with_two_sentences_split_on_a_question,
+                "more than one sentence",
+            ),
+            (
+                _fragment_with_two_sentences_split_on_an_exclamation,
+                "more than one sentence",
+            ),
+            (
+                _fragment_with_two_sentences_split_inside_a_quote,
+                "more than one sentence",
+            ),
+            (
+                _fragment_with_two_sentences_split_inside_a_paren,
+                "more than one sentence",
+            ),
+            (
+                _fragment_with_a_word_ending_in_an_abbreviation,
+                "more than one sentence",
+            ),
+            (_fragment_with_a_backtick, "holds a backtick"),
+            (_fragment_naming_an_identifier, "'CASE_OWNER'"),
+            (_fragment_naming_dotted_code, "'CS.P'"),
+            (_fragment_naming_a_container, "container 'actor1'"),
+            (
+                _fragment_naming_the_case_actor_container,
+                "container 'case-actor'",
+            ),
+            (
+                _fragment_naming_the_container_word,
+                "container 'container'",
+            ),
+            (_fragment_with_a_milestone_marker, "milestone marker"),
+        ],
+        ids=[
+            "no-docstring",
+            "no-full-stop",
+            "two-sentences",
+            "two-sentences-question",
+            "two-sentences-exclamation",
+            "two-sentences-closing-quote",
+            "two-sentences-closing-paren",
+            "two-sentences-word-ending-in-an-abbreviation",
+            "backtick",
+            "identifier",
+            "dotted-identifier",
+            "actor-container",
+            "case-actor-container",
+            "container-word",
+            "milestone-marker",
+        ],
+    )
+    def test_a_sentence_that_is_not_domain_prose_is_refused(
+        self, fragment: Callable[[StoryState], None], match: str
+    ) -> None:
+        """Each way a docstring fails to be one domain sentence is reported.
+
+        A rendering of any of these is the plot manifest's code name again,
+        which is the one thing the story exists to replace.
+        """
+        with pytest.raises(DemoStoryError, match=re.escape(match)) as raised:
+            fragment_sentence(fragment, scenario="rv")
+
+        assert "rv" in str(raised.value)
+
+    @pytest.mark.spec("DEMOCI-11-065")
+    @pytest.mark.parametrize(
+        "fragment",
+        [
+            _fragment_with_an_abbreviation,
+            _fragment_ending_in_a_quote,
+            _fragment_naming_an_abbreviated_place,
+        ],
+        ids=["abbreviation", "closing-quote", "abbreviation-with-a-capital"],
+    )
+    def test_a_legitimate_single_sentence_is_not_refused(
+        self, fragment: Callable[[StoryState], None]
+    ) -> None:
+        """Neither an abbreviation's full stop nor a closing quote is an end.
+
+        Both were false refusals, and the message then told the author to
+        move a remainder into the docstring's body that was not there. The
+        third is the pair of them: ``U.S.`` is followed by a capital, so
+        before the two checks read one blanked text it was refused twice
+        over — as two sentences *and* as the code identifier ``U.S``.
+        """
+        assert fragment_sentence(fragment, scenario="rv").startswith(
+            "The Vendor"
+        )
+
+    @pytest.mark.spec("EH-07-001")
+    @pytest.mark.parametrize(
+        ("fragment", "prefix", "named"),
+        [
+            (
+                _fragment_naming_a_dotted_name_and_its_tail,
+                "it names the code identifier",
+                "'CVDRole.CASE_OWNER'",
+            ),
+            (
+                _fragment_naming_the_container_word_twice,
+                "it names the container",
+                "'container'",
+            ),
+        ],
+        ids=["dotted-name-and-its-tail", "container-word-and-its-plural"],
+    )
+    def test_one_offence_is_one_line(
+        self,
+        fragment: Callable[[StoryState], None],
+        prefix: str,
+        named: str,
+    ) -> None:
+        """Two spellings of one offence are not two violations.
+
+        A dotted name's tail is an underscore-joined name too, and the plural
+        of a container word is the same word, so each used to print a second
+        line naming half of what the first line already named.
+        """
+        with pytest.raises(DemoStoryError) as raised:
+            fragment_sentence(fragment, scenario="rv")
+
+        reported = str(raised.value)
+        assert reported.count(prefix) == 1
+        assert named in reported
+
+    @pytest.mark.spec("EH-07-001")
+    def test_one_identifier_named_twice_is_reported_once(self) -> None:
+        """A kind of violation is reported once, however often it occurs."""
+        with pytest.raises(DemoStoryError) as raised:
+            fragment_sentence(_fragment_repeating_an_identifier, scenario="rv")
+
+        assert str(raised.value).count("'add_note'") == 1
+
+    @pytest.mark.spec("DEMOCI-11-066")
+    def test_every_violation_of_one_sentence_is_reported(self) -> None:
+        """One message names all of them, not only the first (EH-07-001).
+
+        The sentence is refused as a unit, so an author told one reason per
+        round trip learns the next one only by fixing this one.
+        """
+        with pytest.raises(DemoStoryError) as raised:
+            fragment_sentence(_bad_in_every_way, scenario="rv")
+
+        reported = str(raised.value)
+        assert "does not end in a full stop" in reported
+        assert "holds a backtick" in reported
+        assert "'CASE_OWNER'" in reported
+        assert "container 'actor0'" in reported
+
+    @pytest.mark.spec("DEMOCI-11-065")
+    def test_a_fragment_with_no_stable_name_is_refused(self) -> None:
+        """A step that cannot be named cannot be read either.
+
+        ``functools.partial`` answers ``__doc__`` with its own class's
+        docstring, which ends in a full stop, holds no backtick and names no
+        identifier — so it would pass every sentence check and render "Create
+        a new function with partial application of the given arguments and
+        keywords." as a step. The naming rule refuses it first.
+        """
+        fragment = functools.partial(the_vendor_validates_the_report)
+
+        with pytest.raises(DemoStoryError, match="cannot name"):
+            fragment_sentence(fragment, scenario="rv")
+
+    @pytest.mark.spec("DEMOCI-11-065")
+    def test_every_fragment_name_is_also_a_sentence(self) -> None:
+        """Both rules hold of the same fragment, and neither implies the other.
+
+        ``fragment_name`` answers "can this step be recorded?" and
+        ``fragment_sentence`` "can this step be read?". A fragment that
+        passes one may fail the other, so the plot manifest and the generated
+        story each call their own.
+        """
+        fragment = the_vendor_validates_the_report
+
+        assert fragment_name(fragment, scenario="rv").endswith(
+            "the_vendor_validates_the_report"
+        )
+        assert fragment_sentence(fragment, scenario="rv").startswith(
+            "The Vendor"
+        )
+
+
+def _bad_in_every_way(state: StoryState) -> None:
+    """The ``advisory`` is published by actor0, as CASE_OWNER"""
+
+
+def _fragment_repeating_an_identifier(state: StoryState) -> None:
+    """The add_note step repeats add_note."""

@@ -146,7 +146,7 @@ def c1_hands_the_case_to_c2(state: StoryState) -> None:
 
 
 def c2_invites_the_vendor(state: StoryState) -> None:
-    """C2, the new CASE_OWNER, invites the Vendor — not C1 (DEMOMA-14-005)."""
+    """C2, the new Case Owner, invites the Vendor — not C1 (DEMOMA-14-005)."""
     the_new_owner_invites(
         state,
         new_owner=C2_PART,

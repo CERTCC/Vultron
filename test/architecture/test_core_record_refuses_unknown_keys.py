@@ -58,12 +58,14 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "actor_id": _URI,
         "reason": "processing_error",
         "total_attempts": 1,
+        "recorded_at": "2026-10-29T00:00:00Z",
     },
     "OutboxDeadLetterEntry": {
         "activity_id": _URI,
         "actor_id": _URI,
         "reason": "unreachable",
         "total_attempts": 3,
+        "recorded_at": "2026-10-29T00:00:00Z",
     },
     "GenesisRejectRecord": {
         "case_id": f"{_URI}/case",
@@ -92,6 +94,18 @@ _SAMPLES: dict[str, dict[str, Any]] = {
     "ReceivedActivityRecord": {
         "activity_id": f"{_URI}/a-1",
         "received_body": "{}",
+    },
+    "ReportClaimsRecord": {
+        "report_id": _URI,
+        "activity_id": _URI,
+        "received_at": "2026-10-29T00:00:00Z",
+        "reading": {
+            "document_id": _URI,
+            "document_digest": "0" * 64,
+            "document_format": "CSAF 2.1",
+            "schema_verdict": "schema-valid",
+            "claims": {"name": "Example advisory"},
+        },
     },
     "SealedOutboundBody": {"activity_id": _URI, "body": "{}"},
     "VultronOfferRecord": {

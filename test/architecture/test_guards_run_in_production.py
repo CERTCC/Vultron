@@ -86,8 +86,8 @@ import pytest
 from test.architecture import _corpus, _guard_reachability as _reach
 
 # ---------------------------------------------------------------------------
-# Known guards with no production reference (empty: every private guard under
-# vultron/ is reached from production code).
+# Known guards with no production reference (empty: every private guard
+# under vultron/ has a production caller).
 #
 # Each entry would be a guard that enforces a rule nothing can ever break,
 # because nothing calls it.  Remove an entry in the same commit that wires

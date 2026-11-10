@@ -12,13 +12,23 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Generate and check the committed demo scenario artifacts (DEMOCI-11-005).
 
-Three artifacts are generated from the scenario registry and committed:
+These artifacts are generated from the scenario registry and committed:
 
 - ``.github/demo-scenarios.json`` — whole file. It stays committed because the
   ``scenarios`` job in ``demo-integration.yml`` resolves the CI matrix with
   ``jq`` immediately after checkout, in a job with no Python environment.
+- ``vultron/demo/scenario/plots.json`` — whole file: every scenario's
+  flattened story, so a reordered fragment fails this check instead of
+  surfacing on the next recordings run (:mod:`.plots`, DEMOCI-11-034,
+  DEMOCI-11-035).
 - ``test/ci/README-case-log-ratchet.md`` — the table between the markers.
 - ``vultron/demo/scenario/README.md`` — the table between the markers.
+- ``docs/topics/scenarios/_<scenario>-story.md`` — whole file, one per
+  registered scenario: the same plot rendered as a numbered story in domain
+  terms, included by that scenario's narrative page (:mod:`.stories`,
+  DEMOCI-11-067, DEMOCI-11-069). This is the one set whose *membership*
+  comes from the registry rather than from a declaration, so it is added to
+  :func:`desired_contents` beside :data:`ARTIFACTS` rather than listed in it.
 
 Both markdown files sit outside the MkDocs tree, so they cannot use
 ``{% include-markdown %}``: the directive expands only at mkdocs build time and
@@ -59,16 +69,31 @@ from vultron.demo.scenario.registry import (
     discover_scenarios,
 )
 from vultron.metadata.base import repo_root
+from vultron.metadata.demo_scenarios.plots import (
+    PLOT_MANIFEST,
+    plot_manifest_json,
+)
 from vultron.metadata.demo_scenarios.prose_checks import consistency_problems
 from vultron.metadata.demo_scenarios.render import (
     render_page,
     scenario_matrix_json,
 )
+from vultron.metadata.demo_scenarios.stories import story_fragments
 from vultron.metadata.generated_block import splice_between
 from vultron.metadata.generated_files import stale_paths, write_generated
 
 #: Command that regenerates every artifact, quoted in every failure message.
 WRITE_COMMAND = "uv run demo-scenarios --write"
+
+#: The one finding of a run that discovered no scenario at all (DF-09-009).
+#: A module constant so the test that pins the refusal reads the same string
+#: the CLI prints, rather than a substring of it.
+EMPTY_REGISTRY = (
+    "the scenario registry is empty, so there is nothing to generate or "
+    "compare; an empty target set is a failure, not a pass (DF-09-009). "
+    "Check that the scenario modules under vultron/demo/scenario/ still "
+    "import (DEMOCI-11-002)."
+)
 
 #: Opening marker of a generated table. Carries the regeneration command so a
 #: reader who found the table by grep, not by reading this module, still learns
@@ -141,6 +166,13 @@ ARTIFACTS: tuple[Artifact, ...] = (
         desired=lambda specs, _current: scenario_matrix_json(specs),
         whole_file=True,
     ),
+    Artifact(
+        path=PLOT_MANIFEST,
+        desired=lambda specs, _current: plot_manifest_json(
+            specs, WRITE_COMMAND
+        ),
+        whole_file=True,
+    ),
     _marker_artifact(HARNESS_README, "harnesses"),
     _marker_artifact(SCENARIO_README, "subcommands"),
 )
@@ -152,6 +184,9 @@ def desired_contents(
 ) -> dict[str, str]:
     """Return ``{repo-relative path: desired full contents}`` for every artifact.
 
+    The declared artifacts first, in :data:`ARTIFACTS` order, then one
+    generated story per registered scenario (:mod:`.stories`).
+
     Args:
         root: Repository root. Defaults to the enclosing checkout.
         specs: Scenarios to render. Defaults to the discovered registry.
@@ -162,6 +197,19 @@ def desired_contents(
             splice into.
         ValueError: If a marker-block artifact's markers are missing or
             malformed.
+        DemoStoryError: If a story holds an item the plot manifest cannot
+            name (:mod:`.plots`, DEMOCI-11-034), or a fragment whose docstring
+            does not open with one sentence in domain terms (:mod:`.stories`,
+            DEMOCI-11-065). It is raised from the demo
+            layer and left to propagate as a traceback, from here through
+            :func:`stale_artifacts`, :func:`write_artifacts` and
+            :func:`main`: neither ``--check`` nor ``--write`` can say
+            anything about a manifest that cannot be rendered at all, and
+            this module may not catch it by name — ``vultron/metadata/``
+            raises and handles no ``VultronError`` (MS-17-006), and a
+            blanket ``except`` is forbidden (CS-23-001). The demo layer's
+            message names the scenario, the item and the remedy, and the
+            traceback adds the source of the fragment.
     """
     base = root or repo_root()
     resolved = discover_scenarios() if specs is None else specs
@@ -180,6 +228,7 @@ def desired_contents(
                 f"'{WRITE_COMMAND}'."
             )
         contents[artifact.path] = artifact.desired(resolved, current)
+    contents.update(story_fragments(resolved, WRITE_COMMAND))
     return contents
 
 
@@ -205,7 +254,12 @@ def stale_artifacts(
     root: Path | None = None,
     specs: tuple[ScenarioSpec, ...] | None = None,
 ) -> list[str]:
-    """Return the repo-relative paths whose committed contents are stale."""
+    """Return the repo-relative paths whose committed contents are stale.
+
+    Raises:
+        FileNotFoundError, ValueError, DemoStoryError: As
+            :func:`desired_contents`.
+    """
     base = root or repo_root()
     return [path for _target, path, _desired in _out_of_date(base, specs)]
 
@@ -235,7 +289,12 @@ def write_artifacts(
     root: Path | None = None,
     specs: tuple[ScenarioSpec, ...] | None = None,
 ) -> list[str]:
-    """Rewrite every stale artifact in place; return the paths written."""
+    """Rewrite every stale artifact in place; return the paths written.
+
+    Raises:
+        FileNotFoundError, ValueError, DemoStoryError: As
+            :func:`desired_contents`.
+    """
     base = root or repo_root()
     written: list[str] = []
     for target, path, desired in _out_of_date(base, specs):
@@ -265,6 +324,20 @@ def main(argv: list[str] | None = None) -> None:
 
     root = repo_root()
     specs = discover_scenarios()
+
+    # Whichever mode: an empty registry ends the run before anything is
+    # compared or written. On --check every per-scenario artifact, each
+    # narrative page's generated story included, would be checked against
+    # nothing and the gate would pass over the whole set; on --write the four
+    # declared artifacts would be rewritten empty and every committed story
+    # orphaned, with exit 0 (DF-09-009). Discovery is a pkgutil walk
+    # (DEMOCI-11-002), so an empty result means the walk imported nothing.
+    # Reported alone, because every other finding of such a run is noise —
+    # which is why it is decided above the problems list rather than beside
+    # it: a run with no registry has nothing to contribute to it.
+    if not specs:
+        print(f"[ERROR] {EMPTY_REGISTRY}", file=sys.stderr)
+        sys.exit(1)
 
     problems = [
         f"registered scenario names a path that does not exist — {entry} "
@@ -322,9 +395,11 @@ if __name__ == "__main__":
 __all__ = [
     "ARTIFACTS",
     "BEGIN_MARKER",
+    "EMPTY_REGISTRY",
     "END_MARKER",
     "HARNESS_README",
     "MATRIX_JSON",
+    "PLOT_MANIFEST",
     "SCENARIO_README",
     "WRITE_COMMAND",
     "Artifact",

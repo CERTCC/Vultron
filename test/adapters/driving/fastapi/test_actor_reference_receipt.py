@@ -34,6 +34,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.received import delivered_body
 from test.support.signing import resigned
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -109,6 +110,7 @@ def test_a_received_actor_reference_keeps_the_held_profile(case_actor_dl):
             actor_id=_CASE_ACTOR_ID,
             dispatcher=make_dispatcher(),
         ),
+        clock=SystemClock(),
     )
 
     assert outcome.status is InboxOutcomeStatus.PROCESSED, (
