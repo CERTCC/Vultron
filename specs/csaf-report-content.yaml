@@ -33,17 +33,16 @@ groups:
       Inline `content` keeps the document inside the signed activity (SIG-01-003)
       and inside the copy that the case ledger records.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_sender_carries_csaf_as_an_attached_document`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a trigger test submits a report with a CSAF document and
-      checks that the sent report carries it as a `Document` in `attachment`, its JSON
-      text as that `Document`'s `content`, and the request's text as the report's own
-      `content`.
+      `test/adapters/driving/fastapi/routers/test_trigger_submit_report_csaf.py::test_a_valid_csaf_document_is_sent_as_an_attached_json_document`
+      submits a report with a CSAF document and checks that the sent report carries it
+      as a `Document` in `attachment`, its JSON text as that `Document`'s `content`, and
+      the request's text as the report's own `content`;
+      `::test_the_stored_report_keeps_the_attachment` checks the same of the
+      Reporter's stored report.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6092'
   - id: CSAF-01-002
     priority: MUST
     kind: protocol
@@ -55,10 +54,8 @@ groups:
       CSAF draft defines label each CSAF document `application/json`. A media type
       that only Vultron invented would mean nothing to other tools.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_the_csaf_document_is_labelled_application_json`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: the trigger test of CSAF-01-001 checks that the attached
-      `Document` has the `mediaType` `application/json`.
+      `test/adapters/driving/fastapi/routers/test_trigger_submit_report_csaf.py::test_a_valid_csaf_document_is_sent_as_an_attached_json_document`
+      checks that the attached `Document` has the `mediaType` `application/json`.
     relationships:
     - rel_type: extends
       spec_id: CSAF-01-001
@@ -66,7 +63,6 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6092'
   - id: CSAF-01-003
     priority: MUST
     kind: protocol
@@ -193,16 +189,13 @@ groups:
       makes them win. Values that agree with the attachment keep the two accounts
       of one report from contradicting each other.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_sender_fills_vultron_fields_that_agree_with_its_csaf`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: the trigger test of CSAF-04-010 checks that the name,
-      summary and proposed embargo end that the sender fills agree with the attached
-      document.
+      `test/adapters/driving/fastapi/routers/test_trigger_submit_report_csaf.py::test_a_missing_name_summary_and_embargo_end_come_from_the_document`
+      checks that the name, summary and proposed embargo end that the sender fills
+      agree with the attached document.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6092'
   - id: CSAF-02-005
     priority: MUST_NOT
     kind: protocol
@@ -259,15 +252,12 @@ groups:
       accepts (CSAF-02-006). A schema-valid document lets every receiver read it
       the same way.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_sender_does_not_attach_schema_invalid_csaf`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: the trigger test of CSAF-04-009 checks that a
-      schema-invalid document is refused and nothing is sent.
+      `test/adapters/driving/fastapi/routers/test_trigger_submit_report_csaf.py::test_a_schema_invalid_document_is_refused_naming_each_fault`
+      checks that a schema-invalid document is refused and nothing is sent.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6092'
 - id: CSAF-03
   title: Case Inputs From the Initial Report
   specs:
@@ -636,11 +626,15 @@ groups:
       This is the sender's side of CSAF-02-007. A refusal that names each fault
       tells the Reporter what to correct before anything is sent.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_submit_report_refuses_invalid_csaf_with_422`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a trigger test posts a schema-invalid document and one of another
-      category and checks the 422 body names each fault.
-    tracking_issue: '#6092'
+      `test/adapters/driving/fastapi/routers/test_trigger_submit_report_csaf.py::test_a_schema_invalid_document_is_refused_naming_each_fault`
+      and `::test_a_document_of_another_category_is_refused` post a schema-invalid
+      document and one of another category, check that the 422 body names each fault
+      and that nothing is stored or queued;
+      `::test_every_fault_is_named_not_only_the_first` checks that a document with
+      several faults has each one named, and
+      `::test_a_document_larger_than_a_receiver_reads_is_refused` that one over the
+      size a receiver reads is refused.
+      `test/core/services/test_submitted_csaf.py` checks each kind of fault.
   - id: CSAF-04-010
     priority: MUST
     kind: project
@@ -652,11 +646,14 @@ groups:
       This is the sender's side of CSAF-02-004, so a receiver gets explicit
       Vultron fields and needs to read the CSAF document only for what they omit.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_submit_report_fills_missing_fields_from_csaf`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a trigger test posts a CSAF document with no report name, summary or
-      proposed embargo end and reads them on the sent Offer.
-    tracking_issue: '#6092'
+      `test/adapters/driving/fastapi/routers/test_trigger_submit_report_csaf.py::test_a_missing_name_summary_and_embargo_end_come_from_the_document`
+      posts a CSAF document with no report name, summary or proposed embargo end and
+      reads them on the sent Offer;
+      `::test_a_stated_name_summary_and_embargo_end_are_kept` checks that stated
+      values win, `::test_a_document_whose_title_reads_as_nothing_is_refused` that a
+      report left with no name is refused, and
+      `::test_a_document_that_sets_exploitation_proposes_no_embargo_end` that a
+      document setting P, X or A proposes no embargo end.
 - id: CSAF-05
   title: Following the CSAF 2.1 Draft
   specs:

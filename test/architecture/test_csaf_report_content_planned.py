@@ -42,7 +42,6 @@ import pytest
 
 from test.architecture import _corpus
 
-_SEND = "Tracked by #6092 (source #5131)."
 _RECORDS = (
     "Tracked by #6093, which waits on #5132 (vulnerability records on a case)."
 )
@@ -86,50 +85,6 @@ def _has_behavioral_test(request: pytest.FixtureRequest) -> bool:
     return set(marker.args) <= _csaf_ids_marked_elsewhere()
 
 
-@pytest.mark.spec("CSAF-01-001")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-01-001: the sender attaches no CSAF Document yet. {_SEND}",
-)
-def test_a_sender_carries_csaf_as_an_attached_document(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-01-002")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-01-002: no CSAF Document is sent, so none has a mediaType. {_SEND}",
-)
-def test_the_csaf_document_is_labelled_application_json(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-02-004")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-02-004: the sender fills no field from CSAF yet. {_SEND}",
-)
-def test_a_sender_fills_vultron_fields_that_agree_with_its_csaf(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-02-007")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-02-007: the sender checks no CSAF document yet. {_SEND}",
-)
-def test_a_sender_does_not_attach_schema_invalid_csaf(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
 @pytest.mark.spec("CSAF-03-008")
 @pytest.mark.xfail(
     strict=True,
@@ -147,28 +102,6 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_record(
     reason=f"CSAF-03-009: the case has no case references. {_RECORDS}",
 )
 def test_each_csaf_reference_becomes_a_case_reference(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-04-009")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-04-009: submit-report takes no CSAF document yet. {_SEND}",
-)
-def test_submit_report_refuses_invalid_csaf_with_422(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-04-010")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-04-010: submit-report takes no CSAF document yet. {_SEND}",
-)
-def test_submit_report_fills_missing_fields_from_csaf(
     request: pytest.FixtureRequest,
 ) -> None:
     assert _has_behavioral_test(request)
