@@ -21,7 +21,7 @@ imported directly from the submodule, and EmitCaseStatusUpdateNode.
 Per issue #758 AC-1, AC-3.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import py_trees
 import pytest
@@ -49,6 +49,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import PxaDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_pxa
+from vultron.errors import VultronMissingActInstantError
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -483,16 +484,25 @@ class TestEmitCaseStatusUpdateNode:
         assert case.current_status.published == at
 
     @pytest.mark.spec("CS-13-002")
-    def test_a_run_with_no_act_instant_appends_no_status(
-        self, populated_dl, populated_bridge
+    def test_a_missing_act_instant_appends_no_status(
+        self, populated_dl, populated_bridge, monkeypatch
     ):
-        """The node reads the act's instant, never the clock: a run outside
-        any act fails and appends no status (ADR-0176, ARCH-10-001)."""
-        before = _case_status_entries(populated_dl)
-        py_trees.blackboard.Blackboard.storage.clear()
+        """The node stamps from the act's instant, through the one guard,
+        never from the clock: when the guard finds none, the run fails and
+        appends no status (ADR-0176, ARCH-10-001)."""
 
-        result = populated_bridge.execute_with_setup(
-            EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        def _missing(_self: object) -> datetime:
+            raise VultronMissingActInstantError("no act instant")
+
+        monkeypatch.setattr(
+            EmitCaseStatusUpdateNode, "_require_act_instant", _missing
+        )
+        before = _case_status_entries(populated_dl)
+
+        result = run_tree(
+            populated_bridge,
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
         )
 
         assert result.status == Status.FAILURE

@@ -25,7 +25,6 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
-import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -40,11 +39,15 @@ from vultron.core.behaviors.case.embargo_tree import (
 )
 from vultron.core.behaviors.case.nodes import embargo as embargo_nodes_module
 from vultron.core.behaviors.case.nodes.embargo import (
+    CreateEmbargoEventNode,
     creation_time_embargo_id,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseEmbargoAlreadyInitializedNode,
     CaseNotEmbargoEligibleNode,
+)
+from vultron.core.behaviors.case.nodes.embargo_revision import (
+    ResolveCreationTimeRevisionNode,
 )
 from vultron.core.behaviors.embargo.nodes import em_state as em_state_module
 from vultron.core.models._helpers import _as_id
@@ -69,6 +72,7 @@ from vultron.errors import (
     BtNodePreconditionError,
     VultronError,
     VultronInvalidStateTransitionError,
+    VultronMissingActInstantError,
     VultronValidationError,
 )
 
@@ -158,7 +162,6 @@ def _run(
     actor_config: ActorConfig | None = None,
     with_sender_event: bool = True,
     report_id: str | None = REPORT_ID,
-    outside_an_act: bool = False,
     **context: Any,
 ) -> tuple[Status, datetime, datetime]:
     """Run ``InitializeDefaultEmbargoNode`` on the fixture case.
@@ -169,8 +172,7 @@ def _run(
     ``CreateEmbargoEventNode`` is the one exercised.  An explicit
     ``sender_proposed_embargo`` in *context* replaces that event, and
     ``with_sender_event=False`` withholds it, for tests about the
-    inconsistent blackboard.  ``outside_an_act=True`` runs the node with no
-    act's instant, for the tests that it refuses such a run.
+    inconsistent blackboard.
     """
     extra: dict[str, Any] = dict(context)
     extra.setdefault("owner_profile", _profile(owner_policy))
@@ -189,17 +191,7 @@ def _run(
         or ActorConfig(protocol_default_embargo_duration=PROTOCOL_DEFAULT),
         report_id=report_id,
     )
-    if outside_an_act:
-        # Straight through the bridge, outside any act: the run carries no
-        # ``/at`` for the nodes to read (ADR-0176).
-        py_trees.blackboard.Blackboard.storage.clear()
-        result = bt_scenario.bridge.execute_with_setup(
-            node, actor_id=ACTOR_ID, case_id=CASE_ID, **extra
-        )
-    else:
-        result = bt_scenario.run(
-            node, actor_id=ACTOR_ID, case_id=CASE_ID, **extra
-        )
+    result = bt_scenario.run(node, actor_id=ACTOR_ID, case_id=CASE_ID, **extra)
     return result.status, before, datetime.now(tz=UTC)
 
 
@@ -622,32 +614,41 @@ def test_the_revision_ends_the_actor_default_after_the_act_instant(
 
 @pytest.mark.spec("CS-13-002")
 @pytest.mark.parametrize(
-    ("owner_policy", "sender_proposal"),
+    ("node_type", "owner_policy", "sender_proposal"),
     [
-        pytest.param(None, None, id="default-embargo"),
+        pytest.param(CreateEmbargoEventNode, None, None, id="default-embargo"),
         pytest.param(
-            ACTOR_DEFAULT, SENDER_PROPOSAL, id="creation-time-revision"
+            ResolveCreationTimeRevisionNode,
+            ACTOR_DEFAULT,
+            SENDER_PROPOSAL,
+            id="creation-time-revision",
         ),
     ],
 )
-def test_a_run_with_no_act_instant_creates_no_embargo(
+def test_a_missing_act_instant_creates_no_embargo(
     bt_scenario: BTTestScenario,
     case_obj: VulnerabilityCase,
+    monkeypatch: pytest.MonkeyPatch,
+    node_type: type,
     owner_policy: timedelta | None,
     sender_proposal: timedelta | None,
 ) -> None:
-    """A run with no act's instant fails and writes nothing (ADR-0176).
+    """Each node takes the end's start from the act's instant, through the
+    one guard, and never from the clock: when the guard finds none, the run
+    fails and writes nothing (ADR-0176, ARCH-10-001).
 
-    On the default path ``CreateEmbargoEventNode`` is the node that needs the
-    instant.  On the revision path the sender's own event carries over, so
-    ``CreateEmbargoEventNode`` reads none and ``ResolveCreationTimeRevisionNode``
-    is the one that refuses.  Neither falls back to the clock (ARCH-10-001).
+    On the revision path the sender's own event carries over, so
+    ``CreateEmbargoEventNode`` needs no instant and
+    ``ResolveCreationTimeRevisionNode`` is the node that asks for it.
     """
+
+    def _missing(_self: object) -> datetime:
+        raise VultronMissingActInstantError("no act instant")
+
+    monkeypatch.setattr(node_type, "_require_act_instant", _missing)
+
     status, _, _ = _run(
-        bt_scenario,
-        owner_policy=owner_policy,
-        sender_proposal=sender_proposal,
-        outside_an_act=True,
+        bt_scenario, owner_policy=owner_policy, sender_proposal=sender_proposal
     )
 
     assert status == Status.FAILURE
