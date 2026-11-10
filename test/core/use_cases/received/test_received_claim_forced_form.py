@@ -212,6 +212,87 @@ def test_the_teardown_names_the_signals_of_the_forced_case_status() -> None:
     )
 
 
+def _no_threat_report(net: LedgerNetwork) -> Any:
+    """The owner's status restating its record with no embedded case
+    status: a claim that names no P, X or A (RSH-09-003)."""
+    record = net.record(MANAGER, OWNER)
+    current = record.participant_status
+    assert current is not None
+    status = ParticipantStatus(
+        context=net.case_id,
+        attributed_to=OWNER,
+        rm=current.rm,
+        vf=current.vf,
+        d=current.d,
+        cvd_role=current.cvd_role,
+    )
+    return add_status_to_participant_activity(
+        status,
+        target=as_CaseParticipant(
+            id_=record.id_, context=net.case_id, attributed_to=OWNER
+        ),
+        actor=OWNER,
+        to=[MANAGER],
+    )
+
+
+def _csb_18_notes(net: LedgerNetwork) -> list[str]:
+    """The content of each CASE_MANAGER note naming the case's ``PXa``."""
+    dl = net.stores[MANAGER]
+    notes = [
+        cast(VultronNote, dl.read(str(_as_id(n))))
+        for n in net.case(MANAGER).notes
+    ]
+    return [n.content or "" for n in notes if "PXA='PXa'" in (n.content or "")]
+
+
+@pytest.mark.spec("RSH-03-001")
+@pytest.mark.spec("CSB-18-002")
+@pytest.mark.spec("EMB-13-005")
+def test_a_later_claim_with_no_threat_ends_the_embargo_the_case_calls_for(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-4: the teardown follows the case's status, not the claim that
+    starts the act.  After a failed teardown leaves the case ``PXa`` beside
+    an active embargo, a later status of the owner's that names no P, X or A ends
+    the embargo, with the case's ``P`` and ``X`` as the cause."""
+    net = LedgerNetwork(
+        "https://example.org/cases/forced-retry", em_state=EM.ACTIVE
+    )
+    with monkeypatch.context() as failing:
+        fail_pxa_teardown(failing)
+        _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
+    assert net.case(MANAGER).em_state is EM.ACTIVE
+
+    _send(net, _no_threat_report(net))
+
+    assert net.case(MANAGER).em_state is EM.EXITED
+    assert net.case(MANAGER).embargo_termination == EmbargoTermination.threat(
+        [ThreatSignal.P, ThreatSignal.X]
+    )
+
+
+@pytest.mark.spec("CSB-18-002")
+def test_each_act_that_leaves_the_gap_reports_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-4: the CSB-18 check reads the case's status after every adopted
+    status, so a later status that names no P, X or A and leaves the case ``PXa`` beside the
+    embargo reports the gap again (CSB-18-002: the invariant holds once each
+    CASE_MANAGER act commits)."""
+    fail_pxa_teardown(monkeypatch)
+    net = LedgerNetwork(
+        "https://example.org/cases/forced-csb-18-repeat", em_state=EM.ACTIVE
+    )
+    _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
+    assert len(_csb_18_notes(net)) == 1
+
+    _send(net, _no_threat_report(net))
+
+    assert net.case(MANAGER).em_state is EM.ACTIVE
+    assert len(_csb_18_notes(net)) == 2
+
+
 @pytest.mark.spec("SM-09-003")
 @pytest.mark.spec("CSB-18-002")
 def test_the_csb_18_note_names_the_forced_case_status(

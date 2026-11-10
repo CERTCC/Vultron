@@ -40,13 +40,13 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import dimension_state
 from vultron.core.models.embargo_termination import (
     ThreatSignal,
     ThreatSignalTermination,
     threat_signals_of,
 )
-from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import CS_pxa
 
 logger = logging.getLogger(__name__)
@@ -65,8 +65,8 @@ def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
     """Return the PXA state if a threat is present; return None otherwise.
 
     A threat is any ``CS_pxa`` state other than ``pxa`` (all-lowercase —
-    no P, X, or A set).  Accepts the resolved ``case_status`` object
-    (not the outer ``status_obj`` wrapper).
+    no P, X, or A set).  *case_status* is a case's ``CaseStatus``, never a
+    participant's ``ParticipantStatus`` (SM-09-003, #6080).
 
     Returns ``None`` when:
     - ``case_status`` is None
@@ -130,7 +130,7 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
 
     def __init__(
         self,
-        status_obj: PersistableModel | None,
+        status_obj: CaseStatus | None,
         case_id: str | None,
         name: str | None = None,
         use_datalayer_fallback: bool = False,
@@ -159,13 +159,11 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         """Return True if pxa state has at least one of P, X, or A set."""
         case_status: object = self.status_obj
 
-        # When status_obj carries no PXA info AND the caller has explicitly
-        # opted in to the DataLayer fallback (set only by callers that know
+        # When no status is given AND the caller has explicitly opted in to
+        # the DataLayer fallback (set only by callers that know
         # EmitCaseStatusUpdateNode has already written the post-mutation
         # state), read case.current_status from the DataLayer.
-        if self.use_datalayer_fallback and (
-            case_status is None or not hasattr(case_status, "pxa")
-        ):
+        if self.use_datalayer_fallback and case_status is None:
             case_status = self._case_status_from_datalayer()
 
         return resolve_pxa_threat_state(case_status) is not None
@@ -227,7 +225,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
 
     def __init__(
         self,
-        status_obj: PersistableModel | None,
+        status_obj: CaseStatus | None,
         case_id: str | None,
         name: str | None = None,
         use_datalayer_fallback: bool = False,

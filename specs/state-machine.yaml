@@ -325,7 +325,9 @@ groups:
       public, public unaware) is semantically impossible — the exploit being public implies the vulnerability is public.
       Implementors MUST use `is_ephemeral_cs_state()` and `required_next_cs_events()` from
       `vultron/core/states/cs_invariants/` to enforce this rule at the persistence
-      boundary. This requirement governs
+      boundary, for the states an actor holds for itself and the case status the
+      CASE_MANAGER commits (SM-09-003). A received claim is stored as sent
+      (RSH-09-010). This requirement governs
       the *persistence* boundary only; CSB-17-003 and CSB-17-005 cover trajectory validation, where an ephemeral state is a
       legal prefix terminus.'
     lint_suppress:
