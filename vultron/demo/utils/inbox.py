@@ -15,6 +15,7 @@
 
 import json
 import logging
+import math
 import time
 from collections.abc import Sequence
 
@@ -239,6 +240,10 @@ def _addressed_to(activity: as_Activity, actor_id: str) -> as_Activity:
     )
 
 
+#: Seconds between polls of the receiver's store.
+_POLL_INTERVAL = 0.2
+
+
 def _delivery_outcome_reached(record: object) -> bool:
     """Whether a received-activity record shows the delivery's outcome."""
     if not isinstance(record, dict):
@@ -255,22 +260,25 @@ def _wait_for_delivery_outcome(
     activity_id: str,
     timeout_seconds: float,
 ) -> None:
-    """Poll *actor_id*'s store until its record of *activity_id* settles."""
+    """Poll *actor_id*'s store until its record of *activity_id* settles.
+
+    The bound is a number of polls, *timeout_seconds* worth at the poll
+    interval, so the wait reads no clock (ADR-0176); each poll's own request
+    time only lengthens it.
+    """
     key = ReceivedActivityRecord.build_id(activity_id)
-    deadline = time.monotonic() + timeout_seconds
-    while True:
+    for _ in range(max(1, math.ceil(timeout_seconds / _POLL_INTERVAL))):
         records = read_stored_of_types(
             client, [ReceivedActivityRecord.__name__], actor_id=actor_id
         )
         if _delivery_outcome_reached(records.get(key)):
             return
-        if time.monotonic() >= deadline:
-            raise AssertionError(
-                f"Timed out waiting for {actor_id!r} at {client.base_url} to"
-                f" reach an outcome for {activity_id!r} sent through its"
-                " sender's outbox; outbox delivery may not have completed"
-            )
-        time.sleep(0.2)  # temporal: liveness probe between polls (EDF-06-006)
+        time.sleep(_POLL_INTERVAL)  # temporal: liveness probe (EDF-06-006)
+    raise AssertionError(
+        f"Timed out waiting for {actor_id!r} at {client.base_url} to"
+        f" reach an outcome for {activity_id!r} sent through its"
+        " sender's outbox; outbox delivery may not have completed"
+    )
 
 
 def post_to_trigger(
