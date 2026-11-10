@@ -196,7 +196,10 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   `signing.sign_docs_example`; Ed25519 is deterministic, so a regeneration
   writes the same bytes. `test/architecture/test_seeded_signer_callers.py`
   lists every `vultron/` module that makes a proof or computes a seeded key,
-  so a third caller fails there until it is reviewed. An exchange demo's
+  so a third caller fails there until it is reviewed; it counts any reference,
+  not only a call, and keeps the helpers that sign as whatever actor they are
+  given (`signed_outbound_body`, the renderers) inside their own modules, so a
+  wrapper cannot get round it. An exchange demo's
   hand-built activity goes
   through the sender's outbox on the same server (`post_to_inbox_and_wait`
   posts it to `/actors/{sender}/outbox/`), which signs it as its owner; a
