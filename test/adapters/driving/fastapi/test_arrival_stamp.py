@@ -226,7 +226,11 @@ def test_intake_records_the_arrival_stamp_as_the_time_of_receipt(
 
     assert response.status_code == 202
     assert clock.reads == 1
-    assert _record(store, body["id"]).received_at == _ARRIVED
+    record = _record(store, body["id"])
+    # Applied and archived with its body: intake ran and wrote the record,
+    # not a door's bodiless receipt stub (CLP-10-018, CLP-10-073).
+    assert record.stage is ReceivedStage.ARCHIVED
+    assert record.received_at == _ARRIVED
 
 
 @pytest.mark.spec("CS-13-010")
