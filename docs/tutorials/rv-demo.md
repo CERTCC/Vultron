@@ -154,11 +154,11 @@ The Vendor's [Case State (CS)](../topics/process_models/cs/cs_model.md) vendor-p
 
 Notice that the demo does **not** report a fix deployed.
 Deployment is a Deployer's step, and this scenario has no Deployer, so the Vendor stops at `VFd`.
-Both M4 and M5 therefore check for fix ready; M5 confirms the state held after the Reporter's copy caught up.
+M4 and M5 check the two halves of that sentence: M4 that the fix is ready, M5 that the Vendor went no further.
 
 **M4 verified when:** both copies show the Vendor's case state includes `F` (fix ready).
 
-**M5 verified when:** both copies still show `VFd`, the Vendor's final vendor-path state.
+**M5 verified when:** neither copy records a fix-deployed state for the Vendor, so `VFd` is where its vendor path ends.
 
 ### Phase 5 — Publication and embargo teardown (M6)
 
@@ -192,7 +192,7 @@ Use the milestone lines as anchor points when reading the output.
 | `✓ M2:` | Reporter DataLayer synchronized (Ledger Fanout verified) |
 | `✅ M3:` | Vendor container holds the authoritative final case state |
 | `✅ M4:` | Both copies show CS includes `F` (fix ready) |
-| `✅ M5:` | Both copies show CS includes `F` (fix ready); the Vendor stops at `VFd` |
+| `✅ M5:` | Neither copy records a fix deployed for the Vendor, so it stops at `VFd` |
 | `✅ M6:` | Both copies show `CS.VFdPxa` and `EM.EXITED`; the Vendor is public-aware |
 | `✅ M7:` | Every departure recorded before the case is fully closed; all participants `RM.CLOSED` in the Case Actor's store; each copy ends at its own closure |
 
