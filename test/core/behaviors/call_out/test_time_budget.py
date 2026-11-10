@@ -178,6 +178,7 @@ def test_overrun_error_names_the_node_the_budget_and_the_time_taken() -> None:
     assert caught.value.budget == BUDGET
     assert caught.value.elapsed == timedelta(milliseconds=250)
     assert str(caught.value).startswith("Call-out backend 'Probe' took 0.250s")
+    assert caught.value.diagnostics in str(caught.value)
     assert "0.100s" in str(caught.value)
 
 
@@ -267,7 +268,7 @@ def test_each_tick_is_timed_on_its_own() -> None:
 
 @pytest.mark.parametrize("budget", [timedelta(0), timedelta(seconds=-1)])
 def test_seam_refuses_a_budget_that_is_not_positive(budget: timedelta) -> None:
-    with pytest.raises(CallOutContractError, match="must be positive"):
+    with pytest.raises(ValueError, match="must be positive"):
         TimeBoundedCallOut(
             AlwaysSucceed("Probe"), budget=budget, stopwatch=SystemStopwatch()
         )
@@ -277,6 +278,23 @@ def test_seam_refuses_an_update_outside_its_own_tick() -> None:
     seam = TimeBoundedCallOut(
         AlwaysSucceed("Probe"), budget=BUDGET, stopwatch=SystemStopwatch()
     )
+    with pytest.raises(CallOutContractError, match="outside its own tick"):
+        seam.update()
+
+
+def test_seam_clears_its_start_when_its_tick_ends() -> None:
+    """A finished tick leaves no start behind for a stray update to use."""
+    seam = _seam(took=timedelta(0))
+    seam.tick_once()
+    assert seam.status == Status.SUCCESS
+    with pytest.raises(CallOutContractError, match="outside its own tick"):
+        seam.update()
+
+
+def test_seam_clears_its_start_when_its_tick_raises() -> None:
+    seam = _seam(took=timedelta(milliseconds=250))
+    with pytest.raises(CallOutBudgetExceededError):
+        seam.tick_once()
     with pytest.raises(CallOutContractError, match="outside its own tick"):
         seam.update()
 
@@ -310,6 +328,22 @@ def test_default_budget_is_the_documented_actor_config_default() -> None:
     node = guard_call_out_factory(AlwaysSucceed)("Probe")
     assert isinstance(node, TimeBoundedCallOut)
     assert node.budget == load_actor_config().call_out_time_budget
+
+
+@pytest.mark.spec("BT-18-026")
+def test_budget_comes_only_from_the_actor_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The seam's budget is whatever the configuration returns, nothing else."""
+    configured = timedelta(seconds=7, microseconds=123)
+    monkeypatch.setattr(
+        guard_module,
+        "load_actor_config",
+        lambda: ActorConfig(call_out_time_budget=configured),
+    )
+    node = ValidationCallOutBundle().validity_factory("Validity")
+    assert isinstance(node, TimeBoundedCallOut)
+    assert node.budget == configured
 
 
 @pytest.mark.parametrize("budget", [timedelta(0), timedelta(seconds=-1)])

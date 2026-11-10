@@ -269,8 +269,8 @@ class TimeBoundedCallOut(SynchronousCallOut):
         stopwatch: StopwatchPort,
     ) -> None:
         if budget.total_seconds() <= 0:
-            raise CallOutContractError(
-                f"Call-out backend {child.name!r} was given a time budget of "
+            raise ValueError(
+                f"The call-out time budget for seam {child.name!r} is "
                 f"{budget}; a budget must be positive (BT-18-015)."
             )
         super().__init__(child)

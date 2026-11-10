@@ -51,9 +51,13 @@ class CallOutBackendError(RuntimeError):
     judged: it stays in holding to be tried again (ADR-0183).
     """
 
-    def __init__(self, node_name: str, diagnostics: str) -> None:
+    def __init__(
+        self, node_name: str, diagnostics: str, *, message: str | None = None
+    ) -> None:
         super().__init__(
-            f"Call-out backend {node_name!r} answered error: {diagnostics}"
+            message
+            if message is not None
+            else f"Call-out backend {node_name!r} answered error: {diagnostics}"
         )
         self.node_name = node_name
         self.diagnostics = diagnostics
@@ -73,13 +77,16 @@ class CallOutBudgetExceededError(CallOutBackendError):
     def __init__(
         self, node_name: str, budget: timedelta, elapsed: timedelta
     ) -> None:
-        super().__init__(
-            node_name,
+        diagnostics = (
             f"took {elapsed.total_seconds():.3f}s, over its call-out time"
             f" budget of {budget.total_seconds():.3f}s; its answer is"
-            " discarded (BT-18-027)",
+            " discarded (BT-18-027)"
         )
-        self.args = (f"Call-out backend {node_name!r} {self.diagnostics}",)
+        super().__init__(
+            node_name,
+            diagnostics,
+            message=f"Call-out backend {node_name!r} {diagnostics}",
+        )
         self.budget = budget
         self.elapsed = elapsed
 
