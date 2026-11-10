@@ -277,8 +277,8 @@ def test_core_trees_place_actuators_only_through_actuator_call():
 
     A direct call would place the Actuator with no target; ``actuator_call``
     is the one way that binds it.  Every module under ``vultron/core`` and
-    ``vultron/demo/fuzzer`` is scanned, not a list of trees.  A factory called under another name is not
-    found here, and the tick-time refusal
+    ``vultron/demo/fuzzer`` is scanned, not a list of trees.  A factory
+    called under another name is not found here, and the tick-time refusal
     (``test_actuator_ticked_without_a_target_raises``) catches it.
     """
     names = sorted({field_name for _, field_name in _ACTUATOR_FIELDS})
