@@ -138,6 +138,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - **Core modules over the CS-18 size cap**: several core files exceed the 500-line threshold of CS-18-001, the largest being `vultron/core/behaviors/case/receive_activity_tree.py` (see `CONCERNS.md`).
 - **Content signing built with seeded keys**: ADR-0164 (`accepted-provisional`) chooses object-level proofs inside each activity (FEP-8b32, `eddsa-jcs-2022`) from seeded keys, with strict verification and no switch.
   The one signing module, `vultron/wire/as2/signing.py`, creates and verifies proofs: each outbox signs what it seals, and the inbox verifies each body before it parses it (`vultron/adapters/driving/fastapi/inbox_verification.py`), the snapshot author's proof on a relayed ledger entry included.
+  Each received record keeps, from intake's first save, the author, key id and fetched public key of every proof the inbox verified on it (SIG-03-004), and the docs example renderer signs each documentation example as its own `actor` (`signing.sign_docs_example`).
   Seeded keys make no security claim; production key handling is #1184.
 - **Demo layer mixed into `vultron/demo/`**: demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear.
 
