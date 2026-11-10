@@ -39,8 +39,8 @@ defect that found it, each with the file the suite reads through it:
 - The demo UI's committed artifacts and recordings. The drift tests under
   ``test/metadata/demo_scenarios/`` compare ``ui/src/data/`` with a fresh
   export, and ``test/demo_unit/test_recordings.py`` validates
-  ``ui/src/recordings/``, but a pull request that edited only them ran
-  neither (#4728).
+  ``ui/src/recordings/`` and ``ui/src/synthetic-ledgers/``, but a pull request
+  that edited only them ran neither (#4728).
 
 Markdown guarded by a pytest ratchet is the same gap, tracked by #5708.
 """
@@ -109,7 +109,10 @@ def test_python_app_workflow_runs_on_a_composite_action_change(
 
 
 @pytest.mark.parametrize("event", ["push", "pull_request"])
-@pytest.mark.parametrize("pattern", ["ui/src/data/**", "ui/src/recordings/**"])
+@pytest.mark.parametrize(
+    "pattern",
+    ["ui/src/data/**", "ui/src/recordings/**", "ui/src/synthetic-ledgers/**"],
+)
 def test_python_app_workflow_runs_on_a_demo_ui_artifact_change(
     event: str, pattern: str
 ) -> None:
