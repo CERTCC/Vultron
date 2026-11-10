@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { DemoState, ParticipantState } from './types'
 import './App.css'
-import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_COLORS, NODE_WIDTH, NODE_HEIGHT, NODE_HEIGHT_COLLAPSED, getVendorNodeColors } from './constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_WIDTH, NODE_HEIGHT, NODE_HEIGHT_COLLAPSED, simNodeColorsFor } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import {
   getActiveLanes,
@@ -28,8 +28,8 @@ function App() {
     participants.set('finder', {
       id: 'finder',
       name: 'Finder',
-      role: PARTICIPANT_ROLES.finder,
-      color: PARTICIPANT_COLORS.finder,
+      role: PARTICIPANT_ROLES.reporter,
+      color: PARTICIPANT_COLORS.reporter,
       rmState: 'START',
       vfdState: 'vfd',
       embargoAccepted: false,
@@ -60,8 +60,8 @@ function App() {
     participants.set('caseactor', {
       id: 'caseactor',
       name: 'Case Actor',
-      role: PARTICIPANT_ROLES.caseactor,
-      color: PARTICIPANT_COLORS.caseactor,
+      role: PARTICIPANT_ROLES.casemanager,
+      color: PARTICIPANT_COLORS.casemanager,
       rmState: 'N/A',
       vfdState: 'N/A',
       embargoAccepted: false,
@@ -257,7 +257,7 @@ function App() {
         })
       }
     }
-  }, [demoState.timelineEvents.length])
+  }, [demoState.timelineEvents])
 
   // Undo handler
   const handleUndo = useCallback(() => {
@@ -277,8 +277,8 @@ function App() {
     participants.set('finder', {
       id: 'finder',
       name: 'Finder',
-      role: PARTICIPANT_ROLES.finder,
-      color: PARTICIPANT_COLORS.finder,
+      role: PARTICIPANT_ROLES.reporter,
+      color: PARTICIPANT_COLORS.reporter,
       rmState: 'START',
       vfdState: 'vfd',
       embargoAccepted: false,
@@ -305,8 +305,8 @@ function App() {
     participants.set('caseactor', {
       id: 'caseactor',
       name: 'Case Actor',
-      role: PARTICIPANT_ROLES.caseactor,
-      color: PARTICIPANT_COLORS.caseactor,
+      role: PARTICIPANT_ROLES.casemanager,
+      color: PARTICIPANT_COLORS.casemanager,
       rmState: 'N/A',
       vfdState: 'N/A',
       embargoAccepted: false,
@@ -931,17 +931,7 @@ function App() {
                   // Determine node color based on participant and semantic type
                   let fillColor: string
                   if (participant) {
-                    let colors: { decision: string; decisionHover: string; consequence: string; consequenceHover: string }
-
-                    // Check if participant is a vendor (vendor-1, vendor-2, vendor-3, etc.)
-                    if (participant.id.startsWith('vendor-')) {
-                      const vendorNumber = parseInt(participant.id.split('-')[1], 10)
-                      colors = getVendorNodeColors(vendorNumber)
-                    } else {
-                      // Use base colors for non-vendor participants (finder, caseactor)
-                      const colorKey = participant.id as keyof typeof NODE_COLORS
-                      colors = NODE_COLORS[colorKey] || NODE_COLORS.finder
-                    }
+                    const colors = simNodeColorsFor(participant.id)
 
                     if (isDecision) {
                       fillColor = isHovered ? colors.decisionHover : colors.decision
