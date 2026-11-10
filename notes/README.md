@@ -35,6 +35,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`act-instant.md`** · `plan`
   Migrating to one clock read per act: tree-run instant, no clock in core (ADR-0176).
   **Load when**: adding or changing code that reads the clock or stamps a time.
+- **`as2-vocabulary-alignment.md`** · `plan`
+  Wire changes from the AS2 vocabulary review: Move/Add in splits, Invite slots,
+  ledger as a collection, Refuse, embargo end as Update, JSON-LD terms.
+  **Load when**: changing a wire shape, a message pattern, or a factory.
 - **`call-out-simulation-plan.md`** · `plan`
   Personality bundles, a config surface for backends, and fuzzed multi-actor runs.
   **Load when**: designing a backend bundle, a backend config surface, or a fuzz demo.
