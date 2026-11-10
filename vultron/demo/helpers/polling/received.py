@@ -20,6 +20,8 @@ id (DL-06-006).
 
 import logging
 
+from vultron.core.models.received_activity_record import ReceivedStage
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.demo.helpers.polling._poll import (
     CROSS_CONTAINER_TIMEOUT,
     _poll_datalayer_for,
@@ -357,13 +359,13 @@ def wait_for_verified_proofs(
     activity_id: str,
     timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
     poll_interval: float = 0.5,
-) -> list[dict]:
+) -> list[VerifiedProof]:
     """Poll the receiver's store until it archives *activity_id* as verified.
 
     The receiver's inbox verifies every proof a delivery needs before it
     parses it, and keeps what it verified, each proof's author, key id and
-    the key as fetched, on the record it archives (SIG-03-004).  So this
-    waits on the receiver's own record of that act (EDF-06-002): the
+    the key as fetched, on the delivery's received record (SIG-03-004).  So
+    this waits on the receiver's own record of that act (EDF-06-002): the
     archived ``ReceivedActivityRecord`` naming at least one verified proof.
 
     Args:
@@ -374,23 +376,23 @@ def wait_for_verified_proofs(
         poll_interval: Seconds between poll attempts.
 
     Returns:
-        The record's ``verified_proofs``, as served.
+        The record's verified proofs.
 
     Raises:
         AssertionError: If no archived record names a verified proof by the
             deadline.
     """
-    found: list[dict] = []
+    found: list[VerifiedProof] = []
 
     def _verified() -> bool:
         record = read_received_record(client, activity_id, receiver_id)
-        if record is None or record.get("stage") != "archived":
+        if record is None or record.get("stage") != ReceivedStage.ARCHIVED:
             return False
         proofs = record.get("verified_proofs")
         if not isinstance(proofs, list) or not proofs:
             return False
-        found[:] = [proof for proof in proofs if isinstance(proof, dict)]
-        return bool(found)
+        found[:] = [VerifiedProof.model_validate(proof) for proof in proofs]
+        return True
 
     _poll_until(
         _verified,

@@ -31,80 +31,115 @@ from test.architecture import _corpus
 _PROOF_MAKERS = frozenset({"sign", "sign_as_author", "sign_docs_example"})
 #: The signing module's function that computes a private key from a seed.
 _KEY_DERIVER = "seeded_signing_key"
+_SIGNING_MODULE_NAME = "vultron.wire.as2.signing"
 _SIGNING_MODULE = "vultron/wire/as2/signing.py"
 
-#: The modules allowed to make a proof: the outbox sealer, for its owner's
-#: own activities, and the docs example renderers.
-_ALLOWED_SIGNERS = [
-    "vultron/adapters/outbox_sealed_body.py",
-    "vultron/wire/as2/vocab/examples/_base.py",
-]
+#: Each module allowed to make a proof, and the one function it may call:
+#: the outbox sealer signs its owner's own activities, and the docs example
+#: renderers sign documentation examples as their own ``actor``.
+_ALLOWED_SIGNERS = {
+    "vultron/adapters/outbox_sealed_body.py": {"sign_as_author"},
+    "vultron/wire/as2/vocab/examples/_base.py": {"sign_docs_example"},
+}
 #: The modules allowed to compute a seeded key outside the signing module:
 #: the profile route, which publishes the public half of its own actor's key.
-_ALLOWED_KEY_DERIVERS = [
-    "vultron/adapters/driving/fastapi/routers/actors/_lookup.py",
-]
+_ALLOWED_KEY_DERIVERS = {
+    "vultron/adapters/driving/fastapi/routers/actors/_lookup.py": {
+        _KEY_DERIVER
+    },
+}
 
 
-def _calls(tree: ast.AST, names: frozenset[str]) -> bool:
-    """Whether *tree* calls ``signing.<name>`` or a bare imported ``<name>``."""
+def _module_aliases(tree: ast.AST) -> set[str]:
+    """The dotted names *tree* binds to the signing module."""
+    aliases = {_SIGNING_MODULE_NAME}
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            func = node.func
-            if (
-                isinstance(func, ast.Attribute)
-                and func.attr in names
-                and isinstance(func.value, ast.Name)
-                and func.value.id == "signing"
-            ):
-                return True
-            if isinstance(func, ast.Name) and func.id in names:
-                return True
-        if (
-            isinstance(node, ast.ImportFrom)
-            and node.module == "vultron.wire.as2.signing"
-            and any(alias.name in names for alias in node.names)
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == _SIGNING_MODULE_NAME:
+                    aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and (
+            node.module == "vultron.wire.as2"
         ):
-            return True
-    return False
+            for alias in node.names:
+                if alias.name == "signing":
+                    aliases.add(alias.asname or "signing")
+    return aliases
 
 
-def _modules_calling(names: frozenset[str]) -> list[str]:
-    return sorted(
-        rel
-        for path, tree in _corpus.files_mentioning(
-            *names, under=_corpus.REPO_ROOT / "vultron"
-        )
-        if (rel := str(path.relative_to(_corpus.REPO_ROOT))) != _SIGNING_MODULE
-        and _calls(tree, names)
-    )
+def _dotted(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        base = _dotted(node.value)
+        return None if base is None else f"{base}.{node.attr}"
+    return None
 
 
-def test_the_scan_sees_each_call_form():
-    """The scan finds an attribute call and an import, so a pass is not
-    vacuous."""
-    assert _calls(
-        _corpus.parse_inline("signing.sign_as_author(d, owner_id=o)\n"),
-        _PROOF_MAKERS,
+def _called(tree: ast.AST, names: frozenset[str]) -> set[str]:
+    """The functions of *names* *tree* calls from, or imports out of, signing.
+
+    An attribute call on the module under any name it is bound to
+    (``signing.sign``, ``s.sign``, ``vultron.wire.as2.signing.sign``), and
+    any of *names* imported from it, under any alias, count.
+    """
+    modules = _module_aliases(tree)
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if node.func.attr in names and _dotted(node.func.value) in modules:
+                found.add(node.func.attr)
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.module == _SIGNING_MODULE_NAME
+        ):
+            found.update(
+                alias.name for alias in node.names if alias.name in names
+            )
+    return found
+
+
+def _callers(names: frozenset[str]) -> dict[str, set[str]]:
+    callers: dict[str, set[str]] = {}
+    for path, tree in _corpus.files_mentioning(
+        *names, under=_corpus.REPO_ROOT / "vultron"
+    ):
+        rel = str(path.relative_to(_corpus.REPO_ROOT))
+        if rel == _SIGNING_MODULE:
+            continue
+        called = _called(tree, names)
+        if called:
+            callers[rel] = called
+    return callers
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from vultron.wire.as2 import signing\nsigning.sign_as_author(d)\n",
+        "from vultron.wire.as2 import signing as s\ns.sign(d, k)\n",
+        "import vultron.wire.as2.signing\nvultron.wire.as2.signing.sign(d, k)\n",
+        "from vultron.wire.as2.signing import sign_docs_example as x\n",
+    ],
+)
+def test_the_scan_sees_each_call_form(source: str):
+    """The scan finds every form, so a pass is not vacuous."""
+    assert _called(_corpus.parse_inline(source), _PROOF_MAKERS)
+
+
+def test_the_scan_ignores_other_calls():
+    tree = _corpus.parse_inline(
+        "from vultron.wire.as2 import signing\nsigning.verify(d, k)\n"
+        "key.sign(b'x')\n"
     )
-    assert _calls(
-        _corpus.parse_inline(
-            "from vultron.wire.as2.signing import sign_docs_example\n"
-        ),
-        _PROOF_MAKERS,
-    )
-    assert not _calls(
-        _corpus.parse_inline("signing.verify(d, k)\n"), _PROOF_MAKERS
-    )
+    assert not _called(tree, _PROOF_MAKERS)
 
 
 @pytest.mark.spec("SIG-05-004")
 def test_only_the_outbox_and_the_example_renderers_sign():
-    assert _modules_calling(_PROOF_MAKERS) == _ALLOWED_SIGNERS
+    assert _callers(_PROOF_MAKERS) == _ALLOWED_SIGNERS
 
 
 @pytest.mark.spec("SIG-05-004")
 def test_only_the_profile_route_computes_a_seeded_key():
-    assert _modules_calling(frozenset({_KEY_DERIVER})) == (
-        _ALLOWED_KEY_DERIVERS
-    )
+    assert _callers(frozenset({_KEY_DERIVER})) == _ALLOWED_KEY_DERIVERS

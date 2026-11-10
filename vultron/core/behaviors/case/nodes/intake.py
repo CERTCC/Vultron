@@ -173,6 +173,9 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
                 ReceivedActivityRecord(
                     activity_id=activity_id,
                     received_body=evidence,
+                    # In the record's first save, so no later write can
+                    # miss them (SIG-03-004).
+                    verified_proofs=event.verified_proofs,
                     # In holding until the outcome stage settles it
                     # (CLP-10-073, ADR-0154).
                     stage=ReceivedStage.HELD,

@@ -57,7 +57,9 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
 )
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.services.received_holding import records_left_in_holding
+from vultron.wire.as2 import signing
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -195,6 +197,52 @@ def test_an_interrupted_run_is_finished_on_restart_with_nothing_twice(
         == 0
     )
     assert effects(dl) == finished
+
+
+@pytest.mark.spec("SIG-03-004")
+def test_an_interrupted_run_keeps_its_verified_proofs_through_the_rerun(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Intake records the proofs in its first save, so a crash loses none."""
+    net = LedgerNetwork(CASE_ID)
+    dl = net.stores[MANAGER]
+    emitter = RecordingEmitter()
+    dispatcher = make_dispatcher()
+    body = _add_note_body(net)
+    key = signing.seeded_signing_key(OWNER)
+    proofs = (
+        VerifiedProof(
+            author_id=OWNER,
+            verification_method=key.key_id,
+            public_key_multibase=key.public_key_multibase,
+        ),
+    )
+
+    with monkeypatch.context() as mp:
+        stopped = _interrupt_after_the_commit(mp)
+        with pytest.raises(_ProcessStop):
+            asyncio.run(
+                run_inbox_pipeline(
+                    body,
+                    dl,
+                    MANAGER,
+                    dispatcher,
+                    emitter,
+                    verified_proofs=proofs,
+                )
+            )
+    assert stopped, "the run was not interrupted mid-tree"
+    assert _record(net, body["id"]).verified_proofs == list(proofs)
+
+    asyncio.run(
+        inbox_startup_replay.rerun_left_in_holding(
+            dl, MANAGER, dispatcher, emitter
+        )
+    )
+
+    archived = _record(net, body["id"])
+    assert archived.stage is ReceivedStage.ARCHIVED
+    assert archived.verified_proofs == list(proofs)
 
 
 @pytest.mark.spec("IE-06-014")

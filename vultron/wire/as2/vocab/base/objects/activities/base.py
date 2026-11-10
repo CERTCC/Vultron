@@ -15,6 +15,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import json
+from collections.abc import Sequence
 from typing import Any, Self
 
 from pydantic import (
@@ -28,6 +29,7 @@ from pydantic import (
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.sender_sequence import SenderSequence
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.wire.as2.enums import as_ObjectType as O_type
 from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -158,6 +160,37 @@ class as_Activity(as_Object):
                 "received evidence; received evidence is sealed once (VM-08-002)."
             )
         self._received_evidence = evidence_json
+
+    #: The proofs the inbox verified on the body this activity was parsed
+    #: from, each with the key it verified against as fetched (SIG-03-004).
+    #: Like the evidence, carried beside the object graph and never part of
+    #: a dump; empty on an activity no inbox verified.
+    _verified_proofs: tuple[VerifiedProof, ...] = PrivateAttr(default=())
+
+    @property
+    def verified_proofs(self) -> tuple[VerifiedProof, ...]:
+        """The proofs the inbox verified on this activity's received body."""
+        return self._verified_proofs
+
+    def seal_verified_proofs(self, proofs: Sequence[VerifiedProof]) -> None:
+        """Attach the proofs the inbox verified on this activity, once.
+
+        Sealing the same proofs again, or none, is a no-op; other proofs
+        raise, since two accounts of what verified cannot both be true.
+
+        Raises:
+            ValueError: If different proofs are already sealed.
+        """
+        sealed = tuple(proofs)
+        if not sealed or sealed == self._verified_proofs:
+            return
+        if self._verified_proofs:
+            raise ValueError(
+                f"{type(self).__name__} {self.id_!r} already carries"
+                " different verified proofs; they are sealed once"
+                " (SIG-03-004)."
+            )
+        self._verified_proofs = sealed
 
     #: Set only by :meth:`inlined_as_received`: the AS2 form of this copy is
     #: its received evidence, verbatim (DL-06-004, ADR-0149).

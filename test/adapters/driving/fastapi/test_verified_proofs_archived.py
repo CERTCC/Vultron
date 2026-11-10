@@ -15,9 +15,12 @@
 A delivery is verified in the inbox route, before it is parsed, and
 archived later by the background run.  The record the receiver archives
 keeps, for each proof, the author, the key id and the key as fetched from
-the author's profile, written in the archive's own save.  A refused body
-stores nothing, and a delivery left in holding keeps the proofs on its held
-record, so the replay that archives it keeps them too.
+the author's profile.  The parsed activity and its event carry them, so
+intake writes them in the record's first save and the archive keeps them;
+a crash between saves loses none.  A refused body stores nothing, a reused
+id from another sender leaves the first sender's key, and a delivery left
+in holding keeps the proofs on its held record, so the replay that archives
+it keeps them too.
 """
 
 import json
@@ -29,21 +32,24 @@ from fastapi.testclient import TestClient
 
 from test.adapters.driving.fastapi._redelivery import served_store
 from test.core.use_cases.received._ledger_network import (
+    BYSTANDER,
     MANAGER,
     OWNER,
     LedgerNetwork,
 )
+from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.adapters.driving.fastapi.inbox_orchestration.ports import (
-    FastAPIReceivedOutcomePort,
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    FastAPIIngressAdapter,
 )
 from vultron.adapters.driving.fastapi.verified_proofs import (
     VerifiedProofs,
     payload_activity_id,
 )
+from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
@@ -52,12 +58,12 @@ from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.services.received_holding import (
     hold_for_replay,
     hold_unjudged_for_replay,
-    keep_verified_proofs,
 )
 from vultron.core.services.received_outcome import (
     archive_applied,
     write_receipt_stub,
 )
+from vultron.semantic_registry import extract_event
 from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -141,47 +147,81 @@ def test_a_refused_body_stores_no_record(
     assert _record(net.stores[MANAGER], body["id"]) is None
 
 
+@pytest.mark.integration
 @pytest.mark.spec("SIG-03-004")
-def test_the_archive_writes_the_proofs_in_its_own_save(dl: SqliteDataLayer):
-    hold_for_replay(dl, _ACTIVITY, _BODY)
-    held = _record(dl, _ACTIVITY)
-    assert held is not None
-    dl.save(held.model_copy(update={"replay_owed": False}))
-
-    archive_applied(dl, _ACTIVITY, [_proof()])
-
-    archived = _record(dl, _ACTIVITY)
-    assert archived is not None
-    assert archived.stage is ReceivedStage.ARCHIVED
-    assert archived.verified_proofs == [_proof()]
-
-
-@pytest.mark.spec("SIG-03-004")
-def test_a_held_delivery_keeps_its_proofs_through_to_its_archive(
-    dl: SqliteDataLayer,
+def test_a_reused_id_from_another_sender_leaves_the_first_senders_key(
+    served_manager: tuple[TestClient, LedgerNetwork],
 ):
-    """The replay that archives a held delivery notes them from its record."""
-    hold_for_replay(dl, _ACTIVITY, _BODY)
-    assert keep_verified_proofs(dl, _ACTIVITY, [_proof()])
+    """A different body under a held id is refused, so its key is never kept."""
+    client, net = served_manager
+    body = _owner_note(net, "https://example.org/notes/first")
+    assert client.post(_INBOX, json=body).status_code == 202
+    reused = resigned(body, actor=BYSTANDER, author=BYSTANDER)
 
-    # The replay's inbox run reads them back off the held record.
-    replay = VerifiedProofs()
-    replay.note_held(dl, _ACTIVITY)
-    assert replay.of(_ACTIVITY) == (_proof(),)
+    response = client.post(_INBOX, json=reused)
+
+    assert response.status_code == 202, response.text
+    record = _record(net.stores[MANAGER], body["id"])
+    assert record is not None
+    assert record.verified_proofs == [_proof()]
+
+
+def _parsed(
+    net: LedgerNetwork, note_id: str, proofs: tuple[VerifiedProof, ...]
+) -> Any:
+    """The owner's note as the inbox parses it, carrying *proofs*."""
+    body = _owner_note(net, note_id)
+    verified = VerifiedProofs()
+    verified.note(body["id"], proofs)
+    adapter = FastAPIIngressAdapter(
+        dl=net.stores[MANAGER], verified_proofs=verified
+    )
+    activity = adapter.parse(body)
+    assert activity is not None
+    return activity
+
+
+@pytest.mark.spec("SIG-03-004")
+def test_the_parsed_activity_and_its_event_carry_the_verified_proofs():
+    net = LedgerNetwork(CASE_ID)
+    activity = _parsed(net, "https://example.org/notes/parsed", (_proof(),))
+
+    assert activity.verified_proofs == (_proof(),)
+    assert extract_event(activity).verified_proofs == [_proof()]
+
+
+@pytest.mark.spec("SIG-03-004")
+def test_a_deferred_delivery_keeps_its_proofs_through_its_replay():
+    """Held from the staged rebuild, then replayed from the held record."""
+    net = LedgerNetwork(CASE_ID)
+    dl = net.stores[MANAGER]
+    activity = _parsed(net, "https://example.org/notes/deferred", (_proof(),))
+    staging = InlineObjectStaging(dl)
+    assert staging.rehydrate_parsed(activity) is not None
+
+    assert staging.hold_for_replay(activity.id_)
+
+    held = _record(dl, activity.id_)
+    assert held is not None
+    assert held.replay_owed
+    assert held.verified_proofs == [_proof()]
+    replay = InlineObjectStaging(dl).rehydrate_deferred(activity.id_)
+    assert replay is not None
+    assert replay.verified_proofs == (_proof(),)
+    assert extract_event(replay).verified_proofs == [_proof()]
+
+
+@pytest.mark.spec("SIG-03-004")
+def test_a_new_hold_records_the_proofs_given(dl: SqliteDataLayer):
+    hold_for_replay(dl, _ACTIVITY, _BODY, verified_proofs=[_proof()])
+
     held = _record(dl, _ACTIVITY)
     assert held is not None
-    dl.save(held.model_copy(update={"replay_owed": False}))
-
-    FastAPIReceivedOutcomePort(dl, replay).apply(_ACTIVITY)
-
-    archived = _record(dl, _ACTIVITY)
-    assert archived is not None
-    assert archived.verified_proofs == [_proof()]
+    assert held.verified_proofs == [_proof()]
 
 
-def test_an_archive_given_no_proofs_keeps_the_ones_held(dl: SqliteDataLayer):
-    hold_for_replay(dl, _ACTIVITY, _BODY)
-    keep_verified_proofs(dl, _ACTIVITY, [_proof()])
+def test_the_archive_keeps_the_proofs_the_record_holds(dl: SqliteDataLayer):
+    hold_for_replay(dl, _ACTIVITY, _BODY, verified_proofs=[_proof()])
     held = _record(dl, _ACTIVITY)
     assert held is not None
     dl.save(held.model_copy(update={"replay_owed": False}))
@@ -190,22 +230,23 @@ def test_an_archive_given_no_proofs_keeps_the_ones_held(dl: SqliteDataLayer):
 
     archived = _record(dl, _ACTIVITY)
     assert archived is not None
+    assert archived.stage is ReceivedStage.ARCHIVED
     assert archived.verified_proofs == [_proof()]
 
 
-def test_keeping_proofs_writes_only_a_record_in_holding(dl: SqliteDataLayer):
-    assert not keep_verified_proofs(dl, _ACTIVITY, [_proof()])
-    hold_for_replay(dl, _ACTIVITY, _BODY)
-    assert not keep_verified_proofs(dl, _ACTIVITY, [])
-    assert keep_verified_proofs(dl, _ACTIVITY, [_proof()])
-    # Already kept: not written again.
-    assert not keep_verified_proofs(dl, _ACTIVITY, [_proof("https://x/y")])
+def test_sealing_other_proofs_on_an_activity_is_refused():
+    net = LedgerNetwork(CASE_ID)
+    activity = _parsed(net, "https://example.org/notes/sealed", (_proof(),))
+
+    activity.seal_verified_proofs([_proof()])
+    activity.seal_verified_proofs([])
+    with pytest.raises(ValueError, match="different verified proofs"):
+        activity.seal_verified_proofs([_proof(BYSTANDER)])
 
 
 @pytest.mark.spec("SIG-03-005")
 def test_a_receipt_stub_keeps_no_proofs(dl: SqliteDataLayer):
-    hold_for_replay(dl, _ACTIVITY, _BODY)
-    keep_verified_proofs(dl, _ACTIVITY, [_proof()])
+    hold_for_replay(dl, _ACTIVITY, _BODY, verified_proofs=[_proof()])
     held = _record(dl, _ACTIVITY)
     assert held is not None
     dl.save(held.model_copy(update={"replay_owed": False}))
@@ -230,8 +271,7 @@ def test_a_stub_carrying_proofs_is_refused_at_construction():
 
 
 def test_an_unjudged_hold_keeps_the_proofs(dl: SqliteDataLayer):
-    hold_for_replay(dl, _ACTIVITY, _BODY)
-    keep_verified_proofs(dl, _ACTIVITY, [_proof()])
+    hold_for_replay(dl, _ACTIVITY, _BODY, verified_proofs=[_proof()])
     held = _record(dl, _ACTIVITY)
     assert held is not None
     dl.save(held.model_copy(update={"replay_owed": False}))

@@ -23,6 +23,7 @@ import logging
 from dataclasses import dataclass
 from typing import Literal, cast
 
+from vultron.adapters.driving.fastapi.verified_proofs import VerifiedProofs
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
@@ -66,6 +67,7 @@ def _carry_received_evidence(
     evidence = artifact.received_evidence_json
     if evidence is not None:
         routing_copy.seal_received_evidence(evidence)
+        routing_copy.seal_verified_proofs(artifact.verified_proofs)
     return routing_copy
 
 
@@ -167,10 +169,14 @@ class FastAPIIngressAdapter:
     """
 
     def __init__(
-        self, dl: DataLayer, staging: InlineObjectStaging | None = None
+        self,
+        dl: DataLayer,
+        staging: InlineObjectStaging | None = None,
+        verified_proofs: VerifiedProofs | None = None,
     ) -> None:
         self._dl = dl
         self._staging = staging or InlineObjectStaging(dl)
+        self._verified = verified_proofs or VerifiedProofs()
 
     def parse(self, payload: object) -> as_Activity | None:
         """Parse *payload*, a delivery's JSON body, writing nothing.
@@ -180,6 +186,10 @@ class FastAPIIngressAdapter:
         it parsed, since a parsed activity carries no proof.  Anything that
         is not a JSON object, an already parsed activity included, is
         refused here.
+
+        The parsed activity carries the proofs the route verified on this
+        body (*verified_proofs* at construction), so intake records them
+        with the body (SIG-03-004).
 
         Returns ``None`` on parse failure; never raises.
         """
@@ -191,12 +201,16 @@ class FastAPIIngressAdapter:
             return None
 
         try:
-            return _parse_activity(payload)
+            activity = _parse_activity(payload)
         except VultronParseError as exc:
             logger.warning(
                 "FastAPIIngressAdapter.parse: parse failed — %s", exc
             )
             return None
+        # The proofs the route verified on this very body, carried beside
+        # its evidence so intake records them (SIG-03-004).
+        activity.seal_verified_proofs(self._verified.of(activity.id_))
+        return activity
 
     def rehydrate(self, activity: as_Activity) -> as_Activity:
         """Resolve nested object references for the activity.

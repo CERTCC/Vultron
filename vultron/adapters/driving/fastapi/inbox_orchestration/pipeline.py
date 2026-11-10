@@ -94,7 +94,12 @@ class _InboxRun:
         self.actor_dl = actor_dl
         self.actor_id = actor_id
         self.staging = InlineObjectStaging(actor_dl)
-        self.ingress = FastAPIIngressAdapter(dl=actor_dl, staging=self.staging)
+        # The proofs the inbox route verified on each delivery, sealed on
+        # the parsed activity so intake records them (SIG-03-004).
+        self.verified = VerifiedProofs()
+        self.ingress = FastAPIIngressAdapter(
+            dl=actor_dl, staging=self.staging, verified_proofs=self.verified
+        )
         self.dispatch = FastAPIDispatchAdapter(
             dl=actor_dl, actor_id=actor_id, dispatcher=dispatcher
         )
@@ -108,12 +113,9 @@ class _InboxRun:
         self.dereference = FastAPIDereferencePort(
             actor_dl, actor_id, self.staging
         )
-        # The proofs the inbox verified on each delivery, carried to the
-        # record that archives it (SIG-03-004).
-        self.verified = VerifiedProofs()
         # The final outcome stage's one write: a refused delivery's body is
         # given up for a receipt stub (CLP-10-018, ADR-0154).
-        self.outcome = FastAPIReceivedOutcomePort(actor_dl, self.verified)
+        self.outcome = FastAPIReceivedOutcomePort(actor_dl)
         # The receiving actor's RSVP windows govern inbound embargo invites
         # (EP-07-001, EP-07-002); None applies the protocol defaults.
         self.actor_config = inbox_port_factories._resolve_actor_config()
@@ -135,7 +137,6 @@ class _InboxRun:
             self.dereference,
             self.outcome,
             clock=self.clock,
-            verified_proofs=self.verified,
         )
 
 
@@ -253,7 +254,7 @@ async def run_inbox_pipeline(
         emitter: Optional per-app ActivityEmitter.
         fetcher: The object fetcher; ``None`` uses the HTTP one.
         verified_proofs: The proofs the route's verification stage checked
-            on *payload*; its archived record keeps them (SIG-03-004).
+            on *payload*; its received record keeps them (SIG-03-004).
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
 
@@ -282,11 +283,10 @@ def _process_one(
     """Run *payload* through :func:`process_payload` once, and log it.
 
     *verified_proofs* are the ones the inbox verified on *payload*: the
-    archive writes them, and a delivery left in holding keeps them on its
-    record for the replay that archives it (SIG-03-004).
+    parsed activity carries them, and intake records them in the received
+    record's first save (SIG-03-004).
     """
-    activity_id = payload_activity_id(payload)
-    run.verified.note(activity_id, verified_proofs)
+    run.verified.note(payload_activity_id(payload), verified_proofs)
     outcome = process_payload(
         payload,
         run.ingress,
@@ -303,8 +303,6 @@ def _process_one(
         outcome.context_id,
     )
     log_if_rejected(outcome, run.actor_id, replayed=False)
-    if activity_id is not None:
-        run.verified.keep_on_hold(run.actor_dl, activity_id)
 
 
 async def run_delivery_without_replay(

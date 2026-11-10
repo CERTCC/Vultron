@@ -239,25 +239,30 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When this codebase archives a received activity, its `ReceivedActivityRecord`
-      MUST record, for each proof the inbox verified on the delivery, the author, the
-      key id (`verificationMethod`) and the public key as fetched
-      (`publicKeyMultibase`), written in the same save as the archive.
+      This codebase MUST record on the `ReceivedActivityRecord` of a received activity,
+      from the record's first save through its archive, each proof the inbox verified on
+      the delivery: its author, its key id (`verificationMethod`) and the public key as
+      fetched (`publicKeyMultibase`).
     rationale: >-
       A receiver can then say which key a past message verified against, which key
       rotation needs (#1184), and a demo can check from the receiver's own store that
       it fetched the sender's key and verified with it, without re-deriving anything.
-      Writing the facts with the archive means no record says "verified" for an activity
-      the receiver refused. For an `Announce(CaseLedgerEntry)` the record names both the
-      CASE_MANAGER's proof and the snapshot author's (SIG-04-002). A delivery left in
-      holding keeps the facts on its held record, so the replay that archives it keeps
-      them too.
+      The proofs travel with the received evidence, so intake writes them in the same
+      save as the body and no crash between two writes can leave an archived record
+      without them; a hold and a replay carry them from the record they rebuild from.
+      For an `Announce(CaseLedgerEntry)` the record names both the CASE_MANAGER's proof
+      and the snapshot author's (SIG-04-002). A refusal leaves a receipt stub that keeps
+      none (SIG-03-005).
     verification: >-
-      `test/adapters/driving/fastapi/test_verified_proofs_archived.py` posts signed
-      bodies to an inbox and checks the archived record names each verified proof and
-      key, a refused body stores nothing, and a deferred delivery keeps them through
-      its replay; `vultron/demo/helpers/workflow/report.py::reporter_submits_report`
-      checks it across containers in every scenario.
+      `test/adapters/driving/fastapi/test_verified_proofs_archived.py::test_an_archived_delivery_names_the_proof_and_key_it_verified`
+      posts a signed body to a served inbox and reads the archived record;
+      `test_a_reused_id_from_another_sender_leaves_the_first_senders_key` posts a second
+      sender's body under the same id; `test_a_deferred_delivery_keeps_its_proofs_through_its_replay`
+      holds a parsed delivery through the staging and replays it;
+      `test/adapters/driving/fastapi/test_interrupted_run_restart.py::test_an_interrupted_run_keeps_its_verified_proofs_through_the_rerun`
+      interrupts `run_inbox_pipeline` mid-tree and finishes it with the startup re-run;
+      `test/adapters/driving/fastapi/test_inbox_verification.py::test_a_relayed_entry_returns_the_managers_proof_then_the_authors`
+      checks both proofs of a relayed entry.
     relationships:
     - rel_type: depends_on
       spec_id: SIG-03-001

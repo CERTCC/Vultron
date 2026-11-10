@@ -38,7 +38,6 @@ notice reads the body and the stub replaces it.
 """
 
 import logging
-from collections.abc import Sequence
 
 from vultron.core.models.received_activity_record import (
     HOLDING_STAGES,
@@ -46,7 +45,6 @@ from vultron.core.models.received_activity_record import (
     ReceivedStage,
 )
 from vultron.core.models.received_body import received_body_digest
-from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.received_activity import (
     held_received_record,
@@ -57,20 +55,12 @@ from vultron.errors import VultronWiringError
 logger = logging.getLogger(__name__)
 
 
-def archive_applied(
-    dl: CasePersistence,
-    activity_id: str,
-    verified_proofs: Sequence[VerifiedProof] = (),
-) -> None:
+def archive_applied(dl: CasePersistence, activity_id: str) -> None:
     """Archive the record in holding of an applied or skipped *activity_id*.
 
     The record keeps the sealed body it holds and moves to ``ARCHIVED``, so
     the archive holds only applied messages and a resend of one is skipped
-    at its seen-before door (CLP-10-073, ADR-0154).  *verified_proofs*, the
-    proofs the inbox verified on the delivery and the key each verified
-    against, are written in the same save (SIG-03-004); none given keeps
-    the ones the record already carries from its holding.  Nothing is
-    written for:
+    at its seen-before door (CLP-10-073, ADR-0154).  Nothing is written for:
 
     - no record: the handler ran no intake (a tree-less use case), so there
       is nothing to archive;
@@ -91,10 +81,7 @@ def archive_applied(
             "not held" if record is None else record.stage,
         )
         return
-    update: dict[str, object] = {"stage": ReceivedStage.ARCHIVED}
-    if verified_proofs:
-        update["verified_proofs"] = list(verified_proofs)
-    dl.save(record.model_copy(update=update))
+    dl.save(record.model_copy(update={"stage": ReceivedStage.ARCHIVED}))
     logger.debug("Received activity %s archived as applied", activity_id)
 
 

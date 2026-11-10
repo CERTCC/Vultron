@@ -12,29 +12,21 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""Carry the proofs the inbox verified to the record that archives them.
+"""Carry the proofs the inbox verified to the record that keeps them.
 
 The inbox verifies a delivery in its route, before the body is parsed
-(SIG-03-003), and the delivery is archived later, in the background run's
-outcome stage, or later still, by a replay of the record it was held in.
-:class:`VerifiedProofs` is the one narrow seam between them for one inbox
-run: the route's proofs are noted under the activity id, the outcome port
-writes them in the archive's own save
-(:func:`~vultron.core.services.received_outcome.archive_applied`), and a
-delivery left in holding keeps them on its record
-(:func:`~vultron.core.services.received_holding.keep_verified_proofs`), so
-the replay that archives it notes them again from there (SIG-03-004).
-A refused delivery's receipt stub keeps none.
+(SIG-03-003); the background run parses it later.  :class:`VerifiedProofs`
+is the narrow seam between them for one inbox run: the route's proofs are
+noted under the delivery's activity id, and the ingress adapter seals them
+on the activity it parses from that body, beside its received evidence.
+Intake then records them in the received record's first save, and every
+later save of the record, a hold or the archive, keeps them (SIG-03-004).
+A replay seals them again from the held record it rebuilds from.
 """
 
 from collections.abc import Sequence
-from typing import cast
 
 from vultron.core.models.verified_proof import VerifiedProof
-from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.ports.datalayer import DataLayer
-from vultron.core.services.received_activity import held_received_record
-from vultron.core.services.received_holding import keep_verified_proofs
 
 
 class VerifiedProofs:
@@ -56,18 +48,6 @@ class VerifiedProofs:
     def of(self, activity_id: str) -> tuple[VerifiedProof, ...]:
         """The proofs noted for *activity_id*; empty when none were."""
         return self._by_activity.get(activity_id, ())
-
-    def note_held(self, dl: DataLayer, activity_id: str) -> None:
-        """Note the proofs *activity_id*'s held record carries, for its replay."""
-        record = held_received_record(cast(CasePersistence, dl), activity_id)
-        if record is not None:
-            self.note(activity_id, record.verified_proofs)
-
-    def keep_on_hold(self, dl: DataLayer, activity_id: str) -> None:
-        """Keep the noted proofs on *activity_id*'s record if it is in holding."""
-        keep_verified_proofs(
-            cast(CasePersistence, dl), activity_id, self.of(activity_id)
-        )
 
 
 def payload_activity_id(payload: object) -> str | None:

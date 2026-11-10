@@ -217,9 +217,10 @@ class ReceivedActivityRecord(CoreRecord):
             stub it is the time of receipt the stub records (CLP-10-018).
         verified_proofs: Every proof the inbox verified on the delivery, with
             the author, the key id and the public key as fetched from the
-            author's profile (SIG-03-004).  Written with the archive, and
-            carried on a record in holding so its replay archives them too.
-            A receipt stub keeps none: a refused message was not accepted.
+            author's profile (SIG-03-004).  Written by the record's first
+            save, beside the body, and kept by every later one through the
+            archive.  A receipt stub keeps none: a refused message was not
+            accepted (SIG-03-005).
         replay_rows_json: The storage rows staged from the activity's inline
             objects, which the replay stages again for routing (IO-03-009).
             Rows (``id_``, ``type_``, ``data_``), not domain objects, so no
@@ -450,7 +451,7 @@ class ReceivedActivityRecord(CoreRecord):
             raise ValueError(
                 f"the receipt stub for activity '{self.activity_id}' records"
                 " verified proofs, but a refused message was not accepted:"
-                " only a record holding the body keeps them (SIG-03-004)"
+                " only a record holding the body keeps them (SIG-03-005)"
             )
         return self
 

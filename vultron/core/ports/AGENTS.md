@@ -98,12 +98,15 @@ HTTP call and parses no wire JSON (ARCH-01-001, ADR-0032).
 
 `ProofVerificationPort` (`proof_verification.py`) is the inbox's verification
 stage: `async verify(document)` refuses a decoded body whose proofs do not
-verify (SIG-03-002). The adapter (`ProfileKeyProofVerifier`) resolves each
+verify (SIG-03-002), and returns one `VerifiedProof` per proof it checked
+(author, key id, the key as fetched), which the delivery's received record
+keeps (SIG-03-004). The adapter (`ProfileKeyProofVerifier`) resolves each
 author's key from its profile and calls the signing module; the inbox route
 gets it from the `get_proof_verifier` dependency. Reason: the stage runs
 before the parser (SIG-03-003), and a test that is not about verification
 overrides that dependency with `AcceptingProofVerifier`
-(`test/support/signing.py`), which conforms to this port.
+(`test/support/signing.py`), which conforms to this port and returns no
+proofs.
 
 ### `ClockPort` and `BookkeepingClockPort`
 
