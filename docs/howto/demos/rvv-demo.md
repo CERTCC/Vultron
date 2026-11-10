@@ -113,7 +113,7 @@ sequenceDiagram
 
     note right of V1: trigger: notify-fix-ready
     note right of V2: trigger: notify-fix-ready
-    note over F,V2: ✅ M4 — Reporter and vendor replicas: both vendors CS includes F
+    note over F,V2: ✅ M4 — Reporter and each vendor's own replica: that vendor's CS includes F
     note over F,V2: ✅ M5 — neither vendor records a fix deployed (no Deployer in this scenario)
 
     note over F,V2: Phase 5 — Publication & Embargo Teardown
@@ -164,9 +164,9 @@ Vendor1 reports fix ready with a Fix Readiness (CF), `Add(ParticipantStatus)`, a
 Neither vendor reports a deployed fix: deployment is a Deployer's step, and this scenario has none, so both vendors stop at `VFd`.
 Both transitions are replicated to the Reporter and verified.
 
-**M4 verified when:** each vendor's own replica and the Reporter's show both vendors' CS includes `F` (fix ready).
+**M4 verified when:** for each vendor, that vendor's own replica and the Reporter's show its CS includes `F` (fix ready).
 
-**M5 verified when:** no replica records a fix-deployed state for either vendor, so `VFd` is where both vendor paths end.
+**M5 verified when:** neither vendor's own replica nor the Reporter's records a fix-deployed state for it, so `VFd` is where both vendor paths end.
 
 ### Phase 5 — Publication and embargo teardown (M6)
 
@@ -197,8 +197,8 @@ The Case Actor's own store is where every closure is checked.
 | `✅ M1:` | ≥4 participants, EM.ACTIVE, Reporter and Vendor2 have replicas |
 | `✓ M2:` | Reporter and Vendor2 case replicas synchronized (Ledger Fanout verified) |
 | `✓ Notes exchange complete` | Question and replies committed to the case ledger (no numbered milestone) |
-| `✅ M4:` | Reporter and vendor replicas: both vendors CS includes `F` (fix ready) |
-| `✅ M5:` | Neither vendor records a fix deployed, so both stop at `VFd` |
+| `✅ M4:` | Reporter and each vendor's own replica: that vendor's CS includes `F` (fix ready) |
+| `✅ M5:` | Neither vendor records a fix deployed on its own replica or the Reporter's, so both stop at `VFd` |
 | `✅ M6:` | All replicas: CS.VFdPxa and EM.EXITED; all participants public-aware |
 | `✅ M7:` | All participants RM.CLOSED in the Case Actor's store; each replica ends at its own closure |
 

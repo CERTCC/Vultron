@@ -13,6 +13,7 @@ description: >
   replica-sync phase, and close every case with the Case Owner leaving last.
 related_specs:
   - specs/case-bootstrap-trust.yaml
+  - specs/cs-behavior.yaml
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/event-driven-control-flow.yaml
@@ -264,15 +265,15 @@ own assertion, and each label describes only what its own block reads.
 
 **Why:** every vendor-first scenario reported two fix-ready milestones whose
 bodies were identical, so the second proved nothing the first had not, and
-wherever the label said "both vendors" the body read Vendor1 twice (#5602, the
-over-claiming shape of #2241). A green run then says less than its labels do,
-which is how a demo stops being evidence.
+wherever the label said "both vendors" the body read Vendor1 twice (#5602). A
+green run then says less than its labels do, which is how a demo stops being
+evidence.
 
 **How to apply:**
 
 1. Pass each label as its own named argument, not as a sequence a loop walks:
    `the_fix_ready_milestones(state, reached=…, stopped=…)` cannot be handed one
-   body twice, while `milestones=(a, b)` invited exactly that.
+   body twice.
 2. Say what the second one adds. "Stops at VFd" is a claim about the d→D
    transition that never happens, so it reads the absence of `D`
    (`verify_stops_at_fix_ready`), not the VF state its sibling already read.
@@ -285,9 +286,12 @@ which is how a demo stops being evidence.
    both, because each vendor's fix path is its own (DEMOMA-09-009).
 4. Hold it with a test that compares the two halves' reads *each way*: a half
    whose reads are a **subset** of the other's asserts nothing new even though
-   the two lists are unequal
-   (`test/demo/vendor_story/test_continuations.py`,
-   `test/demo/coordinated_story/test_continuations.py`).
+   the two lists are unequal. Key each read on the helper, the container read
+   and the actor read about — the name alone lets a rewrite read the right
+   thing about the wrong actor (`recorded_milestone_reads` in
+   `test/demo/_helpers.py`, used by both families' continuation tests). The
+   key names the helper, so what each helper's own body asserts is held one
+   level down, by `test/demo/test_milestones_vendor_guard.py`.
 
 ---
 

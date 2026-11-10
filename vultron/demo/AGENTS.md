@@ -109,17 +109,17 @@ sub-issues were this one defect in different scenarios.
    `walk()`ing what `recording_checks()` recorded (`utils/check_tree.py`, #6127).
    Stubbing one out with `contextlib.nullcontext` makes the assertion propagate and
    the test pass while proving nothing — how the missing `engage-case` gate escaped.
-9. **Two milestones in a row assert two different things**, each label
-   describing only its own block, and the holding test compares the halves'
-   reads *each way* — a subset adds nothing (#5602, #2241;
+9. **Two milestones in a row assert two different things**, each label describing
+   only its own block, and the holding test compares the halves' reads *each way*,
+   keyed on the container and the actor read rather than the helper name — a
+   subset adds nothing (#5602;
    [demo-scenario-authoring](../../notes/demo-scenario-authoring.md) § "Two
-   Milestones in a Row").
+   Milestones in a Row Assert Two Different Things").
 10. **Nest the step that reads a value inside the block that produces it.** A
-    `None`/`""` pre-init is allowed only when every later read is guarded — the
-    one part a check enforces (#3038, `test_demo_step_no_unbound_ratchet.py`).
-    Name each nested statement with its own `demo_check`/`demo_step` *unless
-    the callee opens one*: an outer block around a self-checking helper never
-    fails.
+    `None`/`""` pre-init is allowed only when every later read is guarded — the one
+    part a check enforces (#3038, `test_demo_step_no_unbound_ratchet.py`). Name each
+    nested statement with its own `demo_check`/`demo_step` *unless the callee opens
+    one*: an outer block around a self-checking helper never fails.
 
 Full reasoning: EDF-06, DEMOMA-22, ADR-0058, and
 [`event-driven-control-flow`](../../notes/event-driven-control-flow.md) § "Temporal
@@ -188,7 +188,7 @@ dead on artifact download).
 After any phase that commits a new canonical ledger entry, poll until the replica
 acknowledges the sender's tail hash before writing the devlog, or the dump misses
 entries still in `Announce(CaseLedgerEntry)` fan-out (DEMO-DEVLOG-RACE,
-[demo-ci-diagnostics](../../notes/demo-ci-diagnostics.md)).
+[demo-ci-diagnostics](../../notes/demo-ci-diagnostics.md) § "Demo Devlog Race").
 
 ### BT Demo `main()` Must Be Callable With No Arguments
 

@@ -852,14 +852,21 @@ class TestBothVendorsRunTheFixLifecycle:
         It reads V1's absent fix-deployed transition too, and only V1's: V2
         holds DEPLOYER and does deploy, so the ceiling claim is not made of
         it.
+
+        Both replicas the label names are read: V1's own and C1's, which the
+        label leads with.  An absence has no poll to cover it, so the read
+        itself has to reach C1's replica (#6186).
         """
         state = five_party_state()
         ran = self._run(state)
 
         assert [
-            c.kwargs["receiver_actor_id"]
+            (c.kwargs["receiver_client"], c.kwargs["receiver_actor_id"])
             for c in ran["stops_at_ready"].call_args_list
-        ] == [state.actor_id(fragments.V1)]
+        ] == [
+            (state.client(fragments.V1), state.actor_id(fragments.V1)),
+            (state.client(fragments.C1), state.actor_id(fragments.V1)),
+        ]
 
     def test_the_deploy_report_follows_both_fix_ready_reports(self):
         """V2's d→D step comes after the VFd pair, not between them."""

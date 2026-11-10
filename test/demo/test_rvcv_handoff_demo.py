@@ -761,6 +761,12 @@ class TestBothVendorsFixTheVul:
         kwargs = fix_ready.call_args.kwargs
         assert set(kwargs) == {"reached", "stopped"}, kwargs
         assert "fix ready" in kwargs["reached"], kwargs["reached"]
+        # The label names each vendor's own replica, not every
+        # vendor's on every replica: each vendor's VF is read on its own
+        # replica and the Reporter's, never cross-read (#5602).
+        assert "each vendor's own replica" in kwargs["reached"], kwargs[
+            "reached"
+        ]
         assert "both vendors stopped at VFd" in kwargs["stopped"], kwargs[
             "stopped"
         ]

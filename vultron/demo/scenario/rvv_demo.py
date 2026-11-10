@@ -262,8 +262,8 @@ def both_vendors_fix_the_vul(state: StoryState) -> None:
     """Both vendors report fix ready; both stop at VFd (CSB-15-002)."""
     both_vendors_report_the_fix_ready(
         state,
-        reached="M4: Reporter and both vendors' replicas show both vendors"
-        " CS include F (fix ready)",
+        reached="M4: the Reporter and each vendor's own replica show that"
+        " vendor's CS includes F (fix ready), for both vendors",
         stopped="M5: both vendors stopped at VFd — no fix-deployed transition",
     )
 

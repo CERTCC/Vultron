@@ -20,14 +20,16 @@ the caller's, so the labels are what these tests pin.
 """
 
 import contextlib
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
 
 from test.demo._helpers import (
+    MilestoneRead,
     mock_case,
     no_demo_banners,
+    recorded_milestone_reads,
     story_state,
 )
 from test.demo.vendor_story._support import SEATED, family_state
@@ -142,66 +144,25 @@ class TestRequiredParticipantsArePresent:
         assert kwargs["reporter_actor_id"] == state.actor_id(REPORTER)
 
 
-def _cast_name_of(state: StoryState, client: object) -> str:
-    """The cast name whose container *client* reads, or ``"unknown"``.
+#: The fix-ready pair's reads, as :func:`recorded_milestone_reads` names them:
+#: each helper mapped to the keyword arguments naming the container it read
+#: and the actor the read was about.
+_FIX_READY_READS = {
+    "wait_for_participant_vf_state": ("client", "actor_id"),
+    "verify_fix_ready": ("receiver_client", "receiver_actor_id"),
+    "verify_stops_at_fix_ready": ("receiver_client", "receiver_actor_id"),
+}
 
-    Named rather than compared by identity so a failing assertion prints the
-    part a read was pointed at (``vendor2``) and not a client repr.
-    """
-    for member in state.cast:
-        if state.client(member) is client:
-            return member
-    return "unknown"
+#: ``wait_for_participant_vf_state`` under the name the assertions read it by.
+_VF_WAIT = "wait_for_participant_vf_state"
 
 
 @contextlib.contextmanager
-def _recorded_reads(state: StoryState) -> Iterator[list[tuple[str, ...]]]:
-    """Record what the continuations read, by helper and by subject.
-
-    Each entry names the helper, the cast member whose container was read and
-    the actor the read was about, which is the whole of what a fix-ready
-    milestone asserts.  Two milestones that produce the same list assert the
-    same thing, whatever their labels say.
-    """
-    reads: list[tuple[str, ...]] = []
-
-    def _named(
-        helper: str, client_key: str, actor_key: str
-    ) -> Callable[..., None]:
-        def record(**kwargs: object) -> None:
-            reads.append(
-                (
-                    helper,
-                    _cast_name_of(state, kwargs[client_key]),
-                    str(kwargs[actor_key]),
-                )
-            )
-
-        return record
-
-    with (
-        patch.object(
-            vendor_continuations,
-            "wait_for_participant_vf_state",
-            side_effect=_named("vf_wait", "client", "actor_id"),
-        ),
-        patch.object(
-            vendor_continuations,
-            "verify_fix_ready",
-            side_effect=_named(
-                "verify_fix_ready", "receiver_client", "receiver_actor_id"
-            ),
-        ),
-        patch.object(
-            vendor_continuations,
-            "verify_stops_at_fix_ready",
-            side_effect=_named(
-                "verify_stops_at_fix_ready",
-                "receiver_client",
-                "receiver_actor_id",
-            ),
-        ),
-    ):
+def _recorded_reads(state: StoryState) -> Iterator[list[MilestoneRead]]:
+    """This family's reads, through the recorder both families share."""
+    with recorded_milestone_reads(
+        state, vendor_continuations, _FIX_READY_READS
+    ) as reads:
         yield reads
 
 
@@ -303,15 +264,15 @@ class TestTheFixReadyMilestones:
             )
 
         assert reads == [
-            ("vf_wait", family.VENDOR, state.actor_id(family.VENDOR)),
-            ("vf_wait", REPORTER, state.actor_id(family.VENDOR)),
+            (_VF_WAIT, family.VENDOR, state.actor_id(family.VENDOR)),
+            (_VF_WAIT, REPORTER, state.actor_id(family.VENDOR)),
             (
                 "verify_fix_ready",
                 family.VENDOR,
                 state.actor_id(family.VENDOR),
             ),
-            ("vf_wait", family.VENDOR2, state.actor_id(family.VENDOR2)),
-            ("vf_wait", REPORTER, state.actor_id(family.VENDOR2)),
+            (_VF_WAIT, family.VENDOR2, state.actor_id(family.VENDOR2)),
+            (_VF_WAIT, REPORTER, state.actor_id(family.VENDOR2)),
             (
                 "verify_fix_ready",
                 family.VENDOR2,
@@ -362,8 +323,8 @@ class TestTheFixReadyMilestones:
             state.actor_id(family.VENDOR)
         }, reads
         assert [read[0] for read in reads] == [
-            "vf_wait",
-            "vf_wait",
+            _VF_WAIT,
+            _VF_WAIT,
             "verify_fix_ready",
             "verify_stops_at_fix_ready",
         ], reads

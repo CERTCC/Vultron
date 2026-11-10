@@ -99,6 +99,11 @@ def the_fix_ready_reached_the_reporter(
     for.  Each Vendor's own fix path is independent (DEMOMA-09-009), so each
     gets its own poll pair and its own verification.
 
+    One ``demo_check`` covers them all, because the scenario reports one
+    milestone label: the block fails as a unit, so a Vendor1 shortfall is
+    recorded before Vendor2 is read.  A block per Vendor would need a label
+    per Vendor, which is a scenario's call and not this helper's.
+
     Args:
         state: The running story's state.
         check: This scenario's ``demo_check`` label for the milestone.

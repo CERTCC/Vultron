@@ -142,17 +142,10 @@ def _assert_vendor_role(
 ) -> None:
     """Assert that *actor_id* holds ``CVDRole.VENDOR`` in the case.
 
+    The guard a caller wants when it needs the role and not the record; see
+    :func:`_fetch_vendor_participant` for the arguments and the raise.
+
     Spec: DEMOMA-15-001.
-
-    Args:
-        client: DataLayerClient for the target container.
-        case_id: Full URI of the ``as_VulnerabilityCase``.
-        actor_id: Full URI of the actor to check.
-        label: Human-readable label for the ``AssertionError`` message.
-
-    Raises:
-        AssertionError: If the participant is not found or does not hold
-            ``CVDRole.VENDOR``.
     """
     _fetch_vendor_participant(client, case_id, actor_id, label)
 

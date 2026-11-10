@@ -3150,10 +3150,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `verify_stops_at_fix_ready` MUST accept only actor IDs holding
-      `CVDRole.VENDOR` and not `CVDRole.DEPLOYER` in the case's participant
-      index, raising `AssertionError` with the actor ID and its actual roles
-      otherwise.
+      `verify_stops_at_fix_ready` MUST raise `AssertionError`, naming the actor
+      and its roles, unless that actor holds `CVDRole.VENDOR` and not
+      `CVDRole.DEPLOYER` in the case's participant index.
     rationale: >-
       A milestone labelled "stops at VFd" claims a ceiling, not a moment: only a
       VENDOR without DEPLOYER is barred from d→D (CSB-15-002). Passed a DEPLOYER,
@@ -3188,6 +3187,28 @@ groups:
     - rel_type: uses_definition
       spec_id: CSB-15-002
     verification: test/demo/test_milestones_vendor_guard.py::TestVerifyStopsAtFixReadyGuard
+    tags:
+    - demo
+  - id: DEMOMA-15-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A milestone helper asserting the **absence** of a state transition MUST
+      NOT be preceded by a polling wait for that state.
+    rationale: >-
+      DEMOMA-06-006 obliges a poll before each milestone helper that asserts a
+      state was reached, because a replica catches up asynchronously. An
+      absence has nothing to wait for: a poll could only time out, and a
+      timeout rewritten as a longer wait would hide the claim rather than
+      check it. What makes the negative assertion sound is the role guard the
+      transition's own gate rests on (DEMOMA-15-004, CSB-15-002), so the
+      helper reads once and the guard, not a timeout, carries the claim.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-06-006
+    - rel_type: uses_definition
+      spec_id: DEMOMA-15-004
+    verification: test/demo/vendor_story/test_continuations.py::TestTheFixReadyMilestones::test_the_ceiling_half_reads_every_vendors_missing_deployment
     tags:
     - demo
 - id: DEMOMA-16
