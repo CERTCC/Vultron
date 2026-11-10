@@ -28,6 +28,7 @@ import functools
 import importlib
 import pkgutil
 import re
+from datetime import timedelta
 from pathlib import Path
 
 import py_trees
@@ -68,7 +69,9 @@ from vultron.core.behaviors.call_out.errors import (
     CallOutContractError,
 )
 from vultron.core.behaviors.call_out.guard import (
+    CallOutBudgetExceededError,
     SynchronousCallOut,
+    TimeBoundedCallOut,
     guard_call_out_factory,
     unwrap_call_out,
 )
@@ -566,6 +569,72 @@ def test_rerun_from_holding_after_an_error_on_the_second_target_repeats_no_side_
     # A different act is another set of side effects, not a repeat.
     _deliver(platform, _received("urn:act:other"))
     assert platform.submitted == [exploit, fix, report] * 2
+
+
+# ---------------------------------------------------------------------------
+# The time budget (BT-18-027) holds an Actuator as it holds any backend
+# ---------------------------------------------------------------------------
+
+
+class _FakeStopwatch:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def seconds(self) -> float:
+        return self.now
+
+
+class _TimedActuator(ActuatorBackend):
+    """Records each request and advances the stopwatch by *took* per call."""
+
+    def __init__(
+        self, name: str, stopwatch: _FakeStopwatch, took: timedelta
+    ) -> None:
+        super().__init__(name)
+        self._stopwatch = stopwatch
+        self._took = took
+        self.requests: list[ActuationRequest] = []
+
+    def act(self, request: ActuationRequest) -> CallOutAnswer:
+        self.requests.append(request)
+        self._stopwatch.now += self._took.total_seconds()
+        return CallOutAnswer.yes()
+
+
+def _timed_call(
+    took: timedelta,
+) -> tuple[py_trees.behaviour.Behaviour, _TimedActuator]:
+    stopwatch = _FakeStopwatch()
+    node = actuator_call(
+        lambda name: TimeBoundedCallOut(
+            _TimedActuator(name, stopwatch, took),
+            budget=timedelta(milliseconds=100),
+            stopwatch=stopwatch,
+        ),
+        "Timed",
+        target="urn:a",
+    )
+    backend = unwrap_call_out(node)
+    assert isinstance(backend, _TimedActuator)
+    return node, backend
+
+
+@pytest.mark.spec("BT-18-027")
+@pytest.mark.spec("BT-18-041")
+def test_a_time_bounded_actuator_acts_once_per_tick_within_its_budget():
+    node, backend = _timed_call(took=timedelta(milliseconds=10))
+    assert isinstance(node, TimeBoundedCallOut)
+    node.tick_once()
+    assert node.status == Status.SUCCESS
+    assert [r.target for r in backend.requests] == ["urn:a"]
+
+
+@pytest.mark.spec("BT-18-027")
+def test_an_actuator_past_its_budget_acts_once_and_raises():
+    node, backend = _timed_call(took=timedelta(milliseconds=250))
+    with pytest.raises(CallOutBudgetExceededError):
+        node.tick_once()
+    assert len(backend.requests) == 1
 
 
 # ---------------------------------------------------------------------------
