@@ -34,8 +34,8 @@ Tree structure::
             └── RequestId                    — Retriever
 
 ``EvaluateCveEligibility`` is the whole CNA Operational Rules eligibility
-check as one call-out point (BTND-05-007, ADR-0071): its backend applies every
-criterion of the reference edition (v4.1.0, BTND-05-008) and returns one
+check as one call-out point (BTND-05-007, ADR-0071): its backend applies the
+eligibility criteria of the reference edition (v4.1.0, BTND-05-008) and returns one
 verdict, so adopting a new edition replaces one factory.  The publication
 condition (§4.2.2.1.2) stays a ProtocolInternal gate just before it, because
 it reads the protocol's own publication-intent state rather than asking a

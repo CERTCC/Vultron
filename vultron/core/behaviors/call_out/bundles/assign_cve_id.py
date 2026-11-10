@@ -21,10 +21,12 @@ The matching STOCHASTIC singleton lives in the simulation layer
 (:data:`vultron.demo.fuzzer.bundles.assign_cve_id.ASSIGN_CVE_ID_STOCHASTIC`).
 
 CVE eligibility is one call-out unit (BTND-05-007): a single
-``EvaluateCveEligibility`` Evaluator applies every CNA Operational Rules
-criterion of the reference edition :data:`CNA_RULES_REFERENCE_EDITION`
-(BTND-05-008, ADR-0071) and returns one verdict.  Adopting a newer edition
-replaces ``evaluate_cve_eligibility_factory`` and nothing else in the tree.
+``EvaluateCveEligibility`` Evaluator applies the eligibility criteria of the
+CNA Operational Rules reference edition :data:`CNA_RULES_REFERENCE_EDITION`
+(BTND-05-008, ADR-0071) and returns one verdict.  The scope and CNA-fit
+checks and the publication condition stay separate nodes in the tree.
+Adopting a newer edition replaces ``evaluate_cve_eligibility_factory`` and
+nothing else in the tree.
 
 Ceiling/floor mapping (BT-23-002, p→deterministic):
 
@@ -107,7 +109,7 @@ class DeterministicEvaluateCveEligibility(AlwaysSucceed):
         # Built here, not in setup(), so a tick without setup() still writes
         # the declared outputs rather than succeeding without them (BT-23-013).
         self._eligibility_bb = self.attach_blackboard_client(
-            name=f"{self.__class__.__name__}_writer"
+            name=f"{self.__class__.__name__}_{self.name}_writer"
         )
         for key in self.output_keys:
             self._eligibility_bb.register_key(key, Access.WRITE)
@@ -172,8 +174,9 @@ class AssignCveIdCallOutBundle(CallOutBundle):
     )
     """EvaluateCveEligibility: p=0.67 → DeterministicEvaluateCveEligibility.
 
-    Applies every CNA Operational Rules v4.1.0 eligibility criterion as a unit
-    (BTND-05-008) and writes ``cve_eligibility_verdict`` and
+    Applies the CNA Operational Rules v4.1.0 eligibility criteria as a unit
+    (BTND-05-008), apart from the publication condition the tree checks just
+    before it, and writes ``cve_eligibility_verdict`` and
     ``cve_eligibility_rationale`` on SUCCESS.
     """
 

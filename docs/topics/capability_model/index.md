@@ -253,7 +253,8 @@ This domain has one extra level because the ID assignment workflow has distinct 
   - **InScope** (Evaluator) — is this vulnerability in scope for ID assignment?
   - **ProductInCNAScope** / **IsMostAppropriateCNA** (Evaluators) — CNA scoping checks
   - **EvaluateCveEligibility** (Evaluator) — does this vulnerability meet the CNA criteria for CVE assignment?
-    This is a single judgment call that applies every CNA Operational Rules criterion as one unit.
+    This is a single judgment call that applies the CNA Operational Rules eligibility criteria as one unit.
+    The publication condition stays a separate protocol check just before it.
   - **AssignId** (Composer) — generate and record the CVE ID
   - **RequestId** (Retriever) — request an ID from an external CNA if we are not the appropriate authority
 
