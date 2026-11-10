@@ -20,16 +20,16 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
 - **Source file**: `report_management/fuzzer/assign_vul_id.py`
 - **Parent tree**: `AssignVulID`
 - **Semantic function**: Condition — check whether the vulnerability already has an identifier, such as a CVE ID
-- **Input dependency**: Query to internal case metadata or to an external vulnerability registry, such as a CVE database lookup
+- **Input dependency**: Query to an external vulnerability registry, such as a CVE database lookup
 - **Notes**: Fails most of the time in simulation because ID assignment is the main workflow.
-  In production, this node is a simple metadata check
-- **Automation potential**: **High** — a simple query against case metadata or a vulnerability registry.
+  In production, this node is a registry lookup
+- **Automation potential**: **High** — a simple query against a vulnerability registry.
   Full automation is possible.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssigned`
-- **Call-out point shape**: Retriever — synchronous on-demand query to case metadata or an external vulnerability registry, such as a CVE database.
-  The node returns SUCCESS if the vulnerability already has an identifier.
-  It writes the existing ID to `contract.outputs = {"assigned_vul_id": str}`, so the parent tree has a guaranteed key on any successful path.
+- **Call-out point shape**: Retriever — synchronous on-demand query to an external vulnerability registry, such as a CVE database.
+  The node returns SUCCESS if the vulnerability already has an identifier, and it declares no output ports.
   A boolean is the simplest structured fact (ADR-0024, BT-18-006).
+- **Store-held answer**: The case file has no field for an assigned identifier, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — early-exit Retriever guard at the top of the `AssignVulID` Fallback Selector.
   The guard returns SUCCESS if an ID is already assigned, and so the tree skips the assignment work
 
@@ -111,9 +111,10 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
 - **Automation potential**: **High** — an API call to the CVE Services endpoint, or to an equivalent ID-request interface, can fully automate it.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.RequestId`
 - **Call-out point shape**: Retriever — sends a reservation/assignment request to an external ID assignment authority, such as the CVE Services API.
-  The node writes the assigned ID to the case record.
-  `contract.outputs = {"assigned_id": str}`.
-  SUCCESS means that the node retrieved and recorded the ID.
+  It writes the assigned ID to its output port, `contract.outputs = {"assigned_id": str}`.
+  SUCCESS means that the node retrieved the ID.
+  The case file has no field that records it.
+- **Store-held answer**: Nothing in the case file or the actor's store holds the new identifier before the authority answers, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Retriever action node in the `_AssignOrRequestId` Fallback.
   The tree uses it when `_AssignIdIfPossible` fails (the non-CNA or out-of-scope path)
 
@@ -132,7 +133,7 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
 - **Call-out point shape**: Composer — makes a new vulnerability identifier from the ID pool of this participant.
   It uses the ID management system or the CVE Services reserve/assign endpoint.
   `contract.outputs = {"assigned_vul_id": str}`.
-  The artifact is the newly assigned ID, recorded in the case.
+  The artifact is the newly assigned ID, written to that output port; the case file has no field that records it.
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Composer action node at the end of the `_AssignIdIfPossible` Sequence.
   The tree uses it when `EvaluateCveEligibility` succeeds (the CNA-direct path)
 

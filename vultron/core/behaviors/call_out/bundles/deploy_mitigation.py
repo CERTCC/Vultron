@@ -70,12 +70,30 @@ class DeployMitigationCallOutBundle(DeploymentMonitoringBundle):
     mitigation_deployed_factory: CallOutBackendFactory = field(
         default=_always_fail  # type: ignore[assignment]
     )
+    """MitigationDeployed (Retriever): p=0.25 → AlwaysFail.
+
+    Store-held answer (BT-18-039): **cannot**.  Mitigation has no case state
+    bit and no protocol message (BT-20-006), so neither the case file nor the
+    actor's store records a deployed mitigation, and no read-first guard
+    precedes this Retriever.  The answer lives in the deployer's own systems,
+    such as an asset inventory or a configuration-management database.
+    """
+
     mitigation_available_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
+    """MitigationAvailable (Retriever): p=0.70 → AlwaysSucceed.
+
+    Store-held answer (BT-18-039): **cannot**.  The case file records no
+    mitigation and the actor's store keeps no mitigation catalogue, so no
+    read-first guard precedes this Retriever.  The answer comes from an
+    advisory feed or a mitigation catalogue outside the protocol.
+    """
+
     deploy_mitigation_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
+    """DeployMitigation (Evaluator): p=0.75 → AlwaysSucceed."""
 
 
 DEPLOY_MITIGATION_DETERMINISTIC = DeployMitigationCallOutBundle()

@@ -68,6 +68,13 @@ class ActorResolutionCallOutBundle(CallOutBundle):
     resolve_actor_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
+    """ResolveActorDetails (Retriever): p=0.90 → AlwaysSucceed.
+
+    Store-held answer (BT-18-039): **can**.  The actor's own store holds the
+    record of every peer it knows, so the caller reads the store first and
+    does not call this Retriever for a peer it already holds
+    (:func:`~vultron.core.use_cases.triggers.actor._peers._record_named_peer`).
+    """
 
 
 ACTOR_RESOLUTION_DETERMINISTIC = ActorResolutionCallOutBundle()
