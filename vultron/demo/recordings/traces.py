@@ -21,21 +21,42 @@ containers they read (:mod:`vultron.demo.utils.check_tree`).  Comparing a
 scenario's run at a pull request's base with its run at the head needs both
 (DEMOCI-11-055).
 
-Neither trace is byte-comparable as it stands.  The recording clock ticks 10 ms
-on every read, so one added clock read shifts every later timestamp and digest,
-and one extra id draw shifts every later id; neither is a change in what the
-scenario does.  :func:`normalize_run` therefore relabels every id by its first
-appearance, with **one** mapping across the scenario's ledger and its check
-labels, and replaces timestamps and hash-chain digests with a placeholder
-(DEMOCI-11-058, DEMOCI-11-059).  It changes nothing else (DEMOCI-11-060): a
-changed note text, an added entry and a changed check label all survive it.
+What the two runs are compared on is the scenario's **verdict**: what
+happened, in what order, with which resulting states and roles, and which
+checks ran with which outcomes (DEMOCI-11-058).  :func:`normalize_run` builds
+it as a projection, not as a cleaned copy.  Each ledger entry keeps only the
+fields named in :data:`VERDICT_FIELDS`, at every depth, and everything else is
+left out.  A value derived from ids, times or keys (a timestamp, a hash-chain
+digest, a signature and its proof, a sender's sequence counter) is outside the
+list, so a change that only moves such values compares equal
+(DEMOCI-11-059).  An allow-list rather than a list of noise fields, because a
+noise list is what made the first version of this check fail on a pull
+request that only changed how ids are drawn: the signatures cover the raw
+ids, and ``proofValue`` was not on the list.  The next derived field would
+have tripped it the same way.
 
-Dropping timestamps costs real coverage, because a time the protocol *derives*
-reads the same as one the clock minted: an embargo's ``startTime`` and
+Inside the kept fields, every id is relabelled by its first appearance, with
+**one** mapping across the scenario's ledger and its check labels
+(DEMOCI-11-070), and a timestamp a string quotes reads as a placeholder
+(DEMOCI-11-071).  Nothing else in a kept
+field is rewritten (DEMOCI-11-060): a changed note text, an added or
+reordered entry, a changed state or role and a changed check label or outcome
+all survive it.
+
+The cost of an allow-list is that a new field counts only once it is named.
+``test/demo_unit/test_recording_traces.py`` holds that line: it walks every
+model a ledger entry can carry and fails on a field that is neither in
+:data:`VERDICT_FIELDS` nor named there as outside the verdict, and on a
+state, role, status or consent field named as outside it (DEMOCI-11-072).
+A new field therefore fails a test until someone decides which side it is
+on, rather than silently going uncompared.
+
+Leaving times out costs real coverage, because a time the protocol *derives*
+is left out with the ones the clock minted: an embargo's ``startTime`` and
 ``endTime``, an invite's ``rsvpDeadline`` and the embargo name that quotes
-them all go with the clock, so a change to the default embargo window or the
-RSVP window compares equal.  The gate is not a check on those constants; the
-blind spot is recorded in ``notes/demo-scenario-tree.md`` § "Composition".
+them, so a change to the default embargo window or the RSVP window compares
+equal.  The gate is not a check on those constants; the blind spot is
+recorded in ``notes/demo-scenario-tree.md`` § "Composition".
 
 Design: ``notes/demo-scenario-tree.md`` § "Composition".
 """
@@ -83,22 +104,137 @@ _TIMESTAMP_RE = re.compile(
     r"(?:Z|[+-]\d{2}:?\d{2})?"
 )
 
-#: What a dropped timestamp reads as.
+#: What a timestamp quoted in a kept string reads as.
 TIMESTAMP_PLACEHOLDER = "<timestamp>"
 
-#: What a dropped hash-chain digest reads as.
-DIGEST_PLACEHOLDER = "<digest>"
-
-#: The suffix of every hash-chain digest field a ledger entry or a nested sync
-#: payload carries (``prevLogHash``, ``entryHash``, a sync activity's tail
-#: hash).  A suffix rather than a list of names, so a new digest field is
-#: dropped without an edit here.  What holds the rule is not this constant but
-#: the shape of a digest: ``test/demo_unit/test_recording_traces.py`` normalizes
-#: a real :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry` and
-#: fails if any 64-character hex value survives, so a digest field renamed out
-#: of this suffix fails there rather than silently stopping being dropped
-#: (#5535).
-DIGEST_KEY_SUFFIX = "Hash"
+#: The fields a ledger entry is compared on, at any depth: the scenario's
+#: verdict (DEMOCI-11-058).  A field not named here is left out of the
+#: comparison, whatever it holds (DEMOCI-11-059).  Grouped by what each tells
+#: a reviewer; a field joins only if a change in it is a change in what the
+#: scenario did.
+VERDICT_FIELDS: frozenset[str] = frozenset(
+    {
+        # The entry: which act, at which position in the case's ledger.
+        "caseId",
+        "id",
+        "logIndex",
+        "logObjectId",
+        "payloadSnapshot",
+        "semanticType",
+        "type",
+        # The act: who did it, to whom, about what, with what result.
+        "actor",
+        "audience",
+        "bcc",
+        "bto",
+        "cc",
+        "context",
+        "inReplyTo",
+        "instrument",
+        "items",
+        "object",
+        "origin",
+        "result",
+        "target",
+        "to",
+        # What an object says.
+        "accuracy",
+        "aliases",
+        "altitude",
+        "anyOf",
+        "attachment",
+        "attributedTo",
+        "closed",
+        "content",
+        "describes",
+        "failureClass",
+        "formerType",
+        "generator",
+        "height",
+        "href",
+        "hreflang",
+        "icon",
+        "image",
+        "latitude",
+        "location",
+        "longitude",
+        "mediaType",
+        "name",
+        "oneOf",
+        "preview",
+        "radius",
+        "rel",
+        "relationship",
+        "replies",
+        "subject",
+        "summary",
+        "tag",
+        "tags",
+        "units",
+        "url",
+        "width",
+        # Who an actor is, and the embargo terms it states.
+        "actorId",
+        "embargoPolicy",
+        "maximumDuration",
+        "minimumDuration",
+        "preferredDuration",
+        "preferredUsername",
+        # The case and who takes part in it.
+        "activeEmbargo",
+        "activeParticipants",
+        "caseActivity",
+        "caseParticipants",
+        "childCases",
+        "notes",
+        "parentCases",
+        "participantCaseName",
+        "removalActivity",
+        "siblingCases",
+        "stubSummary",
+        "trackingId",
+        "vulnerabilityReports",
+        # Roles.
+        "caseRoles",
+        "cvdRole",
+        "proposerCaseRoles",
+        "role",
+        "roles",
+        "suggestedRoles",
+        # States.
+        "caseEngagement",
+        "caseStatus",
+        "caseStatuses",
+        "dState",
+        "emState",
+        "forceRmState",
+        "joined",
+        "participantStatuses",
+        "previousRmState",
+        "pxaState",
+        "rmState",
+        "state",
+        "status",
+        "vfState",
+        # Embargoes, consent to them, and how they end.
+        "cause",
+        "duration",
+        "embargo",
+        "embargoConsents",
+        "embargoId",
+        "embargoRegister",
+        "kind",
+        "offerActorId",
+        "offerId",
+        "proposedEmbargo",
+        "reason",
+        "replaces",
+        "signals",
+        "termination",
+        "terminationCause",
+        "vendors",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,11 +254,12 @@ class ScenarioRun:
 
 @dataclass(frozen=True, slots=True)
 class NormalizedRun:
-    """A run with its ids relabelled and its clock-borne values dropped.
+    """A run's verdict: the form two runs are compared in.
 
     Attributes:
         scenario: The scenario name.
-        ledger: One line per ledger entry, normalized.
+        ledger: One line per ledger entry, projected onto
+            :data:`VERDICT_FIELDS` with its ids relabelled.
         checks: One line per check tree node, normalized and indented by
             nesting depth.
     """
@@ -135,7 +272,7 @@ class NormalizedRun:
 class _IdLabels:
     """One run's id relabelling: each id becomes ``id-N`` by first appearance.
 
-    Shared across the run's ledger and its check labels (DEMOCI-11-058), so an
+    Shared across the run's ledger and its check labels (DEMOCI-11-070), so an
     id that both name reads the same in each.
     """
 
@@ -158,24 +295,22 @@ def _normalize_text(text: str, ids: _IdLabels) -> str:
     return _TIMESTAMP_RE.sub(TIMESTAMP_PLACEHOLDER, ids.relabel(text))
 
 
-def _normalize_value(value: Any, ids: _IdLabels) -> Any:
-    """Return *value* normalized, walking a parsed ledger entry.
+def _project(value: Any, ids: _IdLabels) -> Any:
+    """Return *value* projected onto :data:`VERDICT_FIELDS`, at every depth.
 
-    A value under a hash-chain digest key is replaced whole: the digest covers
-    the entry's content, so it changes whenever anything before it did, which
-    would report every scenario as different from its own base.
+    A mapping keeps only its verdict fields, in name order: the order a
+    serializer writes fields in is not part of what the scenario did.  A
+    list keeps its order, because the order of participants, statuses and
+    register entries is.
     """
     if isinstance(value, Mapping):
         return {
-            key: (
-                DIGEST_PLACEHOLDER
-                if isinstance(key, str) and key.endswith(DIGEST_KEY_SUFFIX)
-                else _normalize_value(item, ids)
-            )
-            for key, item in value.items()
+            key: _project(value[key], ids)
+            for key in sorted(value)
+            if key in VERDICT_FIELDS
         }
     if isinstance(value, list):
-        return [_normalize_value(item, ids) for item in value]
+        return [_project(item, ids) for item in value]
     if isinstance(value, str):
         return _normalize_text(value, ids)
     return value
@@ -184,7 +319,7 @@ def _normalize_value(value: Any, ids: _IdLabels) -> Any:
 def _normalize_entry(
     line: str, scenario: str, number: int, ids: _IdLabels
 ) -> str:
-    """Return one normalized ledger line.
+    """Return one ledger line's verdict.
 
     Raises:
         DemoRecordingError: When the line is not a JSON object.  A ledger the
@@ -204,7 +339,7 @@ def _normalize_entry(
             f"scenario {scenario!r}, ledger line {number}, is a "
             f"{type(entry).__name__}, not a ledger entry object."
         )
-    return json.dumps(_normalize_value(entry, ids), sort_keys=False)
+    return json.dumps(_project(entry, ids))
 
 
 def _normalize_checks(tree: Iterable[CheckNode], ids: _IdLabels) -> CheckTree:
@@ -222,7 +357,7 @@ def _normalize_checks(tree: Iterable[CheckNode], ids: _IdLabels) -> CheckTree:
 
 
 def normalize_run(run: ScenarioRun) -> NormalizedRun:
-    """Return *run* in the form two runs are compared in.
+    """Return *run*'s verdict, the form two runs are compared in.
 
     The ledger is read first and the check tree second, so one mapping covers
     both and the order of first appearance is fixed.
@@ -353,12 +488,11 @@ def prune_runs(root: Path, keep: Container[str]) -> list[str]:
 
 __all__ = [
     "CHECKS_FILENAME",
-    "DIGEST_KEY_SUFFIX",
-    "DIGEST_PLACEHOLDER",
     "LEDGER_FILENAME",
     "NormalizedRun",
     "ScenarioRun",
     "TIMESTAMP_PLACEHOLDER",
+    "VERDICT_FIELDS",
     "normalize_run",
     "prune_runs",
     "read_runs",
