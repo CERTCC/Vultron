@@ -56,22 +56,15 @@ CASE_ID = "https://example.org/cases/test-deploy-mitigation-001"
 DEPLOYER_ACTOR_ID = "https://example.org/actors/deployer-mit-001"
 VENDOR_ACTOR_ID = "https://example.org/actors/vendor-mit-001"
 
+#: The trees run as the deployer, so the scenario opens the deployer's store: a
+#: BT's store follows its executing actor (ADR-0073).  Without it the seeded case
+#: lives in another actor's store and every guard fails on a missing case.
+pytestmark = pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
+
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def bt_scenario():
-    """Scenario scoped to DEPLOYER_ACTOR_ID — the deployer the trees run as.
-
-    Shadows the harness default so the store belongs to the actor these trees
-    execute as: a BT's store follows its executing actor (ADR-0073).  Without
-    it the seeded case lives in another actor's store and every guard fails
-    on a missing case.
-    """
-    return BTTestScenario(DEPLOYER_ACTOR_ID)
 
 
 @pytest.fixture
@@ -406,6 +399,10 @@ def test_early_exit_when_mitigation_already_deployed(
     )
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     assert result.status == Status.SUCCESS
+    assert tree.children[0].status == Status.SUCCESS
+    # Neither the deploy arm nor the monitor arm was ticked.
+    assert tree.children[2].status == Status.INVALID
+    assert tree.children[3].status == Status.INVALID
 
 
 def test_stay_deferred_short_circuits(
@@ -505,14 +502,23 @@ def test_deploy_arm_falls_through_to_monitor_when_deploy_mitigation_fails(
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     # Monitor arm rescues (MonitoringRequirement and MonitorDeployment both AlwaysSucceed).
     assert result.status == Status.SUCCESS
+    deploy_arm = tree.children[2]
+    assert deploy_arm.status == Status.FAILURE
+    # It stopped at MitigationAvailable, before DeployMitigation.
+    assert deploy_arm.children[1].status == Status.FAILURE
+    assert deploy_arm.children[3].status == Status.INVALID
+    assert tree.children[3].status == Status.SUCCESS
 
 
-def test_non_deployer_role_skips_deploy_arm(
+@pytest.mark.executes_as(VENDOR_ACTOR_ID)
+def test_non_deployer_is_not_role_gated(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """Actor without DEPLOYER role → CheckDeployerRoleNode FAILURE → deploy arm skipped.
+    """Actor without DEPLOYER role, RM ACCEPTED → the deploy arm still runs.
 
-    The monitor arm (AlwaysSucceed defaults) then rescues the tree.
+    The mitigation tree carries no deployer role guard: #2664 removed
+    ``CheckDeployerRoleNode`` from it, because the role check guards the CS
+    ``d`` bit (CSB-15-002) and mitigation has no CS bit (BT-20-006).
     """
     non_deployer = CaseParticipant(
         id_="https://example.org/participants/vendor-mit-cp-001",
@@ -534,5 +540,7 @@ def test_non_deployer_role_skips_deploy_arm(
         case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID
     )
     result = bt_scenario.run(tree, actor_id=VENDOR_ACTOR_ID)
-    # Monitor arm succeeds.
     assert result.status == Status.SUCCESS
+    # The deploy arm, not the monitor arm, produced the SUCCESS.
+    assert tree.children[2].status == Status.SUCCESS
+    assert tree.children[3].status == Status.INVALID

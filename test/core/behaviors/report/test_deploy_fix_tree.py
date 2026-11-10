@@ -776,6 +776,8 @@ def test_stay_deferred_short_circuits(
     tree = create_deploy_fix_tree(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID)
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     assert result.status == Status.SUCCESS
+    # Arm 1 itself produced the SUCCESS, not the always-succeeding monitor arm.
+    assert tree.children[1].status == Status.SUCCESS
 
     # No deployment side effects: the deploy arm must not have run.
     participant = bt_scenario.dl.read(participant_id)

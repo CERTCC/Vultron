@@ -22,19 +22,27 @@ This check imports every module of the call-out taxonomy — the shape mixins
 and fuzzer nodes in ``vultron/demo/fuzzer/`` and the bundles and backends in
 ``vultron/core/behaviors/call_out/`` — and fails when:
 
-- a class there is a Sentinel shape base, or subclasses one; or
-- a call-out bundle exposes a Sentinel factory field.
+- a class there is a Sentinel shape base, or subclasses one;
+- a call-out bundle exposes a Sentinel factory field; or
+- a docstring anywhere under ``vultron/`` credits a Sentinel with writing a
+  blackboard key or flag, which is what the old ``CheckNoNewDeploymentInfoNode``
+  docstring did.  A sentence that denies it ("never writes", "not a flag") is
+  allowed, since that is how a docstring explains the call-in pattern.
 """
 
+import ast
 import dataclasses
 import importlib
 import pkgutil
+import re
+from pathlib import Path
 from types import ModuleType
 
 import pytest
 
 import vultron.core.behaviors.call_out as core_call_out
 import vultron.demo.fuzzer as demo_fuzzer
+from test.architecture import _corpus
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.demo.fuzzer import call_out_point
 
@@ -123,6 +131,67 @@ def _taxonomy_bundles() -> set[type]:
         for b in _all_subclasses(CallOutBundle)
         if dataclasses.is_dataclass(b)
     }
+
+
+#: A capitalised ``Sentinel`` ending a word, so ``FooSentinel`` counts but the
+#: programming sense ("sentinel value", AC-6 of #3424) and ``SentinelSite`` do not.
+_SENTINEL_WORD = re.compile(r"Sentinel\b")
+_WRITES_STATE = re.compile(r"\b(writ\w*|blackboard|flag)\b", re.IGNORECASE)
+_NEGATION = re.compile(r"\b(never|not|no)\b", re.IGNORECASE)
+_SENTENCE_END = re.compile(r"(?<=[.;:])\s+")
+
+_DocNode = ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def sentinel_writer_claims(source: str, label: str) -> list[str]:
+    """Name each docstring sentence crediting a Sentinel with a written key."""
+    claims: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, _DocNode):
+            continue
+        doc = ast.get_docstring(node)
+        if not doc:
+            continue
+        owner = getattr(node, "name", "<module>")
+        for sentence in _SENTENCE_END.split(" ".join(doc.split())):
+            if (
+                _SENTINEL_WORD.search(sentence)
+                and _WRITES_STATE.search(sentence)
+                and not _NEGATION.search(sentence)
+            ):
+                claims.append(f"{label}:{owner}: {sentence}")
+    return claims
+
+
+@pytest.mark.spec("BT-18-013")
+def test_no_docstring_credits_a_sentinel_with_a_blackboard_write() -> None:
+    sources = sorted((_corpus.REPO_ROOT / "vultron").rglob("*.py"))
+    assert sources, "found no source files to scan"
+    claims = [
+        claim
+        for path in sources
+        for claim in sentinel_writer_claims(
+            path.read_text(encoding="utf-8"),
+            Path(path).relative_to(_corpus.REPO_ROOT).as_posix(),
+        )
+    ]
+    assert claims == []
+
+
+def test_docstring_check_catches_a_sentinel_writer_claim() -> None:
+    source = (
+        "class Reads:\n"
+        '    """Reads the flag written by the upstream FooSentinel.\n\n'
+        "    A Sentinel writes the change-detection flag this reads.\n\n"
+        "    A Sentinel never writes into this tree.\n"
+        '    """\n'
+    )
+    claims = sentinel_writer_claims(source, "planted.py")
+    assert claims == [
+        "planted.py:Reads: Reads the flag written by the upstream FooSentinel.",
+        "planted.py:Reads: A Sentinel writes the change-detection flag this "
+        "reads.",
+    ]
 
 
 @pytest.mark.spec("BT-18-013")
