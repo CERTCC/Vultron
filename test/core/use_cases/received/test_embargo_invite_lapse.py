@@ -63,7 +63,7 @@ from vultron.core.behaviors.embargo.expiry_tree import (
     create_commit_and_record_expiry_tree,
 )
 from vultron.core.behaviors.sync import commit_tree
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -111,6 +111,18 @@ _PAST = _NOW - timedelta(days=1)
 # datetime.now()).  The original hardcoded date (2026-09-03) has since fallen
 # within the floor; use a rolling offset instead.
 _FUTURE = datetime.now(tz=UTC) + timedelta(days=7)
+
+
+def _published_now() -> datetime:
+    """An Invite's ``published``, read when the test runs, never at import.
+
+    The factory needs the caller's ``published`` with a deadline (ADR-0176).
+    The ledger judges it against a case created when the test runs
+    (CLP-14-013), so an import-time instant drifts out of tolerance on a
+    slow run.  Second resolution keeps the deadline exactly a week after it.
+    """
+    return now_utc().replace(microsecond=0)
+
 
 _OTHER = "https://example.org/actors/other-vendor"
 
@@ -504,7 +516,9 @@ class TestInviteReceiptStoresNoDeadline:
     @pytest.mark.spec("CM-28-024")
     def test_invite_with_deadline_stores_no_rsvp_deadline(self, make_payload):
         """An Invite carrying ``endTime`` leaves the invitee's record bare."""
-        dl = _receive_invite_at_invitee(make_payload, published=_NOW)
+        dl = _receive_invite_at_invitee(
+            make_payload, published=_published_now()
+        )
 
         # Receipt is not a record: the deadline arrives with the ledger entry.
         fresh_case = dl.read(_RECEIPT_CASE)
@@ -534,11 +548,12 @@ class TestPastDeadlineIsWarnedByTheHandler:
         self, make_payload, caplog, days_after_published, warned
     ):
         """The deadline is a week after ``published``; the act decides."""
+        published = _published_now()
         with caplog.at_level(logging.WARNING):
             _receive_invite_at_invitee(
                 make_payload,
-                published=_NOW,
-                at=_NOW + timedelta(days=days_after_published),
+                published=published,
+                at=published + timedelta(days=days_after_published),
             )
 
         assert warned == any(
@@ -668,7 +683,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
-            published=_NOW,
+            published=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
@@ -711,7 +726,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
-            published=_NOW,
+            published=_published_now(),
         )
         event = make_payload(invite, at=dl)
         assert event.receiving_actor_id is None
@@ -756,7 +771,7 @@ class TestInviteeIsTheAddressee:
             context=case.id_,
             actor=_COORD,
             rsvp_deadline=_FUTURE,
-            published=_NOW,
+            published=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
@@ -855,7 +870,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_OTHER, _INVITEE],
             rsvp_deadline=_FUTURE,
-            published=_NOW,
+            published=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
@@ -905,7 +920,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE + "/"],
             rsvp_deadline=_FUTURE,
-            published=_NOW,
+            published=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
@@ -951,7 +966,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE, _OTHER],
             rsvp_deadline=_FUTURE,
-            published=_NOW,
+            published=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
@@ -1004,7 +1019,7 @@ class TestInviteeIsTheAddressee:
             actor=_INVITEE,
             to=[_COORD],
             rsvp_deadline=_FUTURE,
-            published=_NOW,
+            published=_published_now(),
         )
         event = make_payload(proposal, receiving_actor_id=_COORD, at=dl)
 
@@ -1049,7 +1064,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE + "/"],  # non-canonical: trailing slash
             rsvp_deadline=_FUTURE,
-            published=_NOW,
+            published=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_OTHER, at=dl)
 
@@ -1519,7 +1534,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
-            published=_NOW,
+            published=_published_now(),
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
