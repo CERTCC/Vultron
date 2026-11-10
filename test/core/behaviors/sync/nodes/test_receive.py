@@ -94,7 +94,8 @@ def test_send_reject_log_entry_node_refuses_an_announce_with_no_id(
     )
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=SendRejectLogEntryNode(name="SendRejectLogEntry"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,

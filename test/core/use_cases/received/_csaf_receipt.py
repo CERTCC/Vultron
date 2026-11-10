@@ -23,6 +23,7 @@ from typing import Any
 
 from pydantic import JsonValue
 
+from test.support.act_runner import run_in_act
 from test.support.received import received_event
 from test.wire.csaf._documents import section, vulnerability_report_document
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -32,7 +33,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.behaviors.bridge.act_instant import act_instant_in_tree_run
 from vultron.core.behaviors.case.case_actor_identity import case_actor_identity
 from vultron.core.models.actor import VultronService
 from vultron.core.models.attached_document import AttachedDocument
@@ -116,12 +116,14 @@ class Receipt:
 
     def handle(self) -> HandlerResult:
         # The inbox runs each delivery inside an act (ADR-0176).
-        with act_instant_in_tree_run(RECEIVED_AT):
-            return SubmitReportReceivedUseCase(
+        return run_in_act(
+            SubmitReportReceivedUseCase(
                 self.dl,
                 self.event,
                 trigger_activity=TriggerActivityAdapter(self.dl),
-            ).execute()
+            ),
+            at=RECEIVED_AT,
+        )
 
     def records(self) -> list[ReportClaimsRecord]:
         found = self.dl.list_objects("ReportClaimsRecord")
@@ -192,14 +194,16 @@ class CaseManager:
             activity, at=self.dl, receiving_actor_id=self.actor_id
         )
         assert isinstance(event, CreateCaseProposalReceivedEvent)
-        with act_instant_in_tree_run(at):
-            return CreateCaseProposalReceivedUseCase(
+        return run_in_act(
+            CreateCaseProposalReceivedUseCase(
                 self.dl,
                 event,
                 sync_port=SyncActivityAdapter(self.dl),
                 trigger_activity=TriggerActivityAdapter(self.dl),
                 wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+            ),
+            at=at,
+        )
 
     def cases(self) -> list[VulnerabilityCase]:
         return [
