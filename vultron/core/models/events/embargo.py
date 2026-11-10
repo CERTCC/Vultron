@@ -177,14 +177,15 @@ class InviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
-    rsvp_deadline: datetime | None = None
+    # The extractor always measures it from the Invite's ``published``
+    # (EP-07-001), so it is required (ARCH-10-001); the handler judges it
+    # against the act's instant (ADR-0176).
+    rsvp_deadline: datetime
     _serialize_rsvp_deadline = timestamp_serializer("rsvp_deadline")
 
     @field_validator("rsvp_deadline", mode="before")
     @classmethod
-    def _validate_rsvp_deadline(cls, v: object) -> datetime | None:
-        if v is None:
-            return None
+    def _validate_rsvp_deadline(cls, v: object) -> datetime:
         if not isinstance(v, datetime):
             raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
                 f"rsvp_deadline must be a datetime, got {type(v).__name__}"

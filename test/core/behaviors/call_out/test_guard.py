@@ -26,7 +26,8 @@ Covers:
   and a backend ticked outside the seam, all with :class:`CallOutContractError`.
 - Both errors surface through :class:`BTBridge` as ``internal_error=True``.
 - :func:`guard_call_out_factory` is idempotent (no double-wrap).
-- Every core DETERMINISTIC bundle hands out guard-wrapped nodes.
+- Every core DETERMINISTIC bundle hands out time-bounded seams (BT-18-015;
+  the budget itself is tested in ``test_time_budget.py``).
 """
 
 from __future__ import annotations
@@ -60,6 +61,7 @@ from vultron.core.behaviors.call_out.guard import (
     CallOutBackendError,
     CallOutContractError,
     SynchronousCallOut,
+    TimeBoundedCallOut,
     guard_call_out_factory,
     unwrap_call_out,
 )
@@ -498,7 +500,7 @@ def test_success_backend_is_not_internal_error(bridge: BTBridge) -> None:
 def test_guard_factory_wraps_produced_node() -> None:
     guarded_factory = guard_call_out_factory(AlwaysSucceed)
     node = guarded_factory("Node")
-    assert isinstance(node, SynchronousCallOut)
+    assert isinstance(node, TimeBoundedCallOut)
     assert isinstance(unwrap_call_out(node), AlwaysSucceed)
 
 
@@ -516,7 +518,7 @@ def test_guard_factory_does_not_double_wrap_node() -> None:
         return SynchronousCallOut(AlwaysSucceed(name))
 
     node = guard_call_out_factory(factory)("Node")
-    assert isinstance(node, SynchronousCallOut)
+    assert isinstance(node, TimeBoundedCallOut)
     # Not doubly wrapped: the decorated child is the leaf, not another guard.
     assert not isinstance(unwrap_call_out(node), SynchronousCallOut)
 
@@ -542,6 +544,7 @@ def _core_deterministic_singletons() -> dict[str, Any]:
 
 
 @pytest.mark.spec("BT-18-011")
+@pytest.mark.spec("BT-18-015")
 def test_every_core_bundle_factory_is_guarded() -> None:
     """Every factory on every core DETERMINISTIC bundle yields a guarded node."""
     singletons = _core_deterministic_singletons()
@@ -549,7 +552,7 @@ def test_every_core_bundle_factory_is_guarded() -> None:
     for singleton_name, singleton in singletons.items():
         for f in dataclasses.fields(singleton):
             node = getattr(singleton, f.name)(f.name)
-            assert isinstance(node, SynchronousCallOut), (
-                f"{singleton_name}.{f.name} did not hand out a guard-wrapped "
-                "node"
+            assert isinstance(node, TimeBoundedCallOut), (
+                f"{singleton_name}.{f.name} did not hand out a time-bounded "
+                "seam"
             )

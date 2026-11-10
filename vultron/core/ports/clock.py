@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The two clocks the application reads, as driven ports (ADR-0176).
+"""The two clocks and the stopwatch the application reads, as ports (ADR-0176).
 
 - :class:`ClockPort` is the **act clock**.  Only an act's entry point holds
   it, and the act reads it once: a trigger or sweep after it takes the tree
@@ -27,12 +27,16 @@
   instant and never enters the case ledger, so it has its own port and its
   own operation name: a bookkeeping clock cannot be passed where an act clock
   is wanted, and a bookkeeping read never moves the act clock.
+- :class:`StopwatchPort` is the **stopwatch**: a monotonic reading that
+  measures how long work took, against a limit such as the call-out time
+  budget (BT-18-015).  It is not a time of day, so it never feeds a decision
+  about the case or anything an act records, and the recording clock does not
+  see it.  It is read only at named sites (CS-13-002).
 
-The composition root supplies both: the system clocks in
-``vultron/adapters/driven/clock.py`` in production.
-
-A stopwatch that measures elapsed time against a limit is neither of these,
-and arrives with the first limit that needs it (#3423).
+The composition root supplies both clocks: the system clocks in
+``vultron/adapters/driven/clock.py`` in production.  The system stopwatch is
+:class:`~vultron.core.behaviors.stopwatch.SystemStopwatch`, the default of the
+call-out seam, which tree builders build where no composition root reaches.
 """
 
 from datetime import datetime
@@ -60,4 +64,17 @@ class BookkeepingClockPort(Protocol):
         ...
 
 
-__all__ = ["BookkeepingClockPort", "ClockPort"]
+@runtime_checkable
+class StopwatchPort(Protocol):
+    """The stopwatch: a monotonic reading for elapsed-time limits (ADR-0176).
+
+    Never an act's instant and never a time of day: only the difference of
+    two readings means anything.
+    """
+
+    def seconds(self) -> float:
+        """Return a monotonic reading, in seconds."""
+        ...
+
+
+__all__ = ["BookkeepingClockPort", "ClockPort", "StopwatchPort"]

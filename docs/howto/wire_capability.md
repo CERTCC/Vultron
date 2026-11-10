@@ -217,6 +217,26 @@ The factory accepts a single `name: str` argument (the BT node's display name) a
 A `CallOutBackend` subclass is itself a valid factory, and so is a plain function or a lambda that returns one.
 The seam refuses a factory product that is not a `CallOutBackend`, when the tree is built.
 
+### Answer within the time budget
+
+Your backend answers in the same tick it is called, and it must also answer fast.
+Each actor sets a call-out time budget, `call_out_time_budget` in the `actor:` section of its configuration, with a default of 5 seconds.
+The budget is local to the actor and no peer sees it, so two deployments may set different values.
+
+The seam measures how long your backend took to answer.
+When it took longer than the budget, the seam discards the answer, whatever its verdict, and raises `CallOutBudgetExceededError`.
+The error names the node and the budget, and the bridge reports it as an internal error, so the message stays in holding to be tried again.
+
+The seam does not interrupt your backend: it runs on the tree's own thread, so the seam can only measure the time after your backend returns.
+A slow backend still holds the worker for as long as it takes, on every call.
+So never make an unbounded blocking call, such as a network request with no timeout, in your backend.
+Give every outside call a timeout shorter than the budget, and answer *error* when it expires.
+
+Work that cannot finish within the budget is not a call-out point:
+
+- A question that needs another actor in the case to decide is a protocol ask: the tree sends the request, ends, and acts on the reply when it arrives ([ADR-0080](../adr/0080-protocol-asks-not-suspended-behaviors.md)).
+- Work that runs for a long time, or watches for a condition, is a call-in: an outside process does the work and calls Vultron when it has a result (see [the Sentinel call-in pattern](../topics/capability_model/index.md#the-sentinel-call-in-pattern)).
+
 ### What the seam refuses
 
 The seam raises `CallOutContractError`, which the bridge reports as an internal error, when a backend does any of the following:
@@ -475,7 +495,7 @@ unchanged.
 
 - **[Capability Model](../topics/capability_model/index.md)** — the four capability shapes and the full catalog of known call-out points
 - **[Reference Implementation Architecture](../topics/reference_architecture.md)** — the hexagonal boundary, inbox pipeline, and behavior-tree model
-- **`vultron/core/behaviors/call_out/`** — `CallOutBackend`, `CallOutAnswer`, `CallOutContract`, the `SynchronousCallOut` seam, the `CallOutBackendFactory` Protocol, `AlwaysSucceed`/`AlwaysFail`, and all domain bundle dataclasses
+- **`vultron/core/behaviors/call_out/`** — `CallOutBackend`, `CallOutAnswer`, `CallOutContract`, the `SynchronousCallOut` seam and its time-bounded form `TimeBoundedCallOut`, the `CallOutBackendFactory` Protocol, `AlwaysSucceed`/`AlwaysFail`, and all domain bundle dataclasses
 - **`vultron/demo/fuzzer/`** — probabilistic fuzzer nodes (one per call-out point) and `STOCHASTIC` bundle singletons
 - **ADR-0024** — capability shape taxonomy
 - **ADR-0025** — call-out point abstraction layer and factory-injection pattern

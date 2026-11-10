@@ -415,6 +415,8 @@ Moving the existing declarations into the core layer is in progress under [#3421
 
 **How a capability implementation is invoked.**
 A backend answers synchronously, within the tick that asks, with *yes*, *no* or *error*, and never returns RUNNING (BT-18-011, [ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md), [ADR-0183](../../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
+It also answers within a time budget that each actor configures (BT-18-015, BT-18-026).
+An answer that takes longer is discarded and reported as an internal error that names the node (BT-18-027).
 A decision that takes days is not a call-out point: it is a request to another actor, or a Sentinel.
 
 **What a deployment that supplies nothing gets.**
