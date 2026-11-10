@@ -53,9 +53,7 @@ from vultron.demo.report.cli import (
     main,
 )
 from vultron.demo.report.naming import (
-    collect_actor_names,
     event_phrase,
-    friendly_actor_name,
     friendly_object_label,
     friendly_target_noun,
 )
@@ -71,6 +69,7 @@ from vultron.demo.report.timeline import (
     discovered_actors,
     group_events_by_case,
 )
+from vultron.measure.ledger import collect_actor_names, friendly_actor_name
 
 __all__ = [
     "CaseTimelineEvent",

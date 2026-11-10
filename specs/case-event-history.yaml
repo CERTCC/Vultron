@@ -30,8 +30,9 @@ groups:
       govern. Which package holds the layer is a layout choice and lives in
       `notes/case-event-history.md`, not here.
     verification: >-
-      An architecture test fails when a module under `vultron/core/`, `vultron/wire/`
-      or `vultron/adapters/` imports the event-history layer.
+      `test/architecture/test_measure_layer_boundaries.py::test_no_protocol_path_module_imports_the_measure_layer`
+      fails when a module under `vultron/core/`, `vultron/wire/` or
+      `vultron/adapters/` imports the event-history layer.
     adr:
     - ADR-0174
   - id: CEH-01-002
@@ -45,8 +46,9 @@ groups:
       a reader given write access to a ledger can break the hash chain. Read-only
       access makes the layer safe to run on an archived ledger.
     verification: >-
-      An architecture test fails on a save, create or write-mode file open in the
-      measure package, other than the command's own output file.
+      `test/architecture/test_measure_layer_boundaries.py::test_the_measure_layer_writes_nothing`
+      fails on a save, create or write-mode file open in the measure package,
+      other than the command's own output file.
     relationships:
     - rel_type: extends
       spec_id: CEH-01-001
@@ -153,7 +155,8 @@ groups:
       committed demo recording, or a ledger from another deployment. A DataLayer read
       would need a live store and could not reach any of those.
     verification: >-
-      A unit test builds a history from a JSONL fixture on disk, with no store and no
+      `test/measure/ledger/test_copies.py::test_both_naming_shapes_build_the_same_history`
+      builds a case ledger from JSONL fixtures on disk, with no store and no
       DataLayer in the test.
   - id: CEH-02-002
     priority: MUST
@@ -168,8 +171,9 @@ groups:
       Which module holds that reader, and which tools share it, is a layout choice and
       lives in `notes/case-event-history.md`.
     verification: >-
-      A unit test reads one fixture holding each admitted depth and spelling of a
-      dimension state, and asserts the layer reports the same state for each.
+      `test/measure/ledger/test_fields.py::test_every_depth_and_spelling_reads_the_same_state`
+      reads one fixture holding each admitted depth and spelling of a dimension
+      state, and asserts the layer reports the same state for each.
     relationships:
     - rel_type: depends_on
       spec_id: DRPT-02-003
@@ -184,8 +188,9 @@ groups:
       layer that chose for itself would have to pick one shape, and a test corpus it
       cannot open is a test that never runs.
     verification: >-
-      A unit test builds a history from an explicit list of ledger paths under both
-      naming shapes, and asserts the same history from each.
+      `test/measure/ledger/test_copies.py::test_both_naming_shapes_build_the_same_history`
+      builds a case ledger from an explicit list of ledger paths under both naming
+      shapes, and asserts the same entries from each.
   - id: CEH-02-010
     priority: MUST_NOT
     kind: project
@@ -197,8 +202,10 @@ groups:
       layer that globbed for one would report an empty history for the other, which a
       caller cannot tell from a case with no events.
     verification: >-
-      A unit test points the layer at a directory holding ledger files under an
-      unfamiliar name and asserts it reads them when the caller names them.
+      `test/measure/ledger/test_copies.py::test_both_naming_shapes_build_the_same_history`
+      reads a ledger file under an unfamiliar name when the caller names it, and
+      test/measure/ledger/test_copies.py::test_the_layer_reads_only_the_files_it_is_named`
+      asserts that a ledger file the caller does not name is not read.
     relationships:
     - rel_type: refines
       spec_id: CEH-02-003
@@ -211,11 +218,14 @@ groups:
     rationale: >-
       A recording's ledger file is named for neither its actor nor its role, so a
       path-derived answer misidentifies the canonical copy and sends every recording
-      down the merge path, where it is reported as holed. The committing actor is
-      recorded in each entry, which is the one place the answer is always present.
+      down the merge path, where it is reported as holed. No entry names the copy's
+      holder, since a replica's entries are byte-identical to the CASE_MANAGER's; the
+      entries show completeness instead, and only the CASE_MANAGER's copy, or a
+      replica identical to it, holds every index without a gap.
     verification: >-
-      A unit test renames a CASE_MANAGER ledger file and moves it to a differently
-      named directory, and asserts the layer still selects it as the canonical copy.
+      `test/measure/ledger/test_copies.py::test_a_renamed_and_moved_recording_is_still_canonical`
+      renames a CASE_MANAGER ledger file and moves it to a differently named
+      directory, and asserts the layer still selects it as the canonical copy.
     relationships:
     - rel_type: extends
       spec_id: CEH-02-004
@@ -230,8 +240,9 @@ groups:
       receiving entries while its embargo consent has lapsed and after its report
       closes, so an event recorded in a gap it missed is absent from its copy.
     verification: >-
-      A unit test gives the layer a complete CASE_MANAGER copy beside a truncated
-      replica, and asserts the history matches the complete copy.
+      `test/measure/ledger/test_copies.py::test_the_complete_copy_wins_over_a_truncated_replica`
+      gives the layer a complete CASE_MANAGER copy beside a truncated replica, and
+      asserts the entries match the complete copy.
   - id: CEH-02-005
     priority: MUST
     kind: project
@@ -243,8 +254,9 @@ groups:
       the entries that any one replica missed, and the entry hash identifies the same
       entry in two copies.
     verification: >-
-      A unit test gives the layer two overlapping partial replicas and no CASE_MANAGER
-      copy, and asserts one history with each entry counted once.
+      `test/measure/ledger/test_copies.py::test_overlapping_replicas_merge_each_entry_once`
+      gives the layer overlapping partial replicas and no CASE_MANAGER copy, and
+      asserts one case ledger with each entry counted once.
     relationships:
     - rel_type: extends
       spec_id: CEH-02-004
@@ -259,8 +271,9 @@ groups:
       is wrong rather than imprecise. Naming the missing indices lets a caller refuse
       the history instead of scoring it.
     verification: >-
-      A unit test merges replicas that together miss a log index, and asserts both the
-      merged marking and that index in the reported holes.
+      `test/measure/ledger/test_copies.py::test_a_merge_reports_the_indices_no_replica_supplied`
+      merges replicas that together miss log indices, and asserts both the merged
+      marking and those indices in the reported holes.
     relationships:
     - rel_type: extends
       spec_id: CEH-02-005
@@ -275,8 +288,9 @@ groups:
       the ledgers of several cases. A history that interleaved two cases would order
       their entries by a key that is not unique across them.
     verification: >-
-      A unit test gives the layer the ledgers of two cases together and asserts two
-      histories, neither holding an event of the other.
+      `test/measure/ledger/test_copies.py::test_two_cases_are_two_histories_never_interleaved`
+      gives the layer the ledgers of two cases together and asserts two case
+      ledgers, neither holding an entry of the other.
     relationships:
     - rel_type: depends_on
       spec_id: DRPT-02-006
@@ -290,8 +304,9 @@ groups:
       One bad row in a long ledger is worth reporting, not worth losing every other
       event to. Aborting the pass on it also hides which row was bad.
     verification: >-
-      A unit test puts one malformed row in a valid ledger and asserts that the history
-      holds the events of every other row, and reports the bad row.
+      `test/measure/ledger/test_copies.py::test_a_malformed_row_is_reported_and_the_rest_is_read`
+      puts malformed rows in a valid ledger and asserts that the case ledger holds
+      every other row, and reports each bad row.
     relationships:
     - rel_type: depends_on
       spec_id: DRPT-02-003
@@ -1005,8 +1020,9 @@ groups:
       exercises it. A fixture with a hole is the only way to check that the hole is
       reported rather than scored.
     verification: >-
-      A unit test merges partial replica fixtures and asserts both the merged marking
-      and the missing log indices.
+      `test/measure/ledger/test_copies.py::test_a_merge_reports_the_indices_no_replica_supplied`
+      merges partial replica fixtures and asserts both the merged marking and the
+      missing log indices.
     relationships:
     - rel_type: depends_on
       spec_id: CEH-02-006

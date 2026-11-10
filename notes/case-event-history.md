@@ -237,8 +237,18 @@ ledger file is named for neither its actor nor its role: the committed recording
 `ui/src/recordings/<scenario>/case-actor.jsonl`, while a demo run writes
 `<actor>-case-ledger.jsonl` under a directory named for the actor. A path-derived
 answer misreads the scenario name as the actor name, finds no CASE_MANAGER, and sends
-every recording down the merge path to be reported as holed. The committing actor is
-in each entry, which is the one place the answer is always there.
+every recording down the merge path to be reported as holed.
+
+No entry names the copy's holder: a replica's entry is byte-identical to the
+CASE_MANAGER's (CLP-07-013). What the entries do show is completeness, so a copy is
+canonical when it holds one entry at each index from `0` up with no gap (CLP-14-010)
+and every entry hash any other copy of the case holds
+(`vultron/measure/ledger/copies.py`). Reason: the CASE_MANAGER's copy always passes,
+and a replica that passes holds the same entries, so selecting it changes nothing. A
+gapped or shorter copy fails and leads to the merge.
+
+Two copies holding different entries at one index are reported, never resolved: a
+conforming ledger has none, so a history over one is not to be trusted.
 
 For the same reason the layer takes its files from the caller and globs for nothing
 itself (CEH-02-003, CEH-02-010). `vultron-demo-report` keeps its own
@@ -283,18 +293,25 @@ cannot tell from a state the case never reached. That tolerance is the requireme
 which states only the boundary that nothing in the protocol path imports the layer
 (CEH-01-001):
 
-- The layer is `vultron/measure/`, outside the protocol path.
-- The JSONL walker and its tolerant field-spelling helpers move there out of
-  `vultron/demo/report/timeline.py`, and the report tool imports them from there. The
-  demo layer sits above the measure package, so that import goes downward.
-- The display-name resolver (`collect_actor_names`, `friendly_actor_name`, in
-  `vultron/demo/report/naming.py`) moves down with it. Leaving it in the demo layer
-  while the report tool imports the reader from `vultron/measure/` would make the two
-  packages import each other, and would put a demo dependency inside the package the
-  boundary exists to keep clean.
-- `vultron/demo/report/` is a package, not a module: #5606 split it into `cli.py`,
-  `naming.py`, `render.py` and `timeline.py`. Only the two modules named above are
-  touched, and `discover_replicas` stays in `timeline.py` with its glob.
+- The layer is `vultron/measure/`, outside the protocol path. Each stage is a
+  subpackage that reads through the one below it; the event history and the chance
+  baselines are later siblings of `ledger/`, never part of it.
+- `vultron/measure/ledger/` is the reader every measure shares: `fields.py` (the
+  tolerant field accessors and the dimension-state walker), `names.py` (the
+  display-name resolver), `jsonl.py` (the tolerant file reader) and `copies.py`
+  (per-case canonical-copy selection, merge and holes). Its public names are
+  re-exported from `vultron.measure.ledger`; import from there.
+- The walker came out of `vultron/demo/report/`, and the report tool imports it from
+  `vultron.measure.ledger`. The demo layer sits above the measure package, so that
+  import goes downward; nothing in `vultron/measure/` imports `vultron.demo`.
+- The display-name resolver (`collect_actor_names`, `friendly_actor_name`) moved down
+  with it. Left in the demo layer, it would make the two packages import each other.
+  Its URI fallback is `vultron.core.display.friendly_name`, not a second copy.
+- `discover_replicas` stays in `vultron/demo/report/timeline.py` with its glob.
+- Two architecture tests in `test/architecture/test_measure_layer_boundaries.py`
+  hold the layer's boundaries: no protocol-path import (CEH-01-001) and no write
+  (CEH-01-002). A command that writes its own output file is admitted by name in
+  that test's `OUTPUT_FILE_WRITERS`.
 
 `vultron-demo-report` keeps its own module, its per-entry grain and its
 replica-presence matrix: it is a demo-CI forensic artifact, while the event history
@@ -303,14 +320,13 @@ is a research instrument at the event grain.
 ### One tolerant reader, one strict wrapper
 
 The two tools want opposite things from a malformed row. DRPT-01-004 has
-`vultron-demo-report` exit non-zero when a file cannot be parsed, and `_load_jsonl`
-(`vultron/demo/report/timeline.py`) raises on the first bad row to deliver that. The
-measure layer must instead degrade one bad row to one unusable entry and finish the
-rest, reporting the row
-(CEH-02-008) — a single corrupt line in an archived ledger is worth reporting, not
-worth losing every other event to.
+`vultron-demo-report` exit non-zero when a file cannot be parsed. The measure layer
+must instead degrade one bad row to one unusable entry and finish the rest, reporting
+the row (CEH-02-008) — a single corrupt line in an archived ledger is worth reporting,
+not worth losing every other event to.
 
 So the shared reader is the **tolerant** one, and the strictness is a thin wrapper the
-report tool applies: it raises when the tolerant reader reports any unusable row. Put
+report tool applies (`_load_jsonl` in `vultron/demo/report/timeline.py`): it raises
+when `read_ledger_file` reports any unusable row. Put
 the strictness in the shared reader instead and the measure layer cannot read a
 damaged archive at all.

@@ -21,6 +21,7 @@ stakeholder_type: [project-contributor]
 | `vultron/enums/` | Shared CVD-domain enums (roles, object types) imported by config and core | `vultron/enums/roles.py`, `vultron/enums/object_types.py` |
 | `vultron/errors.py`, `vultron/primitives.py`, `vultron/logging_setup.py`, `vultron/subclasses.py` | Shared exception hierarchy, shared type aliases (`NonEmptyString`), logging configuration, the one subclass-tree walk (`all_subclasses`) | `vultron/errors.py`, `vultron/primitives.py` |
 | `vultron/demo/` | Demo CLI, scenario registry, multi-actor scenarios (`scenario/`), single-exchange demos (`exchange/`), shared helpers (`helpers/`), stochastic fuzzers (`fuzzer/`), and the in-process recorder of each scenario's canonical case ledger for the UI's Log Replay (`recordings/`, `in_process.py`) | `vultron/demo/AGENTS.md`, `vultron/demo/cli/`, `vultron/demo/recordings/__init__.py` |
+| `vultron/measure/` | Read-only measurement layer for CVD measures over a finished case's ledger; `ledger/` is the tolerant case-ledger JSONL reader, its field-spelling helpers, the display-name resolver and the per-case canonical-copy selection that the demo report also imports | `vultron/measure/__init__.py`, `notes/case-event-history.md` |
 | `vultron/metadata/` | Project tooling: spec registry, history CLI, notes and ADR metadata, docs-site validators, demo-scenario sync, JSON-LD context generation (`wire_context/`), CSAF model regeneration, corpus check and draft watch (`csaf/`), planning helpers (`planning/`), message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/AGENTS.md`, `vultron/metadata/file_loading.py` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary and ratchet tests | `test/architecture/test_core_no_adapter_imports.py` |
@@ -133,9 +134,10 @@ stakeholder_type: [project-contributor]
 | `vultron/adapters/` | HTTP handlers, SQLite data layer, outbound delivery, CLI, connectors | Core domain logic (no business rules) |
 | `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |
 | `vultron/enums/` | Shared CVD enums usable by `config/` and `core/` | Adapter or wire-specific types |
+| `vultron/measure/` | Read-only readers and measures over case-ledger files | Any write to a store, a ledger or a file other than a command's own output (CEH-01-002); being imported by `vultron/core/`, `vultron/wire/` or `vultron/adapters/` (CEH-01-001) |
 | `vultron/demo/` | Demo scenarios driven through HTTP triggers | `vultron/bt/` imports (sole permitted exception: `vultron/demo/cli/vultrabot_commands.py`, DC-01-001) |
 
-Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architecture/test_core_no_wire_imports.py`, `test/architecture/test_core_no_demo_imports.py`, `test/architecture/test_wire_core_import_allowlist.py`, `test/architecture/test_behaviors_no_use_case_imports.py`, `test/architecture/test_enums_import_graph.py`, `test/architecture/test_demo_no_bt_imports.py`, `test/architecture/test_trigger_registry_ratchets.py`
+Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architecture/test_core_no_wire_imports.py`, `test/architecture/test_core_no_demo_imports.py`, `test/architecture/test_wire_core_import_allowlist.py`, `test/architecture/test_behaviors_no_use_case_imports.py`, `test/architecture/test_enums_import_graph.py`, `test/architecture/test_demo_no_bt_imports.py`, `test/architecture/test_trigger_registry_ratchets.py`, `test/architecture/test_measure_layer_boundaries.py`
 
 ### 4) Naming and Organization Rules
 
