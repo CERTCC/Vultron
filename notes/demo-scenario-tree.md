@@ -12,7 +12,6 @@ tracks:
   - "#5348"
   - "#5349"
   - "#5613"
-  - "#5651"
   - "#5652"
   - "#6025"
   - "#6026"
@@ -560,5 +559,5 @@ point stops a run there.
 1. Test starting points: #5344 (one act cheap) and #5345 (the harness, which
    stops a run at a step mark), then the pilot #5346, then the migrations
    #5347 and #5348, and last #5349.
-2. The clock-reading read paths that keep a shared stretch from being
-   byte-stable: #5651 and #5652. The plot manifest they follow is committed.
+2. The clock-reading read path that keeps a shared stretch from being
+   byte-stable: #5652. The plot manifest it follows is committed.
