@@ -15,20 +15,25 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime
-from typing import TypeAlias
+from typing import ClassVar, TypeAlias
 
 from pydantic import Field
 
 from vultron.core.models._helpers import timestamp_serializer
+from vultron.core.models.attached_document import ATTACHED_FILE_TYPES
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_ObjectType as O_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.base.utils import print_object_examples
 
 
 class as_Document(as_Object):
     """Base class for all ActivityPub documents. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-document>"""
+
+    # The core class owns this ``type`` (see ATTACHED_FILE_TYPES below).
+    _wire_type_alias: ClassVar[bool] = True
 
     type_: O_type = Field(
         default=O_type.DOCUMENT,
@@ -40,6 +45,9 @@ class as_Document(as_Object):
 class as_Image(as_Document):
     """Base class for all ActivityPub images. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-image>"""
 
+    # The core class owns this ``type`` (see ATTACHED_FILE_TYPES below).
+    _wire_type_alias: ClassVar[bool] = True
+
     type_: O_type = Field(
         default=O_type.IMAGE,
         validation_alias="type",
@@ -50,6 +58,9 @@ class as_Image(as_Document):
 class as_Video(as_Document):
     """Base class for all ActivityPub videos. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-video>"""
 
+    # The core class owns this ``type`` (see ATTACHED_FILE_TYPES below).
+    _wire_type_alias: ClassVar[bool] = True
+
     type_: O_type = Field(
         default=O_type.VIDEO,
         validation_alias="type",
@@ -59,6 +70,9 @@ class as_Video(as_Document):
 
 class as_Audio(as_Document):
     """Base class for all ActivityPub audio. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-audio>"""
+
+    # The core class owns this ``type`` (see ATTACHED_FILE_TYPES below).
+    _wire_type_alias: ClassVar[bool] = True
 
     type_: O_type = Field(
         default=O_type.AUDIO,
@@ -86,6 +100,13 @@ class as_Article(as_Document):
         serialization_alias="type",
     )
 
+
+# A report's attachments are core files (CSAF-01-001), so the core classes
+# own the AS2 file types and the parser builds one for an inline ``Document``,
+# ``Image``, ``Audio`` or ``Video`` (ARCH-25-003, ADR-0099).  The wire classes
+# above declare themselves aliases, so the registration does not depend on
+# which module is imported first.
+WIRE_TYPE_MAP.update(ATTACHED_FILE_TYPES)
 
 # A Document can be any of its subclasses
 as_DocumentRef: TypeAlias = ActivityStreamRef[as_Document]

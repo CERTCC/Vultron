@@ -26,6 +26,7 @@ relevant_packages:
   - vultron.enums
   - vultron.core.models
   - vultron.core.behaviors.case
+  - vultron.core.use_cases.triggers
   - vultron.core.predicates
   - vultron.wire.as2.vocab.objects
 ---
@@ -83,15 +84,23 @@ along.
 
 ---
 
-## One check retires; the other one gets its name
+## One check retires; the others stay
 
-Two places hard-code the authority pair under their own names, and that shared
-silence — neither says why it is this pair — is the signal this split answers.
-Only one of them is a guard the split makes pointless. Do not read them as a
-matched set.
+The authority pair has one home, `AUTHORITY_ROLES` in `vultron/enums/roles.py`.
+Three checks read it: `RoleOfferAdmissibleNode` (through its `UNOFFERABLE_ROLES`
+alias), the suggest-actor guards that refuse a suggestion or Accept naming
+either role (CM-20-008), and the trigger bodies that refuse to build one
+(CM-20-009). `PROTECTED_ROLES` still hard-codes the pair under its own name.
+Only one of these checks is a guard the split makes pointless. Do not read them
+as a matched set.
+
+**Stays: the CM-20-008 and CM-20-009 checks.** `suggestedRoles` is a wire
+string list, so a suggestion can still name an authority role after the split,
+and the edge must still refuse it. When the split lands, point them at the new
+authority enum. Retiring `UNOFFERABLE_ROLES` must not delete `AUTHORITY_ROLES`.
 
 **Retires: `RoleOfferAdmissibleNode`'s refusal of an Offer naming Case Owner
-or Case Manager**, with the `UNOFFERABLE_ROLES` constant behind it. A role
+or Case Manager**, with the `UNOFFERABLE_ROLES` alias behind it. A role
 Offer is typed to positions, so it cannot name authority (CM-33-003). Retire
 that clause, not the node: its other clauses stay (CM-33-003), including the
 one that refuses an Offer carrying no readable role and never reads a missing

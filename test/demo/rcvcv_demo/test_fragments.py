@@ -801,6 +801,9 @@ class TestBothVendorsRunTheFixLifecycle:
             patch.object(fragments, "verify_fix_ready") as fix_ready,
             patch.object(fragments, "verify_fix_deployed") as fix_deployed,
             patch.object(
+                fragments, "verify_stops_at_fix_ready"
+            ) as stops_at_ready,
+            patch.object(
                 ActorSession,
                 "notify_fix_ready",
                 autospec=True,
@@ -825,6 +828,7 @@ class TestBothVendorsRunTheFixLifecycle:
             "fix_deployed": fix_deployed,
             "notify_ready": notify_ready,
             "notify_deployed": notify_deployed,
+            "stops_at_ready": stops_at_ready,
         }
 
     def test_both_vendors_report_fix_ready_and_only_v2_deploys(self):
@@ -839,6 +843,30 @@ class TestBothVendorsRunTheFixLifecycle:
         assert sessions_of(ran["notify_deployed"]) == [
             state.actor_id(fragments.V2)
         ], "V1 holds no DEPLOYER role, so it must never deploy (CSB-15-002)"
+
+    @pytest.mark.spec("CSB-15-002")
+    def test_m6_reads_the_deployment_v1_never_made(self):
+        """ "V1=VFd (no deploy)" is a claim about the d→D transition (#5602).
+
+        M6's label says V1 did not deploy, which its VF read does not show.
+        It reads V1's absent fix-deployed transition too, and only V1's: V2
+        holds DEPLOYER and does deploy, so the ceiling claim is not made of
+        it.
+
+        Both replicas the label names are read: V1's own and C1's, which the
+        label leads with.  An absence has no poll to cover it, so the read
+        itself has to reach C1's replica (#6186).
+        """
+        state = five_party_state()
+        ran = self._run(state)
+
+        assert [
+            (c.kwargs["receiver_client"], c.kwargs["receiver_actor_id"])
+            for c in ran["stops_at_ready"].call_args_list
+        ] == [
+            (state.client(fragments.V1), state.actor_id(fragments.V1)),
+            (state.client(fragments.C1), state.actor_id(fragments.V1)),
+        ]
 
     def test_the_deploy_report_follows_both_fix_ready_reports(self):
         """V2's d→D step comes after the VFd pair, not between them."""
@@ -924,6 +952,7 @@ class TestBothVendorsRunTheFixLifecycle:
             patch.object(fragments, "wait_for_participant_d_state") as d_wait,
             patch.object(fragments, "verify_fix_ready"),
             patch.object(fragments, "verify_fix_deployed"),
+            patch.object(fragments, "verify_stops_at_fix_ready"),
             patch.object(ActorSession, "notify_fix_ready"),
             patch.object(ActorSession, "notify_fix_deployed"),
             no_banners(),

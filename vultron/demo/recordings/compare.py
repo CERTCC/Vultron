@@ -25,9 +25,9 @@ ledger *and* its check tree (DEMOCI-11-055).
 Three forms:
 
 - ``--write DIR`` records the selected scenarios and writes each run's two
-  traces under ``DIR/<scenario>/``.  The base-versus-head job will call it
-  once per commit (#6026); until that job exists, it is run by hand, as
-  ``notes/demo-scenario-tree.md`` § "Composition" describes.
+  traces under ``DIR/<scenario>/``.  ``demo-verdict.yml`` calls it once per
+  commit, and a person reading a difference before pushing calls it the same
+  way, as ``notes/demo-scenario-tree.md`` § "Composition" describes.
 - ``--base DIR --head DIR`` compares two directories ``--write`` left.
 - Neither records each selected scenario **twice in this process** and
   compares the pair.  That is the recorder's own determinism check: two runs

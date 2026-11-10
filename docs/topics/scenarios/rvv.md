@@ -152,3 +152,7 @@ Vendor2 and the Reporter leave first; Vendor1, the Case Owner, leaves last.
 | Unobservable step | Why not in ledger |
 |---|---|
 | Reporter submits report to Vendor1 | Report submission is an out-of-band API call that precedes the case's creation. |
+
+## The story as the code tells it
+
+{% include-markdown "./_rvv-story.md" %}

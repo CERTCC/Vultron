@@ -59,5 +59,5 @@ depends on a value an earlier block produced MUST NOT run with a placeholder
 standing in for it"), or a clarification to EDF-06-005 extending "prevent
 execution" to cover being handed an unproduced value? The nesting-versus-guard
 remedy is already written in `notes/demo-scenario-authoring.md` and
-`vultron/demo/AGENTS.md` rule 9; what is missing is the normative statement
+`vultron/demo/AGENTS.md` rule 10; what is missing is the normative statement
 those two pieces of guidance implement.

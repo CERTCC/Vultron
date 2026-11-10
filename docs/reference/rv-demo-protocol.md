@@ -87,7 +87,7 @@ sequenceDiagram
     V->>CA: Add(ParticipantStatus Vf), Add(ParticipantStatus VF) — Vendor Awareness (CV), Fix Readiness (CF)
     CA-->>V: Announce(CaseLedgerEntry) ×n
     CA-->>F: Announce(CaseLedgerEntry) ×n
-    note over F,CA: ✅ M4, M5 — both replicas show CS includes F
+    note over F,CA: ✅ M4 — both replicas show CS includes F; ✅ M5 — neither records D
 
     note over F,CA: Phase 5 — Publication and embargo teardown
     V->>CA: Add(ParticipantStatus Pxa) — public awareness
@@ -299,7 +299,7 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-ready
 | Milestone | Check | Where |
 |:----------|:------|:------|
 | M4 | Vendor's case state includes `F` (fix ready) | both replicas |
-| M5 | Vendor's case state is still `VFd` after the Reporter's replica caught up | both replicas |
+| M5 | Vendor's case state records no fix deployed, so `VFd` is where its vendor path ends | both replicas |
 
 ---
 

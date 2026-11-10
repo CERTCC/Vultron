@@ -357,6 +357,10 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
     ): _ARCHIVE,
     (
         f"{_B}.case.nodes.submit_report",
+        "StoreReportClaimsRecordsNode",
+    ): _LOCAL,
+    (
+        f"{_B}.case.nodes.submit_report",
         "StoreSubmitReportOfferRecordNode",
     ): _ARCHIVE,
     (

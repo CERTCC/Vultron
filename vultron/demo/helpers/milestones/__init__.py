@@ -20,8 +20,8 @@ opaque milestone numbers (m1–m7).
 
 Submodules
 ----------
-- :mod:`.lifecycle` — case active, fix ready, fix deployed and public
-  disclosure milestones.
+- :mod:`.lifecycle` — case active, fix ready, the VFd ceiling, fix deployed
+  and public disclosure milestones.
 - :mod:`.closure` — case closure: every participant RM.CLOSED and the
   CASE_MANAGER's ledger recording the closure in order.
 
@@ -41,6 +41,7 @@ from vultron.demo.helpers.milestones.lifecycle import (
     verify_fix_deployed,
     verify_fix_ready,
     verify_publicly_disclosed,
+    verify_stops_at_fix_ready,
 )
 
 __all__ = [
@@ -53,5 +54,6 @@ __all__ = [
     "verify_fix_deployed",
     "verify_fix_ready",
     "verify_publicly_disclosed",
+    "verify_stops_at_fix_ready",
     "wait_for_case_fully_closed",
 ]
