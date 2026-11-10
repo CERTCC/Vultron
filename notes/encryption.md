@@ -7,8 +7,7 @@ tracks:
   - "#1184"
   - "#2841"
   - "#3477"
-  - "#5385"
-  - "#5386"
+  - "#5387"
 description: >
   Implementation notes for actor signing (object-level proofs from seeded keys,
   ADR-0164) and the open design of message encryption using keys published in
@@ -113,7 +112,7 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   `LedgerNetwork.delivered_body` signs any body but the one its sender's
   outbox sealed. A test that alters a signed body builds the copy with
   `resigned`, since an edit in place leaves a stale proof that verification
-  (#5386) refuses. A body read back from a sealed outbox is
+  refuses. A body read back from a sealed outbox is
   signed by the outbox (#5382), never by the test.
 - **Unsigned test bodies that reach no verifier stay unsigned**: a body
   parsed only to test the parser (what it keeps, refuses or sets aside), since
@@ -121,11 +120,14 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   stored bodies that nothing parses; `{}` behind a stubbed ingress; and
   parse-refusal posts. A body a test carries past the parse, as a reply's
   embedded copy, an archive or a routed event, is signed.
-  When verification lands (#5386), a refusal post that reaches the verifier is
-  refused there before the parser, so its expected error may change.
+  A post that reaches the inbox is verified before it is parsed, so a test of
+  a parse refusal at the inbox posts a signed body, or it meets the proof
+  refusal first.
 - **The parser sets `proof` aside** as a foreign key (MV-11-003), with one INFO
-  record per delivery; the received evidence keeps it (SIG-04-001). Verification
-  reads the raw body before the parser (#5386), so nothing needs it parsed.
+  record per delivery; the received evidence keeps it (SIG-04-001). Do not
+  declare it: verification reads the body before the parser, so nothing needs
+  it parsed, and a declared spelling must be a field (MV-11-001), which would
+  carry the proof into the parsed object and its stored form (MV-11-010).
 - **Sign before the body is sealed.** The sealed body is final (OX-07-001), so
   `seal_outbound_body` signs it as its author, the activity's `actor`
   (`signed_outbound_body` in `vultron/adapters/outbox_sealed_body.py`). The
@@ -133,21 +135,38 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   same bytes (VM-08-003). Sign nowhere else: a relay signs its own `Announce`
   at its own seal, and never touches the nested snapshot's proof.
 - **`dump_outbound_body` is the unsigned dump.** A test that builds a delivery
-  from it sends no proof, so once verification is on (#5386) it signs it
-  through `test/support/signing.py`, or reads the sealed body instead.
+  from it sends no proof, so it signs it through `test/support/signing.py`, or
+  reads the sealed body instead.
 - **The proof survives the store.** A sender's `proof` reaches the ledger
   snapshot because the snapshot is the body as received (SIG-04-001). Check it
   survives the store's wire-identity rekeying (`_rekey_wire_identity` in
   `vultron/adapters/driven/db_record/codec.py`) inside a snapshot.
 - **Verify as its own ingress stage**, after the body-size, media-type and
-  JSON-shape checks and before the parser (SIG-03-003). The pre-parsed
-  `as_Activity` ingress path has no body to verify and goes when verification
-  lands (#5386).
-- **An uncanonicalizable body fails at the CASE_MANAGER's seal until #5386.**
-  A received body holding an integer beyond ±(2^53 - 1) cannot be signed, so
-  the `Announce(CaseLedgerEntry)` carrying its snapshot fails to seal and the
-  commit tree fails without a named refusal. A sender's outbox cannot sign
-  such a body either, so the verification stage should refuse it at ingress.
+  JSON-shape checks and before the parser (SIG-03-003): the inbox route's
+  `verified_delivery` dependency (`routers/actors/_inbox.py`) decodes the raw
+  body with `signing.load_json` and runs the `get_proof_verifier` port
+  (`ProfileKeyProofVerifier` in `inbox_verification.py`). Never verify in
+  semantic extraction or in core. The route hands the background task the
+  verified body, and `FastAPIIngressAdapter.parse` takes only a body, never a
+  parsed activity, which carries no proof.
+- **A replica's check is the same stage** (SIG-04-002). An `Announce(CaseLedgerEntry)`
+  needs its `payloadSnapshot`'s proof too, verified by the key of the snapshot's own
+  `actor`: the CASE_MANAGER's for a native entry, the author's for a relayed act. Either
+  failure refuses the whole delivery, and a snapshot naming no actor is refused, since
+  every activity names its signer (SIG-05-005). Find the entry and snapshot under every
+  spelling the parser reads (`object_`, `payload_snapshot`, `type_`): a check that reads
+  only the alias is stepped around by the field name. It reads the body as received,
+  since no parsed copy keeps a proof. Whether the `Announce`'s actor is the CASE_MANAGER
+  stays core's check. A test entry's snapshot is a signed activity too, never a
+  placeholder dict.
+- **The inbox answers a body it cannot read by RFC 9110's split.** Text that
+  is not RFC 8259 JSON (`VultronJsonSyntaxError`: not JSON, not UTF-8, `NaN`,
+  `Infinity`) is 400; well-formed JSON it refuses (`VultronRefusedJsonError`:
+  not an object, a duplicate key, an integer beyond ±(2^53 - 1), a number too
+  large for a double) is 422 `ValidationError`
+  (`inbox_body_http_exception`). Raise the subclass that says which; never
+  tell them apart by message. So a body no outbox could sign is refused at
+  ingress, not when the CASE_MANAGER seals its `Announce`.
 - **The parser drops `proof` from what it parses.** Only the ledger snapshot
   keeps the received body, so an activity a receiver re-embeds from its parsed
   copy carries no original proof. A relay that must carry an author's proof
@@ -155,56 +174,77 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
 - **A failed proof raises `VultronProofVerificationError`** (EH-03-005), which
   `translate_domain_errors` answers 422 as `ProofVerificationError`, not 401:
   the proof is content, not an HTTP credential. `signing.verify` raises its
-  subclass `VultronProofInvalidError`. Decide in #5386 whether a malformed
-  published key (`VultronMultikeyError`) or an uncanonicalizable body
-  (`VultronUnsignableJsonError`) is also refused 422; both are unmapped today.
-- **Strict from the start, with no switch** (SIG-03-002). The order of the
-  Tasks is the ratchet: everything signs first, then every test delivery signs
-  through the shared helper, then verification turns on. Verification cannot
-  merge while any inbox delivery is unsigned.
+  subclass `VultronProofInvalidError`. A published key that is not an Ed25519
+  Multikey (`VultronMultikeyError`) is a key that cannot be read: the stage
+  raises `VultronVerificationKeyError`. The translator maps no other signing
+  error.
+- **Strict, with no switch** (SIG-03-002). A test app that receives signed
+  bodies gives their authors a profile to be read from, never a bypass:
+  `serve_published_profiles` (`test/support/signing.py`) for a single app, and
+  `create_isolated_actor_app`'s `InProcessObjectFetcher`, which fetches the
+  profile from the node that serves it; the single-node demo `client`
+  fixture installs the same fetcher on `app_v2`. An unsigned body a test posts
+  on purpose is a refusal test, or a strict `xfail` naming the Task that signs
+  it (the tutorial's report, #5387).
+- **Demo and harness code never signs as an actor.** Only an actor's own
+  outbox signs (SIG-05-004). An exchange demo's hand-built activity goes
+  through the sender's outbox on the same server (`post_to_inbox_and_wait`
+  posts it to `/actors/{sender}/outbox/`), which signs it as its owner; a
+  scenario step goes through a trigger. Tests sign only through
+  `test/support/signing.py`, never from `vultron/`.
 - **Resolve a key with `resolve_verification_key`**
   (`vultron/core/services/verification_key.py`), never by hand. It takes the
-  proof's `verificationMethod`, the document's author, the receiving actor's
-  store and an `ActorProfileFetchPort` (`HttpActorProfileFetchAdapter` in
+  proof's `verificationMethod`, the document's author and an
+  `ActorProfileFetchPort` (`HttpActorProfileFetchAdapter` in
   `vultron/adapters/driven/http_actor_profile_fetch.py`), and returns the
-  core `Multikey` whose `publicKeyMultibase` goes to `signing.verify`. It reads
-  the held copy, else a plain GET of `{actor}/profile` with no proof
-  (SIG-02-001, SIG-02-002). It refuses a key whose actor is not the author
-  before any read, and checks the profile's id and the key's `controller` are
-  the key's actor. Which field names the author is the caller's (#5386).
-  When a profile copy expires, and how a rotated key is found, are #1184.
+  core `Multikey` whose `publicKeyMultibase` goes to `signing.verify`. It always
+  fetches `{actor}/profile` with a plain GET and no proof (SIG-02-001,
+  SIG-02-002), and takes no store. It refuses a key whose actor is not the author
+  before any fetch, and checks the profile's id and the key's `controller` are
+  the key's actor. The inbox names the activity's `actor` as the author
+  (SIG-05-005).
+  Pinning the first key fetched (trust on first use), caching and rotation are
+  #1184.
 - **The resolver is async and refuses with `VultronVerificationKeyError`**, a
   `VultronProofVerificationError`, so the ingress answers an unresolvable key
-  as it answers a failed proof (SIG-03-002). It reads the held copy with one
-  synchronous `dl.read` before it awaits the fetch. A fetch failure is
+  as it answers a failed proof (SIG-03-002). A fetch failure is
   `VultronActorProfileFetchError`, chained as the refusal's cause and logged;
   the refusal text names only the key and its actor, since it goes back to the
   sender. Anything else a fetcher raises is a fault and propagates.
-- **A held copy's keys are trusted as held.** A held key verifies, so a key
-  planted in a held copy would let its planter sign as that actor. The known
-  store paths write no peer `assertionMethod`: an inline profile carries none,
-  discovery records a bare id, and the resolver stores no fetch. A path that
-  starts storing peer keys must take them only from the actor's own profile;
-  what may replace a held key is #1184's rotation question.
-- **A key lookup runs before the sender is verified.** An unsigned or forged
-  delivery can make the receiver fetch the claimed author's profile, with the
-  fetch retries (AKM-05-008), from any URL it names, internal hosts included.
-  #5386 bounds that cost and those targets at the ingress; a production key
-  cache is #1184.
+- **A verifier trusts only a fetched key** (SIG-02-003). A stored copy of a
+  peer's profile came from somewhere other than the peer, so no store is read
+  for a key; never add a held-copy shortcut, a fetch is what proves the key is
+  the peer's.
+- **Keys embedded in a received activity are discarded at parse** (SIG-02-004).
+  The MV-11 walk (`unknown_keys._partition_object`) sets aside
+  `assertionMethod`, under any spelling, on every actor profile below the
+  envelope and reports it as a set-aside key, so no parsed object or stored
+  record carries a peer's key. The received evidence and a ledger snapshot keep
+  the body as received; no key is read from them. A profile the lookup fetches
+  is parsed by `parse_fetched_object` and keeps its key, as the owner's served
+  profile does.
+- **A key lookup runs before the sender is verified**, so an unsigned or forged delivery
+  chooses the URL the receiver fetches. Keep it bounded:
+  `deps.get_actor_profile_fetcher` makes one attempt, its timeout
+  (`verification_key_fetch_timeout_seconds`, no AKM-05-008 retries) bounding the
+  whole attempt and its body capped (`MAX_VERIFICATION_PROFILE_BYTES`), and
+  `check_profile_fetch_target` admits only an `http`/`https` URL with an ASCII host,
+  no user info, query or fragment and no non-public IP literal, read in every spelling
+  the resolver reads (`inet_aton` forms, a trailing dot, IPv4 inside IPv6). A
+  non-ASCII host is refused because httpx maps it (IDNA) before it connects, so
+  `127。0。0。1` would reach loopback past the check. Host names pass, `localhost`
+  too: the Docker demos name peers by internal names. An allow-list is #1184. The
+  addressed actor is found first, so a post to an actor the node does not host fetches
+  nothing.
 - **Actor ids are compared normalised** (OID-01-006): the key's actor, the
-  profile id and the `controller`, each without a trailing slash. A held copy
-  stored under a slashed id is missed by the read and found by the fetch.
+  profile id and the `controller`, each without a trailing slash; the fetch goes
+  to the normalised id.
 - **The hosted actor's key is published, not stored.** Both profile routes,
   `/actors/{id}` and `/actors/{id}/profile`, list the actor's own
   `signing.published_multikey` and replace any key its record states: a
   published key other than the signing key fails every proof. Only the
   owner's routes compute it; a peer's key comes from its profile
   (SIG-05-002). `GET /actors/` lists each hosted actor the same way.
-- **An inline sender profile carries no key.** An activity carries the
-  sender's own stored record as held (AKM-05-005), and that record lists no
-  key, while a receiver keeps a held record over a fetched copy
-  (AKM-05-012). So the resolver fetches when its held copy lists no key the
-  proof names, and does not store what it fetched.
 - **A profile typed `"Actor"` loses its key at parse.** The wire `as_Actor`
   ignores unknown fields, so it drops `assertionMethod`, while the five
   concrete actor types keep it. The fetch adapter refuses a profile typed

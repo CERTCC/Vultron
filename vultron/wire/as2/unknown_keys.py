@@ -49,7 +49,9 @@ from typing import Any, TypeAliasType, Union, get_args, get_origin
 from pydantic import AliasChoices, AliasPath, BaseModel
 
 from vultron.core.models._helpers import strip_annotated
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseReference,
@@ -311,8 +313,14 @@ def _partition_object(
     spellings = _merged_spellings(classes)
     kept: dict[str, Any] = {}
     location = location_of(path)
+    embedded_profile = bool(path) and _is_actor_profile(classes)
     for key, item in value.items():
-        if key in spellings.annotations:
+        if embedded_profile and normalise(key) == _PROFILE_KEYS_NORMALISED:
+            # An actor profile embedded in a received activity loses its
+            # keys: a key is trusted only as fetched from the actor's own
+            # profile URL, so no stored copy may carry one (SIG-02-003).
+            walk.set_aside.append(SetAsideKey(path=path, key=key))
+        elif key in spellings.annotations:
             kept[key] = (
                 item
                 if key in _UNEXAMINED_KEYS
@@ -333,6 +341,16 @@ def _partition_object(
         else:
             walk.set_aside.append(SetAsideKey(path=path, key=key))
     return kept
+
+
+#: ``assertionMethod`` under the near-miss normalisation, which every
+#: spelling the actor classes accept (``assertion_method`` too) reduces to.
+_PROFILE_KEYS_NORMALISED = "assertionmethod"
+
+
+def _is_actor_profile(classes: tuple[type[BaseModel], ...]) -> bool:
+    """Whether *classes* read an object as an actor profile."""
+    return any(issubclass(cls, (CoreActor, as_Actor)) for cls in classes)
 
 
 def partition_unknown_keys(

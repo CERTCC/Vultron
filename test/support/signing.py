@@ -26,8 +26,13 @@ signs it here, never by hand:
   from ``delivered_body``, unchanged, and checks the inbox accepts it.
 - :func:`published_multikeys` reads the ``Multikey`` entries a profile lists
   under ``assertionMethod`` (ENC-01-002).
-- :class:`AcceptingProofVerifier` stands in for proof verification in a test
-  that replaces the ingress with a stub; its port arrives with #5386.
+- :class:`AcceptingProofVerifier` stands in for the inbox's verification
+  stage (:class:`~vultron.core.ports.proof_verification.ProofVerificationPort`),
+  through the route's ``get_proof_verifier`` dependency.
+- :class:`PublishedProfileFetcher` answers a receiving app's profile fetch
+  for each named author, as that author's own profile route would, so the
+  inbox's verification stage finds the key that verifies the author's proof
+  (SIG-02-001).  :func:`serve_published_profiles` installs one on an app.
 
 Proofs here are deterministic: the author's key is seeded from its actor id
 (SIG-05-001) and ``created`` defaults to :data:`TEST_PROOF_CREATED`, so
@@ -37,12 +42,17 @@ different body, and is refused as a reused id (IE-10-002).
 """
 
 import copy
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx2 import Response
 
+from vultron.adapters.driving.fastapi.deps import ACTOR_PROFILE_FETCHER_STATE
+from vultron.core.models.actor import CoreActor, VultronOrganization
+from vultron.errors import VultronActorProfileFetchError
+from vultron.primitives import normalise_actor_id
 from vultron.wire.as2 import signing
 
 #: The ``created`` time of every proof a test makes unless it names another.
@@ -145,32 +155,90 @@ def published_multikeys(profile: Mapping[str, Any]) -> list[dict[str, Any]]:
 class AcceptingProofVerifier:
     """A stand-in proof verifier that accepts every document and records it.
 
-    For a test that replaces the ingress with a stub (as
-    ``test/core/behaviors/inbox/test_process_payload.py`` does, posting
-    ``{}``), so no body reaches a real verifier.  No verifier seam exists in
-    ``vultron/`` yet: the verification stage arrives with #5386, which
-    defines the port and makes this stand-in conform to it.  The shape here
-    is the stage's view, ``verify(document)``, raising on refusal: the stage
-    resolves the author's key itself (SIG-02-001), unlike
-    ``signing.verify(document, public_key_multibase)``.  :attr:`verified`
-    lists the documents it was asked to verify, so a test can show the stage
-    ran.  It never derives or reads a key (SIG-05-002).
+    Conforms to
+    :class:`~vultron.core.ports.proof_verification.ProofVerificationPort`,
+    the inbox's verification stage, for a test that is not about
+    verification: override the route's ``get_proof_verifier`` dependency
+    with it, and every body reaches the parser.
+    :attr:`verified` lists the documents it was asked to verify, so a test
+    can show the stage ran.  It never derives or reads a key (SIG-05-002).
     """
 
     def __init__(self) -> None:
         self.verified: list[Mapping[str, Any]] = []
 
-    def verify(self, document: Mapping[str, Any]) -> None:
+    async def verify(self, document: Mapping[str, Any]) -> None:
         """Accept *document*, recording that it was asked to verify it."""
         self.verified.append(document)
 
 
+class PublishedProfileFetcher:
+    """Answers a profile fetch as each named author's own server would.
+
+    Conforms to
+    :class:`~vultron.core.ports.actor_profile_fetch.ActorProfileFetchPort`.
+    A test app serves only the receiver; the authors that post to it are
+    not hosted anywhere a fetch could reach.  This stands in for their
+    profile routes: the profile it returns for an author lists that
+    author's published key, as the owner's own ``/profile`` route lists it
+    (SIG-02-002).  The receiving app never derives the key itself
+    (SIG-05-002): it reads it from this profile, as it would from a fetched
+    one.
+
+    *authors* names the actors that publish a profile; ``None``, the
+    default, means every actor does.  A fetch for an actor not named fails
+    as an unreachable profile does.  :attr:`asked` lists the actor ids
+    fetched.
+    """
+
+    def __init__(self, authors: Iterable[str] | None = None) -> None:
+        self._authors = (
+            None
+            if authors is None
+            else {normalise_actor_id(actor) for actor in authors}
+        )
+        self.asked: list[str] = []
+
+    async def fetch_profile(
+        self, actor_id: str, requester_id: str
+    ) -> CoreActor:
+        """The profile *actor_id* publishes, with its key."""
+        self.asked.append(actor_id)
+        owner = normalise_actor_id(actor_id)
+        if self._authors is not None and owner not in self._authors:
+            raise VultronActorProfileFetchError(
+                f"no test server publishes the profile of {actor_id!r}"
+            )
+        key = signing.published_multikey(
+            signing.seeded_signing_key(owner), owner
+        )
+        return VultronOrganization(
+            id_=owner, name=owner, assertion_method=[key]
+        )
+
+
+def serve_published_profiles(
+    app: FastAPI, authors: Iterable[str] | None = None
+) -> PublishedProfileFetcher:
+    """Install a :class:`PublishedProfileFetcher` as *app*'s profile fetch.
+
+    The inbox's verification stage then reads each named author's key from
+    the profile it answers (``deps.get_actor_profile_fetcher``).  Returns the
+    fetcher, so a test can see what was fetched.
+    """
+    fetcher = PublishedProfileFetcher(authors)
+    setattr(app.state, ACTOR_PROFILE_FETCHER_STATE, fetcher)
+    return fetcher
+
+
 __all__ = [
     "AcceptingProofVerifier",
+    "PublishedProfileFetcher",
     "TEST_PROOF_CREATED",
     "author_of",
     "post_delivered",
     "post_signed",
     "resigned",
+    "serve_published_profiles",
     "signed_body",
 ]

@@ -32,6 +32,7 @@ from fastapi import HTTPException, status
 
 from vultron.adapters.driving.fastapi.errors import (
     domain_error_translation,
+    inbox_body_http_exception,
     translate_domain_errors,
 )
 from vultron.errors import (
@@ -43,8 +44,10 @@ from vultron.errors import (
     VultronValidationError,
 )
 from vultron.wire.as2.errors import (
+    VultronJsonSyntaxError,
     VultronMultikeyError,
     VultronProofInvalidError,
+    VultronRefusedJsonError,
     VultronUnsignableJsonError,
 )
 
@@ -183,17 +186,53 @@ class TestProofVerificationError:
         [
             VultronMultikeyError("not a base58btc Ed25519 key"),
             VultronUnsignableJsonError("duplicate key"),
+            VultronJsonSyntaxError("not JSON"),
+            VultronRefusedJsonError("duplicate key"),
         ],
-        ids=["multikey", "unsignable-json"],
+        ids=["multikey", "unsignable-json", "json-syntax", "refused-json"],
     )
     def test_other_signing_errors_are_outside_the_category(
         self, error: VultronError
     ):
-        """Only a bad proof is in the category; how ingress answers a bad
-        published key or an uncanonicalizable body is #5386's decision."""
+        """Only a bad proof is in the category, and the translator maps no
+        other signing error.  The inbox's stage answers them itself: a bad
+        published key as an unreadable key (422 ``ProofVerificationError``)
+        and a body it cannot read by :func:`inbox_body_http_exception`."""
         assert not isinstance(error, VultronProofVerificationError)
         with pytest.raises(type(error)):
             translate_domain_errors(error)
+
+
+class TestInboxBodyHttpException:
+    """RFC 9110's split: a syntax fault is 400, refused JSON is 422."""
+
+    @pytest.mark.spec("IE-07-001")
+    @pytest.mark.spec("HTTP-03-004")
+    def test_json_syntax_is_a_malformed_request(self):
+        exc = inbox_body_http_exception(VultronJsonSyntaxError("not JSON"))
+        assert exc.status_code == status.HTTP_400_BAD_REQUEST
+        assert _as_body(exc) == {
+            "status": 400,
+            "error": "JsonSyntaxError",
+            "message": "not JSON",
+            "activity_id": None,
+        }
+
+    @pytest.mark.spec("IE-04-002")
+    @pytest.mark.parametrize(
+        "error",
+        [
+            VultronRefusedJsonError("duplicate key"),
+            VultronUnsignableJsonError("names no actor"),
+        ],
+        ids=["refused", "other-unsignable"],
+    )
+    def test_refused_json_is_content_that_fails_validation(
+        self, error: VultronUnsignableJsonError
+    ):
+        exc = inbox_body_http_exception(error)
+        assert exc.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert _as_body(exc)["error"] == "ValidationError"
 
     @pytest.mark.spec("EH-03-005")
     @pytest.mark.parametrize(

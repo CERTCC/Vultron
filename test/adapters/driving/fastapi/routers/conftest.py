@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from test.support.embargo_register import activate, propose
 from test.support.emitter import RecordingEmitter
+from test.support.signing import serve_published_profiles
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -132,6 +133,9 @@ def client_actors(datalayer):
     # No dispatcher is installed, so every inbox post raises and is answered
     # with a fault (ASK-07-010); record it rather than deliver it over HTTP.
     app.state.emitter = RecordingEmitter()
+    # Each author that posts publishes its profile, so the inbox verifies
+    # its signed body by its key (SIG-02-001).
+    serve_published_profiles(app)
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}

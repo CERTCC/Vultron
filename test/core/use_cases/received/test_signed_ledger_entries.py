@@ -16,8 +16,9 @@ Each test has a participant or the CASE_MANAGER send an ``Add(Note)`` built by
 the sender's own trigger adapter, as its outbox seals it, and moves it between
 stores only as that sealed body (ADR-0164).  The outbox signs every body
 before sealing it (#5382), so each sealed body verifies by its author's
-published key.  Nothing verifies on receipt yet, so the replica refusal test
-is a strict ``xfail`` naming the Task that turns it green.
+published key.  A replica's check runs at its inbox, on the body as
+received (SIG-03-003), so the replica tests post the relayed ``Announce`` to
+the owner's inbox, served by a real app.
 """
 
 import json
@@ -25,13 +26,14 @@ from typing import Any, cast
 
 import pytest
 
+from test.adapters.driving.fastapi._redelivery import served_store
 from test.support.ledger import ledger_entries
+from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.errors import VultronError
 from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -185,32 +187,64 @@ def test_a_snapshots_proof_survives_the_stores_rekeying():
     signing.verify(entry.payload_snapshot, _published_key(OWNER))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SIG-04-002: replicas do not check proofs yet. Tracked by #5386.",
-)
+def _post_to_replica(
+    net: LedgerNetwork, announce: dict[str, Any]
+) -> tuple[int, str]:
+    """Post *announce* to the owner's inbox, served by a real app.
+
+    The inbox verifies a delivery before it parses it (SIG-03-003), so the
+    replica's check runs on the body as received, where the snapshot still
+    carries its author's proof.
+    """
+    with served_store(net.stores[OWNER], OWNER, "Owner") as (client, _):
+        response = client.post(_OWNER_INBOX, json=announce)
+    return response.status_code, response.text
+
+
+_OWNER_INBOX = "/api/v2/actors/owner/inbox/"
+
+
 @pytest.mark.spec("SIG-04-002")
-def test_a_replica_refuses_an_entry_whose_author_proof_is_missing():
+def test_a_replica_admits_an_entry_whose_proofs_both_verify():
+    """The control: the CASE_MANAGER's relay of the owner's note passes."""
+    net = LedgerNetwork(CASE_ID)
+    body = _owner_note(net, "https://example.org/notes/signed-4")
+    _commit(net, body)
+
+    status_code, text = _post_to_replica(net, _announce_of(net, body["id"]))
+
+    assert status_code == 202, text
+
+
+def _drop_snapshot_proof(announce: dict[str, Any]) -> None:
+    announce["object"]["payloadSnapshot"].pop("proof", None)
+
+
+def _alter_snapshot(announce: dict[str, Any]) -> None:
+    announce["object"]["payloadSnapshot"]["object"]["content"] = "forged"
+
+
+@pytest.mark.spec("SIG-04-002")
+@pytest.mark.parametrize(
+    "alter",
+    [_drop_snapshot_proof, _alter_snapshot],
+    ids=["author-proof-missing", "snapshot-altered"],
+)
+def test_a_replica_refuses_an_entry_whose_author_proof_fails(
+    alter: Any,
+):
     net = LedgerNetwork(CASE_ID)
     body = _owner_note(net, "https://example.org/notes/signed-5")
     _commit(net, body)
-    announce = _announce_of(net, body["id"])
-    announce["object"]["payloadSnapshot"].pop("proof", None)
-    # Removing the author's proof also breaks the CASE_MANAGER's proof on the
-    # Announce, so ``net.receive`` re-signs the altered Announce through the
-    # shared test helper and only the author's proof fails.  The refusal must
-    # still name the snapshot's author, so that a replica checking only the
-    # outer proof cannot pass this test.
+    # The CASE_MANAGER's proof on the Announce is made over the altered body,
+    # so it verifies and only the author's proof fails.  The refusal must
+    # name the snapshot's author, so that a replica checking only the outer
+    # proof cannot pass this test.
+    announce = resigned(_announce_of(net, body["id"]), alter=alter)
 
-    try:
-        verdict = net.receive(OWNER, announce)
-        refusal = str(verdict.reason or "")
-    except VultronError as error:
-        verdict, refusal = None, str(error)
+    status_code, refusal = _post_to_replica(net, announce)
 
-    assert (
-        verdict is None
-        or verdict.disposition is not HandlerDisposition.APPLIED
-    )
+    assert status_code == 422, refusal
+    assert "ProofVerificationError" in refusal
     assert "payloadSnapshot" in refusal and OWNER in refusal, refusal
     assert _owner_note_entries(net) == []

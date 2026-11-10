@@ -89,10 +89,21 @@ missing port is a `VultronWiringError`, never an inline fallback.
 ### `ActorProfileFetchPort`
 
 `ActorProfileFetchPort` (`actor_profile_fetch.py`) fetches an actor's profile
-for the verification-key resolver when the held copy lists no key a proof
-names (SIG-02-001). The adapter (`HttpActorProfileFetchAdapter`) makes the
+for the verification-key resolver, which reads every key from a fetched
+profile (SIG-02-001, SIG-02-003). The adapter (`HttpActorProfileFetchAdapter`) makes the
 GET and parses the body, so core gets a `CoreActor`. Reason: core makes no
 HTTP call and parses no wire JSON (ARCH-01-001, ADR-0032).
+
+### `ProofVerificationPort`
+
+`ProofVerificationPort` (`proof_verification.py`) is the inbox's verification
+stage: `async verify(document)` refuses a decoded body whose proofs do not
+verify (SIG-03-002). The adapter (`ProfileKeyProofVerifier`) resolves each
+author's key from its profile and calls the signing module; the inbox route
+gets it from the `get_proof_verifier` dependency. Reason: the stage runs
+before the parser (SIG-03-003), and a test that is not about verification
+overrides that dependency with `AcceptingProofVerifier`
+(`test/support/signing.py`), which conforms to this port.
 
 ### `ClockPort` and `BookkeepingClockPort`
 

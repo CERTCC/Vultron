@@ -72,7 +72,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_body_changed_after_signing_is_refused`
       posts a signed body whose nested object was changed afterwards.
-    tracking_issue: '#5386'
     adr:
     - ADR-0164
     stories:
@@ -85,7 +84,7 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST take the key that verifies a `proof` only from the author's actor
-      profile, held as a copy or fetched.
+      profile, fetched from the author's URL, or a cached copy of that fetch.
     rationale: >-
       A key the receiver got anywhere else, such as from the activity itself or from a
       third actor, proves nothing about the author: anyone can sign with a key they made
@@ -95,7 +94,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_proof_naming_a_key_outside_the_authors_profile_is_refused`
       posts an activity whose proof names another actor's key.
-    tracking_issue: '#5386'
     adr:
     - ADR-0164
     stories:
@@ -118,6 +116,66 @@ groups:
     - ADR-0164
     stories:
     - story_2022_035
+  - id: SIG-02-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A verifier MUST take a proof's key only from the author's own profile as served at
+      the author's profile URL, freshly fetched or a cached copy of such a fetch, and
+      never from a profile embedded in a received activity (SIG-02-004) or any other
+      copy it did not obtain from that URL.
+    rationale: >-
+      A copy of a peer's profile that came from somewhere other than that peer, such as
+      an activity that embedded it, may carry a planted key that would let the planter
+      sign as the peer. The peer's own URL is the one source the receiver can trust as
+      far as it trusts the peer's id, so a fetch from it, or a cache of that fetch, is
+      authoritative. The prototype fetches every time and keeps no cache; that is an
+      implementation choice, not a protocol rule. Whether to pin the first key fetched
+      (trust on first use), and how a fetched key is cached or rotated, are #1184's to
+      decide.
+    verification: >-
+      `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_stored_peer_key_is_ignored`
+      stores a copy of the author's profile listing another key and checks the
+      author's genuine body is verified by the fetched key, and
+      `test/core/services/test_verification_key.py::test_the_resolver_takes_no_store`
+      checks the key lookup takes no store.
+    relationships:
+    - rel_type: refines
+      spec_id: SIG-02-001
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_035
+    - story_2022_089
+  - id: SIG-02-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST discard the keys of every actor profile a received activity
+      embeds, before it parses or stores the activity, except inside a ledger entry's
+      `payloadSnapshot`, which it keeps as received and reads no key from.
+    rationale: >-
+      A key embedded in a received activity was put there by its sender, who need not
+      be the profile's actor. Discarding it at the parse edge means no parsed object
+      and no stored copy carries a peer's key (SIG-02-003). The received body itself is
+      kept as received, as evidence (VM-08-002), and no key is read from it. A
+      `payloadSnapshot` is kept byte for byte, since its author's proof covers it
+      (SIG-04-002), so a profile inside it keeps its keys; no key is read from a
+      stored copy, so they are never used.
+    verification: >-
+      `test/wire/as2/test_embedded_profile_keys.py` parses activities embedding a sender
+      and a peer profile with `assertionMethod` and checks the parsed objects carry no
+      key, and
+      `test/adapters/driving/fastapi/test_inbox_verification.py::test_an_embedded_profile_reaches_storage_without_its_keys`
+      checks the stored record of the embedded actor has none.
+    relationships:
+    - rel_type: implements
+      spec_id: SIG-02-003
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_035
+    - story_2022_089
 - id: SIG-03
   title: Verification and Refusal
   specs:
@@ -134,7 +192,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_an_activity_without_a_valid_proof_is_refused_and_stores_nothing`
       checks that a refused activity leaves nothing in the receiver's store.
-    tracking_issue: '#5386'
     adr:
     - ADR-0164
     stories:
@@ -151,7 +208,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_an_activity_without_a_valid_proof_is_refused_and_stores_nothing`
       posts an activity with no proof and one with a proof that does not verify.
-    tracking_issue: '#5386'
     relationships:
     - rel_type: depends_on
       spec_id: SIG-03-001
@@ -174,7 +230,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_bad_proof_is_refused_before_the_schema_is_checked`
       posts a body with an invalid proof and a schema fault.
-    tracking_issue: '#5386'
     relationships:
     - rel_type: implements
       spec_id: SIG-03-001
@@ -217,9 +272,9 @@ groups:
       relay, or a genuine act be replayed by a forger. Refusing the whole entry keeps the
       replica's ledger a prefix of the CASE_MANAGER's.
     verification: >-
-      `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_replica_refuses_an_entry_whose_author_proof_is_missing`
-      delivers an entry whose snapshot lost its author's proof.
-    tracking_issue: '#5386'
+      `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_replica_refuses_an_entry_whose_author_proof_fails`
+      posts to a replica's inbox an entry whose snapshot lost its author's proof,
+      and one whose snapshot was altered, each re-signed by the CASE_MANAGER.
     adr:
     - ADR-0164
     stories:
@@ -259,7 +314,6 @@ groups:
       `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_an_author_whose_profile_cannot_be_read_is_refused`
       posts an activity from an author whose profile the receiver holds no copy of and
       cannot fetch.
-    tracking_issue: '#5386'
     relationships:
     - rel_type: refines
       spec_id: SIG-02-001

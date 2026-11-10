@@ -95,7 +95,8 @@ class VultronNotACaseParticipantError(VultronError):
 
     The case host serves a case's objects only to the case's active
     participants (AKM-05-006, CM-10-004).  The requester is the actor the
-    request claims to be: the prototype authenticates nobody (#509).
+    request claims to be: a fetch request carries no proof, so the prototype
+    does not authenticate it (HTTP-level request authentication is #509).
     """
 
     def __init__(self, case_id: str, actor_id: str):
@@ -220,12 +221,13 @@ class VultronProofVerificationError(VultronError):
     receiver cannot tell who wrote the document, so it refuses it
     (SIG-03-002).  ``translate_domain_errors`` maps it to 422 with
     ``ProofVerificationError`` as the error name, the answer the inbox gives
-    once it verifies proofs (#5386).  The proof is part of the content, not an
-    HTTP credential, so 401 (which asks for a ``WWW-Authenticate`` challenge)
-    does not fit.  403 does not arise at the inbox either: a verified sender's
-    entitlement is decided in core and answered with a ``Reject`` (HP-01-006,
-    HP-01-007).  The distinct name keeps a failed proof apart from a field
-    error (:exc:`VultronValidationError`) for senders and in logs.  The
+    to a delivery whose proof fails (SIG-03-002).  The proof is part of the
+    content, not an HTTP credential, so 401 (which asks for a
+    ``WWW-Authenticate`` challenge) does not fit.  403 does not arise at the
+    inbox either: a verified sender's entitlement is decided in core and
+    answered with a ``Reject`` (HP-01-006, HP-01-007).  The distinct name
+    keeps a failed proof apart from a field error
+    (:exc:`VultronValidationError`) for senders and in logs.  The
     authorization half of EH-03-005 is :exc:`VultronNotACaseParticipantError`.
 
     This class deliberately does not inherit ``ValueError``.  A forged body is
@@ -235,10 +237,12 @@ class VultronProofVerificationError(VultronError):
 
     The signing module raises the wire subclass
     :exc:`~vultron.wire.as2.errors.VultronProofInvalidError`.  Its other two
-    errors are outside this category and stay unmapped:
-    ``VultronMultikeyError`` (the author's published key is malformed) and
-    ``VultronUnsignableJsonError`` (the body cannot be canonicalized).  How
-    ingress answers them is #5386's to decide.
+    errors are outside this category, and ``translate_domain_errors`` maps
+    neither.  The inbox's verification stage answers a malformed published
+    key (``VultronMultikeyError``) as a key that cannot be read, raising
+    :exc:`VultronVerificationKeyError`, and a body it cannot read as one
+    JSON object (``VultronUnsignableJsonError``) 400 for a syntax fault and
+    422 for refused but well-formed JSON.
     """
 
 
@@ -246,8 +250,9 @@ class VultronVerificationKeyError(VultronProofVerificationError):
     """Raised when the key a proof names cannot be read from its author.
 
     A receiver takes the key that verifies a proof only from the author's
-    actor profile (SIG-02-001).  When neither the held copy nor a fetched
-    copy lists the key the proof's ``verificationMethod`` names, the
+    actor profile, as fetched from the author (SIG-02-001, SIG-02-003).
+    When the fetch fails or the fetched profile does not list the key the
+    proof's ``verificationMethod`` names, the
     receiver cannot tell who wrote the document and refuses it
     (SIG-03-002), so this is a proof-verification failure, answered as one.
     """

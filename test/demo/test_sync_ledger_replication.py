@@ -24,6 +24,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.received import delivered, peer_position, received_event
+from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi.inbox_handler import (
@@ -114,13 +115,28 @@ def _make_log_entry(
     log_index: int,
     prev_hash: str,
     semantic_type: str,
+    actor: str,
 ) -> CaseLedgerEntry:
+    """An entry whose snapshot is an activity *actor* signed, as each is.
+
+    Every snapshot names its signer (SIG-05-005), and a replica refuses one
+    whose proof does not verify by that actor's key (SIG-04-002).
+    """
+    snapshot = signed_body(
+        {
+            "type": "Add",
+            "id": f"{case_id}/acts/{semantic_type}",
+            "actor": actor,
+            "context": case_id,
+            "object": {"type": "Note", "content": semantic_type},
+        }
+    )
     record = HashChainLedgerRecord(
         case_id=case_id,
         log_index=log_index,
         object_id=case_id,
         semantic_type=semantic_type,
-        payload_snapshot={"semantic_type": semantic_type},
+        payload_snapshot=snapshot,
         prev_log_hash=prev_hash,
     )
     return _to_persistable_entry(record)
@@ -297,9 +313,15 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     case_actor_dl.save(case)
     case_actor_dl.save(VultronService(id_=case_actor_id, context=case.id_))
 
-    entry0 = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_902_base")
-    entry1 = _make_log_entry(case.id_, 1, entry0.entry_hash, "sync_902_mid")
-    entry2 = _make_log_entry(case.id_, 2, entry1.entry_hash, "sync_902_tail")
+    entry0 = _make_log_entry(
+        case.id_, 0, case.genesis_hash, "sync_902_base", case_actor_id
+    )
+    entry1 = _make_log_entry(
+        case.id_, 1, entry0.entry_hash, "sync_902_mid", case_actor_id
+    )
+    entry2 = _make_log_entry(
+        case.id_, 2, entry1.entry_hash, "sync_902_tail", case_actor_id
+    )
     case_actor_dl.save(entry0)
     case_actor_dl.save(entry1)
     case_actor_dl.save(entry2)
@@ -464,7 +486,9 @@ def test_sync_duplicate_delivery_idempotency(
 
     monkeypatch.setattr(peer_dl, "save", save_spy)
 
-    entry = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_903_dup")
+    entry = _make_log_entry(
+        case.id_, 0, case.genesis_hash, "sync_903_dup", case_actor_id
+    )
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
@@ -553,9 +577,15 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
         store.save(peer_participant)
     case_actor_dl.save(case)
 
-    entry0 = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_917_a")
-    entry1 = _make_log_entry(case.id_, 1, entry0.entry_hash, "sync_917_b")
-    entry2 = _make_log_entry(case.id_, 2, entry1.entry_hash, "sync_917_c")
+    entry0 = _make_log_entry(
+        case.id_, 0, case.genesis_hash, "sync_917_a", case_actor_id
+    )
+    entry1 = _make_log_entry(
+        case.id_, 1, entry0.entry_hash, "sync_917_b", case_actor_id
+    )
+    entry2 = _make_log_entry(
+        case.id_, 2, entry1.entry_hash, "sync_917_c", case_actor_id
+    )
     for entry in (entry0, entry1, entry2):
         case_actor_dl.save(entry)
     # The peer's replica: the Announce of entry2 was lost (SYNC-16-005).

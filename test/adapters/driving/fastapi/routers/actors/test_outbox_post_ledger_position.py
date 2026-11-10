@@ -45,6 +45,17 @@ _MANAGER = "https://example.org/users/manager"
 
 
 def _post(dl: SqliteDataLayer, actor: as_Service, activity, monkeypatch):
+    return _post_content(
+        dl,
+        actor,
+        activity.model_dump_json(by_alias=True, exclude_none=True).encode(),
+        monkeypatch,
+    )
+
+
+def _post_content(
+    dl: SqliteDataLayer, actor: as_Service, content: bytes, monkeypatch
+):
     # The outbox drain is not this test's subject.
     monkeypatch.setattr(
         "vultron.adapters.driving.fastapi.routers.actors._routes.mailbox"
@@ -56,7 +67,7 @@ def _post(dl: SqliteDataLayer, actor: as_Service, activity, monkeypatch):
     app.dependency_overrides[get_actor_dl] = lambda: dl
     return TestClient(app).post(
         f"/actors/{actor.id_}/outbox/",
-        content=activity.model_dump_json(by_alias=True, exclude_none=True),
+        content=content,
         headers={"Content-Type": "application/json"},
     )
 
@@ -248,4 +259,66 @@ def test_a_posted_activity_another_actor_wrote_is_refused_400(
     assert computed == []
     assert dl.read(foreign.id_) is None
     assert read_sealed_body_dict(dl, foreign.id_) is None
+    assert dl.outbox_list() == []
+
+
+def test_a_posted_activity_keeps_its_object_and_target(
+    actor_dl, monkeypatch
+) -> None:
+    """The wire parser reads the body, so its ``object`` and ``target`` are
+    sealed as posted; the bare ``as_Activity`` dropped both."""
+    actor, dl = actor_dl
+    case = _case_with_manager(dl, actor)
+    note = _note_to_manager(case, actor, "kept")
+
+    response = _post(dl, actor, note, monkeypatch)
+
+    assert response.status_code == 200, response.text
+    body = read_sealed_body_dict(dl, note.id_)
+    assert body is not None
+    assert body["type"] == "Add"
+    assert body["object"]["id"] == f"{case.id_}/notes/kept"
+    assert body["object"]["content"] == "kept"
+    assert body["target"] == case.id_
+
+
+@pytest.mark.spec("IE-07-001")
+@pytest.mark.parametrize(
+    "content",
+    [
+        pytest.param(b"not json", id="not-json"),
+        pytest.param(b'{"ratio": NaN}', id="nan"),
+        pytest.param('{"type": "Add"}'.encode("utf-16"), id="utf-16"),
+    ],
+)
+def test_a_posted_body_that_is_not_json_is_refused_400(
+    actor_dl, monkeypatch, content: bytes
+) -> None:
+    """The outbox decodes its body as the inbox does (RFC 9110)."""
+    actor, dl = actor_dl
+
+    response = _post_content(dl, actor, content, monkeypatch)
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"]["error"] == "JsonSyntaxError"
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("IE-04-002")
+@pytest.mark.parametrize(
+    "content",
+    [
+        pytest.param(b"[1, 2]", id="not-an-object"),
+        pytest.param(b'{"type": "Add", "type": "Note"}', id="duplicate-key"),
+    ],
+)
+def test_a_posted_body_of_refused_json_is_refused_422(
+    actor_dl, monkeypatch, content: bytes
+) -> None:
+    actor, dl = actor_dl
+
+    response = _post_content(dl, actor, content, monkeypatch)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["error"] == "ValidationError"
     assert dl.outbox_list() == []
