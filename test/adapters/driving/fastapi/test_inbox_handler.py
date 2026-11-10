@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from test.support.act_runner import in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
     assert_held_only_as_received,
@@ -925,7 +926,8 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
         )
     )
 
-    dispatcher.dispatch(event, dl)
+    with in_act():
+        dispatcher.dispatch(event, dl)
 
     # The report is persisted; the Offer is held as intake archived it,
     # never under the id its sender chose (DL-06-006).

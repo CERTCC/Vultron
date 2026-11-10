@@ -215,6 +215,21 @@ def test_the_inbox_reads_the_act_clock_once_on_arrival_outside_the_lock(
 
 
 @pytest.mark.spec("CS-13-010")
+def test_intake_records_the_arrival_stamp_as_the_time_of_receipt(
+    route: tuple[TestClient, SqliteDataLayer, CountingClock],
+) -> None:
+    """The real tree runs; intake writes the 11:59 stamp, not 12:02."""
+    client, store, clock = route
+    body = delivered_body(_report_activity())
+
+    response = client.post(f"{_API}/actors/{_SLUG}/inbox/", json=body)
+
+    assert response.status_code == 202
+    assert clock.reads == 1
+    assert _record(store, body["id"]).received_at == _ARRIVED
+
+
+@pytest.mark.spec("CS-13-010")
 def test_a_delivery_runs_at_its_arrival_stamp_under_the_tree_lock(
     dl: SqliteDataLayer,
 ) -> None:

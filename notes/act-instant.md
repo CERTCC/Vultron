@@ -46,12 +46,10 @@ keeps.
   `get_act_clock` dependency), before any lock, and every act that processes the
   message runs at that stamp (`process_payload(..., arrived_at=)`,
   `open_received_act`), because a backlog the sender cannot see must not make an
-  on-time answer late. The stamp is the record's `received_at`: every hold the
-  staging creates and a receipt stub write it, a hold of a released record keeps
-  it, and a replay, retry or restart re-run runs at it. Intake writing it is
-  still owed (#6191 part 2): until then a record intake wrote carries intake's
-  processing time. Never re-stamp a held message, and never use the releasing
-  act's instant for its replay.
+  on-time answer late. The stamp is the record's `received_at`: intake, every
+  hold and a receipt stub write it, a hold of a released record keeps it, and a
+  replay, retry or restart re-run runs at it. Never re-stamp a held message, and
+  never use the releasing act's instant for its replay.
 - **Queue expiry is judged by the act that releases or sweeps.** The
   pre-bootstrap window opens at the first waiter's arrival stamp and has expired
   once that plus the interval is not after the judging act's instant (a later
