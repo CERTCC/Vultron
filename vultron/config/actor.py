@@ -26,6 +26,8 @@ Per ``specs/configuration.yaml`` CFG-07-001, CFG-07-002, CFG-07-005, CFG-07-006.
 RSVP window fields per ``specs/embargo-policy.yaml`` EP-07-001, EP-07-002.
 Protocol default embargo duration per ``specs/embargo-policy.yaml`` EP-04-005,
 EP-04-018 and EP-04-032 (ADR-0096).
+Call-out time budget per ``specs/behavior-tree-integration.yaml`` BT-18-015 and
+BT-18-026 (ADR-0097).
 """
 
 from datetime import timedelta
@@ -46,6 +48,10 @@ PROTOCOL_DEFAULT_EMBARGO_MIN = timedelta(hours=72)
 
 PROTOCOL_DEFAULT_EMBARGO_MAX = timedelta(days=5)
 """Upper bound on the configurable protocol default embargo (EP-04-018)."""
+
+
+DEFAULT_CALL_OUT_TIME_BUDGET = timedelta(seconds=5)
+"""How long a call-out backend may take to answer, unless configured (BT-18-026)."""
 
 
 class PostCloseReply(StrEnum):
@@ -113,6 +119,13 @@ class ActorConfig(BaseModel):
             ``Leave(VulnerabilityCase)`` with an ``as:Reject`` or drops it.
             Every other late activity is dropped under either setting
             (CM-23-017, CM-23-045, ADR-0131).  See :class:`PostCloseReply`.
+        call_out_time_budget: How long one call-out backend may take to
+            answer within one tick (BT-18-015).  The call-out seam reads it
+            when a tree builds the node, and a backend that takes longer
+            raises an internal error naming the node; its answer is
+            discarded (BT-18-027).  Local to this actor and seen by no peer,
+            so it is configuration, not protocol (BT-18-026).  Must be
+            positive.  Default: 5 seconds.
     """
 
     default_case_roles: list[CVDRole] = Field(default_factory=list)
@@ -170,6 +183,25 @@ class ActorConfig(BaseModel):
             "activity is dropped under both settings (CM-23-045)."
         ),
     )
+
+    call_out_time_budget: timedelta = Field(
+        default=DEFAULT_CALL_OUT_TIME_BUDGET,
+        description=(
+            "How long one call-out backend may take to answer (BT-18-015). "
+            "A backend that takes longer surfaces as an internal error naming "
+            "the node, and its answer is discarded (BT-18-027). Must be "
+            "positive. Default: 5 s."
+        ),
+    )
+
+    @field_validator("call_out_time_budget")
+    @classmethod
+    def _validate_call_out_time_budget(cls, value: timedelta) -> timedelta:
+        if value <= timedelta(0):
+            raise ValueError(
+                f"call_out_time_budget {value} must be positive (BT-18-015)"
+            )
+        return value
 
     @field_validator("protocol_default_embargo_duration")
     @classmethod

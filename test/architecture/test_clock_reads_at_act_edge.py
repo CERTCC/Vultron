@@ -71,6 +71,12 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
         "now_utc",
         "datetime.now",
     ),
+    # The system stopwatch: the call-out time budget's named site (#3423).
+    (
+        "vultron/core/behaviors/stopwatch.py",
+        "SystemStopwatch.seconds",
+        "time.monotonic",
+    ),
     (
         "vultron/demo/helpers/polling/_poll.py",
         "ProgressDeadline.__init__",

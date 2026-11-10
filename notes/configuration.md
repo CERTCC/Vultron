@@ -7,6 +7,7 @@ description: >
   easily misread fields, and the test patterns that keep the process-wide
   config cache from leaking between tests.
 related_specs:
+  - specs/behavior-tree-integration.yaml
   - specs/case-ledger-processing.yaml
   - specs/case-proposal.yaml
   - specs/configuration.yaml
@@ -89,6 +90,10 @@ build fails.
 - **`actor.protocol_default_embargo_duration`** is refused at load outside
   `[72 hours, 5 days]`. It never competes under shortest-wins and is not a
   minimum (EP-04-006, EP-04-007).
+- **`actor.call_out_time_budget`** is read when a tree builds each call-out
+  seam, not when a bundle is built, so a module-level bundle singleton still
+  takes the configured value (BT-18-026). Positive only. The seam detects an
+  overrun after the backend returns; it never interrupts it (BT-18-027).
 - **`docker/seed-configs/`** `local_actor:` blocks carry bootstrap identity only
   (`name`, `actor_type`, `id`); actor policy belongs in the `config.yaml`
   `actor:` section.
