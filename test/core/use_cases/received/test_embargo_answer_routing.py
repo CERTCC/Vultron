@@ -418,21 +418,24 @@ def _seed_bystander_row(
     bystander_pid: str,
     embargo_id: str,
     state: EmbargoConsentState,
+    *,
+    late: bool = True,
 ) -> None:
     """Seed BYSTANDER's *state* row for *embargo_id*, outside the ledger.
 
-    ``INVITED`` carries a passed deadline in the CASE_MANAGER's store only,
-    so the manager's expiry finds it late; every other row is ``UNINVITED``
-    (:func:`_invited_only`).  Any other *state* is the row in every store.
+    ``INVITED`` carries a deadline in the CASE_MANAGER's store only: a
+    passed one when *late*, so the manager's expiry finds the Accept late,
+    else one an hour away, so it is on time.  Every other row is
+    ``UNINVITED`` (:func:`_invited_only`).  Any other *state* is the row in
+    every store.
     """
     net.bypass_ledger()
+    offset = timedelta(hours=-1 if late else 1)
     for actor_id in (MANAGER, OWNER):
         dl = net.stores[actor_id]
         participant = cast(CaseParticipant, dl.read(bystander_pid))
         deadline = (
-            datetime.now(tz=UTC) - timedelta(hours=1)
-            if actor_id == MANAGER
-            else None
+            datetime.now(tz=UTC) + offset if actor_id == MANAGER else None
         )
         rows = _invited_only(participant, embargo_id, deadline)
         if state is not EmbargoConsentState.INVITED:
@@ -510,16 +513,17 @@ def test_a_late_accept_of_an_open_revision_is_honoured(seeded):
     assert net.case(MANAGER).proposed_embargo_ids == [revision_id]
 
 
-def _late_accept_of_a_rejected_revision(
-    net: _Network, suffix: str
+def _accept_of_a_rejected_revision(
+    net: _Network, suffix: str, *, late: bool = True
 ) -> tuple[dict[str, object], str, str]:
     """Queue BYSTANDER's Accept of a revision the owner then rejects.
 
     Returns the Accept's sealed body, BYSTANDER's participant id and the
     rejected revision's id.  BYSTANDER's row for the revision is ``INVITED``
-    with a passed deadline at the CASE_MANAGER and its row for the embargo in
-    force ``UNINVITED``, so the late Accept is refused and the case holds
-    terms to re-invite it to (MSM-07-012, EMB-17-003).
+    at the CASE_MANAGER, with a passed deadline when *late* and an open one
+    otherwise, and its row for the embargo in force ``UNINVITED``.  So the
+    Accept is refused, late or on time, and the case holds terms to
+    re-invite it to (MSM-07-012, EMB-17-003).
     """
     revision_id = _propose(net, suffix, 90)
     bystander_pid = net.case(MANAGER).actor_participant_index[BYSTANDER]
@@ -531,7 +535,7 @@ def _late_accept_of_a_rejected_revision(
     rejected = _owner_decides(net, revision_id, accept=False)
     assert rejected.disposition is HandlerDisposition.APPLIED, rejected.reason
     _seed_bystander_row(
-        net, bystander_pid, revision_id, EmbargoConsentState.INVITED
+        net, bystander_pid, revision_id, EmbargoConsentState.INVITED, late=late
     )
     return body, bystander_pid, revision_id
 
@@ -563,7 +567,7 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     new deadline and leaves EM alone (CM-28-013, EP-09-007).
     """
     net = _Network("https://example.org/cases/answer-reinvite")
-    body, bystander_pid, revision_id = _late_accept_of_a_rejected_revision(
+    body, bystander_pid, revision_id = _accept_of_a_rejected_revision(
         net, "reinvite"
     )
 
@@ -639,6 +643,55 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     assert after.current_status.em.state == em_before
     assert list(after.proposed_embargo_ids) == proposals_before
     assert after.active_embargo_id == active_before
+
+
+@pytest.mark.spec("EMB-17-003")
+@pytest.mark.spec("MSM-07-012")
+@pytest.mark.spec("EMB-17-001")
+def test_an_on_time_accept_of_a_rejected_embargo_is_refused_and_reinvited():
+    """Lateness decides nothing: an on-time Accept gets the same answer.
+
+    The Invite to the revision is still open, but the owner rejected the
+    revision, so it is no longer available.  The Accept is refused
+    uncommitted with the refusal notice, and the accepter is re-invited to
+    the Active Embargo, as a late Accept would be (MSM-07-012, EMB-17-003).
+    No expiry is committed: the Invite had not expired.
+    """
+    net = _Network("https://example.org/cases/answer-reinvite-on-time")
+    body, bystander_pid, revision_id = _accept_of_a_rejected_revision(
+        net, "reinvite-on-time", late=False
+    )
+    active_id = net.case(MANAGER).active_embargo_id
+    assert active_id is not None
+    assert _invites_of(net, MANAGER, BYSTANDER, active_id) == []
+
+    verdict = net.receive(MANAGER, body)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
+    assert_refusal_notice(
+        net.stores[MANAGER],
+        manager=MANAGER,
+        refused_id=str(body["id"]),
+        asserter=BYSTANDER,
+        reason="is no longer available (the register holds it REJECTED)",
+        case_id=net.case_id,
+    )
+    assert [
+        e
+        for e in _entries(net, MANAGER, _ACCEPT)
+        if e.log_object_id == str(body["id"])
+    ] == []
+    assert (
+        consent_row_updates(
+            net.stores[MANAGER], net.case_id, EmbargoConsentState.TIMED_OUT
+        )
+        == []
+    )
+    (entry,) = _invites_of(net, MANAGER, BYSTANDER, active_id)
+    assert entry.payload_snapshot["to"] == [BYSTANDER]
+    record = cast(CaseParticipant, net.stores[MANAGER].read(bystander_pid))
+    assert record.consent_for(revision_id) == EmbargoConsentState.INVITED
+    assert record.consent_for(active_id) == EmbargoConsentState.INVITED
 
 
 @pytest.mark.spec("EMB-17-003")
@@ -983,7 +1036,7 @@ def test_a_failed_reinvite_takes_the_queued_notice_back_with_it(monkeypatch):
     committed or queued, no row moves, and the handler raises.
     """
     net = _Network("https://example.org/cases/answer-reinvite-fails")
-    body, bystander_pid, _revision_id = _late_accept_of_a_rejected_revision(
+    body, bystander_pid, _revision_id = _accept_of_a_rejected_revision(
         net, "reinvite-fails"
     )
     active_id = net.case(MANAGER).active_embargo_id
