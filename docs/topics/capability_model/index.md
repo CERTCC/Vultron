@@ -104,7 +104,7 @@ Every call-out point fits a three-level hierarchy:
 Think of the shape as a job description, the capability as the open role, and your implementation as the service hired into that role.
 
 Some capabilities are sub-steps of a larger workflow.
-For example, the proposed `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
+For example, `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
 Most capabilities are not nested.
 
 !!! note "Design decisions"
@@ -252,9 +252,8 @@ This domain has one extra level because the ID assignment workflow has distinct 
   - **IdAssigned** (Retriever) — does a CVE ID already exist for this vulnerability?
   - **InScope** (Evaluator) — is this vulnerability in scope for ID assignment?
   - **ProductInCNAScope** / **IsMostAppropriateCNA** (Evaluators) — CNA scoping checks
-  - **EvaluateCveEligibility** (Evaluator, proposed) — does this vulnerability meet the CNA criteria for CVE assignment?
-    This is a single judgment call that consolidates multiple CNA Operational Rules criteria.
-    See [#2518](https://github.com/CERTCC/Vultron/issues/2518).
+  - **EvaluateCveEligibility** (Evaluator) — does this vulnerability meet the CNA criteria for CVE assignment?
+    This is a single judgment call that applies every CNA Operational Rules criterion as one unit.
   - **AssignId** (Composer) — generate and record the CVE ID
   - **RequestId** (Retriever) — request an ID from an external CNA if we are not the appropriate authority
 

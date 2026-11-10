@@ -629,6 +629,10 @@ groups:
       call-out point misrepresents the substitution unit — when the rules are updated, all criteria
       change together, not independently. A single Evaluator call-out correctly models the
       "replace the whole eligibility check" seam (ADR-0071).
+    verification: >-
+      `test/core/behaviors/report/test_assign_cve_id_tree.py` asserts that the tree holds one
+      `EvaluateCveEligibility` leaf and no per-criterion node, and that `AssignCveIdCallOutBundle`
+      exposes one `evaluate_cve_eligibility_factory` and no per-criterion factory.
     adr:
     - ADR-0071
   - id: BTND-05-008
@@ -644,6 +648,10 @@ groups:
       RFC) avoids coupling the protocol spec to an independently-versioned external document's
       release cycle, while remaining transparent about which edition serves as the conformance
       baseline (ADR-0071).
+    verification: >-
+      `test/core/behaviors/report/test_assign_cve_id_tree.py` asserts that
+      `CNA_RULES_REFERENCE_EDITION` is `4.1.0` and that both `EvaluateCveEligibility` backends name
+      that edition and declare the verdict and rationale output keys in their blackboard contracts.
     adr:
     - ADR-0071
     relationships:

@@ -18,7 +18,7 @@ Report Management (RM) workflow, grouped by sub-topic:
 
 - ``validate`` — report validation nodes (5 nodes)
 - ``prioritize`` — report prioritization nodes (5 nodes)
-- ``assign_vul_id`` — VUL ID assignment nodes (6 nodes)
+- ``assign_vul_id`` — VUL ID assignment nodes (9 nodes)
 - ``develop_fix`` — fix development nodes (1 node)
 - ``deploy_fix`` — fix deployment nodes (8 nodes)
 - ``monitor_threats`` — threat monitoring nodes (4 nodes)

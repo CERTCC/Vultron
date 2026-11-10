@@ -11,22 +11,32 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for the full 21-node CVE ID assignment behavior tree (issue #1817).
+"""Tests for the CVE ID assignment behavior tree (issues #1817, #2518).
 
 Verifies BT-18-004/BT-23-003: bundle parameter accepted and used;
-DETERMINISTIC default produces AlwaysSucceed/AlwaysFail nodes;
-STOCHASTIC bundle produces the correct fuzzer classes;
-IdAssignable subtree structure; factory injection for all 14 call-out points.
-(21 nodes = 5 composites + 14 factory call-out leaves + 2 ProtocolInternal leaves.)
+DETERMINISTIC default produces AlwaysSucceed/AlwaysFail nodes and an
+output-writing ``EvaluateCveEligibility`` default (BT-23-013); STOCHASTIC
+bundle produces the correct fuzzer classes; CVE eligibility is one
+``EvaluateCveEligibility`` call-out point (BTND-05-007, BTND-05-008);
+factory injection for all 6 call-out points.
+(12 nodes = 4 composites + 6 factory call-out leaves + 2 ProtocolInternal leaves.)
 """
+
+import dataclasses
 
 import py_trees
 import pytest
+from py_trees.common import Status
 
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
+    CNA_RULES_REFERENCE_EDITION,
+    CVE_ELIGIBILITY_OUTPUT_KEYS,
+    CVE_ELIGIBILITY_RATIONALE_KEY,
+    CVE_ELIGIBILITY_VERDICT_KEY,
     AssignCveIdCallOutBundle,
+    DeterministicEvaluateCveEligibility,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.core.behaviors.report.assign_cve_id_tree import (
@@ -34,15 +44,38 @@ from vultron.core.behaviors.report.assign_cve_id_tree import (
     _IsOrWillBePubliclyDisclosedNode,
     create_assign_cve_id_tree,
 )
+from vultron.enums import CVDRole
 
 CASE_ID = "https://example.org/cases/test-cve-001"
 
+_ASSIGN_IF_POSSIBLE_CHILDREN = [
+    "IsIDAssignmentAuthority",
+    "ProductInCNAScope",
+    "IsMostAppropriateCNA",
+    "IsOrWillBePubliclyDisclosed",
+    "EvaluateCveEligibility",
+    "AssignId",
+]
 
-def _marker_factory(label):
+#: The per-criterion nodes BTND-05-007 folds into ``EvaluateCveEligibility``.
+_RETIRED_CRITERION_NODES = [
+    "IdAssignable",
+    "IsNotMaliciousCode",
+    "IsNotDependencyUpdate",
+    "IsNotEOLStatusAlone",
+    "IsNotDeliberatelyEducational",
+    "IsPubliclyAvailableProduct",
+    "NoDuplicateCVE",
+    "MeetsEvidenceBar",
+    "IsRealVulnerability",
+]
+
+
+def _marker_factory(label, status=Status.SUCCESS):
     def factory(name):
         class _Marker(py_trees.behaviour.Behaviour):
             def update(self):
-                return py_trees.common.Status.SUCCESS
+                return status
 
         return _Marker(name=label)
 
@@ -56,6 +89,30 @@ def _collect_all_names(tree) -> set:
         for child in tree.children:
             names |= _collect_all_names(child)
     return names
+
+
+def _assign_if_possible(tree):
+    """Return the ``_AssignIdIfPossible`` Sequence of *tree*."""
+    return tree.children[1].children[1].children[0]
+
+
+def _seed_blackboard(*, cna: bool, publication_intent: bool) -> None:
+    """Write the two ProtocolInternal inputs to the blackboard."""
+    writer = py_trees.blackboard.Client(name="test_seed")
+    writer.register_key("/actor_roles", py_trees.common.Access.WRITE)
+    writer.register_key(
+        "/publication_intent_set", py_trees.common.Access.WRITE
+    )
+    writer.set(
+        "/actor_roles",
+        [CVDRole.CVE_NUMBERING_AUTHORITY] if cna else [CVDRole.VENDOR],
+    )
+    writer.set("/publication_intent_set", publication_intent)
+
+
+def _tick(tree) -> None:
+    tree.setup_with_descendants()
+    tree.tick_once()
 
 
 # ---------------------------------------------------------------------------
@@ -103,8 +160,8 @@ def test_root_second_child_is_assign_id_if_in_scope():
 # ---------------------------------------------------------------------------
 
 
-def test_tree_contains_all_named_nodes():
-    """Full tree contains all 21 named nodes from the spec."""
+def test_tree_contains_exactly_the_named_nodes():
+    """The tree holds exactly its 12 named nodes."""
     expected_names = {
         "AssignVulID",
         "IdAssigned",
@@ -112,71 +169,61 @@ def test_tree_contains_all_named_nodes():
         "InScope",
         "_AssignOrRequestId",
         "_AssignIdIfPossible",
-        "IsIDAssignmentAuthority",
-        "ProductInCNAScope",
-        "IsMostAppropriateCNA",
-        "IdAssignable",
-        "IsNotMaliciousCode",
-        "IsNotDependencyUpdate",
-        "IsNotEOLStatusAlone",
-        "IsNotDeliberatelyEducational",
-        "IsOrWillBePubliclyDisclosed",
-        "IsPubliclyAvailableProduct",
-        "NoDuplicateCVE",
-        "MeetsEvidenceBar",
-        "IsRealVulnerability",
-        "AssignId",
+        *_ASSIGN_IF_POSSIBLE_CHILDREN,
         "RequestId",
     }
     tree = create_assign_cve_id_tree(case_id=CASE_ID)
-    actual = _collect_all_names(tree)
-    for name in expected_names:
-        assert name in actual, f"Expected node '{name}' not found in tree"
+    assert _collect_all_names(tree) == expected_names
 
 
-def test_id_assignable_subtree_has_nine_children():
-    """IdAssignable Sequence has exactly 9 children (cheapest-first order)."""
+def test_assign_if_possible_children_order():
+    """_AssignIdIfPossible runs the gates cheapest-first, then AssignId."""
     tree = create_assign_cve_id_tree(case_id=CASE_ID)
-    # Traverse: root → _AssignIdIfInScope → _AssignOrRequestId → _AssignIdIfPossible → IdAssignable
-    assign_if_in_scope = tree.children[1]
-    assign_or_request = assign_if_in_scope.children[1]
-    assign_if_possible = assign_or_request.children[0]
-    id_assignable = assign_if_possible.children[3]
-    assert id_assignable.name == "IdAssignable"
-    assert len(id_assignable.children) == 9
+    names = [child.name for child in _assign_if_possible(tree).children]
+    assert names == _ASSIGN_IF_POSSIBLE_CHILDREN
 
 
-def test_id_assignable_children_order():
-    """IdAssignable subtree children are in cheapest-first order."""
+@pytest.mark.spec("BTND-05-007")
+@pytest.mark.parametrize("retired_name", _RETIRED_CRITERION_NODES)
+def test_no_per_criterion_eligibility_nodes(retired_name):
+    """No eligibility criterion is its own node (BTND-05-007)."""
     tree = create_assign_cve_id_tree(case_id=CASE_ID)
-    assign_if_possible = tree.children[1].children[1].children[0]
-    id_assignable = assign_if_possible.children[3]
-    names = [child.name for child in id_assignable.children]
-    assert names == [
-        "IsNotMaliciousCode",
-        "IsNotDependencyUpdate",
-        "IsNotEOLStatusAlone",
-        "IsNotDeliberatelyEducational",
-        "IsOrWillBePubliclyDisclosed",
-        "IsPubliclyAvailableProduct",
-        "NoDuplicateCVE",
-        "MeetsEvidenceBar",
-        "IsRealVulnerability",
-    ]
+    assert retired_name not in _collect_all_names(tree)
+
+
+@pytest.mark.spec("BTND-05-007")
+def test_eligibility_is_one_call_out_leaf():
+    """EvaluateCveEligibility is a single leaf, not a composite subtree."""
+    tree = create_assign_cve_id_tree(case_id=CASE_ID)
+    node = _assign_if_possible(tree).children[4]
+    assert node.name == "EvaluateCveEligibility"
+    assert not isinstance(unwrap_call_out(node), py_trees.composites.Composite)
+
+
+@pytest.mark.spec("BTND-05-007")
+def test_bundle_has_one_eligibility_factory():
+    """The bundle exposes one eligibility factory and no per-criterion ones."""
+    names = {f.name for f in dataclasses.fields(AssignCveIdCallOutBundle)}
+    assert names == {
+        "id_assigned_factory",
+        "in_scope_factory",
+        "product_in_cna_scope_factory",
+        "is_most_appropriate_cna_factory",
+        "evaluate_cve_eligibility_factory",
+        "assign_id_factory",
+        "request_id_factory",
+    }
 
 
 def test_protocol_internal_nodes_are_inline():
     """ProtocolInternal nodes are the correct inline classes (no factory seam)."""
     tree = create_assign_cve_id_tree(case_id=CASE_ID)
-    assign_if_possible = tree.children[1].children[1].children[0]
-    # IsIDAssignmentAuthority is first child of _AssignIdIfPossible
+    assign_if_possible = _assign_if_possible(tree)
     assert isinstance(
         assign_if_possible.children[0], _IsIDAssignmentAuthorityNode
     )
-    # IsOrWillBePubliclyDisclosed is 5th child of IdAssignable
-    id_assignable = assign_if_possible.children[3]
     assert isinstance(
-        id_assignable.children[4], _IsOrWillBePubliclyDisclosedNode
+        assign_if_possible.children[3], _IsOrWillBePubliclyDisclosedNode
     )
 
 
@@ -198,11 +245,19 @@ def test_default_in_scope_is_always_succeed():
     assert isinstance(unwrap_call_out(in_scope), AlwaysSucceed)
 
 
+def test_default_evaluate_cve_eligibility_writes_outputs():
+    """DETERMINISTIC default: EvaluateCveEligibility is the output-writing backend."""
+    tree = create_assign_cve_id_tree(case_id=CASE_ID)
+    node = _assign_if_possible(tree).children[4]
+    assert isinstance(
+        unwrap_call_out(node), DeterministicEvaluateCveEligibility
+    )
+
+
 def test_default_assign_id_is_always_succeed():
     """DETERMINISTIC default: AssignId is AlwaysSucceed."""
     tree = create_assign_cve_id_tree(case_id=CASE_ID)
-    assign_if_possible = tree.children[1].children[1].children[0]
-    assign_id = assign_if_possible.children[4]
+    assign_id = _assign_if_possible(tree).children[5]
     assert isinstance(unwrap_call_out(assign_id), AlwaysSucceed)
 
 
@@ -230,6 +285,154 @@ def test_none_call_out_uses_deterministic():
 
 
 # ---------------------------------------------------------------------------
+# EvaluateCveEligibility contract (BTND-05-008, BT-18-002, BT-23-013)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("BTND-05-008")
+def test_reference_rules_edition_is_4_1_0():
+    """The reference implementation follows CNA Operational Rules v4.1.0."""
+    assert CNA_RULES_REFERENCE_EDITION == "4.1.0"
+
+
+@pytest.mark.spec("BTND-05-008")
+def test_eligibility_contract_declares_verdict_and_rationale():
+    """The eligibility contract declares a bool verdict and a str rationale."""
+    assert {
+        CVE_ELIGIBILITY_VERDICT_KEY: bool,
+        CVE_ELIGIBILITY_RATIONALE_KEY: str,
+    } == CVE_ELIGIBILITY_OUTPUT_KEYS
+
+
+@pytest.mark.spec("BTND-05-008")
+@pytest.mark.parametrize(
+    "contract_owner",
+    ["core_default", "fuzzer"],
+)
+def test_eligibility_docstring_documents_edition_and_outputs(contract_owner):
+    """Both backends' contracts name the rules edition and both output keys."""
+    from vultron.demo.fuzzer.report_management.assign_vul_id import (
+        EvaluateCveEligibility,
+    )
+
+    cls = {
+        "core_default": DeterministicEvaluateCveEligibility,
+        "fuzzer": EvaluateCveEligibility,
+    }[contract_owner]
+    doc = cls.__doc__ or ""
+    assert "Blackboard contract (BT-18-001)" in doc
+    assert f"v{CNA_RULES_REFERENCE_EDITION}" in doc
+    for key, typ in CVE_ELIGIBILITY_OUTPUT_KEYS.items():
+        assert f"{key}: {typ.__name__}" in doc
+    assert cls.output_keys == CVE_ELIGIBILITY_OUTPUT_KEYS
+
+
+def test_deterministic_default_writes_declared_outputs_on_success():
+    """The DETERMINISTIC default writes both declared outputs on SUCCESS (BT-23-013)."""
+    node = DeterministicEvaluateCveEligibility("EvaluateCveEligibility")
+    node.setup()
+    node.tick_once()
+    assert node.status == Status.SUCCESS
+    storage = py_trees.blackboard.Blackboard.storage
+    assert storage[f"/{CVE_ELIGIBILITY_VERDICT_KEY}"] is True
+    rationale = storage[f"/{CVE_ELIGIBILITY_RATIONALE_KEY}"]
+    assert isinstance(rationale, str)
+    assert CNA_RULES_REFERENCE_EDITION in rationale
+
+
+@pytest.mark.parametrize(
+    "roll,expected", [(0.0, Status.SUCCESS), (0.99, Status.FAILURE)]
+)
+def test_stochastic_eligibility_writes_outputs_only_on_success(
+    monkeypatch, roll, expected
+):
+    """The fuzzer writes type-conformant outputs on SUCCESS only (BT-18-003)."""
+    from vultron.demo.fuzzer import base
+    from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
+    from vultron.demo.fuzzer.report_management.assign_vul_id import (
+        EvaluateCveEligibility,
+    )
+
+    assert issubclass(EvaluateCveEligibility, EvaluatorCallOutPoint)
+    monkeypatch.setattr(base.random, "random", lambda: roll)
+    node = EvaluateCveEligibility()
+    node.setup()
+    node.tick_once()
+    assert node.status == expected
+    storage = py_trees.blackboard.Blackboard.storage
+    for key, typ in CVE_ELIGIBILITY_OUTPUT_KEYS.items():
+        if expected == Status.SUCCESS:
+            assert isinstance(storage[f"/{key}"], typ)
+        else:
+            assert f"/{key}" not in storage
+
+
+# ---------------------------------------------------------------------------
+# Tick behaviour: the CNA direct path and its fallbacks
+# ---------------------------------------------------------------------------
+
+
+def _path_bundle(eligibility_status=Status.SUCCESS):
+    """DETERMINISTIC bundle with marker AssignId/RequestId and a set eligibility."""
+    return dataclasses.replace(
+        ASSIGN_CVE_ID_DETERMINISTIC,
+        evaluate_cve_eligibility_factory=_marker_factory(  # type: ignore[arg-type]
+            "EvaluateCveEligibility", eligibility_status
+        ),
+    )
+
+
+def test_cna_with_publication_intent_and_eligible_assigns_directly():
+    """A CNA with publication intent and an eligible vul takes AssignId."""
+    _seed_blackboard(cna=True, publication_intent=True)
+    tree = create_assign_cve_id_tree(case_id=CASE_ID, call_out=_path_bundle())
+    _tick(tree)
+    assert tree.status == Status.SUCCESS
+    assign_if_possible = _assign_if_possible(tree)
+    assert assign_if_possible.status == Status.SUCCESS
+    assert assign_if_possible.children[5].status == Status.SUCCESS
+    request_id = tree.children[1].children[1].children[1]
+    assert request_id.status == Status.INVALID
+
+
+def test_ineligible_vul_falls_back_to_request_id():
+    """EvaluateCveEligibility FAILURE skips AssignId and requests an ID."""
+    _seed_blackboard(cna=True, publication_intent=True)
+    tree = create_assign_cve_id_tree(
+        case_id=CASE_ID, call_out=_path_bundle(Status.FAILURE)
+    )
+    _tick(tree)
+    assert tree.status == Status.SUCCESS
+    assign_if_possible = _assign_if_possible(tree)
+    assert assign_if_possible.status == Status.FAILURE
+    assert assign_if_possible.children[5].status == Status.INVALID
+    request_id = tree.children[1].children[1].children[1]
+    assert request_id.status == Status.SUCCESS
+
+
+def test_no_publication_intent_skips_eligibility_and_requests_id():
+    """Without publication intent the eligibility call-out is never consulted."""
+    _seed_blackboard(cna=True, publication_intent=False)
+    tree = create_assign_cve_id_tree(case_id=CASE_ID, call_out=_path_bundle())
+    _tick(tree)
+    assert tree.status == Status.SUCCESS
+    assign_if_possible = _assign_if_possible(tree)
+    assert assign_if_possible.status == Status.FAILURE
+    assert assign_if_possible.children[4].status == Status.INVALID
+    request_id = tree.children[1].children[1].children[1]
+    assert request_id.status == Status.SUCCESS
+
+
+def test_non_cna_requests_id_without_eligibility_check():
+    """A non-CNA actor never reaches EvaluateCveEligibility."""
+    _seed_blackboard(cna=False, publication_intent=True)
+    tree = create_assign_cve_id_tree(case_id=CASE_ID, call_out=_path_bundle())
+    _tick(tree)
+    assert tree.status == Status.SUCCESS
+    assert _assign_if_possible(tree).children[4].status == Status.INVALID
+
+
+# ---------------------------------------------------------------------------
 # STOCHASTIC bundle tests
 # ---------------------------------------------------------------------------
 
@@ -241,17 +444,10 @@ def test_stochastic_bundle_produces_fuzzer_nodes():
     )
     from vultron.demo.fuzzer.report_management.assign_vul_id import (
         AssignId,
+        EvaluateCveEligibility,
         IdAssigned,
         InScope,
         IsMostAppropriateCNA,
-        IsNotDeliberatelyEducational,
-        IsNotDependencyUpdate,
-        IsNotEOLStatusAlone,
-        IsNotMaliciousCode,
-        IsPubliclyAvailableProduct,
-        IsRealVulnerability,
-        MeetsEvidenceBar,
-        NoDuplicateCVE,
         ProductInCNAScope,
         RequestId,
     )
@@ -260,56 +456,27 @@ def test_stochastic_bundle_produces_fuzzer_nodes():
         case_id=CASE_ID, call_out=ASSIGN_CVE_ID_STOCHASTIC
     )
 
-    # IdAssigned (root child 0)
     assert isinstance(unwrap_call_out(tree.children[0]), IdAssigned)
 
     assign_if_in_scope = tree.children[1]
-    # InScope (first child of _AssignIdIfInScope)
     assert isinstance(unwrap_call_out(assign_if_in_scope.children[0]), InScope)
 
     assign_or_request = assign_if_in_scope.children[1]
     assign_if_possible = assign_or_request.children[0]
 
-    # ProductInCNAScope, IsMostAppropriateCNA
     assert isinstance(
         unwrap_call_out(assign_if_possible.children[1]), ProductInCNAScope
     )
     assert isinstance(
         unwrap_call_out(assign_if_possible.children[2]), IsMostAppropriateCNA
     )
-
-    id_assignable = assign_if_possible.children[3]
-    # 9 IdAssignable children
+    # child[3] is ProtocolInternal (inline) — not a fuzzer node
     assert isinstance(
-        unwrap_call_out(id_assignable.children[0]), IsNotMaliciousCode
+        unwrap_call_out(assign_if_possible.children[4]),
+        EvaluateCveEligibility,
     )
     assert isinstance(
-        unwrap_call_out(id_assignable.children[1]), IsNotDependencyUpdate
-    )
-    assert isinstance(
-        unwrap_call_out(id_assignable.children[2]), IsNotEOLStatusAlone
-    )
-    assert isinstance(
-        unwrap_call_out(id_assignable.children[3]),
-        IsNotDeliberatelyEducational,
-    )
-    # child[4] is ProtocolInternal (inline) — not a fuzzer node
-    assert isinstance(
-        unwrap_call_out(id_assignable.children[5]), IsPubliclyAvailableProduct
-    )
-    assert isinstance(
-        unwrap_call_out(id_assignable.children[6]), NoDuplicateCVE
-    )
-    assert isinstance(
-        unwrap_call_out(id_assignable.children[7]), MeetsEvidenceBar
-    )
-    assert isinstance(
-        unwrap_call_out(id_assignable.children[8]), IsRealVulnerability
-    )
-
-    # AssignId (last child of _AssignIdIfPossible), RequestId
-    assert isinstance(
-        unwrap_call_out(assign_if_possible.children[4]), AssignId
+        unwrap_call_out(assign_if_possible.children[5]), AssignId
     )
     assert isinstance(
         unwrap_call_out(assign_or_request.children[1]), RequestId
@@ -328,40 +495,25 @@ def test_stochastic_bundle_produces_fuzzer_nodes():
         ("in_scope_factory", "CustomInScope"),
         ("product_in_cna_scope_factory", "CustomProductInCNAScope"),
         ("is_most_appropriate_cna_factory", "CustomIsMostAppropriateCNA"),
-        ("is_not_malicious_code_factory", "CustomIsNotMaliciousCode"),
-        ("is_not_dependency_update_factory", "CustomIsNotDependencyUpdate"),
-        ("is_not_eol_status_alone_factory", "CustomIsNotEOLStatusAlone"),
         (
-            "is_not_deliberately_educational_factory",
-            "CustomIsNotDeliberatelyEducational",
+            "evaluate_cve_eligibility_factory",
+            "CustomEvaluateCveEligibility",
         ),
-        (
-            "is_publicly_available_product_factory",
-            "CustomIsPubliclyAvailableProduct",
-        ),
-        ("no_duplicate_cve_factory", "CustomNoDuplicateCVE"),
-        ("meets_evidence_bar_factory", "CustomMeetsEvidenceBar"),
-        ("is_real_vulnerability_factory", "CustomIsRealVulnerability"),
         ("assign_id_factory", "CustomAssignId"),
         ("request_id_factory", "CustomRequestId"),
     ],
 )
 def test_each_factory_is_injectable(field_name, expected_label):
-    """Each of the 14 call-out factory fields is replaceable."""
-    sentinel = {"called": False}
+    """Each call-out factory field of the bundle is replaceable."""
+    called = {"called": False}
 
     def custom_factory(name):
-        sentinel["called"] = True
-
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
-
-        return _Marker(name=expected_label)
+        called["called"] = True
+        return _marker_factory(expected_label)(name)
 
     bundle = AssignCveIdCallOutBundle(**{field_name: custom_factory})  # type: ignore[arg-type]
     tree = create_assign_cve_id_tree(case_id=CASE_ID, call_out=bundle)
-    assert sentinel["called"], f"factory {field_name!r} was not called"
+    assert called["called"], f"factory {field_name!r} was not called"
     assert expected_label in _collect_all_names(tree), (
         f"Expected node '{expected_label}' not in tree for field {field_name!r}"
     )

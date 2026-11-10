@@ -13,9 +13,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """CVE ID assignment behavior tree composition.
 
-Implements :func:`create_assign_cve_id_tree`, which composes the full 21-node
+Implements :func:`create_assign_cve_id_tree`, which composes the 12-node
 CVE ID assignment workflow grounded in CNA Operational Rules v4.1.0.
-(5 composites + 14 factory call-out leaves + 2 ProtocolInternal leaves.)
+(4 composites + 6 factory call-out leaves + 2 ProtocolInternal leaves.)
 
 Tree structure::
 
@@ -25,21 +25,21 @@ Tree structure::
         ├── InScope                      — Evaluator
         └── _AssignOrRequestId (Fallback)
             ├── _AssignIdIfPossible (Sequence)
-            │   ├── IsIDAssignmentAuthority   — ProtocolInternal
-            │   ├── ProductInCNAScope         — Evaluator
-            │   ├── IsMostAppropriateCNA      — Evaluator
-            │   ├── IdAssignable (Sequence)   — 9 children, cheapest-first
-            │   │   ├── IsNotMaliciousCode         — Evaluator
-            │   │   ├── IsNotDependencyUpdate       — Evaluator
-            │   │   ├── IsNotEOLStatusAlone         — Evaluator
-            │   │   ├── IsNotDeliberatelyEducational — Evaluator
-            │   │   ├── IsOrWillBePubliclyDisclosed  — ProtocolInternal
-            │   │   ├── IsPubliclyAvailableProduct   — Evaluator
-            │   │   ├── NoDuplicateCVE              — Evaluator
-            │   │   ├── MeetsEvidenceBar            — Evaluator
-            │   │   └── IsRealVulnerability         — Evaluator
-            │   └── AssignId                  — Composer
+            │   ├── IsIDAssignmentAuthority      — ProtocolInternal
+            │   ├── ProductInCNAScope            — Evaluator
+            │   ├── IsMostAppropriateCNA         — Evaluator
+            │   ├── IsOrWillBePubliclyDisclosed  — ProtocolInternal
+            │   ├── EvaluateCveEligibility       — Evaluator (one call-out unit)
+            │   └── AssignId                     — Composer
             └── RequestId                    — Retriever
+
+``EvaluateCveEligibility`` is the whole CNA Operational Rules eligibility
+check as one call-out point (BTND-05-007, ADR-0071): its backend applies every
+criterion of the reference edition (v4.1.0, BTND-05-008) and returns one
+verdict, so adopting a new edition replaces one factory.  The publication
+condition (§4.2.2.1.2) stays a ProtocolInternal gate just before it, because
+it reads the protocol's own publication-intent state rather than asking a
+capability.
 
 Call-out injection seams (ADR-0025 / BT-18-004)
 ------------------------------------------------
@@ -208,9 +208,9 @@ def create_assign_cve_id_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the CVE ID assignment workflow.
 
-    Composes the full 21-node tree grounded in CNA Operational Rules v4.1.0.
-    (5 composites + 14 factory call-out leaves + 2 ProtocolInternal leaves.)
-    All 14 Evaluator/Retriever/Composer call-out points are injected via
+    Composes the 12-node tree grounded in CNA Operational Rules v4.1.0.
+    (4 composites + 6 factory call-out leaves + 2 ProtocolInternal leaves.)
+    All 6 Evaluator/Retriever/Composer call-out points are injected via
     :class:`~vultron.core.behaviors.call_out.bundles.assign_cve_id.AssignCveIdCallOutBundle`.
     The two ProtocolInternal nodes (``IsIDAssignmentAuthority``,
     ``IsOrWillBePubliclyDisclosed``) are constructed inline.
@@ -227,27 +227,6 @@ def create_assign_cve_id_tree(
     """
     bundle = call_out if call_out is not None else ASSIGN_CVE_ID_DETERMINISTIC
 
-    # -- IdAssignable subtree (9 children, cheapest-first) -------------------
-    id_assignable_seq = py_trees.composites.Sequence(
-        name="IdAssignable",
-        memory=False,
-        children=[
-            bundle.is_not_malicious_code_factory("IsNotMaliciousCode"),
-            bundle.is_not_dependency_update_factory("IsNotDependencyUpdate"),
-            bundle.is_not_eol_status_alone_factory("IsNotEOLStatusAlone"),
-            bundle.is_not_deliberately_educational_factory(
-                "IsNotDeliberatelyEducational"
-            ),
-            _IsOrWillBePubliclyDisclosedNode("IsOrWillBePubliclyDisclosed"),
-            bundle.is_publicly_available_product_factory(
-                "IsPubliclyAvailableProduct"
-            ),
-            bundle.no_duplicate_cve_factory("NoDuplicateCVE"),
-            bundle.meets_evidence_bar_factory("MeetsEvidenceBar"),
-            bundle.is_real_vulnerability_factory("IsRealVulnerability"),
-        ],
-    )
-
     # -- _AssignIdIfPossible (CNA direct-assignment path) --------------------
     assign_if_possible_seq = py_trees.composites.Sequence(
         name="_AssignIdIfPossible",
@@ -256,7 +235,8 @@ def create_assign_cve_id_tree(
             _IsIDAssignmentAuthorityNode("IsIDAssignmentAuthority"),
             bundle.product_in_cna_scope_factory("ProductInCNAScope"),
             bundle.is_most_appropriate_cna_factory("IsMostAppropriateCNA"),
-            id_assignable_seq,
+            _IsOrWillBePubliclyDisclosedNode("IsOrWillBePubliclyDisclosed"),
+            bundle.evaluate_cve_eligibility_factory("EvaluateCveEligibility"),
             bundle.assign_id_factory("AssignId"),
         ],
     )
