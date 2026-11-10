@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""A run's verdict, the form two runs are compared in (DEMOCI-11-058 to -060).
+"""A run's verdict, the form two runs are compared in (DEMOCI-11-058 to -072).
 
 The recording clock ticks 10 ms on every read and every id is drawn from one
 seeded generator, so a shifted clock or one extra draw moves every later
@@ -26,13 +26,16 @@ import importlib
 import json
 import pkgutil
 import re
+import typing
 from collections.abc import Iterator
 from dataclasses import replace
 
 import pytest
+from pydantic import BaseModel
 
 import vultron.core.models
-from vultron.core.models.base import CoreObject
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.demo.recordings.traces import (
     CHECKS_FILENAME,
@@ -187,7 +190,7 @@ class TestWhatComparesEqual:
         )
         assert normalize_run(shifted) == normalize_run(BASE)
 
-    @pytest.mark.spec("DEMOCI-11-058")
+    @pytest.mark.spec("DEMOCI-11-070")
     def test_an_extra_id_draw_compares_equal(self):
         redrawn = _run(
             _ledger(
@@ -279,7 +282,7 @@ class TestWhatComparesDifferent:
         assert normalize_run(added) != normalize_run(BASE)
         assert len(normalize_run(added).ledger) == 3
 
-    @pytest.mark.spec("DEMOCI-11-060")
+    @pytest.mark.spec("DEMOCI-11-058")
     def test_a_reordered_act_compares_different(self):
         base = _run(_ledger(_entry(0), _entry(1, act="Accept")))
         swapped = _run(_ledger(_entry(0, act="Accept"), _entry(1)))
@@ -301,12 +304,43 @@ class TestWhatComparesDifferent:
         assert normalize_run(changed) != normalize_run(BASE)
 
     @pytest.mark.spec("DEMOCI-11-060")
+    @pytest.mark.parametrize(
+        ("field", "before", "after"),
+        [
+            ("result", CASE_ID, OTHER_ACTIVITY_ID),
+            ("cc", [VENDOR], [CASE_ACTOR]),
+            ("removalActivity", None, ACTIVITY_ID),
+            (
+                "embargoRegister",
+                [{"status": "ENDED", "termination": {"reason": "EXPIRED"}}],
+                [{"status": "ENDED", "termination": {"reason": "CANCELLED"}}],
+            ),
+        ],
+        ids=["result", "audience", "removal", "register-termination"],
+    )
+    def test_a_changed_act_detail_compares_different(
+        self, field: str, before: object, after: object
+    ):
+        """What an act resulted in, whom it also went to, a participant's
+        removal and how an embargo ended are all part of the verdict."""
+
+        def run(value: object) -> ScenarioRun:
+            entries = [_entry(0), _entry(1)]
+            snapshot = entries[1]["payloadSnapshot"]
+            assert isinstance(snapshot, dict)
+            if value is not None:
+                snapshot[field] = value
+            return _run(_ledger(*entries))
+
+        assert normalize_run(run(after)) != normalize_run(run(before))
+
+    @pytest.mark.spec("DEMOCI-11-060")
     def test_a_changed_check_label_compares_different(self):
         moved = _run(checks=(replace(CHECKS[0], label="the Vendor answered"),))
         assert normalize_run(moved).ledger == normalize_run(BASE).ledger
         assert normalize_run(moved).checks != normalize_run(BASE).checks
 
-    @pytest.mark.spec("DEMOCI-11-060")
+    @pytest.mark.spec("DEMOCI-11-058")
     def test_a_changed_check_outcome_compares_different(self):
         failed = _run(
             checks=(
@@ -325,35 +359,110 @@ class TestWhatComparesDifferent:
         assert normalize_run(failed).checks != normalize_run(BASE).checks
 
 
-def _core_model_classes() -> Iterator[type[CoreObject]]:
-    """Every :class:`CoreObject` subclass the core model packages define."""
+def _subclasses(cls: type[BaseModel]) -> list[type[BaseModel]]:
+    """*cls* and every class below it."""
+    found, pending = [cls], [cls]
+    while pending:
+        for sub in pending.pop().__subclasses__():
+            found.append(sub)
+            pending.append(sub)
+    return found
+
+
+def _models_in(annotation: object) -> Iterator[type[BaseModel]]:
+    """The models a field annotation names, through unions and containers."""
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        yield annotation
+        return
+    for argument in typing.get_args(annotation):
+        yield from _models_in(argument)
+
+
+def _ledgerable_models() -> set[type[BaseModel]]:
+    """Every model a ledger entry can carry.
+
+    A ledger entry's payload is an activity, and what an activity carries is
+    reached through its fields' annotations: the case, its participants and
+    their statuses, the embargo register and how an embargo ends.  Walking
+    the annotations rather than every core model keeps out models no ledger
+    entry carries, such as an inbox receipt record.
+    """
     for module in pkgutil.walk_packages(
         vultron.core.models.__path__, f"{vultron.core.models.__name__}."
     ):
         importlib.import_module(module.name)
-    pending: list[type[CoreObject]] = [CoreObject]
+    seen: set[type[BaseModel]] = set()
+    pending: list[type[BaseModel]] = [
+        *_subclasses(VultronActivity),
+        VulnerabilityCase,
+        CaseLedgerEntry,
+    ]
     while pending:
-        cls = pending.pop()
-        yield cls
-        pending.extend(cls.__subclasses__())
+        model = pending.pop()
+        if model in seen:
+            continue
+        seen.add(model)
+        for field in model.model_fields.values():
+            for named in _models_in(field.annotation):
+                pending.extend(_subclasses(named))
+    return seen
 
 
-#: A field name that holds a state, a role, a status or a consent: what a
-#: scenario's verdict most depends on (DEMOCI-11-058).
+def _wire_names(models: set[type[BaseModel]]) -> set[str]:
+    """The serialized name of every field of *models*."""
+    return {
+        field.serialization_alias or field.alias or name
+        for model in models
+        for name, field in model.model_fields.items()
+    }
+
+
+#: The fields a ledger entry can carry that are not in its verdict, each with
+#: why.  With :data:`VERDICT_FIELDS` this classifies every field, so a new
+#: field fails ``test_every_ledgerable_field_is_classified`` until someone
+#: decides which side it is on (DEMOCI-11-072).
+_OUTSIDE_THE_VERDICT = frozenset(
+    {
+        # Minted by the clock, or derived from a time it minted.
+        "endTime",
+        "published",
+        "receivedAt",
+        "rsvpDeadline",
+        "startTime",
+        "updated",
+        # Hash-chain digests, and the position pointer that carries one.
+        "entryHash",
+        "genesisHash",
+        "ledgerPosition",
+        "prevLogHash",
+        # Transport counters and the replication term.
+        "expectedSenderSequence",
+        "senderSequence",
+        "term",
+        # Lookup indexes derived from fields the verdict already holds.
+        "actorParticipantIndex",
+        "pendingEmbargoProposalIndex",
+        # The JSON-LD context, the same on every object.
+        "@context",
+    }
+)
+
+#: A field name that holds a state, a role, a status or a consent: a field a
+#: verdict must never leave out (DEMOCI-11-072).
 _VERDICT_SHAPED = re.compile(
     r"(?i)state|role|status|consent|engagement|joined"
 )
 
 
 class TestWhatTheVerdictHolds:
-    @pytest.mark.spec("DEMOCI-11-058")
+    @pytest.mark.spec("DEMOCI-11-070")
     def test_ids_are_relabelled_by_first_appearance(self):
         first = json.loads(normalize_run(BASE).ledger[0])
         assert first["caseId"] == "urn:uuid:id-1"
         assert first["id"] == "urn:uuid:id-1/log/0"
         assert first["payloadSnapshot"]["id"] == "urn:uuid:id-2"
 
-    @pytest.mark.spec("DEMOCI-11-058")
+    @pytest.mark.spec("DEMOCI-11-070")
     def test_one_mapping_covers_the_ledger_and_the_check_labels(self):
         normalized = normalize_run(BASE)
         assert "urn:uuid:id-1" in normalized.ledger[0]
@@ -380,7 +489,7 @@ class TestWhatTheVerdictHolds:
         assert "ledgerPosition" not in snapshot
         assert "proof" not in snapshot["object"]
 
-    @pytest.mark.spec("DEMOCI-11-059")
+    @pytest.mark.spec("DEMOCI-11-071")
     def test_a_timestamp_quoted_in_a_kept_string_reads_as_a_placeholder(self):
         quoted = _run(
             _ledger(_entry(0, note="ends 2026-01-04T00:00:00.510000+00:00"))
@@ -403,29 +512,37 @@ class TestWhatTheVerdictHolds:
             {"type": "ParticipantStatus", "rmState": "RECEIVED"}
         ]
 
-    @pytest.mark.spec("DEMOCI-11-060")
-    def test_every_state_and_role_field_of_a_core_model_counts(self):
-        """Keyed on a field's shape, not on a list of names (#5535).
+    @pytest.mark.spec("DEMOCI-11-072")
+    def test_every_ledgerable_field_is_classified(self):
+        """The cost of an allow-list is that a field counts only once it is
+        named.  So every field a ledger entry can carry is classified, in
+        the verdict or outside it, and a new one fails here until someone
+        decides, rather than silently going uncompared."""
+        fields = _wire_names(_ledgerable_models())
+        assert {"rmState", "caseRoles", "status", "termination"} <= fields, (
+            "the walk did not reach the case, its participants and the "
+            "embargo register; the guard checks nothing"
+        )
+        unclassified = fields - VERDICT_FIELDS - _OUTSIDE_THE_VERDICT
+        assert not unclassified, (
+            "fields a ledger entry can carry are neither in VERDICT_FIELDS "
+            f"nor named as outside the verdict: {sorted(unclassified)}"
+        )
 
-        The cost of an allow-list is that a field counts only once it is
-        named.  A new state, role, status or consent field of a core model
-        is exactly the kind of field a verdict must not lose, so it fails
-        here until it joins :data:`VERDICT_FIELDS`, rather than silently
-        going uncompared.
-        """
-        aliases = {
-            field.serialization_alias or field.alias or name
-            for cls in _core_model_classes()
-            for name, field in cls.model_fields.items()
+    @pytest.mark.spec("DEMOCI-11-072")
+    def test_no_state_or_role_field_is_left_out(self):
+        """Keyed on a field's shape, not on a list of names (#5535)."""
+        left_out = {
+            name
+            for name in _OUTSIDE_THE_VERDICT
+            if _VERDICT_SHAPED.search(name)
         }
-        verdict_shaped = {a for a in aliases if _VERDICT_SHAPED.search(a)}
-        assert {"rmState", "caseRoles", "emState"} <= verdict_shaped, (
-            "the walk found no core model fields; the guard checks nothing"
+        assert not left_out, (
+            f"a state, role, status or consent field is left out: {left_out}"
         )
-        assert verdict_shaped <= VERDICT_FIELDS, (
-            "core model fields a scenario's verdict depends on are not in "
-            f"VERDICT_FIELDS: {sorted(verdict_shaped - VERDICT_FIELDS)}"
-        )
+
+    def test_the_two_lists_do_not_overlap(self):
+        assert not VERDICT_FIELDS & _OUTSIDE_THE_VERDICT
 
     @pytest.mark.spec("DEMOCI-11-059")
     def test_no_hash_chain_digest_of_a_real_entry_survives(self):

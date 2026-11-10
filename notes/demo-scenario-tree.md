@@ -57,7 +57,7 @@ Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
 choice, ending, scenario, recording). Decision records: ADR-0098 and ADR-0104,
 both amended 2026-10-15; ADR-0098 amended again 2026-10-30. Requirements:
 DEMOCI-11-013 through DEMOCI-11-025, DEMOCI-11-034, DEMOCI-11-035, and
-DEMOCI-11-054 through DEMOCI-11-069.
+DEMOCI-11-054 through DEMOCI-11-072.
 Parent Epic: #4747.
 
 ---
@@ -447,21 +447,23 @@ vendor-first half, whose Reporter tells a Vendor.
   that subject is what EDF-06-002 constrains.
 - **Compare the verdict, an allow-list of fields, never a cleaned copy.** Each ledger
   entry is projected onto `VERDICT_FIELDS` in `vultron/demo/recordings/traces.py`:
-  which act, at which position, by whom, to whom, with which states, roles and
-  content. Ids in it are relabelled by first appearance, one mapping across ledger and
-  check labels, and a quoted timestamp reads as a placeholder (DEMOCI-11-058 to
-  DEMOCI-11-060). A list of noise fields is the wrong shape: it failed on the first PR
-  that drew ids another way, because the signatures cover the raw ids and
-  `proofValue` was not on it (#6194). A field joins the list only if a change in it is
-  a change in what the scenario did; a new state, role, status or consent field of a
-  core model fails `test_recording_traces.py` until it joins. A cast actor's URI is
-  left spelled out: it is derived from a fixed container address (DEMOCI-11-020), so
-  it never shifts, and a diff that still names `actor1` is one a person can read.
-  **Leaving times out costs coverage**: a time the protocol *derives* is left out with
-  the clock's, so an embargo's `startTime` and `endTime`, an invite's `rsvpDeadline`
-  and the embargo name that quotes them do not count. A change to the default embargo
-  window or the RSVP window therefore compares equal, and the gate is not a check on
-  those constants.
+  which act, at which position, by whom, to whom, with which result, states, roles
+  and content (DEMOCI-11-058, DEMOCI-11-059). Ids in it are relabelled by first
+  appearance, one mapping across ledger and check labels, and a quoted timestamp
+  reads as a placeholder (DEMOCI-11-070, DEMOCI-11-071). A list of noise fields is
+  the wrong shape: it failed on the first PR that drew ids another way, because the
+  signatures cover the raw ids and `proofValue` was not on it (#6194). A field joins
+  the list only if a change in it is a change in what the scenario did. A test walks
+  every model a ledger entry can carry and fails on a field classified neither in nor
+  out of the verdict, so a new field forces that decision (DEMOCI-11-072). A cast
+  actor's URI is left spelled out: it is derived from a fixed container address
+  (DEMOCI-11-020), so it never shifts, and a diff that still names `actor1` is one a
+  person can read. **Leaving times out costs coverage**: a time the protocol
+  *derives* is left out with the clock's, so an embargo's `startTime` and `endTime`
+  and an invite's `rsvpDeadline` do not count, and an embargo name that quotes them
+  reads the same. A change to the default embargo window or the RSVP window
+  therefore compares equal unless it also changes a kept field such as `duration`,
+  and the gate is not a check on those constants.
 - **A deliberate verdict change takes the `demo-verdict-change` label.** It belongs in
   its own change (DEMOMA-17-004); the label passes the job, and the job still prints
   the diff to its summary, so the opt-out shows what it admits (DEMOCI-11-063,

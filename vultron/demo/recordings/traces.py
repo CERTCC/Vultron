@@ -36,17 +36,20 @@ ids, and ``proofValue`` was not on the list.  The next derived field would
 have tripped it the same way.
 
 Inside the kept fields, every id is relabelled by its first appearance, with
-**one** mapping across the scenario's ledger and its check labels, and a
-timestamp a string quotes reads as a placeholder.  Nothing else in a kept
+**one** mapping across the scenario's ledger and its check labels
+(DEMOCI-11-070), and a timestamp a string quotes reads as a placeholder
+(DEMOCI-11-071).  Nothing else in a kept
 field is rewritten (DEMOCI-11-060): a changed note text, an added or
 reordered entry, a changed state or role and a changed check label or outcome
 all survive it.
 
 The cost of an allow-list is that a new field counts only once it is named.
-``test/demo_unit/test_recording_traces.py`` holds that line for the fields a
-verdict most depends on: every state, role, status and consent field of a
-core model must be in :data:`VERDICT_FIELDS`, so a new one fails there rather
-than silently going uncompared.
+``test/demo_unit/test_recording_traces.py`` holds that line: it walks every
+model a ledger entry can carry and fails on a field that is neither in
+:data:`VERDICT_FIELDS` nor named there as outside the verdict, and on a
+state, role, status or consent field named as outside it (DEMOCI-11-072).
+A new field therefore fails a test until someone decides which side it is
+on, rather than silently going uncompared.
 
 Leaving times out costs real coverage, because a time the protocol *derives*
 is left out with the ones the clock minted: an embargo's ``startTime`` and
@@ -119,19 +122,38 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "payloadSnapshot",
         "semanticType",
         "type",
-        # The act: who did it, to whom, about what.
+        # The act: who did it, to whom, about what, with what result.
         "actor",
+        "audience",
+        "bcc",
+        "bto",
+        "cc",
         "context",
         "inReplyTo",
+        "instrument",
         "object",
         "origin",
+        "result",
         "target",
         "to",
         # What an object says.
+        "anyOf",
+        "attachment",
         "attributedTo",
+        "closed",
         "content",
+        "generator",
+        "icon",
+        "image",
+        "location",
+        "mediaType",
         "name",
+        "oneOf",
+        "preview",
+        "replies",
         "summary",
+        "tag",
+        "url",
         # The case and who takes part in it.
         "activeEmbargo",
         "activeParticipants",
@@ -140,8 +162,11 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "childCases",
         "notes",
         "parentCases",
+        "participantCaseName",
+        "removalActivity",
         "siblingCases",
         "stubSummary",
+        "trackingId",
         "vulnerabilityReports",
         # Roles.
         "caseRoles",
@@ -163,7 +188,9 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "state",
         "status",
         "vfState",
-        # Embargoes and consent to them.
+        # Embargoes, consent to them, and how they end.
+        "cause",
+        "duration",
         "embargo",
         "embargoConsents",
         "embargoId",
@@ -171,8 +198,13 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "kind",
         "offerActorId",
         "offerId",
+        "proposedEmbargo",
+        "reason",
+        "replaces",
         "signals",
+        "termination",
         "terminationCause",
+        "vendors",
     }
 )
 
@@ -212,7 +244,7 @@ class NormalizedRun:
 class _IdLabels:
     """One run's id relabelling: each id becomes ``id-N`` by first appearance.
 
-    Shared across the run's ledger and its check labels (DEMOCI-11-058), so an
+    Shared across the run's ledger and its check labels (DEMOCI-11-070), so an
     id that both name reads the same in each.
     """
 
