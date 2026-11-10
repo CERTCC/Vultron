@@ -17,7 +17,8 @@
  * is the union of the roles every record of the actor names, CASE_OWNER aside.
  *
  * A ledger with no `CaseParticipant` record for an actor (an older uploaded
- * log) falls back to the `cvdRole` of the actor's `ParticipantStatus` records.
+ * log), or whose records name no role but CASE_OWNER, falls back to the
+ * `cvdRole` of the actor's `ParticipantStatus` records.
  * When no record or status names a CASE_MANAGER, the actor of the case's
  * bootstrap entry is it. Any other actor with no roles is labelled
  * "Participant": in such a log a Reporter is not recognized, so it gets no
@@ -136,6 +137,18 @@ export function baseLabel(roles: readonly CaseRole[]): string {
 }
 
 /**
+ * An actor's roles: its `CaseParticipant` records' roles when they name one a
+ * label shows, else its `ParticipantStatus` records' roles. A record with no
+ * roles, or only a moving one, says nothing about the part the actor plays.
+ * Returns a fresh set.
+ */
+function resolveRoles(records: ReadonlySet<CaseRole> | undefined, statuses: ReadonlySet<CaseRole> | undefined): Set<CaseRole> {
+  const fromRecords = [...(records ?? [])]
+  if (fromRecords.some((role) => !MOVING_ROLES.has(role))) return new Set(fromRecords)
+  return new Set([...fromRecords, ...(statuses ?? [])])
+}
+
+/**
  * Collect the lanes of `entries` (in `logIndex` order).
  *
  * A lane is every actor id the entries name as an activity's actor, as the
@@ -177,12 +190,13 @@ export function buildLanes(entries: readonly CaseLedgerEntry[]): LaneDirectory {
   // A ledger that names no CASE_MANAGER by role (an older log) still says who
   // it is: the actor that records the case's bootstrap entry, since only the
   // CASE_MANAGER writes the ledger (CLP-02-001).
-  const namesManager = [...recordRoles.values(), ...statusRoleSets.values()].some((set) => set.has('case_manager'))
+  const resolved = new Map(seen.map((id) => [id, resolveRoles(recordRoles.get(id), statusRoleSets.get(id))]))
+  const namesManager = [...resolved.values()].some((set) => set.has('case_manager'))
   const bootstrapActor = namesManager
     ? undefined
     : entries.find((entry) => BOOTSTRAP_TYPES.has(entry.semanticType))?.payloadSnapshot?.actor
   const unordered = seen.map((id) => {
-    const named = recordRoles.get(id) ?? statusRoleSets.get(id) ?? new Set<CaseRole>()
+    const named = resolved.get(id) ?? new Set<CaseRole>()
     if (id === bootstrapActor) named.add('case_manager')
     const roles = CASE_ROLES_VALUES.filter((role) => named.has(role))
     return { id, roles, kind: laneKind(roles) }

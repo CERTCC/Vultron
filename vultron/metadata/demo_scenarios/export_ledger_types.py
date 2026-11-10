@@ -231,9 +231,10 @@ class _Projector:
     ) -> dict[str, Any]:
         if isinstance(annotation, type) and issubclass(annotation, Enum):
             return self._enum(enum_name, [probe(m) for m in annotation])
-        # An exported model is a reference, checked before the dimension
-        # test: a model with a ``state`` field that travels as an object,
-        # such as ``EmbargoConsent``, is not a bare-state dimension.
+        # An exported model is a reference.  ``is_dimension_model`` admits
+        # only bare-state dimensions, so ``EmbargoConsent`` (a ``state``
+        # field, but an object on the wire) is not one either way; checking
+        # the export first keeps an exported model a reference regardless.
         if annotation in self._exported:
             return {"kind": "ref", "type": self._exported[annotation]}  # type: ignore[index]
         if is_dimension_model(annotation):

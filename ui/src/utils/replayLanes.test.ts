@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 
+import type { CvdRole } from '../data/ledgerTypes'
 import { baseLabel, buildLanes, laneKind } from './replayLanes'
 import { ACTORS, createCaseEntry, ledgerEntry, participantEntry, statusEntry } from './testing/ledgerEntries'
 
@@ -105,6 +106,32 @@ describe('buildLanes', () => {
       }),
     ])
     expect(both.get(ACTORS.coordinator)?.label).toBe('Coordinator')
+  })
+
+  const vendorStatus = (logIndex: number, cvdRole: CvdRole[]) =>
+    ledgerEntry(logIndex, 'add_participant_status_to_participant', {
+      type: 'Add',
+      actor: ACTORS.vendor,
+      object: { type: 'ParticipantStatus', attributedTo: ACTORS.vendor, cvdRole },
+    })
+
+  it.each([
+    ['no role', []],
+    ['only CASE_OWNER', ['case_owner']],
+  ] as const)('reads the status roles when the records name %s', (_what, caseRoles) => {
+    const lanes = buildLanes([participantEntry(0, ACTORS.vendor, [...caseRoles]), vendorStatus(1, ['VENDOR'])])
+    expect(lanes.get(ACTORS.vendor)?.label).toBe('Vendor')
+    expect(lanes.get(ACTORS.vendor)?.roles).toEqual(['vendor', ...caseRoles])
+  })
+
+  it('takes the CASE_MANAGER from the resolved roles, not from a status the records override', () => {
+    const lanes = buildLanes([
+      ledgerEntry(0, 'create_case', { type: 'Create', actor: ACTORS.manager }),
+      participantEntry(1, ACTORS.vendor, ['vendor']),
+      vendorStatus(2, ['VENDOR', 'CASE_MANAGER']),
+    ])
+    expect(lanes.get(ACTORS.vendor)?.label).toBe('Vendor')
+    expect(lanes.get(ACTORS.manager)?.label).toBe('Case Manager')
   })
 
   it('labels an actor with no roles "Participant", whatever its host says', () => {

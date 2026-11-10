@@ -346,6 +346,8 @@ describe('lane fallbacks when an entry has no actor', () => {
   it.each([
     ['add_case_status_to_case', { type: 'Add', object: { type: 'CaseStatus', emState: 'EXITED' } }],
     ['remove_embargo_event_from_case', { type: 'Remove' }],
+    ['add_participant_status_to_participant', { type: 'Add', object: { type: 'ParticipantStatus', caseStatus: { type: 'CaseStatus', emState: 'EXITED' } } }],
+    ['create_case', { type: 'Create', object: { type: 'VulnerabilityCase', caseStatuses: [{ type: 'CaseStatus', emState: 'ACTIVE', pxaState: 'pxa' }] } }],
     ['close_case', { type: 'Leave' }],
   ] as const)('draws %s in an Unattributed lane when the ledger has no lane', (semanticType, snapshot) => {
     const s = buildTimelineFromCaseLedger([ledgerEntry(0, semanticType, snapshot as never)])

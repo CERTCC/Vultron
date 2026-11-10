@@ -219,6 +219,14 @@ function caseManagerLane(ctx: ReplayContext): string | undefined {
   return ctx.lanes.lanes.find((lane) => lane.kind === 'casemanager')?.id
 }
 
+/**
+ * The lane for an entry whose own lane is `laneId`: that lane, else the
+ * CASE_MANAGER's, else the Unattributed lane (made on first use).
+ */
+function laneOrFallback(ctx: ReplayContext, laneId: string | undefined): string {
+  return laneId ?? caseManagerLane(ctx) ?? unattributedLane(ctx)
+}
+
 /** The display name of a lane. */
 function nameOf(ctx: ReplayContext, laneId: string | undefined): string | undefined {
   return laneId === undefined ? undefined : ctx.participants.get(laneId)?.name
@@ -268,6 +276,11 @@ function actorSlot(ctx: ReplayContext, url: string | null | undefined): string |
   return nameOf(ctx, laneOf(ctx, url)) ?? urlSegmentLabel(url)
 }
 
+/** The lane name of the actor `ref` is, else of the actor it is attributed to. */
+function lanedName(ctx: ReplayContext, ref: As2Object | null | undefined): string | undefined {
+  return nameOf(ctx, laneOf(ctx, ref?.id)) ?? nameOf(ctx, laneOf(ctx, ref?.attributedTo))
+}
+
 /**
  * A friendly label for an activity's object or target, never a bare URI
  * (DRPT-03-001): the lane name of the actor it is or is attributed to, else its
@@ -278,8 +291,7 @@ function referentLabel(ctx: ReplayContext, ref: As2Object | string | null | unde
   if (!ref) return undefined
   if (typeof ref === 'string') return nameOf(ctx, laneOf(ctx, ref))
   return (
-    nameOf(ctx, laneOf(ctx, ref.id)) ??
-    nameOf(ctx, laneOf(ctx, ref.attributedTo)) ??
+    lanedName(ctx, ref) ??
     ref.type?.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
   )
 }
@@ -711,7 +723,7 @@ function handleEntry(ctx: ReplayContext, entry: CaseLedgerEntry): MapResult {
  * (DRPT-03-006). Its content is not interpreted: no machine state changes.
  */
 function handleUnrecognized(ctx: ReplayContext, entry: CaseLedgerEntry): MapResult {
-  const laneId = laneOf(ctx, entry.payloadSnapshot?.actor) ?? caseManagerLane(ctx) ?? unattributedLane(ctx)
+  const laneId = laneOrFallback(ctx, laneOf(ctx, entry.payloadSnapshot?.actor))
   const note =
     `The semantic registry does not list "${entry.semanticType}", so this entry was not ` +
     `interpreted: it may come from another protocol version.`
@@ -826,7 +838,7 @@ function handleCreateCase(ctx: ReplayContext, entry: CaseLedgerEntry): MapResult
     seed(laneId, `RM → ${shadow.rm[laneId]}`)
   }
 
-  const laneId = recorder ?? caseManagerLane(ctx) ?? unattributedLane(ctx)
+  const laneId = laneOrFallback(ctx, recorder)
   const nodes = phrasedCluster(
     ctx,
     entry,
@@ -983,10 +995,7 @@ function handleOfferOwnershipTransfer(ctx: ReplayContext, entry: CaseLedgerEntry
   const snapshot = entry.payloadSnapshot
   const outgoingLane = laneOf(ctx, snapshot?.actor)
   if (outgoingLane === undefined) return logOnly(ctx, entry)
-  const incoming =
-    nameOf(ctx, laneOf(ctx, snapshot?.target?.id ?? snapshot?.target?.attributedTo)) ??
-    snapshot?.target?.name ??
-    undefined
+  const incoming = lanedName(ctx, snapshot?.target) ?? snapshot?.target?.name ?? undefined
   const nodes = phrasedCluster(ctx, entry, outgoingLane, { actor: nameOf(ctx, outgoingLane), object: incoming })
   return { nodes, logLines: [] }
 }
@@ -1245,7 +1254,7 @@ function handleParticipantStatus(ctx: ReplayContext, entry: CaseLedgerEntry): Ma
 
   // No meaningful change (only seeds / no-ops) → no node, no column.
   if (changes.length === 0) return { nodes: [], logLines }
-  const decisionLane = laneId ?? caseManagerLane(ctx) ?? unattributedLane(ctx)
+  const decisionLane = laneOrFallback(ctx, laneId)
   const nodes = phrasedCluster(
     ctx,
     entry,
@@ -1284,7 +1293,7 @@ function handleCaseStatus(ctx: ReplayContext, entry: CaseLedgerEntry): MapResult
   )
   if (changes.length === 0) return { nodes: [], logLines }
 
-  const laneId = laneOf(ctx, entry.payloadSnapshot?.actor) ?? caseManagerLane(ctx) ?? unattributedLane(ctx)
+  const laneId = laneOrFallback(ctx, laneOf(ctx, entry.payloadSnapshot?.actor))
   const nodes = phrasedCluster(
     ctx,
     entry,
@@ -1315,7 +1324,7 @@ function handleRemoveEmbargo(ctx: ReplayContext, entry: CaseLedgerEntry): MapRes
     shadow.emState = 'EXITED'
   }
 
-  const laneId = laneOf(ctx, entry.payloadSnapshot?.actor) ?? caseManagerLane(ctx) ?? unattributedLane(ctx)
+  const laneId = laneOrFallback(ctx, laneOf(ctx, entry.payloadSnapshot?.actor))
   const nodes = phrasedCluster(
     ctx,
     entry,
@@ -1374,7 +1383,7 @@ function handleCloseCase(ctx: ReplayContext, entry: CaseLedgerEntry): MapResult 
       ? actorLane
       : attrLane !== undefined && !isCaseManagerLane(ctx, attrLane)
       ? attrLane
-      : actorLane ?? caseManagerLane(ctx) ?? unattributedLane(ctx)
+      : laneOrFallback(ctx, actorLane)
 
   // Advance the closer's RM to CLOSED as a SELF-DECLARATORY LEAVE — from ANY rung,
   // with NO RM-machine adjacency check. A `close_case` ledger entry is the leaving
