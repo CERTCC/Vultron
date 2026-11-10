@@ -53,10 +53,14 @@ def run(
     status: str = "completed",
     conclusion: str | None = "success",
     path: str | None = None,
+    created_at: str | None = None,
+    updated_at: str | None = None,
 ) -> dict[str, Any]:
     """A workflow-run record, with a fresh run id and check suite."""
     run_id = next(_ids)
+    stamps = {"created_at": created_at, "updated_at": updated_at}
     return {
+        **{key: value for key, value in stamps.items() if value is not None},
         "id": run_id,
         "name": name,
         "workflow_id": workflow_id,
@@ -173,8 +177,19 @@ def test_a_cancelled_run_with_the_newer_id_does_not_outrank_its_survivor() -> (
     # Recorded on PR #6209: Dependabot's label burst started two runs of
     # Verification Debt Owners, and its concurrency group cancelled the one
     # GitHub had given the higher id.
-    survivor = run("Verification Debt Owners", 3)
-    cancelled = run("Verification Debt Owners", 3, conclusion="cancelled")
+    survivor = run(
+        "Verification Debt Owners",
+        3,
+        created_at="2026-11-09T10:00:00Z",
+        updated_at="2026-11-09T10:01:30Z",
+    )
+    cancelled = run(
+        "Verification Debt Owners",
+        3,
+        conclusion="cancelled",
+        created_at="2026-11-09T10:00:02Z",
+        updated_at="2026-11-09T10:00:05Z",
+    )
     assert cancelled["id"] > survivor["id"]
     checks = [
         check("PR Closes No Owner", suite(survivor)),
@@ -203,6 +218,33 @@ def test_a_workflow_whose_every_run_was_cancelled_is_red() -> None:
     ]
     verdict = gate.judge([first, second], checks, OWN)
     assert verdict.red == ["PR Closes No Owner: cancelled"]
+
+
+@pytest.mark.parametrize(
+    "older_finished",
+    ["2026-11-09T10:01:30Z", None],
+    ids=["finished-before-the-newer-run", "no-timestamp"],
+)
+def test_a_cancelled_newer_run_outranks_a_run_that_had_already_finished(
+    older_finished: str | None,
+) -> None:
+    # A timeout, a person or a re-run attempt cancelled the newer run; the
+    # older run finished first, so it cannot be the group's survivor, and its
+    # green verdict is stale.
+    older = run("Verification Debt Owners", 3, updated_at=older_finished)
+    newer = run(
+        "Verification Debt Owners",
+        3,
+        conclusion="cancelled",
+        created_at="2026-11-09T10:05:00Z",
+    )
+    checks = [
+        check("PR Closes No Owner", suite(older)),
+        check("PR Closes No Owner", suite(newer), conclusion="cancelled"),
+    ]
+    verdict = gate.judge([older, newer], checks, OWN)
+    assert verdict.red == ["PR Closes No Owner: cancelled"]
+    assert verdict.green == []
 
 
 def test_a_run_that_failed_to_start_is_named() -> None:

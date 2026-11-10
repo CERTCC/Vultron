@@ -20,11 +20,10 @@ description: >
   job with no `paths` filter, why the `CI gate` must be re-run after a re-run
   check, why its `types` cover every other pull-request workflow's, why it
   has no concurrency group and never judges a cancelled run over a survivor,
-  how to read
-  the red checks its log names, why the ruleset requiring the
-  gate admits no bypass actor, why a new pull-request check is verified on
-  later pull requests rather than its own, and why a conflicting pull request
-  starts no workflow at all.
+  how to read the red checks its log names, why the ruleset requiring the gate
+  admits no bypass actor, why a new pull-request check is verified on later
+  pull requests rather than its own, and why a conflicting pull request starts
+  no workflow at all.
 related_notes:
   - notes/testing-pitfalls.md
   - notes/demo-ci-invariants.md
@@ -107,9 +106,11 @@ id can be the one the group cancelled. Two rules follow (PR #6209):
 - `ci-gate.yml` has no `concurrency` block. The ruleset judges one `CI gate`
   check run per commit, not always the survivor, so a cancelled gate blocks the
   merge; uncancelled duplicates judge the same commit and agree.
-- `ci_gate.py` picks each workflow's newest run that was not cancelled, and
-  falls back to the newest only when every run was. Other workflows keep their
-  per-PR groups.
+- `ci_gate.py` lets a cancelled newest run give way only to a run that was not
+  cancelled and was still going when the cancelled one was created. A run that
+  had already finished is stale: a timeout, a person or a re-run attempt
+  cancelled the newer run, and judging the older verdict would turn the gate
+  green. Other workflows keep their per-PR groups.
 
 ### The Gate's `types` Cover Every Other Pull-Request Workflow's
 
