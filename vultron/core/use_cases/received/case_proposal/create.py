@@ -47,6 +47,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.services.report_case_inputs import StatedReportFields
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     find_node,
@@ -67,6 +68,31 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
+
+
+def _stated_report_fields(
+    request: CreateCaseProposalReceivedEvent,
+    inline_report: VulnerabilityReport | None,
+) -> StatedReportFields:
+    """What the carried Offer and its report state, which a CSAF value never beats.
+
+    The name and summary are the carried Offer's report's (CP-01-008), else
+    the proposal's own report's, which is the same report: a case starts
+    with its report's name and summary (CSAF-03-006).  The
+    proposed embargo end is the Offer's ``proposedEmbargo`` as carried,
+    whether or not it is still terms for this report (CSAF-02-003).
+    """
+    name = request.offered_report_name
+    summary = request.offered_report_summary
+    if inline_report is not None:
+        name = name or inline_report.name
+        summary = summary or inline_report.summary
+    proposal = request.proposed_embargo
+    return StatedReportFields(
+        name=name,
+        summary=summary,
+        proposed_embargo_end=proposal.end_time if proposal else None,
+    )
 
 
 class CreateCaseProposalReceivedUseCase:
@@ -228,6 +254,9 @@ class CreateCaseProposalReceivedUseCase:
             call_out=self._call_out,
             proposer_case_roles=request.proposer_case_roles,
             sender_rule=self.sender_entitlement,
+            claims_readings=request.claims_readings,
+            stated_report_fields=_stated_report_fields(request, inline_report),
+            activity_id=request.activity_id,
         )
         result = BTBridge(
             datalayer=self._dl,

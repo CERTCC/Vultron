@@ -43,7 +43,6 @@ import pytest
 from test.architecture import _corpus
 
 _SEND = "Tracked by #6092 (source #5131)."
-_CASE = "Tracked by #6091 (source #5131)."
 _RECORDS = (
     "Tracked by #6093, which waits on #5132 (vulnerability records on a case)."
 )
@@ -109,39 +108,6 @@ def test_the_csaf_document_is_labelled_application_json(
     assert _has_behavioral_test(request)
 
 
-@pytest.mark.spec("CSAF-02-001")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-02-001: no receiver fills gaps from CSAF yet. {_CASE}",
-)
-def test_the_initial_report_may_fill_gaps_from_csaf(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-02-002")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-02-002: no CSAF reading exists to limit yet. {_CASE}",
-)
-def test_csaf_outside_the_initial_report_changes_no_case_data(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-02-003")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-02-003: no CSAF value competes with a Vultron field yet. {_CASE}",
-)
-def test_a_vultron_field_beats_the_csaf_value(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
 @pytest.mark.spec("CSAF-02-004")
 @pytest.mark.xfail(
     strict=True,
@@ -159,83 +125,6 @@ def test_a_sender_fills_vultron_fields_that_agree_with_its_csaf(
     reason=f"CSAF-02-007: the sender checks no CSAF document yet. {_SEND}",
 )
 def test_a_sender_does_not_attach_schema_invalid_csaf(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-03-001")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-03-001: no disclosure date becomes an embargo end yet. {_CASE}",
-)
-def test_a_future_disclosure_date_proposes_the_embargo_end(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-03-002")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-03-002: no disclosure date is read yet. {_CASE}",
-)
-def test_the_earliest_future_disclosure_date_wins(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-03-003")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-03-003: no past disclosure date sets P yet. {_CASE}",
-)
-def test_a_past_disclosure_date_states_the_vul_is_public(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-03-004")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-03-004: no SSVC Exploitation value is read yet. {_CASE}",
-)
-def test_ssvc_exploitation_poc_sets_x_and_active_sets_a(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-03-005")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-03-005: no exploitation date is read yet. {_CASE}",
-)
-def test_a_first_known_exploitation_date_sets_a(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-03-006")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-03-006: a case takes no name from its report yet. {_CASE}",
-)
-def test_a_case_starts_with_its_reports_name_and_summary(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-03-007")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-03-007: no CSAF title or summary note is read yet. {_CASE}",
-)
-def test_a_missing_name_and_summary_come_from_the_csaf_document(
     request: pytest.FixtureRequest,
 ) -> None:
     assert _has_behavioral_test(request)

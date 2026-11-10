@@ -104,17 +104,29 @@ groups:
       report, made for this exchange by the CSAF Vulnerability Report profile, so
       it can supply what the Vultron fields leave out. Reading it stays optional:
       a receiver that treats the document as opaque still handles the report.
+    note: >-
+      The receiver is the coordinating function that received the report: the
+      report receiver that proposes the case and the CASE_MANAGER that creates it
+      are two of its roles. In this codebase the CASE_MANAGER reads the document
+      on the Offer its `Create(CaseProposal)` carries (CP-01-008, CP-01-021) when
+      the proposal creates a new case, and records what became of each value; the
+      proposer's own record keeps every value display only, so no record says a
+      value shaped a case it did not shape. A proposer may also fill the values
+      itself and carry them on the proposal; nothing here forbids it. When a
+      report carries several `csaf_vulnerability_report` documents, the first
+      one fills the case and the others stay display only.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_the_initial_report_may_fill_gaps_from_csaf`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test offers a report that has no case yet,
-      with a `csaf_vulnerability_report` attachment and no report name, and checks that
-      the created case takes its inputs from the document.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_missing_name_and_summary_come_from_the_csaf_document`
+      offers a report with no case yet, a `csaf_vulnerability_report` attachment
+      and no name, and checks that the case a separate CASE_MANAGER creates takes
+      its inputs from the document;
+      `::test_only_the_creating_side_marks_what_shaped_the_case` checks that the
+      receiver's record keeps every value display only while the CASE_MANAGER's
+      record marks what the case took.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6091'
   - id: CSAF-02-002
     priority: MUST_NOT
     kind: protocol
@@ -126,13 +138,17 @@ groups:
       Participants produce CSAF documents from their copies of a case and share
       draft advisories in CSAF. Such a document is a result of the case, so
       reading it back as a statement would let a projection rewrite the case it
-      describes. The case changes only through Vultron's own activities.
+      describes. The case changes only through Vultron's own activities. A
+      `Create(CaseProposal)` that carries the initial Offer (CP-01-008) is not
+      another activity in this sense: the proposer and the CASE_MANAGER are two
+      roles of the one coordinating function that received the report, so the
+      CSAF document on that Offer is still the initial report reaching it.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_csaf_outside_the_initial_report_changes_no_case_data`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: receive-path tests send a CSAF document on a report that
-      already belongs to a case, on another activity and of another category, and check
-      that the case data does not change.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_document_of_another_category_changes_no_case_data`
+      and
+      `::test_csaf_on_a_report_that_already_has_a_case_changes_no_case_data` send
+      a CSAF document of another category, and one on a report that already has a
+      case, and check that the case data does not change and no outcome is marked.
     adr:
     - ADR-0184
     stories:
@@ -140,7 +156,6 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CSAF-02-001
-    tracking_issue: '#6091'
   - id: CSAF-02-003
     priority: MUST
     kind: protocol
@@ -154,16 +169,14 @@ groups:
       keeps a receiver from weighing two answers, for example a `proposedEmbargo`
       against a `disclosure_date`.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_vultron_field_beats_the_csaf_value`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test offers a report whose name and
-      `proposedEmbargo` differ from its CSAF document, and checks that the case takes
-      the Vultron values and the record marks the CSAF values overridden.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_vultron_field_beats_the_csaf_value`
+      offers a report whose name
+      and `proposedEmbargo` differ from its CSAF document, and checks that the case
+      takes the Vultron values and the record marks the CSAF values overridden.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6091'
   - id: CSAF-02-004
     priority: SHOULD
     kind: protocol
@@ -266,12 +279,18 @@ groups:
       date for disclosure, also called the embargo date, and the Vulnerability
       Report profile uses it to coordinate that date. It then competes with the
       receiver's own default as any proposed embargo does (EP-04-003).
+    note: >-
+      In this codebase the time of receipt is the instant the CASE_MANAGER
+      receives the `Create(CaseProposal)` that carries the Offer: the report
+      receiver's own receipt time travels on no message, and the CASE_MANAGER
+      reads no clock of another actor. The two instants differ only by the
+      proposal's delivery. A case that starts with P, X or A takes no embargo
+      (EP-04-020), so no disclosure date is then taken as its end.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_future_disclosure_date_proposes_the_embargo_end`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test attaches a document with a future
-      `disclosure_date` to an Offer with no `proposedEmbargo`, and checks that the
-      proposed embargo ends on that date.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_future_disclosure_date_proposes_the_embargo_end`
+      attaches a
+      document with a future `disclosure_date` to an Offer with no
+      `proposedEmbargo`, and checks that the case's embargo ends on that date.
     adr:
     - ADR-0184
     stories:
@@ -279,7 +298,6 @@ groups:
     relationships:
     - rel_type: uses_definition
       spec_id: CSAF-02-001
-    tracking_issue: '#6091'
   - id: CSAF-03-002
     priority: MUST
     kind: protocol
@@ -292,10 +310,9 @@ groups:
       intended disclosure, in the same way that the shorter term wins between two
       parties (EP-04-003).
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_the_earliest_future_disclosure_date_wins`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test attaches a document whose
-      vulnerabilities have two future disclosure dates, and checks that the proposed
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_the_earliest_future_disclosure_date_wins`
+      attaches a document
+      whose vulnerabilities have two future disclosure dates, and checks that the
       embargo ends on the earlier one.
     relationships:
     - rel_type: extends
@@ -304,7 +321,6 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6091'
   - id: CSAF-03-003
     priority: MUST
     kind: protocol
@@ -318,16 +334,14 @@ groups:
       one vulnerability while another in the same report is public, so a case
       created with P set starts with no embargo (EP-04-020).
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_past_disclosure_date_states_the_vul_is_public`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test attaches a document with a
-      `disclosure_date` before the time of receipt, and checks that the case starts with
-      P set and no embargo.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_past_disclosure_date_states_the_vul_is_public`
+      attaches a
+      document with a `disclosure_date` before the time of receipt, and checks that
+      the case starts with P set and no embargo.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6091'
   - id: CSAF-03-004
     priority: MUST
     kind: protocol
@@ -341,16 +355,14 @@ groups:
       directions (the SSVC crosswalk): `None` means neither X nor A, `PoC` means X
       without A, and `Active` means A. `None` therefore states nothing to set.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_ssvc_exploitation_poc_sets_x_and_active_sets_a`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: receive-path tests attach documents with SSVC
-      Exploitation `PoC`, `Active` and `None`, and check that the case starts with X,
-      with A, and with neither.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_ssvc_exploitation_poc_sets_x_and_active_sets_a`
+      attaches
+      documents with SSVC Exploitation `PoC`, `Active` and `None`, and checks that
+      the case starts with X, with A, and with neither.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6091'
   - id: CSAF-03-005
     priority: MUST
     kind: protocol
@@ -362,16 +374,14 @@ groups:
       Each entry records when an exploitation happened, which is an observed
       attack in the CS model.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_first_known_exploitation_date_sets_a`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test attaches a document with a
-      `first_known_exploitation_dates` entry, and checks that the case starts with A
-      set.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_first_known_exploitation_date_sets_a`
+      attaches a document with
+      a `first_known_exploitation_dates` entry, and checks that the case starts
+      with A set.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6091'
   - id: CSAF-03-006
     priority: SHOULD
     kind: protocol
@@ -383,16 +393,14 @@ groups:
       case from the report in the same way. The case can change its name and
       summary later.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_case_starts_with_its_reports_name_and_summary`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test offers a named report with a summary,
-      and checks that the created case has that name and summary, also when a separate
-      CASE_MANAGER creates it.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_case_starts_with_its_reports_name_and_summary`
+      offers a named
+      report with a summary, and checks that the case a separate CASE_MANAGER
+      creates has that name and summary.
     adr:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6091'
   - id: CSAF-03-007
     priority: MUST
     kind: protocol
@@ -406,11 +414,12 @@ groups:
       document-level note describes the whole report, so neither depends on which
       of several vulnerabilities a reader picks.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_missing_name_and_summary_come_from_the_csaf_document`
-      holds a strict xfail probe until a behavioral test marked with this ID lands. That
-      test replaces the probe: a receive-path test offers a report with no name or
-      summary, and checks that the case takes `document.title` and the document-level
-      `summary` note, and the `description` note when there is no `summary` note.
+      `test/core/use_cases/received/test_case_from_csaf_report.py::test_a_missing_name_and_summary_come_from_the_csaf_document`
+      and
+      `::test_the_description_note_is_the_summary_when_there_is_no_summary_note`
+      offer a report with no name or summary, and check that the case takes
+      `document.title` and the document-level `summary` note, and the
+      `description` note when there is no `summary` note.
     relationships:
     - rel_type: extends
       spec_id: CSAF-03-006
@@ -418,7 +427,6 @@ groups:
     - ADR-0184
     stories:
     - story_2026_099
-    tracking_issue: '#6091'
   - id: CSAF-03-008
     priority: SHOULD
     kind: protocol

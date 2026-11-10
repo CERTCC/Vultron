@@ -3,7 +3,6 @@ title: "CSAF Documents in Reports: Implementation Plan"
 status: active
 kind: plan
 tracks:
-  - "#6091"
   - "#6092"
   - "#6093"
   - "#6094"
@@ -64,9 +63,46 @@ and archive it.
   the document's content, because the parser mints a fresh id for a `Document`
   sent without one, and
   holds the reading, `received_at` and one `ClaimOutcome` per value path of
-  `ReportClaims.value_paths()`, all `display-only` at receipt. Case creation
-  (#6091) marks a value `applied` or `overridden` with `with_outcome()` and saves
-  the record; the report object stays exactly as received (VM-08-002).
+  `ReportClaims.value_paths()`, all `display-only` at receipt, plus the
+  case-split and candidate-parties signals (CSAF-04-006, CSAF-04-007). The
+  report object stays exactly as received (VM-08-002).
+- **Only the side that creates the case marks outcomes.** The receiver's record
+  keeps every value `display-only`; the CASE_MANAGER writes its own record, in
+  its own store, with the `applied` and `overridden` outcomes of the case it
+  built (`StoreCaseInputClaimsRecordsNode`). A record never says a value shaped
+  a case it did not shape: an `auto_create_case` receiver that proposes nothing,
+  or a proposal the CASE_MANAGER declines, leaves no `applied` value anywhere.
+
+## Filling the case (CSAF-02, CSAF-03)
+
+- **One mapping.** `case_inputs_from_claims(claims, *, reference_time, stated)`
+  in `vultron.core.services.report_case_inputs` is the only CSAF-03 mapping; the
+  submit-report trigger (#6092) reuses it with its own "now". `StatedReportFields`
+  carries the Offer's and report's values, which always win (CSAF-02-003).
+- **The CASE_MANAGER reads the carried Offer.** The proposer and the
+  CASE_MANAGER are two roles of one coordinating function, so the CSAF document
+  on the Offer a `Create(CaseProposal)` carries (CP-01-008) is still the initial
+  report (CSAF-02-002). The extractor reads that Offer's report into
+  `CreateCaseProposalReceivedEvent.claims_readings`, with the report's own name
+  and summary; a proposal with no inline Offer fills nothing (CP-01-021).
+  `ResolveReportCaseInputsNode` and `CreateCaseFromProposalNode` run on the
+  new-case arm only, so a proposal that resolves to an existing case changes
+  nothing (EP-04-029). A proposer that fills the values itself and carries them
+  on the proposal is allowed, not built.
+- **"Now" is the CASE_MANAGER's receipt of the proposal**, the act's instant, not
+  the Offer's `published` (CLP-15-003) and not the receiver's receipt, which no
+  message carries. A `disclosure_date` equal to it counts as past (CSAF-03-003).
+- **The first document fills.** A report with several
+  `csaf_vulnerability_report` documents fills the case from the first; the
+  others stay display only, so two documents never compete for one input.
+- **P/X/A are the case's first status**, built at construction, not a
+  transition. X starts with P (the pX to PX invariant). A case that starts with
+  P, X or A gets no embargo (EP-04-020), so no disclosure date is applied as its
+  end then.
+- **A CSAF embargo end is a sender proposal.** With no `proposedEmbargo` on the
+  Offer, the node seeds `sender_proposed_embargo` with an `EmbargoEvent` whose id
+  derives from the proposal (`csaf_proposed_embargo_id`), so it competes with the
+  owner's actor default by shortest-wins and redelivery names the same event.
 
 ## Two-stage parse
 
@@ -84,9 +120,6 @@ Rules for stage 2:
 - **Read only what was sent.** The generated models fill the schema's
   `default` values, which the sender never stated (CSAF-02-005). Build stage 2
   from `model_fields_set` (or `exclude_unset=True`), never from the full dump.
-- **"Now" is the receiver's time of receipt**, not the Offer's `published`, which
-  is the sender's claimed time (CLP-15-003). A `disclosure_date` equal to that
-  time counts as past (CSAF-03-003). Read it from `ReportClaimsRecord.received_at`.
 - **Mapping SSVC.** The value sits in `vulnerabilities[].metrics[].content.ssvc_v2`,
   an SSVC `SelectionList`; read the selection whose decision point is
   Exploitation (namespace `ssvc`, key `E`). The wire reader copies the selected
@@ -95,9 +128,6 @@ Rules for stage 2:
   maps it onto `SSVC_2_Exploitation` in
   `vultron/core/scoring/ssvc_2.py`: wire may import only core models and
   states (ARCH-22-001), so `vultron.wire.csaf` never imports `scoring`.
-- **Explicit fields first.** Compare each CSAF value with the Offer and report
-  field for the same thing before applying it, and record the outcome
-  (CSAF-02-003, CSAF-04-004).
 
 ## Generating the models
 
@@ -167,6 +197,9 @@ tasks reuse them rather than add a second path.
 
 ## Signals
 
+- **Signals are the receiver's, at receipt.** `StoreReportClaimsRecordsNode`
+  computes both with `claims_signals` against the act's instant and the
+  receiving actor's `name`, only for a `csaf_vulnerability_report` document.
 - **Case split.** Recorded when the vulnerabilities disagree (CSAF-04-006). The
   Case Owner acts through the existing split trigger, never the receiver.
 - **Candidate parties.** Vendor names come from `product_tree` branches of

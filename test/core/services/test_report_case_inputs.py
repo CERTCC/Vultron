@@ -222,3 +222,13 @@ def test_candidate_parties_are_the_vendors_other_than_the_receiver(
         claims, reference_time=_NOW, receiver_name=receiver
     )
     assert (parties.vendors if parties else None) == expected
+
+
+def test_no_future_date_is_applied_when_the_document_sets_x() -> None:
+    claims = _claims(
+        VulnerabilityClaims(disclosure_date=_LATER, exploitation="P")
+    )
+    inputs = case_inputs_from_claims(claims, reference_time=_NOW)
+    assert inputs.proposed_embargo_end is None
+    assert not inputs.embargo_eligible
+    assert "vulnerabilities[0].disclosure_date" not in inputs.outcomes

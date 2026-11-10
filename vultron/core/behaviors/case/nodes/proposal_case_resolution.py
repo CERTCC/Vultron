@@ -29,6 +29,9 @@ from py_trees.common import Status
 from py_trees.ports import PortInformation
 from pydantic import ValidationError
 
+from vultron.core.behaviors.case.nodes.proposal_case_inputs import (
+    REPORT_CASE_INPUTS_KEY,
+)
 from vultron.core.behaviors.case.nodes.proposal_case_lookup import (
     proposal_case_ids,
 )
@@ -43,8 +46,17 @@ from vultron.core.models._helpers import (
     project_wire_snapshot_to_core,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import PxaDimension
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.report_case_inputs import ReportCaseInputs
+from vultron.core.states.cs.dimensions import (
+    AttackObservation,
+    ExploitPublication,
+    PublicAwareness,
+)
+from vultron.core.states.cs.states import CS_pxa, PxaState
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
@@ -203,24 +215,30 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         self._report_id = report_id
         self._owner_id = owner_id
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        REPORT_CASE_INPUTS_KEY: PortInformation(
+            data_type=ReportCaseInputs, required=False
+        ),
+    }
+
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "case_id": PortInformation(data_type=str, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
+        return {
+            "case_id": "/case_id",
+            REPORT_CASE_INPUTS_KEY: f"/{REPORT_CASE_INPUTS_KEY}",
+        }
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None and self.actor_id is not None
 
-        case = VulnerabilityCase(
-            id_=new_object_id(),
-            published=now_utc(),
-            attributed_to=self._owner_id,
-        )
+        case = self._new_case()
         if self._report_id is not None:
             case.vulnerability_reports.append(self._report_id)
 
@@ -239,6 +257,50 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
             self._owner_id,
         )
         return Status.SUCCESS
+
+    def _new_case(self) -> VulnerabilityCase:
+        """The new case, starting from its report's inputs.
+
+        ``report_case_inputs`` (``ResolveReportCaseInputsNode``) gives the
+        report's name and summary, else its CSAF document's (CSAF-03-006,
+        CSAF-03-007), and the P/X/A the document states (CSAF-03-003 to
+        CSAF-03-005).  They are the case's first status, not a transition:
+        no status precedes it.  An exploit made public makes the public
+        aware (the pX to PX invariant), so X starts with P.
+        """
+        case_id = new_object_id()
+        inputs = self._try_get_input(REPORT_CASE_INPUTS_KEY)
+        if not isinstance(inputs, ReportCaseInputs):
+            return VulnerabilityCase(
+                id_=case_id, published=now_utc(), attributed_to=self._owner_id
+            )
+        pxa = CS_pxa(
+            PxaState(
+                PublicAwareness.PUBLIC_AWARE
+                if inputs.public or inputs.exploit_public
+                else PublicAwareness.PUBLIC_UNAWARE,
+                ExploitPublication.EXPLOIT_PUBLIC
+                if inputs.exploit_public
+                else ExploitPublication.NO_PUBLIC_EXPLOIT,
+                AttackObservation.ATTACKS_OBSERVED
+                if inputs.attacks_observed
+                else AttackObservation.NO_ATTACKS_OBSERVED,
+            )
+        )
+        return VulnerabilityCase(
+            id_=case_id,
+            published=now_utc(),
+            attributed_to=self._owner_id,
+            name=inputs.name,
+            summary=inputs.summary,
+            case_statuses=[
+                CaseStatus(
+                    context=case_id,
+                    attributed_to=self._owner_id,
+                    pxa=PxaDimension(state=pxa),
+                )
+            ],
+        )
 
 
 class StoreProposalReportNode(DataLayerAction):

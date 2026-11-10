@@ -17,8 +17,9 @@
 
 One mapping serves both sides of a report:
 
-- the receiver of an initial ``Offer(VulnerabilityReport)`` fills the inputs of
-  the case it proposes, measured against its time of receipt (CSAF-02-001);
+- the CASE_MANAGER fills the inputs of a case it creates from a proposal that
+  carries the initial ``Offer(VulnerabilityReport)``, measured against its
+  receipt of that proposal (CSAF-02-001, CSAF-03-001);
 - the Reporter's submit-report trigger fills the report name, summary and
   proposed embargo end its request leaves unstated, measured against its own
   "now" (CSAF-04-010).
@@ -208,7 +209,8 @@ def case_inputs_from_claims(
     - the name is ``document.title`` and the summary the document-level
       ``summary`` note, else the ``description`` note (CSAF-03-007);
     - the proposed embargo end is the earliest ``disclosure_date`` later than
-      *reference_time* (CSAF-03-001, CSAF-03-002);
+      *reference_time* (CSAF-03-001, CSAF-03-002), unless the document also
+      sets P, X or A;
     - a ``disclosure_date`` no later than *reference_time* sets P
       (CSAF-03-003);
     - SSVC Exploitation ``PoC`` sets X and ``Active`` sets A, and ``None``
@@ -217,13 +219,16 @@ def case_inputs_from_claims(
 
     A value *stated* gives beats the document's, which is then recorded
     ``OVERRIDDEN`` (CSAF-02-003); a past ``disclosure_date`` still sets P,
-    because no Vultron field states P.
+    because no Vultron field states P.  When the document sets P, X or A,
+    the case starts with no embargo (EP-04-020), so no future date is taken
+    as its end, and those dates stay display only.
 
     Args:
         claims: What the attached document claims.
         reference_time: The instant the dates are measured against: the
-            receiver's time of receipt, never the Offer's ``published``
-            (CLP-15-003), or the submit-report trigger's "now".
+            CASE_MANAGER's receipt of the proposal that carries the Offer,
+            never the Offer's ``published`` (CLP-15-003), or the
+            submit-report trigger's "now".
         stated: What the Offer and its report state; ``None`` when they
             state none of these values.
 
@@ -251,7 +256,13 @@ def case_inputs_from_claims(
         for s in states
         if s.future_disclosure_date is not None
     ]
-    earliest = min(future_dates) if future_dates else None
+    eligible = not any(
+        s.public or s.exploit_public or s.attacks_observed for s in states
+    )
+    # A case that starts with P, X or A takes no embargo (EP-04-020), so no
+    # future date becomes its proposed end then: the record must not call a
+    # date applied that the case never took.
+    earliest = min(future_dates) if future_dates and eligible else None
     for index, (vul, state) in enumerate(
         zip(claims.vulnerabilities, states, strict=True)
     ):
@@ -261,7 +272,9 @@ def case_inputs_from_claims(
         elif state.future_disclosure_date is not None:
             if stated.proposed_embargo_end is not None:
                 outcomes[f"{prefix}disclosure_date"] = ClaimOutcome.OVERRIDDEN
-            elif state.future_disclosure_date == earliest:
+            elif earliest is not None and (
+                state.future_disclosure_date == earliest
+            ):
                 outcomes[f"{prefix}disclosure_date"] = ClaimOutcome.APPLIED
         if _exploitation(vul) in _STATES_SOMETHING:
             outcomes[f"{prefix}exploitation"] = ClaimOutcome.APPLIED

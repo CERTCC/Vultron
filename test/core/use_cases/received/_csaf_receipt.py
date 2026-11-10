@@ -26,13 +26,17 @@ from pydantic import JsonValue
 from test.support.received import received_event
 from test.wire.csaf._documents import section, vulnerability_report_document
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge.act_instant import act_instant_in_tree_run
+from vultron.core.behaviors.case.case_actor_identity import case_actor_identity
 from vultron.core.models.actor import VultronService
 from vultron.core.models.attached_document import AttachedDocument
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.report import SubmitReportReceivedEvent
 from vultron.core.models.report import (
     ReportAttachment,
@@ -40,8 +44,13 @@ from vultron.core.models.report import (
 )
 from vultron.core.models.report_claims import ReportClaimsRecord
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.use_cases.received.case_proposal import (
+    CreateCaseProposalReceivedUseCase,
+)
 from vultron.core.use_cases.received.report import SubmitReportReceivedUseCase
 from vultron.wire.as2.factories.report import rm_submit_report_activity
+from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 VENDOR = "https://vendor.example.org/actors/vendor"
 FINDER = "https://finder.example.org/actors/finder"
@@ -69,15 +78,30 @@ class Receipt:
         *attachments: ReportAttachment,
         report_id: str = REPORT_ID,
         receiver_name: str | None = None,
+        report_name: str | None = "Widget overflow",
+        report_summary: str | None = None,
+        proposed_embargo_end: datetime | None = None,
     ) -> None:
         self.report_id = report_id
         report = VulnerabilityReport(
             id_=report_id,
-            name="Widget overflow",
+            name=report_name,
+            summary=report_summary,
             content="The widget overflows its buffer.",
             attachment=list(attachments) or None,
         )
-        offer = rm_submit_report_activity(report, to=VENDOR, actor=FINDER)
+        proposed = (
+            as_EmbargoEvent(
+                id_=f"{report_id}/proposed-embargo",
+                end_time=proposed_embargo_end,
+                context=report_id,
+            )
+            if proposed_embargo_end is not None
+            else None
+        )
+        offer = rm_submit_report_activity(
+            report, to=VENDOR, actor=FINDER, proposed_embargo=proposed
+        )
         event = received_event(offer, receiving_actor_id=VENDOR)
         assert isinstance(event, SubmitReportReceivedEvent)
         self.event = event
@@ -120,8 +144,61 @@ class Receipt:
         assert all(body is not None for body in bodies)
         return [body for body in bodies if body is not None]
 
+    def proposal_body(self) -> dict[str, Any]:
+        """The ``Create(CaseProposal)`` this receipt sent, as sealed."""
+        [body] = [
+            b
+            for b in self.sent_bodies()
+            if b["type"] == "Create"
+            and isinstance(b.get("object"), dict)
+            and b["object"].get("type") == "CaseProposal"
+        ]
+        return body
+
 
 def schema_invalid() -> dict[str, JsonValue]:
     data = vulnerability_report_document()
     section(data, "document", "tracking")["status"] = "unknown-status"
     return data
+
+
+class CaseManager:
+    """A separate CASE_MANAGER, in its own store, that a proposal reaches."""
+
+    def __init__(self) -> None:
+        case_actor_id = case_actor_identity()
+        assert case_actor_id is not None, "the CaseActor URL is configured"
+        self.actor_id = case_actor_id
+        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        self.dl.save(VultronService(id_=case_actor_id))
+
+    def receive(
+        self, body: dict[str, Any], at: datetime = RECEIVED_AT
+    ) -> HandlerResult:
+        """Deliver the sealed *body* and handle it, inside an act at *at*."""
+        event = received_event(
+            parse_activity(body), at=self.dl, receiving_actor_id=self.actor_id
+        )
+        with act_instant_in_tree_run(at):
+            return CreateCaseProposalReceivedUseCase(
+                self.dl,
+                event,
+                sync_port=SyncActivityAdapter(self.dl),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
+
+    def case(self) -> VulnerabilityCase:
+        [case] = [
+            c
+            for c in self.dl.list_objects("VulnerabilityCase")
+            if isinstance(c, VulnerabilityCase)
+        ]
+        return case
+
+    def records(self) -> list[ReportClaimsRecord]:
+        return [
+            r
+            for r in self.dl.list_objects("ReportClaimsRecord")
+            if isinstance(r, ReportClaimsRecord)
+        ]
