@@ -138,7 +138,7 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]):
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_CASE_ACTOR_ID, dispatcher=make_dispatcher()
         ),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 

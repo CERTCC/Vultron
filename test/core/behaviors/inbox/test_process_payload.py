@@ -26,7 +26,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from test.support.act_clock import CountingClock
+from test.support.act_clock import tree_lock_held
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import stamped
 from vultron.adapters.driven.clock import SystemClock
@@ -135,6 +135,8 @@ class _StubQueuePort:
         self._queue_expired = queue_expired
         self.queued: list[tuple[str, str, str | None]] = []
         self.replayed: list[str] = []
+        #: The act instant each call was handed (ADR-0176).
+        self.instants: list[datetime] = []
 
     def is_case_known(self, case_id: str) -> bool:
         return self._case_known
@@ -145,14 +147,19 @@ class _StubQueuePort:
         case_id: str,
         case_actor_id: str | None = None,
         activity: object | None = None,
+        *,
+        at: datetime,
     ) -> None:
         self.queued.append((activity_id, case_id, case_actor_id))
+        self.instants.append(at)
 
-    def check_and_expire(self, case_id: str) -> bool:
+    def check_and_expire(self, case_id: str, *, at: datetime) -> bool:
+        self.instants.append(at)
         return self._queue_expired
 
-    def replay(self, case_id: str) -> None:
+    def replay(self, case_id: str, *, at: datetime) -> None:
         self.replayed.append(case_id)
+        self.instants.append(at)
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +290,9 @@ class TestProcessPayloadRejectsInvalidInput:
         ingress = _StubIngressAdapter(activity=None, fail_parse=True)
         dispatch = _StubDispatchAdapter()
 
-        outcome = process_payload({}, ingress, dispatch, clock=SystemClock())
+        outcome = process_payload(
+            {}, ingress, dispatch, arrived_at=SystemClock().now()
+        )
 
         assert isinstance(outcome, InboxOutcome)
         assert outcome.status == "rejected"
@@ -296,7 +305,9 @@ class TestProcessPayloadRejectsInvalidInput:
         ingress = _StubIngressAdapter(activity=report_activity)
         dispatch = _StubDispatchAdapter(should_fail=True)
 
-        outcome = process_payload({}, ingress, dispatch, clock=SystemClock())
+        outcome = process_payload(
+            {}, ingress, dispatch, arrived_at=SystemClock().now()
+        )
 
         assert isinstance(outcome, InboxOutcome)
         assert outcome.status == "rejected"
@@ -314,7 +325,9 @@ class TestProcessPayloadHappyPath:
         ingress = _StubIngressAdapter(activity=report_activity)
         dispatch = _StubDispatchAdapter()
 
-        outcome = process_payload({}, ingress, dispatch, clock=SystemClock())
+        outcome = process_payload(
+            {}, ingress, dispatch, arrived_at=SystemClock().now()
+        )
 
         assert outcome.status == "processed"
         assert outcome.failure_reason is None
@@ -327,7 +340,7 @@ class TestProcessPayloadHappyPath:
             {},
             _StubIngressAdapter(activity=report_activity),
             _StubDispatchAdapter(result=HandlerResult.refused("no")),
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
 
         assert outcome.activity_id == report_activity.id_
@@ -336,7 +349,9 @@ class TestProcessPayloadHappyPath:
         ingress = _StubIngressAdapter(activity=report_activity)
         dispatch = _StubDispatchAdapter()
 
-        outcome = process_payload({}, ingress, dispatch, clock=SystemClock())
+        outcome = process_payload(
+            {}, ingress, dispatch, arrived_at=SystemClock().now()
+        )
 
         assert outcome.status == "processed"
         # Reports are not case-scoped
@@ -356,7 +371,7 @@ class TestProcessPayloadDeferral:
         queue = _StubQueuePort(case_known=False)
 
         outcome = process_payload(
-            {}, ingress, dispatch, queue, clock=SystemClock()
+            {}, ingress, dispatch, queue, arrived_at=SystemClock().now()
         )
 
         assert outcome.status == "deferred"
@@ -364,13 +379,30 @@ class TestProcessPayloadDeferral:
         assert len(queue.queued) == 1
         assert len(dispatch.dispatched) == 0
 
+    @pytest.mark.spec("CBT-03-007", "CS-13-010")
+    def test_expiry_and_queue_take_the_arrival_stamp(
+        self, note_activity_unknown_case
+    ):
+        """The expiry check and the hold both get the delivery's stamp."""
+        queue = _StubQueuePort(case_known=False)
+
+        process_payload(
+            {},
+            _StubIngressAdapter(activity=note_activity_unknown_case),
+            _StubDispatchAdapter(),
+            queue,
+            arrived_at=_FIRST,
+        )
+
+        assert queue.instants == [_FIRST, _FIRST]
+
     def test_deferred_carries_context_id(self, note_activity_unknown_case):
         ingress = _StubIngressAdapter(activity=note_activity_unknown_case)
         dispatch = _StubDispatchAdapter()
         queue = _StubQueuePort(case_known=False)
 
         outcome = process_payload(
-            {}, ingress, dispatch, queue, clock=SystemClock()
+            {}, ingress, dispatch, queue, arrived_at=SystemClock().now()
         )
 
         assert outcome.status == "deferred"
@@ -383,7 +415,7 @@ class TestProcessPayloadDeferral:
         queue = _StubQueuePort(case_known=False, queue_expired=True)
 
         outcome = process_payload(
-            {}, ingress, dispatch, queue, clock=SystemClock()
+            {}, ingress, dispatch, queue, arrived_at=SystemClock().now()
         )
 
         assert outcome.status == "rejected"
@@ -404,11 +436,28 @@ class TestProcessPayloadBootstrap:
         queue = _StubQueuePort(case_known=True)
 
         outcome = process_payload(
-            {}, ingress, dispatch, queue, clock=SystemClock()
+            {}, ingress, dispatch, queue, arrived_at=SystemClock().now()
         )
 
         assert outcome.status == "processed"
         assert CASE_ID in queue.replayed
+
+    @pytest.mark.spec("CBT-03-007")
+    def test_bootstrap_replay_is_judged_at_its_arrival_stamp(
+        self, case_activity
+    ):
+        """The release judges the queue at the bootstrap's own stamp."""
+        queue = _StubQueuePort(case_known=True)
+
+        process_payload(
+            {},
+            _StubIngressAdapter(activity=case_activity),
+            _StubDispatchAdapter(),
+            queue,
+            arrived_at=_FIRST,
+        )
+
+        assert queue.instants == [_FIRST]
 
     def test_bootstrap_skips_defer_check(self, case_activity):
         """Bootstrap activity is never deferred even when case unknown."""
@@ -418,7 +467,7 @@ class TestProcessPayloadBootstrap:
         queue = _StubQueuePort(case_known=False)
 
         outcome = process_payload(
-            {}, ingress, dispatch, queue, clock=SystemClock()
+            {}, ingress, dispatch, queue, arrived_at=SystemClock().now()
         )
 
         assert outcome.status == "processed"
@@ -437,7 +486,11 @@ class TestProcessPayloadNoQueuePort:
         dispatch = _StubDispatchAdapter()
 
         outcome = process_payload(
-            {}, ingress, dispatch, queue_port=None, clock=SystemClock()
+            {},
+            ingress,
+            dispatch,
+            queue_port=None,
+            arrived_at=SystemClock().now(),
         )
 
         assert outcome.status == "processed"
@@ -462,7 +515,7 @@ class TestProcessPayloadThreadSafety:
                 ingress = _StubIngressAdapter(activity=report_activity)
                 dispatch = _StubDispatchAdapter()
                 outcome = process_payload(
-                    {}, ingress, dispatch, clock=SystemClock()
+                    {}, ingress, dispatch, arrived_at=SystemClock().now()
                 )
                 results.append(outcome)
             except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
@@ -507,7 +560,9 @@ class TestProcessPayloadLogLevels:
         dispatch = _StubDispatchAdapter()
 
         with caplog.at_level(logging.DEBUG, logger=self._LOGGER):
-            process_payload({}, ingress, dispatch, clock=SystemClock())
+            process_payload(
+                {}, ingress, dispatch, arrived_at=SystemClock().now()
+            )
 
         records = self._outcome_records(caplog)
         assert records, "Expected the process_payload outcome log entry"
@@ -520,7 +575,9 @@ class TestProcessPayloadLogLevels:
         dispatch = _StubDispatchAdapter()
 
         with caplog.at_level(logging.INFO, logger=self._LOGGER):
-            process_payload({}, ingress, dispatch, clock=SystemClock())
+            process_payload(
+                {}, ingress, dispatch, arrived_at=SystemClock().now()
+            )
 
         assert not self._outcome_records(caplog)
 
@@ -561,7 +618,9 @@ class TestProcessPayloadHandlerDisposition:
         ingress = _StubIngressAdapter(activity=report_activity)
         dispatch = _StubDispatchAdapter(result=result)
 
-        outcome = process_payload({}, ingress, dispatch, clock=SystemClock())
+        outcome = process_payload(
+            {}, ingress, dispatch, arrived_at=SystemClock().now()
+        )
 
         assert outcome.status is status
 
@@ -572,7 +631,9 @@ class TestProcessPayloadHandlerDisposition:
             result=HandlerResult.refused("sender is not a participant")
         )
 
-        outcome = process_payload({}, ingress, dispatch, clock=SystemClock())
+        outcome = process_payload(
+            {}, ingress, dispatch, arrived_at=SystemClock().now()
+        )
 
         assert outcome.failure_reason == "sender is not a participant"
 
@@ -583,7 +644,9 @@ class TestProcessPayloadHandlerDisposition:
             result=HandlerResult.deferred("awaiting entry 3")
         )
 
-        outcome = process_payload({}, ingress, dispatch, clock=SystemClock())
+        outcome = process_payload(
+            {}, ingress, dispatch, arrived_at=SystemClock().now()
+        )
 
         assert outcome.failure_reason == "awaiting entry 3"
 
@@ -593,7 +656,9 @@ class TestProcessPayloadHandlerDisposition:
         ingress = _StubIngressAdapter(activity=report_activity)
         dispatch = _StubDispatchAdapter(result=HandlerResult.deferred())
 
-        outcome = process_payload({}, ingress, dispatch, clock=SystemClock())
+        outcome = process_payload(
+            {}, ingress, dispatch, arrived_at=SystemClock().now()
+        )
 
         assert outcome.status is InboxOutcomeStatus.DEFERRED
         assert outcome.failure_reason
@@ -604,7 +669,10 @@ class TestProcessPayloadHandlerDisposition:
         ingress = _StubIngressAdapter(activity=report_activity)
 
         outcome = process_payload(
-            {}, ingress, _NoVerdictDispatchAdapter(), clock=SystemClock()
+            {},
+            ingress,
+            _NoVerdictDispatchAdapter(),
+            arrived_at=SystemClock().now(),
         )
 
         assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -629,7 +697,7 @@ class TestProcessPayloadHandlerDisposition:
             ingress,
             _StubDispatchAdapter(result=result),
             queue,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
 
         assert (CASE_ID in queue.replayed) is replays
@@ -638,7 +706,7 @@ class TestProcessPayloadHandlerDisposition:
 class _FailingReplayQueuePort(_StubQueuePort):
     """Queue port whose ``replay()`` raises, as a DataLayer fault would."""
 
-    def replay(self, case_id: str) -> None:
+    def replay(self, case_id: str, *, at: datetime) -> None:
         raise RuntimeError("replay storage fault (stub)")
 
 
@@ -655,7 +723,7 @@ class TestDispatchNodeFaults:
                 ingress,
                 _StubDispatchAdapter(result=HandlerResult.applied()),
                 _FailingReplayQueuePort(case_known=True),
-                clock=SystemClock(),
+                arrived_at=SystemClock().now(),
             )
 
         assert outcome.status is InboxOutcomeStatus.PROCESSED
@@ -677,7 +745,7 @@ class TestDispatchNodeFaults:
                 {},
                 ingress,
                 _StubDispatchAdapter(should_fail=True),
-                clock=SystemClock(),
+                arrived_at=SystemClock().now(),
             )
 
         assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -706,7 +774,7 @@ class TestARaisedDispatchIsAnsweredWithAFault:
             {},
             _StubIngressAdapter(activity=report_activity),
             dispatch,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
 
         assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -742,7 +810,7 @@ class TestARaisedDispatchIsAnsweredWithAFault:
             {},
             _StubIngressAdapter(activity=report_activity),
             dispatch,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
 
         assert dispatch.faults == []
@@ -779,7 +847,7 @@ class TestARaisedDispatchIsAnsweredWithAFault:
             {},
             _StubIngressAdapter(activity=fault),
             dispatch,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
 
         assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -794,7 +862,7 @@ class TestARaisedDispatchIsAnsweredWithAFault:
             {},
             _StubIngressAdapter(activity=None, fail_parse=True),
             dispatch,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
 
         assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -813,7 +881,7 @@ class TestARaisedDispatchIsAnsweredWithAFault:
             {},
             _StubIngressAdapter(activity=anonymous),
             dispatch,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
 
         assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -832,7 +900,7 @@ class TestARaisedDispatchIsAnsweredWithAFault:
                 {},
                 _StubIngressAdapter(activity=report_activity),
                 dispatch,
-                clock=SystemClock(),
+                arrived_at=SystemClock().now(),
             )
 
         assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -881,7 +949,7 @@ class TestInboundRsvpWindows:
             dispatch,
             _StubQueuePort(case_known=True),
             actor_config=actor_config,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
         assert outcome.status == "processed", outcome.failure_reason
         deadline = cast(Any, dispatch.dispatched[0]).rsvp_deadline
@@ -928,12 +996,14 @@ class _InstantRecordingDispatch(_StubDispatchAdapter):
     def __init__(self, replay: Any = None) -> None:
         super().__init__()
         self.seen: list[datetime] = []
+        self.locked: list[bool] = []
         self._replay = replay
 
     def dispatch(self, event: VultronEvent) -> HandlerResult:
         from vultron.core.behaviors.bridge.act_instant import read_act_instant
 
         self.seen.append(read_act_instant())
+        self.locked.append(tree_lock_held())
         if self._replay is not None:
             replay, self._replay = self._replay, None
             replay()
@@ -946,32 +1016,29 @@ _REPLAY = _FIRST + timedelta(minutes=5)
 
 
 class TestOneDeliveryIsOneAct:
-    @pytest.mark.spec("CS-13-002")
-    def test_reads_the_clock_once_after_the_lock_and_carries_it(
-        self, report_activity
-    ):
-        clock = CountingClock(_FIRST)
+    @pytest.mark.spec("CS-13-010")
+    def test_runs_at_its_arrival_stamp_under_the_lock(self, report_activity):
+        """The delivery's instant is the stamp it arrived with; the act takes
+        the tree lock and reads no clock of its own."""
         dispatch = _InstantRecordingDispatch()
 
         process_payload(
             {},
             _StubIngressAdapter(activity=report_activity),
             dispatch,
-            clock=clock,
+            arrived_at=_FIRST,
         )
 
-        assert clock.reads == 1
-        assert clock.locked_at_read == [True]
         assert dispatch.seen == [_FIRST]
+        assert dispatch.locked == [True]
 
-    @pytest.mark.spec("CS-13-002")
+    @pytest.mark.spec("CS-13-010")
     @pytest.mark.spec("CBT-03-003")
-    def test_a_replay_inside_a_delivery_is_judged_at_its_own_instant(
+    def test_a_replay_inside_a_delivery_is_judged_at_its_own_stamp(
         self, report_activity
     ):
-        """A held activity replayed inside the act that released it reads
-        its own instant, and the outer act's comes back after it."""
-        clock = CountingClock(_FIRST, _REPLAY)
+        """A held activity replayed inside the act that released it runs at
+        its own arrival stamp, and the outer act's comes back after it."""
         inner = _InstantRecordingDispatch()
 
         def _replay() -> None:
@@ -979,7 +1046,7 @@ class TestOneDeliveryIsOneAct:
                 {},
                 _StubIngressAdapter(activity=report_activity),
                 inner,
-                clock=clock,
+                arrived_at=_REPLAY,
             )
 
         outer = _InstantRecordingDispatch(replay=_replay)
@@ -987,9 +1054,8 @@ class TestOneDeliveryIsOneAct:
             {},
             _StubIngressAdapter(activity=report_activity),
             outer,
-            clock=clock,
+            arrived_at=_FIRST,
         )
 
-        assert clock.reads == 2
         assert inner.seen == [_REPLAY]
         assert outer.seen == [_FIRST, _FIRST]

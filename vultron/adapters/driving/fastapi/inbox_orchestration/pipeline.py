@@ -23,9 +23,9 @@ same way (IO-03-001, IO-03-003, IE-06-004).
 import asyncio
 import logging
 from collections.abc import Callable, Sequence
+from datetime import datetime
 from typing import Any, cast
 
-from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.http_object_fetch import ObjectFetcher
 from vultron.adapters.driving.fastapi import inbox_port_factories
 from vultron.adapters.driving.fastapi.inbox_dereference import (
@@ -120,9 +120,6 @@ class _InboxRun:
         # (EP-07-001, EP-07-002); None applies the protocol defaults.
         self.actor_config = inbox_port_factories._resolve_actor_config()
         self.max_attempts = get_config().max_inbox_retry_attempts
-        # The act clock: each delivery, and each replay, reads it once after
-        # taking the tree lock (ADR-0176).
-        self.clock = SystemClock()
 
     def drain_queue(self) -> None:
         """Replay every item queued in the actor's inbox (IE-06-004)."""
@@ -136,7 +133,6 @@ class _InboxRun:
             self.max_attempts,
             self.dereference,
             self.outcome,
-            clock=self.clock,
         )
 
 
@@ -222,13 +218,16 @@ async def run_inbox_pipeline(
     emitter: ActivityEmitter | None,
     fetcher: ObjectFetcher | None = None,
     *,
+    arrived_at: datetime,
     verified_proofs: Sequence[VerifiedProof] = (),
 ) -> None:
     """Adapter-layer background task: construct adapters and run pipeline.
 
     Calls :func:`~vultron.core.behaviors.inbox.process_payload` for the
-    immediate payload, then replays every activity queued in the inbox
-    (e.g., after bootstrap dispatch) with bounded retry and dead letter
+    immediate payload, at the arrival stamp the inbox route read for it
+    before the task queued for any lock (ADR-0176), then replays every
+    activity queued in the inbox (e.g., after bootstrap dispatch) with
+    bounded retry and dead letter
     (:func:`~vultron.adapters.driving.fastapi.inbox_queue_drain.drain_inbox_queue`,
     IE-06-004), and finally drains the outbox.  Last, it makes every fetch
     an activity waits on and replays the activities each one settles
@@ -253,6 +252,8 @@ async def run_inbox_pipeline(
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
         fetcher: The object fetcher; ``None`` uses the HTTP one.
+        arrived_at: The delivery's arrival stamp, read once from the act
+            clock when the inbox received it (``stamp_arrival``).
         verified_proofs: The proofs the route's verification stage checked
             on *payload*; its received record keeps them (SIG-03-004).
     """
@@ -264,7 +265,7 @@ async def run_inbox_pipeline(
         Runs on a worker thread (see :func:`_run_serialised`), so it must not
         touch asyncio.
         """
-        _process_one(run, payload, verified_proofs)
+        _process_one(run, payload, arrived_at, verified_proofs)
 
         # Replay what this delivery, or an earlier one, queued: activities
         # pushed back by the post-bootstrap replay, and held ledger
@@ -278,9 +279,10 @@ async def run_inbox_pipeline(
 def _process_one(
     run: _InboxRun,
     payload: dict[str, Any],
+    arrived_at: datetime,
     verified_proofs: Sequence[VerifiedProof] = (),
 ) -> None:
-    """Run *payload* through :func:`process_payload` once, and log it.
+    """Run *payload*, stamped *arrived_at*, through :func:`process_payload`.
 
     *verified_proofs* are the ones the inbox verified on *payload*: the
     parsed activity carries them, and intake records them in the received
@@ -295,7 +297,7 @@ def _process_one(
         actor_config=run.actor_config,
         dereference_port=run.dereference,
         received_outcome_port=run.outcome,
-        clock=run.clock,
+        arrived_at=arrived_at,
     )
     logger.debug(
         "inbox pipeline: status=%s context_id=%s",
@@ -312,6 +314,7 @@ async def run_delivery_without_replay(
     dispatcher: ActivityDispatcher | None,
     emitter: ActivityEmitter | None,
     *,
+    arrived_at: datetime,
     verified_proofs: Sequence[VerifiedProof] = (),
 ) -> None:
     """Run one delivery as :func:`run_inbox_pipeline` does, with no replay.
@@ -320,15 +323,17 @@ async def run_delivery_without_replay(
     the inbox queue drain nor the open fetches follow.  For the startup
     re-run of the records left in holding, which must all run before the
     queue replay (IE-06-014); the queue replay that follows them drains the
-    queue and makes the fetches.  *verified_proofs* are the ones the held
-    record carries, so its archive keeps them (SIG-03-004).
+    queue and makes the fetches.  *arrived_at* is the arrival stamp the
+    record carries, so the re-run judges the message when it arrived
+    (ADR-0176).  *verified_proofs* are the ones the held record carries, so
+    its archive keeps them (SIG-03-004).
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
     await _run_serialised(
         actor_dl,
         actor_id,
         emitter,
-        lambda: _process_one(run, payload, verified_proofs),
+        lambda: _process_one(run, payload, arrived_at, verified_proofs),
     )
 
 

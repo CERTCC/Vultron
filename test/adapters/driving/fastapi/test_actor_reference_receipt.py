@@ -110,7 +110,7 @@ def test_a_received_actor_reference_keeps_the_held_profile(case_actor_dl):
             actor_id=_CASE_ACTOR_ID,
             dispatcher=make_dispatcher(),
         ),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
     assert outcome.status is InboxOutcomeStatus.PROCESSED, (

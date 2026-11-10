@@ -55,6 +55,7 @@ from vultron.core.behaviors.inbox import (
     InboxOutcomeStatus,
     process_payload,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
@@ -103,7 +104,7 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=make_dispatcher()
         ),
         received_outcome_port=FastAPIReceivedOutcomePort(dl),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 
@@ -129,6 +130,7 @@ def test_a_resend_of_a_refused_message_is_refused_with_its_first_reason(
         sender_id=_SENDER_ID,
         reason=_STUB_REASON,
         received_body=parsed.received_evidence_json,
+        received_at=now_utc(),
     )
     stub = _record(dl, activity)
 

@@ -119,7 +119,7 @@ def _deliver(
             dl=dl, actor_id=actor_id, dispatcher=make_dispatcher()
         ),
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 

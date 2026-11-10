@@ -22,12 +22,15 @@ sender guard's addressee arms read that answer instead of asking again.
 """
 
 from collections.abc import Collection
+from datetime import datetime
 
 import py_trees
 import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BlackboardKeyProbe, BTTestScenario
+from test.support.act_clock import ACT_AT
+from vultron.core.behaviors.bridge.act_instant import act_instant_in_tree_run
 from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
 )
@@ -674,7 +677,7 @@ class _UnknownCaseQueue:
     def is_case_known(self, case_id: str) -> bool:
         return False
 
-    def check_and_expire(self, case_id: str) -> bool:
+    def check_and_expire(self, case_id: str, *, at: datetime) -> bool:
         return False
 
     def queue(
@@ -682,6 +685,8 @@ class _UnknownCaseQueue:
         activity_id: str,
         case_id: str,
         case_actor_id: str | None = None,
+        *,
+        at: datetime,
     ) -> None:
         self.queued.append((activity_id, case_id, case_actor_id))
 
@@ -698,7 +703,9 @@ def _defer_check(semantics: MessageSemantics) -> _UnknownCaseQueue:
 
     tree = py_trees.trees.BehaviourTree(root=DeferCheckNode(name="Defer"))
     tree.setup()
-    tree.tick()
+    # The check runs inside the delivery's act, at its arrival stamp.
+    with act_instant_in_tree_run(ACT_AT):
+        tree.tick()
     return queue
 
 

@@ -26,10 +26,14 @@ Two regressions are covered:
    ``context`` is the Accept(CaseProposal) URI (CP-05-003), not the case URI.
 """
 
+from datetime import datetime
+
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
+from vultron.core.behaviors.bridge.act_instant import act_instant_in_tree_run
 from vultron.core.behaviors.inbox.nodes.pipeline import DeferCheckNode
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import (
@@ -55,11 +59,11 @@ class _StubQueuePort:
     def is_case_known(self, case_id: str) -> bool:
         return self._case_known
 
-    def check_and_expire(self, case_id: str) -> bool:
+    def check_and_expire(self, case_id: str, *, at: datetime) -> bool:
         return False
 
     def queue(
-        self, activity_id: str, case_id: str, case_actor_id=None
+        self, activity_id: str, case_id: str, case_actor_id=None, *, at
     ) -> None:
         self.queued.append((activity_id, case_id, case_actor_id))
 
@@ -111,7 +115,9 @@ def _run_node(
     node = DeferCheckNode(name="TestDeferCheck")
     tree = py_trees.trees.BehaviourTree(root=node)
     tree.setup()
-    tree.tick()
+    # The node runs inside the delivery's act, at its arrival stamp.
+    with act_instant_in_tree_run(ACT_AT):
+        tree.tick()
     return node.status
 
 

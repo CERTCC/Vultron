@@ -26,6 +26,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_manager import (
     CASE_MANAGER_ID,
     make_case_with_case_manager,
@@ -178,7 +179,13 @@ def _run(
 ) -> None:
     asyncio.run(
         io.run_inbox_pipeline(
-            payload, dl, actor_id, dispatcher, None, fetcher=fetcher
+            payload,
+            dl,
+            actor_id,
+            dispatcher,
+            None,
+            fetcher=fetcher,
+            arrived_at=ACT_AT,
         )
     )
 
@@ -295,7 +302,7 @@ def test_the_activity_is_deferred_not_dropped_while_the_fetch_is_open():
         run.dispatch,
         run.queue,
         dereference_port=run.dereference,
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
     assert outcome.status.value == "deferred"
@@ -354,7 +361,7 @@ def test_two_activities_naming_one_object_wait_on_one_fetch():
             run.dispatch,
             run.queue,
             dereference_port=run.dereference,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
 
     (fetch,) = _fetches(dl)
@@ -584,7 +591,7 @@ def test_the_startup_replay_makes_a_fetch_an_earlier_run_left_open():
         run.dispatch,
         run.queue,
         dereference_port=run.dereference,
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
     fetcher = _FakeFetcher(
         {replaced.id_: ObjectFetchResult(_body(replaced), None, 1)}
@@ -851,7 +858,7 @@ def test_a_redelivery_of_a_waiting_activity_waits_once():
             run.dispatch,
             run.queue,
             dereference_port=run.dereference,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
         assert outcome.status.value == "deferred"
 

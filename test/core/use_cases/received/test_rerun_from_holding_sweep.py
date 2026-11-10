@@ -51,6 +51,7 @@ from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.received_activity_record import ReceivedStage
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -364,7 +365,10 @@ def test_a_replay_after_a_held_rerun_answers_a_lagging_position_once() -> None:
     record = held_received_record(manager_dl, event.activity_id)
     assert record is not None and record.stage is ReceivedStage.HANDLED
     assert hold_for_replay(
-        manager_dl, event.activity_id, sealed_body_of(record)
+        manager_dl,
+        event.activity_id,
+        sealed_body_of(record),
+        received_at=now_utc(),
     )
     assert release_from_holding(manager_dl, event.activity_id) is not None
     replay = run_use_case(manager_dl, event)

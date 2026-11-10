@@ -167,6 +167,8 @@ async def rerun_left_in_holding(
                 actor_id,
                 dispatcher,
                 emitter,
+                # At the time its record says it was received (ADR-0176).
+                arrived_at=record.received_at,
                 verified_proofs=record.verified_proofs,
             )
         except Exception:

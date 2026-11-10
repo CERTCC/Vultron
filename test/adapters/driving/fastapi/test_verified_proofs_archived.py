@@ -50,6 +50,7 @@ from vultron.adapters.driving.fastapi.verified_proofs import (
     payload_activity_id,
 )
 from vultron.adapters.inbox_staging import InlineObjectStaging
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
@@ -199,7 +200,7 @@ def test_a_deferred_delivery_keeps_its_proofs_through_its_replay():
     staging = InlineObjectStaging(dl)
     assert staging.rehydrate_parsed(activity) is not None
 
-    assert staging.hold_for_replay(activity.id_)
+    assert staging.hold_for_replay(activity.id_, received_at=now_utc())
 
     held = _record(dl, activity.id_)
     assert held is not None
@@ -213,7 +214,13 @@ def test_a_deferred_delivery_keeps_its_proofs_through_its_replay():
 
 @pytest.mark.spec("SIG-03-004")
 def test_a_new_hold_records_the_proofs_given(dl: SqliteDataLayer):
-    hold_for_replay(dl, _ACTIVITY, _BODY, verified_proofs=[_proof()])
+    hold_for_replay(
+        dl,
+        _ACTIVITY,
+        _BODY,
+        received_at=now_utc(),
+        verified_proofs=[_proof()],
+    )
 
     held = _record(dl, _ACTIVITY)
     assert held is not None
@@ -221,7 +228,13 @@ def test_a_new_hold_records_the_proofs_given(dl: SqliteDataLayer):
 
 
 def test_the_archive_keeps_the_proofs_the_record_holds(dl: SqliteDataLayer):
-    hold_for_replay(dl, _ACTIVITY, _BODY, verified_proofs=[_proof()])
+    hold_for_replay(
+        dl,
+        _ACTIVITY,
+        _BODY,
+        received_at=now_utc(),
+        verified_proofs=[_proof()],
+    )
     held = _record(dl, _ACTIVITY)
     assert held is not None
     dl.save(held.model_copy(update={"replay_owed": False}))
@@ -246,15 +259,27 @@ def test_sealing_other_proofs_on_an_activity_is_refused():
 
 @pytest.mark.spec("SIG-03-005")
 def test_a_receipt_stub_keeps_no_proofs(dl: SqliteDataLayer):
-    hold_for_replay(dl, _ACTIVITY, _BODY, verified_proofs=[_proof()])
+    hold_for_replay(
+        dl,
+        _ACTIVITY,
+        _BODY,
+        received_at=now_utc(),
+        verified_proofs=[_proof()],
+    )
     held = _record(dl, _ACTIVITY)
     assert held is not None
     dl.save(held.model_copy(update={"replay_owed": False}))
 
-    stub = write_receipt_stub(dl, _ACTIVITY, sender_id=OWNER, reason="no")
+    stub = write_receipt_stub(
+        dl, _ACTIVITY, sender_id=OWNER, reason="no", received_at=now_utc()
+    )
 
     assert stub.stage is ReceivedStage.REFUSED
     assert stub.verified_proofs == []
+    stored = _record(dl, _ACTIVITY)
+    assert stored is not None
+    assert stored.is_receipt_stub
+    assert stored.verified_proofs == []
 
 
 @pytest.mark.spec("SIG-03-005")
@@ -271,7 +296,13 @@ def test_a_stub_carrying_proofs_is_refused_at_construction():
 
 
 def test_an_unjudged_hold_keeps_the_proofs(dl: SqliteDataLayer):
-    hold_for_replay(dl, _ACTIVITY, _BODY, verified_proofs=[_proof()])
+    hold_for_replay(
+        dl,
+        _ACTIVITY,
+        _BODY,
+        received_at=now_utc(),
+        verified_proofs=[_proof()],
+    )
     held = _record(dl, _ACTIVITY)
     assert held is not None
     dl.save(held.model_copy(update={"replay_owed": False}))

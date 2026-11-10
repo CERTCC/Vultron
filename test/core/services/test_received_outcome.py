@@ -28,6 +28,7 @@ from collections.abc import Iterator
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
@@ -79,7 +80,9 @@ def test_the_stub_keeps_the_receipt_and_gives_up_the_message(dl):
     archived = held_received_record(dl, ACTIVITY_ID)
     assert archived is not None
 
-    stub = write_receipt_stub(dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON)
+    stub = write_receipt_stub(
+        dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON, received_at=now_utc()
+    )
 
     assert stub.stage is ReceivedStage.REFUSED
     assert stub.received_body is None
@@ -96,7 +99,9 @@ def test_the_stub_replaces_the_archive_under_the_same_key(dl):
     _archive(dl)
     key = ReceivedActivityRecord.build_id(ACTIVITY_ID)
 
-    write_receipt_stub(dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON)
+    write_receipt_stub(
+        dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON, received_at=now_utc()
+    )
 
     stored = dl.read(key)
     assert isinstance(stored, ReceivedActivityRecord)
@@ -119,10 +124,16 @@ def test_the_stub_replaces_the_archive_under_the_same_key(dl):
 @pytest.mark.spec("CLP-10-018")
 def test_a_second_refusal_leaves_the_first_reason_standing(dl):
     _archive(dl)
-    write_receipt_stub(dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON)
+    write_receipt_stub(
+        dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON, received_at=now_utc()
+    )
 
     again = write_receipt_stub(
-        dl, ACTIVITY_ID, sender_id=SENDER, reason="a later, different reason"
+        dl,
+        ACTIVITY_ID,
+        sender_id=SENDER,
+        reason="a later, different reason",
+        received_at=now_utc(),
     )
 
     assert again.refusal_reason == REASON
@@ -137,6 +148,7 @@ def test_a_refusal_before_intake_stubs_the_delivered_body(dl):
         sender_id=SENDER,
         reason=REASON,
         received_body=_body(),
+        received_at=now_utc(),
     )
 
     assert held_received_record(dl, ACTIVITY_ID) == stub
@@ -150,7 +162,13 @@ def test_a_refusal_before_intake_stubs_the_delivered_body(dl):
 def test_refusing_an_unheld_activity_with_no_body_raises(dl):
     """Nothing held and no sealed body: there is no digest to record."""
     with pytest.raises(VultronWiringError, match="no digest to record"):
-        write_receipt_stub(dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON)
+        write_receipt_stub(
+            dl,
+            ACTIVITY_ID,
+            sender_id=SENDER,
+            reason=REASON,
+            received_at=now_utc(),
+        )
 
 
 @pytest.mark.spec("CLP-10-073")
@@ -162,7 +180,7 @@ def test_a_refusal_never_reduces_an_archive(dl):
     before = held_received_record(dl, ACTIVITY_ID)
 
     returned = write_receipt_stub(
-        dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON
+        dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON, received_at=now_utc()
     )
 
     assert returned == before
@@ -188,7 +206,7 @@ def test_an_applied_message_is_archived_with_its_body(dl):
 def test_an_applied_message_still_owed_a_replay_stays_held(dl):
     """A buffered Announce is not archived early (SYNC-14-001, ADR-0154)."""
     _archive(dl)
-    hold_for_replay(dl, ACTIVITY_ID, _body())
+    hold_for_replay(dl, ACTIVITY_ID, _body(), received_at=now_utc())
 
     archive_applied(dl, ACTIVITY_ID)
 
@@ -212,11 +230,17 @@ def test_a_body_still_owed_to_a_replay_is_not_given_up(dl):
     Not a fault: the held message reaches its own outcome when the replay
     runs, so the call returns the record unchanged and raises nothing.
     """
-    hold_for_replay(dl, ACTIVITY_ID, _body(), awaiting_case_id=CASE_ID)
+    hold_for_replay(
+        dl,
+        ACTIVITY_ID,
+        _body(),
+        awaiting_case_id=CASE_ID,
+        received_at=now_utc(),
+    )
     before = held_received_record(dl, ACTIVITY_ID)
 
     returned = write_receipt_stub(
-        dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON
+        dl, ACTIVITY_ID, sender_id=SENDER, reason=REASON, received_at=now_utc()
     )
 
     held = held_received_record(dl, ACTIVITY_ID)

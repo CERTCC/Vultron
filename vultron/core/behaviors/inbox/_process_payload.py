@@ -26,6 +26,7 @@ Per specs/inbox-orchestration.yaml IO-02-001 through IO-02-003.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 import py_trees
@@ -40,7 +41,7 @@ from vultron.core.behaviors.blackboard_scope import (
 )
 from vultron.core.behaviors.bridge.act_instant import (
     act_instant_in_tree_run,
-    open_act,
+    open_received_act,
 )
 from vultron.core.behaviors.inbox.inbox_tree import create_inbox_bt
 from vultron.core.behaviors.inbox.models import (
@@ -66,7 +67,6 @@ from vultron.core.behaviors.inbox.nodes import (
     KEY_QUEUE,
     KEY_UNHANDLED,
 )
-from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.object_dereference import ObjectDereferencePort
 
 logger = logging.getLogger(__name__)
@@ -208,15 +208,18 @@ def process_payload(
     dereference_port: ObjectDereferencePort | None = None,
     received_outcome_port: ReceivedOutcomePort | None = None,
     *,
-    clock: ClockPort,
+    arrived_at: datetime,
 ) -> InboxOutcome:
     """Process one inbox payload through the BT pipeline.
 
     The processing of one delivery is one act (ADR-0176): it takes the tree
-    lock, then reads *clock* once, and its tree runs carry that instant as
-    ``/at`` until it returns.  A held activity replayed later is processed
-    by a call of its own, so it is judged at its replay's instant, even when
-    that call is nested in the processing of the delivery that released it.
+    lock, and its tree runs carry the message's arrival stamp *arrived_at* as
+    ``/at`` until it returns.  No clock is read here: the inbox stamped the
+    message when it arrived, before it queued for the lock, so a backlog
+    does not move the instant the message is judged at.  A held activity
+    replayed later is processed by a call of its own, at the arrival stamp
+    its held record carries, even when that call is nested in the
+    processing of the delivery that released it.
 
     Always returns an :class:`InboxOutcome`; never raises for
     protocol-invalid payloads (IO-04-001).
@@ -245,8 +248,9 @@ def process_payload(
             body is given up for a receipt stub (CLP-10-018, ADR-0154); both
             production pipelines provide it, and without it a refused body is
             over-retained rather than lost.
-        clock: The act clock, supplied by the composition root.  Read once,
-            after the tree lock is taken; nothing below reads a clock.
+        arrived_at: The message's arrival stamp, read once from the act
+            clock when it arrived (``stamp_arrival``), or carried by the held
+            record a replay is rebuilt from.  The act's instant.
 
     Returns:
         :class:`InboxOutcome` whose ``status`` is an
@@ -256,9 +260,10 @@ def process_payload(
     # The shared BT global lock serialises BT blackboard access
     # across concurrent FastAPI BackgroundTasks.  The RLock supports
     # re-entrant acquisition so replay paths calling process_payload
-    # recursively do not deadlock.  open_act takes it before it reads the
-    # clock, so time spent queueing for the lock is not decision time.
-    with open_act(clock) as at, act_instant_in_tree_run(at):
+    # recursively do not deadlock.  The instant is the arrival stamp, read
+    # before the message queued for the lock, so time spent queueing is
+    # charged to the receiver, never to the sender (ADR-0176).
+    with open_received_act(arrived_at) as at, act_instant_in_tree_run(at):
         storage = py_trees.blackboard.Blackboard.storage
         saved = _save_inbox_keys(storage)
         # Every run starts with no handler verdict.  A nested run (the replay
