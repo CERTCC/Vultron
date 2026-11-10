@@ -638,7 +638,7 @@ function handleEntry(
       return handleCreateCase(entry, participants, shadow, x, laneIndex)
     case 'validate_report':
       return handleValidateReport(entry, participants, shadow, x, laneIndex)
-    // A note reaches the case as an `Add(Note, target=Case)` carrying the note
+    // A note reaches the case as an `Add(Note)[target=VulnerabilityCase]` carrying the note
     // (`add_note_to_case`). `create_note` is the pre-2026-10 verb (a received
     // `Create(Note)`, retired by #4707), kept for replaying older uploaded logs.
     case 'create_note':
@@ -982,7 +982,7 @@ function handleOfferActorToCase(
     'Actor Recommended',
     [
       `${recommender} recommends ${recommended} join the case`,
-      'Offer(CaseParticipantRole)[context=VulnerabilityCase] → CASE_MANAGER (ADR-0026)',
+      'Offer(Actor)[target=VulnerabilityCase] → CASE_MANAGER (ADR-0026)',
       'Awaiting Case Owner approval + invite',
     ],
     'Actor Recommended',
@@ -1327,7 +1327,7 @@ function handleValidateReport(
 
 // --- create_note / add_note_to_case → question / answer (demo-kind, no machine slot) ------
 
-/** The wire form that carried the note: `Create(Note)` or `Add(Note, target=Case)`. */
+/** The wire form that carried the note: `Create(Note)` or `Add(Note)[target=VulnerabilityCase]`. */
 function noteActivityLabel(entry: CaseLedgerEntry): string {
   return entry.payloadSnapshot?.type === 'Create' ? 'Create(Note)' : 'Add(Note)[target=VulnerabilityCase]'
 }
