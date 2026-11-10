@@ -29,6 +29,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.received import (
     archive_received,
     hold_deferred,
@@ -90,14 +91,18 @@ def _answer_with(
         case_id: str,
         invite_id: str | None,
     ) -> ActivityResult:
-        return use_case(
-            dl,
-            request(actor_id=actor_id, case_id=case_id, proposal_id=invite_id),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            use_case(
+                dl,
+                request(
+                    actor_id=actor_id, case_id=case_id, proposal_id=invite_id
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
     return answer
 

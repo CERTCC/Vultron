@@ -20,6 +20,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_runner import run_in_act
 from test.support.case_owner import (
     CASE_OWNER_ID,
     CONSTRUCTED_CASE_OWNERSHIP,
@@ -162,7 +163,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         _anchor_expected_authority(dl)
         assert dl.read(_CASE_ID) is None
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         result = dl.read(_CASE_ID)
         assert result is not None
@@ -170,7 +171,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
     def test_case_fields_preserved(self, dl, event, case, case_actor):
         """The seeded case retains the name from the Announce payload."""
         _anchor_expected_authority(dl)
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         result = cast(Any, dl.read(_CASE_ID))
         assert result.name == "DR-10 Announce Case"
@@ -189,7 +190,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         import logging
 
         with caplog.at_level(logging.WARNING):
-            AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+            run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         result = dl.read(_CASE_ID)
         assert result is None, "Case must NOT be seeded without a trust anchor"
@@ -218,7 +219,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             at=dl,
         )
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, linked_event).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, linked_event))
 
         link = dl.read(VultronReportCaseLink.build_id(_REPORT_ID))
         assert isinstance(link, VultronReportCaseLink)
@@ -256,17 +257,17 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             at=dl,
         )
 
-        first_result = AnnounceVulnerabilityCaseReceivedUseCase(
-            dl, event
-        ).execute()
+        first_result = run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event)
+        )
         first = cast(Any, dl.read(_CASE_ID))
         assert first_result.disposition is HandlerDisposition.APPLIED
         assert first is not None
         assert first.name == "DR-10 Announce Case"
 
-        second_result = AnnounceVulnerabilityCaseReceivedUseCase(
-            dl, event
-        ).execute()
+        second_result = run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event)
+        )
         second = cast(Any, dl.read(_CASE_ID))
         assert second_result.disposition is HandlerDisposition.APPLIED, (
             second_result.reason
@@ -323,7 +324,9 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             at=dl,
         )
 
-        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event)
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
         updated = cast(Any, dl.read(_CASE_ID))
@@ -337,7 +340,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         event = event.model_copy(update={"activity": None})
 
         # Must not raise
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         assert dl.read(_CASE_ID) is None
 
@@ -368,7 +371,9 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         )
         event = event.model_copy(update={"activity": patched_activity})
 
-        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event)
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert dl.read(_CASE_ID2) is None
@@ -394,7 +399,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         event = make_payload(announce, at=dl)
 
         with caplog.at_level(logging.WARNING):
-            AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+            run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         assert dl.read(_CASE_ID) is None
         assert any(
@@ -420,7 +425,7 @@ class TestAnnounceFirstContactTrustGap:
         import logging
 
         with caplog.at_level(logging.WARNING):
-            AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+            run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         assert dl.read(_CASE_ID) is None, (
             "Case MUST NOT be seeded when no trust anchor exists (PCR-03-004)"
@@ -438,7 +443,9 @@ class TestAnnounceFirstContactTrustGap:
         APPLIED reads as "processed" in the InboxOutcome and gates the
         post-bootstrap replay, so a refused seed must not look applied.
         """
-        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event)
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
@@ -455,7 +462,9 @@ class TestAnnounceFirstContactTrustGap:
     def test_admitted_announce_is_applied(self, dl, event):
         _anchor_expected_authority(dl)
 
-        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event)
+        )
 
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -463,7 +472,9 @@ class TestAnnounceFirstContactTrustGap:
     def test_announce_without_activity_is_refused(self, dl, event):
         event = event.model_copy(update={"activity": None})
 
-        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event)
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -478,7 +489,7 @@ class TestAnnounceFirstContactTrustGap:
             )
         )
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         result = dl.read(_CASE_ID)
         assert result is not None, (
@@ -508,7 +519,9 @@ class TestAnnounceFirstContactTrustGap:
             awaiting_case_id=_CASE_ID,
         )
 
-        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event)
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert dl.read(_CASE_ID) is None
@@ -529,7 +542,7 @@ class TestAnnounceFirstContactTrustGap:
             )
         )
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         assert dl.read(_CASE_ID) is None, (
             "A pending record with case_actor_id=None must NOT admit any Announce"
@@ -552,7 +565,7 @@ class TestAnnounceFirstContactTrustGap:
         )
         event = make_payload(imposter_announce, at=dl)
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         assert dl.read(_CASE_ID) is None, (
             "Case MUST NOT be seeded when the sender does not match the trust anchor"
@@ -625,9 +638,11 @@ class TestAnnounceDrainsPreGenesisBuffer:
             context=_CASE_ID,
         )
         event = make_payload(activity, at=dl)
-        return event, AnnounceVulnerabilityCaseReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl), **ports
-        ).execute()
+        return event, run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(
+                dl, event, sync_port=SyncActivityAdapter(dl), **ports
+            )
+        )
 
     @pytest.mark.spec("SYNC-14-009")
     @pytest.mark.spec("SYNC-15-005")
@@ -661,12 +676,14 @@ class TestAnnounceDrainsPreGenesisBuffer:
             replay,
             dl,
             _RECEIVER_ID,
-            lambda ev: AnnounceLedgerEntryReceivedUseCase(
-                dl,
-                ev,
-                sync_port=SyncActivityAdapter(dl),
-                inbox_replay=replay,
-            ).execute(),
+            lambda ev: run_in_act(
+                AnnounceLedgerEntryReceivedUseCase(
+                    dl,
+                    ev,
+                    sync_port=SyncActivityAdapter(dl),
+                    inbox_replay=replay,
+                )
+            ),
         )
         assert dl.read(entry.id_) is not None
 
@@ -769,9 +786,11 @@ class TestAnnounceStoresEmbeddedParticipants:
     ):
         """CaseActorParticipant embedded in Announce payload is stored
         independently (#566 — Announce path mirrors Create bootstrap path)."""
-        AnnounceVulnerabilityCaseReceivedUseCase(
-            dl, announce_with_participants_event
-        ).execute()
+        run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(
+                dl, announce_with_participants_event
+            )
+        )
 
         stored = dl.read(_CASE_ACTOR_PARTICIPANT_ID)
         assert stored is not None, (
@@ -784,9 +803,11 @@ class TestAnnounceStoresEmbeddedParticipants:
     ):
         """Vendor as_CaseParticipant embedded in Announce payload is stored
         independently — BT nodes can then look it up by UUID (#566)."""
-        AnnounceVulnerabilityCaseReceivedUseCase(
-            dl, announce_with_participants_event
-        ).execute()
+        run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(
+                dl, announce_with_participants_event
+            )
+        )
 
         stored = dl.read(_VENDOR_PARTICIPANT_ID)
         assert stored is not None, (
@@ -813,7 +834,7 @@ class TestAnnounceStoresEmbeddedParticipants:
         )
         event = make_payload(activity, at=dl)
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         # The bare string ref must NOT cause a spurious record to appear
         stored = dl.read(_VENDOR_PARTICIPANT_ID)
@@ -849,7 +870,7 @@ class TestAnnounceStoresEmbeddedParticipants:
             at=dl,
         )
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, announce).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, announce))
 
         stored_ca = dl.read(_CASE_ACTOR_PARTICIPANT_ID)
         stored_vendor = dl.read(_VENDOR_PARTICIPANT_ID)
@@ -929,9 +950,11 @@ class TestFirstSeedStatesLedgerPosition:
         return AnnounceVulnerabilityCaseReceivedUseCase(dl, event, **ports)
 
     def _seed(self, dl, make_payload, case):
-        return self._announce(
-            dl, make_payload, case, sync_port=SyncActivityAdapter(dl)
-        ).execute()
+        return run_in_act(
+            self._announce(
+                dl, make_payload, case, sync_port=SyncActivityAdapter(dl)
+            )
+        )
 
     @pytest.mark.spec("SYNC-17-008", "SYNC-17-001", "PCR-02-003")
     def test_first_seed_queues_one_read_naming_the_copys_position(
@@ -1022,7 +1045,7 @@ class TestFirstSeedStatesLedgerPosition:
         _anchor_expected_authority(dl)
 
         with pytest.raises(VultronBTInternalError, match="sync_port"):
-            self._announce(dl, make_payload, _joined_case()).execute()
+            run_in_act(self._announce(dl, make_payload, _joined_case()))
 
     @pytest.mark.spec("SYNC-17-008", "SYNC-17-007")
     def test_a_statement_lost_to_a_failed_send_is_made_at_restart(
@@ -1038,9 +1061,11 @@ class TestFirstSeedStatesLedgerPosition:
         failing.send_read_ledger_entry.side_effect = RuntimeError("store down")
 
         with pytest.raises(VultronBTInternalError):
-            self._announce(
-                dl, make_payload, _joined_case(), sync_port=failing
-            ).execute()
+            run_in_act(
+                self._announce(
+                    dl, make_payload, _joined_case(), sync_port=failing
+                )
+            )
         assert dl.read(_CASE_ID) is not None
         assert _queued_reads(dl) == []
 
@@ -1071,13 +1096,15 @@ class TestFirstSeedStatesLedgerPosition:
         failing.send_read_ledger_entry.side_effect = RuntimeError("store down")
 
         with pytest.raises(VultronBTInternalError):
-            self._announce(
-                dl,
-                make_payload,
-                case,
-                sync_port=failing,
-                inbox_replay=replay,
-            ).execute()
+            run_in_act(
+                self._announce(
+                    dl,
+                    make_payload,
+                    case,
+                    sync_port=failing,
+                    inbox_replay=replay,
+                )
+            )
 
         failing.send_read_ledger_entry.assert_called_once()
         assert replay.replayed == [held.activity_id]

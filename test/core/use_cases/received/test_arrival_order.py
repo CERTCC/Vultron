@@ -31,6 +31,7 @@ import pytest
 from test.core.use_cases.received import (
     test_embargo_ending_notices as notices,
 )
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import case_file_differences
@@ -333,13 +334,15 @@ def _deliver(
     dl: SqliteDataLayer, invite: Any, make_payload: Any
 ) -> HandlerResult:
     """Deliver one relayed *invite* to ``INVITEE``, as often as called."""
-    return InviteToEmbargoOnCaseReceivedUseCase(
-        dl,
-        make_payload(invite, receiving_actor_id=INVITEE),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            make_payload(invite, receiving_actor_id=INVITEE),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
 
 
 @pytest.mark.spec("ID-04-004")

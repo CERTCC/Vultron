@@ -177,13 +177,17 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   `Add`/`Reject(EmbargoEvent)[target=VulnerabilityCase]` (MSM-07-008, MSM-07-009).
 - No operation branches on whether the sender is the owner. The accept and
   reject triggers pick by actor: an owner sends its decision, anyone else its
-  consent.
-- An owner whose row is `DECLINED` may still activate: activating is the
-  owner changing its answer, so its row moves straight to `AGREED`, in either
-  mode, with one ledger entry (MSM-07-028). The received owner-decision trees
-  check P/X/A with a read-only guard ahead of the commit
-  (`OwnerMayActivateEmbargoNode`), because a replica copies the step and does
-  not re-check.
+  consent. The one exception is an owner whose row reads `DECLINED`:
+  `accept-embargo` sends its `Accept(Invite(EmbargoEvent))`, since its `Add`
+  would be refused (MSM-07-037).
+- An owner whose row is `DECLINED` cannot activate: the CASE_MANAGER refuses
+  it before the commit, and the notice tells the owner to accept the Invite
+  first, so one activity never both decides the case and changes the owner's
+  answer (MSM-07-037, ADR-0180). From `UNINVITED`, `INVITED` or `TIMED_OUT`
+  the activation agrees for the owner (MSM-07-028). The received
+  owner-decision trees check P/X/A and the decline with a read-only guard
+  ahead of the commit (`OwnerMayActivateEmbargoNode`), because a replica
+  copies the step and does not re-check.
 - A repeat of a recorded Accept or Reject is `SKIPPED` before the commit
   (`EmbargoAnswerNotRecordedNode`, CM-13-005); a `DECLINED` actor's Reject of
   an unknown embargo stays `REFUSED` (HP-01-003). An Accept after a Reject is

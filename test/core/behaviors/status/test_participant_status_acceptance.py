@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from test.support.rm_declaration import (
@@ -279,8 +280,8 @@ def _run_tree(
     )
     if anomaly is not None:
         tree = RMAnomalyProbe(tree, anomaly)
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=executing_actor_id, activity=event
+    result = run_tree(
+        bridge, tree=tree, actor_id=executing_actor_id, activity=event
     )
     # The bridge reports no reason of its own; the refusal reason is the one
     # the failing guard left, which the refusal notice carries (CLP-05-001).
@@ -567,9 +568,7 @@ class TestNothingToJudge:
     @staticmethod
     def _tick(dl: SqliteDataLayer, node: Any) -> Status:
         bridge = BTBridge(datalayer=dl)
-        return bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        ).status
+        return run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID).status
 
     @pytest.mark.spec("RSH-09-001")
     def test_an_unknown_participant_passes(self, store_for):
@@ -1052,7 +1051,8 @@ class TestLedgerApplyCopiesTheStatus:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         )
-        return bridge.execute_with_setup(
+        return run_tree(
+            bridge,
             tree=ApplyParticipantStatusFromLedgerNode(
                 name="ApplyParticipantStatusFromLedger"
             ),

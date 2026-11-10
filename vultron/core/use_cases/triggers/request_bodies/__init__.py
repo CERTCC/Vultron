@@ -84,8 +84,10 @@ from .report import (
     InvalidateReportRequest,
     RejectReportRequest,
     ReportTriggerRequest,
+    SubmitReportFields,
     SubmitReportRequest,
     ValidateReportRequest,
+    require_report_name_or_csaf,
 )
 
 __all__ = [
@@ -118,6 +120,7 @@ __all__ = [
     "RejectReportRequest",
     "ReportTriggerRequest",
     "SetStubSummaryRequest",
+    "SubmitReportFields",
     "SubmitReportRequest",
     "SuggestActorToCaseRequest",
     "SyncLogEntryRequest",
@@ -125,4 +128,5 @@ __all__ = [
     "ValidateReportRequest",
     "WithdrawCaseOwnershipTransferRequest",
     "WithdrawEmbargoRequest",
+    "require_report_name_or_csaf",
 ]

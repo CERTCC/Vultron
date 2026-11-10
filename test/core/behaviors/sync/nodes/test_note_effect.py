@@ -15,6 +15,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.sync.nodes.note_effect import (
     ApplyNoteFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
@@ -59,7 +60,8 @@ def test_apply_note_adds_to_case(
     entry = _make_note_entry(NOTE_ID)
     event = _make_event(entry, actor_id=case_actor.id_)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=ApplyNoteFromLedgerNode(name="ApplyNote"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -83,7 +85,8 @@ def test_apply_note_idempotent(bridge, datalayer, case_actor, case_with_notes):
     event = _make_event(entry, actor_id=case_actor.id_)
 
     for _ in range(2):
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ApplyNoteFromLedgerNode(name="ApplyNote"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -104,7 +107,8 @@ def test_apply_note_skips_missing_case(bridge, case_actor):
     entry = _make_note_entry(NOTE_ID)
     event = _make_event(entry, actor_id=case_actor.id_)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=ApplyNoteFromLedgerNode(name="ApplyNote"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -128,7 +132,8 @@ def _make_remove_note_entry(note_id: str = NOTE_ID):
 
 def _run_remove(bridge, case_actor):
     event = _make_event(_make_remove_note_entry(), actor_id=case_actor.id_)
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=ApplyRemoveNoteFromLedgerNode(name="ApplyRemoveNote"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
@@ -203,7 +208,8 @@ def test_apply_note_stores_a_note_the_seeded_case_already_names(
         )
     )
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=ApplyNoteFromLedgerNode(name="ApplyNote"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(entry, actor_id=case_actor.id_),

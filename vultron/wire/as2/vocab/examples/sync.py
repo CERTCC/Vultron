@@ -89,11 +89,14 @@ def reject_case_ledger_entry():
 
     The example participant holds only the first entry and missed the
     second, so the third entry's ``prev_log_hash`` does not match its tail,
-    and its ``ledgerPosition`` names the first entry.
+    and its ``ledgerPosition`` names the first entry.  Its ``inReplyTo``
+    names the ``Announce`` that carried the third entry (RF-08-004).
     """
     entry = _ENTRY_2.to_ledger_entry()
+    announce = announce_log_entry_activity(entry, actor=_CASE_ACTOR.id_)
     return reject_log_entry_activity(
         entry,
+        in_reply_to=announce.id_,
         ledger_position=LedgerPosition(
             log_index=_ENTRY_0.log_index, entry_hash=_ENTRY_0.entry_hash
         ),

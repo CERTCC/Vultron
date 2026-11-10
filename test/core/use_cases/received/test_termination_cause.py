@@ -28,6 +28,7 @@ import py_trees
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_runner import run_tree
 from test.support.ledger import ledger_entries
 from test.support.received import TEST_SENDER_POSITION, extract_stamped
 from test.support.signing import signed_body
@@ -457,7 +458,8 @@ def test_a_replica_copies_signals_its_own_pxa_does_not_carry() -> None:
             threat_signals_of(net.case(replica).current_status.pxa.state) == []
         )
 
-    result = _bridge(net).execute_with_setup(
+    result = run_tree(
+        _bridge(net),
         terminate_embargo_bt(
             case_id=net.case_id,
             result_out={},
@@ -511,7 +513,8 @@ def test_the_threat_cascade_remove_carries_the_signals_it_records() -> None:
     decided termination."""
     net = LedgerNetwork("https://example.org/cases/tc-cascade")
 
-    result = _bridge(net).execute_with_setup(
+    result = run_tree(
+        _bridge(net),
         terminate_embargo_bt(
             case_id=net.case_id,
             result_out={},
@@ -546,7 +549,8 @@ def test_an_uncaused_remove_carries_no_termination_cause() -> None:
     says so by leaving ``terminationCause`` out."""
     net = LedgerNetwork("https://example.org/cases/tc-uncaused")
 
-    result = _bridge(net).execute_with_setup(
+    result = run_tree(
+        _bridge(net),
         terminate_embargo_bt(
             case_id=net.case_id,
             result_out={},
@@ -565,7 +569,8 @@ def _owner_ask(
     termination: EmbargoTermination | ThreatSignalTermination,
 ) -> list[dict[str, Any]]:
     """Run ``terminate_embargo_bt`` as the owner; return the asks it queued."""
-    result = _bridge(net, OWNER).execute_with_setup(
+    result = run_tree(
+        _bridge(net, OWNER),
         terminate_embargo_bt(
             case_id=net.case_id, result_out={}, termination=termination
         ),

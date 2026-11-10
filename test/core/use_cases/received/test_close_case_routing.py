@@ -18,6 +18,7 @@ Pins the pre-flight guard (CLP-10-003): only the CaseActor writes a
 
 from __future__ import annotations
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -164,14 +165,18 @@ class TestCloseCaseLedgerRouting:
         when it receives a close_case (Leave) activity.
         """
         dl = _make_case_actor_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(receiving_actor_id=CASE_ACTOR_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            # The leaver's closure steps are factory-built (VM-08-003).
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(
+                    receiving_actor_id=CASE_ACTOR_ID
+                ),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                # The leaver's closure steps are factory-built (VM-08-003).
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "close_case" in semantic_types, (
@@ -185,12 +190,14 @@ class TestCloseCaseLedgerRouting:
         Per CLP-10-003: non-CaseActor receiving actors must skip the commit.
         """
         dl = _make_case_actor_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(receiving_actor_id=VENDOR_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(receiving_actor_id=VENDOR_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "close_case" not in semantic_types, (
@@ -216,18 +223,20 @@ class TestCloseCaseLedgerRouting:
         owner-close boundary (CM-23-010).
         """
         dl = _make_case_actor_dl(case_manager_owns=True)
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(
-                receiving_actor_id=CASE_ACTOR_ID,
-                leave_actor_id=CASE_ACTOR_ID,
-            ),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            # The closure steps' entries are factory-built (VM-08-003); a
-            # closure the CASE_MANAGER cannot record is not made (#4442).
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(
+                    receiving_actor_id=CASE_ACTOR_ID,
+                    leave_actor_id=CASE_ACTOR_ID,
+                ),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                # The closure steps' entries are factory-built (VM-08-003); a
+                # closure the CASE_MANAGER cannot record is not made (#4442).
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "close_case" in semantic_types, (
@@ -244,14 +253,16 @@ class TestCloseCaseLedgerRouting:
         ``close_case`` ledger entry IS written.
         """
         dl = _make_case_actor_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(receiving_actor_id=None),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            # The leaver's closure steps are factory-built (VM-08-003).
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(receiving_actor_id=None),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                # The leaver's closure steps are factory-built (VM-08-003).
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "close_case" in semantic_types, (

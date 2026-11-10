@@ -42,6 +42,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from test.support import embargo_register
+from test.support.act_runner import run_in_act, run_tree
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
@@ -441,12 +442,13 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
 def _cascade_terminate(manager: _Manager) -> None:
     """Run the shared terminate tree as the P/X/A cascade does."""
     sync_port = SyncActivityAdapter(manager.dl)
-    result = BTBridge(
-        datalayer=manager.dl,
-        trigger_activity=TriggerActivityAdapter(manager.dl),
-        sync_port=sync_port,
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=manager.dl,
+            trigger_activity=TriggerActivityAdapter(manager.dl),
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+        ),
         tree=terminate_embargo_bt(
             case_id=CASE_ID,
             result_out={},
@@ -460,14 +462,16 @@ def _cascade_terminate(manager: _Manager) -> None:
 
 def _trigger_terminate(manager: _Manager) -> None:
     """The CASE_MANAGER terminates the embargo through its trigger."""
-    SvcTerminateEmbargoUseCase(
-        manager.dl,
-        TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=CASE_ID),
-        trigger_activity=TriggerActivityAdapter(manager.dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(manager.dl),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            manager.dl,
+            TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=CASE_ID),
+            trigger_activity=TriggerActivityAdapter(manager.dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(manager.dl),
+            clock=SystemClock(),
+        )
+    )
 
 
 @pytest.mark.spec("CM-31-009")
@@ -1264,7 +1268,8 @@ def _entry_event(
 
 
 def _replay(replica: _Replica, event: AnnounceLogEntryReceivedEvent) -> None:
-    result = BTBridge(datalayer=replica.dl).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=replica.dl),
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),

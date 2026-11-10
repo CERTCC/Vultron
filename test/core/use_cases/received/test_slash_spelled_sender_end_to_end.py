@@ -22,6 +22,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
@@ -96,9 +97,11 @@ def _propose_case(dl: SqliteDataLayer) -> VulnerabilityCase:
         object_=proposal,
         to=[_CASE_ACTOR],
     )
-    result = CreateCaseProposalReceivedUseCase(
-        dl, _event(activity, dl), **_ports(dl)
-    ).execute()
+    result = run_in_act(
+        CreateCaseProposalReceivedUseCase(
+            dl, _event(activity, dl), **_ports(dl)
+        )
+    )
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     return _case(dl)
 
@@ -151,9 +154,11 @@ def test_a_slash_spelled_owner_reaches_its_case_owner_records():
         actor=_VENDOR_AS_WRITTEN,
         to=[_CASE_ACTOR],
     )
-    result = RejectEmbargoProposalOnCaseReceivedUseCase(
-        dl, _event(reject, dl), **_ports(dl)
-    ).execute()
+    result = run_in_act(
+        RejectEmbargoProposalOnCaseReceivedUseCase(
+            dl, _event(reject, dl), **_ports(dl)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert _case(dl).proposed_embargo_ids == []
@@ -174,9 +179,11 @@ def test_a_slash_spelled_owner_reaches_its_case_owner_records():
         actor=_VENDOR_AS_WRITTEN,
         to=[_CASE_ACTOR],
     )
-    result = WithdrawFromEmbargoOnCaseReceivedUseCase(
-        dl, _event(leave, dl), **_ports(dl)
-    ).execute()
+    result = run_in_act(
+        WithdrawFromEmbargoOnCaseReceivedUseCase(
+            dl, _event(leave, dl), **_ports(dl)
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "is the case owner" in (result.reason or ""), result.reason

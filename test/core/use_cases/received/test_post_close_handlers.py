@@ -25,6 +25,7 @@ from typing import Any
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.ledger import commit_case_manager_closure
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -106,13 +107,18 @@ def test_a_late_embargo_activity_is_refused_before_any_write(
     ledger_before = len(_ledger(dl))
     outbox_before = list(dl.outbox_list())
 
-    result = use_case(
-        dl,
-        _request(
-            use_case, embargo, malformed=malformed, make_payload=make_payload
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    result = run_in_act(
+        use_case(
+            dl,
+            _request(
+                use_case,
+                embargo,
+                malformed=malformed,
+                make_payload=make_payload,
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "CM-23-013" in (result.reason or "")

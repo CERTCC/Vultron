@@ -38,6 +38,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.received import with_evidence
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
@@ -358,8 +359,8 @@ class TestPolicyGate:
             reporter_actor_id=reporter_actor_id,
             actor_config=ActorConfig(auto_create_case=False),
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=_event(offer)
+        result = run_tree(
+            bridge, tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.FAILURE
 
@@ -386,8 +387,8 @@ class TestPolicyGate:
             reporter_actor_id=reporter_actor_id,
             actor_config=ActorConfig(auto_create_case=True),
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=_event(offer)
+        result = run_tree(
+            bridge, tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.SUCCESS
 
@@ -415,8 +416,8 @@ class TestHappyPath:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=_event(offer)
+        result = run_tree(
+            bridge, tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.SUCCESS
 
@@ -435,9 +436,7 @@ class TestHappyPath:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=_event(offer)
-        )
+        run_tree(bridge, tree=tree, actor_id=actor.id_, activity=_event(offer))
 
         link_id = VultronReportCaseLink.build_id(report.id_)
         link = datalayer.read(link_id)
@@ -474,9 +473,7 @@ class TestHappyPath:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=_event(offer)
-        )
+        run_tree(bridge, tree=tree, actor_id=actor.id_, activity=_event(offer))
 
         link = datalayer.read(VultronReportCaseLink.build_id(report.id_))
         assert isinstance(link, VultronReportCaseLink)
@@ -504,9 +501,7 @@ class TestHappyPath:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=_event(offer)
-        )
+        run_tree(bridge, tree=tree, actor_id=actor.id_, activity=_event(offer))
 
         outbox = datalayer.clone_for_actor(actor.id_).outbox_list()
         assert len(outbox) >= 1, (
@@ -528,9 +523,7 @@ class TestHappyPath:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=_event(offer)
-        )
+        run_tree(bridge, tree=tree, actor_id=actor.id_, activity=_event(offer))
 
         case = datalayer.find_case_by_report_id(report.id_)
         assert case is None, (
@@ -562,8 +555,8 @@ class TestIdempotency:
                 offer_id=offer.id_,
                 reporter_actor_id=reporter_actor_id,
             )
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=actor.id_, activity=_event(offer)
+            result = run_tree(
+                bridge, tree=tree, actor_id=actor.id_, activity=_event(offer)
             )
             assert result.status == Status.SUCCESS
 
@@ -583,8 +576,8 @@ class TestIdempotency:
                 offer_id=offer.id_,
                 reporter_actor_id=reporter_actor_id,
             )
-            bridge.execute_with_setup(
-                tree=tree, actor_id=actor.id_, activity=_event(offer)
+            run_tree(
+                bridge, tree=tree, actor_id=actor.id_, activity=_event(offer)
             )
 
         links = [
@@ -610,8 +603,8 @@ class TestIdempotency:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        bridge.execute_with_setup(
-            tree=tree1, actor_id=actor.id_, activity=_event(offer)
+        run_tree(
+            bridge, tree=tree1, actor_id=actor.id_, activity=_event(offer)
         )
 
         count_after_first = len(
@@ -623,8 +616,8 @@ class TestIdempotency:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        bridge.execute_with_setup(
-            tree=tree2, actor_id=actor.id_, activity=_event(offer)
+        run_tree(
+            bridge, tree=tree2, actor_id=actor.id_, activity=_event(offer)
         )
 
         count_after_second = len(
@@ -655,8 +648,8 @@ class TestIdempotency:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        bridge.execute_with_setup(
-            tree=tree1, actor_id=actor.id_, activity=_event(offer)
+        run_tree(
+            bridge, tree=tree1, actor_id=actor.id_, activity=_event(offer)
         )
 
         link_id = VultronReportCaseLink.build_id(report.id_)
@@ -673,8 +666,8 @@ class TestIdempotency:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        result = bridge.execute_with_setup(
-            tree=tree2, actor_id=actor.id_, activity=_event(offer)
+        result = run_tree(
+            bridge, tree=tree2, actor_id=actor.id_, activity=_event(offer)
         )
 
         assert result.status == py_trees.common.Status.SUCCESS
@@ -705,8 +698,8 @@ class TestIdempotency:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        bridge.execute_with_setup(
-            tree=tree1, actor_id=actor.id_, activity=_event(offer)
+        run_tree(
+            bridge, tree=tree1, actor_id=actor.id_, activity=_event(offer)
         )
 
         link_id = VultronReportCaseLink.build_id(report.id_)
@@ -724,8 +717,8 @@ class TestIdempotency:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        result = bridge.execute_with_setup(
-            tree=tree2, actor_id=actor.id_, activity=_event(offer)
+        result = run_tree(
+            bridge, tree=tree2, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.SUCCESS
 
@@ -805,8 +798,11 @@ class TestConcurrentExecution:
                     offer_id=offer_id,
                     reporter_actor_id=reporter_actor_id,
                 )
-                result = bridge.execute_with_setup(
-                    tree=tree, actor_id=actor_id, activity=_event(offer)
+                result = run_tree(
+                    bridge,
+                    tree=tree,
+                    actor_id=actor_id,
+                    activity=_event(offer),
                 )
                 with _lock:
                     results[key] = result.status

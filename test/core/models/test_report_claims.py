@@ -19,6 +19,9 @@ from pydantic import ValidationError
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.report_claims import (
+    CandidatePartiesSignal,
+    CaseSplitDifference,
+    CaseSplitSignal,
     ClaimedAcknowledgment,
     ClaimedReference,
     ClaimOutcome,
@@ -151,6 +154,38 @@ def test_each_outcome_is_recorded_and_survives_the_store() -> None:
         is ClaimOutcome.APPLIED
     )
     assert stored.outcomes["references[0]"] is ClaimOutcome.DISPLAY_ONLY
+
+
+def test_the_signals_survive_the_store() -> None:
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    record = _record().with_signals(
+        CaseSplitSignal(differs_in=[CaseSplitDifference.PUBLIC_STATUS]),
+        CandidatePartiesSignal(vendors=["Other Vendor"]),
+    )
+
+    dl.create(record)
+
+    assert dl.read(record.id_) == record
+
+
+@pytest.mark.parametrize(
+    "signal",
+    [
+        lambda: CaseSplitSignal(differs_in=[]),
+        lambda: CandidatePartiesSignal(vendors=[]),
+    ],
+    ids=["split", "parties"],
+)
+def test_a_signal_names_at_least_one_reason(signal) -> None:
+    with pytest.raises(ValidationError):
+        signal()
+
+
+def test_with_outcomes_refuses_every_path_that_names_no_value() -> None:
+    with pytest.raises(KeyError, match="summary"):
+        _record().with_outcomes(
+            {"name": ClaimOutcome.APPLIED, "summary": ClaimOutcome.APPLIED}
+        )
 
 
 def test_with_outcome_refuses_a_path_that_names_no_value() -> None:

@@ -25,6 +25,7 @@ Covers:
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_participant import (
@@ -108,7 +109,7 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
     activity = create_case_activity(case, actor=_VENDOR_ID, to=[_FINDER_ID])
     event = make_payload(activity, receiving_actor_id=_FINDER_ID, at=dl)
 
-    CreateCaseReceivedUseCase(dl, event).execute()
+    run_in_act(CreateCaseReceivedUseCase(dl, event))
 
     stored = dl.read(_FINDER_PARTICIPANT_ID)
     assert stored is not None, (
@@ -167,7 +168,7 @@ def test_bootstrap_bare_uri_participant_is_refused(make_payload):
     case.actor_participant_index[_FINDER_ID] = _FINDER_PARTICIPANT_ID
     activity = create_case_activity(case, actor=_VENDOR_ID, to=[_FINDER_ID])
     event = make_payload(activity, receiving_actor_id=_FINDER_ID, at=dl)
-    result = CreateCaseReceivedUseCase(dl, event).execute()
+    result = run_in_act(CreateCaseReceivedUseCase(dl, event))
 
     # Rejected before any write, as a refusal the inbox reports (#2255).
     assert result.disposition == HandlerDisposition.REFUSED
@@ -259,7 +260,7 @@ def test_bootstrap_from_an_actor_no_anchor_names_is_refused(
     activity = create_case_activity(case, actor=_IMPOSTOR_ID, to=[_FINDER_ID])
     event = make_payload(activity, receiving_actor_id=_FINDER_ID, at=dl)
 
-    result = CreateCaseReceivedUseCase(dl, event).execute()
+    result = run_in_act(CreateCaseReceivedUseCase(dl, event))
 
     assert result.disposition == HandlerDisposition.REFUSED
     assert result.reason is not None

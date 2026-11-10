@@ -16,6 +16,7 @@
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
@@ -35,7 +36,8 @@ def test_backfill_without_a_sync_port_is_a_wiring_fault():
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
     bridge = BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=BackfillCanonicalLedgerToInviteeNode(
             case_id=CASE_ID, invitee_id=INVITEE_ID
         ),
@@ -54,7 +56,8 @@ def _backfill(bridge, invitee_id: str, sync_port):
     )
     from test.core.behaviors.sync.nodes.conftest import CASE_ID as GATE_CASE
 
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=BackfillCanonicalLedgerToInviteeNode(
             case_id=GATE_CASE, invitee_id=invitee_id
         ),

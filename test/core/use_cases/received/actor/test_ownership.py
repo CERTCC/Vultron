@@ -34,6 +34,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
     assert_held_only_as_received,
@@ -102,24 +103,28 @@ class TestOwnershipTransferUseCases:
             activity, receiving_actor_id=_COORDINATOR_ID, at=dl
         )
 
-        result = OfferCaseOwnershipTransferReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            OfferCaseOwnershipTransferReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert_held_only_as_received(dl, activity.id_)
         assert result.disposition == HandlerDisposition.APPLIED
         settle_as_the_inbox(dl, event, result)
 
         # HP-01-014: a redelivered Offer stores nothing new.
-        again = OfferCaseOwnershipTransferReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        again = run_in_act(
+            OfferCaseOwnershipTransferReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
         assert again.disposition == HandlerDisposition.SKIPPED
 
     def test_offer_ownership_unresolvable_receiver_writes_nothing(
@@ -150,12 +155,14 @@ class TestOwnershipTransferUseCases:
         event = make_payload(activity, receiving_actor_id=None)
 
         with pytest.raises(VultronValidationError):
-            OfferCaseOwnershipTransferReceivedUseCase(
-                anonymous_store(inner),
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(anonymous_store(inner)),
-            ).execute()
+            run_in_act(
+                OfferCaseOwnershipTransferReceivedUseCase(
+                    anonymous_store(inner),
+                    event,
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(anonymous_store(inner)),
+                )
+            )
 
         assert inner.get(activity.type_.value, activity.id_) is None
 
@@ -216,13 +223,15 @@ class TestOwnershipTransferUseCases:
             at=dl,
         )
 
-        result = AcceptCaseOwnershipTransferReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AcceptCaseOwnershipTransferReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         # Nothing to establish the sender's standing against, so it is
         # refused (HP-01-006); the case was never held and is still absent.
@@ -245,13 +254,15 @@ class TestOwnershipTransferUseCases:
             _COORDINATOR_ID,
         )
 
-        result = AcceptCaseOwnershipTransferReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AcceptCaseOwnershipTransferReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "names no case" in result.reason
@@ -514,15 +525,17 @@ class TestOwnershipTransferUseCases:
                 attributed_to=_VENDOR_ID,
             )
 
-            result = OfferCaseOwnershipTransferReceivedUseCase(
-                dl,
-                make_payload(
-                    activity, receiving_actor_id=_CASE_ACTOR_ID, at=dl
-                ),
-                trigger_activity=trigger_activity,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+            result = run_in_act(
+                OfferCaseOwnershipTransferReceivedUseCase(
+                    dl,
+                    make_payload(
+                        activity, receiving_actor_id=_CASE_ACTOR_ID, at=dl
+                    ),
+                    trigger_activity=trigger_activity,
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
             assert result.disposition is HandlerDisposition.REFUSED
             assert result.reason is not None
@@ -668,12 +681,14 @@ class TestOwnershipTransferUseCases:
         )
 
         with pytest.raises(VultronValidationError):
-            ProposeCaseOwnershipTransferReceivedUseCase(
-                anonymous_store(inner),
-                make_payload(proposal, receiving_actor_id=None),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(anonymous_store(inner)),
-            ).execute()
+            run_in_act(
+                ProposeCaseOwnershipTransferReceivedUseCase(
+                    anonymous_store(inner),
+                    make_payload(proposal, receiving_actor_id=None),
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(anonymous_store(inner)),
+                )
+            )
 
         assert inner.get(proposal.type_.value, proposal.id_) is None
 
@@ -695,13 +710,15 @@ class TestOwnershipTransferUseCases:
             offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
         )
 
-        AcceptCaseOwnershipTransferReceivedUseCase(
-            dl,
-            make_payload(accept, receiving_actor_id=None, at=dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            AcceptCaseOwnershipTransferReceivedUseCase(
+                dl,
+                make_payload(accept, receiving_actor_id=None, at=dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert _owner(dl, case_id) == _COORDINATOR_ID, (
             "The store owner (the CASE_MANAGER) must apply the transfer when"
@@ -736,12 +753,14 @@ class TestOwnershipOfferAtNonRecipient:
         )
         event = make_payload(activity, receiving_actor_id=bystander_id, at=dl)
 
-        result = OfferCaseOwnershipTransferReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            OfferCaseOwnershipTransferReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and bystander_id in result.reason
@@ -818,12 +837,14 @@ class TestOwnershipOfferNamingNoCase:
             }
         )
 
-        result = OfferCaseOwnershipTransferReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            OfferCaseOwnershipTransferReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "names no case" in result.reason
@@ -851,13 +872,15 @@ class TestOwnershipOfferNamingNoCase:
         event = event.model_copy(update={"context": None})
         assert event.case_id is None
 
-        result = ProposeCaseOwnershipTransferReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=trigger_activity,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            ProposeCaseOwnershipTransferReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=trigger_activity,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason and "names no case" in result.reason
@@ -913,13 +936,17 @@ def _propose(
     receiving_actor_id: str | None = _CASE_ACTOR_ID,
 ):
     """Deliver *proposal* to *dl* and return the handler's result."""
-    return ProposeCaseOwnershipTransferReceivedUseCase(
-        dl,
-        make_payload(proposal, receiving_actor_id=receiving_actor_id, at=dl),
-        trigger_activity=trigger_activity,
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        ProposeCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(
+                proposal, receiving_actor_id=receiving_actor_id, at=dl
+            ),
+            trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
 
 
 def _made_offer(dl, case_id: str, proposal):
@@ -997,13 +1024,15 @@ def _accept(
         accept = accept_case_ownership_transfer_activity(
             offer, actor=sender, to=to or [_CASE_ACTOR_ID]
         )
-    return AcceptCaseOwnershipTransferReceivedUseCase(
-        dl,
-        make_payload(accept, receiving_actor_id=dl.actor_id, at=dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        AcceptCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(accept, receiving_actor_id=dl.actor_id, at=dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
 
 
 def _read_case(dl, case_id: str) -> VulnerabilityCase:
@@ -1239,18 +1268,20 @@ def test_an_offer_that_fails_after_the_proposal_entry_is_made_on_redelivery(
     factory.side_effect = None  # the real adapter again
     # The inbox routes the redelivery as the copy intake archived
     # (IE-10-001), not as the resent body.
-    again = ProposeCaseOwnershipTransferReceivedUseCase(
-        dl,
-        archived_redelivery_as(
+    again = run_in_act(
+        ProposeCaseOwnershipTransferReceivedUseCase(
             dl,
-            proposal.id_,
-            ProposeCaseOwnershipTransferReceivedEvent,
-            receiving_actor_id=_CASE_ACTOR_ID,
-        ),
-        trigger_activity=trigger_activity,
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+            archived_redelivery_as(
+                dl,
+                proposal.id_,
+                ProposeCaseOwnershipTransferReceivedEvent,
+                receiving_actor_id=_CASE_ACTOR_ID,
+            ),
+            trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
 
     assert again.disposition is HandlerDisposition.APPLIED
     assert _semantic_types(dl) == [
@@ -1810,12 +1841,14 @@ def _offer_at_transferee(dl, make_payload, case, sender, offer_id):
         to=[_COORDINATOR_ID],
         id_=offer_id,
     )
-    result = OfferCaseOwnershipTransferReceivedUseCase(
-        dl,
-        make_payload(offer, receiving_actor_id=_COORDINATOR_ID, at=dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+    result = run_in_act(
+        OfferCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(offer, receiving_actor_id=_COORDINATOR_ID, at=dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
     return result, offer
 
 
@@ -1973,13 +2006,15 @@ def _reject(
         reject = reject_case_ownership_transfer_activity(
             offer, actor=sender, to=to or [_CASE_ACTOR_ID]
         )
-    return RejectCaseOwnershipTransferReceivedUseCase(
-        dl,
-        make_payload(reject, receiving_actor_id=dl.actor_id, at=dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        RejectCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(reject, receiving_actor_id=dl.actor_id, at=dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
 
 
 def _announces(dl, outbox_before: list[str]) -> list[Any]:
@@ -2154,12 +2189,14 @@ class TestRejectOfOwnershipTransfer:
             _COORDINATOR_ID,
         )
 
-        result = RejectCaseOwnershipTransferReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RejectCaseOwnershipTransferReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "names no case" in result.reason
@@ -2239,12 +2276,14 @@ def test_transferee_takes_the_offer_its_replica_holds_open(make_payload):
         transferee.create(entry)
     assert "offer_case_ownership_transfer" in _semantic_types(transferee)
 
-    result = OfferCaseOwnershipTransferReceivedUseCase(
-        transferee,
-        make_payload(offer, receiving_actor_id=_COORDINATOR_ID),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(transferee),
-    ).execute()
+    result = run_in_act(
+        OfferCaseOwnershipTransferReceivedUseCase(
+            transferee,
+            make_payload(offer, receiving_actor_id=_COORDINATOR_ID),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(transferee),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED
     assert_held_only_as_received(transferee, offer.id_)
@@ -2266,13 +2305,15 @@ def _undo(dl, make_payload, offer, sender=_VENDOR_ID, undo=None, to=None):
             actor=sender,
             to=to or [_CASE_ACTOR_ID],
         )
-    return UndoCaseOwnershipTransferReceivedUseCase(
-        dl,
-        make_payload(undo, receiving_actor_id=dl.actor_id, at=dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        UndoCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(undo, receiving_actor_id=dl.actor_id, at=dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
 
 
 class TestWithdrawalOfOwnershipTransfer:
@@ -2658,12 +2699,14 @@ class TestWithdrawalOfOwnershipTransfer:
         event = event.model_copy(update={"inner_context": None})
         assert event.case_id is None
 
-        result = UndoCaseOwnershipTransferReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            UndoCaseOwnershipTransferReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "names no case" in result.reason
@@ -3025,12 +3068,14 @@ def test_a_slash_spelled_attribution_is_taken_and_filed_as_received(
         id_=f"{case_id}/offer",
     )
 
-    result = OfferCaseOwnershipTransferReceivedUseCase(
-        dl,
-        make_payload(offer, receiving_actor_id=_COORDINATOR_ID, at=dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+    result = run_in_act(
+        OfferCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(offer, receiving_actor_id=_COORDINATOR_ID, at=dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert_held_only_as_received(dl, offer.id_)

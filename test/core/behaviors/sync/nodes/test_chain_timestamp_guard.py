@@ -37,6 +37,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     OWNER_ACTOR_ID,
     PARTICIPANT_ACTOR_ID,
 )
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.config.app import config_override
 from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
@@ -110,7 +111,8 @@ def _persist_prior_entry(
 
 
 def _run(bridge, snapshot: dict[str, object], tail_index: int = -1):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
             object_id=_ACT_UNDER_TEST,

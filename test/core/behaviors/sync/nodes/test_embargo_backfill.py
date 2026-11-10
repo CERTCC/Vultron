@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import CASE_ID
+from test.support.act_runner import run_tree
 from test.support.received import received_event
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.role_gates import (
@@ -98,7 +99,8 @@ def test_admission_backfill_sends_the_withheld_suffix_as_case_manager(
     _admitted_paused_finder(datalayer)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=embargo_admission_backfill_tree(CASE_ID),
         actor_id=MANAGER_ID,
         sync_port=sync_port,
@@ -121,7 +123,8 @@ def test_admission_backfill_does_nothing_for_a_non_case_manager(
     _admitted_paused_finder(datalayer)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    bridge.execute_with_setup(
+    run_tree(
+        bridge,
         tree=embargo_admission_backfill_tree(CASE_ID),
         actor_id=SIGNATORY_ID,
         sync_port=sync_port,
@@ -140,7 +143,8 @@ def test_admission_backfill_without_a_sync_port_is_a_wiring_fault(
     """No port fails loudly and keeps the pause, never a silent SUCCESS (#4126)."""
     _admitted_paused_finder(datalayer)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=embargo_admission_backfill_tree(CASE_ID),
         actor_id=MANAGER_ID,
     )
@@ -159,7 +163,8 @@ def test_fanout_send_fails_without_sending_when_the_case_is_missing(
     (entry,) = seed_ledger(datalayer, 1)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=SendLogEntryToEachNode(name="SendLogEntryToEach"),
         actor_id=MANAGER_ID,
         log_entry=entry,
@@ -187,6 +192,7 @@ def test_genesis_reject_from_an_admitted_peer_seeds_the_case(
         ),
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     sync_port = MagicMock(spec=SyncActivityPort)
@@ -195,11 +201,12 @@ def test_genesis_reject_from_an_admitted_peer_seeds_the_case(
         f"{MANAGER_ID}/activities/announce-case"
     )
 
-    result = BTBridge(
-        datalayer=datalayer,
-        sync_port=sync_port,
-        trigger_activity=trigger_activity,
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=datalayer,
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+        ),
         tree=create_reject_log_entry_tree(
             CASE_ID,
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,

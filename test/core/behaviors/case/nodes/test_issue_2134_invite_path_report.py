@@ -22,6 +22,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
@@ -185,8 +186,11 @@ class TestSeedAnnouncedCaseNodeStoresEmbeddedReports:
             case_obj=case_with_embedded_report,
             request=announce_event,
         )
-        result = invited_bridge.execute_with_setup(
-            tree=tree, actor_id=INVITED_ACTOR_ID, activity=announce_event
+        result = run_tree(
+            invited_bridge,
+            tree=tree,
+            actor_id=INVITED_ACTOR_ID,
+            activity=announce_event,
         )
 
         assert result.status == Status.SUCCESS
@@ -215,8 +219,11 @@ class TestSeedAnnouncedCaseNodeStoresEmbeddedReports:
             case_obj=case_with_embedded_report,
             request=announce_event,
         )
-        result = invited_bridge.execute_with_setup(
-            tree=tree, actor_id=INVITED_ACTOR_ID, activity=announce_event
+        result = run_tree(
+            invited_bridge,
+            tree=tree,
+            actor_id=INVITED_ACTOR_ID,
+            activity=announce_event,
         )
 
         assert result.status == Status.SUCCESS
@@ -272,7 +279,8 @@ class TestApplyOfferReportFromLedgerNode:
         entry = _make_offer_report_ledger_entry()
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ApplyOfferReportFromLedgerNode(
                 name="ApplyOfferReportFromLedger"
             ),
@@ -310,7 +318,8 @@ class TestApplyOfferReportFromLedgerNode:
         entry = _make_offer_report_ledger_entry()
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ApplyOfferReportFromLedgerNode(
                 name="ApplyOfferReportFromLedger"
             ),
@@ -368,7 +377,8 @@ class TestApplyOfferReportFromLedgerNode:
         )
         assert datalayer.read(offer_record_id) is None
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ApplyOfferReportFromLedgerNode(
                 name="ApplyOfferReportFromLedger"
             ),
@@ -437,7 +447,8 @@ class TestInvitePathReportAvailableWithoutSpoof:
             case_obj=case_with_report,
             request=announce_event,
         )
-        seed_result = bridge.execute_with_setup(
+        seed_result = run_tree(
+            bridge,
             tree=seed_tree,
             actor_id=INVITED_ACTOR_ID,
             activity=announce_event,
@@ -449,7 +460,8 @@ class TestInvitePathReportAvailableWithoutSpoof:
         offer_entry = _make_offer_report_ledger_entry()
         offer_event = _make_event(offer_entry, actor_id=case_actor.id_)
 
-        apply_result = bridge.execute_with_setup(
+        apply_result = run_tree(
+            bridge,
             tree=ApplyOfferReportFromLedgerNode(
                 name="ApplyOfferReportFromLedger"
             ),

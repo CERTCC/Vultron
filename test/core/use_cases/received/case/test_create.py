@@ -34,6 +34,7 @@ from collections.abc import Callable
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import (
     CASE_OWNER_ID,
     CONSTRUCTED_CASE_OWNERSHIP,
@@ -167,7 +168,7 @@ class TestBootstrapCreateAccepted:
         link = _build_link()
         dl.save(link)
 
-        result = CreateCaseReceivedUseCase(dl, create_event).execute()
+        result = run_in_act(CreateCaseReceivedUseCase(dl, create_event))
 
         stored = dl.read(_CASE_ID)
         assert stored is not None, (
@@ -181,9 +182,9 @@ class TestBootstrapCreateAccepted:
     ):
         """A second bootstrap for a replica already seeded is a no-op."""
         dl.save(_build_link())
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        run_in_act(CreateCaseReceivedUseCase(dl, create_event))
 
-        again = CreateCaseReceivedUseCase(dl, create_event).execute()
+        again = run_in_act(CreateCaseReceivedUseCase(dl, create_event))
 
         assert again.disposition == HandlerDisposition.SKIPPED
 
@@ -194,7 +195,7 @@ class TestBootstrapCreateAccepted:
         link = _build_link()
         dl.save(link)
 
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        run_in_act(CreateCaseReceivedUseCase(dl, create_event))
 
         updated = dl.read(link.id_)
         assert isinstance(updated, VultronReportCaseLink)
@@ -208,7 +209,7 @@ class TestBootstrapCreateAccepted:
         link = _build_link()
         dl.save(link)
 
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        run_in_act(CreateCaseReceivedUseCase(dl, create_event))
 
         updated = dl.read(link.id_)
         assert isinstance(updated, VultronReportCaseLink)
@@ -241,7 +242,7 @@ class TestBootstrapCreateRejectedBadSender:
         link = _build_link(case_creator_id=_CREATOR_ID)
         dl.save(link)
 
-        result = CreateCaseReceivedUseCase(dl, imposter_event).execute()
+        result = run_in_act(CreateCaseReceivedUseCase(dl, imposter_event))
 
         stored = dl.read(_CASE_ID)
         assert stored is None, (
@@ -256,7 +257,7 @@ class TestBootstrapCreateRejectedBadSender:
         link = _build_link(case_creator_id=_CREATOR_ID)
         dl.save(link)
 
-        CreateCaseReceivedUseCase(dl, imposter_event).execute()
+        run_in_act(CreateCaseReceivedUseCase(dl, imposter_event))
 
         updated = dl.read(link.id_)
         assert isinstance(updated, VultronReportCaseLink)
@@ -278,7 +279,7 @@ class TestBootstrapCreateNoLink:
         """Without a ReportCaseLink, CreateCaseReceivedUseCase is a no-op."""
         # Do NOT create a VultronReportCaseLink
 
-        result = CreateCaseReceivedUseCase(dl, create_event).execute()
+        result = run_in_act(CreateCaseReceivedUseCase(dl, create_event))
 
         stored = dl.read(_CASE_ID)
         assert stored is None, (
@@ -292,7 +293,7 @@ class TestBootstrapCreateNoLink:
     def test_create_without_case_object_is_refused(self, dl, create_event):
         event = create_event.model_copy(update={"object_": None})
 
-        result = CreateCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(CreateCaseReceivedUseCase(dl, event))
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -333,7 +334,7 @@ class TestAnnounceValidatedByTrustedCaseActorId:
         dl.save(link)
 
         event = make_payload(announce_from_trusted, at=dl)
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         stored = dl.read(_CASE_ID)
         assert stored is not None, (
@@ -348,7 +349,7 @@ class TestAnnounceValidatedByTrustedCaseActorId:
         dl.save(link)
 
         event = make_payload(announce_from_imposter, at=dl)
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
         stored = dl.read(_CASE_ID)
         assert stored is None, (
@@ -457,7 +458,7 @@ def test_each_recipient_of_one_report_can_bootstrap_its_own_case(
         event = _bootstrap_event(
             make_payload, case_id, creator_id, case_actor_id
         )
-        CreateCaseReceivedUseCase(dl, event).execute()
+        run_in_act(CreateCaseReceivedUseCase(dl, event))
 
     for case_id, case_actor_id in case_for.values():
         assert dl.read(case_id) is not None
@@ -501,7 +502,7 @@ class TestCreateRefusesAnUnheldEmbargo:
             at=dl,
         )
 
-        result = CreateCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(CreateCaseReceivedUseCase(dl, event))
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert "EMB-18-003" in (result.reason or "")

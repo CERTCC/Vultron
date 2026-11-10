@@ -25,6 +25,7 @@ the constructor value after every tick, making ``_actor_id`` execution-scoped.
 """
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
@@ -85,13 +86,11 @@ def test_prebuilt_node_writes_to_the_executing_actor_each_tick(
     )
     bridge = BTBridge(datalayer=bt_scenario.dl)
 
-    first = bridge.execute_with_setup(node, actor_id=ACTOR_A, case_id=case.id_)
+    first = run_tree(bridge, node, actor_id=ACTOR_A, case_id=case.id_)
     assert first.status.name == "SUCCESS"
 
     # Same node object, different executing actor.
-    second = bridge.execute_with_setup(
-        node, actor_id=ACTOR_B, case_id=case.id_
-    )
+    second = run_tree(bridge, node, actor_id=ACTOR_B, case_id=case.id_)
     assert second.status.name == "SUCCESS"
 
     reloaded_a = stores[ACTOR_A].read(participant_a.id_)

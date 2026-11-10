@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.clock import SystemClock
@@ -254,12 +255,14 @@ class TestLeaveCaseRoundTrip:
             case_id=case.id_,
         )
         before = set(vendor_dl.outbox_list())
-        SvcLeaveCaseUseCase(
-            vendor_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(vendor_dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcLeaveCaseUseCase(
+                vendor_dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(vendor_dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(vendor_dl.outbox_list())
         assert after - before, "Leave must be queued in vendor outbox"
 
@@ -275,13 +278,15 @@ class TestLeaveCaseRoundTrip:
             case_id=case.id_,
             receiving_actor_id=case_actor.id_,
         )
-        CloseCaseReceivedUseCase(
-            dl=ca_dl,
-            request=event,
-            sync_port=SyncActivityAdapter(ca_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(ca_dl),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=ca_dl,
+                request=event,
+                sync_port=SyncActivityAdapter(ca_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(ca_dl),
+            )
+        )
 
         # Step 3: vendor is RM.CLOSED on Case Actor replica (CM-23-003)
         rm_states = _participant_rm_states(ca_dl, case.id_, vendor.id_)
@@ -323,12 +328,14 @@ class TestLeaveCaseRoundTrip:
             actor_id=vendor.id_,
             case_id=case.id_,
         )
-        SvcLeaveCaseUseCase(
-            vendor_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(vendor_dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcLeaveCaseUseCase(
+                vendor_dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(vendor_dl),
+                clock=SystemClock(),
+            )
+        )
 
         # Neither replica must be at RM.CLOSED
         vendor_rm = _participant_rm_states(vendor_dl, case.id_, vendor.id_)
@@ -388,12 +395,14 @@ class TestLeaveCaseRoundTrip:
             case_id=case.id_,
         )
         before = set(vendor_dl.outbox_list())
-        SvcLeaveCaseUseCase(
-            vendor_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(vendor_dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcLeaveCaseUseCase(
+                vendor_dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(vendor_dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(vendor_dl.outbox_list())
         assert after - before, "Owner Leave must be queued in vendor outbox"
 
@@ -412,13 +421,15 @@ class TestLeaveCaseRoundTrip:
             case_id=case_id,
             receiving_actor_id=case_actor.id_,
         )
-        CloseCaseReceivedUseCase(
-            dl=ca_dl,
-            request=event,
-            sync_port=SyncActivityAdapter(ca_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(ca_dl),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=ca_dl,
+                request=event,
+                sync_port=SyncActivityAdapter(ca_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(ca_dl),
+            )
+        )
 
         # Step 4: owner and CaseActor are both RM.CLOSED on the CA replica
         owner_rm = _participant_rm_states(ca_dl, case_id, vendor.id_)

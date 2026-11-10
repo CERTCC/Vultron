@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.signing import author_of, signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -142,9 +143,7 @@ def test_no_case_id_returns_failure_without_building_inner_tree(bridge):
         patch(_FACTORY_PATH) as mock_factory,
         patch(_INNER_BRIDGE_PATH) as mock_bridge,
     ):
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=None
-        )
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID, activity=None)
     assert result.status == Status.FAILURE
     mock_factory.assert_not_called()
     mock_bridge.assert_not_called()
@@ -161,9 +160,7 @@ def test_seeded_case_id_builds_inner_commit_tree(bridge):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
-        )
+        run_tree(bridge, tree=node, actor_id=ACTOR_ID, activity=activity)
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
@@ -209,9 +206,7 @@ def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        bridge.execute_with_setup(
-            tree=seq, actor_id=ACTOR_ID, activity=activity
-        )
+        run_tree(bridge, tree=seq, actor_id=ACTOR_ID, activity=activity)
 
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
@@ -234,9 +229,7 @@ def test_activity_on_blackboard_semantics_become_the_entry_semantic_type(
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
-        )
+        run_tree(bridge, tree=node, actor_id=ACTOR_ID, activity=activity)
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
@@ -269,8 +262,8 @@ def test_received_body_is_forwarded_as_payload_snapshot_unchanged(bridge):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=_received(body)
+        run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=_received(body)
         )
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
@@ -296,9 +289,7 @@ def test_an_unrecorded_event_without_evidence_is_refused_not_recorded(bridge):
     )
     node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=event
-        )
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID, activity=event)
 
     assert result.status == Status.FAILURE
     assert result.internal_error is False
@@ -335,8 +326,8 @@ def test_a_recorded_resend_without_evidence_reuses_its_first_entry(
     )
     node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=resend
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=resend
         )
 
     assert result.status == Status.SUCCESS
@@ -368,8 +359,8 @@ def test_a_recorded_activity_with_its_body_commits_no_second_entry(
     )
     node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=_received()
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=_received()
         )
 
     assert result.status == Status.SUCCESS
@@ -406,8 +397,8 @@ def test_a_resend_whose_id_is_recorded_as_another_activity_is_refused(
     )
     node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=resend
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=resend
         )
 
     assert result.status == Status.FAILURE
@@ -426,8 +417,8 @@ def test_blackboard_activity_that_is_not_an_event_is_a_wiring_fault(bridge):
 
     node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=_NotAnEvent()
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=_NotAnEvent()
         )
 
     assert result.status == Status.FAILURE
@@ -446,9 +437,7 @@ def test_no_activity_returns_failure(bridge):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=None
-        )
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID, activity=None)
     assert result.status == Status.FAILURE
     mock_factory.assert_not_called()
 
@@ -465,7 +454,7 @@ def test_inner_commit_bt_failure_propagates(bridge):
                 status=Status.FAILURE, feedback_message="commit failed"
             )
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
     assert result.status == Status.FAILURE
 
 
@@ -515,8 +504,8 @@ def test_actor_identity_mismatch_returns_failure(bridge):
     )
     node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID_CLP)
     with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=activity
         )
     assert result.status == Status.FAILURE
     assert "CLP-07-003" in (result.feedback_message or "")
@@ -553,8 +542,8 @@ def test_case_manager_as_participant_commits_without_error(bridge):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID, activity=activity
+        result = run_tree(
+            bridge, tree=node, actor_id=CASE_MANAGER_ID, activity=activity
         )
     assert result.status == Status.SUCCESS
     mock_factory.assert_called_once()
@@ -593,8 +582,8 @@ def test_slash_spelled_snapshot_actor_commits(bridge):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=activity
         )
     assert result.status == Status.SUCCESS
     mock_factory.assert_called_once()
@@ -611,8 +600,8 @@ def test_slash_spelled_different_actor_still_refused(bridge):
     )
     node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID_CLP)
     with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=activity
         )
     assert result.status == Status.FAILURE
     assert "CLP-07-003" in (result.feedback_message or "")
@@ -642,8 +631,8 @@ def test_inline_slash_spelled_snapshot_actor_passes_the_identity_check(
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=activity
         )
     assert result.status == Status.SUCCESS
     mock_factory.assert_called_once()
@@ -663,8 +652,8 @@ def test_snapshot_actor_naming_no_id_is_refused(bridge):
     )
     node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID_CLP)
     with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=activity
         )
     assert result.status == Status.FAILURE
     assert "CLP-07-003" in (result.feedback_message or "")
@@ -726,8 +715,8 @@ def test_the_node_refuses_an_unlabelled_event_as_an_internal_error(
     )
     node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, activity=activity
         )
 
     assert result.status == Status.FAILURE

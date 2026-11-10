@@ -194,6 +194,19 @@ def test_pxa_set_is_refused():
         _decide(dl, case.id_, revision)
 
 
+@pytest.mark.spec("MSM-07-037")
+def test_an_owner_that_declined_the_revision_is_refused():
+    """The CASE_MANAGER's decision refuses it, on every path that decides."""
+    dl = _store()
+    case, participants, _active, revision = _revising_case(
+        dl, revision_days=30
+    )
+    _seed_consent(dl, participants[0].id_, revision, _S.DECLINED)
+
+    with pytest.raises(VultronInvalidStateTransitionError, match="MSM-07-037"):
+        _decide(dl, case.id_, revision)
+
+
 @pytest.mark.spec("EMB-18-003")
 def test_an_unreadable_activated_embargo_is_refused():
     dl = _store()

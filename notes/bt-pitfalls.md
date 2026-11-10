@@ -515,10 +515,14 @@ override on the composite that owns the subtree; one on a leaf has no effect.
 Every `CallOutBundle` factory returns its node wrapped in `SynchronousCallOut`
 (applied in `CallOutBundle.__post_init__`). The wrapper is name- and
 status-transparent, but a test asserting on the backend's concrete type or
-attributes must use `unwrap_call_out(node)`. Code that ticks a factory product
-outside a `BTBridge` tree must use `tick_once()` / `setup_with_descendants()`,
-never bare `update()` / `setup()` (see `_record_named_peer` in
-`use_cases/triggers/actor/_peers.py`). Rationale: [protocol-asks.md](protocol-asks.md)
+attributes must use `unwrap_call_out(node)`. Code that runs a factory product
+outside a tree must still run it as one, through
+`BTBridge.execute_with_setup(node, actor_id=..., max_iterations=1)`, never bare
+`tick_once()`, `update()` or `setup()`. Only the bridge wires the node's ports
+(`datalayer`, `actor_id`); a bare tick leaves them `None` (#2707; see
+`_record_named_peer` in `use_cases/triggers/actor/_peers.py`). The bridge never
+raises, so the caller reads `result.status`. A backend that raises arrives as
+FAILURE, and the bridge has already logged it at ERROR. Rationale: [protocol-asks.md](protocol-asks.md)
 § "Why there is nothing to suspend" (ADR-0080); bundle
 configuration: [call-out-configuration.md](call-out-configuration.md).
 

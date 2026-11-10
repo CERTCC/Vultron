@@ -16,6 +16,7 @@ import logging
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.received import (
@@ -140,7 +141,7 @@ class TestEngageDeferCaseBTFailureReason:
         event = MagicMock()
         event.case_id = None
 
-        result = use_case(dl, event).execute()
+        result = run_in_act(use_case(dl, event))
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -155,13 +156,15 @@ class TestEngageDeferCaseBTFailureReason:
         event = self._engage_event(actor_id, case_id)
 
         with caplog.at_level(logging.WARNING):
-            result = EngageCaseReceivedUseCase(
-                dl,
-                event,
-                trigger_activity=TriggerActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+            result = run_in_act(
+                EngageCaseReceivedUseCase(
+                    dl,
+                    event,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
         # HP-01-003: an actor with no participant record is refused.
         assert result.disposition == HandlerDisposition.REFUSED
@@ -190,13 +193,15 @@ class TestEngageDeferCaseBTFailureReason:
         event = self._defer_event(actor_id, case_id)
 
         with caplog.at_level(logging.WARNING):
-            result = DeferCaseReceivedUseCase(
-                dl,
-                event,
-                trigger_activity=TriggerActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+            result = run_in_act(
+                DeferCaseReceivedUseCase(
+                    dl,
+                    event,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
         # HP-01-003: an actor with no participant record is refused.
         assert result.disposition == HandlerDisposition.REFUSED
@@ -302,13 +307,15 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
         )
 
     def _execute(self, dl, event):
-        return EngageCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        return run_in_act(
+            EngageCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
     @pytest.mark.spec("CLP-07-013")
     def test_an_admitted_senders_snapshot_records_are_not_stored(
@@ -487,13 +494,15 @@ class TestEngageCaseLedgerCommit:
             CaseLedgerEntry,
         )
 
-        EngageCaseReceivedUseCase(
-            seeded_dl,
-            self._engage_event(seeded_dl),
-            trigger_activity=TriggerActivityAdapter(seeded_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(seeded_dl),
-        ).execute()
+        run_in_act(
+            EngageCaseReceivedUseCase(
+                seeded_dl,
+                self._engage_event(seeded_dl),
+                trigger_activity=TriggerActivityAdapter(seeded_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(seeded_dl),
+            )
+        )
 
         entries = seeded_dl.list_objects("CaseLedgerEntry")
         engage_entries = [
@@ -529,13 +538,15 @@ class TestEngageCaseLedgerCommit:
         The ``Announce``'s ``actor`` is the CASE_MANAGER, so a recipient knows
         whom to fetch current case state from (CM-06-001, CM-06-003).
         """
-        EngageCaseReceivedUseCase(
-            seeded_dl,
-            self._engage_event(seeded_dl),
-            trigger_activity=TriggerActivityAdapter(seeded_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(seeded_dl),
-        ).execute()
+        run_in_act(
+            EngageCaseReceivedUseCase(
+                seeded_dl,
+                self._engage_event(seeded_dl),
+                trigger_activity=TriggerActivityAdapter(seeded_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(seeded_dl),
+            )
+        )
 
         announces = self._queued_announces(seeded_dl)
         assert len(announces) == 1
@@ -570,13 +581,15 @@ class TestEngageCaseLedgerCommit:
         with caplog.at_level(
             logging.INFO, logger="vultron.core.behaviors.case.update_support"
         ):
-            EngageCaseReceivedUseCase(
-                seeded_dl,
-                self._engage_event(seeded_dl),
-                trigger_activity=TriggerActivityAdapter(seeded_dl),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(seeded_dl),
-            ).execute()
+            run_in_act(
+                EngageCaseReceivedUseCase(
+                    seeded_dl,
+                    self._engage_event(seeded_dl),
+                    trigger_activity=TriggerActivityAdapter(seeded_dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(seeded_dl),
+                )
+            )
 
         announces = self._queued_announces(seeded_dl)
         assert len(announces) == 1
@@ -622,13 +635,15 @@ class TestEngageCaseLedgerCommit:
             }
         )
 
-        result = EngageCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            EngageCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None
@@ -648,13 +663,15 @@ class TestEngageCaseLedgerCommit:
             update={"receiving_actor_id": None}
         )
 
-        EngageCaseReceivedUseCase(
-            seeded_dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(seeded_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(seeded_dl),
-        ).execute()
+        run_in_act(
+            EngageCaseReceivedUseCase(
+                seeded_dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(seeded_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(seeded_dl),
+            )
+        )
 
         # The act, then the status it wrote as its own entry (CLP-07-013).
         assert [
@@ -667,13 +684,15 @@ class TestEngageCaseLedgerCommit:
         Verifies that fixing the receiving_actor_id does not break the RM
         transition for the sending actor (the actor who engaged the case).
         """
-        result = EngageCaseReceivedUseCase(
-            seeded_dl,
-            self._engage_event(seeded_dl),
-            trigger_activity=TriggerActivityAdapter(seeded_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(seeded_dl),
-        ).execute()
+        result = run_in_act(
+            EngageCaseReceivedUseCase(
+                seeded_dl,
+                self._engage_event(seeded_dl),
+                trigger_activity=TriggerActivityAdapter(seeded_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(seeded_dl),
+            )
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
         updated = seeded_dl.read(self._VENDOR_PARTICIPANT_ID)
@@ -700,13 +719,15 @@ class TestEngageCaseLedgerCommit:
         return self._engage_event(dl).model_copy(update={"object_": snapshot})
 
     def _execute(self, dl: SqliteDataLayer, event: EngageCaseReceivedEvent):
-        return EngageCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        return run_in_act(
+            EngageCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
     @pytest.mark.spec("CLP-10-006")
     @pytest.mark.spec("CLP-10-010")
@@ -853,13 +874,15 @@ class TestDeferCaseLedgerCommit:
             update={"receiving_actor_id": None}
         )
 
-        DeferCaseReceivedUseCase(
-            seeded_dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(seeded_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(seeded_dl),
-        ).execute()
+        run_in_act(
+            DeferCaseReceivedUseCase(
+                seeded_dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(seeded_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(seeded_dl),
+            )
+        )
 
         # The act, then the status it wrote as its own entry (CLP-07-013).
         assert [
@@ -878,13 +901,15 @@ class TestDeferCaseLedgerCommit:
             CaseLedgerEntry,
         )
 
-        DeferCaseReceivedUseCase(
-            seeded_dl,
-            self._defer_event(),
-            trigger_activity=TriggerActivityAdapter(seeded_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(seeded_dl),
-        ).execute()
+        run_in_act(
+            DeferCaseReceivedUseCase(
+                seeded_dl,
+                self._defer_event(),
+                trigger_activity=TriggerActivityAdapter(seeded_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(seeded_dl),
+            )
+        )
 
         entries = seeded_dl.list_objects("CaseLedgerEntry")
         defer_entries = [
@@ -924,13 +949,15 @@ class TestDeferCaseLedgerCommit:
         )
         participant_before = dl.read(self._VENDOR_PARTICIPANT_ID)
 
-        result = DeferCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            DeferCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None
@@ -941,13 +968,15 @@ class TestDeferCaseLedgerCommit:
 
     def test_defer_case_transitions_vendor_rm_to_deferred(self, seeded_dl):
         """DeferCaseReceivedUseCase still transitions the deferring actor's RM to DEFERRED."""
-        result = DeferCaseReceivedUseCase(
-            seeded_dl,
-            self._defer_event(),
-            trigger_activity=TriggerActivityAdapter(seeded_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(seeded_dl),
-        ).execute()
+        result = run_in_act(
+            DeferCaseReceivedUseCase(
+                seeded_dl,
+                self._defer_event(),
+                trigger_activity=TriggerActivityAdapter(seeded_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(seeded_dl),
+            )
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
         updated = seeded_dl.read(self._VENDOR_PARTICIPANT_ID)

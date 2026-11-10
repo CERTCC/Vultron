@@ -18,6 +18,7 @@
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.carried_object_case import (
@@ -40,9 +41,7 @@ def _run(dl, carried):
     node = CarriedObjectInTargetCaseNode(
         object_id=NOTE_ID, carried=carried, case_id=CASE_ID
     )
-    result = BTBridge(datalayer=dl).execute_with_setup(
-        tree=node, actor_id=ACTOR_ID
-    )
+    result = run_tree(BTBridge(datalayer=dl), tree=node, actor_id=ACTOR_ID)
     return node, result.status
 
 

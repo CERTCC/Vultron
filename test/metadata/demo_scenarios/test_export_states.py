@@ -16,7 +16,7 @@
 """Drift detector for the exported protocol-state artifact.
 
 ``vultron/metadata/demo_scenarios/export_states.py`` writes
-``data/json/protocol_states.json``, which the ``ui/`` demos consume instead of
+``ui/src/data/protocol_states.json``, which the ``ui/`` demos consume instead of
 hardcoding the protocol's states and transitions. This test fails when the
 committed JSON no longer matches a fresh export — i.e. the protocol state
 machines changed but the artifact was not regenerated.
@@ -24,7 +24,7 @@ machines changed but the artifact was not regenerated.
 To fix a failure here::
 
     uv run export-demo-states
-    git add data/json/protocol_states.json
+    git add ui/src/data/protocol_states.json
 """
 
 import json
@@ -38,7 +38,7 @@ from vultron.metadata.demo_scenarios.export_states import (
 from vultron.metadata.generated_files import serialize_json
 
 REGEN_HINT = (
-    "data/json/protocol_states.json is stale. The protocol state machines "
+    "ui/src/data/protocol_states.json is stale. The protocol state machines "
     "changed but the exported artifact was not regenerated. Run "
     "`uv run export-demo-states` and commit the result."
 )

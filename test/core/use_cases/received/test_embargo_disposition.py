@@ -26,6 +26,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from test.support.owner_decision import (
@@ -95,7 +96,7 @@ class TestMalformedEmbargoMessagesAreRefused:
     )
     def test_owner_decision_missing_ids(self, embargo_id, case_id, use_case):
         request = _request(embargo_id=embargo_id, case_id=case_id)
-        result = use_case(_make_dl(), request).execute()
+        result = run_in_act(use_case(_make_dl(), request))
         _assert_refused(result, "missing")
 
     @pytest.mark.spec("HP-01-003")
@@ -105,17 +106,17 @@ class TestMalformedEmbargoMessagesAreRefused:
     )
     def test_remove_missing_ids(self, embargo_id, case_id):
         request = _request(embargo_id=embargo_id, case_id=case_id)
-        result = RemoveEmbargoEventFromCaseReceivedUseCase(
-            _make_dl(), request
-        ).execute()
+        result = run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(_make_dl(), request)
+        )
         _assert_refused(result, "missing")
 
     @pytest.mark.spec("HP-01-003")
     def test_accept_missing_embargo_id(self):
         request = _request(embargo_id=None)
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            _make_dl(), request
-        ).execute()
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
+        )
         _assert_refused(result, "missing")
 
     @pytest.mark.spec("HP-01-003")
@@ -131,17 +132,17 @@ class TestMalformedEmbargoMessagesAreRefused:
             invite_id="i1",
             actor_id=_VENDOR,
         )
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            _make_dl(), request
-        ).execute()
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
+        )
         _assert_refused(result, "embargo")
 
     @pytest.mark.spec("HP-01-003")
     def test_reject_missing_case_id(self):
         request = _request(case_id=None, invite_id="i1", actor_id=_VENDOR)
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            _make_dl(), request
-        ).execute()
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
+        )
         _assert_refused(result, "case")
 
 
@@ -186,7 +187,7 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
         )
         event = make_payload(activity, receiving_actor_id=_COORD)
 
-        result = use_case(_make_dl(), event).execute()
+        result = run_in_act(use_case(_make_dl(), event))
 
         _assert_refused(
             result, "holds no replica of case 'https://example.org/cases/nope'"
@@ -199,9 +200,9 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
             case_id="https://example.org/cases/nope",
             invite_id="i1",
         )
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            _make_dl(), request
-        ).execute()
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(_make_dl(), request)
+        )
         _assert_refused(result, "unknown case")
 
 
@@ -247,11 +248,13 @@ class TestFailedTeardownIsRefused:
         )
         event = make_payload(activity, receiving_actor_id=_COORD, at=dl)
 
-        result = RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         _assert_refused(result, "could not clear active embargo")

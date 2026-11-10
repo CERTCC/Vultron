@@ -29,6 +29,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTExecutionResult
 
@@ -43,9 +44,7 @@ class TestBTScenarioFactory:
         """When is_leader=False, execute_with_setup returns FAILURE immediately."""
         scenario = bt_scenario_factory(is_leader=False)
         node = py_trees.behaviours.Success("dummy")
-        result = scenario.bridge.execute_with_setup(
-            node, actor_id=scenario.actor_id
-        )
+        result = run_tree(scenario.bridge, node, actor_id=scenario.actor_id)
         assert result.status == py_trees.common.Status.FAILURE
         assert "not the replication leader" in result.feedback_message
 
@@ -56,9 +55,7 @@ class TestBTScenarioFactory:
         """When is_leader=True (default), a Success node returns SUCCESS."""
         scenario = bt_scenario_factory(is_leader=True)
         node = py_trees.behaviours.Success("dummy")
-        result = scenario.bridge.execute_with_setup(
-            node, actor_id=scenario.actor_id
-        )
+        result = run_tree(scenario.bridge, node, actor_id=scenario.actor_id)
         assert result.status == py_trees.common.Status.SUCCESS
 
     def test_custom_actor_id(

@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -122,7 +123,8 @@ def matching_slots(
     matched = []
     for condition in effect_slot_conditions():
         py_trees.blackboard.Blackboard.storage.clear()
-        result = BTBridge(datalayer=dl).execute_with_setup(
+        result = run_tree(
+            BTBridge(datalayer=dl),
             tree=condition,
             actor_id=REPLICA,
             activity=_make_event(entry, actor_id=MANAGER),

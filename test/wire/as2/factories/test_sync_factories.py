@@ -99,15 +99,23 @@ def test_announce_log_entry_invalid_raises():
 @pytest.mark.spec("AF-01-002")
 def test_reject_log_entry_returns_reject(sample_log_entry):
     result = reject_log_entry_activity(
-        entry=sample_log_entry, actor=_ACTOR_URI
+        entry=sample_log_entry,
+        actor=_ACTOR_URI,
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     assert isinstance(result, as_Reject)
+    assert (
+        result.in_reply_to
+        == "https://example.org/activities/prompting-announce"
+    )
 
 
 @pytest.mark.spec("SYNC-03-001")
 def test_reject_log_entry_object_is_entry(sample_log_entry):
     result = reject_log_entry_activity(
-        entry=sample_log_entry, actor=_ACTOR_URI
+        entry=sample_log_entry,
+        actor=_ACTOR_URI,
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     assert result.object_ == sample_log_entry
 
@@ -119,7 +127,10 @@ def test_reject_log_entry_states_the_tail_as_its_position(sample_log_entry):
     names the case (SYNC-18-001)."""
     tail = LedgerPosition(log_index=0, entry_hash=_LAST_HASH)
     result = reject_log_entry_activity(
-        entry=sample_log_entry, ledger_position=tail, actor=_ACTOR_URI
+        entry=sample_log_entry,
+        ledger_position=tail,
+        actor=_ACTOR_URI,
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     assert result.ledger_position == tail
     assert result.context == sample_log_entry.case_id
@@ -129,7 +140,8 @@ def test_reject_log_entry_states_the_tail_as_its_position(sample_log_entry):
 def test_reject_log_entry_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         reject_log_entry_activity(
-            entry="not-a-log-entry"  # type: ignore[arg-type]
+            entry="not-a-log-entry",  # type: ignore[arg-type]
+            in_reply_to="https://example.org/activities/prompting-announce",
         )
     assert exc_info.value.__cause__ is not None
 

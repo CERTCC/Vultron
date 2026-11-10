@@ -16,6 +16,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
@@ -97,12 +98,14 @@ class TestEmbargoLogEntryCascade:
         activity = factory(embargo, target=case_ref, actor=author_id)
         event = make_payload(activity, receiving_actor_id=author_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
-        use_case(
-            dl,
-            event,
-            sync_port=sync_port,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            use_case(
+                dl,
+                event,
+                sync_port=sync_port,
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         entries = [
             obj
@@ -137,12 +140,14 @@ class TestEmbargoLogEntryCascade:
         )
         event = make_payload(activity, receiving_actor_id=author_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
-        RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=sync_port,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=sync_port,
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         entries = [
             obj
@@ -186,12 +191,14 @@ class TestEmbargoLogEntryCascade:
         )
         event = make_payload(activity, receiving_actor_id=author_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
-        RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=sync_port,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=sync_port,
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         entries = [
             obj
@@ -235,12 +242,14 @@ class TestEmbargoLogEntryCascade:
         # receiving_actor_id is the invitee — not the CaseActor/Case Manager.
         event = make_payload(proposal, receiving_actor_id=invitee_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=sync_port,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=sync_port,
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         # No canonical ledger entry should be committed on the invitee side.
         entries = [
@@ -296,13 +305,15 @@ class TestEmbargoLogEntryCascade:
         # the CASE_MANAGER in this fixture (case_manager_actor_id=coordinator_id).
         event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=sync_port,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=sync_port,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         entries = [
             obj
@@ -354,13 +365,15 @@ class TestEmbargoLogEntryCascade:
         # commit is gated on that role, so it is the receiving actor.
         event = make_payload(reject, receiving_actor_id=coordinator_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
-        RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=sync_port,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=sync_port,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         entries = [
             obj

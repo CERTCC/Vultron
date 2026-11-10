@@ -132,6 +132,13 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
         "writes CaseStatus.pxa, not ParticipantStatus — separate model type"
         " (ADR-0080); out of scope for the participant-status evaluator"
     ),
+    # CreateCaseFromProposalNode builds a new case's first CaseStatus with the
+    # P/X/A its report states (CSAF-03-003 to CSAF-03-005): a CaseStatus, not
+    # a ParticipantStatus, and a first status with no predecessor.
+    "vultron/core/behaviors/case/nodes/proposal_case_resolution.py": (
+        "writes a new case's first CaseStatus.pxa, not ParticipantStatus — no"
+        " prior state, so no transition to validate (BTND-10-001, ADR-0080)"
+    ),
     # EmitCaseStatusUpdateNode's post-mutation CaseStatus snapshot — the same
     # CaseStatus.pxa write, in the module shared with the embargo trees.
     "vultron/core/behaviors/case_status_snapshot.py": (

@@ -24,6 +24,7 @@ from py_trees.common import Status
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.ledger import commit_case_manager_closure
 from test.support.received import extract_stamped
@@ -71,8 +72,11 @@ def _run(dl: SqliteDataLayer, actor_id: str, case_id: str | None = None):
     tree = py_trees.composites.Sequence(
         name="Probe", memory=False, children=[node]
     )
-    result = BTBridge(datalayer=dl).execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=_late_note_event()
+    result = run_tree(
+        BTBridge(datalayer=dl),
+        tree=tree,
+        actor_id=actor_id,
+        activity=_late_note_event(),
     )
     return node, result
 

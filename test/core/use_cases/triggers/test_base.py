@@ -6,6 +6,7 @@ import py_trees.behaviour
 import pytest
 
 from test.support.act_clock import CountingClock
+from test.support.act_runner import run_in_act
 from vultron.adapters.driven.clock import SystemClock
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.use_case_result import ActivityResult, OfferResult
@@ -91,7 +92,7 @@ def test_missing_trigger_activity_raises():
         clock=SystemClock(),
     )
     with pytest.raises(RuntimeError, match="requires a TriggerActivityPort"):
-        uc.execute()
+        run_in_act(uc)
 
 
 def test_missing_trigger_activity_calls_prepare_first():
@@ -103,7 +104,7 @@ def test_missing_trigger_activity_calls_prepare_first():
         clock=SystemClock(),
     )
     with pytest.raises(RuntimeError):
-        uc.execute()
+        run_in_act(uc)
     assert uc.prepare_called, "_prepare() must run before the port guard"
 
 
@@ -145,7 +146,7 @@ def test_hooks_called_in_order():
         trigger_activity=MagicMock(),
         clock=SystemClock(),
     )
-    result = uc.execute()
+    result = run_in_act(uc)
 
     assert uc.prepare_called
     assert uc.build_tree_called
@@ -177,7 +178,7 @@ def test_execute_returns_captured_activity():
         trigger_activity=MagicMock(),
         clock=SystemClock(),
     )
-    result = uc.execute()
+    result = run_in_act(uc)
     assert result == ActivityResult(
         activity={"type": "TestActivity"},
         emitting_actor_id="https://example.org/actor",
@@ -226,7 +227,7 @@ def test_a_trigger_reads_its_instant_inside_the_lock_and_its_tree_sees_it():
     )
     assert clock.reads == 0  # construction reads no clock
 
-    uc.execute()
+    run_in_act(uc)
 
     assert clock.reads == 1
     assert clock.locked_at_read == [True]
@@ -259,7 +260,7 @@ def test_invalid_result_is_an_internal_error_not_a_validation_error():
         clock=SystemClock(),
     )
     with pytest.raises(RuntimeError, match="built an invalid result"):
-        uc.execute()
+        run_in_act(uc)
 
 
 def test_execute_returns_the_subtype_a_generic_subclass_binds():
@@ -287,7 +288,7 @@ def test_execute_returns_the_subtype_a_generic_subclass_binds():
         trigger_activity=MagicMock(),
         clock=SystemClock(),
     )
-    result = uc.execute()
+    result = run_in_act(uc)
     assert result == OfferResult(offer={"type": "Offer"})
     assert set(result.model_dump()) == {"offer"}
 
@@ -401,7 +402,7 @@ def test_embargo_duplicate_ask_is_suppressed_before_the_tree_runs():
         subject="proposal-1",
         clock=SystemClock(),
     )
-    result = uc.execute()
+    result = run_in_act(uc)
 
     assert result == ActivityResult(activity=None, emitting_actor_id=_ACTOR_ID)
     assert not uc.tree_built
@@ -464,13 +465,15 @@ def test_wire_render_port_is_published_to_the_tree():
         def _handle_result(self) -> None:
             pass
 
-    _PortTrigger(
-        dl=MagicMock(),
-        request=object(),
-        trigger_activity=MagicMock(),
-        wire_render_port=port,  # type: ignore[arg-type]
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        _PortTrigger(
+            dl=MagicMock(),
+            request=object(),
+            trigger_activity=MagicMock(),
+            wire_render_port=port,  # type: ignore[arg-type]
+            clock=SystemClock(),
+        )
+    )
 
     assert seen["port"] is port
 

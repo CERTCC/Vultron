@@ -325,7 +325,9 @@ groups:
       public, public unaware) is semantically impossible — the exploit being public implies the vulnerability is public.
       Implementors MUST use `is_ephemeral_cs_state()` and `required_next_cs_events()` from
       `vultron/core/states/cs_invariants/` to enforce this rule at the persistence
-      boundary. This requirement governs
+      boundary, for the states an actor holds for itself and the case status the
+      CASE_MANAGER commits (SM-09-003). A received claim is stored as sent
+      (RSH-09-010). This requirement governs
       the *persistence* boundary only; CSB-17-003 and CSB-17-005 cover trajectory validation, where an ephemeral state is a
       legal prefix terminus.'
     lint_suppress:
@@ -334,28 +336,50 @@ groups:
     - rel_type: implements
       spec_id: CSB-17-003
       note: >-
-        SM-09-003 governs the persistence boundary: an incoming status write
-        carrying vP or pX MUST be promoted to the forced form before it is
-        stored. CSB-17-003 governs trajectory validation, where the same two
+        SM-09-003 governs the persistence boundary: an actor's own state or
+        conclusion carrying vP or pX MUST be promoted to the forced form
+        before it is stored, and a received claim is stored as received.
+        CSB-17-003 governs trajectory validation, where the same two
         conditions are modelled as ephemeral states with exactly one legal
         successor. The two are consistent because they apply at different
-        boundaries: no vP or pX state is ever persisted, but such a state is
-        still a legal intermediate point in a replayed history, and CSB-17-004
-        therefore permits a history prefix to end in one.
+        boundaries: no actor persists a vP or pX state as its own, but such a
+        state is still a legal intermediate point in a replayed history, and
+        CSB-17-004 therefore permits a history prefix to end in one.
   - id: SM-09-003
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
-      This codebase MUST promote each incoming CS state that holds `pX` or `vP` to its
-      forced form (SM-09-001) before it persists the state.
+      This codebase MUST record each CS state that an actor holds or concludes for
+      itself in its forced form (SM-09-001). A state that holds `pX` or `vP` is
+      promoted before it is persisted. A record of a status received from another
+      actor is not the receiver's own state: it is stored exactly as received
+      (RSH-09-010). When the CASE_MANAGER adopts a received status, the case's
+      `CaseStatus` it commits is its own conclusion, in the forced form.
     rationale: >-
-      A stored `pX` or `vP` state is one that no participant can be in. Promotion at
-      the persistence boundary keeps every stored CS state reachable, whatever the
-      sender wrote.
+      An actor's own `pX` or `vP` state is one that no participant can be in, so
+      promotion keeps every state an actor asserts for itself reachable. A received
+      status is the sender's claim about its own view. If the receiver rewrote it,
+      the record would show a status that nobody sent (ADR-0107). The case's
+      `CaseStatus`, which the CASE_MANAGER arbitrates and every replica copies
+      (CLP-07-013), is the case-level fact, so case-level reads use it and never the
+      claim.
+    verification: >-
+      `test/core/use_cases/received/test_received_claim_forced_form.py` sends a
+      `pXa` and a `pXA` claim to the CASE_MANAGER. It asserts that the claim is
+      stored and committed as sent, that the case's committed `CaseStatus` is `PXa`
+      or `PXA`, that each replica copies both records unchanged, and that the
+      teardown cause and the CSB-18 note name the case's forced state.
+      `test_ephemeral_pxa_pXa_promoted_before_write` in
+      `test/core/use_cases/triggers/case/test_add_participant_status.py` pins the
+      promotion of an actor's own outgoing status.
     relationships:
     - rel_type: implements
       spec_id: SM-09-001
+    see_also:
+    - spec_id: RSH-09-010
+      reason: >-
+        the received-status rule this one defers to: it says what a received
+        claim's record holds, and no SR-13 relationship fits that split
   - id: SM-09-002
     priority: MUST_NOT
     kind: protocol

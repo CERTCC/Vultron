@@ -37,17 +37,23 @@ class ReadField:
 READ_FIELDS: tuple[ReadField, ...] = (
     ReadField("$schema", ("CSAF-01-003",)),
     ReadField("document.csaf_version", ("CSAF-01-003",)),
-    ReadField("document.category", ("CSAF-04-009",)),
-    ReadField("document.title", ("CSAF-03-007",)),
-    ReadField("document.notes[].category", ("CSAF-03-007",)),
-    ReadField("document.notes[].text", ("CSAF-03-007",)),
+    ReadField("document.category", ("CSAF-02-001", "CSAF-04-009")),
+    ReadField("document.title", ("CSAF-03-007", "CSAF-04-010")),
+    ReadField("document.notes[].category", ("CSAF-03-007", "CSAF-04-010")),
+    ReadField("document.notes[].text", ("CSAF-03-007", "CSAF-04-010")),
     ReadField("document.references[]", ("CSAF-03-009",)),
     ReadField("document.distribution.tlp.label", ("CSAF-04-004",)),
     ReadField("document.acknowledgments[]", ("CSAF-04-004",)),
     ReadField("document.involvement.entities[].name", ("CSAF-04-004",)),
     ReadField(
         "vulnerabilities[].disclosure_date",
-        ("CSAF-03-001", "CSAF-03-002", "CSAF-03-003", "CSAF-04-006"),
+        (
+            "CSAF-03-001",
+            "CSAF-03-002",
+            "CSAF-03-003",
+            "CSAF-04-006",
+            "CSAF-04-010",
+        ),
     ),
     ReadField(
         "vulnerabilities[].first_known_exploitation_dates[]",

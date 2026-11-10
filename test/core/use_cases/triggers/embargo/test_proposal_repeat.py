@@ -24,6 +24,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.ledger import committed_semantic_types
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -66,29 +67,33 @@ OTHER = "https://example.org/actors/other-vendor"
 
 
 def _propose(dl: SqliteDataLayer, actor_id: str, case_id: str, end_time):
-    return SvcProposeEmbargoUseCase(
-        dl,
-        ProposeEmbargoTriggerRequest(
-            actor_id=actor_id, case_id=case_id, end_time=end_time
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcProposeEmbargoUseCase(
+            dl,
+            ProposeEmbargoTriggerRequest(
+                actor_id=actor_id, case_id=case_id, end_time=end_time
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
 
 def _revise(dl: SqliteDataLayer, actor_id: str, case_id: str, end_time):
-    return SvcProposeEmbargoRevisionUseCase(
-        dl,
-        ProposeEmbargoRevisionTriggerRequest(
-            actor_id=actor_id, case_id=case_id, end_time=end_time
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcProposeEmbargoRevisionUseCase(
+            dl,
+            ProposeEmbargoRevisionTriggerRequest(
+                actor_id=actor_id, case_id=case_id, end_time=end_time
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
 
 def _case(dl: SqliteDataLayer, case_id: str) -> VulnerabilityCase:

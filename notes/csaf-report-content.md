@@ -3,8 +3,6 @@ title: "CSAF Documents in Reports: Implementation Plan"
 status: active
 kind: plan
 tracks:
-  - "#6091"
-  - "#6092"
   - "#6093"
   - "#6094"
   - "#6101"
@@ -13,22 +11,29 @@ tracks:
 description: >
   How this codebase carries, checks and reads a CSAF 2.1 document attached to a
   VulnerabilityReport: the module layout, the two-stage parse with generated
-  models, the receiver-local record, the pinned local copy of the schemas and the
-  job that watches the draft. The protocol rules are CSAF-01 to CSAF-03 and
-  ADR-0184; this note is the build plan for CSAF-04 and CSAF-05.
+  models, the receiver-local record and signals, how the CASE_MANAGER fills a new
+  case from the CSAF report its proposal carries, how the submit-report trigger
+  checks and reads the document it sends, the pinned local copy of the
+  schemas and the job that watches the draft. The protocol rules are CSAF-01 to
+  CSAF-03 and ADR-0184; this note is the build plan for CSAF-02 to CSAF-05.
 related_specs:
   - specs/csaf-report-content.yaml
   - specs/embargo-policy.yaml
   - specs/message-validation.yaml
   - specs/case-management.yaml
+  - specs/case-proposal.yaml
 related_notes:
+  - notes/bt-pitfalls.md
   - notes/wire-core-boundary.md
   - notes/ci-workflow-authoring.md
   - notes/datalayer-design.md
+  - notes/case-proposal.md
 relevant_packages:
   - vultron.wire
   - vultron.metadata
   - vultron.core.models
+  - vultron.core.services
+  - vultron.core.behaviors
 ---
 
 # CSAF Documents in Reports: Implementation Plan
@@ -64,9 +69,74 @@ and archive it.
   the document's content, because the parser mints a fresh id for a `Document`
   sent without one, and
   holds the reading, `received_at` and one `ClaimOutcome` per value path of
-  `ReportClaims.value_paths()`, all `display-only` at receipt. Case creation
-  (#6091) marks a value `applied` or `overridden` with `with_outcome()` and saves
-  the record; the report object stays exactly as received (VM-08-002).
+  `ReportClaims.value_paths()`, all `display-only` at receipt, plus the
+  case-split and candidate-parties signals (CSAF-04-006, CSAF-04-007). The
+  report object stays exactly as received (VM-08-002).
+- **Only the side that creates the case marks outcomes.** The receiver's record
+  keeps every value `display-only`; the CASE_MANAGER writes its own record, in
+  its own store, with the `applied` and `overridden` outcomes of the case it
+  built (`StoreCaseInputClaimsRecordsNode`), keyed on that case, so a second
+  proposer's case for the same report keeps its own record. A record never says
+  a value shaped
+  a case it did not shape: an `auto_create_case` receiver that proposes nothing,
+  or a proposal the CASE_MANAGER declines, leaves no `applied` value anywhere.
+
+## Filling the case (CSAF-02, CSAF-03)
+
+- **One mapping.** `case_inputs_from_claims(claims, *, reference_time, stated)`
+  in `vultron.core.services.report_case_inputs` is the only CSAF-03 mapping; the
+  submit-report trigger (#6092) reuses it with its own "now". `StatedReportFields`
+  carries the Offer's and report's values, which always win (CSAF-02-003).
+- **The CASE_MANAGER reads the carried Offer.** The proposer and the
+  CASE_MANAGER are two roles of one coordinating function, so the CSAF document
+  on the Offer a `Create(CaseProposal)` carries (CP-01-008) is still the initial
+  report (CSAF-02-002). The extractor reads that Offer's report into
+  `CreateCaseProposalReceivedEvent.claims_readings`, with the report's own name
+  and summary; a proposal with no inline Offer fills nothing (CP-01-021).
+  `ResolveReportCaseInputsNode` and `CreateCaseFromProposalNode` run on the
+  new-case arm only, so a proposal that resolves to an existing case changes
+  nothing (EP-04-029). A proposer that fills the values itself and carries them
+  on the proposal is allowed, not built.
+- **"Now" is the CASE_MANAGER's receipt of the proposal**, the act's instant, not
+  the Offer's `published` (CLP-15-003) and not the receiver's receipt, which no
+  message carries. A `disclosure_date` equal to it counts as past (CSAF-03-003).
+  The Offer's `proposedEmbargo` is measured from the same instant
+  (`sender_embargo_proposal_inputs`), so one clock decides between the two.
+- **A `proposedEmbargo` that is no longer terms states nothing.** One already
+  ended, or about another subject, is read as no proposal: it neither shapes the
+  case nor sets the document's date aside (CSAF-02-003).
+- **The first document fills.** A report with several
+  `csaf_vulnerability_report` documents fills the case from the first; the
+  others stay display only, so two documents never compete for one input.
+- **P/X/A are the case's first status**, built at construction, not a
+  transition. X starts with P (the pX to PX invariant). A case that starts with
+  P, X or A gets no embargo (EP-04-020), so it takes no embargo end, not even a
+  stated one, and its future disclosure dates stay display only, neither applied
+  nor overridden.
+- **A CSAF embargo end is a sender proposal.** With no `proposedEmbargo` on the
+  Offer, the node seeds `sender_proposed_embargo` with an `EmbargoEvent` whose id
+  derives from the proposal (`csaf_proposed_embargo_id`), so it competes with the
+  owner's actor default by shortest-wins and redelivery names the same event.
+  `BTBridge` scopes both sender keys and `report_case_inputs` to the execution
+  (`managed_keys`), because an output port outlives its run: unscoped, a later
+  proposal stating no terms took the previous report's embargo (BT-09).
+
+## Sending (CSAF-04-009, CSAF-04-010)
+
+- **The edge reads, core judges.** The route turns the body's JSON object into
+  a core `SubmittedCsafDocument`, and the use case refuses its faults before any
+  write, because core may not import wire (ARCH-01-001, ADR-0032).
+- **Make the attached text once.** `csaf_document_text` is the only source of
+  the JSON text, and it refuses text no UTF-8 body can carry or no receiver
+  reads before the schema check runs, so an oversized document is never
+  parsed and a refusal never echoes unencodable input (CSAF-04-009).
+- **The sender skips recognition.** The sender says the object is CSAF 2.1,
+  so the trigger schema-checks it as it stands; a wrong `$schema` or
+  `csaf_version` is a schema error, never a silent pass.
+- **A stated embargo end survives P, X or A.** The mapping drops every embargo
+  end when the document sets P, X or A; the trigger keeps one the Reporter
+  stated, because the terms are the Reporter's to propose and the receiver
+  decides (EP-04-020).
 
 ## Two-stage parse
 
@@ -84,9 +154,6 @@ Rules for stage 2:
 - **Read only what was sent.** The generated models fill the schema's
   `default` values, which the sender never stated (CSAF-02-005). Build stage 2
   from `model_fields_set` (or `exclude_unset=True`), never from the full dump.
-- **"Now" is the receiver's time of receipt**, not the Offer's `published`, which
-  is the sender's claimed time (CLP-15-003). A `disclosure_date` equal to that
-  time counts as past (CSAF-03-003). Read it from `ReportClaimsRecord.received_at`.
 - **Mapping SSVC.** The value sits in `vulnerabilities[].metrics[].content.ssvc_v2`,
   an SSVC `SelectionList`; read the selection whose decision point is
   Exploitation (namespace `ssvc`, key `E`). The wire reader copies the selected
@@ -95,9 +162,6 @@ Rules for stage 2:
   maps it onto `SSVC_2_Exploitation` in
   `vultron/core/scoring/ssvc_2.py`: wire may import only core models and
   states (ARCH-22-001), so `vultron.wire.csaf` never imports `scoring`.
-- **Explicit fields first.** Compare each CSAF value with the Offer and report
-  field for the same thing before applying it, and record the outcome
-  (CSAF-02-003, CSAF-04-004).
 
 ## Generating the models
 
@@ -167,6 +231,10 @@ tasks reuse them rather than add a second path.
 
 ## Signals
 
+- **Signals are the receiver's, at receipt.** `StoreReportClaimsRecordsNode`
+  computes both with `claims_signals` against the act's instant and the
+  receiving actor's `name`, for a document of any category: a signal changes
+  no case data, so CSAF-02-002's category limit does not reach it.
 - **Case split.** Recorded when the vulnerabilities disagree (CSAF-04-006). The
   Case Owner acts through the existing split trigger, never the receiver.
 - **Candidate parties.** Vendor names come from `product_tree` branches of

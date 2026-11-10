@@ -5,6 +5,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     propose,
     write_consent_rows,
@@ -54,14 +55,16 @@ def test_propose_embargo_revision_transitions_em_to_revise(
         end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
-    result = SvcProposeEmbargoRevisionUseCase(
-        dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcProposeEmbargoRevisionUseCase(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     assert result.activity is not None
     updated_case = cast(VulnerabilityCase, dl.read(case.id_))
@@ -87,14 +90,16 @@ def test_manager_revision_relays_an_invite_to_each_other_participant(
         end_time=datetime.now(tz=UTC) + timedelta(days=14),
     )
 
-    SvcProposeEmbargoRevisionUseCase(
-        dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcProposeEmbargoRevisionUseCase(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
     invites = [a for a in queued if a.type_ == "Invite"]
@@ -144,18 +149,20 @@ def test_a_manager_revision_whose_relay_commit_fails_is_not_kept(
     with pytest.MonkeyPatch.context() as mp:
         fail_commits(mp, commit_tree, when=_is_relayed_invite)
         with pytest.raises(VultronBTInternalError, match="commit failed"):
-            SvcProposeEmbargoRevisionUseCase(
-                dl,
-                ProposeEmbargoRevisionTriggerRequest(
-                    actor_id=actor.id_,
-                    case_id=case.id_,
-                    end_time=datetime.now(tz=UTC) + timedelta(days=14),
-                ),
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=SyncActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcProposeEmbargoRevisionUseCase(
+                    dl,
+                    ProposeEmbargoRevisionTriggerRequest(
+                        actor_id=actor.id_,
+                        case_id=case.id_,
+                        end_time=datetime.now(tz=UTC) + timedelta(days=14),
+                    ),
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=SyncActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    clock=SystemClock(),
+                )
+            )
 
     assert relayed_to == [[other_id]], "the relay, not the proposal, failed"
     stored = cast(VulnerabilityCase, dl.read(case.id_))
@@ -182,14 +189,16 @@ def test_propose_embargo_revision_invalid_em_state_raises_error(
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
-        SvcProposeEmbargoRevisionUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcProposeEmbargoRevisionUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
 
 def test_propose_embargo_revision_invalid_state_does_not_persist_embargo(
@@ -208,14 +217,16 @@ def test_propose_embargo_revision_invalid_state_does_not_persist_embargo(
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
-        SvcProposeEmbargoRevisionUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcProposeEmbargoRevisionUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
     after = len(list(dl.list_objects("EmbargoEvent")))
     assert after == before
@@ -250,14 +261,16 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
         end_time=datetime.now(tz=UTC) + timedelta(days=21),
     )
 
-    result = SvcProposeEmbargoRevisionUseCase(
-        dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcProposeEmbargoRevisionUseCase(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     assert result.activity is not None
     updated_case = cast(VulnerabilityCase, dl.read(case.id_))

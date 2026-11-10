@@ -26,6 +26,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -374,7 +375,8 @@ def _run_validate(bridge, datalayer, actor_id, report_id, offer_id):
         call_out=_ALWAYS_SUCCEED_BUNDLE,
         sender_actor_id=actor_id,
     )
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=tree,
         actor_id=actor_id,
         datalayer=datalayer,
@@ -490,7 +492,8 @@ def test_tree_execution_early_exit_already_valid(
     )
 
     # Act: Execute tree
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=tree,
         actor_id=actor_id,
         datalayer=datalayer,
@@ -649,7 +652,8 @@ def test_tree_execution_missing_datalayer_fails(
     )
 
     # Act: Execute without DataLayer in blackboard
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=tree,
         actor_id=actor_id,
         datalayer=None,  # Missing DataLayer
@@ -669,7 +673,8 @@ def test_tree_execution_missing_actor_id_fails(
     )
 
     # Act: Execute without actor_id in blackboard
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=tree,
         actor_id=None,  # Missing actor_id
         datalayer=datalayer,
@@ -700,7 +705,8 @@ def test_tree_execution_missing_report_fails(
     )
 
     # Act: Execute tree
-    result = bridge_no_emit.execute_with_setup(
+    result = run_tree(
+        bridge_no_emit,
         tree=tree,
         actor_id=actor_id,
         datalayer=datalayer,
@@ -826,7 +832,8 @@ def test_tree_execution_actor_isolation():
     outbox_b_before = _outbox(dl_b, actor_b)
 
     # actor_a validates in its own store.
-    result_a = bridge_a.execute_with_setup(
+    result_a = run_tree(
+        bridge_a,
         tree=create_validate_report_tree(
             report_id=report_id,
             offer_id=offer_id,
@@ -845,7 +852,8 @@ def test_tree_execution_actor_isolation():
     assert _link_state(dl_b, report_id) == RM.RECEIVED
 
     outbox_a_before = _outbox(dl_a, actor_a)
-    result_b = bridge_b.execute_with_setup(
+    result_b = run_tree(
+        bridge_b,
         tree=create_validate_report_tree(
             report_id=report_id,
             offer_id=offer_id,
@@ -879,7 +887,8 @@ def test_ensure_embargo_exists_fails_without_case(
         report_id=report.id_,
         offer_id=offer.id_,
     )
-    result = bridge_no_emit.execute_with_setup(
+    result = run_tree(
+        bridge_no_emit,
         tree=tree,
         actor_id=actor_id,
         datalayer=datalayer,
@@ -984,7 +993,8 @@ def test_validate_report_tree_case_has_active_embargo(
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
-    bridge.execute_with_setup(
+    run_tree(
+        bridge,
         tree=tree,
         actor_id=actor_id,
         datalayer=datalayer,

@@ -168,6 +168,7 @@ class SyncActivityAdapter:
         actor_id: str,
         to: list[str],
         *,
+        in_reply_to: str,
         asked_at: datetime | None = None,
     ) -> None:
         """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
@@ -192,6 +193,11 @@ class SyncActivityAdapter:
         fan-out.  The genesis-replay ``Reject`` has no entry to key on, so
         :meth:`send_genesis_replay_reject` keys on the copy's position.
 
+        *in_reply_to* names the inbound activity that prompted the Reject
+        (RF-08-004) and does not key the id.  So when a later copy prompts
+        the same backfill Reject, the stored body sent again still names the
+        first copy: a true cause, and the replay it asks for is the same.
+
         Spec: SYNC-03-001.
         """
         asked = () if asked_at is None else (asked_at.isoformat(),)
@@ -209,6 +215,7 @@ class SyncActivityAdapter:
             f"Reject(CaseLedgerEntry) for entry '{entry.id_}'",
             lambda: reject_log_entry_activity(
                 entry=ledger_entry_to_wire(entry),
+                in_reply_to=in_reply_to,
                 actor=actor_id,
                 to=to,
                 id_=reject_id,
@@ -221,6 +228,8 @@ class SyncActivityAdapter:
         copy_tail_hash: str,
         actor_id: str,
         to: list[str],
+        *,
+        in_reply_to: str,
     ) -> None:
         """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
 
@@ -228,9 +237,12 @@ class SyncActivityAdapter:
         copy that replaced it and the recipients, so a repeat for the same copy builds
         no new activity and reuses the id (ID-04-004), while a request after
         a later copy is its own; a sealed one no longer pending is queued
-        once more (ID-04-005).
+        once more (ID-04-005).  *in_reply_to*, the copy's
+        ``Announce(VulnerabilityCase)`` (RF-08-004), does not key the id, so
+        a repeat of the same copy under another Announce sends the stored
+        body, which names the first one.
 
-        Spec: SYNC-16-007.
+        Spec: SYNC-16-007, RF-08-004.
         """
         reject_id = derived_activity_id(
             "genesis-replay-reject",
@@ -246,6 +258,7 @@ class SyncActivityAdapter:
             lambda: genesis_replay_reject_activity(
                 case_id,
                 ledger_tail_position(case_id, self._dl),
+                in_reply_to=in_reply_to,
                 actor=actor_id,
                 to=to,
                 id_=reject_id,

@@ -46,7 +46,9 @@ from vultron.core.behaviors.sender_guard import (
     SenderCheckContext,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_claims import ClaimsReading
 from vultron.core.predicates.addressing import normalise_actor_id
+from vultron.core.services.report_case_inputs import StatedReportFields
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
@@ -71,6 +73,9 @@ def create_case_proposal_received_tree(
     proposer_case_roles: Sequence[CVDRole] = (),
     *,
     sender_rule: SenderRule,
+    claims_readings: Sequence[ClaimsReading] = (),
+    stated_report_fields: StatedReportFields | None = None,
+    activity_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(CaseProposal)``.
 
@@ -235,6 +240,11 @@ def create_case_proposal_received_tree(
             ``AUTHOR`` sender must have written.  The proposal id is the
             sender's choice, so a proposal id this store recorded for another
             proposer is refused before any arm runs (CP-05-010, HP-01-008).
+        claims_readings: The reading of each CSAF document attached to the
+            report the carried Offer offered (CSAF-02-001).
+        stated_report_fields: What that Offer and its report state for the
+            values a CSAF document can fill; they win (CSAF-02-003).
+        activity_id: The ``Create(CaseProposal)`` the claims records name.
 
     Returns:
         The root ``Sequence`` (intake, then the idempotency Selector), ready
@@ -265,6 +275,9 @@ def create_case_proposal_received_tree(
         proposer_case_roles=proposer_case_roles,
         offer_id=offer_id,
         offer_actor_id=offer_actor_id,
+        claims_readings=claims_readings,
+        stated_report_fields=stated_report_fields,
+        activity_id=activity_id,
     )
     closed_case_arm = decline_closed_case_proposal_arm(
         report_id=report_id,

@@ -427,19 +427,10 @@ def test_activation_of_a_non_embargo_record_writes_nothing(
     )
 
 
-@pytest.mark.spec("CM-18-003")
-@pytest.mark.parametrize(
-    "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED], ids=str
-)
-def test_activate_embargo_by_an_owner_that_declined_it_changes_its_answer(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer], mode: TransitionMode
-) -> None:
-    """The activation is the owner's agreement, and it changes a decline.
-
-    The owner's row moves straight from DECLINED to AGREED, with no re-invite
-    first, in both modes, so a replica replaying the entry agrees with the
-    CASE_MANAGER (CM-18-003, MSM-07-028).
-    """
+def _declined_by_owner(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> tuple[as_Service, SqliteDataLayer, VulnerabilityCase, str, str]:
+    """A proposal its owner declined: ``(owner, dl, case, owner_p, embargo)``."""
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
@@ -447,20 +438,51 @@ def test_activate_embargo_by_an_owner_that_declined_it_changes_its_answer(
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, embargo.id_, ECS.DECLINED)
+    return owner, dl, case, owner_p.id_, embargo.id_
+
+
+@pytest.mark.spec("MSM-07-037")
+def test_a_strict_activation_by_an_owner_that_declined_it_is_refused(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The owner accepts the invitation first; nothing is written (ADR-0180)."""
+    owner, dl, case, owner_p_id, embargo_id = _declined_by_owner(owner_and_dl)
+
+    with pytest.raises(
+        VultronInvalidStateTransitionError, match="Accept the invitation"
+    ):
+        EmbargoLifecycle(persistence=dl).activate_embargo(
+            case_id=case.id_, embargo_id=embargo_id, actor_id=owner.id_
+        )
+
+    stored = cast(VulnerabilityCase, dl.read(case.id_))
+    assert stored.em_state == EM.PROPOSED
+    assert stored.proposed_embargo_ids == [embargo_id]
+    assert _consents_of(dl, owner_p_id) == {embargo_id: "DECLINED"}
+
+
+@pytest.mark.spec("CM-23-016")
+def test_an_observed_activation_copies_the_owners_agreement(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A replica copies what the committed activation states (CM-23-016).
+
+    The CASE_MANAGER never commits an activation from a DECLINED owner row
+    (MSM-07-037); a replica that copies one agrees with its entry.
+    """
+    owner, dl, case, owner_p_id, embargo_id = _declined_by_owner(owner_and_dl)
 
     result = EmbargoLifecycle(persistence=dl).activate_embargo(
         case_id=case.id_,
-        embargo_id=embargo.id_,
+        embargo_id=embargo_id,
         actor_id=owner.id_,
-        transition_mode=mode,
+        transition_mode=TransitionMode.OBSERVED,
     )
 
     activated = cast(VulnerabilityCase, dl.read(case.id_))
-    assert activated.em_state == EM.ACTIVE
-    assert activated.active_embargo_id == embargo.id_
-    assert activated.proposed_embargo_ids == []
-    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "AGREED"}
-    assert (owner_p.id_, "DECLINED", "AGREED") in {
+    assert activated.active_embargo_id == embargo_id
+    assert _consents_of(dl, owner_p_id) == {embargo_id: "AGREED"}
+    assert (owner_p_id, "DECLINED", "AGREED") in {
         (c.participant_id, c.consent_before, c.consent_after)
         for c in result.participant_changes
     }

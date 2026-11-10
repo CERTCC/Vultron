@@ -29,6 +29,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_tree
 from test.support.inbox_replay import held_depth
 from test.support.ledger import chain_tail, ledger_entries
 from test.support.received import delivered_body
@@ -594,9 +595,11 @@ def _run_reseed(net: LedgerNetwork, node: Any) -> Any:
     from vultron.core.behaviors.bridge import BTBridge
 
     dl = net.stores[MANAGER]
-    return BTBridge(
-        datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
-    ).execute_with_setup(tree=node, actor_id=MANAGER)
+    return run_tree(
+        BTBridge(datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)),
+        tree=node,
+        actor_id=MANAGER,
+    )
 
 
 @pytest.mark.spec("SYNC-16-008")

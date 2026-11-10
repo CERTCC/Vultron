@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from typing import cast
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     activate,
     propose,
@@ -165,13 +166,15 @@ class TestInviteToEmbargoRoutingGuard:
         dl.create(proposal)
 
         event = make_payload(proposal, receiving_actor_id=None, at=dl)
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "invite_to_embargo_on_case" in semantic_types, (
@@ -201,13 +204,15 @@ class TestInviteToEmbargoRoutingGuard:
         event = make_payload(
             proposal, receiving_actor_id=self.CASE_ACTOR_ID, at=dl
         )
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "invite_to_embargo_on_case" in semantic_types, (
@@ -253,13 +258,15 @@ class TestInviteToEmbargoRoutingGuard:
         event = make_payload(
             proposal, receiving_actor_id=self.INVITEE_ID, at=dl
         )
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         assert result.disposition is not HandlerDisposition.REFUSED, (
             "the Invite must reach the tree, so the absent entry is the"
@@ -327,13 +334,15 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         event = make_payload(
             accept, receiving_actor_id=self.CASE_ACTOR_ID, at=dl
         )
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "accept_invite_to_embargo_on_case" in semantic_types, (
@@ -355,13 +364,15 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         event = make_payload(
             accept, receiving_actor_id=non_case_actor_id, at=dl
         )
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "accept_invite_to_embargo_on_case" not in semantic_types, (
@@ -381,13 +392,15 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         dl, _case_actor, _case, accept = self._setup()
 
         event = make_payload(accept, receiving_actor_id=None, at=dl)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "accept_invite_to_embargo_on_case" in semantic_types, (
@@ -458,12 +471,14 @@ class TestRemoveEmbargoRoutingGuard:
         event = make_payload(
             remove_activity, receiving_actor_id=self.CASE_ACTOR_ID, at=dl
         )
-        RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "remove_embargo_event_from_case" in semantic_types, (
@@ -493,12 +508,14 @@ class TestRemoveEmbargoRoutingGuard:
         event = make_payload(
             remove_activity, receiving_actor_id=self.OTHER_ACTOR_ID, at=dl
         )
-        RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "remove_embargo_event_from_case" not in semantic_types, (
@@ -525,12 +542,14 @@ class TestRemoveEmbargoRoutingGuard:
         )
 
         event = make_payload(remove_activity, receiving_actor_id=None, at=dl)
-        RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         semantic_types = _ledger_semantic_types(dl)
         assert "remove_embargo_event_from_case" in semantic_types, (

@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
+from test.support.act_runner import run_tree
 from test.support.case_manager import CASE_MANAGER_ID
 from test.support.inbox_replay import (
     RecordingInboxReplay,
@@ -54,7 +55,8 @@ def replay() -> RecordingInboxReplay:
 
 
 def _run(bridge, replay):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=ReplayHeldSuccessorNode(case_id=CASE_ID),
         actor_id=PARTICIPANT_ACTOR_ID,
         inbox_replay=replay,
@@ -110,7 +112,8 @@ def test_successor_with_no_replay_port_is_a_wiring_error(
         ),
     )
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=ReplayHeldSuccessorNode(case_id=CASE_ID),
         actor_id=PARTICIPANT_ACTOR_ID,
     )

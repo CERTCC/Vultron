@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_manager import add_case_manager_participant
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import (
@@ -247,7 +248,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         )
 
         uc = AnnounceLedgerEntryReceivedUseCase(dl, event)
-        uc.execute()
+        run_in_act(uc)
 
         stored = dl.read(genesis_entry.id_)
         assert stored is not None
@@ -259,7 +260,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         event = self._make_event(bad_entry)
         sync_port = MagicMock(spec=SyncActivityPort)
         uc = AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
-        uc.execute()
+        run_in_act(uc)
         # Entry not stored
         assert dl.read(bad_entry.id_) is None
 
@@ -273,7 +274,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         event = self._make_event(bad_entry)
         sync_port = SyncActivityAdapter(dl)
         uc = AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
-        uc.execute()
+        run_in_act(uc)
 
         # Bad entry still not stored
         assert dl.read(bad_entry.id_) is None
@@ -300,9 +301,9 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
         event = self._make_event(bad_entry)
         sync_port = SyncActivityAdapter(dl)
-        AnnounceLedgerEntryReceivedUseCase(
-            dl, event, sync_port=sync_port
-        ).execute()
+        run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+        )
 
         queued = dl.outbox_list()
         reject_obj = dl.read(queued[0])
@@ -318,9 +319,9 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
         event = self._make_event(bad_entry)
         sync_port = SyncActivityAdapter(dl)
-        AnnounceLedgerEntryReceivedUseCase(
-            dl, event, sync_port=sync_port
-        ).execute()
+        run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+        )
 
         queued = dl.outbox_list()
         reject_obj = dl.read(queued[0])
@@ -343,9 +344,9 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         event = self._make_event(entry)
         event = event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
         sync_port = SyncActivityAdapter(dl)
-        AnnounceLedgerEntryReceivedUseCase(
-            dl, event, sync_port=sync_port
-        ).execute()
+        run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
+        )
 
         # Entry must NOT be stored (no case → cannot validate genesis)
         assert dl.read(entry.id_) is None
@@ -373,7 +374,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         dl.save(first_entry)  # pre-store
         event = self._make_event(first_entry)
         uc = AnnounceLedgerEntryReceivedUseCase(dl, event)
-        uc.execute()  # should skip silently
+        run_in_act(uc)  # should skip silently
         # Still exactly one entry for this case
         case_entries = [
             obj
@@ -387,11 +388,11 @@ class TestAnnounceLedgerEntryReceivedUseCase:
     def test_sequential_chain(self, dl, genesis_entry):
         """Accept two sequential entries; chain is maintained."""
         event0 = self._make_event(genesis_entry)
-        AnnounceLedgerEntryReceivedUseCase(dl, event0).execute()
+        run_in_act(AnnounceLedgerEntryReceivedUseCase(dl, event0))
 
         second = _make_entry(CASE_URI, 1, genesis_entry.entry_hash)
         event1 = self._make_event(second)
-        AnnounceLedgerEntryReceivedUseCase(dl, event1).execute()
+        run_in_act(AnnounceLedgerEntryReceivedUseCase(dl, event1))
 
         assert dl.read(genesis_entry.id_) is not None
         assert dl.read(second.id_) is not None
@@ -444,9 +445,11 @@ class TestOutOfOrderAnnounceBuffering:
         """Deliver *entry*, then each held Announce its tree replays."""
 
         def run(event: AnnounceLogEntryReceivedEvent) -> None:
-            AnnounceLedgerEntryReceivedUseCase(
-                dl, event, sync_port=sync_port, inbox_replay=replay
-            ).execute()
+            run_in_act(
+                AnnounceLedgerEntryReceivedUseCase(
+                    dl, event, sync_port=sync_port, inbox_replay=replay
+                )
+            )
 
         run(_announce_event(entry))
         deliver_replayed(replay, dl, RECEIVER_URI, run)
@@ -470,9 +473,11 @@ class TestOutOfOrderAnnounceBuffering:
         _, e1 = self._chain(case_with_genesis, 2)
         event = _announce_event(e1)
 
-        AnnounceLedgerEntryReceivedUseCase(
-            dl, event, sync_port=MagicMock(spec=SyncActivityPort)
-        ).execute()
+        run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl, event, sync_port=MagicMock(spec=SyncActivityPort)
+            )
+        )
 
         held = held_ledger_announces(dl, CASE_URI)
         assert [h.activity_id for h in held] == [event.activity_id]
@@ -498,12 +503,14 @@ class TestOutOfOrderAnnounceBuffering:
         hold_received(dl, e1_event)
         replay = RecordingInboxReplay()
 
-        result = AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            _announce_event(e0),
-            sync_port=MagicMock(spec=SyncActivityPort),
-            inbox_replay=replay,
-        ).execute()
+        result = run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                _announce_event(e0),
+                sync_port=MagicMock(spec=SyncActivityPort),
+                inbox_replay=replay,
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert replay.replayed == [e1_event.activity_id]
@@ -526,12 +533,14 @@ class TestOutOfOrderAnnounceBuffering:
         e1_event = _announce_event(e1)
         hold_received(dl, e1_event)
         replay = RecordingInboxReplay()
-        AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            _announce_event(e0),
-            sync_port=MagicMock(spec=SyncActivityPort),
-            inbox_replay=replay,
-        ).execute()
+        run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                _announce_event(e0),
+                sync_port=MagicMock(spec=SyncActivityPort),
+                inbox_replay=replay,
+            )
+        )
 
         replayed = replayed_event(dl, replay.replayed[0], RECEIVER_URI)
 
@@ -549,12 +558,14 @@ class TestOutOfOrderAnnounceBuffering:
         hold_received(dl, e2_event)
         replay = RecordingInboxReplay()
 
-        AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            _announce_event(e0),
-            sync_port=MagicMock(spec=SyncActivityPort),
-            inbox_replay=replay,
-        ).execute()
+        run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                _announce_event(e0),
+                sync_port=MagicMock(spec=SyncActivityPort),
+                inbox_replay=replay,
+            )
+        )
 
         assert replay.replayed == [e1_event.activity_id]
         assert [
@@ -571,11 +582,13 @@ class TestOutOfOrderAnnounceBuffering:
         hold_received(dl, _announce_event(e1))
 
         with pytest.raises(VultronBTInternalError, match="inbox_replay"):
-            AnnounceLedgerEntryReceivedUseCase(
-                dl,
-                _announce_event(e0),
-                sync_port=MagicMock(spec=SyncActivityPort),
-            ).execute()
+            run_in_act(
+                AnnounceLedgerEntryReceivedUseCase(
+                    dl,
+                    _announce_event(e0),
+                    sync_port=MagicMock(spec=SyncActivityPort),
+                )
+            )
 
         assert dl.read(e1.id_) is None
         assert held_depth(dl, CASE_URI) == 1
@@ -612,11 +625,13 @@ class TestOutOfOrderAnnounceBuffering:
             prev_log_hash=e0.entry_hash,
         ).to_ledger_entry()
 
-        result = AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            _announce_event(status_entry),
-            sync_port=MagicMock(spec=SyncActivityPort),
-        ).execute()
+        result = run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                _announce_event(status_entry),
+                sync_port=MagicMock(spec=SyncActivityPort),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.DEFERRED
         assert held_depth(dl, CASE_URI) == 1
@@ -850,9 +865,11 @@ class TestPreGenesisAnnounceBuffering:
         entry = _make_entry(CASE_URI, 0, case.genesis_hash)
         sync_port = SyncActivityAdapter(dl)
 
-        AnnounceLedgerEntryReceivedUseCase(
-            dl, _announce_event(entry), sync_port=sync_port
-        ).execute()
+        run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl, _announce_event(entry), sync_port=sync_port
+            )
+        )
 
         # Not stored — cannot validate genesis (SYNC-15-002).
         assert dl.read(entry.id_) is None
@@ -874,9 +891,13 @@ class TestPreGenesisAnnounceBuffering:
         entry = _make_entry(CASE_URI, 0, case.genesis_hash)
 
         with caplog.at_level(logging.DEBUG):
-            AnnounceLedgerEntryReceivedUseCase(
-                dl, _announce_event(entry), sync_port=SyncActivityAdapter(dl)
-            ).execute()
+            run_in_act(
+                AnnounceLedgerEntryReceivedUseCase(
+                    dl,
+                    _announce_event(entry),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
         assert len(dl.outbox_list()) == 1  # the replay Reject still goes
         errors = [
@@ -903,11 +924,13 @@ class TestPreGenesisAnnounceBuffering:
         entry = _make_entry(CASE_URI, 0, case.genesis_hash)
 
         with caplog.at_level(logging.DEBUG):
-            result = AnnounceLedgerEntryReceivedUseCase(
-                dl,
-                _announce_event(entry, actor=RECEIVER_URI),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+            result = run_in_act(
+                AnnounceLedgerEntryReceivedUseCase(
+                    dl,
+                    _announce_event(entry, actor=RECEIVER_URI),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
         assert result.disposition is HandlerDisposition.REFUSED
         errors = [
@@ -930,12 +953,14 @@ class TestPreGenesisAnnounceBuffering:
             update={"payload_snapshot": {"tampered": True}}
         )
 
-        result = AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            _announce_event(entry),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                _announce_event(entry),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert dl.read(entry.id_) is None
@@ -985,13 +1010,15 @@ class TestAnnounceLedgerEntryDisposition:
         dl.create(case)
 
     def _run(self, dl, event, replay=None):
-        return AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            inbox_replay=replay,
-        ).execute()
+        return run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                inbox_replay=replay,
+            )
+        )
 
     @pytest.mark.spec("HP-01-003")
     def test_missing_log_entry_is_refused(self, dl):
@@ -1192,13 +1219,15 @@ class TestUnaddressedAnnounceActsOnNothing:
             genesis, to="https://example.org/actors/someone-else"
         )
 
-        result = AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            copy,
-            sync_port=sync_port,
-            pending_assertions=pending,
-            inbox_replay=replay,
-        ).execute()
+        result = run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                copy,
+                sync_port=sync_port,
+                pending_assertions=pending,
+                inbox_replay=replay,
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert replay.replayed == []

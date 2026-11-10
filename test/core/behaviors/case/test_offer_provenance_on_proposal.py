@@ -39,6 +39,7 @@ from typing import Any
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -133,7 +134,7 @@ class TestProposalCarriesTheProvenance:
         self, bridge, datalayer, actor_id: str, report_id: str
     ) -> as_CaseProposal:
         node = ProposeReportCaseToActorNode(report_id=report_id)
-        result = bridge.execute_with_setup(tree=node, actor_id=actor_id)
+        result = run_tree(bridge, tree=node, actor_id=actor_id)
         assert result.status == Status.SUCCESS, node.feedback_message
         proposals = [
             p
@@ -233,13 +234,15 @@ def _run_received_bt(
     # The registry types its return as the VultronEvent base; narrow it so the
     # use case's declared parameter type is what actually gets checked here.
     assert isinstance(event, CreateCaseProposalReceivedEvent)
-    CreateCaseProposalReceivedUseCase(
-        dl,
-        event,
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+    run_in_act(
+        CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
 
 
 def _add_report_snapshot(dl: SqliteDataLayer) -> dict[str, Any]:
@@ -350,7 +353,7 @@ class TestProposalCarriesTheOfferItself:
 
     def _propose(self, bridge, datalayer, actor_id, report_id):
         node = ProposeReportCaseToActorNode(report_id=report_id)
-        result = bridge.execute_with_setup(tree=node, actor_id=actor_id)
+        result = run_tree(bridge, tree=node, actor_id=actor_id)
         assert result.status == Status.SUCCESS, node.feedback_message
         (proposal,) = [
             p

@@ -36,6 +36,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoActivationFromLedgerNode,
@@ -138,7 +139,8 @@ def _apply(bridge, embargo: Any, *, accept: bool = True):
         if accept
         else ApplyEmbargoProposalRejectionFromLedgerNode(name="ApplyRejection")
     )
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=node,
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(entry, actor_id=MANAGER),

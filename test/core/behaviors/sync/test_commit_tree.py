@@ -8,6 +8,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.bridge import BTBridge
@@ -160,7 +161,8 @@ def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
         ),
     )
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=tree,
         actor_id=OWNER_ACTOR_ID,
         sync_port=sync_port,
@@ -198,7 +200,7 @@ def test_commit_tree_without_sync_port_is_a_wiring_fault(
         ),
     )
 
-    result = bridge.execute_with_setup(tree=tree, actor_id=OWNER_ACTOR_ID)
+    result = run_tree(bridge, tree=tree, actor_id=OWNER_ACTOR_ID)
 
     assert result.status == Status.FAILURE
     assert result.internal_error is True
@@ -213,7 +215,8 @@ def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
     datalayer.save(first_entry)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_commit_log_entry_tree(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-2",
@@ -249,12 +252,14 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
         ),
     )
 
-    first = bridge.execute_with_setup(
+    first = run_tree(
+        bridge,
         tree=tree,
         actor_id=OWNER_ACTOR_ID,
         sync_port=sync_port,
     )
-    second = bridge.execute_with_setup(
+    second = run_tree(
+        bridge,
         tree=create_commit_log_entry_tree(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-3",
@@ -288,7 +293,8 @@ def test_a_reused_entry_is_not_announced_again(bridge, datalayer, case_obj):
     sync_port = MagicMock(spec=SyncActivityPort)
 
     def _commit() -> Status:
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_commit_log_entry_tree(
                 case_id=CASE_ID,
                 object_id="https://example.org/activities/act-4",
@@ -322,7 +328,8 @@ def test_an_entry_whose_fan_out_raises_is_not_recorded(
     sync_port = MagicMock(spec=SyncActivityPort)
     sync_port.send_announce_log_entry.side_effect = RuntimeError("lost")
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_commit_log_entry_tree(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-5",
@@ -359,7 +366,8 @@ def test_an_entry_whose_fan_out_fails_is_not_recorded(
     )
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_commit_log_entry_tree(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-6",
@@ -462,8 +470,8 @@ def test_commit_tree_as_a_foreign_actor_is_an_internal_error(
         semantic_type="invite_actor_to_case",
     )
 
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=_FOREIGN_CASE_ACTOR, sync_port=sync_port
+    result = run_tree(
+        bridge, tree=tree, actor_id=_FOREIGN_CASE_ACTOR, sync_port=sync_port
     )
 
     assert result.status == Status.FAILURE
@@ -486,7 +494,8 @@ def test_commit_tree_as_a_foreign_actor_is_an_internal_error(
 )
 def test_ledger_store_guard_stands_aside_for_a_hosted_actor(bridge, actor_id):
     """SUCCESS means "this store holds the log — go commit"."""
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=DeclineForeignLedgerCommitNode(name="Guard"),
         actor_id=actor_id,
     )
@@ -528,7 +537,8 @@ def test_commit_tree_blocked_when_ledger_has_gap(bridge, datalayer, case_obj):
         semantic_type="case_updated",
     )
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=tree,
         actor_id=OWNER_ACTOR_ID,
         sync_port=sync_port,

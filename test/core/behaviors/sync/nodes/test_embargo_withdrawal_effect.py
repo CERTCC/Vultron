@@ -22,6 +22,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoWithdrawalFromLedgerNode,
@@ -116,7 +117,8 @@ def revising_replica(datalayer) -> VulnerabilityCase:
 
 def _run(bridge, entry: CaseLedgerEntry):
     node = ApplyEmbargoWithdrawalFromLedgerNode(name="ApplyWithdrawal")
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=node,
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(entry, actor_id=MANAGER_ACTOR_ID),

@@ -19,6 +19,7 @@ Verifies CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -110,7 +111,7 @@ class TestGetActionRulesUseCase:
 
     def test_happy_path_returns_expected_keys(self, dl, request_):
         """Happy path: result contains all required state and action keys."""
-        result = GetActionRulesUseCase(dl=dl, request=request_).execute()
+        result = run_in_act(GetActionRulesUseCase(dl=dl, request=request_))
 
         expected_keys = {
             "participant_id",
@@ -130,7 +131,7 @@ class TestGetActionRulesUseCase:
 
     def test_happy_path_state_values(self, dl, request_):
         """States in the response match what was stored."""
-        result = GetActionRulesUseCase(dl=dl, request=request_).execute()
+        result = run_in_act(GetActionRulesUseCase(dl=dl, request=request_))
 
         assert result.rm_state == RM.ACCEPTED
         assert result.em_state == EM.ACTIVE
@@ -142,12 +143,12 @@ class TestGetActionRulesUseCase:
 
     def test_happy_path_role(self, dl, request_):
         """Participant role is reflected in the response."""
-        result = GetActionRulesUseCase(dl=dl, request=request_).execute()
+        result = run_in_act(GetActionRulesUseCase(dl=dl, request=request_))
         assert CVDRole.VENDOR.value in result.role
 
     def test_happy_path_ids(self, dl, request_):
         """IDs in the response match the stored object IDs."""
-        result = GetActionRulesUseCase(dl=dl, request=request_).execute()
+        result = run_in_act(GetActionRulesUseCase(dl=dl, request=request_))
         assert result.participant_id == PARTICIPANT_ID
         assert result.participant_actor_id == ACTOR_ID
         assert result.case_id == CASE_ID
@@ -155,19 +156,19 @@ class TestGetActionRulesUseCase:
     def test_short_case_key_resolves_to_case(self, dl):
         """Short surrogate key resolves successfully for action lookup."""
         req = ActionRulesRequest(case_id="c1", actor_id=ACTOR_ID)
-        result = GetActionRulesUseCase(dl=dl, request=req).execute()
+        result = run_in_act(GetActionRulesUseCase(dl=dl, request=req))
         assert result.participant_id == PARTICIPANT_ID
 
     def test_short_case_key_resolution_ignores_non_case_id_collision(self, dl):
         """Case lookup prefers case surrogate resolution over non-case collisions."""
         dl.create(as_Note(id_="c1", content="collision"))
         req = ActionRulesRequest(case_id="c1", actor_id=ACTOR_ID)
-        result = GetActionRulesUseCase(dl=dl, request=req).execute()
+        result = run_in_act(GetActionRulesUseCase(dl=dl, request=req))
         assert result.participant_id == PARTICIPANT_ID
 
     def test_happy_path_actions_is_list(self, dl, request_):
         """actions is a non-empty list of named, described ActionRules."""
-        result = GetActionRulesUseCase(dl=dl, request=request_).execute()
+        result = run_in_act(GetActionRulesUseCase(dl=dl, request=request_))
         assert len(result.actions) > 0
         for action in result.actions:
             assert isinstance(action, ActionRule)
@@ -181,7 +182,7 @@ class TestGetActionRulesUseCase:
             actor_id=ACTOR_ID,
         )
         with pytest.raises(VultronNotFoundError):
-            GetActionRulesUseCase(dl=dl, request=req).execute()
+            run_in_act(GetActionRulesUseCase(dl=dl, request=req))
 
     def test_actor_not_in_case_raises_not_found(self, dl):
         """Unknown actor in the selected case raises VultronNotFoundError."""
@@ -190,7 +191,7 @@ class TestGetActionRulesUseCase:
             actor_id="https://example.org/actors/unknown",
         )
         with pytest.raises(VultronNotFoundError):
-            GetActionRulesUseCase(dl=dl, request=req).execute()
+            run_in_act(GetActionRulesUseCase(dl=dl, request=req))
 
     def test_no_case_statuses_defaults(self, dl):
         """When case has no as_CaseStatus entries, EM/PXA default to None/pxa."""
@@ -228,7 +229,7 @@ class TestGetActionRulesUseCase:
             case_id=CASE_ID,
             actor_id=ACTOR_ID,
         )
-        result = GetActionRulesUseCase(dl=layer, request=req).execute()
+        result = run_in_act(GetActionRulesUseCase(dl=layer, request=req))
 
         assert result.em_state == EM.EMBARGO_MANAGEMENT_NONE
         assert result.pxa_state == CS_pxa.pxa.name
@@ -264,7 +265,7 @@ class TestGetActionRulesUseCase:
             case_id=CASE_ID,
             actor_id=ACTOR_ID,
         )
-        result = GetActionRulesUseCase(dl=layer, request=req).execute()
+        result = run_in_act(GetActionRulesUseCase(dl=layer, request=req))
 
         assert result.rm_state == RM.START
         assert result.vf_state == CS_vf.vf.value
@@ -314,7 +315,7 @@ class TestGetActionRulesUseCase:
                 case_id=CASE_ID,
                 actor_id=ACTOR_ID,
             )
-            result = GetActionRulesUseCase(dl=layer, request=req).execute()
+            result = run_in_act(GetActionRulesUseCase(dl=layer, request=req))
             assert result.em_state == em, (
                 f"Expected {em!r}, got {result.em_state!r}"
             )
@@ -345,7 +346,7 @@ class TestGetActionRulesUseCase:
 
         req = ActionRulesRequest(case_id=CASE_ID, actor_id=ACTOR_ID)
         with pytest.raises(VultronValidationError, match="divergence"):
-            GetActionRulesUseCase(dl=layer, request=req).execute()
+            run_in_act(GetActionRulesUseCase(dl=layer, request=req))
 
     def test_participant_lookup_succeeds_without_index_entry(self):
         layer = SqliteDataLayer(
@@ -372,5 +373,5 @@ class TestGetActionRulesUseCase:
         layer.create(case)
 
         req = ActionRulesRequest(case_id=CASE_ID, actor_id=ACTOR_ID)
-        result = GetActionRulesUseCase(dl=layer, request=req).execute()
+        result = run_in_act(GetActionRulesUseCase(dl=layer, request=req))
         assert result.participant_id == PARTICIPANT_ID

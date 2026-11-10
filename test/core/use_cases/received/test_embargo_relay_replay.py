@@ -25,6 +25,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.owner_decision import owner_decision_body
 from test.support.received import (
     assert_held_only_as_received,
@@ -760,16 +761,18 @@ def _managing_owner_network(case_id: str, **kwargs: Any) -> _Network:
 
 def _manager_revises(net: _Network, *, days: int = 90) -> str:
     """The managing owner proposes a revision by trigger; return its id."""
-    SvcProposeEmbargoRevisionUseCase(
-        net.stores[MANAGER],
-        ProposeEmbargoRevisionTriggerRequest(
-            actor_id=MANAGER,
-            case_id=net.case_id,
-            end_time=days_from_now_utc(days),
-        ),
-        **_manager_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcProposeEmbargoRevisionUseCase(
+            net.stores[MANAGER],
+            ProposeEmbargoRevisionTriggerRequest(
+                actor_id=MANAGER,
+                case_id=net.case_id,
+                end_time=days_from_now_utc(days),
+            ),
+            **_manager_ports(net),
+            clock=SystemClock(),
+        )
+    )
     (revision_id,) = net.case(MANAGER).proposed_embargo_ids
     return revision_id
 
@@ -803,12 +806,14 @@ def test_a_replica_follows_the_managing_owners_revision_by_trigger():
         assert case.active_embargo_id == net.initial_embargo_id, actor_id
         assert case.proposed_embargo_ids == [revision_id], actor_id
 
-    SvcAcceptEmbargoUseCase(
-        dl,
-        AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
-        **_manager_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcAcceptEmbargoUseCase(
+            dl,
+            AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+            **_manager_ports(net),
+            clock=SystemClock(),
+        )
+    )
     assert net.queued(MANAGER, to=MANAGER) == []
     _replay_to_bystander(net)
 
@@ -841,12 +846,14 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
 
     revision_id = _manager_revises(net, days=90)
     _replay_to_bystander(net)
-    SvcAcceptEmbargoUseCase(
-        dl,
-        AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
-        **_manager_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcAcceptEmbargoUseCase(
+            dl,
+            AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+            **_manager_ports(net),
+            clock=SystemClock(),
+        )
+    )
 
     bystander = _participant(net, MANAGER, BYSTANDER)
     assert bystander.has_lapsed(net.case(MANAGER).embargo_register)
@@ -887,16 +894,18 @@ def test_a_replica_follows_the_managing_owners_first_proposal_by_trigger():
         "https://example.org/cases/manager-owner-propose", em_state=EM.NONE
     )
 
-    SvcProposeEmbargoUseCase(
-        net.stores[MANAGER],
-        ProposeEmbargoTriggerRequest(
-            actor_id=MANAGER,
-            case_id=net.case_id,
-            end_time=days_from_now_utc(90),
-        ),
-        **_manager_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcProposeEmbargoUseCase(
+            net.stores[MANAGER],
+            ProposeEmbargoTriggerRequest(
+                actor_id=MANAGER,
+                case_id=net.case_id,
+                end_time=days_from_now_utc(90),
+            ),
+            **_manager_ports(net),
+            clock=SystemClock(),
+        )
+    )
     (proposal_id,) = net.case(MANAGER).proposed_embargo_ids
     assert net.queued(MANAGER, to=MANAGER) == []
     _replay_to_bystander(net)
@@ -918,12 +927,14 @@ def test_a_replica_follows_the_managing_owners_rejection_by_trigger():
     )
     _manager_revises(net)
 
-    SvcRejectEmbargoUseCase(
-        net.stores[MANAGER],
-        RejectEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
-        **_manager_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcRejectEmbargoUseCase(
+            net.stores[MANAGER],
+            RejectEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+            **_manager_ports(net),
+            clock=SystemClock(),
+        )
+    )
     assert net.queued(MANAGER, to=MANAGER) == []
     _replay_to_bystander(net)
 
@@ -952,12 +963,16 @@ def test_a_replica_follows_the_managing_owners_termination_by_trigger():
         "https://example.org/cases/manager-owner-terminate"
     )
 
-    SvcTerminateEmbargoUseCase(
-        net.stores[MANAGER],
-        TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
-        **_manager_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            net.stores[MANAGER],
+            TerminateEmbargoTriggerRequest(
+                actor_id=MANAGER, case_id=net.case_id
+            ),
+            **_manager_ports(net),
+            clock=SystemClock(),
+        )
+    )
     assert net.queued(MANAGER, to=MANAGER) == []
     (remove,) = net.queued(MANAGER, to=BYSTANDER, type_="Remove")
     sealed = read_sealed_body_dict(net.stores[MANAGER], remove.id_)
@@ -994,12 +1009,16 @@ def test_termination_leaves_nobody_a_signatory_in_every_store():
         "https://example.org/cases/manager-owner-terminate-pec"
     )
     rows_before = _consent_states(net, MANAGER)
-    SvcTerminateEmbargoUseCase(
-        net.stores[MANAGER],
-        TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
-        **_manager_ports(net),
-        clock=SystemClock(),
-    ).execute()
+    run_in_act(
+        SvcTerminateEmbargoUseCase(
+            net.stores[MANAGER],
+            TerminateEmbargoTriggerRequest(
+                actor_id=MANAGER, case_id=net.case_id
+            ),
+            **_manager_ports(net),
+            clock=SystemClock(),
+        )
+    )
     _replay_to_bystander(net)
 
     for actor_id in (MANAGER, BYSTANDER):

@@ -34,6 +34,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
@@ -122,7 +123,8 @@ def test_offer_entry_persists_and_writes_nothing_else(
     event = _make_event(entry, actor_id=case_actor.id_, to=[REPLICA_ID])
     before = datalayer.count_all()
 
-    result = BTBridge(datalayer=datalayer).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=datalayer),
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),

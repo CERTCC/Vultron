@@ -34,6 +34,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import CASE_ID
+from test.support.act_runner import run_tree
 from test.support.broken_ledger_entry import (
     BreakEntry,
     broken_entries,
@@ -255,7 +256,8 @@ def test_an_intact_replay_clears_an_admitted_peers_pause(
 
 
 def _fan_out(bridge: BTBridge, entry: CaseLedgerEntry, sync_port):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=FanOutLogEntryNode(case_id=CASE_ID),
         actor_id=MANAGER_ID,
         log_entry=entry,
@@ -359,8 +361,8 @@ def test_a_commit_stands_when_a_peers_catch_up_is_held_back(
     )
 
     with caplog.at_level(logging.ERROR):
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=MANAGER_ID, sync_port=sync_port
+        result = run_tree(
+            bridge, tree=tree, actor_id=MANAGER_ID, sync_port=sync_port
         )
 
     assert result.status == Status.SUCCESS, result.feedback_message
@@ -379,7 +381,8 @@ def test_a_commit_stands_when_a_peers_catch_up_is_held_back(
 
 
 def _admission_backfill(bridge: BTBridge, sync_port):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=BackfillAdmittedParticipantsNode(case_id=CASE_ID),
         actor_id=MANAGER_ID,
         sync_port=sync_port,
@@ -461,7 +464,8 @@ def test_admission_backfill_holds_back_one_peer_and_backfills_the_other(
 
 
 def _join_backfill(bridge: BTBridge, sync_port):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=BackfillCanonicalLedgerToInviteeNode(
             case_id=CASE_ID, invitee_id=_INVITEE_ID
         ),

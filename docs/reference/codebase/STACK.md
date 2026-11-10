@@ -45,8 +45,8 @@ stakeholder_type: [project-contributor]
 
 The docs toolchain is declared as a production dependency, not a dev group.
 
-The `ui/` visualization demo is a separate Node toolchain (ADR-0104): React 19, TypeScript and Vite, with `@xyflow/react`, locked by `ui/package-lock.json`.
-CI lints and builds it on Node 22 in `.github/workflows/ui.yml`, path-filtered to `ui/**`.
+The `ui/` visualization demo is a separate Node toolchain (ADR-0104): React 19, TypeScript (in `strict` mode) and Vite, with Vitest for unit tests, locked by `ui/package-lock.json`.
+CI lints, tests and builds it on Node 22 in `.github/workflows/ui.yml`, path-filtered to `ui/**` and to the Python sources of the artifacts it imports.
 It has no backend; it reads JSON exported from the Python side (`export-demo-states`, `export-demo-semantics`, `export-demo-tree`, `export-demo-recordings`) under `ui/src/data/` and `ui/src/recordings/`.
 
 ### 3) Development Toolchain

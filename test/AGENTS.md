@@ -177,10 +177,10 @@ Full write-ups in [testing-pitfalls](../notes/testing-pitfalls.md):
   `CORE_VOCABULARY`/`CORE_TYPE_MAP` (use `isolated_core_registries`); `SUBFAILED`
   in `unittest` subtests does not fail pytest; `caplog.set_level()` in a fixture
   captures other fixtures' setup.
-- **BT test patterns** — pass a deterministic factory when the default is random;
-  contract-test wrappers inherit the *production* node class; stub every probabilistic
-  node *except* the one under test; `ResolveCaseManagerNode` needs a CASE_MANAGER
-  participant in the fixture.
+- **BT test patterns** — run use cases/trees via `run_in_act`/`run_tree` (ADR-0176);
+  pass a deterministic factory when the default is random; contract-test wrappers
+  inherit the *production* node class; stub every probabilistic node *except* the one
+  under test; `ResolveCaseManagerNode` needs a CASE_MANAGER participant in the fixture.
 - **Fixtures that mislead** — the outbox `BackgroundTasks` emitter has two resolution
   paths, patch both; an `InProcessRouter` WARNING for an unregistered host is a
   config-leak signal; `rm -rf devlogs/` before the invariant harness; a

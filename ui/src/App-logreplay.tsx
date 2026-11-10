@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import type { DemoState } from './types'
 import './App.css'
-import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS, INITIAL_X_POSITION, X_INCREMENT, getVendorNodeColors } from './constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS, INITIAL_X_POSITION, X_INCREMENT, nodeColorsFor } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import { initialState } from './protocol'
 import { getActiveLanes } from './state/participantHelpers'
@@ -178,22 +178,6 @@ const SAMPLE_SCENARIOS: SampleScenario[] = [
 ]
 
 const SCENARIO_GROUPS: ScenarioGroup[] = ['Core', 'Coordinator', 'Diagnostic']
-
-type NodePalette = { decision: string; decisionHover: string; consequence: string; consequenceHover: string }
-
-/**
- * Node color palette for a participant id. Handles any `vendor-N` (via the
- * cycling vendor palette), plus finder, caseactor, and coordinator; falls back
- * to finder's palette for anything unrecognized.
- */
-function nodeColorsFor(participantId: string): NodePalette {
-  if (participantId === 'finder') return NODE_COLORS.finder
-  if (participantId === 'caseactor') return NODE_COLORS.caseactor
-  if (participantId === 'coordinator') return NODE_COLORS.coordinator
-  const m = participantId.match(/^vendor-(\d+)$/)
-  if (m) return getVendorNodeColors(parseInt(m[1], 10))
-  return NODE_COLORS.finder
-}
 
 function AppLogReplay() {
   const [demoState, setDemoState] = useState<DemoState | null>(null)
@@ -606,7 +590,7 @@ function AppLogReplay() {
   // node in timelineEvents[0..currentEventIndex]. `getActiveLanes` first drops any
   // never-joined lane (mapper `visible` flag); the slice filter then reveals the
   // rest progressively. Effect: the case starts with just its founding roster
-  // (finder + receiver/owner + case actor) and late joiners (invited vendors /
+  // (reporter + receiver/owner + CASE_MANAGER) and late joiners (invited vendors /
   // coordinators) pop into their fixed slots as playback reaches their join — the
   // vertical layout grows with the case. Both the sidebar panels and the timeline
   // lane backgrounds derive from this same set, so they stay in lockstep.
@@ -670,12 +654,12 @@ function AppLogReplay() {
   const currentSnapshot = snapshots?.[currentStep]
   // Per-participant / case-level state readers keyed off the current snapshot.
   // A participant ABSENT from the snapshot hasn't entered the shadow at this step
-  // yet (e.g. in the FVV sample, only vendor-1 is seeded at step 0 — the finder,
-  // vendor-2 and case actor join later). Such a participant must read as the
+  // yet (e.g. in the rvv recording, only vendor-1 is seeded at step 0 — the reporter,
+  // vendor-2 and CASE_MANAGER join later). Such a participant must read as the
   // machine's INITIAL state (not started), NOT the end-state: falling back to
   // `demoState` (the terminal snapshot) was the bug that made panels show CLOSED /
   // EXITED / VFD from the very first step.
-  // The Case Actor has no RM/VFD machine (coordinator role — makeParticipant marks
+  // The CASE_MANAGER has no RM/VFD machine (makeParticipant marks
   // it 'N/A'); the shadow never tracks it, so honor that sentinel rather than
   // reporting a bogus machine state.
   const rmStateOf = (id: string) => {
@@ -894,22 +878,22 @@ function AppLogReplay() {
               role={participant.role}
               color={participant.color}
               // State AS OF the current playback step (currentSnapshot), not the
-              // final end-state. PXA is case-level, shown on the Case Actor; EM is
+              // final end-state. PXA is case-level, shown on the CASE_MANAGER; EM is
               // case-level, shown on all.
               //
               // VFD is DATA-DRIVEN (2026-07): show it for any lane the JSONL carries
               // a VFD state for — i.e. every real participant, which `vfdStateOf`
               // reports as anything other than the 'N/A' recorder sentinel. We do
               // NOT gate on role: conceptually only a VENDOR develops a fix, but the
-              // generator stamps a vfdState on the finder and coordinator too, so
+              // generator stamps a vfdState on the reporter and coordinator too, so
               // surfacing it makes an out-of-place VFD (e.g. on a pure coordinator)
               // VISIBLE as a signal that something is off in the generated ledger,
-              // rather than silently hiding it. Only the caseactor recorder ('N/A')
+              // rather than silently hiding it. Only the casemanager recorder ('N/A')
               // has no VFD row.
               rmState={rmStateOf(participant.id)}
               emState={emStateNow}
               vfdState={vfdStateOf(participant.id) !== 'N/A' ? vfdStateOf(participant.id) : undefined}
-              pxaState={participant.id === 'caseactor' ? pxaStateNow : undefined}
+              pxaState={participant.id === 'casemanager' ? pxaStateNow : undefined}
               actions={[]} // No actions in replay mode
               onActionClick={() => {}}
               isCollapsed={collapsedParticipants.has(participant.id)}

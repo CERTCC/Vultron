@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -139,12 +140,14 @@ def _make_ack_event(
 
 
 def _run(dl: SqliteDataLayer, event: AckReportReceivedEvent) -> HandlerResult:
-    return AckReportReceivedUseCase(
-        dl=dl,
-        request=event,
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        AckReportReceivedUseCase(
+            dl=dl,
+            request=event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 def _ledger_semantic_types(dl: SqliteDataLayer) -> list[str]:

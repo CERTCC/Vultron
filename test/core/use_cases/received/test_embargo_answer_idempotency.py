@@ -30,6 +30,9 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.core.use_cases.received.conftest import refusal_notices_since
+from test.support.act_runner import run_tree
+from test.support.owner_decision import owner_decision_body
 from test.support.received import extract_stamped, received_activity
 from test.support.signing import signed_body
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
@@ -51,6 +54,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -455,8 +459,8 @@ def _guard(
         answering_actor_id=actor,
         answer=answer,
     )
-    result = BTBridge(datalayer=net.stores[MANAGER]).execute_with_setup(
-        tree=node, actor_id=MANAGER
+    result = run_tree(
+        BTBridge(datalayer=net.stores[MANAGER]), tree=node, actor_id=MANAGER
     )
     return node, result.status
 
@@ -512,11 +516,77 @@ def test_the_accept_trees_own_repeat_guard_stops_a_repeat():
         at=net.stores[MANAGER],
     ).model_copy(update={"receiving_actor_id": MANAGER})
 
-    result = BTBridge(datalayer=net.stores[MANAGER]).execute_with_setup(
-        tree=tree, actor_id=MANAGER, activity=event
+    result = run_tree(
+        BTBridge(datalayer=net.stores[MANAGER]),
+        tree=tree,
+        actor_id=MANAGER,
+        activity=event,
     )
 
     assert result.status is Status.FAILURE
     guard = find_node(tree, EmbargoAnswerNotRecordedNode)
     assert guard is not None and guard.is_repeat
     assert _entries(net) == entries
+
+
+@pytest.mark.spec("MSM-07-037")
+@pytest.mark.spec("MSM-07-028")
+@pytest.mark.spec("CM-18-003")
+@pytest.mark.spec("CLP-05-001")
+def test_an_owner_that_declined_accepts_then_activates():
+    """Reject, Accept, then Add: the order an owner that changes its mind uses.
+
+    The owner's activation while its row reads ``DECLINED`` is refused with
+    nothing committed, and the notice tells it to accept first (MSM-07-037).
+    Its ``Accept(Invite(EmbargoEvent))`` then changes its answer (CM-18-003),
+    and the activation that follows is admitted: the embargo is ``ACTIVE``
+    and the owner's row ``AGREED`` (MSM-07-028, ADR-0180).
+    """
+    net = LedgerNetwork("https://example.org/cases/owner-reject-accept-add")
+    embargo_id, invite_id = _invited(net, OWNER, "owner-raa")
+
+    declined = _answer(net, OWNER, invite_id, accept=False, tag="1")
+    assert declined.disposition is HandlerDisposition.APPLIED, declined.reason
+    assert _consent(net, OWNER, embargo_id) == EmbargoConsentState.DECLINED
+    entries = _entries(net)
+    outbox = list(net.stores[MANAGER].outbox_list())
+
+    refused_id, refused_body = owner_decision_body(
+        net.stores[OWNER],
+        net.case_id,
+        embargo_id,
+        owner=OWNER,
+        manager=MANAGER,
+        accept=True,
+    )
+    refused = net.receive(MANAGER, refused_body)
+
+    assert refused.disposition is HandlerDisposition.REFUSED
+    assert _entries(net) == entries
+    assert _consent(net, OWNER, embargo_id) == EmbargoConsentState.DECLINED
+    assert net.case(MANAGER).proposed_embargo_ids == [embargo_id]
+    (notice,) = refusal_notices_since(net.stores[MANAGER], outbox, OWNER)
+    assert notice["inReplyTo"] == refused_id
+    assert "Accept the invitation" in str(notice["summary"])
+
+    accepted = _answer(net, OWNER, invite_id, accept=True, tag="2")
+    assert accepted.disposition is HandlerDisposition.APPLIED, accepted.reason
+    assert _consent(net, OWNER, embargo_id) == EmbargoConsentState.AGREED
+
+    _, activation = owner_decision_body(
+        net.stores[OWNER],
+        net.case_id,
+        embargo_id,
+        owner=OWNER,
+        manager=MANAGER,
+        accept=True,
+    )
+    activated = net.receive(MANAGER, activation)
+
+    assert activated.disposition is HandlerDisposition.APPLIED, (
+        activated.reason
+    )
+    case = net.case(MANAGER)
+    assert case.active_embargo_id == embargo_id
+    assert case.em_state == EM.ACTIVE
+    assert _consent(net, OWNER, embargo_id) == EmbargoConsentState.AGREED

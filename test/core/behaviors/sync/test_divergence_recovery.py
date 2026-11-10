@@ -31,6 +31,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
@@ -183,12 +184,15 @@ def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
         to=[_CASE_ACTOR_ID],
     )
 
-    CreateProcessingFaultReceivedUseCase(
-        dl,
-        cast(
-            CreateProcessingFaultReceivedEvent, received_event(activity, at=dl)
-        ),
-    ).execute()
+    run_in_act(
+        CreateProcessingFaultReceivedUseCase(
+            dl,
+            cast(
+                CreateProcessingFaultReceivedEvent,
+                received_event(activity, at=dl),
+            ),
+        )
+    )
 
     assert list(dl.list_objects("CaseLedgerEntry")) == []
 
@@ -212,12 +216,15 @@ def test_case_diverged_fault_from_a_non_participant_is_refused() -> None:
         to=[_CASE_ACTOR_ID],
     )
 
-    result = CreateProcessingFaultReceivedUseCase(
-        dl,
-        cast(
-            CreateProcessingFaultReceivedEvent, received_event(activity, at=dl)
-        ),
-    ).execute()
+    result = run_in_act(
+        CreateProcessingFaultReceivedUseCase(
+            dl,
+            cast(
+                CreateProcessingFaultReceivedEvent,
+                received_event(activity, at=dl),
+            ),
+        )
+    )
 
     assert result.disposition == HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
@@ -312,24 +319,34 @@ def _position(dl: SqliteDataLayer) -> LedgerPosition | None:
     return cast(as_VulnerabilityCase, dl.read(_CASE_ID)).ledger_position
 
 
+_COPY_ANNOUNCE_ID = "https://example.org/activities/announce-case-copy"
+
+
 def _announce(
     copy: as_VulnerabilityCase,
     dl: SqliteDataLayer,
     *,
     with_sync_port: bool = True,
     receiver: str = _REPLICA_ID,
+    announce_id: str | None = None,
 ) -> HandlerResult:
     activity = announce_vulnerability_case_activity(
-        copy, actor=_CASE_ACTOR_ID, to=[receiver], context=_CASE_ID
+        copy,
+        actor=_CASE_ACTOR_ID,
+        to=[receiver],
+        context=_CASE_ID,
+        **({"id_": announce_id} if announce_id else {}),
     )
-    return AnnounceVulnerabilityCaseReceivedUseCase(
-        dl,
-        cast(
-            AnnounceVulnerabilityCaseReceivedEvent,
-            received_event(activity, receiving_actor_id=receiver, at=dl),
-        ),
-        sync_port=SyncActivityAdapter(dl) if with_sync_port else None,
-    ).execute()
+    return run_in_act(
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            dl,
+            cast(
+                AnnounceVulnerabilityCaseReceivedEvent,
+                received_event(activity, receiving_actor_id=receiver, at=dl),
+            ),
+            sync_port=SyncActivityAdapter(dl) if with_sync_port else None,
+        )
+    )
 
 
 def _case_name(dl: SqliteDataLayer) -> str | None:
@@ -373,13 +390,15 @@ def test_a_copy_behind_the_replica_chain_is_skipped() -> None:
         stale, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
     )
 
-    result = AnnounceVulnerabilityCaseReceivedUseCase(
-        dl,
-        cast(
-            AnnounceVulnerabilityCaseReceivedEvent,
-            received_event(activity, at=dl),
-        ),
-    ).execute()
+    result = run_in_act(
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            dl,
+            cast(
+                AnnounceVulnerabilityCaseReceivedEvent,
+                received_event(activity, at=dl),
+            ),
+        )
+    )
 
     assert result.disposition == HandlerDisposition.SKIPPED
     assert cast(Any, dl.read(_CASE_ID)).name == "replica at entry 0"
@@ -498,6 +517,7 @@ def test_a_copy_at_the_replicas_tail_replaces_its_case() -> None:
 
 
 @pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("RF-08-004")
 def test_a_copy_ahead_of_the_chain_asks_for_the_rest() -> None:
     """The replica's case takes the copy's position, and it sends
     ``Reject(CaseLedgerEntry)`` naming its chain's tail, so the CASE_MANAGER
@@ -511,6 +531,7 @@ def test_a_copy_ahead_of_the_chain_asks_for_the_rest() -> None:
             LedgerPosition(log_index=5, entry_hash="ef" * 32),
         ),
         dl,
+        announce_id=_COPY_ANNOUNCE_ID,
     )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
@@ -528,6 +549,8 @@ def test_a_copy_ahead_of_the_chain_asks_for_the_rest() -> None:
         "entryHash": entries[-1].entry_hash,
     }
     assert reject["context"] == _CASE_ID
+    # It answers the Announce that carried the copy (RF-08-004).
+    assert reject["inReplyTo"] == _COPY_ANNOUNCE_ID
 
 
 @pytest.mark.spec("SYNC-16-007")
@@ -548,6 +571,7 @@ def test_a_backfill_without_a_sync_port_is_a_wiring_fault() -> None:
 
 
 @pytest.mark.spec("SYNC-16-027")
+@pytest.mark.spec("RF-08-004")
 def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     """With no stored entry there is nothing for a Reject to name, so the
     replica sends the Reject that names none: the empty chain's position
@@ -560,6 +584,7 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
             LedgerPosition(log_index=3, entry_hash="ef" * 32),
         ),
         dl,
+        announce_id=_COPY_ANNOUNCE_ID,
     )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
@@ -574,6 +599,7 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     assert body["context"] == _CASE_ID
     assert body["target"] == _CASE_ID
     assert body["to"] == [_CASE_ACTOR_ID]
+    assert body["inReplyTo"] == _COPY_ANNOUNCE_ID  # RF-08-004
     event = cast(
         RejectLogEntryReceivedEvent,
         received_event(parse_activity(body), at=dl),
@@ -588,7 +614,11 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
 def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
     """Only a request for a replay from genesis may name no entry."""
     body = genesis_replay_reject_activity(
-        _CASE_ID, _EMPTY_CHAIN, actor=_REPLICA_ID, to=[_CASE_ACTOR_ID]
+        _CASE_ID,
+        _EMPTY_CHAIN,
+        actor=_REPLICA_ID,
+        to=[_CASE_ACTOR_ID],
+        in_reply_to="https://example.org/activities/prompting-announce",
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
     named = {"logIndex": 0, "entryHash": "ab" * 32}
@@ -964,7 +994,11 @@ def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
     dl = _replica_holding("manager case", actor_id=_CASE_ACTOR_ID)
     body = signed_body(
         genesis_replay_reject_activity(
-            _CASE_ID, _EMPTY_CHAIN, actor=_STRANGER_ID, to=[_CASE_ACTOR_ID]
+            _CASE_ID,
+            _EMPTY_CHAIN,
+            actor=_STRANGER_ID,
+            to=[_CASE_ACTOR_ID],
+            in_reply_to="https://example.org/activities/prompting-announce",
         ).model_dump(mode="json", by_alias=True, exclude_none=True)
     )
     staging = InlineObjectStaging(dl)
