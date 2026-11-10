@@ -369,7 +369,7 @@ groups:
       derive.
     verification: >-
       The CLP-09-003 coverage test, marked `CLP-02-013`, exempts a routed use case
-      only on one of these grounds or by naming an open issue. The no-op late
+      only on one of these grounds or by naming an open issue. The refused late
       `Accept` is a path within a committing use case, so EMB-17-004's tests
       assert it commits nothing.
     relationships:

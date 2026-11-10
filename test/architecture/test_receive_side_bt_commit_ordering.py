@@ -548,8 +548,9 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
         for n in stage.iterate()
         if isinstance(n, _commit_node_types())
     }
-    # The late-Accept re-invite diversion is seen committing its own entries.
-    assert "ReinviteLateAccepterNode" in diverted
+    # The re-invite beside the refusal of an Accept of an unavailable
+    # embargo is seen committing its own entries (EMB-17-003).
+    assert "ReinviteRefusedAccepterNode" in diverted
 
 
 @pytest.mark.spec("CLP-10-025")

@@ -67,6 +67,13 @@ VULTRON_FAILURE_EMBARGO_INVITE_WITHOUT_EMBARGO = (
     f"{_VULTRON_NS}/errors/EmbargoInviteWithoutEmbargo"
 )
 
+# MSM-07-039, MSM-05-001: an Accept(Invite(EmbargoEvent)) naming an embargo
+# the case's embargo register never held.  The sender's view of the case is
+# wrong, so the Accept is not understood rather than declined.
+VULTRON_FAILURE_ACCEPT_OF_EMBARGO_NEVER_HELD = (
+    f"{_VULTRON_NS}/errors/AcceptOfEmbargoNeverHeld"
+)
+
 # ASK-07-010: the receiver understood the activity but failed to process it:
 # the received use case raised, and the act's transaction rolled back.  The
 # fault names no cause; the diagnosis stays in the receiver's log (ASK-07-006).

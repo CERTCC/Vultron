@@ -49,14 +49,14 @@ from vultron.core.behaviors.case.nodes.received_path import ReceivedPath
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.embargo.accept_availability_tree import (
+    never_held_embargo_fault,
+    unavailable_embargo_refusal,
+)
 from vultron.core.behaviors.embargo.embargo_clock_decisions import (
     embargo_clock_decisions,
 )
-from vultron.core.behaviors.embargo.expiry_tree import (
-    invite_expiry_decision,
-    late_accept_diversions,
-    on_time_or_honoured_accept,
-)
+from vultron.core.behaviors.embargo.expiry_tree import invite_expiry_decision
 from vultron.core.behaviors.embargo.nodes import (
     IsAnswerableEmbargoNode,
     RecordParticipantAcceptanceNode,
@@ -123,13 +123,13 @@ def accept_invite_to_embargo_tree(
         ├─ IntakeReceivedActivityNode           # records it (CLP-10-017)
         ├─ ClockDecisionsIfCaseManager          # the Invite expiry (CM-28-009)
         ├─ ValidateCaseExistsNode
+        ├─ NeverHeldEmbargoFault (DiversionStage)    # → ProcessingFault
+        │                                       # (MSM-07-039)
         ├─ EmbargoAnswerNotRecorded             # repeat → SKIPPED (CM-13-005)
         ├─ PxaAcceptRefusal (DiversionStage)    # P/X/A → Reject (EMB-02-004)
-        ├─ ReinviteLateAccepter / LateAcceptBindsNothing
-        │                                       # late Accept arms (EMB-17)
-        ├─ OnTimeOrHonouredAccept               # a late Accept the case
-        │                                       # can answer is honoured
-        ├─ IsAnswerableEmbargoNode              # open or active (CM-18-003)
+        ├─ UnavailableEmbargoRefusal (DiversionStage)
+        │                                       # notice + re-invite
+        │                                       # (MSM-07-012, EMB-17-003)
         ├─ EmbargoAnswerApplies                 # the row can be written
         └─ AcceptInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT
@@ -142,17 +142,18 @@ def accept_invite_to_embargo_tree(
     Once P/X/A is set the receiver answers with a ``Reject`` of the Invite
     instead of recording the Accept
     (:func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_accept_refusal`).
-    A late Accept is routed by its compatibility with the case's embargo
-    (EMB-17-001): one of the Active Embargo or of an open proposal is
-    honoured by being recorded
-    as an on-time Accept is, its entry carrying the row it states
-    (EMB-17-002, ADR-0152), and any other is answered by a diversion
-    (:func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`)
-    and never recorded.  An Accept of an
-    embargo that is neither active nor an open proposal is refused before
-    the commit with the reason (CM-18-003).  Every refusal a guard makes
-    here is answered with the refusal notice (CLP-02-005); a diverted
-    delivery is answered by its diversion, and a repeat gets nothing.
+    Otherwise the Accept is answered by whether the embargo it names is still
+    available, on time or late alike (EMB-17-001, MSM-07-012;
+    :mod:`~vultron.core.behaviors.embargo.accept_availability_tree`).  An
+    available one — the Active Embargo or an open proposal, before its end
+    time — is recorded, its entry carrying the row it states (EMB-17-002,
+    ADR-0152).  One the register never held is answered with
+    ``Create(ProcessingFault)`` and no refusal notice (MSM-07-039).  One it
+    holds but that is no longer available is refused uncommitted with the
+    refusal notice, and the accepter is re-invited to the case's current
+    terms when it holds any (EMB-17-003).  Every refusal a guard makes here
+    is answered with the refusal notice (CLP-02-005); a diverted delivery is
+    answered by its diversion, and a repeat gets nothing.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -166,8 +167,8 @@ def accept_invite_to_embargo_tree(
         accept_id: The Accept's own id; a re-invite's id derives from it,
             so a redelivery rebuilds the same Invite (OX-06-002).
         expiry_out: Receives the expiry decision's ``IS_EXPIRED_KEY`` and
-            ``NEEDS_APPLY_KEY`` at the CASE_MANAGER, read by the late-Accept
-            arms; a fresh dict when omitted.
+            ``NEEDS_APPLY_KEY`` at the CASE_MANAGER; a fresh dict when
+            omitted.
         actor_config: The CASE_MANAGER's configuration: the re-invite's RSVP
             window.
 
@@ -202,6 +203,11 @@ def accept_invite_to_embargo_tree(
         ],
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
+            # An Accept of terms the register never held is not understood:
+            # a ProcessingFault, no refusal notice (MSM-07-039, MSM-05-001).
+            never_held_embargo_fault(
+                case_id=case_id, embargo_id=embargo_id, now=now
+            ),
             # A repeat of an Accept already recorded commits nothing and
             # announces nothing (CM-13-005, HP-01-014).
             case_manager_admits_embargo_answer_guard(
@@ -216,30 +222,17 @@ def accept_invite_to_embargo_tree(
                 invite_id=invite_id,
                 accepting_actor_id=accepting_actor_id,
             ),
-            # A late Accept is routed by its compatibility with the case's
-            # embargo (EMB-17-001).
-            *late_accept_diversions(
+            # An Accept, on time or late, of terms the case replaced, decided,
+            # ended or let run out is moot: refused uncommitted with the
+            # notice, and the accepter is asked about the current terms
+            # (MSM-07-012, EMB-17-003).
+            unavailable_embargo_refusal(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
                 answers=accept_id,
-                result_out=expiry_out,
                 now=now,
                 actor_config=actor_config,
-            ),
-            # Backstop: a late Accept is recorded only when it is honoured
-            # (EMB-17-002), as an on-time Accept is.
-            on_time_or_honoured_accept(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
-                result_out=expiry_out,
-                now=now,
-            ),
-            # An Accept of terms the case decided, replaced or never knew
-            # records nothing and is refused (CM-18-003, MSM-07-012).
-            IsAnswerableEmbargoNode(
-                case_id=case_id, embargo_id=embargo_id, accept=True
             ),
             # The Accept's entry carries the row it states (ADR-0122), so an
             # Accept that records nothing the case can take is refused before
@@ -348,9 +341,7 @@ def reject_invite_to_embargo_tree(
         ),
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
-            IsAnswerableEmbargoNode(
-                case_id=case_id, embargo_id=embargo_id, accept=False
-            ),
+            IsAnswerableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
             # A repeat of a Reject already recorded commits nothing and
             # announces nothing (CM-13-005, HP-01-014).  Only the
             # CASE_MANAGER records an answer, so the guard is declared on its
