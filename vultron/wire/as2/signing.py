@@ -57,7 +57,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
 )
 
-from vultron.core.models._helpers import format_timestamp, now_utc
+from vultron.core.models._helpers import format_timestamp
 from vultron.core.models.multikey import MULTIKEY_TYPE, Multikey
 from vultron.primitives import normalise_actor_id
 from vultron.wire.as2.errors import (
@@ -351,7 +351,7 @@ def sign(
     document: Mapping[str, Any],
     key: SigningKey,
     *,
-    created: datetime | str | None = None,
+    created: datetime | str,
 ) -> dict[str, Any]:
     """Return a copy of *document* carrying a proof made with *key*.
 
@@ -365,7 +365,10 @@ def sign(
         key: the author's signing key; the proof names its key id.
         created: the proof's ``created`` time; a ``datetime`` is written in
             the one serialized form a time has, a string is used as given
-            once it is a timestamp :func:`verify` accepts.  Defaults to now.
+            once it is a timestamp :func:`verify` accepts.  Required: signing
+            reads no clock (ADR-0176), so the caller names the time, and the
+            same document signed with the same key and time gives the same
+            proof on every run (SIG-05-001).
 
     Raises:
         VultronUnsignableJsonError: *document* already carries a proof, holds
@@ -378,8 +381,6 @@ def sign(
         raise VultronUnsignableJsonError(
             "document already carries a proof; an object carries one at most"
         )
-    if created is None:
-        created = now_utc()
     if isinstance(created, datetime):
         created = format_timestamp(created)
     if not _is_timestamp(created):
@@ -430,11 +431,33 @@ def author_of(document: Mapping[str, Any]) -> str:
     return actor
 
 
+def authored_time(document: Mapping[str, Any]) -> str:
+    """The time *document*'s author wrote it: its ``published``, as written.
+
+    An outbound activity's ``published`` is the instant of the act that
+    authored it (ADR-0176), so it is the time a proof on that activity is
+    created: the act signs what it writes, at the instant it writes it, and
+    signing reads no clock of its own.
+
+    Raises:
+        VultronUnsignableJsonError: *document* has no ``published``, or one
+            that is not an RFC 3339 date-time with an offset, so there is no
+            authored time to give its proof.
+    """
+    published = document.get("published")
+    if not isinstance(published, str) or not _is_timestamp(published):
+        raise VultronUnsignableJsonError(
+            f"{document.get('id', 'a document without an id')} has no"
+            " published time that is an RFC 3339 date-time with an offset,"
+            " so its proof has no created time"
+        )
+    return published
+
+
 def sign_as_author(
     document: Mapping[str, Any],
     *,
     owner_id: str,
-    created: datetime | str | None = None,
 ) -> dict[str, Any]:
     """*document* signed with its author's own seeded key (:func:`sign`).
 
@@ -444,6 +467,11 @@ def sign_as_author(
     (SIG-05-004).  The proof is made with the owner's key and names the
     owner's key id.
 
+    The proof's ``created`` is the document's ``published``
+    (:func:`authored_time`): the instant of the act that wrote it, never a
+    clock read (ADR-0176).  So sealing one activity gives one proof however
+    often, and wherever, it is sealed (SIG-05-001).
+
     The seed scheme is guessable by design (ADR-0164; real per-actor secret
     keys are #1184), so any code could compute any actor's key.  The
     guarantee is in the code instead: only the owning actor's outbox calls
@@ -452,11 +480,14 @@ def sign_as_author(
 
     Raises:
         VultronUnsignableJsonError: *document* names no actor
-            (:func:`author_of`), or :func:`sign` refuses it.
+            (:func:`author_of`), has no authored time
+            (:func:`authored_time`), or :func:`sign` refuses it.
         VultronForeignAuthorError: *document*'s ``actor`` is not *owner_id*.
     """
     owner = require_own_document(document, owner_id)
-    return sign(document, seeded_signing_key(owner), created=created)
+    return sign(
+        document, seeded_signing_key(owner), created=authored_time(document)
+    )
 
 
 def require_own_document(document: Mapping[str, Any], owner_id: str) -> str:
@@ -614,6 +645,7 @@ __all__ = [
     "PROOF_TYPE",
     "SigningKey",
     "author_of",
+    "authored_time",
     "canonicalize",
     "decode_public_key_multibase",
     "encode_public_key_multibase",
