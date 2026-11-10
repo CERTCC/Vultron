@@ -16,18 +16,13 @@
 """Find the public key a proof names, in its author's actor profile.
 
 A proof's ``verificationMethod`` is a key id, ``<actor id>#<fragment>``.  The
-key that verifies the proof is read only from that actor's profile
-(SIG-02-001), never derived from a seed (SIG-05-002):
-
-1. the receiver's held copy of the profile, when it lists the key;
-2. otherwise the profile fetched from the actor with a plain ``GET``
-   (SIG-02-002), through :class:`ActorProfileFetchPort`.
-
-The held copy is tried first because a receiver keeps a record it holds
-over a fetched copy (AKM-05-012).  It is not trusted to be complete: the copy
-an activity carries inline is the sender's own stored record, which lists no
-key (AKM-05-005), so a held copy without the named key leads to a fetch, not
-a refusal.  The fetched profile is used for this lookup and not stored.
+key that verifies the proof is read only from that actor's profile, fetched
+from the actor's own URL with a plain ``GET`` (SIG-02-001, SIG-02-002), through
+:class:`ActorProfileFetchPort`.  It is never derived from a seed (SIG-05-002)
+and never read from a copy the receiver stores (SIG-02-003): a stored copy of a
+peer's profile came from somewhere other than that peer, such as an activity
+that embedded it, so a key in it proves nothing about the peer.  The fetched
+profile is used for this lookup and not stored.
 
 Actor ids are compared normalised, without a trailing slash (OID-01-006):
 the key's actor, the profile's id and the key's ``controller`` all name the
@@ -35,7 +30,8 @@ actor however a sender spelled it.  The result is a core
 :class:`~vultron.core.models.multikey.Multikey`; a verifier passes its
 ``publicKeyMultibase`` to ``vultron.wire.as2.signing.verify``.
 
-When a held copy goes stale and how a rotated key is found are #1184.
+Whether to pin the first key fetched (trust on first use), how a fetched key
+is cached, and how a rotated key is found are #1184.
 """
 
 from __future__ import annotations
@@ -46,7 +42,6 @@ from vultron.core.models.actor import CoreActor
 from vultron.core.models.multikey import Multikey
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
     VultronActorProfileFetchError,
     VultronVerificationKeyError,
@@ -127,35 +122,29 @@ async def resolve_verification_key(
     verification_method: str,
     *,
     author_id: str,
-    dl: CasePersistence,
     fetcher: ActorProfileFetchPort,
     requester_id: str,
 ) -> Multikey:
     """The key *verification_method* names, from *author_id*'s profile.
 
     *author_id* is the actor the signed document says wrote it.  A key in
-    any other actor's profile is refused before anything is read or
-    fetched: a third actor's valid proof says nothing about the author
-    (SIG-02-001).  The two ids are compared normalised (OID-01-006).
+    any other actor's profile is refused before anything is fetched: a third
+    actor's valid proof says nothing about the author (SIG-02-001).  The two
+    ids are compared normalised (OID-01-006).
 
-    *dl* is the receiving actor's store, which holds its copies of other
-    actors' profiles, and *requester_id* is the receiving actor, named on a
-    fetch.  The held copy is read first; when it lists no key the proof
-    names, the profile is fetched through *fetcher* (SIG-02-001).  A held
-    copy stored under an unnormalised id is not found by the read; the
-    fetch, made to the normalised id, still finds the key.  A store fault
-    in the read is not a proof failure and propagates as it is, as does
-    anything a fetcher raises other than
-    :class:`~vultron.errors.VultronActorProfileFetchError`: that is a fault
-    in the fetcher, not in the proof.  A refusal names the key and its
-    actor only, never what the fetch met, because it goes back to the
+    The profile is always fetched through *fetcher*, from the author's own
+    URL, on behalf of *requester_id*, the receiving actor; no stored copy is
+    read (SIG-02-003).  Anything a fetcher raises other than
+    :class:`~vultron.errors.VultronActorProfileFetchError` is a fault in the
+    fetcher, not in the proof, and propagates.  A refusal names the key and
+    its actor only, never what the fetch met, because it goes back to the
     sender, who chose the URL fetched; the log says why.
 
     Raises:
         VultronVerificationKeyError: *verification_method* names no key in an
             actor profile, names a key of an actor other than *author_id*,
-            the profile could not be fetched, or neither copy
-            lists the key.  Each is a refusal of the proof (SIG-03-002).
+            the profile could not be fetched, or it does not list the key.
+            Each is a refusal of the proof (SIG-03-002).
     """
     owner = key_owner_id(verification_method)
     if normalise_actor_id(author_id) != owner:
@@ -163,15 +152,6 @@ async def resolve_verification_key(
             f"the proof names key {verification_method!r}, which is not in"
             f" the profile of its author {author_id!r} (SIG-02-001)"
         )
-    held = published_key(dl.read(owner), verification_method)
-    if held is not None:
-        logger.debug(
-            "Resolved key %s from the held profile of %s for actor_id=%s",
-            verification_method,
-            owner,
-            requester_id,
-        )
-        return held
     try:
         fetched = await fetcher.fetch_profile(owner, requester_id)
     except VultronActorProfileFetchError as exc:

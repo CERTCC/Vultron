@@ -139,6 +139,11 @@ Its Inbox — the endpoint where it receives messages — is that same URL with
 
 ## Step 4 — Submit the report
 
+!!! warning "This step is out of date"
+
+    The server now refuses an activity that carries no valid `proof` (SIG-03-002), so it answers this unsigned message with `422 Unprocessable Content`, not `202 Accepted`.
+    The tutorial is being updated to send a signed message ([#5387](https://github.com/CERTCC/Vultron/issues/5387)).
+
 Now we send the vendor a `Create(VulnerabilityReport)` message.
 This is an ActivityStreams Vocabulary 2.0 (AS2) activity: a `Create` activity
 whose `object` is the `VulnerabilityReport` we are reporting.

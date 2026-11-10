@@ -282,8 +282,9 @@ def case_object_for_participant(
     case content is sent only to one (CM-23-004, :func:`may_act_on_case`),
     and only an object the case names, or one scoped to it by its
     ``context`` (AKM-05-006).
-    *requester_id* is the actor the request claims to be: the prototype
-    authenticates nobody (#509).
+    *requester_id* is the actor the request claims to be: a fetch request
+    carries no proof, so the prototype does not authenticate it (HTTP-level
+    request authentication is #509).
 
     Raises:
         VultronNotFoundError: When the case or the object is not held, the

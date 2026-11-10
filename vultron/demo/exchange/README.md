@@ -6,14 +6,17 @@ CVD workflow.
 ## What these demos do
 
 Each module in `exchange/` demonstrates a single ActivityStreams message
-exchange in isolation. These demos use **direct inbox injection** — they
-construct AS2 activities manually and POST them directly to an actor's inbox.
-This is intentional: the goal is to illustrate the protocol message semantics
-without requiring a full multi-actor deployment.
+exchange in isolation. These demos **hand-build each activity** a peer would
+send and hand it to the sender's own outbox on the same server
+(`post_to_inbox_and_wait` posts it to `/actors/{sender}/outbox/`). The outbox
+checks the activity's `actor` is the sender, seals and signs it as its owner
+(SIG-05-004), and delivers it to the receiver's inbox. Demo code never signs as
+an actor. The goal is to illustrate the protocol message semantics without
+requiring a full multi-actor deployment.
 
-This technique is sometimes called "spoofing" because the demo is constructing
-and delivering messages as if it were the sending actor, bypassing the sending
-actor's own outbox. This is appropriate for exchange demos because:
+This technique is sometimes called "spoofing" because the demo decides what the
+sending actor says, instead of letting the sender's behavior tree decide. This
+is appropriate for exchange demos because:
 
 - They focus on *what a message looks like* and *how the receiving actor
   processes it*, not on the full end-to-end delivery pipeline.
