@@ -13,13 +13,16 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The ``Create(ProcessingFault)`` that answers a malformed embargo Invite.
+"""The ``Create(ProcessingFault)`` that answers an embargo activity not understood.
 
-A well-formed activity that breaks a protocol shape rule is received but not
-understood, and is answered with ``Create(ProcessingFault)`` (MSM-05-001): an
-``Invite(EmbargoEvent)`` that names no embargo, or not exactly one ``to``
-recipient (EP-09-026).  The fault id derives from the Invite and the failure
-class, so a redelivery emits nothing new (ID-04-004).
+A well-formed activity that breaks a protocol rule is received but not
+understood, and is answered with ``Create(ProcessingFault)`` (MSM-05-001):
+an ``Invite(EmbargoEvent)`` that names no embargo, or not exactly one ``to``
+recipient (EP-09-026, :class:`EmitEmbargoInviteFaultNode`), and an
+``Accept(Invite(EmbargoEvent))`` naming an embargo the case's register never
+held (MSM-07-039, :class:`EmitEmbargoAcceptFaultNode`).  The fault id
+derives from the received activity and the failure class, so a redelivery
+emits nothing new (ID-04-004).  A fault is never ledgered (ASK-07-008).
 """
 
 from py_trees.common import Status
@@ -30,18 +33,25 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 
-__all__ = ["EmitEmbargoInviteFaultNode"]
+__all__ = [
+    "EmitEmbargoAcceptFaultNode",
+    "EmitEmbargoInviteFaultNode",
+    "EmitReceivedEmbargoFaultNode",
+]
 
 
-class EmitEmbargoInviteFaultNode(DataLayerActionWithPorts, EmitCapable):
-    """Answer the received Invite's sender with ``Create(ProcessingFault)``.
+class EmitReceivedEmbargoFaultNode(DataLayerActionWithPorts, EmitCapable):
+    """Answer the received activity's sender with ``Create(ProcessingFault)``.
 
-    Reads the received Invite from ``/activity``; the fault goes to its
+    Reads the received activity from ``/activity``; the fault goes to its
     ``actor``, as the executing actor's own act.  Without a trigger-activity
     port nothing can be built: the WARNING says so and the node succeeds, so
     the refusal stands without its fault.  An event naming no id or sender
-    has no one to answer and is logged the same way.
+    has no one to answer and is logged the same way.  Subclasses name what
+    they answer in :attr:`_ANSWERS`, for the log.
     """
+
+    _ANSWERS = "activity"
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -73,12 +83,12 @@ class EmitEmbargoInviteFaultNode(DataLayerActionWithPorts, EmitCapable):
         if self.trigger_activity_factory is None or self.actor_id is None:
             self.feedback_message = (
                 f"trigger_activity unavailable — ProcessingFault not emitted"
-                f" for invite '{failed_id}'"
+                f" for {self._ANSWERS} '{failed_id}'"
             )
         elif not failed_id or not sender_id:
             self.feedback_message = (
-                "the received Invite names no id or sender — ProcessingFault"
-                " not emitted"
+                f"the received {self._ANSWERS} names no id or sender —"
+                " ProcessingFault not emitted"
             )
         else:
             self.trigger_activity_factory.emit_processing_fault(
@@ -89,12 +99,31 @@ class EmitEmbargoInviteFaultNode(DataLayerActionWithPorts, EmitCapable):
                 case_id=self._case_id or None,
             )
             self.logger.info(
-                "%s: emitted ProcessingFault/%s to '%s' for invite '%s'",
+                "%s: emitted ProcessingFault/%s to '%s' for %s '%s'",
                 self.name,
                 self._failure_class.rsplit("/", 1)[-1],
                 sender_id,
+                self._ANSWERS,
                 failed_id,
             )
             return Status.SUCCESS
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
+
+
+class EmitEmbargoInviteFaultNode(EmitReceivedEmbargoFaultNode):
+    """Answer a malformed ``Invite(EmbargoEvent)`` with a fault (EP-09-026)."""
+
+    _ANSWERS = "Invite"
+
+
+class EmitEmbargoAcceptFaultNode(EmitReceivedEmbargoFaultNode):
+    """Answer an ``Accept`` of an embargo never held with a fault (MSM-07-039).
+
+    The Accept names terms the case's register never held, so it is not
+    understood rather than declined: the sender's view of the case is wrong
+    (MSM-05-001).  No refusal notice goes with it, and nothing is ledgered
+    (ASK-07-008).
+    """
+
+    _ANSWERS = "Accept"

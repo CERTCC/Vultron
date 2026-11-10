@@ -83,9 +83,10 @@ predates ADR-0122 and is wrong.
   replaced (`SUPERSEDED`), rejected (`REJECTED`), cancelled (`CANCELLED`) or ended
   (`TERMINATED`), answers to it can no longer change: `apply_pec_transition()`
   takes the entry status (`entry_status=`) and refuses every trigger. This also
-  covers "nothing is recorded after termination". A late Accept of stale terms is
-  answered with an invitation to the case's current terms — the Active Embargo, or
-  its earliest-expiring open proposal when none is in force (EMB-17-003, EP-08-002).
+  covers "nothing is recorded after termination". An Accept of stale terms, on
+  time or late, is refused with the refusal notice and answered with an invitation
+  to the case's current terms — the Active Embargo, or its earliest-expiring open
+  proposal when none is in force (MSM-07-012, EMB-17-003, EP-08-002).
 
 ### Every Row Is Written (CM-18-001)
 
@@ -396,12 +397,17 @@ an entry attributed to the invitee (ADR-0140; trees in
 | Situation | Behaviour |
 |---|---|
 | `INVITED` row past its deadline | `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-009, CM-28-014) |
-| Accepted embargo is one the case can still answer: its `ACTIVE` entry or an open proposal | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, EMB-17-018, MSM-07-003, ADR-0152) |
-| Accepted embargo is stale, and the case holds terms of its own | relay a fresh Invite to the Active Embargo, or to the earliest-expiring open proposal whose embargo has not ended when none is in force, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; nothing is sent when the accepter's row for those terms is already `INVITED` or `AGREED` (CM-18-003); the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013, EP-08-002) |
-| No Active Embargo and no live proposal (EM `EXITED`/`NONE`, or every open proposal's embargo has ended) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004, EMB-17-015 through EMB-17-017) |
+| Accepted embargo is available: its `ACTIVE` entry or an open proposal, before its end time | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, EMB-17-018, MSM-07-003, ADR-0152) |
+| Accepted embargo is held but not available, and the case holds terms of its own | refuse it uncommitted with the refusal notice, and relay a fresh Invite to the available Active Embargo, or else to the earliest-expiring open proposal whose embargo has not ended, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; nothing more is sent when the accepter's row for those terms is already `INVITED` or `AGREED` (CM-18-003) (MSM-07-012, EMB-17-003, EMB-17-013, EP-08-002) |
+| Accepted embargo is held but not available, and the case holds no terms (EM `EXITED`/`NONE`, or every embargo has ended) | refuse it uncommitted with the refusal notice alone; rows and case participation unchanged; reported `REFUSED` (MSM-07-012, EMB-17-004, EMB-17-015 through EMB-17-017) |
+| Accepted embargo was never held by the register | `Create(ProcessingFault)` to the sender, no refusal notice, nothing ledgered (MSM-07-039, ASK-07-008) |
 
-A late Accept is never refused (EMB-17): the accepter has signalled willingness
-to coordinate. Each decision follows decide → commit → apply (CLP-10-006,
+The same availability test answers an on-time Accept, so lateness decides
+nothing about the answer: it only decides whether an expiry is committed first
+(MSM-07-012, EMB-17-001). A late Accept is never refused for being late: the
+accepter has signalled willingness to coordinate, and a refusal is of the
+Accept, never of its participation (EMB-17-006). Each decision follows decide →
+commit → apply (CLP-10-006,
 ADR-0124): the CASE_MANAGER decides the row first, commits the act's entry and
 then the row's own `Update(EmbargoConsent)` entry, and only then writes the row
 through the one apply function, so a failed commit leaves the row `INVITED`. A

@@ -605,8 +605,6 @@ print(requirement_callout(
     "EMB-12-002",
     "EMB-12-003",
     "EMB-13-002",
-    "EMB-17-006",
-    "EMB-17-008",
     "EMB-19-002",
     "EP-01-002",
     "EP-01-006",
