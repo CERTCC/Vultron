@@ -32,7 +32,7 @@ Ceiling/floor mapping (BT-23-002):
 - ``draft_advisory_artifact_factory``       — DraftAdvisoryArtifact        (p=0.90) → AlwaysSucceed
 - ``review_advisory_draft_factory``         — ReviewAdvisoryDraft          (p=1.0) → AlwaysSucceed
 - ``revise_advisory_draft_factory``         — ReviseAdvisoryDraft          (p=0.90) → AlwaysSucceed
-- ``submit_advisory_artifact_factory``      — SubmitAdvisoryArtifact       (p=0.90) → NoOpActuator (an AlwaysSucceed)
+- ``submit_advisory_artifact_factory``      — SubmitAdvisoryArtifact       (p=0.90) → AlwaysSucceed
 """
 
 from __future__ import annotations

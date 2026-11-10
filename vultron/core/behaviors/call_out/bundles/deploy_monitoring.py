@@ -21,7 +21,7 @@ and mitigation deployment
 
 - ``prioritize_deployment_factory``  — PrioritizeDeployment  (p=0.90) → AlwaysSucceed
 - ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed
-- ``monitor_deployment_factory``     — MonitorDeployment     (p=1.00) → NoOpActuator (an AlwaysSucceed)
+- ``monitor_deployment_factory``     — MonitorDeployment     (p=1.00) → AlwaysSucceed
 - ``no_new_deployment_info_factory`` — NoNewDeploymentInfo   (p=0.75) → AlwaysSucceed
 
 ``NoNewDeploymentInfo`` is a binary Retriever (BT-18-006): the stay-deferred arm
