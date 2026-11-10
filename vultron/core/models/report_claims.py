@@ -51,6 +51,7 @@ from vultron.core.models._helpers import (
     format_timestamp,
     timestamp_serializer,
 )
+from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.base import (
     CoreRecord,
     NonEmptyString,
@@ -296,6 +297,52 @@ class ClaimsReading(_ClaimsModel):
         return self
 
 
+#: The largest attachment content, in characters, that a reader parses as a
+#: document's claims.  Every received report's attachments are parsed and
+#: schema-checked, so an unbounded one would let one Offer occupy the
+#: receiver; a larger one is kept with the report and not read.  A sender
+#: that attaches a larger one sends a document no receiver reads.  The
+#: inbox-wide body limit is #4596 (IE-03-002).
+MAX_CSAF_CONTENT_CHARS = 8 * 1024 * 1024
+
+
+class SubmittedCsafDocument(_ClaimsModel):
+    """A CSAF document a Reporter asks the submit-report trigger to attach.
+
+    The trigger's edge reads the JSON object the request carries:
+    ``attachment`` is the ``Document`` that would carry it, its JSON text as
+    ``content`` and ``application/json`` as ``media_type`` (CSAF-01-001,
+    CSAF-01-002), and ``reading`` is the schema check and the claims of that
+    same text, naming that same attachment.  Nothing here judges the
+    document: the trigger refuses one that a receiver would not take as the
+    sender's statement (CSAF-04-009), so this model carries an invalid one
+    as faithfully as a valid one.
+    """
+
+    attachment: AttachedDocument
+    reading: ClaimsReading
+
+    @model_validator(mode="after")
+    def _reading_is_of_the_attachment(self) -> "SubmittedCsafDocument":
+        if self.reading.document_id != self.attachment.id_:
+            raise ValueError(
+                f"the reading names document {self.reading.document_id!r},"
+                f" not the attachment {self.attachment.id_!r} it was read from"
+            )
+        if self.attachment.content is None:
+            raise ValueError(
+                "a submitted CSAF document's attachment needs its JSON text"
+                " as content (CSAF-01-001)"
+            )
+        if self.attachment.media_type != "application/json":
+            raise ValueError(
+                "a submitted CSAF document's attachment needs the media type"
+                f" application/json, not {self.attachment.media_type!r}"
+                " (CSAF-01-002)"
+            )
+        return self
+
+
 class ReportClaimsRecord(CoreRecord):
     """The receiver's record of what a report's attached document claimed.
 
@@ -443,10 +490,12 @@ __all__ = [
     "ClaimedAcknowledgment",
     "ClaimedReference",
     "ClaimsReading",
+    "MAX_CSAF_CONTENT_CHARS",
     "ReportClaims",
     "ReportClaimsRecord",
     "SchemaError",
     "SchemaVerdict",
     "SkippedClaim",
+    "SubmittedCsafDocument",
     "VulnerabilityClaims",
 ]

@@ -3,7 +3,6 @@ title: "CSAF Documents in Reports: Implementation Plan"
 status: active
 kind: plan
 tracks:
-  - "#6092"
   - "#6093"
   - "#6094"
   - "#6101"
@@ -120,6 +119,22 @@ and archive it.
   `BTBridge` scopes both sender keys and `report_case_inputs` to the execution
   (`managed_keys`), because an output port outlives its run: unscoped, a later
   proposal stating no terms took the previous report's embargo (BT-09).
+
+## Sending (CSAF-04-009, CSAF-04-010)
+
+- **The edge reads, core judges.** The submit-report route reads the body's
+  `csaf_document` with `read_submitted_csaf_document`, and the core request
+  carries the resulting `SubmittedCsafDocument`, so core never imports wire
+  (ARCH-01-001). The use case refuses through `submitted_csaf_violations`
+  before it stores anything; `run_trigger` turns the `VultronValidationError`
+  into a 422 with one `details` entry per fault.
+- **The sender skips recognition.** The sender says the object is CSAF 2.1,
+  so the trigger schema-checks it as it stands; a wrong `$schema` or
+  `csaf_version` is a schema error, never a silent pass.
+- **A stated embargo end survives P, X or A.** The mapping drops every embargo
+  end when the document sets P, X or A; the trigger keeps one the Reporter
+  stated, because the terms are the Reporter's to propose and the receiver
+  decides (EP-04-020).
 
 ## Two-stage parse
 

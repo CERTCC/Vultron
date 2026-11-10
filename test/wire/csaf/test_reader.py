@@ -39,6 +39,7 @@ from vultron.wire.csaf.reader import (
     is_csaf_21,
     read_csaf_document,
     read_report_attachments,
+    read_submitted_csaf_document,
 )
 
 _DOCUMENT_ID = "https://reporter.example.org/reports/1/csaf"
@@ -570,3 +571,35 @@ def test_a_vendor_branch_without_a_readable_name_keeps_the_outer_vendor() -> (
     assert "$.product_tree.branches[0].branches[0].name" in [
         s.path for s in reading.skipped
     ]
+
+
+@pytest.mark.spec("CSAF-01-001")
+@pytest.mark.spec("CSAF-01-002")
+def test_a_submitted_document_is_read_from_the_text_it_is_attached_as() -> (
+    None
+):
+    data = vulnerability_report_document()
+
+    submission = read_submitted_csaf_document(data)
+
+    attachment = submission.attachment
+    assert attachment.media_type == "application/json"
+    assert attachment.content is not None
+    assert json.loads(attachment.content) == data
+    reading = submission.reading
+    assert reading.document_id == attachment.id_
+    assert reading.document_digest == content_digest(attachment.content)
+    assert reading.schema_verdict is SchemaVerdict.SCHEMA_VALID
+    assert reading.claims.document_category == "csaf_vulnerability_report"
+    # A receiver recognizes what the sender attached (CSAF-01-003).
+    assert [r.document_id for r in _read(attachment)] == [attachment.id_]
+
+
+def test_a_submitted_document_that_is_not_csaf_21_has_schema_errors() -> None:
+    data = minimal_csaf_document()
+    section(data, "document")["csaf_version"] = "2.0"
+
+    reading = read_submitted_csaf_document(data).reading
+
+    assert reading.schema_verdict is SchemaVerdict.SCHEMA_INVALID
+    assert "$.document.csaf_version" in {e.path for e in reading.schema_errors}

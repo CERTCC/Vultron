@@ -48,6 +48,7 @@ from pydantic import AwareDatetime, JsonValue, TypeAdapter, ValidationError
 from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.report import ReportAttachment
 from vultron.core.models.report_claims import (
+    MAX_CSAF_CONTENT_CHARS,
     ClaimedAcknowledgment,
     ClaimedReference,
     ClaimsReading,
@@ -55,6 +56,7 @@ from vultron.core.models.report_claims import (
     SchemaError,
     SchemaVerdict,
     SkippedClaim,
+    SubmittedCsafDocument,
     VulnerabilityClaims,
 )
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
@@ -73,13 +75,6 @@ _SSVC_NAMESPACE = "ssvc"
 _SSVC_EXPLOITATION_KEY = "E"
 #: The document-level note categories a summary is read from, in preference.
 _SUMMARY_NOTE_CATEGORIES = ("summary", "description")
-
-#: The largest attachment content, in characters, the reader parses.  Every
-#: received report's attachments are parsed and schema-checked, so an
-#: unbounded one would let one Offer occupy the receiver; a larger one is kept
-#: with the report and not read.  The inbox-wide body limit is #4596
-#: (IE-03-002).
-MAX_CSAF_CONTENT_CHARS = 8 * 1024 * 1024
 
 _AWARE_DATETIME: TypeAdapter[datetime] = TypeAdapter(AwareDatetime)
 
@@ -143,6 +138,32 @@ def read_csaf_document(
         schema_verdict=SchemaVerdict.SCHEMA_VALID,
         claims=reader.read(stated),
         skipped=reader.skipped,
+    )
+
+
+def read_submitted_csaf_document(
+    data: dict[str, JsonValue],
+) -> SubmittedCsafDocument:
+    """Attach the JSON object *data* as a ``Document`` and check it as CSAF 2.1.
+
+    The submit-report trigger's edge: the ``Document`` carries *data* as JSON
+    text with the media type ``application/json`` (CSAF-01-001,
+    CSAF-01-002), and the reading is of that same text, so what the trigger
+    checks is what a receiver will read.  Unlike a receiver, which first asks
+    whether an attachment is CSAF 2.1 at all (:func:`is_csaf_21`), the sender
+    has said it is, so *data* is checked against the CSAF 2.1 schema as it
+    stands: a wrong ``$schema`` or ``csaf_version`` is a schema error like any
+    other.  Judging the reading is the trigger's (CSAF-04-009).
+    """
+    content = json.dumps(data, ensure_ascii=False)
+    attachment = AttachedDocument(
+        media_type="application/json", content=content
+    )
+    return SubmittedCsafDocument(
+        attachment=attachment,
+        reading=read_csaf_document(
+            attachment.id_, data, digest=content_digest(content)
+        ),
     )
 
 
@@ -555,4 +576,5 @@ __all__ = [
     "is_csaf_21",
     "read_csaf_document",
     "read_report_attachments",
+    "read_submitted_csaf_document",
 ]
