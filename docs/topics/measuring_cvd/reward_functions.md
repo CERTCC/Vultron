@@ -37,22 +37,22 @@ The table below gives each path preference, its measure, and the events that the
 
 | Preference | Measure | For | Events it reads |
 |---|---|---|---|
-| A participant answers an embargo invitation before its RSVP deadline | Invitations answered out of invitations received, without the invitations that the case's close timed out | Each participant | The embargo `Invite(EmbargoEvent)`, the participant's `Accept` or `Reject`, and the CASE_MANAGER's `Update(EmbargoConsent)` |
-| A case revises its embargo few times | The number of embargo revisions | The case | The revision's `Invite(EmbargoEvent)` and the answer that activates it |
+| A participant answers an embargo invitation before its RSVP deadline | Invitations answered before they time out, out of those invitations and the invitations that time out at their RSVP deadline, not counting the invitations that the case's close times out before their deadline | Each participant | The embargo `Invite(EmbargoEvent)`, the participant's `Accept` or `Reject`, the CASE_MANAGER's `Update(EmbargoConsent)`, and the case-close entry |
+| A case revises its embargo few times | The number of embargo revisions that the Case Owner activates | The case | The revision proposal's `Invite(EmbargoEvent)` and the Case Owner's `Add(EmbargoEvent)` that activates it |
 | An embargo is as short as the fixes allow | The embargo duration, divided by the time until the last vendor's fix is ready | The case | Embargo start ($\evE$), embargo exit ($\evEx$), and fix readiness ($\evF_i$) of each vendor |
 | A report is judged correctly | Correct validation decisions out of the decisions whose correctness is known | Each participant | Report validation ($\evVa_i$), the participant's status update to Invalid, and fix readiness ($\evF_i$) |
 
 ### Invitations answered before their deadline
 
-An embargo Invite asks a participant to agree to an embargo, and carries an RSVP deadline.
-The RSVP deadline is the time by which the invited participant must answer.
+An embargo Invite asks a participant to agree to an embargo, and carries an [RSVP deadline](./what_a_case_records.md#clock-decisions-are-stamped-when-the-case_manager-next-acts).
 A participant that does not answer by the deadline gives a pocket veto: the invitation times out, and the participant is not a signatory.
 
 The Participant Embargo Consent (PEC) model gives each participant one consent row for each embargo in the embargo register.
 An invitation moves the row to `INVITED`.
 An answer, an `Accept` or a `Reject` of the Invite, moves the row to `AGREED` or `DECLINED`.
 An invitation that passes its RSVP deadline without an answer moves the row to `TIMED_OUT`, in an `Update(EmbargoConsent)` entry of the CASE_MANAGER (CM-28-015).
-A row can be invited again after it times out, so one row can hold more than one invitation.
+A row can be invited again after it times out, when a late `Accept` names an embargo that is no longer available (EMB-17-003).
+Thus one row can hold more than one invitation.
 
 The measure counts invitations in the event history, not rows at their last status.
 The last status of a row is not enough, because a late answer still changes the row.
@@ -61,6 +61,8 @@ A late `Accept` moves a `TIMED_OUT` row to `AGREED` when the embargo is still av
 An invitation is answered before its deadline when the participant's answer comes before any timeout of that invitation in the ledger.
 The CASE_MANAGER times out each overdue invitation before it processes any other embargo activity for the case, including the late answer itself (CM-28-015, CM-28-028).
 Thus a late answer always comes after the `Update(EmbargoConsent)` that timed out its invitation.
+A participant can change its answer, and the ledger records each changed answer (CM-13-005).
+The measure counts each invitation once, by its first answer.
 
 For participant $i$, the measure is:
 
@@ -71,27 +73,37 @@ $$
 
 The ratio does not count the invitations that the case's close timed out.
 When the Case Owner closes the case, the CASE_MANAGER times out every invitation that still waits for an answer, without waiting for its RSVP deadline (CM-23-014).
-The participant had no chance to answer these invitations by their deadline.
-These `Update(EmbargoConsent)` entries come after the case-close entry in the ledger, so a measure can tell them from a deadline timeout.
+These `Update(EmbargoConsent)` entries come after the case-close entry in the ledger.
+Some of these invitations were already past their RSVP deadline, because the CASE_MANAGER times out an invitation only when it next reads the consent rows (CM-28-007).
+Thus the measure compares the RSVP deadline of each invitation with the commit stamp of the case-close entry.
+An invitation whose deadline is before the close counts as a deadline timeout.
+An invitation whose deadline is after the close is not counted, because the participant still had time to answer it.
 
-The ratio also does not count an invitation that stays at `INVITED` because its embargo was rejected, canceled, or replaced before the participant answered.
+The ratio also does not count an invitation that stays at `INVITED` because its embargo was rejected, canceled, replaced, or ended before the participant answered.
 That participant had no invitation left to answer.
 
+The ratio does not count a Stub Invite to the case.
+Its acceptance both joins the case and agrees to an active embargo (CM-11-001), but a case Invite carries no RSVP deadline (CM-23-014).
+Thus a Stub Invite can never time out at a deadline, and counting it would only raise the ratio.
+
 A participant with no counted invitations has no ratio.
-A Stub Invite to a case with an active embargo is also an embargo invitation, because its acceptance both joins the case and agrees to the embargo (CM-11-001).
 
 ### Embargo revisions
 
 A revision is a proposal to change the embargo in force, for example to move its end time.
-A revision that the participants accept replaces the embargo in force.
-The embargo register then marks the replaced embargo as `SUPERSEDED`.
+The CASE_MANAGER commits each revision proposal as a ledger entry (EP-09-001).
+The participants answer the revision, but their answers are only their own consent.
+The Case Owner decides the revision: its `Add(EmbargoEvent)` activates the revision, and the activated revision replaces the embargo in force (EP-09-005).
 
-For the case, the measure is the number of `SUPERSEDED` entries in the embargo register.
-Each of these entries is one accepted revision.
-A count of the revision proposals that were not accepted is a second, separate count: the proposals that the register marks as rejected or canceled while an embargo was in force.
-
-Each revision has a ledgered `Invite(EmbargoEvent)` from the participant that proposed it.
+For the case, the measure is the number of the Case Owner's `Add(EmbargoEvent)` entries that activate a revision while an embargo is in force.
+The revision proposals that the Case Owner did not activate are a second, separate count.
+Each activation names the proposal that it activates, and the proposal entry names the participant that proposed it.
 Thus the count can also be split by the proposing participant.
+A relayed copy of a proposal, or a fresh Invite after a late `Accept` (EMB-17-003), is not a new proposal, so the split uses the proposal entry, not every `Invite(EmbargoEvent)`.
+
+A case usually starts with a default embargo ([Default Embargoes](../process_models/em/defaults.md)).
+Then the first negotiated embargo is itself a revision, because it replaces the default embargo.
+That replacement is the normal path, not churn, so the measure reports it separately and counts the revisions after it.
 
 A low count is the preference.
 A count of zero does not mean the case did well, because a case can need a revision to give a trailing vendor more time (VP-14-009).
@@ -111,12 +123,12 @@ $$
 
 The numerator is the embargo duration: the time from the embargo start to the embargo exit, across every revision.
 The denominator is the time from the embargo start until the last vendor's fix is ready.
-The vendors in the denominator are the vendors whose reports reach Valid, as in the report-handling desiderata.
+The denominator uses every vendor with a fix ready, including a vendor that first decided the report was Invalid.
 
 A ratio near 1 is the preference.
 A ratio above 1 shows an embargo that lasted longer than the last fix needed.
 A ratio below 1 shows an embargo that ended before the last fix was ready.
-The embargo desideratum $\evF_i \prec \evExOwn$ counts each trailing vendor in that case ([Desiderata from the Process Models](./process_model_desiderata.md#every-vendors-fix-before-the-embargo-ends-on-its-own-terms)).
+When the embargo ended on its own terms ($\evExOwn$), the embargo desideratum $\evF_i \prec \evExOwn$ counts each trailing vendor in that case ([Desiderata from the Process Models](./process_model_desiderata.md#every-vendors-fix-before-the-embargo-ends-on-its-own-terms)).
 
 Each time comes from the commit stamp of the ledger entry for the event, with one exception.
 For an embargo that ended because its end time was reached (`END_TIME_REACHED`), the end time on the embargo is the actual end, and the commit stamp is only the latest possible end ([What a Case Records](./what_a_case_records.md#clock-decisions-are-stamped-when-the-case_manager-next-acts)).
@@ -126,7 +138,10 @@ The ratio is not defined in four conditions:
 - The case had no embargo.
 - The embargo has not ended yet.
 - Every fix was ready before the embargo started, so the denominator is not above zero.
-- A vendor whose report reaches Valid never has a fix ready. The measure then reports that vendor as a vendor without a fix, not as a ratio.
+- The case is still open, and a vendor whose report reaches Valid has no fix ready yet.
+
+After the case closes, a vendor whose report reached Valid and that has no fix is a vendor without a fix.
+The measure reports each such vendor beside the ratio, and computes the ratio over the vendors with a fix.
 
 ### Validation correctness where known
 
@@ -135,8 +150,10 @@ The case does not record which vendors the vul affects.
 Thus the correctness of a validation decision is known only for some decisions.
 
 The event history shows the correctness of some decisions by itself.
-A vendor that decides the report is Valid and later has a fix ready made a correct decision.
-A vendor can also decide that the report is Invalid, close the report, and later have a fix ready (CSB-18-001).
+Usually a vendor decides that the report is Valid, accepts it, and later has a fix ready.
+That fix readiness shows that the Valid decision was correct.
+A vendor can also decide that the report is Invalid, close the report, and later have a fix ready.
+The protocol permits this history, because a vendor can report fix readiness from RM Closed as well as from Accepted or Deferred (CSB-18-001).
 The fix readiness ($\evF_i$) shows that the vul was real for that vendor, so the Invalid decision was wrong.
 Fix readiness is a vendor event, so the ledger alone shows correctness only for vendors.
 

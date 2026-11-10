@@ -294,8 +294,8 @@ These preferences are about the shape of a history: how many steps the history h
 
 | Preference | Measure |
 |---|---|
-| A participant answers an embargo Invite before its RSVP deadline, rather than leaving it to a pocket veto | For each participant, the Invites answered before they time out, out of those Invites and the Invites that time out at their RSVP deadline, not counting the Invites the case's close times out (CM-23-014) |
-| A case revises its embargo few times | For the case, the number of embargo revisions: the `SUPERSEDED` entries in the embargo register |
+| A participant answers an embargo Invite before its RSVP deadline, rather than leaving it to a pocket veto | For each participant, the Invites answered before they time out, out of those Invites and the Invites that time out at their RSVP deadline, not counting the Invites the case's close times out before their deadline (CM-23-014) |
+| A case revises its embargo few times | For the case, the number of embargo revisions that the Case Owner activates, not counting the replacement of a default embargo |
 | An embargo is as short as the fixes allow ([EM Principles](../process_models/em/principles.md)) | For the case, the embargo duration divided by the time from embargo start until the last vendor's fix is ready |
 | A report is judged correctly: a real vul is Valid and a bogus report is Invalid | For each participant, the validation decisions known to be correct out of those whose correctness is known |
 
