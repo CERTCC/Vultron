@@ -26,6 +26,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import acting_as
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
@@ -277,7 +278,7 @@ def test_full_tick_with_stochastic_evaluator_writes_intent_record():
         draft_advisory_artifact_factory=_marker_factory("Draft"),  # type: ignore[arg-type]
         review_advisory_draft_factory=_marker_factory("Review"),  # type: ignore[arg-type]
         revise_advisory_draft_factory=_marker_factory("Revise"),  # type: ignore[arg-type]
-        submit_advisory_artifact_factory=_marker_factory("Submit"),  # type: ignore[arg-type]
+        submit_advisory_artifact_factory=acting_as("Submit"),
     )
     tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
     # Guard: the Evaluator under test is the real stochastic node, not a stub.
@@ -329,7 +330,7 @@ def test_full_tick_with_deterministic_bundle_writes_intent_record_and_runs_fix_r
         draft_advisory_artifact_factory=_marker_factory("Draft"),  # type: ignore[arg-type]
         review_advisory_draft_factory=_marker_factory("Review"),  # type: ignore[arg-type]
         revise_advisory_draft_factory=_marker_factory("Revise"),  # type: ignore[arg-type]
-        submit_advisory_artifact_factory=_marker_factory("Submit"),  # type: ignore[arg-type]
+        submit_advisory_artifact_factory=acting_as("Submit"),
     )
     tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
     tree.setup_with_descendants()
@@ -428,7 +429,7 @@ def test_publish_pipeline_factories_used_in_every_arm():
         draft_advisory_artifact_factory=_marker_factory("CustomDraft"),  # type: ignore[arg-type]
         review_advisory_draft_factory=_marker_factory("CustomReview"),  # type: ignore[arg-type]
         revise_advisory_draft_factory=_marker_factory("CustomRevise"),  # type: ignore[arg-type]
-        submit_advisory_artifact_factory=_marker_factory("CustomSubmit"),  # type: ignore[arg-type]
+        submit_advisory_artifact_factory=acting_as("CustomSubmit"),
     )
     tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
     for arm in tree.children[1:]:

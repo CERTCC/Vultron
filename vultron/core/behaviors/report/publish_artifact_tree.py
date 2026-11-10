@@ -70,8 +70,9 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
+from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.call_out.guard import guard_call_out_factory
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 
@@ -226,7 +227,19 @@ def _default_submit_advisory_artifact_factory(
 ) -> py_trees.behaviour.Behaviour:
     # Core DETERMINISTIC default (ADR-0025, BT-23-002).  STOCHASTIC
     # SubmitAdvisoryArtifact is injected via ``call_out=PUBLICATION_STOCHASTIC``.
-    return AlwaysSucceed(name)
+    return NoOpActuator(name)
+
+
+def advisory_target(case_id: str, artifact_label: str = "") -> str:
+    """The one target a ``SubmitAdvisoryArtifact`` call acts on (BT-18-041).
+
+    The case's advisory for *artifact_label*, so each per-artifact arm of the
+    publication tree submits its own artifact under its own idempotency id
+    (BT-18-042).  An unlabelled pipeline targets the case's advisory.
+    """
+    if not artifact_label:
+        return case_id
+    return f"{case_id}#advisory-{artifact_label.lower()}"
 
 
 def create_publish_artifact_tree(
@@ -277,8 +290,9 @@ def create_publish_artifact_tree(
             Defaults to the core DETERMINISTIC ``AlwaysSucceed`` backend.
         submit_advisory_artifact_factory: Factory for the Actuator call-out
             point that submits the finalized artifact to the external advisory
-            platform.  Defaults to the core DETERMINISTIC ``AlwaysSucceed``
-            backend.
+            platform.  Defaults to the core DETERMINISTIC ``NoOpActuator``
+            backend.  It is placed on :func:`advisory_target`, the one
+            target its call acts on (BT-18-041).
 
     Returns:
         Root Sequence node of the publish-artifact pipeline.
@@ -335,8 +349,10 @@ def create_publish_artifact_tree(
             draft_advisory_artifact_factory(f"DraftAdvisoryArtifact{suffix}"),
             review_advisory_draft_factory(f"ReviewAdvisoryDraft{suffix}"),
             revision_arm,
-            submit_advisory_artifact_factory(
-                f"SubmitAdvisoryArtifact{suffix}"
+            actuator_call(
+                submit_advisory_artifact_factory,
+                f"SubmitAdvisoryArtifact{suffix}",
+                target=advisory_target(case_id, artifact_label),
             ),
         ],
     )

@@ -7,8 +7,9 @@ description: >
   tree builders: the three-mode model and its ceiling/floor default rule, domain
   bundles and singletons, the security-significant gate verdicts, STOCHASTIC
   bundles for production-only domains, why a data-producing capability's
-  default must write its declared outputs, and the yes/no/error answer the seam
-  turns into tree behaviour (ADR-0183).
+  default must write its declared outputs, the yes/no/error answer the seam
+  turns into tree behaviour (ADR-0183), and the one-target, safe-to-repeat
+  Actuator call.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
@@ -268,8 +269,6 @@ tree that maps every failure to "declined" makes an outage a permanent decision,
 as the case-proposal gate does today (#3446). Answer *no* only for a decision; an
 unreachable service, a rejected credential or an unconfirmed side effect is
 *error*. Never make a tree read the answer or parse a reason to choose a branch.
-An Actuator acts on one target per call, keyed on an id the tree derives, so a
-re-run repeats no side effect.
 
 **How the answer reaches the seam: a returned value, held in a slot.**
 `CallOutBackend.update()` stores what `answer()` returns, and `SynchronousCallOut`
@@ -281,3 +280,17 @@ ticked anywhere but under the seam raises, so no tree can read an answer
 refusal overwrites; a capability whose reason a tree or record reads names its
 own `refusal_reason_key` (`answer.py`). Tests inject backends from
 `test/support/call_out.py`, never a raw `py_trees.behaviours.Success`.
+
+## An Actuator Acts on One Target and Is Safe to Repeat
+
+Place every Actuator with `actuator_call(factory, name, target=...)`, one call
+per target, and implement it as an `ActuatorBackend` whose `act(request)` keys
+its side effect on `request.idempotency_id`. Reason: an *error* leaves a message
+in holding, and the re-run asks every call-out point again, so a call that acted
+before the error must see the id of its first run (BT-18-041 to BT-18-044,
+`call_out/actuator.py`). The act's id is the received activity's `activity_id`;
+a trigger run has none and mints one per tree, as a received note does
+(ID-04-004). An unconfirmed side effect or a rejected credential is *error*
+(BT-18-040). A test that ticks an Actuator outside a tree binds a target first
+(`bind_test_target` in `test/support/call_out.py`); `acting(...)` gives an
+Actuator test backend that records each request.

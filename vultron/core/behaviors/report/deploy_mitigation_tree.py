@@ -71,6 +71,7 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
     DEPLOY_MITIGATION_DETERMINISTIC,
 )
@@ -147,7 +148,11 @@ def create_deploy_mitigation_tree(
         memory=False,
         children=[
             bundle.monitoring_requirement_factory("MonitoringRequirement"),
-            bundle.monitor_deployment_factory("MonitorDeployment"),
+            actuator_call(
+                bundle.monitor_deployment_factory,
+                "MonitorDeployment",
+                target=case_id,
+            ),
         ],
     )
 

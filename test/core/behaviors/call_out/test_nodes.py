@@ -34,7 +34,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.support.call_out import tick_call_out
+from test.support.call_out import bind_test_target, tick_call_out
 from vultron.core.behaviors.call_out import (
     AlwaysFail,
     AlwaysSucceed,
@@ -259,7 +259,7 @@ def test_bundle_factories_build_core_deterministic_nodes(bundle):
 def test_bundle_nodes_are_deterministic_on_tick(bundle):
     """Each bundle node ticks to a fixed SUCCESS or FAILURE (never RUNNING)."""
     for factory in _factory_fields(bundle):
-        node = factory("probe")
+        node = bind_test_target(factory("probe"))
         node.tick_once()
         assert node.status in (Status.SUCCESS, Status.FAILURE)
 

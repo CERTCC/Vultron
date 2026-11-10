@@ -27,6 +27,10 @@ from test.support.call_out import (
     yes as call_out_yes,
     yes_with,
 )
+from vultron.core.behaviors.call_out.actuator import (
+    ActuationRequest,
+    ActuatorBackend,
+)
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.report.publication_intent import (
@@ -53,14 +57,14 @@ class _RecordingPrepare(CallOutBackend):
         return CallOutAnswer.yes()
 
 
-class _RecordingSubmit(CallOutBackend):
+class _RecordingSubmit(ActuatorBackend):
     """Actuator stand-in that records that it ran and always succeeds."""
 
     def __init__(self, name, ran):
         super().__init__(name=name)
         self._ran = ran
 
-    def answer(self) -> CallOutAnswer:
+    def act(self, request: ActuationRequest) -> CallOutAnswer:
         self._ran.add(self.name)
         return CallOutAnswer.yes()
 
@@ -92,7 +96,7 @@ def _build(decision, ran):
         draft_advisory_artifact_factory=_always_succeed_factory,  # type: ignore[arg-type]
         review_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
         revise_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
-        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),  # type: ignore[arg-type]
+        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),
     )
     return create_publication_tree(case_id=CASE_ID, call_out=bundle)
 
@@ -172,7 +176,7 @@ def test_prepare_failure_fails_intended_arm():
         draft_advisory_artifact_factory=_always_succeed_factory,  # type: ignore[arg-type]
         review_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
         revise_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
-        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),  # type: ignore[arg-type]
+        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),
     )
     tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
     assert _tick_to_completion(tree) == Status.FAILURE

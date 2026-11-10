@@ -186,12 +186,13 @@ Examples are drafting a security advisory, writing a vulnerability report body, 
 
 ### Actuator
 
-**You receive:** a trigger, a signal that something should happen.
+**You receive:** a trigger, a signal that something should happen, with the one target it acts on and an idempotency id.
 **You return:** *yes* when the side effect is confirmed, *no* when you decided not to act, and *error* when you could not confirm it; never a content artifact.
 **The BT uses it to:** confirm that a side effect was executed.
 
 Actuators fire side effects in external systems.
 Examples are posting an embargo acceptance to a collaboration platform, submitting an advisory to a publication pipeline, and updating a ticket when a report is closed.
+Each call acts on one target, and a re-run of the same act gives the call the same idempotency id, so an Actuator that keys its side effect on that id never repeats it ([Wiring a Capability](../../howto/wire_capability.md#an-actuator-acts-on-one-target-and-is-safe-to-repeat)).
 
 ---
 

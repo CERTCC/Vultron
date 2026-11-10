@@ -24,8 +24,17 @@ import py_trees
 import pytest
 from py_trees.common import Access, Status
 
-from test.support.call_out import no as call_out_no, yes_with
+from test.support.call_out import (
+    acting_as,
+    declines_to_act,
+    no as call_out_no,
+    yes_with,
+)
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.actuator import (
+    ActuationRequest,
+    ActuatorBackend,
+)
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.report.publish_artifact_tree import (
@@ -259,7 +268,7 @@ def test_revise_factory_used():
 def test_submit_factory_used():
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
-        submit_advisory_artifact_factory=_marker_factory("CustomSubmit"),
+        submit_advisory_artifact_factory=acting_as("CustomSubmit"),
     )
     assert tree.children[3].name == "CustomSubmit"
     assert not isinstance(tree.children[3], SubmitAdvisoryArtifact)
@@ -285,6 +294,18 @@ class _Recording(CallOutBackend):
         return CallOutAnswer.yes()
 
 
+class _RecordingSubmit(ActuatorBackend):
+    """Actuator stand-in that records that it ran and confirms its effect."""
+
+    def __init__(self, name, ran):
+        super().__init__(name=name)
+        self._ran = ran
+
+    def act(self, request: ActuationRequest) -> CallOutAnswer:
+        self._ran.add(self.name)
+        return CallOutAnswer.yes()
+
+
 def _tick_tree(tree):
     bt = py_trees.trees.BehaviourTree(root=tree)
     bt.setup()
@@ -305,7 +326,9 @@ def test_auto_approve_skips_revision_arm():
             name, AdvisoryReviewDecision(needs_revision=False)
         ),
         revise_advisory_draft_factory=lambda name: _Recording(name, ran),
-        submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
+        submit_advisory_artifact_factory=lambda name: _RecordingSubmit(
+            name, ran
+        ),
     )
     status = _tick_tree(tree)
     assert status == Status.SUCCESS
@@ -324,7 +347,9 @@ def test_needs_revision_runs_revision_arm():
             name, AdvisoryReviewDecision(needs_revision=True)
         ),
         revise_advisory_draft_factory=lambda name: _Recording(name, ran),
-        submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
+        submit_advisory_artifact_factory=lambda name: _RecordingSubmit(
+            name, ran
+        ),
     )
     status = _tick_tree(tree)
     assert status == Status.SUCCESS
@@ -342,7 +367,9 @@ def test_draft_failure_fails_pipeline():
         draft_advisory_artifact_factory=call_out_no,
         review_advisory_draft_factory=_marker_factory("Review"),
         revise_advisory_draft_factory=_marker_factory("Revise"),
-        submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
+        submit_advisory_artifact_factory=lambda name: _RecordingSubmit(
+            name, ran
+        ),
     )
     status = _tick_tree(tree)
     assert status == Status.FAILURE
@@ -358,7 +385,9 @@ def test_review_failure_fails_pipeline():
         draft_advisory_artifact_factory=_marker_factory("Draft"),
         review_advisory_draft_factory=call_out_no,
         revise_advisory_draft_factory=_marker_factory("Revise"),
-        submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
+        submit_advisory_artifact_factory=lambda name: _RecordingSubmit(
+            name, ran
+        ),
     )
     status = _tick_tree(tree)
     assert status == Status.FAILURE
@@ -376,7 +405,9 @@ def test_revise_failure_fails_pipeline():
             name, AdvisoryReviewDecision(needs_revision=True)
         ),
         revise_advisory_draft_factory=call_out_no,
-        submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
+        submit_advisory_artifact_factory=lambda name: _RecordingSubmit(
+            name, ran
+        ),
     )
     status = _tick_tree(tree)
     assert status == Status.FAILURE
@@ -391,7 +422,7 @@ def test_submit_failure_fails_pipeline():
         draft_advisory_artifact_factory=_marker_factory("Draft"),
         review_advisory_draft_factory=_marker_factory("Review"),
         revise_advisory_draft_factory=_marker_factory("Revise"),
-        submit_advisory_artifact_factory=call_out_no,
+        submit_advisory_artifact_factory=declines_to_act,
     )
     status = _tick_tree(tree)
     assert status == Status.FAILURE

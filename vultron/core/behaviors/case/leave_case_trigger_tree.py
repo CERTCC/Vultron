@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.call_out.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
 )
@@ -129,7 +130,11 @@ def create_leave_case_trigger_tree(
         memory=False,
         children=[
             embargo_guard,
-            bundle.pre_close_action_factory("PreCloseAction"),
+            actuator_call(
+                bundle.pre_close_action_factory,
+                "PreCloseAction",
+                target=case_id,
+            ),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
         ],
     )

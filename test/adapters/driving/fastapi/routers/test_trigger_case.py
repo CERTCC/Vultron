@@ -514,15 +514,15 @@ def test_trigger_leave_case_failing_pre_close_action_returns_422(
     client_triggers, dl, actor, case_with_participant
 ):
     """A failing PreCloseAction backend answers 422 with nothing queued."""
+    from test.support.call_out import declines_to_act
     from vultron.core.behaviors.call_out.bundles.close_report import (
         CloseReportCallOutBundle,
     )
-    from vultron.core.behaviors.call_out.nodes import AlwaysFail
     from vultron.core.use_cases.triggers.case import leave as leave_module
 
     build_tree = leave_module.create_leave_case_trigger_tree
     failing = CloseReportCallOutBundle(
-        pre_close_action_factory=AlwaysFail  # type: ignore[arg-type]
+        pre_close_action_factory=declines_to_act
     )
 
     def _with_failing_call_out(**kwargs):

@@ -33,6 +33,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.call_out import acting_as
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
@@ -336,6 +337,8 @@ def test_each_factory_is_wired(field, label, arm_idx, child_idx):
 
     def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
         sentinel["called"] = True
+        if field == "monitor_deployment_factory":
+            return acting_as(label)(name)
 
         class _Marker(CallOutBackend):
             def answer(self) -> CallOutAnswer:
@@ -356,7 +359,7 @@ def test_all_factories_replaceable():
         prioritize_deployment_factory=_marker_factory("PD"),  # type: ignore[arg-type]
         monitoring_requirement_factory=_marker_factory("MR"),  # type: ignore[arg-type]
         deploy_fix_factory=_marker_factory("DF"),  # type: ignore[arg-type]
-        monitor_deployment_factory=_marker_factory("MD"),  # type: ignore[arg-type]
+        monitor_deployment_factory=acting_as("MD"),
         no_new_deployment_info_factory=_marker_factory("NN"),  # type: ignore[arg-type]
     )
     tree = create_deploy_fix_tree(

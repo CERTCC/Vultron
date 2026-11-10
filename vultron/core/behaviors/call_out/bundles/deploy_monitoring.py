@@ -21,7 +21,7 @@ and mitigation deployment
 
 - ``prioritize_deployment_factory``  — PrioritizeDeployment  (p=0.90) → AlwaysSucceed
 - ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed
-- ``monitor_deployment_factory``     — MonitorDeployment     (p=1.00) → AlwaysSucceed
+- ``monitor_deployment_factory``     — MonitorDeployment     (p=1.00) → NoOpActuator (an AlwaysSucceed)
 - ``no_new_deployment_info_factory`` — NoNewDeploymentInfo   (p=0.75) → AlwaysSucceed
 
 ``NoNewDeploymentInfo`` is a binary Retriever (BT-18-006): the stay-deferred arm
@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 import py_trees
 
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 
@@ -60,7 +60,7 @@ class DeploymentMonitoringBundle(CallOutBundle):
         default=_always_succeed  # type: ignore[assignment]
     )
     monitor_deployment_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=NoOpActuator  # type: ignore[assignment]
     )
     no_new_deployment_info_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
