@@ -162,8 +162,9 @@ class SubmitReportRequest(SubmitReportFields):
     ``csaf_document`` is a CSAF 2.1 document, as a JSON object, to attach to
     the report.  The trigger refuses, with HTTP 422 naming each fault, one
     that fails the CSAF 2.1 schema, is not a ``csaf_vulnerability_report``,
-    or is longer than a receiver reads (CSAF-04-009), and fills a report name, summary or proposed embargo end
-    the request leaves out from it (CSAF-04-010).
+    or is longer than a receiver reads (CSAF-04-009), and fills a report
+    name, summary or proposed embargo end the request leaves out from it
+    (CSAF-04-010).
     """
 
     csaf_document: dict[str, JsonValue] | None = None
