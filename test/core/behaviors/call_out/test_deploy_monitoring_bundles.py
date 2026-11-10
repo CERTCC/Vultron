@@ -15,7 +15,8 @@
 and DeployMitigationCallOutBundle (AC-1 through AC-5, BT-23-002).
 
 Covers:
-- AC-1: DeploymentMonitoringBundle has the three shared fields with correct defaults.
+- AC-1: DeploymentMonitoringBundle has the four shared fields with correct
+  defaults (the fourth, no_new_deployment_info_factory, added by #3424).
 - AC-2: DeployFixCallOutBundle inherits DeploymentMonitoringBundle; existing tests green.
 - AC-3: DeployMitigationCallOutBundle(DeploymentMonitoringBundle) has the three
   additional fields; DEPLOY_MITIGATION_DETERMINISTIC singleton exists.
@@ -47,7 +48,7 @@ from vultron.core.behaviors.call_out.bundles.deploy_monitoring import (
 )
 
 # ---------------------------------------------------------------------------
-# AC-1: DeploymentMonitoringBundle — three shared fields, correct defaults
+# AC-1: DeploymentMonitoringBundle — four shared fields, correct defaults
 # ---------------------------------------------------------------------------
 
 
@@ -58,7 +59,7 @@ class TestDeploymentMonitoringBundle:
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
             bundle.prioritize_deployment_factory = None  # type: ignore[misc]
 
-    def test_has_three_fields(self):
+    def test_has_four_fields(self):
         fields = {
             f.name for f in dataclasses.fields(DeploymentMonitoringBundle)
         }
@@ -66,6 +67,7 @@ class TestDeploymentMonitoringBundle:
             "prioritize_deployment_factory",
             "monitoring_requirement_factory",
             "monitor_deployment_factory",
+            "no_new_deployment_info_factory",
         }
 
     def test_prioritize_deployment_defaults_to_always_succeed(self):
@@ -83,12 +85,19 @@ class TestDeploymentMonitoringBundle:
         node = b.monitor_deployment_factory("probe")
         assert isinstance(unwrap_call_out(node), AlwaysSucceed)
 
+    def test_no_new_deployment_info_defaults_to_always_succeed(self):
+        """NoNewDeploymentInfo p=0.75 → AlwaysSucceed (BT-23-002)."""
+        b = DeploymentMonitoringBundle()
+        node = b.no_new_deployment_info_factory("probe")
+        assert isinstance(unwrap_call_out(node), AlwaysSucceed)
+
     def test_all_default_nodes_tick_to_success(self):
         b = DeploymentMonitoringBundle()
         for factory in [
             b.prioritize_deployment_factory,
             b.monitoring_requirement_factory,
             b.monitor_deployment_factory,
+            b.no_new_deployment_info_factory,
         ]:
             node = factory("probe")
             node.tick_once()
@@ -100,6 +109,7 @@ class TestDeploymentMonitoringBundle:
             b.prioritize_deployment_factory,
             b.monitoring_requirement_factory,
             b.monitor_deployment_factory,
+            b.no_new_deployment_info_factory,
         ]:
             assert isinstance(factory("probe"), py_trees.behaviour.Behaviour)
 
@@ -123,6 +133,7 @@ class TestDeployFixCallOutBundleInheritance:
             "prioritize_deployment_factory",
             "monitoring_requirement_factory",
             "monitor_deployment_factory",
+            "no_new_deployment_info_factory",
         }.issubset(fields)
 
     def test_deploy_fix_defaults_to_always_fail(self):
@@ -159,7 +170,7 @@ class TestDeployMitigationCallOutBundle:
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
             bundle.mitigation_deployed_factory = None  # type: ignore[misc]
 
-    def test_has_six_fields(self):
+    def test_has_seven_fields(self):
         fields = {
             f.name for f in dataclasses.fields(DeployMitigationCallOutBundle)
         }
@@ -167,6 +178,7 @@ class TestDeployMitigationCallOutBundle:
             "prioritize_deployment_factory",
             "monitoring_requirement_factory",
             "monitor_deployment_factory",
+            "no_new_deployment_info_factory",
             "mitigation_deployed_factory",
             "mitigation_available_factory",
             "deploy_mitigation_factory",
@@ -201,6 +213,7 @@ class TestDeployMitigationCallOutBundle:
             DEPLOY_MITIGATION_DETERMINISTIC.prioritize_deployment_factory,
             DEPLOY_MITIGATION_DETERMINISTIC.monitoring_requirement_factory,
             DEPLOY_MITIGATION_DETERMINISTIC.monitor_deployment_factory,
+            DEPLOY_MITIGATION_DETERMINISTIC.no_new_deployment_info_factory,
         ]:
             node = factory("probe")
             assert isinstance(unwrap_call_out(node), AlwaysSucceed)
@@ -236,6 +249,14 @@ class TestDeployMitigationStochasticBundle:
 
     def test_stochastic_is_instance_of_bundle(self, stochastic):
         assert isinstance(stochastic, DeployMitigationCallOutBundle)
+
+    def test_no_new_deployment_info_is_fuzzer_node(self, stochastic):
+        from vultron.demo.fuzzer.report_management.deploy_fix import (
+            NoNewDeploymentInfo,
+        )
+
+        node = stochastic.no_new_deployment_info_factory("probe")
+        assert isinstance(unwrap_call_out(node), NoNewDeploymentInfo)
 
     def test_mitigation_deployed_is_fuzzer_node(self, stochastic):
         from vultron.demo.fuzzer.report_management.deploy_fix import (

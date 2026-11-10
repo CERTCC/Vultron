@@ -48,16 +48,23 @@ from vultron.demo.fuzzer.call_out_point import (
 )
 
 
-class NoNewPrioritizationInfo(ProbablySucceed):
+class NoNewPrioritizationInfo(RetrieverCallOutPoint, ProbablySucceed):
     """Check whether new information has arrived that should trigger
     re-prioritization of the report.
 
     Semantic function:
-        Condition — check whether new information has arrived that
-        should trigger re-prioritization of the report.  Succeeds more
-        often than not to avoid redundant re-evaluation cycles.
+        Condition — ask the sources of prioritization-relevant information
+        (SSVC scoring data, CVSS score updates, threat intelligence) whether
+        anything new has arrived that should trigger re-prioritization of the
+        report.  Succeeds more often than not to avoid redundant re-evaluation
+        cycles.  A binary Retriever: the tree asks on its own tick, so this is
+        a call-out, not a Sentinel (BT-18-006, BT-18-013).
 
-    Input category: Environmental check / Human decision.
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries prioritization-relevant information sources)
+      Output keys: (none — binary result only, per BT-18-006)
+
+    Input category: Environmental check.
 
     Success probability: 0.67 (``ProbablySucceed``).
 

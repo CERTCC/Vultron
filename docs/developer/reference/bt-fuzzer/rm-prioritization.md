@@ -21,35 +21,13 @@ This sub-tree decides whether to accept (engage) or defer a valid report.
 - **Automation potential**: **High** — a metadata timestamp or case-update event check.
   This check is fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.NoNewPrioritizationInfo`
-- **Call-out point shape**: ProtocolInternal — reads a change-detection flag that the upstream `NewPrioritizationInfoSentinel` writes (see the next entry).
-  The external seam is at that upstream writer, not at this behavior tree (BT) condition check.
-- **Factory-fn placement**: `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree` — ProtocolInternal condition check at the top of the `PrioritizeBT` Selector.
+- **Call-out point shape**: Retriever (binary) — the tree asks the sources of prioritization information on its own tick whether anything new has arrived, such as new Stakeholder-Specific Vulnerability Categorization (SSVC) data or a Common Vulnerability Scoring System (CVSS) score update.
+  The answer is the `SUCCESS` or `FAILURE` result itself, with no output keys (BT-18-006, BT-18-010).
+  It is not ProtocolInternal, because its input comes from outside the protocol (BT-18-017).
+  It is not a Sentinel: a Sentinel acts on its own initiative through a trigger and never answers a question the tree asks (BT-18-013).
+- **Factory-fn placement**: `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree` — a binary Retriever call-out at the top of the `PrioritizeBT` Selector.
   It is not wired yet.
-  It belongs here when the re-prioritization loop exists.
-
-## `NewPrioritizationInfoSentinel` *(upstream Sentinel stub)*
-
-- **Node name**: `NewPrioritizationInfoSentinel`
-- **btz type**: *(not a BT node — upstream agent seam)*
-- **Source file**: *(to be determined)*
-- **Parent tree**: *(runs independently, outside the BT tick loop)*
-- **Semantic function**: Sentinel — monitors the case record for new events that are relevant to prioritization.
-  One example is new Stakeholder-Specific Vulnerability Categorization (SSVC) scoring data.
-  Other examples are new threat intelligence or a Common Vulnerability Scoring System (CVSS) score update.
-  The Sentinel writes a change-detection flag that `NoNewPrioritizationInfo` reads.
-- **Input dependency**: The event stream of the case management system.
-  The Sentinel compares metadata timestamps, or subscribes to events on case fields that are relevant to prioritization.
-  Examples of these fields are SSVC decision points and CVSS scores.
-- **Notes**: This writer is the real seam that `NoNewPrioritizationInfo` implies.
-  The writer registers with an external event source and writes a flag to the BT blackboard or the local DataLayer.
-  `NoNewPrioritizationInfo` reads that flag each tick.
-- **Automation potential**: **High** — an event subscription on the case record, or a metadata timestamp comparison.
-  This work is fully automatable.
-- **New-arch cross-ref**: `vultron.demo.fuzzer.call_out_point.NewPrioritizationInfoSentinel`
-- **Call-out point shape**: Sentinel — pending reclassification.
-  Sentinel is no longer a call-out shape (ADR-0097, BT-18-013), and #3424 tracks the reclassification of this entry.
-- **Factory-fn placement**: Not placed inside the BT tree.
-  It writes the change-detection flag that `NoNewPrioritizationInfo` reads at the top of the `PrioritizeBT` Selector in `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree`.
+  It belongs here, as a `PrioritizationCallOutBundle` factory field, when the re-prioritization loop exists.
 
 ## `EnoughPrioritizationInfo`
 

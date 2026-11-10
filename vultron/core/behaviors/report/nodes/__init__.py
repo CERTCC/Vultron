@@ -56,7 +56,6 @@ from vultron.core.behaviors.report.nodes.conditions import (
 )
 from vultron.core.behaviors.report.nodes.deploy_fix import (
     CheckCSFixNotYetDeployed,
-    CheckNoNewDeploymentInfoNode,
     CSinStateFixDeployed,
     EmitCDActivity,
     RMinStateDeferred,
@@ -119,7 +118,6 @@ __all__ = [
     "CSinStateFixDeployed",
     "CheckCSFixNotYetDeployed",
     "RMinStateDeferred",
-    "CheckNoNewDeploymentInfoNode",
     "TransitionCStoFixDeployed",
     "EmitCDActivity",
     # emit
