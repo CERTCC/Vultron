@@ -82,6 +82,8 @@ A change under `vultron/demo/` or `test/demo/` used to require this before a pul
 That exception is retired: CI runs those tests and the required `CI gate` judges the run (PAD-18-008).
 Which workflow depends on what changed — `demo-integration.yml` and `demo-verdict.yml` for a `vultron/demo/` change, and `python-app.yml`'s `rest` part for a `test/demo/` one, because `demo-integration.yml`'s `paths` list `vultron/**` but not `test/demo/**`.
 `demo-verdict.yml` is the one that answers whether your change moved what a scenario records or checks: it records every registered scenario at your pull request's merge base and at its head and compares the two.
+It compares what each scenario did: its acts in order, their states, roles and content, and its check outcomes.
+A change that moves only ids, times or signatures passes.
 The targeted gate covers them through their importers like any other path, and its `-m ""` keeps a selected integration test in (PAD-18-011).
 
 ## Troubleshooting
