@@ -257,6 +257,13 @@ class TimeBoundedCallOut(SynchronousCallOut):
     takes, on every call; the seam only guarantees that the tree never acts on
     a late answer, and that the operator sees which node was slow.
 
+    The time measured runs from the start of the seam's tick to its
+    ``update()``: the backend's own tick plus any tree visitor py_trees runs
+    on the nodes the tick yields.  A backend that returns ``RUNNING`` breaks
+    the seam's contract, and that :class:`CallOutContractError` is raised
+    however long the backend took, so a mis-wired backend is never reported
+    as merely slow (BT-18-011).
+
     A stopwatch reading is not a time of day: it feeds this limit and nothing
     else (ADR-0176).
     """
@@ -294,7 +301,9 @@ class TimeBoundedCallOut(SynchronousCallOut):
                 "tick, so it cannot time its backend (BT-18-015)."
             )
         elapsed = timedelta(seconds=self._stopwatch.seconds() - self._started)
-        if elapsed > self.budget:
+        # RUNNING is a contract breach, which outranks lateness: the base
+        # update() raises it (BT-18-011).
+        if self._backend.status != Status.RUNNING and elapsed > self.budget:
             # Discard the late answer so no later tick can read it.
             self._backend.take_answer()
             error = CallOutBudgetExceededError(
@@ -315,11 +324,21 @@ def time_bounded_call_out(
     system stopwatch.  Idempotent: a :class:`TimeBoundedCallOut` is returned
     unchanged, and a plain :class:`SynchronousCallOut` has its backend moved
     behind a time-bounded seam, so no factory product escapes the budget.
+    The plain seam is dropped and its blackboard client released.  Any other
+    :class:`SynchronousCallOut` subclass raises :class:`CallOutContractError`,
+    because unwrapping it would silently drop what the subclass adds.
     """
     if isinstance(node, TimeBoundedCallOut):
         return node
-    if isinstance(node, SynchronousCallOut):
+    if type(node) is SynchronousCallOut:
+        node._bb.unregister(clear=False)
         node = node.decorated
+    elif isinstance(node, SynchronousCallOut):
+        raise CallOutContractError(
+            f"Call-out factory produced {type(node).__name__} for "
+            f"{node.name!r}, a seam subclass the time budget cannot wrap "
+            "without dropping it (BT-18-015)."
+        )
     return TimeBoundedCallOut(
         node,
         budget=load_actor_config().call_out_time_budget,

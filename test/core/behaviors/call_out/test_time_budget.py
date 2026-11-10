@@ -41,7 +41,7 @@ from pydantic import ValidationError
 from test.support.call_out import FixedAnswerBackend
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.config.actor import DEFAULT_CALL_OUT_TIME_BUDGET, ActorConfig
-from vultron.config.app import config_override, load_actor_config
+from vultron.config.app import config_override
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out import guard as guard_module
 from vultron.core.behaviors.call_out.answer import (
@@ -252,7 +252,12 @@ def test_no_within_the_budget_is_a_protocol_failure(bridge: BTBridge) -> None:
 
 
 def test_each_tick_is_timed_on_its_own() -> None:
-    """A slow tick does not leak its start into the next one."""
+    """Each tick's elapsed time is its own, not the run's total.
+
+    Three 60 ms ticks total 180 ms, over the 100 ms budget, so a seam that
+    timed from its first tick, or kept a start between ticks, would raise on
+    the second.
+    """
     stopwatch = _FakeStopwatch()
     backend = _SlowBackend(
         "Probe",
@@ -264,6 +269,8 @@ def test_each_tick_is_timed_on_its_own() -> None:
     for _ in range(3):
         seam.tick_once()
         assert seam.status == Status.SUCCESS
+        # Time passing between ticks is not charged to the next one.
+        stopwatch.now += 1.0
 
 
 @pytest.mark.parametrize("budget", [timedelta(0), timedelta(seconds=-1)])
@@ -272,6 +279,31 @@ def test_seam_refuses_a_budget_that_is_not_positive(budget: timedelta) -> None:
         TimeBoundedCallOut(
             AlwaysSucceed("Probe"), budget=budget, stopwatch=SystemStopwatch()
         )
+
+
+class _SlowRunningBackend(_SlowBackend):
+    """A mis-wired backend that is slow and also returns RUNNING."""
+
+    def update(self) -> Status:
+        super().update()
+        return Status.RUNNING
+
+
+def test_running_is_a_contract_error_even_when_it_is_also_late() -> None:
+    """A slow RUNNING backend is reported as mis-wired, not as slow."""
+    stopwatch = _FakeStopwatch()
+    seam = TimeBoundedCallOut(
+        _SlowRunningBackend(
+            "Probe",
+            stopwatch=stopwatch,
+            took=timedelta(milliseconds=250),
+            fixed=_YES,
+        ),
+        budget=BUDGET,
+        stopwatch=stopwatch,
+    )
+    with pytest.raises(CallOutContractError, match="RUNNING"):
+        seam.tick_once()
 
 
 def test_seam_refuses_an_update_outside_its_own_tick() -> None:
@@ -323,11 +355,15 @@ def test_budget_is_read_when_the_tree_is_built_not_at_import() -> None:
 
 
 @pytest.mark.spec("BT-18-026")
-def test_default_budget_is_the_documented_actor_config_default() -> None:
+def test_default_budget_is_the_documented_actor_config_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     assert ActorConfig().call_out_time_budget == DEFAULT_CALL_OUT_TIME_BUDGET
-    node = guard_call_out_factory(AlwaysSucceed)("Probe")
+    monkeypatch.delenv("VULTRON_ACTOR__CALL_OUT_TIME_BUDGET", raising=False)
+    with config_override():
+        node = guard_call_out_factory(AlwaysSucceed)("Probe")
     assert isinstance(node, TimeBoundedCallOut)
-    assert node.budget == load_actor_config().call_out_time_budget
+    assert node.budget == DEFAULT_CALL_OUT_TIME_BUDGET
 
 
 @pytest.mark.spec("BT-18-026")
@@ -424,6 +460,21 @@ def test_plain_seam_from_a_factory_is_moved_behind_the_budget() -> None:
     assert isinstance(node, TimeBoundedCallOut)
     assert node.decorated is backend
     assert backend.parent is node
+    # The dropped seam's blackboard client is released.
+    names = set(py_trees.blackboard.Blackboard.clients.values())
+    assert "SynchronousCallOut_Probe" not in names
+    assert "TimeBoundedCallOut_Probe" in names
+
+
+def test_other_seam_subclass_is_refused_not_unwrapped() -> None:
+    class _CustomSeam(SynchronousCallOut):
+        pass
+
+    def factory(name: str) -> py_trees.behaviour.Behaviour:
+        return _CustomSeam(AlwaysSucceed(name))
+
+    with pytest.raises(CallOutContractError, match="_CustomSeam"):
+        guard_call_out_factory(factory)("Probe")
 
 
 # ---------------------------------------------------------------------------
