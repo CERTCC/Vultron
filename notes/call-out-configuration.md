@@ -294,3 +294,12 @@ a trigger run has none, and each call mints one once, as a received note does
 (BT-18-040). A test that ticks an Actuator outside a tree binds a target first
 (`bind_test_target` in `test/support/call_out.py`); `acting(...)` gives an
 Actuator test backend that records each request.
+
+Two Actuators placed in one tree need distinct node names or targets. Reason: the
+idempotency id derives from the node name, actor, act and target, so two calls
+with the same name and target in one act share an id and the second is a no-op
+(the deploy tree runs both arms' `MonitorDeployment`, hence `deployment_target`;
+`test_no_two_actuators_in_a_tree_share_an_idempotency_id`). Renaming an Actuator
+node or its target changes the ids of messages already in holding, so a re-run
+after the rename repeats their side effects; pre-1.0 this is accepted, with no
+alias for the old name (`actuation_id`).

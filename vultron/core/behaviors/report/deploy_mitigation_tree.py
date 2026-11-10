@@ -77,6 +77,7 @@ from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
 )
 from vultron.core.behaviors.report.deploy_fix_tree import (
     create_stay_deferred_arm,
+    deployment_target,
 )
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
@@ -151,7 +152,7 @@ def create_deploy_mitigation_tree(
             actuator_call(
                 bundle.monitor_deployment_factory,
                 "MonitorDeployment",
-                target=case_id,
+                target=deployment_target(case_id, "mitigation"),
             ),
         ],
     )

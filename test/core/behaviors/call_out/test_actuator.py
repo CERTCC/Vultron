@@ -24,10 +24,10 @@ from holding processes it.
 from __future__ import annotations
 
 import dataclasses
+import functools
 import importlib
 import pkgutil
 import re
-from collections.abc import Callable
 from pathlib import Path
 
 import py_trees
@@ -85,6 +85,7 @@ from vultron.core.behaviors.report.deploy_fix_tree import (
 from vultron.core.behaviors.report.deploy_mitigation_tree import (
     create_deploy_mitigation_tree,
 )
+from vultron.core.behaviors.report.deploy_tree import create_deploy_tree
 from vultron.core.behaviors.report.prioritize_tree import (
     create_prioritize_subtree,
 )
@@ -106,9 +107,10 @@ CASE_ID = "https://example.org/cases/actuation"
 ACTOR_ID = "https://example.org/actors/publisher"
 SENDER_ID = "https://example.org/actors/sender"
 
-_CORE_BEHAVIORS = (
-    Path(__file__).resolve().parents[4] / "vultron" / "core" / "behaviors"
-)
+_VULTRON = Path(__file__).resolve().parents[4] / "vultron"
+_CORE_BEHAVIORS = _VULTRON / "core" / "behaviors"
+#: Where a tree may place an Actuator: core trees, use cases and the fuzzer.
+_PLACEMENT_ROOTS = (_VULTRON / "core", _VULTRON / "demo" / "fuzzer")
 
 
 # ---------------------------------------------------------------------------
@@ -169,27 +171,33 @@ def _actuators_in(
 
 
 #: Every core tree builder that places an Actuator, with its default bundle.
-_TREES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
-    "prioritize": lambda: create_prioritize_subtree(
-        case_id=CASE_ID, actor_id=ACTOR_ID
+_TREES: dict[str, functools.partial[py_trees.behaviour.Behaviour]] = {
+    "prioritize": functools.partial(
+        create_prioritize_subtree, case_id=CASE_ID, actor_id=ACTOR_ID
     ),
-    "deploy_fix": lambda: create_deploy_fix_tree(
-        case_id=CASE_ID, actor_id=ACTOR_ID
+    "deploy": functools.partial(
+        create_deploy_tree, case_id=CASE_ID, actor_id=ACTOR_ID
     ),
-    "deploy_mitigation": lambda: create_deploy_mitigation_tree(
-        case_id=CASE_ID, actor_id=ACTOR_ID
+    "deploy_fix": functools.partial(
+        create_deploy_fix_tree, case_id=CASE_ID, actor_id=ACTOR_ID
     ),
-    "leave_case": lambda: create_leave_case_trigger_tree(
+    "deploy_mitigation": functools.partial(
+        create_deploy_mitigation_tree, case_id=CASE_ID, actor_id=ACTOR_ID
+    ),
+    "leave_case": functools.partial(
+        create_leave_case_trigger_tree,
         actor_id=ACTOR_ID,
         case_id=CASE_ID,
         activity_builder=lambda case_manager_id: [],
         result_out={},
     ),
-    "terminate_active_embargo": lambda: create_terminate_active_embargo_tree(
-        case_id=CASE_ID, result_out={}
+    "terminate_active_embargo": functools.partial(
+        create_terminate_active_embargo_tree, case_id=CASE_ID, result_out={}
     ),
-    "publication": lambda: create_publication_tree(case_id=CASE_ID),
-    "publish_artifact": lambda: create_publish_artifact_tree(case_id=CASE_ID),
+    "publication": functools.partial(create_publication_tree, case_id=CASE_ID),
+    "publish_artifact": functools.partial(
+        create_publish_artifact_tree, case_id=CASE_ID
+    ),
 }
 
 
@@ -248,21 +256,34 @@ def test_every_tree_binds_each_actuator_to_one_target(tree_name):
         assert backend.target, f"{tree_name}: {backend.name} has no target"
 
 
+@pytest.mark.spec("BT-18-042")
+@pytest.mark.spec("BT-18-043")
+@pytest.mark.parametrize("tree_name", sorted(_TREES))
+def test_no_two_actuators_in_a_tree_share_an_idempotency_id(tree_name):
+    """One act runs the whole tree, so each call needs its own name or target."""
+    calls = [
+        (backend.name, backend.target)
+        for backend in _actuators_in(_TREES[tree_name]())
+    ]
+    assert len(calls) == len(set(calls)), calls
+
+
 @pytest.mark.spec("BT-18-041")
 def test_core_trees_place_actuators_only_through_actuator_call():
     """No core tree calls an Actuator field's factory itself.
 
     A direct call would place the Actuator with no target; ``actuator_call``
-    is the one way that binds it.  Every module under ``core/behaviors`` is
-    scanned, not a list of trees.  A factory called under another name is not
+    is the one way that binds it.  Every module under ``vultron/core`` and
+    ``vultron/demo/fuzzer`` is scanned, not a list of trees.  A factory called under another name is not
     found here, and the tick-time refusal
     (``test_actuator_ticked_without_a_target_raises``) catches it.
     """
     names = sorted({field_name for _, field_name in _ACTUATOR_FIELDS})
     pattern = re.compile(rf"\b({'|'.join(names)})\s*\(")
     offenders = [
-        f"{path.relative_to(_CORE_BEHAVIORS)}:{n}"
-        for path in sorted(_CORE_BEHAVIORS.rglob("*.py"))
+        f"{path.relative_to(_VULTRON)}:{n}"
+        for root in _PLACEMENT_ROOTS
+        for path in sorted(root.rglob("*.py"))
         if "call_out" not in path.parts
         for n, line in enumerate(path.read_text().splitlines(), start=1)
         if pattern.search(line)
@@ -280,19 +301,8 @@ def test_every_module_that_places_an_actuator_has_a_tree_checked():
         and "actuator_call(" in path.read_text()
     }
     checked = {
-        Path(importlib.import_module(m).__file__ or "").stem
-        for m in {
-            builder.__module__
-            for builder in (
-                create_prioritize_subtree,
-                create_deploy_fix_tree,
-                create_deploy_mitigation_tree,
-                create_leave_case_trigger_tree,
-                create_terminate_active_embargo_tree,
-                create_publication_tree,
-                create_publish_artifact_tree,
-            )
-        }
+        Path(importlib.import_module(tree.func.__module__).__file__ or "").stem
+        for tree in _TREES.values()
     }
     assert placing <= checked, sorted(placing - checked)
 

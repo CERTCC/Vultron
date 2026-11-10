@@ -50,6 +50,7 @@ References
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import ClassVar, Final
 
@@ -72,6 +73,8 @@ from vultron.core.models._helpers.ids import new_object_id
 from vultron.core.models.activity_ids import derived_object_id
 from vultron.core.models.events.base import VultronEvent
 from vultron.primitives import NonEmptyString, require_non_empty
+
+logger = logging.getLogger(__name__)
 
 #: Kind label of an Actuator call's idempotency id (see ``derived_object_id``).
 _ACTUATION_KIND: Final[str] = "actuation"
@@ -278,6 +281,16 @@ class ActuatorBackend(CallOutBackend):
             return event.activity_id
         if self._minted_act_id is None:
             self._minted_act_id = new_object_id()
+            # Traceable, not silent: a received act that reached here without
+            # /activity would repeat its side effects on a re-run (BT-18-043).
+            logger.debug(
+                "Actuator %r minted act id %s for target %s (no received"
+                " activity on the run; actor_id=%s)",
+                self.name,
+                self._minted_act_id,
+                self._target,
+                self._read_run("actor_id"),
+            )
         return self._minted_act_id
 
     def _read_run(self, key: str) -> object | None:

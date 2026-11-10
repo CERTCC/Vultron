@@ -96,7 +96,9 @@ def _build(decision, ran):
         draft_advisory_artifact_factory=_always_succeed_factory,  # type: ignore[arg-type]
         review_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
         revise_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
-        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),
+        submit_advisory_artifact_factory=lambda name: _RecordingSubmit(
+            name, ran
+        ),
     )
     return create_publication_tree(case_id=CASE_ID, call_out=bundle)
 
@@ -176,7 +178,9 @@ def test_prepare_failure_fails_intended_arm():
         draft_advisory_artifact_factory=_always_succeed_factory,  # type: ignore[arg-type]
         review_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
         revise_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
-        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),
+        submit_advisory_artifact_factory=lambda name: _RecordingSubmit(
+            name, ran
+        ),
     )
     tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
     assert _tick_to_completion(tree) == Status.FAILURE
