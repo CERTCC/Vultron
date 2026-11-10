@@ -144,7 +144,7 @@ authorization-flavored gate:
 
 Every other bundle field (validation, prioritization, ID assignment, exploit
 acquisition, fix/mitigation deployment and monitoring, closure, publication,
-actor discovery, the remaining embargo evaluators) is a local operational
+actor resolution, the remaining embargo evaluators) is a local operational
 decision with no way to impose case state or an embargo consequence on another
 party. The ceiling/floor rule governs them (BT-23-002/006/007).
 
@@ -171,13 +171,14 @@ Protocol from `vultron.core.behaviors.call_out`, not the
 
 ### Adding a backend
 
-A backend is any callable matching `CallOutBackendFactory`: it takes
-`name: str` and returns a `py_trees.behaviour.Behaviour` that honours the
-call-out point's blackboard contract (BT-18-001 through BT-18-004). No
-registry, decorator, or base class is needed; pyright/mypy check the
-signature. Instantiate the domain bundle with the new factory in its field
-(unspecified fields keep the bundle defaults) and pass the bundle to the tree
-builder.
+A backend is a `CallOutBackend` subclass that sets `contract` and implements
+`answer()`; any callable that takes `name: str` and returns one is a
+`CallOutBackendFactory` (BT-18-004). No registry or decorator is needed.
+Instantiate the domain bundle with the new factory in its field (unspecified
+fields keep the bundle defaults) and pass the bundle to the tree builder.
+A tree builder that also takes raw factory parameters guards them with
+`guard_call_out_factory` itself (`publish_artifact_tree.py`), because the seam
+check runs only on what passes through a bundle or that guard.
 
 `PrioritizationCallOutBundle.evaluate_priority_factory` is the production SSVC
 seam (PROTO-05-001): a real SSVC evaluator is passed there with no other code
@@ -232,10 +233,11 @@ automatable the step looks. See BT-18-005, BT-18-006.
 
 ## A Data-Producing Capability's Default Must Write Its Outputs
 
-A backend that returns `SUCCESS` while writing none of its declared output keys
-violates BT-18-002. For a capability whose declaration names output ports, a
-bare `AlwaysSucceed` does exactly that, so it is not a legal DETERMINISTIC
-default whatever the ceiling rule says about direction (BT-23-013).
+A backend that answers *yes* without its declared output keys violates
+BT-18-002, and the seam refuses that answer with `CallOutContractError`. For a
+capability whose declaration names output ports, a bare `AlwaysSucceed` does
+exactly that, so it is not a legal DETERMINISTIC default whatever the ceiling
+rule says about direction (BT-23-013).
 `AlwaysSucceed` is shape-blind and cannot write outputs it cannot enumerate,
 which is why BT-18-012 puts the declaration in core.
 
@@ -250,11 +252,11 @@ a **whole tree** — it usually compensates for a non-conforming default. Hand-w
 the key is fine in a unit test of the *gate* alone. `test_publication_tree.py`
 shows both.
 
-The STOCHASTIC side has the same obligation (BT-18-003). The shape base classes
-write a zero-value instance per declared port; the generic
-`AlmostAlwaysSucceed`/`AlmostAlwaysFail` used for production-only domains is as
-shape-blind as `AlwaysSucceed` and needs the same contract-honouring treatment
-on a data-producing capability.
+The STOCHASTIC side has the same obligation (BT-18-003). `WeightedBehavior`
+answers *yes* with a zero-value instance per port its `contract` declares, so a
+fuzzer node meets it by declaring the contract; the generic
+`AlmostAlwaysSucceed`/`AlmostAlwaysFail` used for production-only domains
+declares none and so stays binary.
 
 ## A Backend Answers Yes, No or Error
 
@@ -268,3 +270,14 @@ unreachable service, a rejected credential or an unconfirmed side effect is
 *error*. Never make a tree read the answer or parse a reason to choose a branch.
 An Actuator acts on one target per call, keyed on an id the tree derives, so a
 re-run repeats no side effect.
+
+**How the answer reaches the seam: a returned value, held in a slot.**
+`CallOutBackend.update()` stores what `answer()` returns, and `SynchronousCallOut`
+takes it in its own `update()` right after ticking the backend. Reason: the
+backend stays a `py_trees` node, so factories, bundles, tree builders and node
+names stay as they were, while the seam alone writes the blackboard. A backend
+ticked anywhere but under the seam raises, so no tree can read an answer
+(BT-18-033). Default refusal reasons go to `call_out_refusal_reason`, which any
+refusal overwrites; a capability whose reason a tree or record reads names its
+own `refusal_reason_key` (`answer.py`). Tests inject backends from
+`test/support/call_out.py`, never a raw `py_trees.behaviours.Success`.

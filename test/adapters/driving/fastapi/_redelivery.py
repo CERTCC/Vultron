@@ -27,7 +27,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
-from test.support.signing import post_delivered
+from test.support.signing import post_delivered, serve_published_profiles
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -51,6 +51,10 @@ def served_store(
     The store's actor record is *actor* when given, else a bare actor named
     *name* with its hosted endpoints. With *existing*, *dl* already holds the
     actor, as a store does when its process restarts, so nothing is written.
+    Every author that posts to it publishes its profile
+    (:func:`serve_published_profiles`), so the inbox verifies each signed
+    body by its author's key; a test of an unreadable key installs its own
+    fetcher on ``client.app``.
     """
     if not existing:
         dl.create(
@@ -69,6 +73,7 @@ def served_store(
     emitter = RecordingEmitter()
     with TestClient(app) as client:
         app.state.emitter = emitter
+        serve_published_profiles(app)
         yield client, emitter
 
 

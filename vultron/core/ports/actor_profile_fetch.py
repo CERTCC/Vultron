@@ -17,8 +17,9 @@
 
 The verification-key resolver
 (:func:`vultron.core.services.verification_key.resolve_verification_key`)
-fetches an author's profile through this port when the receiver's held copy
-lists no key the proof names (SIG-02-001).  The adapter makes the HTTP
+fetches an author's profile through this port for every lookup: a key is
+trusted only as fetched from the author's own profile URL (SIG-02-001,
+SIG-02-003).  The adapter makes the HTTP
 ``GET`` and parses the body at the edge, so core never sees wire JSON
 (ADR-0032).
 """

@@ -39,7 +39,6 @@ from vultron.core.behaviors.case.nodes.clock_decision_stage import (
 from vultron.core.behaviors.embargo.end_time_tree import (
     end_time_clock_decision,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
@@ -71,11 +70,8 @@ def run_end_time_check(
         ),
         tree=create_clock_decision_gate(
             case_id,
-            [
-                end_time_clock_decision(
-                    case_id=case_id, now=now if now is not None else now_utc()
-                )
-            ],
+            [end_time_clock_decision(case_id=case_id)],
         ),
         actor_id=actor_id,
+        at=now,
     )

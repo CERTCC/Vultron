@@ -39,6 +39,10 @@ get_ledger_stream_shutdown
 get_hosted_actor_dls
     Return every store this node hosts, keyed by canonical actor URI, for
     node-level operations such as the admin reset.
+get_actor_profile_fetcher
+    Return the port the inbox's verification stage fetches an author's
+    profile through: the serving app's ``actor_profile_fetcher`` state when a
+    harness installed one, else the bounded HTTP fetch.
 get_trigger_dispatcher
     Construct and return the registry-backed
     :class:`~vultron.core.ports.trigger_dispatcher.TriggerDispatcher`
@@ -60,12 +64,17 @@ from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite.engine import actor_slug
+from vultron.adapters.driven.http_actor_profile_fetch import (
+    HttpActorProfileFetchAdapter,
+    verification_object_fetcher,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi.ledger_stream import SHUTDOWN_STATE_KEY
+from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
@@ -245,6 +254,26 @@ def get_hosted_actor_dls(
     }
     hosted.update(registered)
     return hosted
+
+
+#: The ``app.state`` attribute a harness sets to its own profile fetcher.
+ACTOR_PROFILE_FETCHER_STATE = "actor_profile_fetcher"
+
+
+def get_actor_profile_fetcher(request: Request) -> ActorProfileFetchPort:
+    """FastAPI dependency: how the inbox fetches a proof author's profile.
+
+    The serving app's ``actor_profile_fetcher`` state when one is set, so an
+    in-process harness answers a profile fetch from the app that hosts the
+    actor, as a container's ``GET`` would (``vultron/demo/in_process.py``).
+    Otherwise the HTTP fetch, bounded for a lookup made before the sender is
+    verified: one attempt, a short timeout, and only a URL
+    ``check_profile_fetch_target`` admits (SIG-02-001).
+    """
+    installed = getattr(request.app.state, ACTOR_PROFILE_FETCHER_STATE, None)
+    if installed is not None:
+        return cast(ActorProfileFetchPort, installed)
+    return HttpActorProfileFetchAdapter(verification_object_fetcher())
 
 
 def outbox_store(dl: DataLayer) -> CaseOutboxPersistence:

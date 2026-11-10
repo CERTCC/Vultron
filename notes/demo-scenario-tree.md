@@ -12,13 +12,12 @@ tracks:
   - "#5348"
   - "#5349"
   - "#5613"
-  - "#5649"
-  - "#5650"
   - "#5651"
   - "#5652"
   - "#6025"
   - "#6026"
   - "#6028"
+  - "#6194"
 description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,
@@ -56,7 +55,7 @@ Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
 choice, ending, scenario, recording). Decision records: ADR-0098 and ADR-0104,
 both amended 2026-10-15; ADR-0098 amended again 2026-10-30. Requirements:
 DEMOCI-11-013 through DEMOCI-11-025, DEMOCI-11-034, DEMOCI-11-035, and
-DEMOCI-11-054 through DEMOCI-11-069.
+DEMOCI-11-054 through DEMOCI-11-072.
 Parent Epic: #4747.
 
 ---
@@ -303,9 +302,8 @@ vendor-first half, whose Reporter tells a Vendor.
   the instant from the act whose check they are (#5591), which is the shape a
   read that needs a time should take — a new clock read inside a read path is
   a defect, not a measurement problem.
-  Other read paths still read it — the decision-tree builders (#5649), five
-  guard nodes (#5650) and the inbound extraction edge (#5652) — so a stretch
-  that reaches one of those is not byte-stable yet even though it is
+  Other read paths still read it — the inbound extraction edge (#5652) — so
+  a stretch that reaches it is not byte-stable yet even though it is
   deterministic today.
 - **A decision both halves make gets its own module, not a family's.** The
   owner-keep-case choice — keep the case and approve the joiner's suggestion,
@@ -375,8 +373,9 @@ vendor-first half, whose Reporter tells a Vendor.
   declaration really is wrong (DEMOCI-01-003, EDF-06-005).
 - **Clear process-global registries between runs.** One seed means the second
   scenario in a process redraws the first one's ids, so a runner that plays
-  more than one story must reset them — `reset_blackboard()` is the one that
-  bit, because py_trees refuses a blackboard client id it already holds.
+  more than one story must reset them — `reset_pending_assertion_stores()` is
+  the one that bit, because a pending ask keyed on the redrawn case id
+  suppressed the same ask in the next story (#5591).
 - **Byte identity is decided before the case opens.** Only a write reads the
   recording clock, so where a poll or a verification sits does not matter; how
   many actor and peer records a story writes before `create_case` does. Each
@@ -444,20 +443,25 @@ vendor-first half, whose Reporter tells a Vendor.
   managers and the recorder's routed client are the only paths, not by reading the
   source: a static pass cannot resolve which actor `state.session(owner.name)` is, and
   that subject is what EDF-06-002 constrains.
-- **Normalize ids and clocks, nothing else.** Relabel every id by its first appearance
-  with one mapping across a scenario's ledger and check labels, and drop timestamps
-  and hash-chain digests (DEMOCI-11-058 to DEMOCI-11-060). The recording clock ticks
-  10 ms on every read, so one added `now_utc()` call shifts every later timestamp, and
-  one extra id draw shifts every later id; neither is a change in what the scenario
-  does. A byte comparison would fail on both, which is why comparing a fresh run with
-  the committed files was rejected. A cast actor's URI is left spelled out: it is
-  derived from a fixed container address (DEMOCI-11-020), so it never shifts, and a
-  diff that still names `actor1` is one a person can read. **Dropping timestamps costs
-  coverage**: a time the protocol *derives* reads the same as one the clock minted, so
-  an embargo's `startTime` and `endTime`, an invite's `rsvpDeadline` and the embargo
-  name that quotes them all go with the clock. A change to the default embargo window
-  or the RSVP window therefore compares equal, and the gate is not a check on those
-  constants.
+- **Compare the verdict, an allow-list of fields, never a cleaned copy.** Each ledger
+  entry is projected onto `VERDICT_FIELDS` in `vultron/demo/recordings/traces.py`:
+  which act, at which position, by whom, to whom, with which result, states, roles
+  and content (DEMOCI-11-058, DEMOCI-11-059). Ids in it are relabelled by first
+  appearance, one mapping across ledger and check labels, and a quoted timestamp
+  reads as a placeholder (DEMOCI-11-070, DEMOCI-11-071). A list of noise fields is
+  the wrong shape: it failed on the first PR that drew ids another way, because the
+  signatures cover the raw ids and `proofValue` was not on it (#6194). A field joins
+  the list only if a change in it is a change in what the scenario did. A test walks
+  every model a ledger entry can carry and fails on a field classified neither in nor
+  out of the verdict, so a new field forces that decision (DEMOCI-11-072). A cast
+  actor's URI is left spelled out: it is derived from a fixed container address
+  (DEMOCI-11-020), so it never shifts, and a diff that still names `actor1` is one a
+  person can read. **Leaving times out costs coverage**: a time the protocol
+  *derives* is left out with the clock's, so an embargo's `startTime` and `endTime`
+  and an invite's `rsvpDeadline` do not count, and an embargo name that quotes them
+  reads the same. No kept field a scenario writes carries either window today, so a
+  change to the default embargo window or the RSVP window compares equal, and the
+  gate is not a check on those constants.
 - **A deliberate verdict change takes the `demo-verdict-change` label.** It belongs in
   its own change (DEMOMA-17-004); the label passes the job, and the job still prints
   the diff to its summary, so the opt-out shows what it admits (DEMOCI-11-063,
@@ -557,5 +561,4 @@ point stops a run there.
    stops a run at a step mark), then the pilot #5346, then the migrations
    #5347 and #5348, and last #5349.
 2. The clock-reading read paths that keep a shared stretch from being
-   byte-stable: #5649, #5650, #5651 and #5652. The plot manifest they follow is
-   committed.
+   byte-stable: #5651 and #5652. The plot manifest they follow is committed.

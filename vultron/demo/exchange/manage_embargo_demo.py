@@ -131,7 +131,9 @@ def demo_activate_then_terminate(
                 embargo,
                 actor=vendor.id_,
                 context=case.id_,
-                to=f"{case.id_}/participants",
+                # The vendor is addressed too: its own outbox delivers to the
+                # recipients named, and this demo's receiver is the vendor.
+                to=[f"{case.id_}/participants", vendor.id_],
                 summary=f"Embargo for {case.name} is now active.",
             )
             logger.info("Announcing embargo: %s", logfmt(announce))
@@ -160,7 +162,9 @@ def demo_activate_then_terminate(
                 actor=vendor.id_,
                 origin=case.id_,
                 reason=TerminationReason.EARLY,
-                to=f"{case.id_}/participants",
+                # The vendor is addressed too: its own outbox delivers to the
+                # recipients named, and this demo's receiver is the vendor.
+                to=[f"{case.id_}/participants", vendor.id_],
                 summary=f"Terminating embargo for {case.name}.",
             )
             logger.info("Removing embargo from case: %s", logfmt(remove))

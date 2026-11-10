@@ -3,6 +3,7 @@
 import py_trees
 import pytest
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     AlwaysSucceed,
@@ -58,7 +59,7 @@ def test_update_returns_status(node_cls):
     """update() must return a valid py_trees Status."""
     node = node_cls()
     node.setup()
-    status = node.update()
+    status = tick_call_out(node)
     assert status in (
         py_trees.common.Status.SUCCESS,
         py_trees.common.Status.FAILURE,
@@ -101,10 +102,10 @@ def test_gather_prioritization_info_success_rate():
 def test_on_accept_always_succeeds():
     node = OnAccept()
     node.setup()
-    assert node.update() == py_trees.common.Status.SUCCESS
+    assert tick_call_out(node) == py_trees.common.Status.SUCCESS
 
 
 def test_on_defer_always_succeeds():
     node = OnDefer()
     node.setup()
-    assert node.update() == py_trees.common.Status.SUCCESS
+    assert tick_call_out(node) == py_trees.common.Status.SUCCESS

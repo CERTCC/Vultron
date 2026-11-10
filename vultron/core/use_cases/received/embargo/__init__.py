@@ -7,8 +7,8 @@ One module per verb family (CS-18-001):
 - :mod:`.announce` — ``Announce(EmbargoEvent)``;
 - :mod:`.invite` — ``Invite(EmbargoEvent)`` and the resolution of its
   invitee and proposer;
-- :mod:`.accept` — ``Accept(Invite(EmbargoEvent))``, including the
-  late-Accept routing (EMB-17);
+- :mod:`.accept` — ``Accept(Invite(EmbargoEvent))``, answered by the
+  named embargo's availability, on time or late (MSM-07-012, EMB-17);
 - :mod:`.reject` — ``Reject(Invite(EmbargoEvent))``;
 - :mod:`.owner_decision` — the case owner's ``Add`` and ``Reject`` of the
   ``EmbargoEvent`` itself (ADR-0122, ADR-0180);

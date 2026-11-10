@@ -90,7 +90,8 @@ class _InviteExpiryOperationsMixin(_PecEffectsMixin):
           deadline has passed, its row already ``TIMED_OUT`` or
           ``DECLINED``, or the embargo's register entry is final (the terms
           are stale, EMB-17-003) — **and** the participant is not a
-          signatory to the active embargo.  Used by EMB-17 routing.
+          signatory to the active embargo.  The Accept's answer reads the
+          embargo's availability instead (MSM-07-012).
         * ``needs_apply`` — ``True`` when the row for *embargo_id* is still
           ``INVITED`` **and** its deadline has passed.  When ``True``, the
           caller commits the expiry and its ``TIMED_OUT`` row, then applies
@@ -125,7 +126,7 @@ class _InviteExpiryOperationsMixin(_PecEffectsMixin):
             # The terms were superseded, rejected, cancelled or terminated:
             # the invitation is closed whatever its deadline, and its row is
             # frozen, so there is nothing to time out (ADR-0122).  The
-            # caller's EMB-17 routing answers with the current embargo.
+            # Accept is refused as unavailable (MSM-07-012).
             return is_expired, False
         if not _invitation_has_closed(participant, embargo_id, now):
             return False, False
@@ -269,8 +270,8 @@ class _InviteExpiryOperationsMixin(_PecEffectsMixin):
 
         # A signatory to the embargo in force has already agreed; a stale
         # deadline is not a real expiry.  Anyone else past the deadline
-        # (just timed out, already timed out, or declined) triggers the EMB-17
-        # late-Accept routing in the caller.
+        # (just timed out, already timed out, or declined) reads as expired;
+        # the Accept is then answered by availability (MSM-07-012).
         return _unchanged(
             em_state,
             participant_changes=participant_changes,

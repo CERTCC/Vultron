@@ -40,13 +40,13 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import dimension_state
 from vultron.core.models.embargo_termination import (
     ThreatSignal,
     ThreatSignalTermination,
     threat_signals_of,
 )
-from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import CS_pxa
 
 logger = logging.getLogger(__name__)
@@ -65,8 +65,8 @@ def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
     """Return the PXA state if a threat is present; return None otherwise.
 
     A threat is any ``CS_pxa`` state other than ``pxa`` (all-lowercase —
-    no P, X, or A set).  Accepts the resolved ``case_status`` object
-    (not the outer ``status_obj`` wrapper).
+    no P, X, or A set).  *case_status* is a case's ``CaseStatus``, never a
+    participant's ``ParticipantStatus`` (SM-09-003, #6080).
 
     Returns ``None`` when:
     - ``case_status`` is None
@@ -79,12 +79,6 @@ def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
     if pxa_state == CS_pxa.pxa:
         return None
     return cast(CS_pxa, pxa_state)
-
-
-def _status_of(status_obj: object) -> object:
-    """The status a cascade reacts to: a wrapper's ``case_status``, or itself."""
-    case_status = getattr(status_obj, "case_status", None)
-    return status_obj if case_status is None else case_status
 
 
 def pxa_embargo_teardown_bt(
@@ -136,7 +130,7 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
 
     def __init__(
         self,
-        status_obj: PersistableModel | None,
+        status_obj: CaseStatus | None,
         case_id: str | None,
         name: str | None = None,
         use_datalayer_fallback: bool = False,
@@ -163,15 +157,13 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
 
     def _threat_present(self) -> bool:
         """Return True if pxa state has at least one of P, X, or A set."""
-        case_status = _status_of(self.status_obj)
+        case_status: object = self.status_obj
 
-        # When status_obj carries no PXA info AND the caller has explicitly
-        # opted in to the DataLayer fallback (set only by callers that know
+        # When no status is given AND the caller has explicitly opted in to
+        # the DataLayer fallback (set only by callers that know
         # EmitCaseStatusUpdateNode has already written the post-mutation
         # state), read case.current_status from the DataLayer.
-        if self.use_datalayer_fallback and (
-            case_status is None or not hasattr(case_status, "pxa")
-        ):
+        if self.use_datalayer_fallback and case_status is None:
             case_status = self._case_status_from_datalayer()
 
         return resolve_pxa_threat_state(case_status) is not None
@@ -207,6 +199,12 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
     (any ``CS_pxa`` state other than ``pxa``) AND the case has an active
     embargo or an open proposal.
 
+    *status_obj* is a ``CaseStatus``, never a ``ParticipantStatus``: the
+    teardown and its cause are the CASE_MANAGER's conclusion, so they never
+    read a sender's claim (SM-09-003, #6080).  The received status tree
+    passes ``None`` with ``use_datalayer_fallback=True``, so the branch reads
+    the case's current status, which the adoption wrote in the forced form.
+
     Does NOT gate on sender role (RSH-03-002) — authorization was
     already verified at StatusAdoptionGate before this node is reached, and
     that adoption also authorizes this teardown (ADR-0166).
@@ -227,7 +225,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
 
     def __init__(
         self,
-        status_obj: PersistableModel | None,
+        status_obj: CaseStatus | None,
         case_id: str | None,
         name: str | None = None,
         use_datalayer_fallback: bool = False,
@@ -236,7 +234,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
         result_out: dict[str, object] = {}
         # The signals of the triggering status when it names them; else the
         # case's PXA at the write (the DataLayer-fallback callers).
-        threat = resolve_pxa_threat_state(_status_of(status_obj))
+        threat = resolve_pxa_threat_state(status_obj)
         signals = (
             threat_signals_of(threat) or None
             if isinstance(threat, CS_pxa)

@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.core.behaviors.report.publish_artifact_tree import (
     AdvisoryReviewDecision,
 )
@@ -48,7 +51,7 @@ class DraftAdvisoryArtifact(ComposerCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: draft_advisory_artifact: str  (SUCCESS only)
+      Output keys: draft_advisory_artifact: str  (yes only)
 
     Input category: System integration / Composer.
 
@@ -59,7 +62,9 @@ class DraftAdvisoryArtifact(ComposerCallOutPoint, AlmostAlwaysSucceed):
     automatable; narrative advisory text may benefit from human review.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"draft_advisory_artifact": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"draft_advisory_artifact": str}
+    )
 
 
 class ReviewAdvisoryDraft(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -73,13 +78,13 @@ class ReviewAdvisoryDraft(EvaluatorCallOutPoint, AlwaysSucceed):
         ``needs_revision=False`` so the pipeline functions end-to-end
         before a real review agent is available (AC-3, ADR-0030).  A real
         backend may involve human editorial review, automated QA checks, or
-        both; to block submission for any reason it MUST return
-        ``Status.FAILURE`` (BT-18-007).
+        both; to block submission for any decision it MUST answer *no*
+        (BT-18-007), and *error* when it cannot decide (ADR-0183).
 
     Blackboard contract (BT-18-001):
       Input keys:  draft_advisory_artifact: str  (reads the Composer output)
       Output keys: advisory_review_decision: AdvisoryReviewDecision
-        (SUCCESS only; default instance written by fuzzer backend)
+        (yes only; default instance written by fuzzer backend)
 
     Input category: Human decision / QA integration.
 
@@ -90,9 +95,9 @@ class ReviewAdvisoryDraft(EvaluatorCallOutPoint, AlwaysSucceed):
     typically require human judgment.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "advisory_review_decision": AdvisoryReviewDecision
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"advisory_review_decision": AdvisoryReviewDecision}
+    )
 
 
 class ReviseAdvisoryDraft(ComposerCallOutPoint, AlmostAlwaysSucceed):
@@ -108,7 +113,7 @@ class ReviseAdvisoryDraft(ComposerCallOutPoint, AlmostAlwaysSucceed):
     Blackboard contract (BT-18-001):
       Input keys:  advisory_review_decision: AdvisoryReviewDecision
         (reads the Evaluator output for feedback guidance)
-      Output keys: draft_advisory_artifact: str  (overwrites on SUCCESS)
+      Output keys: draft_advisory_artifact: str  (overwrites on yes)
 
     Input category: Human decision / Composer.
 
@@ -119,7 +124,9 @@ class ReviseAdvisoryDraft(ComposerCallOutPoint, AlmostAlwaysSucceed):
     typically require human involvement.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"draft_advisory_artifact": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"draft_advisory_artifact": str}
+    )
 
 
 class SubmitAdvisoryArtifact(ActuatorCallOutPoint, AlmostAlwaysSucceed):

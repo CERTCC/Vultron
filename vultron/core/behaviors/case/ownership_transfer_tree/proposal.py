@@ -72,7 +72,6 @@ def create_propose_ownership_transfer_tree(
     transferee_id: str | None,
     proposal_id: str,
     answer_deadline: datetime | None = None,
-    now: datetime | None = None,
     *,
     sender_rule: SenderRule,
     sender_id: str,
@@ -108,11 +107,6 @@ def create_propose_ownership_transfer_tree(
         answer_deadline: The inner Offer's ``end_time`` in UTC, if it
             carries one (CM-21-016); the Offer the CASE_MANAGER makes
             carries it.
-        now: The instant the case's earlier Offer's ``end_time`` is
-            compared against by the open-Offer guard: an Offer past its
-            deadline is closed, so it does not block this proposal
-            (CM-21-014, CM-21-017).  ``None`` reads the clock when the guard
-            runs.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (CM-21-019, HP-01-025).
         sender_id: The proposal's sender, which the guard checks
@@ -134,7 +128,6 @@ def create_propose_ownership_transfer_tree(
         proposed_case_id=proposed_case_id,
         transferee_id=transferee_id,
         proposer_id=sender_id,
-        now=now,
     )
     # The guards refuse a proposal naming no transferee before this runs,
     # so the effect is built only when there is an Offer to make.

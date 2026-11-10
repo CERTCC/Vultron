@@ -27,6 +27,8 @@ import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.report.publication_intent import (
     INTENT_DECISION_KEY,
     PublicationIntentDecision,
@@ -60,9 +62,9 @@ _ARM_NAMES = [
 
 def _marker_factory(label):
     def factory(name):
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name=label)
 
@@ -99,8 +101,10 @@ def test_intent_decision_fields():
 def test_evaluate_intents_output_key_is_structured_record():
     """AC-3: the Evaluator declares the structured intent-record output key."""
     node = PrioritizePublicationIntents("PrioritizePublicationIntents")
-    assert INTENT_DECISION_KEY in node.output_keys
-    assert node.output_keys[INTENT_DECISION_KEY] is PublicationIntentDecision
+    assert INTENT_DECISION_KEY in node.contract.outputs
+    assert (
+        node.contract.outputs[INTENT_DECISION_KEY] is PublicationIntentDecision
+    )
 
 
 # ---------------------------------------------------------------------------

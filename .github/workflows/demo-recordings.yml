@@ -113,6 +113,8 @@ jobs:
             "" \
             "Refresh them in a PR: run \`uv run export-demo-recordings\` then \`uv run export-demo-tree\` and commit \`ui/src/recordings/\` and \`ui/src/data/scenario_tree.json\`, or download the \`demo-recordings\` artifact of [this run]($RUN_URL), unpack it into \`ui/src/\` (it holds \`recordings/\` and \`data/scenario_tree.json\`) and commit both." \
             "" \
+            "Then rewrite the Log Replay golden files with \`npm test -- -u\` in \`ui/\`, review their diff and commit \`ui/src/utils/replay-golden/\`: the UI job fails on a recording its golden file does not match." \
+            "" \
             "No PR is blocked by this: a few days of lag is expected (#3901). The daily \`Demo Recordings\` workflow closes this Task once the recordings on \`main\` are current.")
           url=$(gh issue create --repo "$REPO" \
             --title "Refresh the demo recordings" \

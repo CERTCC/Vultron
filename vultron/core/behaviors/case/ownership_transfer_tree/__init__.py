@@ -41,7 +41,7 @@ Provides:
   it (CM-21-015).
 
 The proposal and the three replies judge the case's Offer against its own
-``end_time`` and the CASE_MANAGER's clock, at the CASE_MANAGER only: an
+``end_time`` and the act's instant (ADR-0176), at the CASE_MANAGER only: an
 Offer past its deadline is closed, with no entry recording the expiry, so a
 late reply is refused and a new proposal is admitted (CM-21-014, CM-21-016,
 CM-21-017, ADR-0152).

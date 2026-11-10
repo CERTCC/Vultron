@@ -11,14 +11,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-out bundle for the actor discovery domain (ADR-0024, ADR-0025).
+"""Call-out bundle for the actor resolution domain (ADR-0024, ADR-0025).
 
-Provides :class:`ActorDiscoveryCallOutBundle` and the pre-built core
-DETERMINISTIC singleton :data:`ACTOR_DISCOVERY_DETERMINISTIC`.  The matching
+Provides :class:`ActorResolutionCallOutBundle` and the pre-built core
+DETERMINISTIC singleton :data:`ACTOR_RESOLUTION_DETERMINISTIC`.  The matching
 STOCHASTIC singleton lives in the simulation layer
-(:data:`vultron.demo.fuzzer.bundles.actor_discovery.ACTOR_DISCOVERY_STOCHASTIC`).
+(:data:`vultron.demo.fuzzer.bundles.actor_resolution.ACTOR_RESOLUTION_STOCHASTIC`).
 
-Actor discovery is a Retriever call-out (ADR-0024): given an actor URI, the
+Actor resolution is a Retriever call-out (ADR-0024): given an actor URI, the
 backend attempts to resolve the actor's details from an external directory
 service or static registry.  The seam is injectable so callers can swap in a
 real directory-service client without touching the core protocol logic.
@@ -53,8 +53,8 @@ def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
 
 
 @dataclass(frozen=True)
-class ActorDiscoveryCallOutBundle(CallOutBundle):
-    """Call-out backend bundle for the actor discovery domain.
+class ActorResolutionCallOutBundle(CallOutBundle):
+    """Call-out backend bundle for the actor resolution domain.
 
     The single field backs the Retriever call-out point that resolves an actor
     URI to a :class:`~vultron.core.models.actor.CoreActor` record from an
@@ -70,10 +70,10 @@ class ActorDiscoveryCallOutBundle(CallOutBundle):
     )
 
 
-ACTOR_DISCOVERY_DETERMINISTIC = ActorDiscoveryCallOutBundle()
+ACTOR_RESOLUTION_DETERMINISTIC = ActorResolutionCallOutBundle()
 """Deterministic bundle: resolve_actor uses AlwaysSucceed (BT-23-001, BT-23-002)."""
 
 __all__ = [
-    "ActorDiscoveryCallOutBundle",
-    "ACTOR_DISCOVERY_DETERMINISTIC",
+    "ActorResolutionCallOutBundle",
+    "ACTOR_RESOLUTION_DETERMINISTIC",
 ]

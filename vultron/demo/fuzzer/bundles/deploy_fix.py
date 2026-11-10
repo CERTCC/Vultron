@@ -24,6 +24,7 @@ Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 - ``deploy_fix_factory``             — DeployFix             (p=0.10) → AlwaysFail
 - ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed
 - ``monitor_deployment_factory``     — MonitorDeployment     (p=1.0) → AlwaysSucceed
+- ``no_new_deployment_info_factory`` — NoNewDeploymentInfo   (p=0.75) → AlwaysSucceed
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ from vultron.demo.fuzzer.report_management.deploy_fix import (
     DeployFix,
     MonitorDeployment,
     MonitoringRequirement,
+    NoNewDeploymentInfo,
     PrioritizeDeployment,
 )
 
@@ -62,11 +64,18 @@ def _stochastic_monitor_deployment(name: str) -> py_trees.behaviour.Behaviour:
     return MonitorDeployment(name)
 
 
+def _stochastic_no_new_deployment_info(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    return NoNewDeploymentInfo(name)
+
+
 DEPLOY_FIX_STOCHASTIC = DeployFixCallOutBundle(
     prioritize_deployment_factory=_stochastic_prioritize_deployment,  # type: ignore[arg-type]
     monitoring_requirement_factory=_stochastic_monitoring_requirement,  # type: ignore[arg-type]
     deploy_fix_factory=_stochastic_deploy_fix,  # type: ignore[arg-type]
     monitor_deployment_factory=_stochastic_monitor_deployment,  # type: ignore[arg-type]
+    no_new_deployment_info_factory=_stochastic_no_new_deployment_info,  # type: ignore[arg-type]
 )
 """Stochastic bundle: all nodes use probabilistic fuzzer classes."""
 

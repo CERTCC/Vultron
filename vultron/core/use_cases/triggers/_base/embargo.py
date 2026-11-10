@@ -78,7 +78,7 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
         """
         return [
             *super()._clock_decisions(case_id),
-            *embargo_clock_decisions(case_id, now=self._at),
+            *embargo_clock_decisions(case_id),
         ]
 
     def _asserted_semantic_type(self) -> str:

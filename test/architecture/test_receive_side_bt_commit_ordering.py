@@ -59,7 +59,6 @@ import py_trees
 import pytest
 
 from test.architecture import _corpus
-from test.support.future_dates import FAR_FUTURE
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
 from vultron.core.behaviors.case_id_scope import with_case_id
 
@@ -548,8 +547,9 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
         for n in stage.iterate()
         if isinstance(n, _commit_node_types())
     }
-    # The late-Accept re-invite diversion is seen committing its own entries.
-    assert "ReinviteLateAccepterNode" in diverted
+    # The re-invite beside the refusal of an Accept of an unavailable
+    # embargo is seen committing its own entries (EMB-17-003).
+    assert "ReinviteRefusedAccepterNode" in diverted
 
 
 @pytest.mark.spec("CLP-10-025")
@@ -635,10 +635,7 @@ class TestEarlyCommitDetector:
             end_time_clock_decision,
         )
 
-        return end_time_clock_decision(
-            case_id="https://example.org/cases/c",
-            now=FAR_FUTURE,  # far-future; any valid datetime serves for the structural test
-        )
+        return end_time_clock_decision(case_id="https://example.org/cases/c")
 
     def test_a_termination_decision_inside_the_stage_is_allowed(
         self,

@@ -46,7 +46,7 @@ export function handleInviteVendor(state: DemoState, inviterId: string = 'vendor
     role: 'VENDOR',
     color: getVendorColor(nextVendorNumber),
     rmState: 'RECEIVED',  // They received the vulnerability report
-    vfdState: 'Vfd',  // Vendor aware - must validate before progressing VFD
+    vfd: 'Vfd',  // Vendor aware - must validate before progressing VFD
     embargoAccepted: false,  // Must explicitly accept embargo if one exists
     embargoProposedToParticipant: hasActiveEmbargo,  // Track if embargo was proposed to them
     hasPublished: false,

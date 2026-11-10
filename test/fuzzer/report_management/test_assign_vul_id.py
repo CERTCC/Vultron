@@ -29,6 +29,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import WeightedBehavior
 from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 from vultron.demo.fuzzer.report_management.assign_vul_id import (
@@ -67,7 +68,9 @@ def _run_trials(node_cls: type[WeightedBehavior], n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
     node.setup()
-    successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
+    successes = sum(
+        1 for _ in range(n) if tick_call_out(node) == Status.SUCCESS
+    )
     return successes / n
 
 
@@ -178,7 +181,7 @@ class TestUpdateReturnsValidStatus:
     ) -> None:
         node = cls()
         node.setup()
-        result = node.update()
+        result = tick_call_out(node)
         assert result in (
             Status.SUCCESS,
             Status.FAILURE,
@@ -190,7 +193,7 @@ class TestUpdateReturnsValidStatus:
     ) -> None:
         node = cls()
         node.setup()
-        results = {node.update() for _ in range(50)}
+        results = {tick_call_out(node) for _ in range(50)}
         assert Status.RUNNING not in results, (
             f"{cls.__name__}.update() returned RUNNING unexpectedly"
         )
@@ -200,7 +203,7 @@ class TestDeterministicExtremes:
     def test_assign_id_always_succeeds(self) -> None:
         node = AssignId()
         node.setup()
-        assert all(node.update() == Status.SUCCESS for _ in range(100))
+        assert all(tick_call_out(node) == Status.SUCCESS for _ in range(100))
 
 
 class TestEmpiricalDistributions:
@@ -230,9 +233,9 @@ class TestEmpiricalDistributions:
         random.seed(42)
         node = RequestId()
         node.setup()
-        seq_a = [node.update() for _ in range(20)]
+        seq_a = [tick_call_out(node) for _ in range(20)]
         random.seed(42)
-        seq_b = [node.update() for _ in range(20)]
+        seq_b = [tick_call_out(node) for _ in range(20)]
         assert seq_a == seq_b
 
 
@@ -246,10 +249,10 @@ class TestAssignIdIsComposer:
         assert issubclass(AssignId, ComposerCallOutPoint)
 
     def test_output_keys_declared(self) -> None:
-        assert "assigned_vul_id" in AssignId.output_keys
+        assert "assigned_vul_id" in AssignId.contract.outputs
 
     def test_output_key_type_is_str(self) -> None:
-        assert AssignId.output_keys["assigned_vul_id"] is str
+        assert AssignId.contract.outputs["assigned_vul_id"] is str
 
     def test_docstring_has_blackboard_contract(self) -> None:
         assert AssignId.__doc__ and "Blackboard contract" in AssignId.__doc__

@@ -170,27 +170,29 @@ def test_post_non_activity_to_actor_inbox_returns_422(
 
 @pytest.mark.spec("IE-07-001")
 @pytest.mark.spec("HTTP-03-004")
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "IE-07-001, HTTP-03-004: the inbox answers FastAPI's default 422 to a"
-        " body it cannot decode, not 400. Tracked by #6073."
-    ),
-)
 @pytest.mark.parametrize(
     "body",
     [
         pytest.param(b"not json", id="not-json"),
-        pytest.param(b"[1, 2]", id="json-not-an-object"),
+        pytest.param(b'{"id": ', id="truncated"),
+        pytest.param(b'{"ratio": NaN}', id="nan"),
+        pytest.param(b'{"ratio": Infinity}', id="infinity"),
+        pytest.param(b'{"name": "\xff"}', id="not-utf8"),
+        pytest.param('{"type": "Create"}'.encode("utf-16"), id="utf-16"),
+        pytest.param('{"type": "Create"}'.encode("utf-32"), id="utf-32"),
+        pytest.param(b'\xef\xbb\xbf{"type": "Create"}', id="utf-8-bom"),
     ],
 )
 def test_post_undecodable_body_to_actor_inbox_returns_400(
     client_actors, created_actors, body: bytes
 ):
-    """A body that is not a JSON object is a malformed request, so it gets 400.
+    """A body that is not JSON by RFC 8259's grammar is malformed: 400.
 
-    The request goes through the actors router, so FastAPI's own body decoding
-    answers, not ``parse_activity``.
+    The inbox decodes the body itself, before it verifies the proof
+    (SIG-03-003), so its answer is the inbox's, not FastAPI's default.
+    ``NaN`` and ``Infinity`` are not RFC 8259 JSON, though Python's parser
+    reads them, and nor is UTF-16, UTF-32 or a byte-order mark (RFC 8259
+    section 8.1), though Python's parser detects them.
     """
     actor = created_actors[0]
     resp = client_actors.post(
@@ -198,7 +200,46 @@ def test_post_undecodable_body_to_actor_inbox_returns_400(
         content=body,
         headers={"Content-Type": "application/activity+json"},
     )
-    assert resp.status_code == status.HTTP_400_BAD_REQUEST
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST, resp.text
+    assert resp.json()["detail"]["error"] == "JsonSyntaxError"
+
+
+@pytest.mark.spec("IE-04-002")
+@pytest.mark.spec("IE-07-002")
+@pytest.mark.parametrize(
+    ("body", "reason"),
+    [
+        pytest.param(b"[1, 2]", "not a JSON array", id="json-not-an-object"),
+        pytest.param(b'"Create"', "not a JSON string", id="json-string"),
+        pytest.param(
+            b'{"type": "Create", "type": "Note"}',
+            "more than once",
+            id="duplicate-key",
+        ),
+        pytest.param(
+            b'{"count": 1e400}', "too large for a double", id="overflow"
+        ),
+    ],
+)
+def test_post_well_formed_json_the_inbox_refuses_returns_422(
+    client_actors, created_actors, body: bytes, reason: str
+):
+    """Well-formed JSON the inbox will not read is content it refuses: 422.
+
+    A value that is not an object cannot be an activity, and a duplicate key
+    or an overflowing number is read differently by different parsers, so
+    the receiver cannot be sure what the sender signed (I-JSON, RFC 7493).
+    """
+    actor = created_actors[0]
+    resp = client_actors.post(
+        f"/actors/{_route_key(actor.id_)}/inbox/",
+        content=body,
+        headers={"Content-Type": "application/activity+json"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    detail = resp.json()["detail"]
+    assert detail["error"] == "ValidationError"
+    assert reason in detail["message"]
 
 
 @pytest.mark.spec("CLP-15-010")
@@ -237,12 +278,15 @@ def _record_scheduled_pipelines(monkeypatch) -> list[str | None]:
 
     The endpoint schedules ``run_inbox_pipeline`` only once an activity has
     passed ingress, so a call recorded here means the activity was put on the
-    processing path.
+    processing path.  It is given the verified body, whose ``id`` is
+    recorded.
     """
     scheduled: list[str | None] = []
 
-    def _record(activity, *_args, **_kwargs) -> None:
-        scheduled.append(activity.id_)
+    def _record(body, *_args, **_kwargs) -> None:
+        # The route hands the task the verified body, not a parsed copy.
+        assert isinstance(body, dict), type(body)
+        scheduled.append(body.get("id"))
 
     monkeypatch.setattr(mailbox_routes, "run_inbox_pipeline", _record)
     return scheduled

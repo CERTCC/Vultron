@@ -15,11 +15,11 @@
 
 Verifies:
 - CallOutBackendFactory type alias is importable and callable (BT-18-004)
-- Five shape mixin classes are importable
+- The four shape mixin classes are importable, and no Sentinel mixin exists
+  (BT-18-013)
 - Each exemplar node subclasses the correct shape mixin (BT-18-001)
-- Exemplar nodes that declare output_keys write to the blackboard on SUCCESS
+- Exemplar nodes that declare outputs have them written to the blackboard on yes
   (BT-18-002, BT-18-003)
-- NewValidationInfoSentinel is a valid Behaviour with correct success_rate
 """
 
 from typing import ClassVar
@@ -28,17 +28,16 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import tick_call_out
+from vultron.core.behaviors.call_out.answer import CallOutContract
+from vultron.core.behaviors.call_out.guard import SynchronousCallOut
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.demo.fuzzer.base import AlwaysSucceed as _AlwaysSucceed
 from vultron.demo.fuzzer.call_out_point import (
     ActuatorCallOutPoint,
     ComposerCallOutPoint,
     EvaluatorCallOutPoint,
-    NewDeploymentInfoSentinel,
-    NewPrioritizationInfoSentinel,
-    NewValidationInfoSentinel,
     RetrieverCallOutPoint,
-    SentinelCallOutPoint,
 )
 from vultron.demo.fuzzer.embargo import (
     CurrentEmbargoAcceptable,
@@ -82,6 +81,7 @@ from vultron.demo.fuzzer.report_management.deploy_fix import (
     MitigationDeployed,
     MonitorDeployment,
     MonitoringRequirement,
+    NoNewDeploymentInfo,
     PrioritizeDeployment,
 )
 from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
@@ -93,6 +93,7 @@ from vultron.demo.fuzzer.report_management.monitor_threats import (
 from vultron.demo.fuzzer.report_management.prioritize import (
     EnoughPrioritizationInfo,
     GatherPrioritizationInfo,
+    NoNewPrioritizationInfo,
     OnAccept,
     OnDefer,
 )
@@ -124,6 +125,7 @@ from vultron.demo.fuzzer.report_management.validate import (
     EvaluateReportCredibility,
     EvaluateReportValidity,
     GatherValidationInfo,
+    NoNewValidationInfo,
 )
 
 # ---------------------------------------------------------------------------
@@ -167,8 +169,11 @@ def test_actuator_mixin_importable():
     assert ActuatorCallOutPoint is not None
 
 
-def test_sentinel_mixin_importable():
-    assert SentinelCallOutPoint is not None
+def test_no_sentinel_mixin_exported():
+    """Sentinel is a call-in pattern, not a shape, so it has no mixin (BT-18-013)."""
+    from vultron.demo.fuzzer import call_out_point
+
+    assert not [n for n in dir(call_out_point) if "sentinel" in n.lower()]
 
 
 # ---------------------------------------------------------------------------
@@ -200,18 +205,6 @@ def test_prepare_report_is_composer():
     assert issubclass(PrepareReport, ComposerCallOutPoint)
 
 
-def test_new_validation_info_sentinel_is_sentinel():
-    assert issubclass(NewValidationInfoSentinel, SentinelCallOutPoint)
-
-
-def test_new_prioritization_info_sentinel_is_sentinel():
-    assert issubclass(NewPrioritizationInfoSentinel, SentinelCallOutPoint)
-
-
-def test_new_deployment_info_sentinel_is_sentinel():
-    assert issubclass(NewDeploymentInfoSentinel, SentinelCallOutPoint)
-
-
 # ---------------------------------------------------------------------------
 # All exemplar nodes are py_trees Behaviours
 # ---------------------------------------------------------------------------
@@ -224,9 +217,6 @@ _ALL_EXEMPLARS = [
     OnAccept,
     OnDefer,
     PrepareReport,
-    NewValidationInfoSentinel,
-    NewPrioritizationInfoSentinel,
-    NewDeploymentInfoSentinel,
 ]
 
 
@@ -243,71 +233,53 @@ def test_exemplar_has_blackboard_contract_docstring(node_cls):
 
 
 # ---------------------------------------------------------------------------
-# Sentinel — success_rate and no output_keys
-# ---------------------------------------------------------------------------
-
-
-def test_new_validation_info_sentinel_success_rate():
-    assert NewValidationInfoSentinel.success_rate == pytest.approx(0.10)
-
-
-def test_new_validation_info_sentinel_output_keys_empty():
-    assert NewValidationInfoSentinel.output_keys == {}
-
-
-def test_new_prioritization_info_sentinel_success_rate():
-    assert NewPrioritizationInfoSentinel.success_rate == pytest.approx(0.10)
-
-
-def test_new_prioritization_info_sentinel_output_keys_empty():
-    assert NewPrioritizationInfoSentinel.output_keys == {}
-
-
-def test_new_deployment_info_sentinel_success_rate():
-    assert NewDeploymentInfoSentinel.success_rate == pytest.approx(0.10)
-
-
-def test_new_deployment_info_sentinel_output_keys_empty():
-    assert NewDeploymentInfoSentinel.output_keys == {}
-
-
-# ---------------------------------------------------------------------------
-# Actuator — no output_keys
+# Actuator — no declared outputs
 # ---------------------------------------------------------------------------
 
 
 def test_on_accept_output_keys_empty():
-    assert OnAccept.output_keys == {}
+    assert OnAccept.contract.outputs == {}
 
 
 def test_on_defer_output_keys_empty():
-    assert OnDefer.output_keys == {}
+    assert OnDefer.contract.outputs == {}
+
+
+@pytest.mark.spec("BT-18-006")
+@pytest.mark.spec("BT-18-010")
+def test_binary_retriever_answers_by_verdict_alone():
+    """A binary Retriever declares no outputs and answers yes or no only."""
+    node = NoNewValidationInfo()
+    assert issubclass(NoNewValidationInfo, RetrieverCallOutPoint)
+    assert NoNewValidationInfo.contract.outputs == {}
+    assert tick_call_out(node) in (Status.SUCCESS, Status.FAILURE)
 
 
 # ---------------------------------------------------------------------------
-# Evaluator exemplar — writes output key on SUCCESS (BT-18-002, BT-18-003)
+# Evaluator exemplar — its output key written on yes (BT-18-002, BT-18-003)
 # ---------------------------------------------------------------------------
 
 
 def test_evaluate_report_credibility_output_keys_declared():
     assert (
-        "report_credibility_verdict" in EvaluateReportCredibility.output_keys
+        "report_credibility_verdict"
+        in EvaluateReportCredibility.contract.outputs
     )
 
 
 def test_evaluate_report_credibility_writes_blackboard_on_success():
-    """EvaluateReportCredibility writes report_credibility_verdict on SUCCESS."""
+    """EvaluateReportCredibility writes report_credibility_verdict on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
     from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
     class _AlwaysSucceedEvaluator(EvaluatorCallOutPoint, AlwaysSucceed):
-        output_keys: ClassVar[dict[str, type]] = {
-            "report_credibility_verdict": str
-        }
+        contract: ClassVar[CallOutContract] = CallOutContract(
+            outputs={"report_credibility_verdict": str}
+        )
 
     node = _AlwaysSucceedEvaluator("TestCredibility")
     node.setup()
-    status = node.update()
+    status = tick_call_out(node)
 
     assert status == Status.SUCCESS
     assert (
@@ -318,31 +290,31 @@ def test_evaluate_report_credibility_writes_blackboard_on_success():
 
 
 def test_evaluate_report_validity_output_keys_declared():
-    assert "report_validity_verdict" in EvaluateReportValidity.output_keys
+    assert "report_validity_verdict" in EvaluateReportValidity.contract.outputs
 
 
 # ---------------------------------------------------------------------------
-# Retriever exemplar — writes output key on SUCCESS
+# Retriever exemplar — its output key written on yes
 # ---------------------------------------------------------------------------
 
 
 def test_gather_validation_info_output_keys_declared():
-    assert "validation_info_gathered" in GatherValidationInfo.output_keys
+    assert "validation_info_gathered" in GatherValidationInfo.contract.outputs
 
 
 def test_gather_validation_info_writes_blackboard_on_success():
-    """GatherValidationInfo writes validation_info_gathered on SUCCESS."""
+    """GatherValidationInfo writes validation_info_gathered on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
     from vultron.demo.fuzzer.call_out_point import RetrieverCallOutPoint
 
     class _AlwaysSucceedRetriever(RetrieverCallOutPoint, AlwaysSucceed):
-        output_keys: ClassVar[dict[str, type]] = {
-            "validation_info_gathered": str
-        }
+        contract: ClassVar[CallOutContract] = CallOutContract(
+            outputs={"validation_info_gathered": str}
+        )
 
     node = _AlwaysSucceedRetriever("TestGather")
     node.setup()
-    status = node.update()
+    status = tick_call_out(node)
 
     assert status == Status.SUCCESS
     assert (
@@ -353,27 +325,27 @@ def test_gather_validation_info_writes_blackboard_on_success():
 
 
 # ---------------------------------------------------------------------------
-# Composer exemplar — writes output key on SUCCESS
+# Composer exemplar — its output key written on yes
 # ---------------------------------------------------------------------------
 
 
 def test_prepare_report_output_keys_declared():
-    assert "prepared_report_artifact" in PrepareReport.output_keys
+    assert "prepared_report_artifact" in PrepareReport.contract.outputs
 
 
 def test_prepare_report_writes_blackboard_on_success():
-    """PrepareReport writes prepared_report_artifact on SUCCESS."""
+    """PrepareReport writes prepared_report_artifact on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
     from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
     class _AlwaysSucceedComposer(ComposerCallOutPoint, AlwaysSucceed):
-        output_keys: ClassVar[dict[str, type]] = {
-            "prepared_report_artifact": str
-        }
+        contract: ClassVar[CallOutContract] = CallOutContract(
+            outputs={"prepared_report_artifact": str}
+        )
 
     node = _AlwaysSucceedComposer("TestPrepare")
     node.setup()
-    status = node.update()
+    status = tick_call_out(node)
 
     assert status == Status.SUCCESS
     assert (
@@ -438,14 +410,14 @@ _RM_RETRIEVER_NODES = [
     (ChooseRecipient, "chosen_recipient"),
 ]
 
-# Nodes whose output_keys declare str values
+# Nodes whose contract outputs declare str values
 _RM_RETRIEVER_STR_NODES = [
     (GatherPrioritizationInfo, "prioritization_info_gathered"),
     (RequestId, "assigned_id"),
     (ChooseRecipient, "chosen_recipient"),
 ]
 
-# Nodes whose output_keys declare list values (multi-actor ID collections)
+# Nodes whose contract outputs declare list values (multi-actor ID collections)
 _RM_RETRIEVER_LIST_NODES = [
     (IdentifyVendors, "identified_vendors"),
     (IdentifyCoordinators, "identified_coordinators"),
@@ -460,6 +432,9 @@ _RM_BINARY_RETRIEVER_NODES = [
     MonitorAttacks,
     MonitorExploits,
     MonitorPublicReports,
+    NoNewValidationInfo,
+    NoNewPrioritizationInfo,
+    NoNewDeploymentInfo,
 ]
 
 _EMBARGO_BINARY_RETRIEVER_NODES = [
@@ -474,12 +449,12 @@ def test_embargo_node_subclasses_evaluator(node_cls, output_key):
 
 @pytest.mark.parametrize("node_cls, output_key", _EMBARGO_EVALUATOR_NODES)
 def test_embargo_node_output_key_declared(node_cls, output_key):
-    assert output_key in node_cls.output_keys
+    assert output_key in node_cls.contract.outputs
 
 
 @pytest.mark.parametrize("node_cls, output_key", _EMBARGO_EVALUATOR_NODES)
 def test_embargo_node_output_key_type_is_str(node_cls, output_key):
-    assert node_cls.output_keys[output_key] is str
+    assert node_cls.contract.outputs[output_key] is str
 
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_EVALUATOR_NODES)
@@ -489,12 +464,12 @@ def test_rm_evaluator_node_subclasses_evaluator(node_cls, output_key):
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_EVALUATOR_NODES)
 def test_rm_evaluator_node_output_key_declared(node_cls, output_key):
-    assert output_key in node_cls.output_keys
+    assert output_key in node_cls.contract.outputs
 
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_EVALUATOR_NODES)
 def test_rm_evaluator_node_output_key_type_is_str(node_cls, output_key):
-    assert node_cls.output_keys[output_key] is str
+    assert node_cls.contract.outputs[output_key] is str
 
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_NODES)
@@ -504,17 +479,17 @@ def test_rm_retriever_node_subclasses_retriever(node_cls, output_key):
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_NODES)
 def test_rm_retriever_node_output_key_declared(node_cls, output_key):
-    assert output_key in node_cls.output_keys
+    assert output_key in node_cls.contract.outputs
 
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_STR_NODES)
 def test_rm_retriever_node_output_key_type_is_str(node_cls, output_key):
-    assert node_cls.output_keys[output_key] is str
+    assert node_cls.contract.outputs[output_key] is str
 
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_LIST_NODES)
 def test_rm_retriever_node_output_key_type_is_list(node_cls, output_key):
-    assert node_cls.output_keys[output_key] is list
+    assert node_cls.contract.outputs[output_key] is list
 
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_NODES)
@@ -525,7 +500,7 @@ def test_rm_retriever_node_has_blackboard_contract_docstring(
 
 
 # ---------------------------------------------------------------------------
-# Binary Retriever nodes — subclass RetrieverCallOutPoint, empty output_keys
+# Binary Retriever nodes — subclass RetrieverCallOutPoint, empty contract outputs
 # (BT-18-006)
 # ---------------------------------------------------------------------------
 
@@ -537,7 +512,7 @@ def test_rm_binary_retriever_node_subclasses_retriever(node_cls):
 
 @pytest.mark.parametrize("node_cls", _RM_BINARY_RETRIEVER_NODES)
 def test_rm_binary_retriever_node_output_keys_empty(node_cls):
-    assert node_cls.output_keys == {}
+    assert node_cls.contract.outputs == {}
 
 
 @pytest.mark.parametrize("node_cls", _RM_BINARY_RETRIEVER_NODES)
@@ -552,7 +527,7 @@ def test_embargo_binary_retriever_node_subclasses_retriever(node_cls):
 
 @pytest.mark.parametrize("node_cls", _EMBARGO_BINARY_RETRIEVER_NODES)
 def test_embargo_binary_retriever_node_output_keys_empty(node_cls):
-    assert node_cls.output_keys == {}
+    assert node_cls.contract.outputs == {}
 
 
 @pytest.mark.parametrize("node_cls", _EMBARGO_BINARY_RETRIEVER_NODES)
@@ -564,7 +539,7 @@ def test_embargo_binary_retriever_node_has_blackboard_contract_docstring(
 
 # ---------------------------------------------------------------------------
 # Composer nodes (FUZZ-08g) — subclass ComposerCallOutPoint, declare
-# output_keys, and write artifact to blackboard on SUCCESS (BT-18-001/02/03)
+# contract outputs, and have the artifact written to the blackboard on yes (BT-18-001/02/03)
 # ---------------------------------------------------------------------------
 
 _RM_COMPOSER_NODES = [
@@ -585,12 +560,12 @@ def test_rm_composer_node_subclasses_composer(node_cls, output_key):
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_COMPOSER_NODES)
 def test_rm_composer_node_output_key_declared(node_cls, output_key):
-    assert output_key in node_cls.output_keys
+    assert output_key in node_cls.contract.outputs
 
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_COMPOSER_NODES)
 def test_rm_composer_node_output_key_type_is_str(node_cls, output_key):
-    assert node_cls.output_keys[output_key] is str
+    assert node_cls.contract.outputs[output_key] is str
 
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_COMPOSER_NODES)
@@ -601,15 +576,17 @@ def test_rm_composer_node_has_blackboard_contract_docstring(
 
 
 def test_rm_composer_node_writes_blackboard_on_success():
-    """A Composer node writes its output key to the blackboard on SUCCESS."""
+    """A Composer node writes its output key to the blackboard on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
 
     class _AlwaysSucceedComposer(ComposerCallOutPoint, AlwaysSucceed):
-        output_keys: ClassVar[dict[str, type]] = {"assigned_vul_id": str}
+        contract: ClassVar[CallOutContract] = CallOutContract(
+            outputs={"assigned_vul_id": str}
+        )
 
     node = _AlwaysSucceedComposer("TestAssignId")
     node.setup()
-    status = node.update()
+    status = tick_call_out(node)
 
     assert status == Status.SUCCESS
     assert "/assigned_vul_id" in py_trees.blackboard.Blackboard.storage
@@ -618,7 +595,7 @@ def test_rm_composer_node_writes_blackboard_on_success():
 
 
 # ---------------------------------------------------------------------------
-# Actuator nodes (FUZZ-08h) — subclass ActuatorCallOutPoint, no output_keys,
+# Actuator nodes (FUZZ-08h) — subclass ActuatorCallOutPoint, no declared outputs,
 # blackboard contract documented (BT-18-001/02/03)
 # ---------------------------------------------------------------------------
 
@@ -652,7 +629,7 @@ def test_actuator_node_subclasses_actuator(node_cls):
 
 @pytest.mark.parametrize("node_cls", _ALL_ACTUATOR_NODES)
 def test_actuator_node_output_keys_empty(node_cls):
-    assert node_cls.output_keys == {}
+    assert node_cls.contract.outputs == {}
 
 
 @pytest.mark.parametrize("node_cls", _ALL_ACTUATOR_NODES)
@@ -667,24 +644,20 @@ def test_actuator_node_is_behaviour(node_cls):
 
 
 def test_actuator_node_does_not_write_blackboard_on_success():
-    """An Actuator node does not write output_keys to the blackboard on SUCCESS.
+    """An Actuator cannot declare output keys, so it writes none (BT-18-028).
 
-    Uses a fixture that declares an output_key but inherits ActuatorCallOutPoint
-    (which does not write keys) to confirm the key is absent after update().
-    Contrast with Composer/Evaluator/Retriever nodes, which DO write their keys.
+    A class that declares one is refused when it is created.  Contrast with
+    Composer/Evaluator/Retriever nodes, which DO give their keys on *yes*.
     """
+    from vultron.core.behaviors.call_out.answer import CallOutContract
     from vultron.demo.fuzzer.base import AlwaysSucceed
 
-    class _AlwaysSucceedActuator(ActuatorCallOutPoint, AlwaysSucceed):
-        output_keys: ClassVar[dict[str, type]] = {"actuator_test_key": str}
+    with pytest.raises(TypeError, match="BT-18-028"):
 
-    py_trees.blackboard.Blackboard.storage.clear()
-    node = _AlwaysSucceedActuator("TestActuator")
-    node.setup()
-    status = node.update()
-
-    assert status == Status.SUCCESS
-    assert "/actuator_test_key" not in py_trees.blackboard.Blackboard.storage
+        class _AlwaysSucceedActuator(ActuatorCallOutPoint, AlwaysSucceed):
+            contract: ClassVar[CallOutContract] = CallOutContract(
+                outputs={"actuator_test_key": str}
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -694,7 +667,7 @@ def test_actuator_node_does_not_write_blackboard_on_success():
 # EvaluateExploitStrategy (Collapse 1) is covered by its own tree test at
 # test/core/behaviors/report/test_acquire_exploit_strategy_tree.py.
 # The three nodes below are the remaining acquire_exploit call-out points
-# with non-empty output_keys: EvaluateExploitPriority (AlwaysSucceed base),
+# with non-empty contract outputs: EvaluateExploitPriority (AlwaysSucceed base),
 # DevelopExploit (OftenSucceed — deterministic wrapper required per BT Factory
 # Determinism rule), and PurchaseExploit (RarelySucceed — same rule).
 # ---------------------------------------------------------------------------
@@ -733,11 +706,11 @@ def test_acquire_exploit_node_writes_blackboard_on_success(
     Creates a real Selector tree, ticks it once to SUCCESS, and asserts that
     the blackboard key holds an instance of the declared output type.
     Probabilistic nodes (DevelopExploit, PurchaseExploit) use deterministic
-    subclasses that inherit production output_keys but override update() via
+    subclasses that inherit the production contract but answer *yes* via
     AlwaysSucceed.
     """
     node = node_cls(node_cls.__name__)
-    tree = _make_always_succeed_selector(node)
+    tree = _make_always_succeed_selector(SynchronousCallOut(node))
     tree.setup_with_descendants()
     tree.tick_once()
 

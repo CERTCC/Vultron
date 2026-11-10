@@ -35,17 +35,10 @@ from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
 )
 from vultron.demo.fuzzer.report_management.assign_vul_id import (
     AssignId,
+    EvaluateCveEligibility,
     IdAssigned,
     InScope,
     IsMostAppropriateCNA,
-    IsNotDeliberatelyEducational,
-    IsNotDependencyUpdate,
-    IsNotEOLStatusAlone,
-    IsNotMaliciousCode,
-    IsPubliclyAvailableProduct,
-    IsRealVulnerability,
-    MeetsEvidenceBar,
-    NoDuplicateCVE,
     ProductInCNAScope,
     RequestId,
 )
@@ -71,48 +64,10 @@ def _stochastic_is_most_appropriate_cna(
     return IsMostAppropriateCNA(name)
 
 
-def _stochastic_is_not_malicious_code(
+def _stochastic_evaluate_cve_eligibility(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    return IsNotMaliciousCode(name)
-
-
-def _stochastic_is_not_dependency_update(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    return IsNotDependencyUpdate(name)
-
-
-def _stochastic_is_not_eol_status_alone(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    return IsNotEOLStatusAlone(name)
-
-
-def _stochastic_is_not_deliberately_educational(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    return IsNotDeliberatelyEducational(name)
-
-
-def _stochastic_is_publicly_available_product(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    return IsPubliclyAvailableProduct(name)
-
-
-def _stochastic_no_duplicate_cve(name: str) -> py_trees.behaviour.Behaviour:
-    return NoDuplicateCVE(name)
-
-
-def _stochastic_meets_evidence_bar(name: str) -> py_trees.behaviour.Behaviour:
-    return MeetsEvidenceBar(name)
-
-
-def _stochastic_is_real_vulnerability(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    return IsRealVulnerability(name)
+    return EvaluateCveEligibility(name)
 
 
 def _stochastic_assign_id(name: str) -> py_trees.behaviour.Behaviour:
@@ -128,14 +83,7 @@ ASSIGN_CVE_ID_STOCHASTIC = AssignCveIdCallOutBundle(
     in_scope_factory=_stochastic_in_scope,  # type: ignore[arg-type]
     product_in_cna_scope_factory=_stochastic_product_in_cna_scope,  # type: ignore[arg-type]
     is_most_appropriate_cna_factory=_stochastic_is_most_appropriate_cna,  # type: ignore[arg-type]
-    is_not_malicious_code_factory=_stochastic_is_not_malicious_code,  # type: ignore[arg-type]
-    is_not_dependency_update_factory=_stochastic_is_not_dependency_update,  # type: ignore[arg-type]
-    is_not_eol_status_alone_factory=_stochastic_is_not_eol_status_alone,  # type: ignore[arg-type]
-    is_not_deliberately_educational_factory=_stochastic_is_not_deliberately_educational,  # type: ignore[arg-type]
-    is_publicly_available_product_factory=_stochastic_is_publicly_available_product,  # type: ignore[arg-type]
-    no_duplicate_cve_factory=_stochastic_no_duplicate_cve,  # type: ignore[arg-type]
-    meets_evidence_bar_factory=_stochastic_meets_evidence_bar,  # type: ignore[arg-type]
-    is_real_vulnerability_factory=_stochastic_is_real_vulnerability,  # type: ignore[arg-type]
+    evaluate_cve_eligibility_factory=_stochastic_evaluate_cve_eligibility,  # type: ignore[arg-type]
     assign_id_factory=_stochastic_assign_id,  # type: ignore[arg-type]
     request_id_factory=_stochastic_request_id,  # type: ignore[arg-type]
 )

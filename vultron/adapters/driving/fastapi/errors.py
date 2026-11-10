@@ -11,6 +11,10 @@ from vultron.errors import (
     VultronProofVerificationError,
     VultronValidationError,
 )
+from vultron.wire.as2.errors import (
+    VultronJsonSyntaxError,
+    VultronUnsignableJsonError,
+)
 
 
 @contextmanager
@@ -61,13 +65,33 @@ def conflict_http_exception(
 def unsignable_http_exception(message: str) -> HTTPException:
     """A 422 for a body the outbox's signer refuses (EH-05-001).
 
-    For the outbox POST only: the client must change the content, and the
-    server is not at fault.  Ingress answers an uncanonicalizable body as
-    #5386 decides, so :func:`translate_domain_errors` does not map it.
+    For the outbox POST: the client must change the content, and the server
+    is not at fault.  The outbox decodes its body as the inbox does, so a
+    syntax fault is answered 400 by :func:`inbox_body_http_exception` before
+    anything reaches the signer; :func:`translate_domain_errors` maps
+    neither.
     """
     return _error_http_exception(
         status.HTTP_422_UNPROCESSABLE_CONTENT, "ValidationError", message
     )
+
+
+def inbox_body_http_exception(
+    error: VultronUnsignableJsonError,
+) -> HTTPException:
+    """The inbox's answer to a body it cannot read as one JSON object.
+
+    Split as RFC 9110 splits them: text that is not JSON by RFC 8259's
+    grammar is a malformed request, 400 (IE-07-001, HTTP-03-004); JSON the
+    inbox refuses, such as a duplicate key, an integer outside
+    ±(2^53 - 1) or a value that is not an object, is well formed and
+    answered 422, as content that fails validation (IE-04-002).
+    """
+    if isinstance(error, VultronJsonSyntaxError):
+        return _error_http_exception(
+            status.HTTP_400_BAD_REQUEST, "JsonSyntaxError", str(error)
+        )
+    return unsignable_http_exception(str(error))
 
 
 def translate_domain_errors(exc: Exception) -> HTTPException:

@@ -35,7 +35,6 @@ that entry, as they copy every consent-row change (CM-23-016).
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime
 from typing import Any, ClassVar, cast
 
 from py_trees.common import Status
@@ -240,13 +239,13 @@ class ExpireOverdueInvitesNode(ExpireInvitationsNode):
     activity's precondition guards, and ahead of every embargo trigger's own
     tree, so the case owner learns of each timeout through the expiry
     entry's fan-out before it decides on an embargo (MSM-07-026).  It
-    decides from *now*, the CASE_MANAGER's clock, and the case file; the
-    activity only prompts it.
+    decides from the act's instant, read from the tree run when it ticks
+    (ADR-0176), and the case file; the activity only prompts it.
 
     The invitations are
     :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.overdue_invitations`:
     ``INVITED`` rows on an open proposal or the embargo in force whose
-    deadline is at or before *now*.  A row on a replaced, rejected,
+    deadline is at or before that instant.  A row on a replaced, rejected,
     cancelled or ended embargo is frozen and is not swept (ADR-0122); a row
     already ``TIMED_OUT`` is not ``INVITED``, so a repeat sweep commits
     nothing.
@@ -254,16 +253,12 @@ class ExpireOverdueInvitesNode(ExpireInvitationsNode):
 
     _SPEC: ClassVar[str] = "CM-28-015"
 
-    def __init__(
-        self, case_id: str, now: datetime, name: str | None = None
-    ) -> None:
-        super().__init__(case_id=case_id, name=name)
-        self._now = now
-
     def _invitations(
         self, lifecycle: EmbargoLifecycle
     ) -> list[tuple[CaseParticipant, str]]:
-        return lifecycle.overdue_invitations(self._case_id, self._now)
+        return lifecycle.overdue_invitations(
+            self._case_id, self._require_act_instant()
+        )
 
     def _what(self) -> str:
         return "overdue"

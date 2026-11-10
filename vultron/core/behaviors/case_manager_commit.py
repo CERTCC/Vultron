@@ -30,8 +30,7 @@ delivered before its entry commits and a failed commit queues nothing
 (OX-03-002, ADR-0146).  An act every
 replica learns from the entry alone is addressed to nobody and only
 committed, as soon as it is decided; the ledger fan-out is its delivery.  The embargo decisions (``embargo/nodes/manager_commit.py``), the
-case closure (``case/nodes/leave/fully_closed.py``), the late-Accept
-acknowledgement (``embargo/nodes/late_accept.py``) and the CASE_MANAGER's own
+case closure (``case/nodes/leave/fully_closed.py``) and the CASE_MANAGER's own
 notes (``note/case_manager_note.py``) all subclass it.
 
 Like the relay node, it catches nothing: a missing factory, a failed factory

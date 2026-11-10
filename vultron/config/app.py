@@ -186,6 +186,12 @@ class AppConfig(BaseSettings):
             seconds (AKM-05-008).  It matches the delivery timeout
             (SYNC-05-004).  Override via
             ``VULTRON_OBJECT_FETCH_TIMEOUT_SECONDS``.  Defaults to 30.
+        verification_key_fetch_timeout_seconds: Timeout of the one attempt to
+            fetch the profile that lists a proof's key, in seconds.  The
+            fetch runs before the sender is verified, so it is made once,
+            with no retry, and its wait is kept short (SIG-02-001).
+            Override via ``VULTRON_VERIFICATION_KEY_FETCH_TIMEOUT_SECONDS``.
+            Defaults to 5.
     """
 
     server: ServerConfig = ServerConfig()
@@ -197,6 +203,7 @@ class AppConfig(BaseSettings):
     max_inbox_retry_attempts: int = 12
     max_object_fetch_attempts: int = Field(default=3, ge=1)
     object_fetch_timeout_seconds: float = Field(default=30.0, gt=0)
+    verification_key_fetch_timeout_seconds: float = Field(default=5.0, gt=0)
 
     model_config = SettingsConfigDict(
         env_prefix="VULTRON_",

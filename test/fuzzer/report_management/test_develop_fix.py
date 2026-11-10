@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import WeightedBehavior
 from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
@@ -46,7 +47,9 @@ def _run_trials(node_cls: type, n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
     node.setup()
-    successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
+    successes = sum(
+        1 for _ in range(n) if tick_call_out(node) == Status.SUCCESS
+    )
     return successes / n
 
 
@@ -63,10 +66,10 @@ class TestCreateFixIsWeightedBehavior:
         assert issubclass(CreateFix, ComposerCallOutPoint)
 
     def test_output_keys_declared(self) -> None:
-        assert "fix_artifact" in CreateFix.output_keys
+        assert "fix_artifact" in CreateFix.contract.outputs
 
     def test_output_key_type_is_str(self) -> None:
-        assert CreateFix.output_keys["fix_artifact"] is str
+        assert CreateFix.contract.outputs["fix_artifact"] is str
 
     def test_docstring_has_blackboard_contract(self) -> None:
         assert CreateFix.__doc__ and "Blackboard contract" in CreateFix.__doc__
@@ -119,13 +122,13 @@ class TestSuccessRate:
     def test_update_returns_success_or_failure(self) -> None:
         node = CreateFix()
         node.setup()
-        result = node.update()
+        result = tick_call_out(node)
         assert result in (Status.SUCCESS, Status.FAILURE)
 
     def test_update_never_returns_running(self) -> None:
         node = CreateFix()
         node.setup()
-        results = {node.update() for _ in range(50)}
+        results = {tick_call_out(node) for _ in range(50)}
         assert Status.RUNNING not in results
 
     def test_empirical_distribution(self) -> None:

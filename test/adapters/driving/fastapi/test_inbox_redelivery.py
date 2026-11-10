@@ -45,7 +45,7 @@ from test.architecture._vocab_example_corpus import (
     wire_body,
 )
 from test.support.received import delivered_body
-from test.support.signing import resigned
+from test.support.signing import resigned, serve_published_profiles
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -182,6 +182,8 @@ def actor_client():
     app = create_app(docs_url=None, openapi_url=None)
 
     with TestClient(app) as client:
+        # Each sender publishes its profile, so the inbox verifies its proof.
+        serve_published_profiles(app)
         # Lifespan has run; auto-injected per-actor registry is live.
         factory = app.dependency_overrides[get_actor_dl]
         store: SqliteDataLayer = factory(_ACTOR_SLUG)

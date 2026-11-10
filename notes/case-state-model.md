@@ -16,7 +16,7 @@ related_specs:
   - specs/em-behavior.yaml
   - specs/received-status-handling.yaml
   - specs/rm-behavior.yaml
-  - specs/state-machine.yaml (SM-05-002)
+  - specs/state-machine.yaml (SM-05-002, SM-09-003)
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/message-type-reference.md
@@ -67,10 +67,11 @@ rules for changing the code that implements it.
   live cases; `is_valid_cs_history()` requires all six events.
 - **Ephemeral states**: the six `vP` states must next take `V`, and the six
   `pX` states must next take `P` (`required_next_cs_events()`, CSB-17-003).
-  A status write that would enter one applies the forced event in the same
-  write (CSB-13-006, SM-09-003), the one exception to CSB-17-002. Only the
-  trigger write path promotes today (#6080); route any new persistence path
-  through that promotion, never a copy of it.
+  An actor's own status write that would enter one applies the forced event in
+  the same write (CSB-13-006, SM-09-003), the one exception to CSB-17-002. A
+  received claim is stored as sent (RSH-09-010); the CASE_MANAGER's adopted
+  `CaseStatus` is the forced form, so read case-level P/X/A from the case's
+  status, never from a `ParticipantStatus` (#6080).
 
 Do not delete the legacy module (ADR-0060): `cs/` still uses
 `case_states.validations.ensure_valid_state`, and

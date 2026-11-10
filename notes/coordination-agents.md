@@ -69,7 +69,8 @@ external system is a **Retriever**, never a Sentinel (BT-18-013).
 ## Core-Owned Typed-Port Contracts (#3421)
 
 Target state set by ADR-0097 and BT-18-012; today the mixins are still in
-`vultron/demo/fuzzer/call_out_point.py` and declare `output_keys`.
+`vultron/demo/fuzzer/call_out_point.py`, and each fuzzer node declares a
+`CallOutContract` (ADR-0183) rather than typed ports.
 
 - Each named capability gets a **core-owned declaration** carrying py_trees typed
   ports (`INPUT_PORTS` / `OUTPUT_PORTS`, ADR-0044). The shape base class cannot
@@ -232,7 +233,7 @@ example as a Note.
   invitee's embargo policy (BT-24-004, BT-24-006). Prefer over-suggesting
   (BT-24-005).
 - **Name it a suggestion, not a discovery.** The answer is not definitive, and
-  "actor discovery" is the URI-to-profile seam, being renamed ActorResolution.
+  "actor resolution" is the URI-to-profile seam (ActorResolution).
 - **A CSAF suggester is an adapter, not a port type.** It turns the suggestion
   context into CSAF for an outside service; core never depends on CSAF.
 - **The demo answers from a declared table** (BT-24-007): no directory or

@@ -14,7 +14,7 @@ interface ActorPanelProps {
   color: string
   rmState: string
   emState?: string
-  vfdState?: string
+  vfd?: string
   pxaState?: string
   actions: Action[]
   onActionClick: (actionId: string) => void
@@ -29,7 +29,7 @@ export function ActorPanel({
   color,
   rmState,
   emState,
-  vfdState,
+  vfd,
   pxaState,
   actions,
   onActionClick,
@@ -105,9 +105,9 @@ export function ActorPanel({
               <strong>EM:</strong> {emState}
             </div>
           )}
-          {vfdState && (
+          {vfd && (
             <div>
-              <strong>VFD:</strong> {vfdState}
+              <strong>VFD:</strong> {vfd}
             </div>
           )}
           {pxaState && (

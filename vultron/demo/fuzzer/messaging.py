@@ -34,6 +34,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import UniformSucceedFail
 from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
@@ -51,7 +54,7 @@ class FollowUpOnErrorMessage(ComposerCallOutPoint, UniformSucceedFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — reads message context from caller's DataLayer)
-      Output keys: followup_message_artifact: str  (SUCCESS only)
+      Output keys: followup_message_artifact: str  (yes only)
 
     Input category: System integration / Human analyst.
 
@@ -62,4 +65,6 @@ class FollowUpOnErrorMessage(ComposerCallOutPoint, UniformSucceedFail):
     automated once the follow-up policy is defined.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"followup_message_artifact": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"followup_message_artifact": str}
+    )

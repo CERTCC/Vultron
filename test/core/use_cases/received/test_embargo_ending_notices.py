@@ -30,6 +30,7 @@ The CASE_MANAGER's store holds the manager, a Case Owner, and five vendors:
 """
 
 from collections.abc import Callable
+from datetime import timedelta
 from typing import Any, cast
 
 import pytest
@@ -66,7 +67,7 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
     REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
-from vultron.core.models._helpers import _as_id, days_from_now_utc
+from vultron.core.models._helpers import _as_id, days_from_now_utc, now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -754,13 +755,14 @@ def test_embargo_ending_notice_decision() -> None:
         )
     a, same, short = (f"{CASE_ID}/e/{i}" for i in ("a", "same", "short"))
 
-    assert embargo_ending_notice(dl, before=None, after=a) is None
-    assert embargo_ending_notice(dl, before=a, after=a) is None
-    terminated = embargo_ending_notice(dl, before=a, after=None)
+    at = now_utc()
+    assert embargo_ending_notice(dl, before=None, after=a, at=at) is None
+    assert embargo_ending_notice(dl, before=a, after=a, at=at) is None
+    terminated = embargo_ending_notice(dl, before=a, after=None, at=at)
     assert terminated is not None
     assert terminated.kind is EmbargoEndingKind.TERMINATED
     assert terminated.notice_embargo_id == a
-    shortened = embargo_ending_notice(dl, before=a, after=short)
+    shortened = embargo_ending_notice(dl, before=a, after=short, at=at)
     assert shortened is not None
     assert shortened.kind is EmbargoEndingKind.SHORTENED
     assert (shortened.ended_embargo_id, shortened.notice_embargo_id) == (
@@ -768,9 +770,18 @@ def test_embargo_ending_notice_decision() -> None:
         short,
     )
     # Equal terms are contained: the EP-05-003 carry-over arm.
-    tie = embargo_ending_notice(dl, before=a, after=same)
+    tie = embargo_ending_notice(dl, before=a, after=same, at=at)
     assert tie is not None and tie.kind is EmbargoEndingKind.SHORTENED
-    assert embargo_ending_notice(dl, before=short, after=a) is None
+    assert embargo_ending_notice(dl, before=short, after=a, at=at) is None
+    # A termination judged at or after the agreed end is expiry: no notice,
+    # and the instant is the act's, not the clock's (ADR-0176).
+    assert embargo_ending_notice(dl, before=a, after=None, at=later) is None
+    assert (
+        embargo_ending_notice(
+            dl, before=a, after=None, at=later - timedelta(microseconds=1)
+        )
+        is not None
+    )
 
 
 @pytest.mark.spec("CM-31-009")

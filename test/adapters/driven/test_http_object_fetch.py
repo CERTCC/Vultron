@@ -13,8 +13,10 @@
 """The HTTP object fetcher: URLs, retries and terminal answers (AKM-05-008)."""
 
 import asyncio
+import json
 import subprocess
 import sys
+from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -52,10 +54,20 @@ _CASE_REF = ObjectReference(
 )
 
 
-def _response(status: int, body: Any = None) -> MagicMock:
+def _response(
+    status: int, body: Any = None, content: bytes | None = None
+) -> MagicMock:
+    """A streamed response: the async context ``client.stream`` opens."""
     response = MagicMock()
+    response.__aenter__.return_value = response
     response.status_code = status
-    response.json = MagicMock(return_value=body)
+    raw = json.dumps(body).encode() if content is None else content
+
+    async def _chunks() -> AsyncIterator[bytes]:
+        for start in range(0, len(raw), 4):
+            yield raw[start : start + 4]
+
+    response.aiter_bytes = _chunks
     if status >= 400:
         request = httpx.Request("GET", _HOST)
         error = httpx.HTTPStatusError(
@@ -69,9 +81,9 @@ def _response(status: int, body: Any = None) -> MagicMock:
 
 def _fetch(
     fetcher: HttpObjectFetcher, answers: list[Any]
-) -> tuple[Any, AsyncMock]:
+) -> tuple[Any, MagicMock]:
     with (
-        patch("httpx2.AsyncClient.get", new_callable=AsyncMock) as get,
+        patch("httpx2.AsyncClient.stream") as get,
         patch("asyncio.sleep", new_callable=AsyncMock),
     ):
         get.side_effect = answers
@@ -166,8 +178,7 @@ class TestHttpObjectFetcher:
 
     @pytest.mark.spec("AKM-05-008")
     def test_a_body_that_is_not_json_fails_the_fetch_at_once(self):
-        response = _response(200)
-        response.json.side_effect = ValueError("Expecting value")
+        response = _response(200, content=b"not json")
 
         result, get = _fetch(HttpObjectFetcher(max_attempts=3), [response])
 
@@ -175,6 +186,47 @@ class TestHttpObjectFetcher:
         assert result.failure is not None
         assert "no JSON" in result.failure
         get.assert_called_once()
+
+    def test_a_body_over_the_byte_limit_ends_the_fetch_at_once(self):
+        body = {"type": "EmbargoEvent", "id": _OBJECT, "name": "x" * 100}
+
+        result, get = _fetch(
+            HttpObjectFetcher(max_attempts=3, max_body_bytes=64),
+            [_response(200, body)],
+        )
+
+        assert result.body is None
+        assert result.failure is not None
+        assert "over 64 bytes" in result.failure
+        get.assert_called_once()
+
+    def test_a_body_within_the_byte_limit_is_read(self):
+        body = {"type": "EmbargoEvent", "id": _OBJECT}
+
+        result, _ = _fetch(
+            HttpObjectFetcher(max_body_bytes=1024), [_response(200, body)]
+        )
+
+        assert result.body == body
+
+    def test_the_timeout_bounds_the_whole_attempt(self):
+        """A peer that sends its body slowly still ends the attempt."""
+        response = _response(200, {"type": "EmbargoEvent"})
+
+        async def _slow() -> AsyncIterator[bytes]:
+            yield b"{"
+            await asyncio.Event().wait()  # never set: a peer gone quiet
+            yield b"}"  # pragma: no cover
+
+        response.aiter_bytes = _slow
+        fetcher = HttpObjectFetcher(max_attempts=1, timeout=0.05)
+
+        with patch("httpx2.AsyncClient.stream", side_effect=[response]):
+            result = asyncio.run(fetcher.fetch(_CASE_REF, _REQUESTER))
+
+        assert result.body is None
+        assert result.failure is not None
+        assert "TimeoutError" in result.failure
 
     def test_at_least_one_attempt_is_required(self):
         with pytest.raises(ValueError, match="at least 1"):

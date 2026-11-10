@@ -35,8 +35,6 @@ The guards on a reply to the Offer (:class:`OfferParty`,
 re-exported here.
 """
 
-from datetime import datetime
-
 import py_trees
 from py_trees.common import Status
 
@@ -48,7 +46,6 @@ from vultron.core.behaviors.case.nodes.ownership_reply_guard import (
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
-from vultron.core.models._helpers import now_utc
 from vultron.core.participants.ownership_offer import (
     offer_made_from_proposal,
     open_ownership_offer,
@@ -163,7 +160,7 @@ class NoOpenOwnershipOfferNode(
     case ledger through
     :func:`~vultron.core.participants.ownership_offer.open_ownership_offer`
     (CLP-11-001): an Offer stays open until the ledger holds an answer or a
-    withdrawal recorded after it, or *now* reaches the ``end_time`` the
+    withdrawal recorded after it, or the act's instant reaches the ``end_time`` the
     ledgered Offer carries (CM-21-017).  Once it is closed, a new proposal
     is admitted for any transferee, including the one that declined
     (CM-21-035).
@@ -190,7 +187,6 @@ class NoOpenOwnershipOfferNode(
         case_id: str,
         proposal_id: str,
         proposer_id: str,
-        now: datetime | None = None,
         name: str | None = None,
     ) -> None:
         """Create the guard.
@@ -200,15 +196,12 @@ class NoOpenOwnershipOfferNode(
             proposal_id: The proposal's own id, so a redelivery is
                 recognised.
             proposer_id: The proposal's sender.
-            now: The instant an earlier Offer's ``end_time`` is compared
-                against; ``None`` reads the clock when the guard runs.
             name: Optional node name.
         """
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.proposal_id = proposal_id
         self.proposer_id = proposer_id
-        self._now = now
         self.is_redelivery = False
         """``True`` when the last run found the Offer made from this
         proposal already ledgered: a benign no-op, not a refusal."""
@@ -232,7 +225,10 @@ class NoOpenOwnershipOfferNode(
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         earlier = open_ownership_offer(
-            self.datalayer, self.case_id, self._now or now_utc()
+            # An earlier Offer is judged at the act's instant (ADR-0176).
+            self.datalayer,
+            self.case_id,
+            self._require_act_instant(),
         )
         if earlier is None:
             return Status.SUCCESS
@@ -252,7 +248,6 @@ def case_manager_admits_ownership_proposal_guard(
     proposed_case_id: str | None,
     transferee_id: str | None,
     proposer_id: str,
-    now: datetime | None = None,
 ) -> list[py_trees.behaviour.Behaviour]:
     """Precondition guards: the proposal is admissible at the CASE_MANAGER.
 
@@ -271,7 +266,6 @@ def case_manager_admits_ownership_proposal_guard(
             case_id=case_id,
             proposal_id=proposal_id,
             proposer_id=proposer_id,
-            now=now,
         ),
         OwnershipProposalAdmissibleNode(
             case_id=case_id,

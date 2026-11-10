@@ -3,6 +3,7 @@
 import py_trees
 import pytest
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import UniformSucceedFail
 from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 from vultron.demo.fuzzer.messaging import FollowUpOnErrorMessage
@@ -35,7 +36,7 @@ class TestFollowUpOnErrorMessage:
         """update() must return a valid py_trees Status."""
         node = FollowUpOnErrorMessage()
         node.setup()
-        status = node.update()
+        status = tick_call_out(node)
         assert status in (
             py_trees.common.Status.SUCCESS,
             py_trees.common.Status.FAILURE,
@@ -56,13 +57,16 @@ class TestFollowUpOnErrorMessage:
     def test_output_keys_declared(self):
         """Must declare followup_message_artifact output key (BT-18-001)."""
         assert (
-            "followup_message_artifact" in FollowUpOnErrorMessage.output_keys
+            "followup_message_artifact"
+            in FollowUpOnErrorMessage.contract.outputs
         )
 
     def test_output_key_type_is_str(self):
         """Output key type must be str (BT-18-002)."""
         assert (
-            FollowUpOnErrorMessage.output_keys["followup_message_artifact"]
+            FollowUpOnErrorMessage.contract.outputs[
+                "followup_message_artifact"
+            ]
             is str
         )
 

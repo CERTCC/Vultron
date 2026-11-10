@@ -5,8 +5,9 @@ protocol shorthand (MSM-02-010): EA and EC are the Case Owner's decision,
 ``Add(EmbargoEvent)[target=VulnerabilityCase]`` (:mod:`.owner_decision`).
 
 One tree per delivery (CLP-10-005, ADR-0135): the door guards, the Invite
-expiry, the repeat guard, the P/X/A refusal and the late-Accept routing are
-all stages and diversions of
+expiry, the repeat guard, the P/X/A refusal and the answers to an embargo
+that is not available (MSM-07-012, MSM-07-039) are all stages and diversions
+of
 :func:`~vultron.core.behaviors.embargo.answer_trees.accept_invite_to_embargo_tree`,
 and the handler only reads how the run ended.
 """
@@ -22,19 +23,18 @@ if TYPE_CHECKING:
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.embargo.accept_availability_tree import (
+    NEVER_HELD_EMBARGO_FAULT,
+    UNAVAILABLE_EMBARGO_REFUSAL,
+)
 from vultron.core.behaviors.embargo.answer_trees import (
     accept_invite_to_embargo_tree,
 )
-from vultron.core.behaviors.embargo.expiry_tree import (
-    LATE_ACCEPT_DIVERSIONS,
-)
-from vultron.core.behaviors.embargo.nodes.late_accept import LateAcceptRoute
 from vultron.core.behaviors.embargo.refusal_tree import PXA_ACCEPT_REFUSAL
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
 )
@@ -137,15 +137,15 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             accepting_actor_id=request.actor_id,
             invite_id=invite_id,
             sender_rule=self.sender_entitlement,
-            now=now_utc(),
             accept_id=request.activity_id,
             actor_config=self._actor_config,
         )
         result = BTBridge(
             datalayer=self._dl,
-            # The P/X/A Reject of the Invite, the late-Accept answers and the
+            # The P/X/A Reject of the Invite, the fault, refusal notice and
+            # re-invite that answer an embargo not available, and the
             # owner's acceptance of a shorter revision all emit (CM-31-009,
-            # EMB-17, EMB-02-004).
+            # MSM-07-012, MSM-07-039, EMB-17-003, EMB-02-004).
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
@@ -183,8 +183,8 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         """Read how the one run ended (ADR-0095).
 
         Raises:
-            VultronBTInternalError: the run failed on an internal error, or a
-                late-Accept answer the tree took did not complete.
+            VultronBTInternalError: the run failed on an internal error, or
+                the answer of a diversion the tree took did not complete.
         """
         verdict = verdict_from_bt(tree, result, label=_TREE_LABEL)
         if verdict.disposition is not HandlerDisposition.REFUSED:
@@ -197,22 +197,21 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
         ) is not None:
             return refusal
-        for route, name in LATE_ACCEPT_DIVERSIONS.items():
+        for name in (NEVER_HELD_EMBARGO_FAULT, UNAVAILABLE_EMBARGO_REFUSAL):
             if (stage := taken_diversion(tree, name)) is None:
                 continue
             if not stage.effects_succeeded:
                 raise VultronBTInternalError(
                     f"{name}: {failure_reason(stage.effects, result)}"
                 )
-            if route is LateAcceptRoute.UNBOUND:
-                # Nothing to bind, so nothing changed (EMB-17-004).
-                return HandlerResult.skipped(
-                    f"late Accept of Invite '{invite_id}' on case"
-                    f" '{case_id}': the case holds no embargo for it to bind"
-                    " (EMB-17-004)"
-                )
-            # The late Accept was answered, not recorded (EMB-17-001).
-            return HandlerResult.applied()
+            # The Accept was answered, never recorded: a fault for terms the
+            # register never held (MSM-07-039), the refusal notice for terms
+            # no longer available (MSM-07-012).
+            return HandlerResult.refused(
+                stage.condition.feedback_message
+                or f"{name}: Accept of Invite '{invite_id}' on case"
+                f" '{case_id}' answered, not recorded"
+            )
         return embargo_answer_repeat_verdict(tree, verdict)
 
     def _applied_verdict(

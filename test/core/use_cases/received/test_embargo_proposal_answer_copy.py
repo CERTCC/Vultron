@@ -837,10 +837,11 @@ def test_an_accept_whose_re_issued_row_did_not_commit_is_not_kept():
 
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("MSM-07-039")
 def test_an_answer_that_records_nothing_is_refused_before_it_is_committed():
     """An Accept of an embargo the register does not hold states a row no
-    node can write, so it is refused and nothing is committed (ADR-0122,
-    CM-18-003)."""
+    node can write, so it is answered with a processing fault and nothing is
+    committed (ADR-0122, CM-18-003, MSM-07-039)."""
     net = _net("answer-nothing")
     stranger = as_EmbargoEvent(
         id_=f"{net.case_id}/embargo_events/stranger",
@@ -868,7 +869,7 @@ def test_an_answer_that_records_nothing_is_refused_before_it_is_committed():
     verdict = net.receive(MANAGER, accept)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
-    assert "nothing to accept (CM-18-003)" in (verdict.reason or "")
+    assert "never held" in (verdict.reason or "")
     assert committed_semantic_types(net.stores[MANAGER], net.case_id) == before
 
 

@@ -31,7 +31,7 @@ export function handleSubmitReport(state: DemoState): DemoState {
   // ACCEPTED rather than RECEIVED, which also makes the later `close` transition
   // legal (close is not permitted from RECEIVED).
   newState = updateParticipant(newState, 'finder', { rmState: 'ACCEPTED' })
-  newState = updateParticipant(newState, 'vendor-1', { rmState: 'RECEIVED', vfdState: 'Vfd', visible: true })
+  newState = updateParticipant(newState, 'vendor-1', { rmState: 'RECEIVED', vfd: 'Vfd', visible: true })
   newState = updateParticipant(newState, 'caseactor', { visible: true })
 
   // Get participants for lane indices

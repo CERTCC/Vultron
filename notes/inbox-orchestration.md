@@ -53,9 +53,10 @@ adapter-layer pipeline helper. `process_payload` is the sole caller-facing entry
 (IO-02-003) and all policy is internal to the BT. Logic in the router is unavailable to
 non-HTTP entry points (CLI, tests) and violates ADR-0009.
 
-The FastAPI inbox endpoint is thin glue: parse the body, return 202, and schedule
-`process_payload` through `BackgroundTasks`. The scheduled task is a coroutine, so it
-runs `process_payload` and the pending-queue replay through `asyncio.to_thread`; a
+The FastAPI inbox endpoint is thin glue: verify the body's proofs, parse it, return 202,
+and schedule `process_payload` through `BackgroundTasks` with the verified body (never a
+parsed activity, which carries no proof). The scheduled task is a coroutine, so it runs
+`process_payload` and the pending-queue replay through `asyncio.to_thread`; a
 synchronous BT tick on the event loop stalls every other request, delivery, and outbox
 drain on the container (IE-06-003). See [bt-integration](bt-integration.md) §
 "Concurrency Model".
@@ -68,7 +69,9 @@ IO-03-003b forbids inbox policy in the FastAPI path, with one narrow exception
 (IO-03-007): a **synchronous guard that refuses an activity before the 202** may live
 at the route, because the sender needs a 4xx and the check must run before
 `BackgroundTasks` schedules the handler. The addressing check (IE-11-001, ADR-0068)
-is the example. A route-level guard:
+is one example; proof verification (SIG-03-003, ADR-0164) is the other, as its own
+dependency stage ahead of the parser (`verified_delivery` in
+`routers/actors/_inbox.py`). A route-level guard:
 
 - produces a synchronous HTTP response, not a flag for a downstream node;
 - does not duplicate orchestration logic that belongs in the core BT;
@@ -301,7 +304,8 @@ success would follow a false fault (ASK-07-007). A raise after the dispatch retu
 answered. Never answer a raised
 `Create(ProcessingFault)` with a fault (`answers_with_internal_error_fault`,
 ASK-07-019), or two peers failing alike answer each other forever. The fault goes to
-the claimed `actor`: the inbox does not authenticate senders yet (#509). It is never
+the `actor`, whose proof the inbox verified before the parse (SIG-03-002); who made
+the HTTP request is still not authenticated (#509). It is never
 ledgered (ASK-07-008).
 
 **The queue replay retries back to back and settles on what it saw.** A re-queued item

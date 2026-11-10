@@ -128,51 +128,6 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
     ),
 )
 
-# Tree builders and guard nodes read the act's instant from the tree run.
-# owner: #5649
-KNOWN_TREE_NODE_CLOCK_READS: tuple[ClockRead, ...] = (
-    (
-        "vultron/core/behaviors/case/case_clock_decisions.py",
-        "case_clock_decisions",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/case/nodes/ownership_offer_guard.py",
-        "NoOpenOwnershipOfferNode.update",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/case/nodes/ownership_reply_guard.py",
-        "OwnershipOfferOpenNode.update",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/case/nodes/stub_reissue.py",
-        "ReissueStubInvitesNode.update",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/embargo/embargo_clock_decisions.py",
-        "embargo_clock_decisions",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/embargo/nodes/ending_notice.py",
-        "embargo_ending_notice",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/embargo/nodes/invite_answer.py",
-        "OwnerMayAutoAcceptEmbargoNode.update",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/embargo/nodes/terminate.py",
-        "ask_case_manager_to_terminate_once",
-        "now_utc",
-    ),
-)
-
 # Core models and time helpers take the act's instant; a caller of a helper
 # whose signature changes is listed with the helper.
 # owner: #5758
@@ -383,41 +338,6 @@ KNOWN_PARSE_EDGE_CLOCK_READS: tuple[ClockRead, ...] = (
 # owner: #5676
 KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
     (
-        "vultron/core/behaviors/case/nodes/proposal_case_resolution.py",
-        "CreateCaseFromProposalNode.update",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/case/nodes/refusal_notice.py",
-        "ClearRefusedAssertionNode.update",
-        "now_utc",
-    ),
-    (
-        "vultron/core/use_cases/received/actor/ownership.py",
-        "AcceptCaseOwnershipTransferReceivedUseCase.execute",
-        "now_utc",
-    ),
-    (
-        "vultron/core/use_cases/received/actor/ownership.py",
-        "ProposeCaseOwnershipTransferReceivedUseCase.execute",
-        "now_utc",
-    ),
-    (
-        "vultron/core/use_cases/received/actor/ownership.py",
-        "RejectCaseOwnershipTransferReceivedUseCase.execute",
-        "now_utc",
-    ),
-    (
-        "vultron/core/use_cases/received/actor/ownership.py",
-        "UndoCaseOwnershipTransferReceivedUseCase.execute",
-        "now_utc",
-    ),
-    (
-        "vultron/core/use_cases/received/embargo/accept.py",
-        "AcceptInviteToEmbargoOnCaseReceivedUseCase.execute",
-        "now_utc",
-    ),
-    (
         "vultron/core/use_cases/received/embargo/reject.py",
         "RejectInviteToEmbargoOnCaseReceivedUseCase.execute",
         "now_utc",
@@ -436,7 +356,6 @@ KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
 
 _ALL_LISTS: dict[str, tuple[ClockRead, ...]] = {
     "CLOCK_EDGE_EXEMPTIONS": CLOCK_EDGE_EXEMPTIONS,
-    "KNOWN_TREE_NODE_CLOCK_READS": KNOWN_TREE_NODE_CLOCK_READS,
     "KNOWN_CORE_MODEL_CLOCK_READS": KNOWN_CORE_MODEL_CLOCK_READS,
     "KNOWN_PARSE_EDGE_CLOCK_READS": KNOWN_PARSE_EDGE_CLOCK_READS,
     "KNOWN_UNSLICED_CLOCK_READS": KNOWN_UNSLICED_CLOCK_READS,
