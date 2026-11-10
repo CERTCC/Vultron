@@ -64,8 +64,6 @@ Blackboard contract (BTND-03-003):
   :class:`~vultron.core.models.events.base.VultronEvent`, placed by
   ``BTBridge.execute_with_setup``.  Its ``received_evidence`` is the body to
   record, under its ``activity_id``.
-- ``at`` (READ, ``/at``): the act's instant, which for a received message is
-  its arrival stamp (ADR-0176); recorded as the record's ``received_at``.
 
 The node keeps no record of what it did for a later node to read in memory:
 whether a run is a re-run is the record's stage, read from the store
@@ -179,10 +177,6 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
                     # (CLP-10-073, ADR-0154).
                     stage=ReceivedStage.HELD,
                     replay_owed=False,
-                    # The message's arrival stamp, which is this act's
-                    # instant: a replay runs at the stamp it was held with,
-                    # so its record keeps the first arrival (ADR-0176).
-                    received_at=self._require_act_instant(),
                 )
             )
         except VultronAlreadyExistsError:

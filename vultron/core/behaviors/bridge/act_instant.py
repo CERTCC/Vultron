@@ -27,9 +27,9 @@ clock:
 - :func:`stamp_arrival` and :func:`open_received_act` are the two halves for
   a received message: the inbox reads the act clock once when the message
   arrives, before it queues for the tree lock, and the processing takes the
-  lock and runs at that arrival stamp.  The stamp is the message's postmark:
-  every judgment about it uses the stamp, even when it is held and replayed
-  later, so a backlog never makes an on-time message late.
+  lock and runs at that arrival stamp.  Every judgment about the message
+  uses the stamp, even when it is held and replayed later, so a backlog
+  never makes an on-time message late.
 - :func:`act_instant_in_tree_run` places the instant in the tree run's shared
   state as ``/at`` and puts back what was there on exit; the inbox pipeline
   uses it for the delivery it processes.  ``BTBridge.execute_with_setup(...,

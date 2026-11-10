@@ -156,7 +156,7 @@ def post_actor_inbox(
             detail=f"Activity is not addressed to actor {canonical_actor_id}.",
         )
 
-    # The postmark: read once, as the message is accepted, so neither the
+    # The arrival stamp: read once, as the message is accepted, so neither the
     # per-actor lock nor the tree lock moves the instant it is judged at.
     arrived_at = stamp_arrival(clock)
     emitter = getattr(request.app.state, "emitter", None)

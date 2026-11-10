@@ -26,7 +26,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from test.support.act_clock import CountingClock
+from test.support.act_clock import tree_lock_held
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import stamped
 from vultron.adapters.driven.clock import SystemClock
@@ -957,12 +957,14 @@ class _InstantRecordingDispatch(_StubDispatchAdapter):
     def __init__(self, replay: Any = None) -> None:
         super().__init__()
         self.seen: list[datetime] = []
+        self.locked: list[bool] = []
         self._replay = replay
 
     def dispatch(self, event: VultronEvent) -> HandlerResult:
         from vultron.core.behaviors.bridge.act_instant import read_act_instant
 
         self.seen.append(read_act_instant())
+        self.locked.append(tree_lock_held())
         if self._replay is not None:
             replay, self._replay = self._replay, None
             replay()
@@ -975,32 +977,29 @@ _REPLAY = _FIRST + timedelta(minutes=5)
 
 
 class TestOneDeliveryIsOneAct:
-    @pytest.mark.spec("CS-13-002")
-    def test_reads_the_clock_once_after_the_lock_and_carries_it(
-        self, report_activity
-    ):
-        clock = CountingClock(_FIRST)
+    @pytest.mark.spec("CS-13-010")
+    def test_runs_at_its_arrival_stamp_under_the_lock(self, report_activity):
+        """The delivery's instant is the stamp it arrived with; the act takes
+        the tree lock and reads no clock of its own."""
         dispatch = _InstantRecordingDispatch()
 
         process_payload(
             {},
             _StubIngressAdapter(activity=report_activity),
             dispatch,
-            arrived_at=clock.now(),
+            arrived_at=_FIRST,
         )
 
-        assert clock.reads == 1
-        assert clock.locked_at_read == [True]
         assert dispatch.seen == [_FIRST]
+        assert dispatch.locked == [True]
 
-    @pytest.mark.spec("CS-13-002")
+    @pytest.mark.spec("CS-13-010")
     @pytest.mark.spec("CBT-03-003")
-    def test_a_replay_inside_a_delivery_is_judged_at_its_own_instant(
+    def test_a_replay_inside_a_delivery_is_judged_at_its_own_stamp(
         self, report_activity
     ):
-        """A held activity replayed inside the act that released it reads
-        its own instant, and the outer act's comes back after it."""
-        clock = CountingClock(_FIRST, _REPLAY)
+        """A held activity replayed inside the act that released it runs at
+        its own arrival stamp, and the outer act's comes back after it."""
         inner = _InstantRecordingDispatch()
 
         def _replay() -> None:
@@ -1008,7 +1007,7 @@ class TestOneDeliveryIsOneAct:
                 {},
                 _StubIngressAdapter(activity=report_activity),
                 inner,
-                arrived_at=clock.now(),
+                arrived_at=_REPLAY,
             )
 
         outer = _InstantRecordingDispatch(replay=_replay)
@@ -1016,9 +1015,8 @@ class TestOneDeliveryIsOneAct:
             {},
             _StubIngressAdapter(activity=report_activity),
             outer,
-            arrived_at=clock.now(),
+            arrived_at=_FIRST,
         )
 
-        assert clock.reads == 2
         assert inner.seen == [_REPLAY]
         assert outer.seen == [_FIRST, _FIRST]

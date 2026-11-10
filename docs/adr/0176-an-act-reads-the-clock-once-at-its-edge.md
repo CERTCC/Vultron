@@ -1,7 +1,8 @@
 ---
 status: accepted-provisional
 status_override: >-
-  Rewritten in place to the maintainer's postmark rule (2026-11-10).
+  Rewritten in place to the maintainer's postmark rule (2026-11-10):
+  a received message is judged at its arrival stamp.
 date: 2026-11-03
 created: 2026-11-03
 updated: 2026-11-10
@@ -74,13 +75,13 @@ The decision has eight parts.
   For a trigger the lock covers the whole invocation, including the checks it makes before running its tree, so no check of an act runs outside the lock or against an instant read before it.
   The lock is re-entrant, so the bridge taking it again inside the act is safe.
   Every decision the act takes compares against it, and every time the act records is derived from it.
-- **A received message is judged at its arrival stamp.** The inbox reads the act clock once when a message arrives, before the message queues for any lock, and that reading is the message's arrival stamp: its postmark.
+- **A received message is judged at its arrival stamp.** The inbox reads the act clock once when a message arrives, before the message queues for any lock, and that reading is the message's arrival stamp.
   The stamp is the instant of the act that processes the message, so every judgment about it, and every time that act records, uses the stamp, however long the message waited for the lock.
   The stamp is the receiver's own trusted reading; the sender's `published` is carried as received and checked against the stamp (CLP-14-007, CLP-14-008), never used in its place.
   The receiver records the stamp as the message's time of receipt (`received_at`) on the record intake writes, on every record that holds the message for a replay, and on a receipt stub, so there is one arrival time and not a second stamp beside it.
   A held message replayed later is an act of its own, and its instant is the arrival stamp its held record carries, never the instant of the act that released it, even when the replay runs inside that act.
   A message re-run after a restart, or retried after a failure, runs at its stamp too.
-  The receiver's own triggers and sweeps keep their own instant: the postmark rule covers only the acts that process a received message.
+  The receiver's own triggers and sweeps keep their own instant: the arrival stamp is the instant only of the acts that process a received message.
 - **Trees read the instant from the tree run.** The bridge's outermost run of an act takes the act's instant and places it in the run's shared state, beside the data layer and the leadership check.
   A nested tree run takes no instant and inherits it, as it inherits the leadership check, so a nested run sees the same instant as the act that started it; a nested run handed an instant of its own fails.
   A run with no instant to inherit carries none, and a node in it that reads the instant fails when it ticks, as an internal error; the run is never given a clock reading instead.

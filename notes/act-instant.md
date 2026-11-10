@@ -11,10 +11,10 @@ tracks:
   - "#5760"   # slice 6: recordings through the port
   - "#5761"   # follow-on: generated ids, decided in ADR-0185
   - "#5848"   # follow-on: drift limit, after the call-out budget (#3423)
-  - "#6191"   # postmark: a received message's instant is its arrival stamp
+  - "#6191"   # a received message's instant is its arrival stamp
 description: >
   The remaining migration to ADR-0176: acts already read the clock once at
-  their edge, a received message at its arrival (the postmark), and carry it
+  their edge, a received message at its arrival, and carry it
   as /at; tree nodes still to move read that instant from
   the tree run, and core code takes time as an argument and never reads or
   defaults it.
@@ -41,7 +41,7 @@ keeps.
   queueing for the lock is not decision time. A trigger's checks before its tree
   run inside that lock. A received message's instant is its arrival stamp,
   read before it queues (next rule).
-- **A received message is judged at its arrival stamp (the postmark).** The
+- **A received message is judged at its arrival stamp.** The
   inbox route reads the act clock once on arrival (`stamp_arrival`, through the
   `get_act_clock` dependency), before any lock, and every act that processes the
   message runs at that stamp (`process_payload(..., arrived_at=)`,

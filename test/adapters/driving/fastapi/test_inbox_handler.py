@@ -93,9 +93,10 @@ def test_handle_inbox_item_dispatches(monkeypatch):
     )
 
 
-@pytest.mark.spec("CS-13-002")
+@pytest.mark.spec("CS-13-002", "CS-13-010")
 def test_handle_inbox_item_dispatches_inside_one_act(monkeypatch):
-    """The CLI delivery path is an act: lock, one read, ``/at`` in force."""
+    """The CLI delivery path is an act: one arrival read before the lock,
+    then ``/at`` in force under it (ADR-0176)."""
     from test.support.act_clock import ACT_AT, CountingClock, tree_lock_held
     from vultron.core.behaviors.bridge.act_instant import read_act_instant
 
@@ -125,7 +126,7 @@ def test_handle_inbox_item_dispatches_inside_one_act(monkeypatch):
     )
 
     assert clock.reads == 1
-    assert clock.locked_at_read == [True]
+    assert clock.locked_at_read == [False]
     assert seen == [(ACT_AT, True)]
 
 

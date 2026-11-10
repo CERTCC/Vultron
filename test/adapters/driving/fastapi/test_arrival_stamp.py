@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""A received message is judged at its arrival stamp, the postmark (ADR-0176).
+"""A received message is judged at its arrival stamp (ADR-0176).
 
 The inbox reads the act clock once when a message arrives, before it queues
 for the tree lock, and every act that processes the message runs at that
@@ -74,10 +74,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-_SLUG = "postmark-test-actor"
+_SLUG = "arrival-stamp-test-actor"
 _RECEIVER = canonical_actor_uri(_SLUG)
 _SENDER = "https://example.org/actors/case-actor"
-_CASE = "https://example.org/cases/postmark"
+_CASE = "https://example.org/cases/arrival-stamp"
 _API = "/api/v2"
 
 #: The 11:59 / 12:00 / 12:02 story: a window that opened at 11:55 and lasts
@@ -108,7 +108,7 @@ def dl() -> Generator[SqliteDataLayer, None, None]:
 
 def _report_activity() -> as_Activity:
     return rm_create_report_activity(
-        report=as_VulnerabilityReport(name="Postmark", content="body"),
+        report=as_VulnerabilityReport(name="Arrival stamp", content="body"),
         actor="https://example.org/actors/finder",
         to=[_RECEIVER],
     )
@@ -176,7 +176,7 @@ def route() -> Generator[tuple[TestClient, SqliteDataLayer, CountingClock]]:
             object_to_record(
                 CoreActor(
                     id_=_RECEIVER,
-                    name="Postmark Test Actor",
+                    name="Arrival Stamp Test Actor",
                     inbox=f"{_RECEIVER}/inbox",
                     outbox=f"{_RECEIVER}/outbox",
                 )
@@ -189,7 +189,12 @@ def route() -> Generator[tuple[TestClient, SqliteDataLayer, CountingClock]]:
 def test_the_inbox_reads_the_act_clock_once_on_arrival_outside_the_lock(
     route: tuple[TestClient, SqliteDataLayer, CountingClock],
 ) -> None:
-    client, store, clock = route
+    client, _store, clock = route
+    probe = _InstantProbe()
+    dispatcher = Mock()
+    dispatcher.dispatch.side_effect = probe.dispatch
+    app = client.app
+    app.state.dispatcher = dispatcher  # type: ignore[attr-defined]
     body = delivered_body(_report_activity())
 
     response = client.post(f"{_API}/actors/{_SLUG}/inbox/", json=body)
@@ -198,9 +203,10 @@ def test_the_inbox_reads_the_act_clock_once_on_arrival_outside_the_lock(
     # One read, taken before the delivery queued for the tree lock.
     assert clock.reads == 1
     assert clock.locked_at_read == [False]
-    # The record is stamped with that read, the 11:59 one, never the 12:02
+    # The delivery's act runs at that read, the 11:59 one, never the 12:02
     # a second read would have given.
-    assert _record(store, body["id"]).received_at == _ARRIVED
+    assert probe.instants == [_ARRIVED]
+    assert probe.locked == [True]
 
 
 @pytest.mark.spec("CS-13-010")

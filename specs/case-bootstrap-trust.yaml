@@ -642,7 +642,7 @@ groups:
       replay: it runs at its own arrival stamp, which is inside the window the release
       found open.
     verification: >-
-      `test/adapters/driving/fastapi/test_arrival_postmark.py` asserts the boundary
+      `test/adapters/driving/fastapi/test_arrival_stamp.py` asserts the boundary
       (expired when the opening stamp plus the interval equals the judging instant, not
       one microsecond before), and that a bootstrap stamped inside the window releases
       the queue when it is processed after the window closed.

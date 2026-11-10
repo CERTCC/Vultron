@@ -439,12 +439,19 @@ def drain_inbox_queue(
                 break
             held = held_for_replay(cast(CasePersistence, actor_dl), item_id)
             if held is None:
-                logger.warning(
-                    "Inbox item activity_id=%s for actor_id=%s has no held"
-                    " record owing its replay; nothing to replay, dropped"
-                    " (DL-06-006).",
-                    item_id,
+                # Nothing to rebuild and no arrival stamp to run at: the
+                # item is refused as a rebuild that found nothing is.
+                log_if_rejected(
+                    InboxOutcome(
+                        status=InboxOutcomeStatus.REJECTED,
+                        activity_id=item_id,
+                        failure_reason=(
+                            "no held record owes this item's replay"
+                            " (DL-06-006)"
+                        ),
+                    ),
                     actor_id,
+                    replayed=True,
                 )
                 retry.clear_inbox_attempt_count(item_id)
                 continue
