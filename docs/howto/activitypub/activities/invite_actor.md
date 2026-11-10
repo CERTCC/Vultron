@@ -66,6 +66,8 @@ sequenceDiagram
    It lists the roles you offer in `suggestedRoles`.
    With no roles given, the CASE_MANAGER assigns a non-empty default role list (CM-16-003).
    A stub Invite always names at least one role, and the CASE_MANAGER refuses to send one with none (CM-11-019, CM-11-048).
+   Do not offer `CASE_MANAGER` or `CASE_OWNER`: the CASE_MANAGER refuses the `Offer` and sends no Invite (CM-20-008).
+   Ownership moves by transfer, and the CASE_MANAGER role moves by delegation.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/request-invite-actor-to-case.md" %}
 
