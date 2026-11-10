@@ -340,9 +340,9 @@ groups:
         CSB-17-003 governs trajectory validation, where the same two
         conditions are modelled as ephemeral states with exactly one legal
         successor. The two are consistent because they apply at different
-        boundaries: no actor persists a vP or pX state as its own, but such a state is
-        still a legal intermediate point in a replayed history, and CSB-17-004
-        therefore permits a history prefix to end in one.
+        boundaries: no actor persists a vP or pX state as its own, but such a
+        state is still a legal intermediate point in a replayed history, and
+        CSB-17-004 therefore permits a history prefix to end in one.
   - id: SM-09-003
     priority: MUST
     kind: project
