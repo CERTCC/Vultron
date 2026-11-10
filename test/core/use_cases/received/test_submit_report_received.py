@@ -41,24 +41,7 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import SubmitReportReceivedUseCase
 
-_CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
-
-
-@pytest.fixture(autouse=True)
-def configure_case_actor_url(monkeypatch):
-    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for all tests in this module."""
-    monkeypatch.setenv(
-        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
-    )
-    from vultron.config.app import reload_config
-
-    reload_config()
-    yield
-    # Undo the env patch BEFORE reloading: monkeypatch's own undo runs after
-    # this teardown, so reloading first would re-cache this fixture's URL into
-    # the module-level config for the rest of the session (#2086).
-    monkeypatch.undo()
-    reload_config()
+pytestmark = pytest.mark.usefixtures("case_actor_service_url")
 
 
 class TestSubmitReportLogMessages:

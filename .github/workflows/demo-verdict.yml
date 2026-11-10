@@ -1,0 +1,300 @@
+# Demo Verdict — does this pull request change what a demo scenario records or
+# checks?
+#
+# A change that extracts or merges demo code is a consolidation, and no
+# scenario's pass or fail may move in it (DEMOMA-17-002). What a scenario
+# passes or fails on is its protocol acts *and* its checks, and a committed
+# recording holds only the acts: a `demo_check` moved out of its `demo_gate`
+# leaves every committed file byte-identical (#5596). So the evidence is each
+# scenario recorded twice — once at this pull request's merge base and once at
+# its head — and compared on its normalized ledger and its check tree
+# (DEMOCI-11-054, DEMOCI-11-055).
+#
+# `compare-demo-runs` owns the verdict; this job owns only *which two commits*
+# and *is this pull request labelled*:
+#
+# - exit 0: every scenario agrees (or one differed and the label admitted it).
+# - exit 4: a scenario differs. The per-scenario diff goes to the job summary
+#   and the job fails (DEMOCI-11-061).
+# - exit 3: the run compared no scenario, which is its own distinct failure
+#   rather than a vacuous pass (DEMOCI-11-062, DF-09-009).
+# - exit 5: the job's own preflight — the merge base predates
+#   `compare-demo-runs`, so the base side cannot be recorded at all. Its own
+#   code, not 1: a reader of a red run should not have to tell "rebase this
+#   pull request" from "a scenario crashed".
+# - any other exit: the recorder itself broke. A difference exits 4 rather than
+#   1 precisely so the `demo-verdict-change` opt-out cannot excuse a crashed
+#   recorder as a deliberate change.
+#
+# One change has no arm here, and the label cannot admit it: the *head's*
+# `read_runs` reads the traces the *base's* `write_run` wrote, so a head commit
+# that changes the check tree's JSON shape while keeping
+# `traces.py`'s two filenames makes that read raise `DemoRecordingError` —
+# exit 1, the crashed-recorder code the opt-out deliberately excludes. Renaming
+# either filename is fine: the base side then reads as no run at all, every
+# scenario differs against `(not recorded)`, and that is an ordinary exit 4 the
+# label admits. So land a check-tree *shape* change in its own pull request
+# that keeps reading the old shape, and change the writer in the next one.
+#
+# Nothing is committed and no recording is regenerated: a pull request never
+# refreshes `ui/src/recordings/` (#3901), and a stale committed recording
+# cannot make this job red or green.
+#
+# `demo-verdict-change` is the opt-out. A deliberate verdict change belongs in
+# its own change with its own issue (DEMOMA-17-004); the label passes the job,
+# and the diff still reaches the summary, so the opt-out shows what it admits
+# (DEMOCI-11-063, DEMOCI-11-064). A person applies the label, so it is created
+# in the repository rather than by this workflow, and `labeled` and `unlabeled`
+# are triggers here: adding the label re-runs the job and turns it green,
+# removing it turns the job red again, neither needing a manual re-run. The
+# `CI gate` carries the same two types for that reason — it judges once per
+# pull-request event, so an event it misses would leave its earlier verdict
+# standing over a check that has since changed, and the ruleset requiring the
+# gate would admit the merge. A label a workflow's own `GITHUB_TOKEN` applies
+# raises no event (notes/ci-workflow-authoring.md), so the size label does not
+# re-run this.
+#
+# No matrix, so no shard: one in-process pass over the whole scenario tree runs
+# in under four minutes on a runner, counting checkout and setup (the latest 6
+# `Demo Recordings` runs took 2m19s to 3m49s end to end, 2026-11-09), against
+# 366 s in the resource-capped dev container. Two of them plus two `uv sync`
+# runs sit well inside this job's cap and inside the `CI gate`'s 60-minute
+# deadline. If wall time later demands sharding, the shards must be resolved
+# into a job output *before* matrix expansion, never by a job-level `if:` on
+# the `matrix` context, which GitHub rejects at startup with zero jobs and no
+# logs (DEMOCI-06-004, DEMOCI-06-010, #2118).
+#
+# CISEC-05 (notify-failure) does not apply: this workflow runs only on pull
+# requests, never on a push to `main` or a schedule, as `guard-tests.yml` and
+# `ci-gate.yml` do. A failure here is a failure on the pull request, where the
+# required `CI gate` judges it, and every merge into `main` passes through a
+# pull request this job gated, so `main` cannot go red here on a merge. There
+# is no `workflow_dispatch` either: a dispatch carries no base commit and no
+# pull-request labels, so it could only run over nothing, and the gate keeps
+# the newest run per workflow — that empty verdict would stand in for the real
+# one (the reason `guard-tests.yml` omits it too).
+#
+# The job makes no GitHub write, so nothing here needs
+# `.github/scripts/retry.sh`: the label is read from the event payload and the
+# verdict is the job's own exit status.
+#
+# `prepush-ci-mirror` does not mirror it; the registry excludes the workflow
+# with that reason (PAD-18-022, PAD-18-023).
+#
+# Design: notes/demo-scenario-tree.md § "Composition".
+# Reference: specs/demo-ci.yaml DEMOCI-11-054 to DEMOCI-11-064;
+# specs/multi-actor-demo.yaml DEMOMA-17-002, DEMOMA-17-004;
+# specs/testability.yaml TB-14-006.
+
+name: Demo Verdict
+
+on:
+  pull_request:
+    branches: ["main"]
+    # `labeled`/`unlabeled` beside the defaults, so the `demo-verdict-change`
+    # opt-out takes effect without a manual re-run.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    paths:
+      # The scenarios, their helpers and the recorder: what the comparison can
+      # see a change in. A core-only pull request is not a consolidation, and
+      # the daily `demo-recordings.yml` run covers its drift.
+      - "vultron/demo/**"
+      # The recorder reads the compose file for the cast's topology
+      # (`load_topology`) and feeds each slot's URL and default case roles
+      # into every run, so a changed slot URL or default role changes what
+      # every scenario records and the job has to start on it (DEMOCI-11-020,
+      # DEMOCI-11-032).
+      - "docker/docker-compose-multi-actor.yml"
+      # A change to the job itself must re-validate the job.
+      - ".github/workflows/demo-verdict.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  demo-verdict:
+    name: Demo verdict unchanged (ledger and checks)
+    runs-on: ubuntu-latest
+    # Two whole-tree recordings, each under four minutes on a runner, plus two
+    # `uv sync` runs. Capped at about 2.5x that so a hang fails in the job
+    # rather than holding a runner until GitHub's 6-hour default (TB-14-006),
+    # and well below the `CI gate`'s 60-minute deadline.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The head commit itself, not the merge commit GitHub synthesizes:
+          # the comparison's two sides are this pull request's own endpoints.
+          ref: ${{ github.event.pull_request.head.sha }}
+          # Full history, so the merge base with the base branch resolves.
+          fetch-depth: 0
+
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+
+      # Every scratch path is under $RUNNER_TEMP, outside the checkout: a side
+      # written into the repository would be read by the other side's recorder
+      # as committed input, and one directory in both --base and --head
+      # positions compares a side with itself (#5589). They are exported here
+      # rather than set as job-level `env:`, which cannot read the `runner`
+      # context. The opt-out label is read once, here, so the later steps name
+      # it nowhere (CS-22-001).
+      - name: Name the scratch paths and read the opt-out label
+        env:
+          ALLOW_DIFFERENCE: ${{ contains(github.event.pull_request.labels.*.name, 'demo-verdict-change') }}
+        run: |
+          set -euo pipefail
+          {
+            echo "BASE_TREE=$RUNNER_TEMP/base-tree"
+            echo "BASE_RUNS=$RUNNER_TEMP/runs/base"
+            echo "HEAD_RUNS=$RUNNER_TEMP/runs/head"
+            echo "COMPARE_LOG=$RUNNER_TEMP/compare.log"
+            echo "ALLOW_DIFFERENCE=$ALLOW_DIFFERENCE"
+          } >> "$GITHUB_ENV"
+
+      - name: Check out the merge base in a worktree
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          # Its own code, so a red run says "rebase" rather than reading as a
+          # crashed recorder (exit 1) or a difference (exit 4).
+          STALE_BASE_EXIT_CODE: "5"
+        run: |
+          set -euo pipefail
+          # The merge base, not the base branch's tip: a tip that moved ahead
+          # would attribute `main`'s own verdict changes to this pull request.
+          git fetch --no-tags --prune origin \
+            "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          base_sha="$(git merge-base "origin/${BASE_REF}" HEAD)"
+          echo "Merge base with ${BASE_REF}: ${base_sha}"
+          git worktree add --detach "$BASE_TREE" "$base_sha"
+          if [ ! -f "$BASE_TREE/vultron/demo/recordings/compare.py" ]; then
+            echo "::error::The merge base predates the compare-demo-runs command (#6025), so the base side cannot be recorded. Rebase this pull request onto a newer ${BASE_REF}."
+            exit "$STALE_BASE_EXIT_CODE"
+          fi
+
+      - name: Record every scenario at the merge base
+        working-directory: ${{ env.BASE_TREE }}
+        run: |
+          set -euo pipefail
+          # The base's own lock file and its own code: the base side has to be
+          # what the base commit records, not what the head's code records.
+          uv sync --dev --frozen
+          PYTHONPATH='' uv run compare-demo-runs --write "$BASE_RUNS"
+
+      - name: Record every scenario at the head
+        run: |
+          set -euo pipefail
+          PYTHONPATH='' uv run compare-demo-runs --write "$HEAD_RUNS"
+
+      - name: Compare the two runs
+        id: compare
+        run: |
+          set -euo pipefail
+          # The job's whole share of the verdict: the command decides, and the
+          # label only says whether a difference is admitted (DEMOCI-11-063,
+          # DEMOCI-11-064). The head's code reads both written sides, so one
+          # version does the comparing.
+          args=(--base "$BASE_RUNS" --head "$HEAD_RUNS")
+          if [ "$ALLOW_DIFFERENCE" = "true" ]; then
+            echo "This pull request carries demo-verdict-change: a difference is admitted, and still printed."
+            args+=(--allow-difference)
+          fi
+          set +e
+          PYTHONPATH='' uv run compare-demo-runs "${args[@]}" \
+            > "$COMPARE_LOG" 2>&1
+          status=$?
+          set -e
+          cat "$COMPARE_LOG"
+          # One signal for both arms: the command names the differing
+          # scenarios whether it admits them or fails on them.
+          if grep -q '^Differing scenarios' "$COMPARE_LOG"; then
+            echo "differs=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "differs=false" >> "$GITHUB_OUTPUT"
+          fi
+          exit "$status"
+
+      - name: Write the comparison to the job summary
+        # `!cancelled()`, so the summary is written on the arm that matters:
+        # the one where the comparison failed (DEMOCI-11-061). On a labelled
+        # pull request the comparison passed and the diff still lands here
+        # (DEMOCI-11-064).
+        if: ${{ !cancelled() }}
+        env:
+          # A step summary over 1 MiB is rejected whole, so a large diff
+          # truncates with a pointer to the artifact instead of losing the
+          # summary. Both limits, because either alone can be cleared while
+          # the other is blown: a normalized ledger entry is one JSON object
+          # on one line, so a few hundred lines can carry a megabyte, and a
+          # check-tree diff is short lines, so a megabyte is tens of
+          # thousands of them.
+          SUMMARY_LINE_LIMIT: "1500"
+          SUMMARY_BYTE_LIMIT: "600000"
+        run: |
+          set -euo pipefail
+          # Defaulted, not required: this step also runs when a step before
+          # the comparison failed, and then neither variable was exported.
+          allow="${ALLOW_DIFFERENCE:-false}"
+          log="${COMPARE_LOG:-}"
+          {
+            echo "## Demo verdict: merge base vs. head"
+            echo
+            if [ "$allow" = "true" ]; then
+              echo "This pull request carries \`demo-verdict-change\`, so a"
+              echo "difference is admitted. It is printed below."
+              echo
+            fi
+            if [ -z "$log" ] || [ ! -s "$log" ]; then
+              echo "The comparison produced no output, so the run failed"
+              echo "before it compared anything. Read the job log."
+            else
+              echo '```diff'
+              lines="$(wc -l < "$log")"
+              bytes="$(wc -c < "$log")"
+              # Two sequential reads through a file, never one pipeline.
+              # `head -c` exits at its cap and SIGPIPEs the `head -n` feeding
+              # it, which `pipefail` reports as 141 and `set -e` then acts on
+              # — killing this step on exactly the oversized diff the caps
+              # exist for, before the pointer and the closing fence are
+              # written, and turning a label-admitted green comparison red
+              # (DEMOCI-11-063, DEMOCI-11-064). `|| true` is not the fix: it
+              # would also swallow a real failure here (`neutering`, in
+              # test/ci/_workflows.py).
+              head -n "$SUMMARY_LINE_LIMIT" "$log" > "$RUNNER_TEMP/capped"
+              head -c "$SUMMARY_BYTE_LIMIT" "$RUNNER_TEMP/capped"
+              if [ "$lines" -gt "$SUMMARY_LINE_LIMIT" ] \
+                || [ "$bytes" -gt "$SUMMARY_BYTE_LIMIT" ]; then
+                echo
+                echo "... truncated at ${SUMMARY_LINE_LIMIT} lines or"
+                echo "${SUMMARY_BYTE_LIMIT} bytes, of ${lines} lines and"
+                echo "${bytes} bytes; the whole log is in the"
+                echo "demo-verdict-runs artifact."
+              fi
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload both sides' traces
+        # On a difference either way, and on any failure, so a reader can diff
+        # the two sides themselves. The run attempt is in the name: a re-run
+        # uploads beside the earlier attempt under the same name, and a
+        # download by that name can return the stale one (#4577).
+        if: ${{ failure() || steps.compare.outputs.differs == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-verdict-runs-${{ github.run_attempt }}
+          # The same variables the scratch-path step declared, not a second
+          # spelling of them (CS-22-001): a renamed path would otherwise
+          # upload an empty artifact while the summary points a reader at it.
+          path: |
+            ${{ env.BASE_RUNS }}
+            ${{ env.HEAD_RUNS }}
+            ${{ env.COMPARE_LOG }}
+          retention-days: 14
+          # `warn`, not `ignore`: on an early failure there is genuinely
+          # nothing to upload, and a rename must still say so out loud.
+          if-no-files-found: warn

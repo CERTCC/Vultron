@@ -20,7 +20,7 @@ import inspect
 import logging
 import pkgutil
 import re
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from types import ModuleType
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -907,3 +907,84 @@ def expect_no_inbox_refusals(
     assert not refusals, "an actor's inbox refused an activity:\n" + (
         "\n".join(refusals)
     )
+
+
+#: What one milestone read: the helper, the cast member whose container was
+#: read, and the actor the read was about.
+MilestoneRead = tuple[str, str, str]
+
+
+def cast_name_of(state: StoryState, client: object) -> str:
+    """Return the cast member whose container *client* is.
+
+    Args:
+        state: The running story's state.
+        client: The client a recorded call was handed.
+
+    Returns:
+        The cast name, or ``"unknown"`` when no seat holds that client — which
+        is itself a finding, so it is reported rather than raised.
+    """
+    for member in state.cast:
+        if state.client(member) is client:
+            return member
+    return "unknown"
+
+
+@contextlib.contextmanager
+def recorded_milestone_reads(
+    state: StoryState,
+    module: ModuleType,
+    helpers: Mapping[str, tuple[str, str]],
+) -> Iterator[list[MilestoneRead]]:
+    """Record what the continuations in *module* read, by helper and subject.
+
+    Each entry names the helper, the cast member whose container was read and
+    the actor the read was about, which is the whole of what a milestone
+    asserts: two milestones that record the same set assert the same thing
+    whatever their labels say, and one whose set is a **subset** of the
+    other's adds nothing (#5602).
+
+    One recorder for both story families rather than a copy per family
+    (CS-22-001): the coordinator-first copy discarded its keyword arguments,
+    so a rewrite that read the Coordinator's own participant record instead
+    of the Vendor's passed (#6186).  Each helper is replaced with
+    :func:`unittest.mock.patch.object`, so renaming one raises
+    ``AttributeError`` here rather than silently emptying the recorded set
+    (#5535).
+
+    Args:
+        state: The running story's state, used to name each container.
+        module: The continuations module whose helpers to replace.
+        helpers: Each helper's name on *module*, mapped to the keyword
+            arguments naming the container read and the actor read about.
+
+    Yields:
+        The reads, in call order, appended to as the continuation runs.
+    """
+    reads: list[MilestoneRead] = []
+
+    def _named(
+        helper: str, client_key: str, actor_key: str
+    ) -> Callable[..., None]:
+        def record(**kwargs: object) -> None:
+            reads.append(
+                (
+                    helper,
+                    cast_name_of(state, kwargs[client_key]),
+                    str(kwargs[actor_key]),
+                )
+            )
+
+        return record
+
+    with contextlib.ExitStack() as stack:
+        for helper, (client_key, actor_key) in helpers.items():
+            stack.enter_context(
+                patch.object(
+                    module,
+                    helper,
+                    side_effect=_named(helper, client_key, actor_key),
+                )
+            )
+        yield reads

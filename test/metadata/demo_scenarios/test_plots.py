@@ -69,6 +69,7 @@ from vultron.metadata.demo_scenarios.plots import (
     plot_manifest,
     plot_rows,
 )
+from vultron.metadata.demo_scenarios.stories import story_path
 from vultron.metadata.demo_scenarios.sync import (
     ARTIFACTS,
     WRITE_COMMAND,
@@ -194,13 +195,19 @@ def fixture_root(tmp_path: Path) -> Path:
 def test_moving_a_choose_past_its_fragment_fails_the_check(
     fixture_root: Path,
 ) -> None:
-    """The reorder the manifest exists for is reported, and only by it.
+    """The reorder the manifest exists for is reported, by it and by the story.
 
     Both halves matter. The manifest is stale, so the gate is not vacuous;
-    and no *other* artifact is, which is why a reorder needed a new artifact
+    and no *older* artifact is, which is why a reorder needed a new artifact
     rather than a stricter reading of an existing one — the CI matrix and the
     two scenario tables are projections of the decorator's prose fields, and
     the path is unchanged.
+
+    The scenario's generated story is stale too, and that is not a second
+    gate: it renders the same items in the same order as prose
+    (DEMOCI-11-068), so a reorder moves both. It is named here rather than
+    filtered out, because a change that left the story in sync while the
+    manifest moved would mean the two had stopped reading one story.
     """
     assert (
         stale_artifacts(fixture_root, (_fixture_spec(_ordered_story()),)) == []
@@ -208,7 +215,7 @@ def test_moving_a_choose_past_its_fragment_fails_the_check(
 
     stale = stale_artifacts(fixture_root, (_fixture_spec(_reordered_story()),))
 
-    assert stale == [PLOT_MANIFEST]
+    assert stale == [PLOT_MANIFEST, story_path(_FIXTURE_NAME)]
 
 
 @pytest.mark.spec("DEMOCI-11-035")

@@ -18,6 +18,7 @@ from vultron.core.models.events import (
     MessageSemantics,
     VultronEvent,
 )
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     DEFAULT_RSVP_WINDOW,
@@ -50,6 +51,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseReference,
     case_reference,
 )
+from vultron.wire.csaf.reader import read_report_attachments
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +194,16 @@ def extract_intent(
         extra_kwargs["proposed_embargo"] = proposed_embargo
 
     extra_kwargs.update(_content_kwargs(activity, event_class))
+
+    if "claims_readings" in event_class.model_fields and isinstance(
+        obj, VulnerabilityReport
+    ):
+        # Read at the edge, so core receives claims and never a CSAF document
+        # (ADR-0032).  An unreadable attachment yields no reading; nothing
+        # here refuses the Offer (CSAF-02-006).
+        extra_kwargs["claims_readings"] = read_report_attachments(
+            obj.attachment, activity_id=activity.id_, actor_id=sender_id
+        )
 
     if "proposer_profile" in event_class.model_fields:
         extra_kwargs["proposer_profile"] = _proposer_profile(activity)

@@ -101,8 +101,12 @@ canonical order, everywhere".
 
 **Why the set is sufficient.** Together the members cover every semantic-type
 column, and every non-member names a member that already covers its semantic types
-and protocol paths. Non-members add regression depth, not breadth, so they run
-only on push to `main` (DEMOCI-06-003) and cost a PR nothing. The other
+and protocol paths. Non-members add regression depth, not breadth, so as
+container demos they run only on push to `main` (DEMOCI-06-003) and cost a PR
+nothing there. They are not free to a PR overall: `demo-verdict.yml` records
+every registered scenario in-process, member and non-member alike, on any PR
+that changes `vultron/demo/` (DEMOCI-11-054). Membership is a question about
+this workflow's container matrix only. The other
 dimensions are covered either by a member (`rcvcv` for multi-vendor), by an
 invariant that needs no extra scenario (Invariant 7), or by `demo_check`
 assertions that run wherever the scenario runs.

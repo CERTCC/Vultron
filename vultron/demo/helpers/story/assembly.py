@@ -14,15 +14,19 @@
 
 :data:`Fragment`, :class:`StoryProp`, :func:`choose` and :func:`story`, the
 parts a scenario writes its story from (:mod:`vultron.demo.helpers.story`),
-and :func:`fragment_name`, how a fragment is named once it is written down.
+and :func:`fragment_name` and :func:`fragment_sentence`, how a fragment is
+named and how it says what it does once it is written down.
 """
 
 from __future__ import annotations
 
+import inspect
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from vultron.demo.helpers.cast import ALL_SLOTS
 from vultron.demo.scenario.branch_points import validate_path
 from vultron.demo.scenario.tree import PathStep
 from vultron.errors import DemoStoryError
@@ -97,6 +101,241 @@ def fragment_name(fragment: object, *, scenario: str) -> str:
             "inside it."
         )
     return f"{module}.{qualname}"
+
+
+#: Every word that names a container rather than the case: each container's
+#: own slug, read from :data:`~vultron.demo.helpers.cast.ALL_SLOTS` so a sixth
+#: slot cannot be added without joining this check, and the bare word
+#: ``container`` itself.  A container is *where* a step runs, never what it
+#: does, so naming one in a fragment's opening sentence tells a reader of the
+#: story nothing about the case (DEMOCI-11-066).  Each is matched with an
+#: optional plural rather than listed twice, so "the container holds
+#: containers" is the one offence it is and prints one line (EH-07-001).
+_CONTAINER_WORDS: frozenset[str] = frozenset(
+    [*(slot.name for slot in ALL_SLOTS), "container"]
+)
+
+#: A code identifier spelled as words joined by underscores:
+#: ``add_note_to_case``, ``CASE_OWNER``.  It is the one spelling a sentence
+#: about coordinated disclosure never needs — the domain terms are "the case
+#: note" and "the Case Owner" — so it is the mechanical signal that a
+#: docstring opened in code rather than in domain terms (DEMOCI-11-066).
+_IDENTIFIER_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b")
+
+#: A code identifier spelled in dotted notation: ``CS.P``, ``EM.ACTIVE``,
+#: ``CVDRole.COORDINATOR``.  One side has to start with a capital, which rules
+#: out a lowercase pair such as ``e.g``.  That alone does not keep a
+#: sentence's own full stop out of it — ``"Acme Inc. engages"`` has a space
+#: after the stop and does not match, but ``"the U.S. CERT"`` would — so the
+#: scan runs on the text :func:`_without_abbreviations` has blanked, the same
+#: text the one-sentence check reads.
+_DOTTED_RE = re.compile(
+    r"\b(?:[A-Z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*"
+    r"|[A-Za-z][A-Za-z0-9_]*\.[A-Z][A-Za-z0-9_]*)\b"
+)
+
+#: A demo milestone marker opening the sentence: ``M1:``, ``M2:``.  The
+#: markers are the harness's own bookkeeping for which checkpoint a run
+#: reached; they say nothing to the CVD reader the story is rendered for
+#: (DEMOCI-11-065), so they belong in the docstring's body.
+_MILESTONE_RE = re.compile(r"^M\d+:")
+
+#: Punctuation that may close a sentence after its full stop, stripped before
+#: the full-stop test so a quoted or parenthesised ending is not refused.
+_CLOSERS = "\"'’”)]"
+
+#: Abbreviations whose own full stop is not the end of a sentence.  Kept short
+#: and extended only when a real fragment needs one: every entry weakens the
+#: one-sentence check for every sentence.
+_ABBREVIATIONS: tuple[str, ...] = (
+    "e.g.",
+    "i.e.",
+    "etc.",
+    "cf.",
+    "vs.",
+    "Inc.",
+    "Ltd.",
+    "Co.",
+    "U.S.",
+)
+
+#: One of :data:`_ABBREVIATIONS` where a word starts, so a word that merely
+#: *ends* in one is left alone: without the boundary, ``vs.`` matches inside
+#: "the Vendor's revs." and the sentence break after it goes unseen.
+_ABBREVIATION_RE = re.compile(
+    "|".join(
+        rf"(?<!\w){re.escape(abbreviation)}" for abbreviation in _ABBREVIATIONS
+    )
+)
+
+#: A sentence ending followed by more text: the signal that the summary holds
+#: more than one sentence.  Covers ``?`` and ``!`` as well as the full stop,
+#: because a question a step asks is still a whole sentence, and spans the
+#: same :data:`_CLOSERS` the full-stop test strips: a first sentence ending
+#: inside a quote or a paren still ends there.
+_SENTENCE_BREAK_RE = re.compile(rf"[.!?][{re.escape(_CLOSERS)}]*\s+\S")
+
+
+def _opening_paragraph(fragment: object) -> str:
+    """Return *fragment*'s docstring up to its first blank line, as one line.
+
+    The docstring's summary, not its first physical line: a summary long
+    enough to wrap is still one sentence, and reading only the first line
+    would cut it in half.  Everything after the blank line is the body, which
+    a story never shows.
+    """
+    doc = inspect.getdoc(fragment)
+    if not doc:
+        return ""
+    summary: list[str] = []
+    for line in doc.splitlines():
+        if not line.strip():
+            break
+        summary.append(line.strip())
+    return " ".join(summary)
+
+
+def _without_abbreviations(sentence: str) -> str:
+    """Return *sentence* with each :data:`_ABBREVIATIONS` entry blanked out.
+
+    Both checks that read a full stop as punctuation rather than as prose run
+    on this text: the one-sentence check, so an abbreviation's stop is not an
+    ending and the author is not told to move a remainder that does not
+    exist, and the dotted-identifier scan, so ``"the U.S. CERT"`` is not
+    reported as a code name.  One helper for both, because an abbreviation
+    the one check knows and the other does not is how the same sentence came
+    to be refused twice with two wrong reasons.
+
+    Blanked with spaces, not underscores: an underscore run is the one
+    spelling :data:`_IDENTIFIER_RE` looks for, so blanking with it would
+    teach one check by misleading another.
+    """
+    return _ABBREVIATION_RE.sub(
+        lambda match: " " * len(match.group()), sentence
+    )
+
+
+def _holds_two_sentences(sentence: str) -> bool:
+    """Whether *sentence* ends one sentence and starts another."""
+    scanned = _without_abbreviations(sentence)
+    return _SENTENCE_BREAK_RE.search(scanned) is not None
+
+
+def _sentence_violations(sentence: str) -> list[str]:
+    """Return every way *sentence* is not one sentence in CVD domain terms.
+
+    Every violation is reported, not the first: the sentence is refused as a
+    unit, so an author told one reason at a time gains nothing from the round
+    trip (EH-07-001).  Each kind is reported once however often it occurs, so
+    a sentence naming one identifier twice does not print the same line twice.
+    """
+    violations: list[str] = []
+    if not sentence.rstrip(_CLOSERS).endswith("."):
+        violations.append(
+            "it does not end in a full stop, so where the sentence ends is a "
+            "guess"
+        )
+    if _holds_two_sentences(sentence):
+        violations.append(
+            "it holds more than one sentence; the opening sentence is the "
+            "whole of what a story shows for the step, so put the rest in "
+            "the docstring's body"
+        )
+    if "`" in sentence:
+        violations.append(
+            "it holds a backtick, which marks code rather than domain prose"
+        )
+    if _MILESTONE_RE.match(sentence):
+        violations.append(
+            "it opens with a demo milestone marker, which is the harness's "
+            "bookkeeping rather than anything the case did; move it to the "
+            "docstring's body"
+        )
+    dotted = set(_DOTTED_RE.findall(_without_abbreviations(sentence)))
+    # A dotted name's own tail is an underscore-joined name too, so
+    # CVDRole.CASE_OWNER matches both patterns.  Report the whole name only:
+    # the offence is one, and naming its half beside it reads as two.
+    identifiers = {
+        match
+        for match in _IDENTIFIER_RE.findall(sentence)
+        if not any(match in name for name in dotted)
+    }
+    violations.extend(
+        f"it names the code identifier {match!r}"
+        for match in sorted(dotted | identifiers)
+    )
+    lowered = sentence.lower()
+    violations.extend(
+        f"it names the container {word!r}"
+        for word in sorted(_CONTAINER_WORDS)
+        if re.search(rf"\b{re.escape(word)}s?\b", lowered)
+    )
+    return violations
+
+
+def fragment_sentence(fragment: object, *, scenario: str) -> str:
+    """Return *fragment*'s opening sentence: what the step does, in domain terms.
+
+    The plot manifest names a fragment by code (:func:`fragment_name`), which
+    a CVD domain expert cannot review.  One domain sentence per fragment is
+    what lets each scenario's plot render as a numbered story on its narrative
+    page (DEMOCI-11-065, DEMOCI-11-067).
+
+    What "a code identifier" is read as, which DEMOCI-11-066 leaves wider
+    than the check: a backtick, a name spelled as words joined by
+    underscores or in dotted notation, a demo milestone marker, and any word
+    that names a container rather than the case.  A *requirement or decision id*
+    in parentheses — ``(CSB-15-002)``, ``(DEMOMA-14-004)`` — is a citation,
+    not a code identifier, and is left alone: the narrative pages these
+    sentences render into cite requirements in prose themselves, and the
+    citation is how a reader checks the step against the spec.
+
+    A step that cannot be named cannot be read either, so this starts from
+    :func:`fragment_name`.  That is not only for the message: a
+    ``functools.partial`` and a callable instance both answer ``__doc__``
+    with a docstring their *class* owns — ``functools.partial``'s own reads
+    "Create a new function with partial application ..." — which says nothing
+    about the step and would pass every check below.
+
+    Args:
+        fragment: The story item, a :data:`Fragment`.  Typed as an opaque
+            object for the same reason as in :func:`fragment_name`: whether it
+            carries a usable docstring at all is part of what is being
+            decided.
+        scenario: The scenario whose story holds it, for the message.
+
+    Returns:
+        The docstring's summary — its text up to the first blank line, joined
+        into one line.
+
+    Raises:
+        DemoStoryError: As :func:`fragment_name`, and when the summary is
+            missing, is more than one sentence, or is written in code rather
+            than in domain terms (DEMOCI-11-066).  Refusing beats rendering
+            it: a story line holding a backtick or a ``snake_case`` name is
+            the manifest's code name again, which is what the rendering
+            exists to replace.
+    """
+    name = fragment_name(fragment, scenario=scenario)
+    sentence = _opening_paragraph(fragment)
+    violations = (
+        _sentence_violations(sentence)
+        if sentence
+        else [
+            "it has no docstring, so there is no sentence to open with; "
+            "every fragment the plot manifest names has one"
+        ]
+    )
+    if violations:
+        raise DemoStoryError(
+            f"scenario {scenario!r} has a story fragment "
+            f"{name} whose opening sentence cannot be "
+            f"told as a story: {'; '.join(violations)} (DEMOCI-11-065, "
+            "DEMOCI-11-066). Open the docstring with one sentence saying "
+            "what the step does in CVD domain terms, naming roles and acts "
+            "rather than identifiers, helpers or containers."
+        )
+    return sentence
 
 
 @dataclass(frozen=True)

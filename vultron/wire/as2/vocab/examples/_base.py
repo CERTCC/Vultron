@@ -24,6 +24,7 @@ from vultron.core.models._helpers import (
     URN_UUID_PREFIX,
     SteppingClock,
     clock as helpers_clock,
+    install_id_source,
 )
 from vultron.core.models.actor import hosted_endpoints
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -111,9 +112,9 @@ def _make_id(object_type: str) -> str:
 class _ScopedIds:
     """An id source that derives each draw from the example asking for it.
 
-    Stands in for ``uuid.uuid4`` inside :func:`_example_scope`, which is where
-    ``new_object_id``'s system id source draws its bits, so an object built
-    without an explicit ``id_`` still gets a stable one.  Each draw is
+    The id source :func:`_example_scope` installs for the minter
+    (``install_id_source``, OID-01-011), so an object built without an
+    explicit ``id_`` still gets a stable one.  Each draw is
     :func:`example_uuid` of the scope name and the draw's position within that
     scope, so the ids one example carries depend on that example alone:
     entering another scope before or after it moves none of them.  That is the
@@ -122,8 +123,8 @@ class _ScopedIds:
     adding an example would shift every id drawn after it, which is the
     88-files-changed-to-alter-18 problem #5776 was filed for.
 
-    Not thread-safe, and neither is the patch that installs it: the generator
-    builds one example at a time, in one thread.
+    Not thread-safe, and the install is process-wide: the generator builds one
+    example at a time, in one thread.
     """
 
     def __init__(self, scope: str) -> None:
@@ -153,18 +154,20 @@ def _example_scope(scope: str) -> Iterator[None]:
     seeded (see :class:`_ScopedIds`), and the clock has to be frozen rather
     than stepping so that two objects in one example agree.  What the two do
     share, ``SteppingClock``, is imported rather than copied.
-    ``deterministic_run``'s ``sys.modules`` sweep is not needed here: the one
-    draw on the example build path is the system id source behind
-    ``new_object_id``, which reaches ``uuid4`` as an attribute of the ``uuid``
-    module, so patching that attribute reaches it.
 
-    The patch is process-global for the duration of the block, so a caller
+    The ids come through the minter's scoped install (``install_id_source``,
+    ADR-0185), not a patch of the ``uuid`` module's draw, which nothing may
+    replace (OID-01-012).  The install does not nest, so this block may not be
+    entered inside another install, nor inside itself: that raises
+    ``VultronIdSourceInstalledError`` rather than mixing two streams of ids.
+
+    The install is process-wide for the duration of the block, so a caller
     must not enter it while another thread is minting ids: an id drawn there
     would be an example id rather than a fresh one.  Every caller is a
     single-threaded generator or test.
     """
     with (
-        patch.object(uuid, "uuid4", _ScopedIds(scope)),
+        install_id_source(_ScopedIds(scope)),
         patch.object(
             helpers_clock,
             "datetime",
@@ -234,8 +237,8 @@ _REPORT = as_VulnerabilityReport(
 # ``as_VulnerabilityCase`` constructor builds an initial ``CaseStatus``
 # inline, whose own id and ``published`` it draws.  So this single
 # construction runs inside a scope.  It is the only import-time use of
-# ``_example_scope``; see that function on why the patch it installs must not
-# be entered while another thread is minting ids.
+# ``_example_scope``; see that function on why the id source it installs must
+# not be entered while another thread is minting ids.
 with _example_scope("shared-case"):
     _CASE = as_VulnerabilityCase(
         name=f"{_VENDOR.name} Case #{case_number}",

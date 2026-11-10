@@ -784,7 +784,11 @@ class TestBothVendorsFixTheVul:
     """Each Vendor reports fix ready; neither deploys."""
 
     def test_the_fragment_numbers_this_scenarios_two_milestones(self):
-        """The shared step takes the milestone labels as data."""
+        """The shared step takes each half's label as its own argument.
+
+        M5 is the fix-ready half and M6 the VFd-ceiling half, so the second
+        label no longer repeats the first's claim (#5602).
+        """
         state = _four_party_state()
 
         with patch.object(
@@ -793,9 +797,23 @@ class TestBothVendorsFixTheVul:
             demo.both_vendors_fix_the_vul(state)
 
         assert fix_ready.call_args.args == (state,)
-        milestones = fix_ready.call_args.kwargs["milestones"]
-        assert [m.split(":")[0] for m in milestones] == ["M5", "M6"]
-        assert all("fix ready" in m for m in milestones), milestones
+        kwargs = fix_ready.call_args.kwargs
+        assert set(kwargs) == {"reached", "stopped"}, kwargs
+        assert kwargs["reached"].startswith("M5: ")
+        assert "fix ready" in kwargs["reached"], kwargs["reached"]
+        # The label names each vendor's own replica, not every
+        # vendor's on every replica: each vendor's VF is read on its own
+        # replica and the Reporter's, never cross-read (#5602).
+        assert "each vendor's own replica" in kwargs["reached"], kwargs[
+            "reached"
+        ]
+        assert kwargs["stopped"].startswith("M6: ")
+        assert "both vendors stopped at VFd" in kwargs["stopped"], kwargs[
+            "stopped"
+        ]
+        assert "no fix-deployed transition" in kwargs["stopped"], kwargs[
+            "stopped"
+        ]
 
     def test_vendor1_reports_before_vendor2_and_each_is_rm_gated(self):
         """CSB-18-001: notify-fix-ready needs RM out of triage first.
@@ -825,6 +843,7 @@ class TestBothVendorsFixTheVul:
                 vendor_continuations, "wait_for_participant_vf_state"
             ),
             patch.object(vendor_continuations, "verify_fix_ready") as verify,
+            patch.object(vendor_continuations, "verify_stops_at_fix_ready"),
             patch.object(
                 ActorSession,
                 "notify_fix_ready",
@@ -851,17 +870,24 @@ class TestBothVendorsFixTheVul:
             f"rm_wait:{state.actor_id(VENDOR2)}",
             f"ready:{state.actor_id(VENDOR2)}",
         ], order
-        # Both milestones read Vendor1's VF on Vendor1's and the Reporter's
-        # replicas; the fix-ready verification is the Case Owner's.
-        assert verify.call_args.kwargs["receiver_client"] is state.client(
-            VENDOR
-        )
-        assert verify.call_args.kwargs["receiver_actor_id"] == state.actor_id(
-            VENDOR
-        )
+        # The fix-ready milestone verifies each Vendor on its own container,
+        # Vendor1 first (#5602).
+        assert [
+            (c.kwargs["receiver_client"], c.kwargs["receiver_actor_id"])
+            for c in verify.call_args_list
+        ] == [
+            (state.client(VENDOR), state.actor_id(VENDOR)),
+            (state.client(VENDOR2), state.actor_id(VENDOR2)),
+        ]
 
-    def test_both_milestones_watch_vendor1_at_vf_on_both_replicas(self):
-        """M5 and M6 read the same two replicas, under two labels."""
+    def test_the_fix_ready_milestone_watches_both_vendors_on_both_replicas(
+        self,
+    ):
+        """M5 reads each Vendor's VF on its own replica and the Reporter's.
+
+        Each Vendor's fix path is its own (DEMOMA-09-009), so a label naming
+        both reads both; M5 used to read Vendor1 twice (#5602).
+        """
         state = _four_party_state()
 
         with (
@@ -875,6 +901,7 @@ class TestBothVendorsFixTheVul:
                 vendor_continuations, "wait_for_participant_vf_state"
             ) as vf_wait,
             patch.object(vendor_continuations, "verify_fix_ready"),
+            patch.object(vendor_continuations, "verify_stops_at_fix_ready"),
             patch.object(ActorSession, "notify_fix_ready"),
             _no_banners(),
         ):
@@ -884,15 +911,48 @@ class TestBothVendorsFixTheVul:
             (c.kwargs["client"], c.kwargs["actor_id"])
             for c in vf_wait.call_args_list
         }
-        for watcher in (VENDOR, REPORTER):
-            assert (
-                state.client(watcher),
-                state.actor_id(VENDOR),
-            ) in watched
+        for vendor in (VENDOR, VENDOR2):
+            for watcher in (vendor, REPORTER):
+                assert (
+                    state.client(watcher),
+                    state.actor_id(vendor),
+                ) in watched
         assert all(
             c.kwargs["expected_states"] == {CS_vf.VF}
             for c in vf_wait.call_args_list
         )
+
+    @pytest.mark.spec("CSB-15-002")
+    def test_the_ceiling_milestone_reads_both_vendors_missing_deployment(self):
+        """M6 reads the d→D transition neither Vendor makes (#5602)."""
+        state = _four_party_state()
+
+        with (
+            patch.object(
+                coordinated_continuations, "wait_for_participant_rm_state"
+            ),
+            patch.object(
+                coordinated_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(
+                vendor_continuations, "wait_for_participant_vf_state"
+            ),
+            patch.object(vendor_continuations, "verify_fix_ready"),
+            patch.object(
+                vendor_continuations, "verify_stops_at_fix_ready"
+            ) as stopped,
+            patch.object(ActorSession, "notify_fix_ready"),
+            _no_banners(),
+        ):
+            demo.both_vendors_fix_the_vul(state)
+
+        assert [
+            (c.kwargs["receiver_client"], c.kwargs["receiver_actor_id"])
+            for c in stopped.call_args_list
+        ] == [
+            (state.client(VENDOR), state.actor_id(VENDOR)),
+            (state.client(VENDOR2), state.actor_id(VENDOR2)),
+        ]
 
 
 # ---------------------------------------------------------------------------

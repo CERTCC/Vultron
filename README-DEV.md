@@ -91,14 +91,24 @@ is centralized instead:
 
 ```shell
 # Rebuild the shared graph on demand (CPU-capped, from origin/main). Running
-# slots pick up the new graph on their next restart.
+# slots see the new graph as soon as the build finishes.
 ./start-dev.sh --build-graph
 ```
 
-Inside a slot, `graph.json` is mounted read-only, so agents can
-`graphify query`/`path`/`explain` but cannot trigger a rebuild. The query flow's
+Inside a slot, the shared graph directory is mounted read-only at
+`/graphify-shared`, and `graphify-out/graph.json` (with `manifest.json`,
+`.graphify_root` and `.graphify_python`) is a symlink into it. Agents can
+`graphify query`/`path`/`explain` but cannot trigger a rebuild: `graphify-out/`
+is root-owned with the sticky bit, so a slot cannot replace those symlinks with a
+local copy that would stop seeing shared rebuilds. The query flow's
 scratch (`.vocab.txt`, `memory/`) writes to a throwaway in-container `graphify-out/`
 and is discarded on teardown.
+
+The directory is mounted, not the files, so a rebuild reaches running slots. A
+single-file bind mount stays pinned to the file it started with, and a rebuild
+replaces `graph.json` by rename, so a slot kept reading the old, deleted file.
+A slot created before this change still has the per-file mounts; remove and
+recreate it once to switch.
 
 If you previously ran `graphify hook install` in your host checkout, remove it —
 the host hooks run with no CPU cap and are the worst offender:

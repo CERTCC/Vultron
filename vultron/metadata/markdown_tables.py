@@ -181,6 +181,22 @@ class MarkdownSection:
     lines: tuple[tuple[int, str], ...]
     fenced: frozenset[int]
 
+    @property
+    def unfenced_lines(self) -> tuple[tuple[int, str], ...]:
+        """:attr:`lines` without the fenced ones, true numbers kept.
+
+        Every caller that must not read fenced content asks the same question
+        of the same two fields, so the pairing lives here rather than once
+        per caller: :func:`iter_tables`, so a pipe table shown as an example
+        is not returned, and a prose check that must not accept a directive
+        a page only *documents*.
+        """
+        return tuple(
+            (number, line)
+            for number, line in self.lines
+            if number not in self.fenced
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class MarkdownTable:
@@ -349,11 +365,7 @@ def iter_tables(text: str) -> tuple[MarkdownTable, ...]:
     """
     tables: list[MarkdownTable] = []
     for section in iter_sections(text):
-        lines = [
-            (number, line)
-            for number, line in section.lines
-            if number not in section.fenced
-        ]
+        lines = list(section.unfenced_lines)
         index = 0
         while index < len(lines):
             number, line = lines[index]

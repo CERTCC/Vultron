@@ -260,7 +260,7 @@ REPORTER_PROPOSES_EMBARGO = story(
 
 
 def embargo_survives_the_fix(state: StoryState) -> None:
-    """The fix being ready leaves the embargo alone (``EM.ACTIVE``)."""
+    """The fix being ready leaves the embargo in force."""
     assert_canonical_em_state(state, EM.ACTIVE, "fix_lifecycle")
 
 
@@ -287,12 +287,12 @@ def coordinator_ends_the_embargo(state: StoryState) -> None:
 
 
 def embargo_stays_ended_through_publication(state: StoryState) -> None:
-    """Publication leaves the ended embargo ended (``EM.EXITED``)."""
+    """Publication leaves the already-ended embargo ended."""
     assert_canonical_em_state(state, EM.EXITED, "publication")
 
 
 def embargo_stays_ended_through_closure(state: StoryState) -> None:
-    """Closing the case leaves the ended embargo ended (``EM.EXITED``)."""
+    """Closing the case leaves the already-ended embargo ended."""
     assert_canonical_em_state(state, EM.EXITED, "case_closure")
 
 

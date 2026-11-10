@@ -76,10 +76,10 @@ data across restarts:
 | `~/.claude` | `/home/vscode/.claude` | read-write | Claude Code config, sessions, memory — shared across all slots |
 | `wip_notes/` (repo root) | `/app/wip_notes` (`$WIP_NOTES`) | read-only | Drop context files here on the host; agents can read them |
 | `wip_outputs/<slot>/` (repo root) | `/app/wip_outputs` (`$WIP_OUTPUTS`) | read-write | Agents write outputs here; each slot sees only its own subdirectory |
-| `~/dev/graphify-out/<slot>/` | `/app/graphify-out` | read-write | Per-slot graph data from `/graphify`; expensive to regenerate |
+| `~/dev/graphify-out/shared/` | `/graphify-shared` | read-only | Shared knowledge graph built by `start-dev.sh --build-graph`; `/app/graphify-out/graph.json` symlinks into it |
 
 `start-dev.sh` creates `wip_notes/`, `wip_outputs/`, and
-`~/dev/graphify-out/<slot>/` automatically on first use.
+`~/dev/graphify-out/shared/` automatically on first use.
 
 ## Skills
 

@@ -257,6 +257,41 @@ def _check_participant_d_state_in(
         )
 
 
+def _check_participant_not_fix_deployed(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    label: str,
+) -> None:
+    """Assert actor's latest participant status records no d→D transition.
+
+    Not ``_check_participant_d_state_in(…, {CS_d.d}, …)``: a participant that
+    holds no DEPLOYER role carries no ``d`` dimension at all, so its D state
+    reads ``None`` rather than ``CS_d.d``
+    (:func:`~vultron.core.models.participant_status\
+    .participant_status_d_state`).  Both answers say the fix was not
+    deployed and only ``CS_d.D`` says it was, so pinning the set to
+    ``{CS_d.d}`` would fail on the very shape the claim is about (#5602).
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        label: Human-readable label for ``AssertionError`` messages.
+
+    Raises:
+        AssertionError: If the participant is missing, has no statuses, or its
+            latest status records ``CS_d.D``.
+    """
+    participant = _fetch_participant(client, case_id, actor_id)
+    latest = _latest_status_of(participant, actor_id, label)
+    latest_d = participant_status_d_state(latest)
+    if latest_d is CS_d.D:
+        raise AssertionError(
+            f"{label}: expected no fix-deployed (D) state, found {latest_d!r}"
+        )
+
+
 def _assert_participant_pxa_only(
     participant: as_CaseParticipant,
     label: str,

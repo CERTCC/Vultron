@@ -20,4 +20,7 @@
 - :mod:`.corpus` runs those models over a local clone of the CSAF Technical
   Committee's test documents (``csaf-corpus``), outside the test suite
   (CSAF-05-004).
+- :mod:`.draft_watch` compares a checkout of the draft's head with the pinned
+  revision for the scheduled ``CSAF Draft Watch`` workflow
+  (``csaf-draft-watch``, CSAF-05-005 to CSAF-05-007).
 """
