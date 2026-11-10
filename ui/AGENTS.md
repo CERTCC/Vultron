@@ -159,7 +159,8 @@ generated from `SEMANTIC_REGISTRY` by `uv run export-demo-semantics`
 and drift-tested, lists every semantic type with its wire summary and phrase
 template. `src/semanticRegistry.ts` is the only file that reads it. Do not add a
 closed list of semantic types or a phrase table to `ui/`: the Python demo
-report renders the same templates (DRPT-03-005).
+report renders the same templates (DRPT-03-005). A Wire Activity a string names
+is its occasion's registry `wire` form (Annex C); `src/wireNotation.test.ts` checks.
 
 The scenario tree works the same way. `src/data/scenario_tree.json`, generated
 by `uv run export-demo-tree`
