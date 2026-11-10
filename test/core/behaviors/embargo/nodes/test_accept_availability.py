@@ -35,6 +35,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     OTHER_PARTICIPANT_ACTOR,
     make_case_with_manager,
 )
+from test.support.act_runner import run_tree
 from test.support.embargo_register import propose, reject, write_consent_rows
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -80,11 +81,17 @@ def _run(
     tree = py_trees.composites.Sequence(
         name="Probe", memory=False, children=[node]
     )
-    BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl) if with_factory else None,
-        sync_port=SyncActivityAdapter(dl) if with_factory else None,
-    ).execute_with_setup(tree=tree, actor_id=actor_id)
+    run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl)
+            if with_factory
+            else None,
+            sync_port=SyncActivityAdapter(dl) if with_factory else None,
+        ),
+        tree=tree,
+        actor_id=actor_id,
+    )
     return node.status
 
 
