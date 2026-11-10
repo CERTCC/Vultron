@@ -17,7 +17,8 @@
 
 ``vultron/metadata/demo_scenarios/export_ledger_types.py`` writes
 ``ui/src/data/ledgerTypes.ts`` from the ``CaseLedgerEntry``,
-``ParticipantStatus`` and ``CaseStatus`` models.  These tests fail when the
+``ParticipantStatus``, ``CaseStatus``, ``CaseParticipant`` and
+``EmbargoConsent`` models.  These tests fail when the
 committed file no longer matches a fresh export, and check that the projection
 says what the models write: the wire keys, the enum values and which fields a
 line must carry.
@@ -36,10 +37,15 @@ from pydantic import Field, computed_field
 
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.metadata.demo_scenarios import export_ledger_types
@@ -88,10 +94,26 @@ def _instances() -> dict[str, CoreObject]:
         prev_log_hash="a" * 64,
         entry_hash="b" * 64,
     )
+    consent = EmbargoConsent(
+        embargo_id=f"{CASE}/embargo/1",
+        state=EmbargoConsentState.INVITED,
+        rsvp_deadline=PUBLISHED,
+    )
+    participant = CaseParticipant(
+        context=CASE,
+        attributed_to="http://actor1:7999/api/v2/actors/actor1",
+        case_roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],
+        participant_statuses=[status],
+        embargo_consents=[consent],
+        removal_activity=f"{CASE}/activity/9",
+        participant_case_name="Vendor",
+    )
     return {
         "CaseLedgerEntry": entry,
         "ParticipantStatus": status,
         "CaseStatus": case_status,
+        "CaseParticipant": participant,
+        "EmbargoConsent": consent,
     }
 
 
@@ -159,7 +181,14 @@ def test_write_mode_writes_the_export(
 
 
 @pytest.mark.parametrize(
-    "name", ["CaseLedgerEntry", "ParticipantStatus", "CaseStatus"]
+    "name",
+    [
+        "CaseLedgerEntry",
+        "ParticipantStatus",
+        "CaseStatus",
+        "CaseParticipant",
+        "EmbargoConsent",
+    ],
 )
 def test_the_projected_keys_are_the_keys_the_model_writes(
     name: str, fields: dict[str, dict[str, export_ledger_types.FieldDef]]
@@ -194,6 +223,10 @@ def test_enum_values_are_the_wire_values() -> None:
         "CvdRole": [m.name for m in CVDRole],
         "EmState": [m.name for m in EM],
         "PxaState": [m.name for m in CS_pxa],
+        # caseRoles' serializer writes the role values, which label the lanes.
+        "CaseRoles": [m.value for m in CVDRole],
+        # A bare `state` key takes its model's name.
+        "EmbargoConsentState": [m.value for m in EmbargoConsentState],
     }
 
 
@@ -225,6 +258,8 @@ def test_a_received_status_requires_only_what_the_model_refuses_without(
     assert required("ParticipantStatus") == {"context"}
     # A received CaseStatus without its sender's time is refused (CLP-15-010).
     assert required("CaseStatus") == {"context", "published"}
+    assert required("CaseParticipant") == set()
+    assert required("EmbargoConsent") == {"embargoId", "state"}
 
 
 def test_the_json_ld_context_is_projected_and_unwritten_fields_are_not(
@@ -343,9 +378,58 @@ def test_a_computed_field_fails_the_export() -> None:
         project((LedgerType(_Computed, "received"),))
 
 
-def test_the_exported_models_are_the_ledger_line_and_its_statuses() -> None:
+def test_the_exported_models_are_the_ledger_line_and_what_it_carries() -> None:
     assert [(lt.model, lt.role) for lt in LEDGER_TYPES] == [
         (CaseLedgerEntry, "written"),
         (ParticipantStatus, "received"),
         (CaseStatus, "received"),
+        (CaseParticipant, "received"),
+        (EmbargoConsent, "received"),
     ]
+
+
+def test_a_participant_record_refers_to_its_statuses_and_consent_rows(
+    fields: dict[str, dict[str, export_ledger_types.FieldDef]],
+) -> None:
+    participant = fields["CaseParticipant"]
+    assert participant["caseRoles"].shape == {
+        "kind": "array",
+        "items": {"kind": "enum", "type": "CaseRoles"},
+    }
+    assert participant["participantStatuses"].shape["items"] == {
+        "kind": "ref",
+        "type": "ParticipantStatus",
+    }
+    # EmbargoConsent has a `state` field but travels as an object, so it is
+    # a reference, not a bare-state dimension.
+    assert participant["embargoConsents"].shape["items"] == {
+        "kind": "ref",
+        "type": "EmbargoConsent",
+    }
+
+
+class _StatefulRow(CoreObject):
+    """A ``state`` field and an object on the wire, like ``EmbargoConsent``."""
+
+    state: EmbargoConsentState
+    label: str = "row"
+
+
+class _HoldsRows(CoreObject):
+    """No ``type_``, so it is not registered in the core vocabulary."""
+
+    rows: list[_StatefulRow] = []
+
+
+def test_an_exported_model_with_a_state_field_is_a_reference() -> None:
+    shapes, enums = project(
+        (
+            LedgerType(_HoldsRows, "received"),
+            LedgerType(_StatefulRow, "received"),
+        )
+    )
+    rows = {f.key: f.shape for f in shapes["_HoldsRows"]}["rows"]
+    assert rows["items"] == {"kind": "ref", "type": "_StatefulRow"}
+    assert enums["_StatefulRowState"].values == tuple(
+        m.value for m in EmbargoConsentState
+    )

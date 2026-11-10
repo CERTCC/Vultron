@@ -183,12 +183,12 @@ The reason for a refusal is a separate matter.
 CP-06-004 requires the proposer to surface one where present.
 Nothing yet carries a reason from the admission decision onto the wire.
 
-A call-out point signals refusal by returning failure.
-The blackboard contract in BT-18 defines outputs only for the success case.
-Until that channel is designed, the `Reject` carries no `summary`, so a proposer records the refusal without an explanation.
+An admission backend answers *yes*, *no* or *error* ([ADR-0183](../../../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
+A *no* carries a reason, but the decline record does not read it yet, so the `Reject` carries no `summary` and a proposer records the refusal without an explanation ([#6077](https://github.com/CERTCC/Vultron/issues/6077)).
 
-The same missing channel has a second effect.
-The service reads a policy backend that is merely unreachable as a refusal, and the refusal it produces is permanent ([#3446](https://github.com/CERTCC/Vultron/issues/3446)).
+A backend whose policy service is unreachable answers *error*.
+The proposal is then not judged: it stays in holding, and the next delivery decides it.
+A backend that answers *no* for an outage instead produces a permanent refusal.
 
 An already-answered proposal is never re-adjudicated.
 A duplicate delivery of the *same* proposal reuses the existing case and does not decide again.

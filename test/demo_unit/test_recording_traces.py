@@ -396,10 +396,17 @@ class TestWhatComparesDifferent:
 
 
 def _subclasses(cls: type[BaseModel]) -> list[type[BaseModel]]:
-    """*cls* and every class below it."""
+    """*cls* and every class below it that ``vultron`` defines.
+
+    A test module's own model (a probe ``CoreObject`` subclass) can never be
+    on a ledger, and counting it would make this guard depend on which test
+    modules ran first in the same process (#4729).
+    """
     found, pending = [cls], [cls]
     while pending:
         for sub in pending.pop().__subclasses__():
+            if not sub.__module__.startswith("vultron."):
+                continue
             found.append(sub)
             pending.append(sub)
     return found

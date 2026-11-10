@@ -62,8 +62,10 @@ from vultron.core.models.multikey import MULTIKEY_TYPE, Multikey
 from vultron.primitives import normalise_actor_id
 from vultron.wire.as2.errors import (
     VultronForeignAuthorError,
+    VultronJsonSyntaxError,
     VultronMultikeyError,
     VultronProofInvalidError,
+    VultronRefusedJsonError,
     VultronUnsignableJsonError,
 )
 
@@ -241,12 +243,22 @@ def load_json(text: str | bytes) -> Any:
     canonicalized.
 
     Raises:
-        VultronUnsignableJsonError: the text is not JSON (including bytes
-            that are not UTF-8, an integer with too many digits to read and
-            nesting too deep to parse), or is JSON of one of the refused
-            kinds.
+        VultronJsonSyntaxError: the text is not JSON by RFC 8259's grammar:
+            it does not decode, its bytes are not UTF-8 (UTF-16 and UTF-32
+            included) or start with a byte-order mark, or it holds ``NaN``
+            or ``Infinity``.
+        VultronRefusedJsonError: the text is JSON of one of the refused
+            kinds: a duplicate key, a number too large for a double, an
+            integer with too many digits to read, or nesting too deep to
+            parse.
     """
     try:
+        # Bytes are read as UTF-8 only (RFC 8259 section 8.1): json.loads
+        # would otherwise detect UTF-16 or UTF-32 and read them too.  A
+        # leading byte-order mark stays in the text, which json.loads
+        # refuses.
+        if isinstance(text, bytes):
+            text = text.decode("utf-8")
         return json.loads(
             text,
             object_pairs_hook=_refuse_duplicate_keys,
@@ -256,20 +268,23 @@ def load_json(text: str | bytes) -> Any:
     except VultronUnsignableJsonError:
         raise
     except RecursionError as error:
-        raise VultronUnsignableJsonError(
+        raise VultronRefusedJsonError(
             "JSON is nested too deeply to parse"
         ) from error
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise VultronJsonSyntaxError(f"not JSON: {error}") from error
     except ValueError as error:
-        # JSONDecodeError, UnicodeDecodeError and the int-digit limit are all
-        # ValueErrors.
-        raise VultronUnsignableJsonError(f"not JSON: {error}") from error
+        # Python's limit on the digits of an integer: the text is JSON.
+        raise VultronRefusedJsonError(
+            f"JSON number cannot be read: {error}"
+        ) from error
 
 
 def _refuse_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
-            raise VultronUnsignableJsonError(
+            raise VultronRefusedJsonError(
                 f"JSON object has the key {key!r} more than once"
             )
         result[key] = value
@@ -277,13 +292,13 @@ def _refuse_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def _refuse_constant(name: str) -> Any:
-    raise VultronUnsignableJsonError(f"JSON number {name} is not allowed")
+    raise VultronJsonSyntaxError(f"JSON number {name} is not allowed")
 
 
 def _finite_float(text: str) -> float:
     value = float(text)
     if value in (float("inf"), float("-inf")):
-        raise VultronUnsignableJsonError(
+        raise VultronRefusedJsonError(
             f"JSON number {text} is too large for a double"
         )
     return value
@@ -295,18 +310,18 @@ def canonicalize(value: Any) -> bytes:
     This is not the ledger hash's canonical form, which is not JCS.
 
     Raises:
-        VultronUnsignableJsonError: *value* holds an integer outside
+        VultronRefusedJsonError: *value* holds an integer outside
             ±(2^53 - 1), a non-finite float, a non-string key or a value JSON
             cannot carry.
     """
     try:
         return rfc8785.dumps(value)
     except RecursionError as error:
-        raise VultronUnsignableJsonError(
+        raise VultronRefusedJsonError(
             "value is nested too deeply to canonicalize"
         ) from error
     except rfc8785.CanonicalizationError as error:
-        raise VultronUnsignableJsonError(
+        raise VultronRefusedJsonError(
             f"value cannot be canonicalized: {error}"
         ) from error
 

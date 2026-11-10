@@ -30,7 +30,7 @@ fix-development workflow as a ``DevelopFixBT`` Fallback:
 Call-out injection seams
 ------------------------
 - **CreateFix** — ``DevelopFixCallOutBundle.create_fix_factory``
-  Composer call-out point; ``output_keys = {"fix_artifact": str}`` (BT-18-001).
+  Composer call-out point; ``contract.outputs = {"fix_artifact": str}`` (BT-18-001).
 
 References
 ----------

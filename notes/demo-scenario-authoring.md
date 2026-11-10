@@ -105,7 +105,9 @@ It also double-delivers when the real delivery succeeds too (#3980).
    Replica Updates via the CASE_MANAGER's Announce").
 
 Exchange demos use `post_to_inbox_and_wait` as their normal mechanism: they have
-no second container for the transport to cross.
+no second container for the transport to cross. It hands each activity to the
+sender's own outbox on the backend, which signs it as its owner (SIG-05-004) and
+delivers it, so demo code never signs.
 
 ---
 

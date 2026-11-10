@@ -141,9 +141,13 @@ def test_a_reject_of_a_decided_proposal_gets_the_notice():
 @pytest.mark.spec("CM-18-003")
 @pytest.mark.spec("MSM-07-012")
 def test_an_accept_of_a_decided_proposal_is_refused_with_the_notice():
-    """A row for a final register entry takes no trigger (CM-18-003)."""
+    """A row for a final register entry takes no trigger (CM-18-003).
+
+    The Invite is still open, so the Accept is on time: it is refused for
+    the embargo's availability, not for its timing (MSM-07-012).
+    """
     net = _net("accept-decided")
-    _, invite_id = _decided(net, "accept-decided")
+    embargo_id, invite_id = _decided(net, "accept-decided")
     before = _entries(net)
     body = _answer_body(net, BYSTANDER, invite_id, accept=True, tag="late")
 
@@ -156,15 +160,31 @@ def test_an_accept_of_a_decided_proposal_is_refused_with_the_notice():
         manager=MANAGER,
         refused_id=body["id"],
         asserter=BYSTANDER,
-        reason="nothing to accept (CM-18-003)",
+        reason=f"Embargo '{embargo_id}' on case '{net.case_id}' is no longer"
+        " available (the register holds it REJECTED)",
         case_id=net.case_id,
+    )
+    assert (
+        net.sealed_bodies(
+            MANAGER,
+            to=BYSTANDER,
+            type_="Create",
+            object_type="ProcessingFault",
+        )
+        == []
     )
 
 
-@pytest.mark.spec("CLP-05-001")
-@pytest.mark.spec("CM-18-003")
-@pytest.mark.spec("MSM-07-012")
-def test_an_accept_of_an_embargo_missing_from_the_register_gets_the_notice():
+@pytest.mark.spec("MSM-07-039")
+@pytest.mark.spec("MSM-05-001")
+@pytest.mark.spec("ASK-07-008")
+def test_an_accept_of_an_embargo_missing_from_the_register_gets_a_fault():
+    """An Accept of terms the register never held is not understood.
+
+    The sender's view of the case is wrong, so it is answered with
+    ``Create(ProcessingFault)`` and no refusal notice, and nothing is
+    ledgered, the fault included (MSM-07-039, ASK-07-008).
+    """
     net = _net("accept-missing")
     _, invite_id = _invited(net, BYSTANDER, "accept-missing")
     before = _entries(net)
@@ -177,15 +197,19 @@ def test_an_accept_of_an_embargo_missing_from_the_register_gets_the_notice():
     verdict = net.receive(MANAGER, body)
 
     assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
+    assert "never held" in (verdict.reason or "")
     assert _entries(net) == before
-    assert_refusal_notice(
-        net.stores[MANAGER],
-        manager=MANAGER,
-        refused_id=body["id"],
-        asserter=BYSTANDER,
-        reason=f"Embargo '{unknown}' is neither the active embargo",
-        case_id=net.case_id,
+    assert_no_refusal_notice(
+        net.stores[MANAGER], manager=MANAGER, refused_id=body["id"]
     )
+    faults = net.sealed_bodies(
+        MANAGER, to=BYSTANDER, type_="Create", object_type="ProcessingFault"
+    )
+    assert len(faults) == 1
+    (fault,) = faults
+    assert fault["object"]["failureClass"].endswith("AcceptOfEmbargoNeverHeld")
+    assert fault["object"]["inReplyTo"] == body["id"]
+    assert fault["to"] == [BYSTANDER]
 
 
 @pytest.mark.spec("CLP-05-001")

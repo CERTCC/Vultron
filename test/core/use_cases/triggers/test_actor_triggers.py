@@ -63,6 +63,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.actor import (
@@ -2699,14 +2700,13 @@ class TestActorResolutionCallOut:
         request must not crash: it records a minimal peer (as with any other
         non-SUCCESS) and surfaces the offending backend via a WARNING.
         """
-        import py_trees
         from py_trees.common import Status
 
         from vultron.core.behaviors.call_out.bundles.actor_resolution import (
             ActorResolutionCallOutBundle,
         )
 
-        class _Running(py_trees.behaviour.Behaviour):
+        class _Running(CallOutBackend):
             def update(self):
                 return Status.RUNNING
 

@@ -11,45 +11,64 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Runtime guard for the call-out seam: reject a ``RUNNING`` return (BT-18-011).
+"""The call-out seam: turn a backend's answer into tree behaviour (ADR-0183).
 
-A call-out point backend MUST answer synchronously — its ``update()`` returns
-``Status.SUCCESS`` or ``Status.FAILURE`` and MUST NOT return ``Status.RUNNING``
-(BT-18-011, the general case of the codebase-wide no-``RUNNING`` invariant from
-ADR-0080). In-repo nodes are policed statically by the ``test/architecture``
-ratchet; a call-out backend, however, is injected from *outside* the repository
-(BT-23-004), so a static scan cannot see it. Only a runtime guard at the seam
-can.
+Every call-out backend gives one answer, *yes*, *no* or *error*, with the data
+its capability declares (:mod:`~vultron.core.behaviors.call_out.answer`).
+:class:`SynchronousCallOut` is the one place that interprets it:
 
-:class:`SynchronousCallOut` is that guard: a ``py_trees`` decorator that ticks
-its child and raises :class:`CallOutContractError` — a plain ``RuntimeError``,
-**not** a :class:`~vultron.errors.VultronError` — when the child returns
-``RUNNING``. The non-``VultronError`` type matters: it makes ``BTBridge``
-classify the failure via its ``except Exception`` branch as
-``internal_error=True`` (a mis-wired backend), rather than its
-``except VultronError`` branch (a deliberate protocol outcome). See
-the two-branch exception handling in ``bridge/tree_execution.py`` and
-``bridge/bt_bridge.py``.
+- *yes* writes the declared outputs to the blackboard and the node succeeds;
+- *no* writes the refusal payload to the declared refusal ports and the node
+  fails;
+- *error* raises :class:`CallOutBackendError`, naming the node, so the message
+  is not judged and stays in holding to be tried again.
 
-The guard is applied uniformly at the bundle boundary via
-:func:`guard_call_out_factory`, so every node a call-out bundle hands out —
-core DETERMINISTIC defaults and implementer-injected backends alike — is
-guard-wrapped, with no change required in the tree-builder call sites. See
+The seam also rejects an answer that is not a
+:class:`~vultron.core.behaviors.call_out.answer.CallOutAnswer`, has a verdict
+outside the three, or carries data its declaration does not name, by raising
+:class:`CallOutContractError`.  So does a backend that returns
+``Status.RUNNING`` (BT-18-011, the general case of the codebase-wide
+no-``RUNNING`` invariant from ADR-0080), or one that is not a
+:class:`~vultron.core.behaviors.call_out.backend.CallOutBackend`.
+
+Both errors are plain ``RuntimeError`` subclasses, **not**
+:class:`~vultron.errors.VultronError`: ``BTBridge`` classifies them via its
+``except Exception`` branch as ``internal_error=True``, never as a protocol
+``FAILURE``.  A call-out backend is injected from *outside* the repository
+(BT-23-004), so only a runtime guard at the seam can police it.
+
+The seam is applied uniformly at the bundle boundary via
+:func:`guard_call_out_factory`, so every node a call-out bundle hands out is
+guarded, with no change in the tree-builder call sites.  See
 :class:`~vultron.core.behaviors.call_out.bundles.base.CallOutBundle`.
 
 References
 ----------
 - ADR-0080: ``docs/adr/0080-protocol-asks-not-suspended-behaviors.md``
-- Spec: ``specs/behavior-tree-integration.yaml`` BT-18-011
-- ``notes/protocol-asks.md`` — "Why there is nothing to suspend"
+- ADR-0183: ``docs/adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md``
+- Spec: ``specs/behavior-tree-integration.yaml`` BT-18-002, BT-18-007,
+  BT-18-011, BT-18-018
+- ``notes/call-out-configuration.md`` — "A Backend Answers Yes, No or Error"
 """
 
 from __future__ import annotations
 
-import py_trees
-from py_trees.common import Status
+from collections.abc import Iterator, Mapping
 
+import py_trees
+from py_trees.common import Access, Status
+
+from vultron.core.behaviors.call_out.answer import (
+    CallOutAnswer,
+    CallOutVerdict,
+)
+from vultron.core.behaviors.call_out.backend import CallOutBackend
+from vultron.core.behaviors.call_out.errors import (
+    CallOutBackendError,
+    CallOutContractError,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
+from vultron.core.behaviors.node_logger import node_logger
 
 #: Sentinel attribute marking a factory returned by :func:`guard_call_out_factory`,
 #: so re-wrapping an already-guarded factory (e.g. one bundle's factory passed
@@ -57,58 +76,163 @@ from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 _GUARDED_ATTR = "_vultron_call_out_guarded"
 
 
-class CallOutContractError(RuntimeError):
-    """A call-out backend violated the synchronous-answer contract (BT-18-011).
-
-    Deliberately a plain :class:`RuntimeError` and **not** a
-    :class:`~vultron.errors.VultronError`: ``BTBridge`` treats a
-    ``VultronError`` as a protocol-attributable ``FAILURE`` but any other
-    exception as ``internal_error=True``. A backend that returns
-    ``Status.RUNNING`` is a wiring bug, not a protocol outcome, so it must
-    surface as an internal error.
-    """
+def _check_data(
+    node: str,
+    what: str,
+    data: Mapping[str, object],
+    declared: Mapping[str, type],
+) -> None:
+    """Raise unless *data* names exactly the *declared* ports, typed."""
+    undeclared = sorted(set(data) - set(declared))
+    missing = sorted(set(declared) - set(data))
+    if undeclared or missing:
+        raise CallOutContractError(
+            f"Call-out backend {node!r} answered {what} with "
+            f"undeclared ports {undeclared} and missing ports {missing}; "
+            "an answer carries exactly the ports its declaration names "
+            "(BT-18-002, ADR-0183)."
+        )
+    for key, typ in declared.items():
+        value = data[key]
+        if not isinstance(value, typ):
+            raise CallOutContractError(
+                f"Call-out backend {node!r} answered {what} with "
+                f"{key}={type(value).__name__}, not the declared "
+                f"{typ.__name__} (ADR-0183)."
+            )
 
 
 class SynchronousCallOut(py_trees.decorators.Decorator):
-    """Reject a ``RUNNING`` return from a call-out backend (BT-18-011).
+    """The call-out seam: turns its backend's answer into tree behaviour.
 
-    Ticks the decorated child and returns its status unchanged for
-    ``SUCCESS`` / ``FAILURE`` / ``INVALID``. If the child returns
-    ``Status.RUNNING`` — which Vultron's execution model cannot suspend on —
-    raises :class:`CallOutContractError` naming the offending node.
+    Ticks the decorated :class:`CallOutBackend`, takes its answer and, per
+    ADR-0183, writes the *yes* outputs and returns ``SUCCESS``, writes the *no*
+    refusal payload and returns ``FAILURE``, or raises
+    :class:`CallOutBackendError` on *error*.  Anything else raises
+    :class:`CallOutContractError`.
 
-    The decorator adopts the child's ``name`` so it is transparent to callers
-    that navigate a tree by node name; the guarded node remains available as
+    The seam adopts the child's ``name`` so it is transparent to callers that
+    navigate a tree by node name; the backend remains available as
     ``self.decorated``.
     """
 
     def __init__(self, child: py_trees.behaviour.Behaviour) -> None:
-        # Adopt the child's name so the guard is transparent in tree walks and
-        # visualizations; the guarded node is reachable via ``self.decorated``.
+        if not isinstance(child, CallOutBackend):
+            raise CallOutContractError(
+                f"Call-out backend {child.name!r} ({type(child).__name__}) is "
+                "not a CallOutBackend; a backend answers yes, no or error "
+                "through CallOutBackend.answer() (ADR-0183)."
+            )
+        # Adopt the child's name so the seam is transparent in tree walks and
+        # visualizations; the backend is reachable via ``self.decorated``.
         super().__init__(name=child.name, child=child)
+        self._backend: CallOutBackend = child
+        contract = child.contract
+        # Built here, not in setup(), so a tick without setup() still writes
+        # the declared data (BT-23-013).
+        self._bb = self.attach_blackboard_client(
+            name=f"{type(self).__name__}_{child.name}"
+        )
+        for key in (*contract.outputs, *contract.refusal_ports):
+            self._bb.register_key(key, Access.WRITE)
+
+    def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
+        """Tick the backend armed for this one tick, then interpret it.
+
+        The backend refuses any tick it was not armed for, so a backend ticked
+        anywhere but here raises (BT-18-037).
+        """
+        self._backend.arm()
+        try:
+            yield from super().tick()
+        finally:
+            self._backend.disarm()
 
     def update(self) -> Status:
-        """Pass the child's status through, but forbid ``RUNNING`` (BT-18-011)."""
-        status = self.decorated.status
-        if status == Status.RUNNING:
+        """Interpret the backend's answer (ADR-0183); forbid ``RUNNING``."""
+        answer = self._take_answer()
+        if answer.verdict is CallOutVerdict.ERROR:
+            self._raise_error(answer)
+        self._write(self._checked_data(answer))
+        if answer.verdict is CallOutVerdict.YES:
+            return Status.SUCCESS
+        self.feedback_message = answer.reason or ""
+        return Status.FAILURE
+
+    def _take_answer(self) -> CallOutAnswer:
+        """The backend's answer for this tick; raise if it gave none."""
+        backend = self._backend
+        if backend.status == Status.RUNNING:
             raise CallOutContractError(
-                f"Call-out backend {self.decorated.name!r} "
-                f"({type(self.decorated).__name__}) returned Status.RUNNING; "
-                "a call-out point MUST answer synchronously with SUCCESS or "
-                "FAILURE (BT-18-011, ADR-0080)."
+                f"Call-out backend {backend.name!r} "
+                f"({type(backend).__name__}) returned Status.RUNNING; "
+                "a call-out point MUST answer synchronously (BT-18-011, "
+                "ADR-0080)."
             )
-        return status
+        answer = backend.take_answer()
+        if not isinstance(answer, CallOutAnswer) or answer.verdict not in (
+            CallOutVerdict.YES,
+            CallOutVerdict.NO,
+            CallOutVerdict.ERROR,
+        ):
+            raise CallOutContractError(
+                f"Call-out backend {backend.name!r} "
+                f"({type(backend).__name__}) gave {answer!r}, not a "
+                "CallOutAnswer of yes, no or error (ADR-0183)."
+            )
+        return answer
+
+    def _checked_data(self, answer: CallOutAnswer) -> dict[str, object]:
+        """The blackboard data of a *yes* or *no*, checked against the contract."""
+        name = self._backend.name
+        contract = self._backend.contract
+        if answer.verdict is CallOutVerdict.YES:
+            _check_data(name, "yes", answer.outputs, contract.outputs)
+            return dict(answer.outputs)
+        if contract.refusal_reason_key in answer.refusal:
+            raise CallOutContractError(
+                f"Call-out backend {name!r} answered no with a refusal field "
+                f"named {contract.refusal_reason_key!r}, its reason key; the "
+                "reason travels only as the answer's reason (ADR-0183)."
+            )
+        # The model guarantees a reason on a no answer.
+        assert answer.reason is not None
+        payload = {
+            contract.refusal_reason_key: answer.reason,
+            **answer.refusal,
+        }
+        _check_data(name, "no", payload, contract.refusal_ports)
+        return payload
+
+    def _write(self, data: Mapping[str, object]) -> None:
+        for key, value in data.items():
+            setattr(self._bb, key, value)
+
+    def _raise_error(self, answer: CallOutAnswer) -> None:
+        """Log and raise an *error* answer; nothing reaches the blackboard."""
+        # The model guarantees diagnostics on an error answer.
+        assert answer.diagnostics is not None
+        name = self._backend.name
+        node_logger(self).warning(
+            "Call-out backend %r answered error; the message is not judged:"
+            " %s",
+            name,
+            answer.diagnostics,
+        )
+        raise CallOutBackendError(name, answer.diagnostics)
 
 
 def guard_call_out_factory(
     factory: CallOutBackendFactory,
 ) -> CallOutBackendFactory:
-    """Wrap *factory* so the node it produces is guarded against ``RUNNING``.
+    """Wrap *factory* so the node it produces sits behind the seam.
 
     Returns a new :class:`CallOutBackendFactory` whose product is the original
-    node wrapped in :class:`SynchronousCallOut`. Idempotent: an already-guarded
-    factory is returned unchanged, and a node that is already a
-    :class:`SynchronousCallOut` is not double-wrapped.
+    node wrapped in :class:`SynchronousCallOut`.  A product that is not a
+    :class:`CallOutBackend` raises :class:`CallOutContractError` when the tree
+    is built.  Idempotent: an already-guarded factory is returned unchanged,
+    and a node that is already a :class:`SynchronousCallOut` is not
+    double-wrapped.
     """
     if getattr(factory, _GUARDED_ATTR, False):
         return factory
@@ -126,10 +250,10 @@ def guard_call_out_factory(
 def unwrap_call_out(
     node: py_trees.behaviour.Behaviour,
 ) -> py_trees.behaviour.Behaviour:
-    """Return the guarded child of a :class:`SynchronousCallOut`, else *node*.
+    """Return the backend behind a :class:`SynchronousCallOut`, else *node*.
 
     Convenience for callers (and tests) that need the underlying backend node
-    rather than the transparent guard wrapper.
+    rather than the transparent seam.
     """
     if isinstance(node, SynchronousCallOut):
         return node.decorated
@@ -137,6 +261,7 @@ def unwrap_call_out(
 
 
 __all__ = [
+    "CallOutBackendError",
     "CallOutContractError",
     "SynchronousCallOut",
     "guard_call_out_factory",

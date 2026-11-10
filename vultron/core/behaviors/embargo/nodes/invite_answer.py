@@ -29,7 +29,6 @@ from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.speaks_for_executing_actor import (
     SpeaksForExecutingActor,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.services.embargo_duration import (
     actor_default_duration,
@@ -183,7 +182,8 @@ class OwnerMayAutoAcceptEmbargoNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
         proposal = read_embargo_event(self.datalayer, self._embargo_id)
-        if proposal.end_time > now_utc() + policy:
+        # Bounded at the act's instant (ADR-0176).
+        if proposal.end_time > self._require_act_instant() + policy:
             self.feedback_message = (
                 f"proposal ends {proposal.end_time.isoformat()}, beyond the"
                 f" owner's {policy} policy — nothing is auto-accepted"

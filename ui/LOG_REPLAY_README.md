@@ -67,8 +67,12 @@ DemoSelector
 
 - **[caseLedgerParser.ts](src/utils/caseLedgerParser.ts)** — `parseCaseLedger()`
   reads one `CaseLedgerEntry` per line; `normalizeLedger()` dedups by `entryHash`
-  and sorts by `logIndex`; `actorUrlToLaneId()` maps actor URLs to lanes
-  (`reporter`, `vendor-N`, `coordinator`, `casemanager`).
+  and sorts by `logIndex`.
+- **[replayLanes.ts](src/utils/replayLanes.ts)** — `buildLanes()` gives each
+  participant actor one lane, keyed on its actor id and labelled by the CVD
+  roles its `CaseParticipant` records name (`caseRoles`), CASE_OWNER aside
+  because it moves in a handoff: "Reporter", "Vendor", "Coordinator 2", "Case
+  Manager". No lane is read from a container hostname.
 - **[caseLedgerMapper.ts](src/utils/caseLedgerMapper.ts)** —
   `buildTimelineFromCaseLedger()` pre-scans the ledger to fix lane order, then
   walks entries once while maintaining a **shadow protocol state**. The log
@@ -86,21 +90,28 @@ declared in `ui/`: [semanticRegistry.ts](src/semanticRegistry.ts) reads it from 
 generated [src/data/semantic_registry.json](src/data/semantic_registry.json)
 (`uv run export-demo-semantics`; never edit it by hand). Every event-log line
 carries the registry's phrase for its entry, the same template the Python demo
-report renders. A registered type not listed below is logged without changing
-machine state; a type the registry does not list is logged as unhandled.
+report renders, and so does every node label: `ui/` chooses only the slot values,
+which are lane labels. A registered type not listed below is logged without
+changing machine state; a type the registry does not list is drawn as an
+"unrecognized" node (grey dashed outline and ❓), never only logged.
 
 | Semantic type | Visualization |
 |---|---|
-| `create_case` | Seeds the case roster + initial `CaseStatus` (no node) |
-| `add_report_to_case` / `submit_report` | Report node in the Reporter's lane |
+| `create_case` | Seeds the case roster + initial `CaseStatus`, in the CASE_MANAGER's lane |
+| `add_report_to_case` / `submit_report` | The Reporter's submission, in the Reporter's lane |
 | `validate_report` | Report validated (RM `RECEIVED → VALID`) |
 | `add_participant_status` | Per-participant RM/VFD state snapshot |
 | `add_case_status_to_case` | Case-level EM/PXA snapshot |
-| `invite_actor_to_case` / `accept_invite_actor_to_case` | Invite sent / accepted (adds a vendor lane) |
-| `reject_invite_actor_to_case` | "Declined Invite" node in the rejecter's lane |
-| `offer_actor_to_case` / `offer_case_participant` / `accept_offer_case_participant` | Suggest-actor onboarding handshake |
+| `invite_actor_to_case` / `accept_invite_actor_to_case` | Invite sent / accepted (the joiner's lane appears) |
+| `reject_invite_actor_to_case` | A node in the rejecter's lane |
+| `offer_actor_to_case` | Suggest-actor onboarding; its other legs are log-only |
 | `offer_case_ownership_transfer` / `accept_case_ownership_transfer` | Ownership offer → accept node pair |
-| `close_case` | Self-declaratory Leave; "Close Case" node in the closer's lane (RM → `CLOSED`) |
+| `close_case` | Self-declaratory Leave, in the closer's lane (RM → `CLOSED`) |
+
+Every committed recording's replay is pinned by a golden file,
+`src/utils/replay-golden/<scenario>.txt` (`replayGolden.test.ts`): lanes, state
+paths and the event sequence. After an intended change, or a refreshed
+recording, run `npm test -- -u` and review the diff before committing it.
 
 > The exhaustive, up-to-date handler list — including scenario coverage,
 > attribution quirks, and the 2026-08 vocabulary shift (`offer_case_manager_role`

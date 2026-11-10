@@ -13,9 +13,9 @@
 
 """The verification-key resolver reads a proof's key from its author's profile.
 
-The held copy is read first, and a profile is fetched when the held copy
-lists no key the proof names (SIG-02-001, AKM-05-012); ids are compared
-normalised (OID-01-006).
+The profile is fetched from the author's own URL on every lookup, and no
+stored copy is read (SIG-02-001, SIG-02-003); ids are compared normalised
+(OID-01-006).
 """
 
 import ast
@@ -79,7 +79,6 @@ def _profile(
 
 
 def _resolve(
-    dl: SqliteDataLayer,
     fetcher: _FakeProfileFetch,
     method: str = METHOD,
     author_id: str = AUTHOR,
@@ -88,69 +87,53 @@ def _resolve(
         vk.resolve_verification_key(
             method,
             author_id=author_id,
-            dl=dl,
             fetcher=fetcher,
             requester_id=RECEIVER,
         )
     )
 
 
-@pytest.mark.spec("SIG-02-001")
-@pytest.mark.spec("AKM-05-012")
-def test_a_held_profile_listing_the_key_is_used_without_a_fetch():
-    dl = _store()
-    dl.save(_profile([AUTHOR_KEY]))
-    fetcher = _FakeProfileFetch(failure="must not be fetched")
+@pytest.mark.spec("SIG-02-003")
+def test_only_the_fetched_key_is_returned():
+    """A key in a stored copy came from somewhere other than the author.
 
-    key = _resolve(dl, fetcher)
-
-    assert key == AUTHOR_KEY
-    assert fetcher.asked == []
-
-
-@pytest.mark.spec("SIG-02-001")
-@pytest.mark.spec("AKM-05-005")
-def test_a_held_profile_without_the_key_leads_to_a_fetch():
-    """An inline sender profile lists no key, so it cannot settle the lookup."""
-    dl = _store()
-    dl.save(_profile())
-    fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
-
-    key = _resolve(dl, fetcher)
-
-    assert key == AUTHOR_KEY
-    assert fetcher.asked == [(AUTHOR, RECEIVER)]
-
-
-@pytest.mark.spec("SIG-02-001")
-def test_an_unheld_profile_is_fetched_from_the_author():
-    fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
-    dl = _store()
-
-    key = _resolve(dl, fetcher)
-
-    assert key == AUTHOR_KEY
-    assert fetcher.asked == [(AUTHOR, RECEIVER)]
-    # Nothing fetched becomes a held key: a held key is trusted as held.
-    assert dl.read(AUTHOR) is None
-
-
-@pytest.mark.spec("SIG-02-001")
-def test_a_held_profile_listing_only_another_key_leads_to_a_fetch():
-    other = Multikey(
-        id_=f"{AUTHOR}#old-key",
+    The resolver takes no store, so the planted key cannot reach it; the
+    inbox-level test that stores one is
+    ``test_signed_delivery_refusal.py::test_a_stored_peer_key_is_ignored``.
+    """
+    planted = Multikey(
+        id_=METHOD,
         type_="Multikey",
         controller=AUTHOR,
-        public_key_multibase=AUTHOR_KEY.public_key_multibase,
+        public_key_multibase=signing.seeded_signing_key(
+            "https://forger.example/actors/forger"
+        ).public_key_multibase,
     )
-    dl = _store()
-    dl.save(_profile([other]))
     fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
 
-    key = _resolve(dl, fetcher)
+    key = _resolve(fetcher)
 
     assert key == AUTHOR_KEY
-    assert len(fetcher.asked) == 1
+    assert key != planted
+    assert fetcher.asked == [(AUTHOR, RECEIVER)]
+
+
+@pytest.mark.spec("SIG-02-001")
+def test_the_profile_is_fetched_from_the_author_and_not_stored():
+    fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
+
+    key = _resolve(fetcher)
+
+    assert key == AUTHOR_KEY
+    assert fetcher.asked == [(AUTHOR, RECEIVER)]
+
+
+@pytest.mark.spec("SIG-02-003")
+def test_the_resolver_takes_no_store():
+    """No parameter could carry a stored copy to the lookup."""
+    assert (
+        "dl" not in inspect.signature(vk.resolve_verification_key).parameters
+    )
 
 
 @pytest.mark.spec("SIG-02-001")
@@ -159,7 +142,7 @@ def test_a_fetched_profile_without_the_key_refuses_the_proof():
     fetcher = _FakeProfileFetch(_profile())
 
     with pytest.raises(VultronVerificationKeyError) as caught:
-        _resolve(_store(), fetcher)
+        _resolve(fetcher)
 
     assert isinstance(caught.value, VultronProofVerificationError)
     assert METHOD in str(caught.value)
@@ -177,7 +160,7 @@ def test_a_failed_fetch_refuses_the_proof_and_logs_why(
         caplog.at_level(logging.WARNING, logger=vk.__name__),
         pytest.raises(VultronVerificationKeyError) as caught,
     ):
-        _resolve(_store(), fetcher)
+        _resolve(fetcher)
 
     assert METHOD in str(caught.value)
     assert "could not be fetched" in str(caught.value)
@@ -190,45 +173,32 @@ def test_a_refusal_says_nothing_of_what_the_fetch_met():
     failure = "GET https://10.0.0.7:8080/profile: connection refused"
 
     with pytest.raises(VultronVerificationKeyError) as caught:
-        _resolve(_store(), _FakeProfileFetch(failure=failure))
+        _resolve(_FakeProfileFetch(failure=failure))
 
     assert "10.0.0.7" not in str(caught.value)
     assert "connection refused" not in str(caught.value)
 
 
 @pytest.mark.spec("OID-01-006")
-def test_a_key_id_with_a_trailing_slash_finds_the_held_key():
-    dl = _store()
-    dl.save(_profile([AUTHOR_KEY]))
-    fetcher = _FakeProfileFetch(failure="must not be fetched")
-
-    key = _resolve(dl, fetcher, f"{AUTHOR}/#{signing.KEY_FRAGMENT}")
-
-    assert key == AUTHOR_KEY
-    assert fetcher.asked == []
-
-
-@pytest.mark.spec("OID-01-006")
 def test_a_key_id_with_a_trailing_slash_fetches_the_normalised_actor():
     fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
 
-    _resolve(_store(), fetcher, f"{AUTHOR}/#{signing.KEY_FRAGMENT}")
+    _resolve(fetcher, f"{AUTHOR}/#{signing.KEY_FRAGMENT}")
 
     assert fetcher.asked == [(AUTHOR, RECEIVER)]
 
 
 @pytest.mark.spec("OID-01-006")
 def test_an_author_spelled_with_a_trailing_slash_owns_its_key():
-    dl = _store()
-    dl.save(_profile([AUTHOR_KEY]))
+    fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
 
-    key = _resolve(dl, _FakeProfileFetch(), author_id=f"{AUTHOR}/")
+    key = _resolve(fetcher, author_id=f"{AUTHOR}/")
 
     assert key == AUTHOR_KEY
 
 
 @pytest.mark.spec("SIG-02-001")
-def test_a_key_of_another_actor_is_refused_without_a_read_or_fetch():
+def test_a_key_of_another_actor_is_refused_without_a_fetch():
     """A bystander's valid key says nothing about who wrote the document."""
     bystander = "https://bystander.example/api/v2/actors/bystander"
     method = signing.key_id_for(bystander)
@@ -237,14 +207,8 @@ def test_a_key_of_another_actor_is_refused_without_a_read_or_fetch():
     )
     fetcher = _FakeProfileFetch(_profile([bystander_key], bystander))
 
-    class _NoReads(SqliteDataLayer):
-        def read(self, object_id: str, raise_on_missing: bool = False):
-            raise AssertionError(f"read {object_id!r}")
-
-    dl = _NoReads("sqlite:///:memory:", actor_id=RECEIVER)
-
     with pytest.raises(VultronVerificationKeyError) as caught:
-        _resolve(dl, fetcher, method)
+        _resolve(fetcher, method)
 
     assert method in str(caught.value)
     assert AUTHOR in str(caught.value)
@@ -317,7 +281,7 @@ def test_a_fault_in_the_fetcher_is_not_a_proof_refusal():
             raise RuntimeError("a bug in the fetcher")
 
     with pytest.raises(RuntimeError, match="a bug in the fetcher"):
-        _resolve(_store(), _Raises())
+        _resolve(_Raises())
 
 
 def test_an_object_that_is_not_an_actor_lists_no_key():
@@ -337,7 +301,7 @@ def test_a_method_naming_no_profile_key_is_refused_without_a_fetch(
     fetcher = _FakeProfileFetch(_profile([AUTHOR_KEY]))
 
     with pytest.raises(VultronVerificationKeyError):
-        _resolve(_store(), fetcher, method)
+        _resolve(fetcher, method)
 
     assert fetcher.asked == []
 
@@ -355,8 +319,12 @@ def test_the_key_owner_is_the_normalised_actor_id():
         pytest.importorskip(
             "vultron.adapters.driven.http_actor_profile_fetch"
         ),
+        pytest.importorskip(
+            "vultron.adapters.driving.fastapi.inbox_verification"
+        ),
+        pytest.importorskip("vultron.adapters.driving.fastapi.deps"),
     ],
-    ids=["resolver", "fetch-adapter"],
+    ids=["resolver", "fetch-adapter", "verification-stage", "fetch-wiring"],
 )
 def test_the_key_lookup_names_no_seed_function(module: object):
     """No seed function is named, however it might be imported or called."""
@@ -396,7 +364,5 @@ def test_resolving_and_verifying_derives_no_key_from_a_seed(
     monkeypatch.setattr(signing, "seeded_signing_key", _no_seed)
     monkeypatch.setattr(signing, "_seed_for", _no_seed)
 
-    key = _resolve(
-        _store(), fetcher, signing.proof_verification_method(signed)
-    )
+    key = _resolve(fetcher, signing.proof_verification_method(signed))
     signing.verify(signed, key.public_key_multibase)

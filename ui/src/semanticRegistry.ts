@@ -48,6 +48,15 @@ export function isRegisteredSemanticType(semanticType: string): boolean {
 }
 
 /**
+ * The Wire Activity `semanticType` is sent as (Annex C), e.g.
+ * `Offer(VulnerabilityReport)`, or undefined for a type the registry does not
+ * list or lists with no wire form (a fallback type).
+ */
+export function wireForm(semanticType: string): string | undefined {
+  return BY_TYPE.get(semanticType)?.wire ?? undefined
+}
+
+/**
  * Render `semanticType`'s phrase with `slots` filled in.
  *
  * A slot the caller does not supply renders as an em-dash. With no `actor`

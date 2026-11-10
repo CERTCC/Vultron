@@ -19,7 +19,7 @@ The Log Replay demo reads the case ledger the CASE_MANAGER writes.  It must
 not keep its own copy of what a ledger entry or a participant status holds:
 a hand-written copy kept ``vfdState`` long after ADR-0075 split it into
 ``vfState`` and ``dState``, so replay lost every VFD state (#4729).  The core
-models are the single source.  This module projects three of them onto
+models are the single source.  This module projects five of them onto
 ``ui/src/data/ledgerTypes.ts``:
 
 - :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry` — one
@@ -32,6 +32,10 @@ models are the single source.  This module projects three of them onto
   (CLP-02-003, VM-08-002), so these follow the parse edge instead: a field is
   required only where the model refuses its absence, and an undeclared key
   was set aside on receipt (MV-11-003), so it is not a fault.
+- :class:`~vultron.core.models.case_participant.CaseParticipant`, with the
+  :class:`~vultron.core.models.embargo_consent.EmbargoConsent` rows it
+  holds: a participant record in a payload, read the same way.  Its
+  ``caseRoles`` label the participant's Log Replay lane.
 
 The file holds two views of one projection, so they cannot disagree:
 
@@ -81,11 +85,13 @@ from pydantic.fields import FieldInfo
 
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     DIMENSION_STATE_FIELD,
     is_dimension_model,
 )
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.metadata.demo_scenarios.export_states import REPO_ROOT
 from vultron.metadata.generated_files import read_committed, write_generated
@@ -122,11 +128,15 @@ class LedgerType:
     role: Role
 
 
-#: The exported models, in output order.
+#: The exported models, in output order.  ``CaseParticipant`` carries the
+#: ``caseRoles`` the Log Replay lanes are labelled by (#4729 AC-5), and
+#: ``EmbargoConsent`` is the row type it holds.
 LEDGER_TYPES: tuple[LedgerType, ...] = (
     LedgerType(CaseLedgerEntry, "written"),
     LedgerType(ParticipantStatus, "received"),
     LedgerType(CaseStatus, "received"),
+    LedgerType(CaseParticipant, "received"),
+    LedgerType(EmbargoConsent, "received"),
 )
 
 #: Maps a value at one annotation position to the JSON the model writes for it.
@@ -221,6 +231,12 @@ class _Projector:
     ) -> dict[str, Any]:
         if isinstance(annotation, type) and issubclass(annotation, Enum):
             return self._enum(enum_name, [probe(m) for m in annotation])
+        # An exported model is a reference.  ``is_dimension_model`` admits
+        # only bare-state dimensions, so ``EmbargoConsent`` (a ``state``
+        # field, but an object on the wire) is not one either way; checking
+        # the export first keeps an exported model a reference regardless.
+        if annotation in self._exported:
+            return {"kind": "ref", "type": self._exported[annotation]}  # type: ignore[index]
         if is_dimension_model(annotation):
             dimension = typing.cast(type[BaseModel], annotation)
             states = dimension.model_fields[DIMENSION_STATE_FIELD].annotation
@@ -232,8 +248,6 @@ class _Projector:
                         for m in states
                     ],
                 )
-        if annotation in self._exported:
-            return {"kind": "ref", "type": self._exported[annotation]}  # type: ignore[index]
         raise TypeError(
             f"No ledger shape for annotation {annotation!r} (enum name "
             f"{enum_name!r}). Teach export_ledger_types.py the kind it "
@@ -403,6 +417,18 @@ def _is_required(
     return key == "published" and ledger_type.model._inbound_requires_published
 
 
+def _enum_name(model: type[BaseModel], key: str) -> str:
+    """The TypeScript name of the enum a field of *model* under *key* holds.
+
+    The capitalized wire key (``vfState`` → ``VfState``), which names the
+    machine.  A bare ``state`` names no machine, so it takes the model's name
+    (``EmbargoConsent.state`` → ``EmbargoConsentState``).
+    """
+    if key == DIMENSION_STATE_FIELD:
+        return f"{model.__name__}State"
+    return key[:1].upper() + key[1:]
+
+
 def project(
     ledger_types: Sequence[LedgerType] = LEDGER_TYPES,
 ) -> tuple[dict[str, list[FieldDef]], dict[str, EnumType]]:
@@ -414,7 +440,7 @@ def project(
         fields: list[FieldDef] = []
         for name, field in wire_fields(model):
             key = _wire_key(name, field)
-            enum_name = key[:1].upper() + key[1:]
+            enum_name = _enum_name(model, key)
             shape, nullable = projector.field_shape(
                 _full_annotation(field),
                 enum_name,

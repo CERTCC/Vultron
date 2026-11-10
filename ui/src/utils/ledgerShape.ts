@@ -7,10 +7,10 @@
  * every field the model always writes, the right kind of value in each, and no
  * key the model does not declare. Inside its `payloadSnapshot`, which is the
  * body as received, every object whose `type` names an exported model
- * (`ParticipantStatus`, `CaseStatus`) is checked the way the parse edge reads
- * it: only the fields the model cannot go without are required, and a key the
- * model does not declare is not a fault, since the parse edge sets such a key
- * aside (MV-11-003).
+ * (`ParticipantStatus`, `CaseStatus`, `CaseParticipant`, `EmbargoConsent`) is
+ * checked the way the parse edge reads it: only the fields the model cannot go
+ * without are required, and a key the model does not declare is not a fault,
+ * since the parse edge sets such a key aside (MV-11-003).
  *
  * The check reports every problem it finds, so a line is judged whole. It never
  * repairs a line: what to do with a line that has problems is the caller's call

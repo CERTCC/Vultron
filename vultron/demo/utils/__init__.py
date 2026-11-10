@@ -55,7 +55,6 @@ from vultron.demo.utils.failures import (
     reset_demo_failures,
 )
 from vultron.demo.utils.inbox import (
-    DEFAULT_WAIT_SECONDS,
     post_to_inbox_and_wait,
     post_to_trigger,
     read_stored_of_types,
@@ -78,7 +77,6 @@ from vultron.demo.utils.received import (
 __all__ = [
     "BASE_URL",
     "CASE_ACTOR_SLUG",
-    "DEFAULT_WAIT_SECONDS",
     "DataLayerClient",
     "RECEIVED_ACTIVITY_RECORD_TYPE",
     "assert_demo_success",

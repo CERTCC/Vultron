@@ -394,7 +394,6 @@ def test_a_replica_never_evaluates_the_offers_deadline(make_payload):
         offer_id=offer.id_,
         sender_id=_CASE_ACTOR_ID,
         answer_id=reply.id_,
-        now=now_utc(),
         sender_rule=AcceptCaseOwnershipTransferReceivedUseCase.sender_entitlement,
     )
 

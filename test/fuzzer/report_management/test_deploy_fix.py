@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -74,7 +75,9 @@ def _run_trials(node_cls: "type[WeightedBehavior]", n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
     node.setup()
-    successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
+    successes = sum(
+        1 for _ in range(n) if tick_call_out(node) == Status.SUCCESS
+    )
     return successes / n
 
 
@@ -170,7 +173,7 @@ class TestSuccessRates:
     ) -> None:
         node = node_cls()
         node.setup()
-        result = node.update()
+        result = tick_call_out(node)
         assert result in (Status.SUCCESS, Status.FAILURE)
 
     @pytest.mark.parametrize("node_cls", _ALL_NODES)
@@ -179,7 +182,7 @@ class TestSuccessRates:
     ) -> None:
         node = node_cls()
         node.setup()
-        results = {node.update() for _ in range(50)}
+        results = {tick_call_out(node) for _ in range(50)}
         assert Status.RUNNING not in results
 
     @pytest.mark.parametrize("node_cls, _, expected_rate", _NODE_SPECS)
@@ -196,7 +199,7 @@ class TestSuccessRates:
             expected_status = (
                 Status.SUCCESS if expected_rate == 1.0 else Status.FAILURE
             )
-            assert node.update() == expected_status
+            assert tick_call_out(node) == expected_status
             return
         rate = _run_trials(node_cls)
         assert abs(rate - expected_rate) < _TOLERANCE, (

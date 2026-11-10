@@ -34,6 +34,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
 from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
@@ -53,7 +56,7 @@ class EvaluateCaseProposal(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates the proposal from the caller's DataLayer)
-      Output keys: evaluate_case_proposal_verdict: str  (SUCCESS only)
+      Output keys: evaluate_case_proposal_verdict: str  (yes only)
 
     Input category: Human decision / policy evaluation.
 
@@ -64,9 +67,9 @@ class EvaluateCaseProposal(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     warrant a coordinated case typically needs human review.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "evaluate_case_proposal_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"evaluate_case_proposal_verdict": str}
+    )
 
 
 __all__ = ["EvaluateCaseProposal"]

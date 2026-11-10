@@ -1279,9 +1279,9 @@ groups:
       a proposed revision binds the participant to nothing new until the owner
       activates it (MSM-07-008). An Accept from a DECLINED
       row is the participant changing its answer, so the row moves directly to AGREED
-      with no re-invite first (CM-18-003). An Accept of an embargo that is neither the
-      active embargo nor an open proposal records nothing (CM-18-003), and MSM-07-012
-      refuses it.
+      with no re-invite first (CM-18-003). An Accept of an embargo that is not available
+      records nothing (CM-18-003): MSM-07-012 refuses it, and MSM-07-039 answers one
+      the register never held.
     rationale: >-
       The Case Owner's decision for the case has its own activity (MSM-07-008,
       ADR-0122), so an Accept of an Invite means one thing whoever sends it and no
@@ -2031,18 +2031,32 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An Accept may name an embargo the register does not hold, or holds in a final
-      status. The CASE_MANAGER MUST refuse that Accept before committing it, with the
-      refusal notice that reports the reason (CLP-05-001).
+      An available embargo is the case's Active Embargo or one of its open proposals,
+      before its end time. An Accept, on time or late, may name an embargo the register
+      holds but that is not available. That embargo was replaced, rejected, cancelled
+      or terminated, or it is past its end time. The CASE_MANAGER MUST refuse that
+      Accept before committing it, with the refusal notice that reports the reason
+      (CLP-05-001). When the case holds terms of its own, the fresh Invite of
+      EMB-17-003 goes with the notice.
     rationale: >-
-      An Accept of an embargo that is neither the active embargo nor an open proposal
-      records nothing (CM-18-003): no row can move toward consent to terms that can no
-      longer bind. Refusing it before the commit keeps it off the ledger, and the
-      refusal notice tells the sender why its answer did not count.
+      The embargo the Accept names decides the answer, not the clock: an RSVP deadline
+      says whether the invitation is open, not whether the terms bind (ADR-0065). Terms
+      that can no longer bind record nothing (CM-18-003), and an ACTIVE entry past its
+      end time binds nobody before the clock ends it. Refusing before the commit keeps
+      the Accept off the ledger, and the notice tells the sender its answer is moot.
     verification: >-
-      `test/core/use_cases/received/test_embargo_refusal_notice.py` asserts that an Accept
-      of a decided proposal and of an embargo the register does not hold are refused
-      uncommitted, each with the refusal notice.
+      `test/core/use_cases/received/test_embargo_refusal_notice.py`
+      (`test_an_accept_of_a_decided_proposal_is_refused_with_the_notice`) asserts that an
+      on-time Accept of a decided proposal is refused uncommitted, with the refusal
+      notice. `test/core/use_cases/received/test_embargo_answer_routing.py` asserts the
+      same for a late Accept of a rejected revision, with the fresh Invite beside the
+      notice (`test_the_managers_reinvite_is_committed_and_replayed_by_a_replica`), of a
+      terminated embargo, with the notice alone
+      (`test_a_late_accept_with_no_terms_gets_the_refusal_notice_alone`), and of an
+      Active Embargo past its end time
+      (`test_an_accept_of_an_active_embargo_past_its_end_time_is_refused`).
+      `test/core/behaviors/embargo/nodes/test_accept_availability.py` asserts the
+      availability test reads both the register status and the end time.
     relationships:
     - rel_type: supersedes
       spec_id: MSM-07-003
@@ -2050,9 +2064,43 @@ groups:
     - rel_type: uses_definition
       spec_id: CLP-05-001
     adr:
+    - ADR-0065
     - ADR-0122
     stories:
     - story_2026_064
+  - id: MSM-07-039
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An Accept, on time or late, may name an embargo the case's register never held.
+      The CASE_MANAGER MUST answer that Accept with `Create(ProcessingFault)` to its
+      sender, not with the refusal notice (MSM-05-001). Nothing is ledgered for it,
+      the fault included (ASK-07-008).
+    rationale: >-
+      A sender that names terms the case never held has a wrong view of the case. Its
+      Accept was received but not understood, which MSM-05-001 answers with a
+      processing fault. A refusal notice would tell it that its answer is moot, which
+      presumes the case once held the terms. The fault tells it to resynchronise
+      instead.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_refusal_notice.py`
+      (`test_an_accept_of_an_embargo_missing_from_the_register_gets_a_fault`) and
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_a_late_accept_of_an_embargo_never_held_gets_a_fault`) assert that an
+      on-time and a late Accept naming an embargo the register never held are each
+      answered with one `Create(ProcessingFault)` to the sender, in reply to the
+      Accept, with no refusal notice and no ledger entry.
+    relationships:
+    - rel_type: supersedes
+      spec_id: MSM-07-003
+      note: In the case it names, the fault replaces the AGREE
+    - rel_type: refines
+      spec_id: MSM-05-001
+    stories:
+    - story_2026_064
+    see_also:
+    - spec_id: ASK-07-008
+      reason: 'the fault is not ledgered'
   - id: MSM-07-013
     priority: MUST_NOT
     kind: protocol

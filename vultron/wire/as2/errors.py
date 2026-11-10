@@ -59,6 +59,26 @@ class VultronUnsignableJsonError(VultronProofError, ValueError):
     """
 
 
+class VultronJsonSyntaxError(VultronUnsignableJsonError):
+    """Raised when text is not JSON at all, by RFC 8259's grammar.
+
+    Text that does not decode, bytes that are not UTF-8, and the ``NaN`` and
+    ``Infinity`` literals Python's parser accepts but RFC 8259 does not.  A
+    receiver answers it as a malformed request, 400 (IE-07-001, HTTP-03-004).
+    """
+
+
+class VultronRefusedJsonError(VultronUnsignableJsonError):
+    """Raised when well-formed JSON is refused rather than signed or verified.
+
+    A duplicate object key, an integer outside ±(2^53 - 1), a number too
+    large for a double, nesting too deep to read, or a value that is not an
+    object where an activity must be one.  Parsers read these differently,
+    or the receiver cannot read them at all (I-JSON, RFC 7493), so the
+    syntax is fine and the content is refused: a receiver answers it 422.
+    """
+
+
 class VultronForeignAuthorError(VultronProofError):
     """Raised when an outbox is asked to sign an activity another actor wrote.
 

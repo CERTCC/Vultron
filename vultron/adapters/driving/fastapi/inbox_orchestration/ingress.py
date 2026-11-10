@@ -21,7 +21,7 @@ body.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
@@ -172,18 +172,17 @@ class FastAPIIngressAdapter:
         self._dl = dl
         self._staging = staging or InlineObjectStaging(dl)
 
-    def parse(
-        self,
-        payload: dict[str, Any] | bytes | str | Any,
-    ) -> as_Activity | None:
-        """Parse *payload* as an AS2 activity, writing nothing.
+    def parse(self, payload: object) -> as_Activity | None:
+        """Parse *payload*, a delivery's JSON body, writing nothing.
+
+        An inbox run starts only from a body: the inbox route hands over the
+        body its verification stage checked (SIG-03-003), not the activity
+        it parsed, since a parsed activity carries no proof.  Anything that
+        is not a JSON object, an already parsed activity included, is
+        refused here.
 
         Returns ``None`` on parse failure; never raises.
         """
-        if isinstance(payload, as_Activity):
-            # Already parsed (e.g., passed directly from the router DI).
-            return payload
-
         if not isinstance(payload, dict):
             logger.warning(
                 "FastAPIIngressAdapter.parse: unsupported payload type %s",

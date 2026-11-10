@@ -205,7 +205,7 @@ async def run_actor_work_then_replay(
 
 
 async def run_inbox_pipeline(
-    payload: dict[str, Any] | bytes | str | Any,
+    payload: dict[str, Any],
     actor_dl: DataLayer,
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
@@ -231,7 +231,8 @@ async def run_inbox_pipeline(
     adapter instances, through :class:`_InboxRun` (IO-03-003).
 
     Args:
-        payload: Raw inbox payload (JSON body dict or as_Activity).
+        payload: The delivery's JSON body, as the inbox route verified it
+            (SIG-03-003); the ingress parses it.
         actor_dl: The receiving actor's DataLayer — ingress, dispatch, queues
             and stored activities alike.  Before ADR-0073 a separate shared
             DataLayer was threaded alongside it; the two only differed because
@@ -260,9 +261,7 @@ async def run_inbox_pipeline(
     await _resolve_fetches(run, emitter, fetcher)
 
 
-def _process_one(
-    run: _InboxRun, payload: dict[str, Any] | bytes | str | Any
-) -> None:
+def _process_one(run: _InboxRun, payload: dict[str, Any]) -> None:
     """Run *payload* through :func:`process_payload` once, and log it."""
     outcome = process_payload(
         payload,
@@ -283,7 +282,7 @@ def _process_one(
 
 
 async def run_delivery_without_replay(
-    payload: dict[str, Any] | bytes | str | Any,
+    payload: dict[str, Any],
     actor_dl: DataLayer,
     actor_id: str,
     dispatcher: ActivityDispatcher | None,

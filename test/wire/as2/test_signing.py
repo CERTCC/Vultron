@@ -33,8 +33,10 @@ import pytest
 
 from vultron.wire.as2 import signing
 from vultron.wire.as2.errors import (
+    VultronJsonSyntaxError,
     VultronMultikeyError,
     VultronProofInvalidError,
+    VultronRefusedJsonError,
     VultronUnsignableJsonError,
 )
 
@@ -529,7 +531,7 @@ def test_verification_refuses_an_integer_outside_the_safe_range():
     signed = _signed_note()
     signed["object"]["count"] = 2**53
 
-    with pytest.raises(VultronUnsignableJsonError):
+    with pytest.raises(VultronRefusedJsonError):
         signing.verify(
             signed, signing.seeded_signing_key(ACTOR).public_key_multibase
         )
@@ -600,14 +602,18 @@ def test_load_json_reads_a_signed_body():
 
 
 @pytest.mark.parametrize(
-    ("text", "message"),
+    ("text", "error", "message"),
     [
-        ('{"id": "a", "id": "b"}', "more than once"),
-        ('{"object": {"type": "Note", "type": "Article"}}', "more than once"),
-        ('{"ratio": NaN}', "NaN"),
-        ('{"ratio": -Infinity}', "Infinity"),
-        ('{"ratio": 1e400}', "too large"),
-        ('{"id": ', "not JSON"),
+        ('{"id": "a", "id": "b"}', VultronRefusedJsonError, "more than once"),
+        (
+            '{"object": {"type": "Note", "type": "Article"}}',
+            VultronRefusedJsonError,
+            "more than once",
+        ),
+        ('{"ratio": NaN}', VultronJsonSyntaxError, "NaN"),
+        ('{"ratio": -Infinity}', VultronJsonSyntaxError, "Infinity"),
+        ('{"ratio": 1e400}', VultronRefusedJsonError, "too large"),
+        ('{"id": ', VultronJsonSyntaxError, "not JSON"),
     ],
     ids=[
         "duplicate-key",
@@ -618,24 +624,50 @@ def test_load_json_reads_a_signed_body():
         "truncated",
     ],
 )
-def test_load_json_refuses_what_parsers_disagree_on(text: str, message: str):
-    with pytest.raises(VultronUnsignableJsonError, match=message):
+def test_load_json_refuses_what_parsers_disagree_on(
+    text: str, error: type[VultronUnsignableJsonError], message: str
+):
+    """RFC 8259 syntax faults and refused well-formed JSON raise apart.
+
+    ``NaN``, ``Infinity`` and truncated text are not JSON by RFC 8259's
+    grammar; a duplicate key and an overflowing number are JSON the
+    receiver refuses to read, so a receiver can answer them differently.
+    """
+    with pytest.raises(error, match=message):
         signing.load_json(text)
 
 
 @pytest.mark.parametrize(
-    ("text", "message"),
+    ("text", "error", "message"),
     [
-        ('{"count": ' + "1" * 5000 + "}", "not JSON"),
-        (b'{"name": "\xff"}', "not JSON"),
-        ("[" * 100_000 + "]" * 100_000, "nested too deeply"),
+        (
+            '{"count": ' + "1" * 5000 + "}",
+            VultronRefusedJsonError,
+            "cannot be read",
+        ),
+        (b'{"name": "\xff"}', VultronJsonSyntaxError, "not JSON"),
+        ('{"name": "a"}'.encode("utf-16"), VultronJsonSyntaxError, "utf-8"),
+        ('{"name": "a"}'.encode("utf-32"), VultronJsonSyntaxError, "utf-8"),
+        (b'\xef\xbb\xbf{"name": "a"}', VultronJsonSyntaxError, "BOM"),
+        (
+            "[" * 100_000 + "]" * 100_000,
+            VultronRefusedJsonError,
+            "nested too deeply",
+        ),
     ],
-    ids=["too-many-digits", "not-utf8", "deep-nesting"],
+    ids=[
+        "too-many-digits",
+        "not-utf8",
+        "utf-16",
+        "utf-32",
+        "utf-8-bom",
+        "deep-nesting",
+    ],
 )
 def test_load_json_refuses_text_python_cannot_read(
-    text: str | bytes, message: str
+    text: str | bytes, error: type[VultronUnsignableJsonError], message: str
 ):
-    with pytest.raises(VultronUnsignableJsonError, match=message):
+    with pytest.raises(error, match=message):
         signing.load_json(text)
 
 

@@ -250,7 +250,9 @@ so unpack it there, not at the repository root.
 Regenerate in the PR only when the change needs current recordings (a UI change,
 or a new scenario, which the `--check` hook requires). Then run
 `uv run export-demo-tree`: the tree index lists each recording's case ids, so a
-new or refreshed recording leaves it stale. The `demo-runner` service in
+new or refreshed recording leaves it stale. Then run `npm test -- -u` in `ui/`
+and commit `ui/src/utils/replay-golden/`: the UI job fails on a recording whose
+Log Replay golden file differs or is missing (#4729). The `demo-runner` service in
 `docker/docker-compose-multi-actor.yml` must set every cast slot's base-URL
 env var: the recorder reads the container layout from there and refuses a role
 it cannot place (#3901).

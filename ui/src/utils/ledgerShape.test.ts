@@ -227,6 +227,22 @@ describe('ledgerLineProblems', () => {
     ])
   })
 
+  it('checks a participant record\'s roles and consent rows against the generated definitions', () => {
+    const record = {
+      type: 'CaseParticipant',
+      attributedTo: 'http://actor1:7999/api/v2/actors/actor1',
+      caseRoles: ['vendor', 'VENDOR'],
+      embargoConsents: [{ type: 'EmbargoConsent', state: 'AGREED' }],
+    }
+    const line = entry()
+    line.payloadSnapshot = { type: 'Create', object: record }
+    expect(ledgerLineProblems(line)).toEqual([
+      'payloadSnapshot.object.caseRoles[1]: "VENDOR" is not a CaseRoles ' +
+        '(reporter, vendor, deployer, coordinator, observer, case_owner, case_manager, cve_numbering_authority)',
+      'payloadSnapshot.object.embargoConsents[0].embargoId: missing (EmbargoConsent requires it)',
+    ])
+  })
+
   it('reports every problem of a line, not only the first', () => {
     const line = { ...entry({ ...participantStatus(), rmState: 1 }), logIndex: -0.5, caseId: 3 }
     expect(ledgerLineProblems(line)).toHaveLength(3)
