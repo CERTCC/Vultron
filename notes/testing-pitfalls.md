@@ -294,6 +294,13 @@ worker in collection order. Mark a module that *asserts* an order with
 order is a leak to fix: put the reset in root `test/conftest.py` (TB-06-003), with
 an ordered pair in `test_process_global_isolation.py`.
 
+The grouping is a pytest-xdist trick that a pytest upgrade can turn off silently:
+under pytest 9.2 with xdist 3.8.0 every `xdist_group` mark does nothing, so
+`pytest` is pinned below 9.2 (#6181). A large run can still put the pair on one
+worker by chance, so green CI does not show that grouping works.
+`test/test_xdist_loadgroup.py` checks it with a real `-n` session; keep it green
+before you lift the pin or bump either package.
+
 ### A Retry Loop With Real Backoff Hides Inside a Passing Demo
 
 A demo test that takes many seconds with no sleep of its own is usually waiting
