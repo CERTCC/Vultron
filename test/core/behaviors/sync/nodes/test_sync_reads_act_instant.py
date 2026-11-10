@@ -140,7 +140,13 @@ _LATER = _AT + timedelta(seconds=1)
             id="read_replication_state",
         ),
         pytest.param(
-            lambda dl: should_replay(dl, **_KEYS, from_hash="", at=_LATER),
+            lambda dl: should_replay(
+                dl,
+                case_id=CASE_ID,
+                peer_id=PARTICIPANT_ACTOR_ID,
+                from_hash="",
+                at=_LATER,
+            ),
             False,
             id="should_replay",
         ),
