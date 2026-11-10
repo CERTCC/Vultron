@@ -37,6 +37,9 @@ from vultron.core.behaviors.case.case_actor_identity import case_actor_identity
 from vultron.core.models.actor import VultronService
 from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events.case_proposal import (
+    CreateCaseProposalReceivedEvent,
+)
 from vultron.core.models.events.report import SubmitReportReceivedEvent
 from vultron.core.models.report import (
     ReportAttachment,
@@ -179,6 +182,7 @@ class CaseManager:
         event = received_event(
             parse_activity(body), at=self.dl, receiving_actor_id=self.actor_id
         )
+        assert isinstance(event, CreateCaseProposalReceivedEvent)
         with act_instant_in_tree_run(at):
             return CreateCaseProposalReceivedUseCase(
                 self.dl,
