@@ -174,8 +174,9 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
         """
         Convenience method combining setup and execution.
 
-        **The act's instant (ADR-0176).**  An act's outermost run passes the
-        instant it read after taking the tree lock as *at*, and the run
+        **The act's instant (ADR-0176).**  An act's outermost run passes its
+        instant as *at*: for a trigger or sweep the clock reading it took
+        after the tree lock, for a received message its arrival stamp.  The run
         carries it as ``/at`` for its nodes to read
         (:func:`~vultron.core.behaviors.bridge.act_instant.read_act_instant`).
         A nested run omits *at* and inherits the enclosing run's instant, as

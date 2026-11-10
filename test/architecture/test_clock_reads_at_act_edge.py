@@ -305,19 +305,9 @@ KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
     ),
 )
 
-# The parse edge, and the RSVP and pre-bootstrap-queue reads beside it.
+# The parse edge, and the RSVP reads beside it.
 # owner: #5652
 KNOWN_PARSE_EDGE_CLOCK_READS: tuple[ClockRead, ...] = (
-    (
-        "vultron/adapters/driving/fastapi/inbox_pending_queue.py",
-        "_expire_pending_case_activities",
-        "now_utc",
-    ),
-    (
-        "vultron/adapters/driving/fastapi/inbox_pending_queue.py",
-        "_queue_pending_case_activity",
-        "now_utc",
-    ),
     (
         "vultron/core/behaviors/embargo/rsvp_stamp.py",
         "stamp_rsvp_deadline",
@@ -377,10 +367,10 @@ CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(
         # The ports and the system clocks behind them.
         "vultron/core/ports/clock.py",
         "vultron/adapters/driven/clock.py",
-        # open_act: the one place an act reads its clock.
+        # open_act and stamp_arrival: the two places an act reads its clock.
         "vultron/core/behaviors/bridge/act_instant.py",
-        # Act entry points: a delivery, a trigger, a sweep.
-        "vultron/core/behaviors/inbox/_process_payload.py",
+        # Act entry points: a delivery's arrival stamp, a trigger, a sweep.
+        "vultron/adapters/driving/fastapi/routers/actors/_routes/mailbox.py",
         "vultron/core/use_cases/triggers/_base/bt.py",
         "vultron/core/use_cases/triggers/actor/participant_role.py",
         "vultron/core/use_cases/triggers/actor/ownership.py",
@@ -393,8 +383,6 @@ CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(
         # Composition roots that hand the clock to an entry point.
         "vultron/core/trigger_dispatcher.py",
         "vultron/adapters/driving/fastapi/deps.py",
-        "vultron/adapters/driving/fastapi/inbox_orchestration/pipeline.py",
-        "vultron/adapters/driving/fastapi/inbox_queue_drain.py",
         "vultron/adapters/driving/fastapi/ledger_position_statements.py",
         "vultron/adapters/driving/cli.py",
         # The bookkeeping clock's one holder.

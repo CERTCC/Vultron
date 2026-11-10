@@ -50,6 +50,7 @@ from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
 from vultron.core.behaviors.inbox import InboxOutcomeStatus, process_payload
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
@@ -170,7 +171,7 @@ def _defer(dl: SqliteDataLayer, body: dict[str, Any]) -> None:
     artifact = adapter.parse(body)
     assert artifact is not None
     adapter.rehydrate(artifact)
-    assert staging.hold_for_replay(artifact.id_)
+    assert staging.hold_for_replay(artifact.id_, received_at=now_utc())
 
 
 def _announce_entry_body() -> dict[str, Any]:
@@ -255,7 +256,7 @@ def _assert_refused_through_the_inbox(
             FastAPIIngressAdapter(dl=dl, staging=staging),
             dispatch_adp,
             queue,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -428,7 +429,11 @@ def _refuse_and_stub(
     record = intake_received(dl, parse_activity(copy.deepcopy(body)))
     sealed = json.loads(sealed_body_of(record))
     stub = write_receipt_stub(
-        dl, body["id"], sender_id=ACTOR, reason="refused for this test"
+        dl,
+        body["id"],
+        sender_id=ACTOR,
+        reason="refused for this test",
+        received_at=now_utc(),
     )
     return stub, sealed
 
@@ -468,7 +473,7 @@ def test_the_same_body_under_a_refused_id_is_routed_on_its_own(
         FastAPIIngressAdapter(dl=dl, staging=staging),
         dispatch_adp,
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
     assert outcome.status is InboxOutcomeStatus.PROCESSED
@@ -676,7 +681,7 @@ def test_a_resend_deferred_again_is_held_with_the_body_left_in_holding(
     assert artifact is not None
     adapter.rehydrate(artifact)
 
-    assert staging.hold_for_replay(first["id"])
+    assert staging.hold_for_replay(first["id"], received_at=now_utc())
 
     held = dl.read(ReceivedActivityRecord.build_id(first["id"]))
     assert isinstance(held, ReceivedActivityRecord)
@@ -701,6 +706,6 @@ def test_an_archived_resend_deferred_again_is_not_held(dl: SqliteDataLayer):
     assert artifact is not None
     adapter.rehydrate(artifact)
 
-    assert staging.hold_for_replay(first["id"]) is False
+    assert staging.hold_for_replay(first["id"], received_at=now_utc()) is False
 
     assert dl.read(ReceivedActivityRecord.build_id(first["id"])) == record

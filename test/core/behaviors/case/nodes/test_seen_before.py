@@ -54,6 +54,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.helpers import ACTIVITY_UNAVAILABLE
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
 from vultron.core.models.note import VultronNote
@@ -137,6 +138,7 @@ def _stub(dl) -> None:
         sender_id=SENDER,
         reason=STUB_REASON,
         received_body=event.received_evidence,
+        received_at=now_utc(),
     )
 
 
@@ -148,7 +150,10 @@ def _waiting(dl) -> None:
     event = _event()
     assert event.received_evidence is not None
     hold_for_replay(
-        cast(CasePersistence, dl), ACTIVITY_ID, event.received_evidence
+        cast(CasePersistence, dl),
+        ACTIVITY_ID,
+        event.received_evidence,
+        received_at=now_utc(),
     )
 
 

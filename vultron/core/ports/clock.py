@@ -16,9 +16,12 @@
 """The two clocks and the stopwatch the application reads, as ports (ADR-0176).
 
 - :class:`ClockPort` is the **act clock**.  Only an act's entry point holds
-  it, and the act reads it once, after it takes the tree lock
-  (:func:`vultron.core.behaviors.bridge.act_instant.open_act`).  Everything below
-  that point takes the act's instant instead of reading a clock.
+  it, and the act reads it once: a trigger or sweep after it takes the tree
+  lock (:func:`vultron.core.behaviors.bridge.act_instant.open_act`), and a
+  received message on arrival, before it queues for the lock
+  (:func:`~vultron.core.behaviors.bridge.act_instant.stamp_arrival`; its
+  processing opens with ``open_received_act``).  Everything below that
+  point takes the act's instant instead of reading a clock.
 - :class:`BookkeepingClockPort` is the **bookkeeping clock**: adapter times
   such as when a delivery was dead-lettered.  Such a time is not an act's
   instant and never enters the case ledger, so it has its own port and its

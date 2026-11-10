@@ -39,6 +39,7 @@ test; the duplicate test uses the production dispatcher end to end.
 
 import json
 import logging
+from datetime import datetime
 from typing import Any, cast
 
 import pytest
@@ -58,6 +59,7 @@ from vultron.core.behaviors.inbox import (
     process_payload,
 )
 from vultron.core.dispatcher import DirectActivityDispatcher
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -154,7 +156,10 @@ class _DefersAndHolds:
         record = held_received_record(persistence, self._request.activity_id)
         assert record is not None and record.received_body is not None
         hold_for_replay(
-            persistence, self._request.activity_id, record.received_body
+            persistence,
+            self._request.activity_id,
+            record.received_body,
+            received_at=now_utc(),
         )
         return HandlerResult.deferred("awaiting entry 3")
 
@@ -190,6 +195,7 @@ class _SpyOutcomePort(FastAPIReceivedOutcomePort):
         sender_id: str,
         reason: str,
         received_body: str | None,
+        received_at: datetime,
     ) -> None:
         self.refused.append(activity_id)
         super().refuse(
@@ -197,6 +203,7 @@ class _SpyOutcomePort(FastAPIReceivedOutcomePort):
             sender_id=sender_id,
             reason=reason,
             received_body=received_body,
+            received_at=received_at,
         )
 
 
@@ -255,7 +262,7 @@ def _deliver(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=dispatcher
         ),
         received_outcome_port=outcome_port or FastAPIReceivedOutcomePort(dl),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 

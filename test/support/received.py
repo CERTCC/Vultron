@@ -70,7 +70,7 @@ from vultron.adapters.received_archive import (
 from vultron.core.behaviors.inbox.nodes.outcome_stage import (
     record_received_outcome,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.base import CoreObject
 from vultron.core.models.events import AnyReceivedEvent
 from vultron.core.models.events.base import (
@@ -521,6 +521,7 @@ def settle_as_the_inbox(dl: Any, event: Any, result: Any) -> None:
         event,
         result.disposition,
         result.reason,
+        at=now_utc(),
     )
 
 
@@ -578,7 +579,9 @@ def hold_deferred(
     parsed = parse_activity(delivered_body(activity))
     staging = InlineObjectStaging(dl)
     staging.rehydrate_parsed(parsed)
-    staging.hold_for_replay(parsed.id_, awaiting_case_id=awaiting_case_id)
+    staging.hold_for_replay(
+        parsed.id_, awaiting_case_id=awaiting_case_id, received_at=now_utc()
+    )
     held = staging.held(parsed.id_)
     if held is None:
         raise AssertionError(f"{parsed.id_!r} was not held for replay")

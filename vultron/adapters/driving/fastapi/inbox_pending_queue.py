@@ -20,6 +20,13 @@ the CBT-03-001 window.  Keeping that clock per case preserves today's
 behaviour, including its restart when a record that held only an anchor
 takes its first waiting message, so an invitee's thinking time is not
 charged against the queue.
+
+**Every time here is an act's instant** (ADR-0176).  The window opens at
+the arrival stamp of the message that opens it, and an act judges whether
+it has expired at its own instant: a later delivery naming the case, or
+the bootstrap that releases its messages, at its arrival stamp.  So a
+bootstrap that arrived inside the window releases the queue even when a
+backlog processed it after the window closed (CBT-03-003).
 """
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
@@ -39,11 +46,10 @@ charged against the queue.
 #  in the U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from vultron.config import get_config
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
@@ -97,8 +103,12 @@ def _queue_pending_case_activity(
     case_actor_id: str | None = None,
     *,
     window_already_open: bool,
+    at: datetime,
 ) -> None:
     """Open, or keep open, the expiry window for *case_id*'s waiting messages.
+
+    A window this opens starts at *at*, the instant of the act queueing the
+    activity, which is the activity's arrival stamp (ADR-0176).
 
     The activity being queued is not named here, because nothing per-message
     is kept on this record: the activity already names the case it waits on,
@@ -134,7 +144,7 @@ def _queue_pending_case_activity(
             return
         queue_dl.save(
             VultronPendingCaseInbox.model_validate(
-                {**pending.model_dump(), "queued_at": now_utc()}
+                {**pending.model_dump(), "queued_at": at}
             )
         )
         return
@@ -143,6 +153,7 @@ def _queue_pending_case_activity(
         VultronPendingCaseInbox(
             case_id=case_id,
             case_actor_id=case_actor_id,
+            queued_at=at,
         )
     )
 
@@ -151,14 +162,19 @@ def _expire_pending_case_activities(
     case_id: str,
     queue_dl: DataLayer,
     timeout_seconds: int | None = None,
+    *,
+    at: datetime,
 ) -> bool:
     """Drop an expired pre-bootstrap queue (CBT-03-003).
 
-    Checks whether the ``VultronPendingCaseInbox`` for *case_id* has
-    held queued activities for longer than *timeout_seconds* (defaults to
-    ``AppConfig.pre_bootstrap_queue_timeout_seconds``).  A record holding no
-    activity — a stub Invite's trust anchor alone — has nothing to expire.
-    When expired:
+    The queue for *case_id* has expired when ``queued_at``, the arrival stamp
+    of the message that opened its window, plus *timeout_seconds* (defaults
+    to ``AppConfig.pre_bootstrap_queue_timeout_seconds``) is not after *at*,
+    the instant of the act that asks (ADR-0176).  A received act's instant
+    is its arrival stamp, so a message that arrived inside the window is
+    judged inside it however long it waited for the tree lock.  A record
+    holding no activity — a stub Invite's trust anchor alone — has nothing
+    to expire.  When expired:
 
     1. Logs a WARNING for each dropped activity ID (CBT-03-006).
     2. Deletes the record holding each activity for its replay, and the
@@ -175,6 +191,7 @@ def _expire_pending_case_activities(
         queue_dl: Actor-scoped DataLayer used to read and delete the queue.
         timeout_seconds: Expiry window in seconds.  ``None`` reads from
             ``get_config().pre_bootstrap_queue_timeout_seconds``.
+        at: The instant of the act that judges the window.
 
     Returns:
         ``True`` if the queue was expired and dropped; ``False`` if the
@@ -196,13 +213,12 @@ def _expire_pending_case_activities(
     if not waiting:
         return False
 
-    now = now_utc()
     queued_at = pending.queued_at
     if queued_at.tzinfo is None:
         queued_at = queued_at.replace(tzinfo=UTC)
-    age_seconds = (now - queued_at).total_seconds()
-    if age_seconds < timeout_seconds:
+    if queued_at + timedelta(seconds=timeout_seconds) > at:
         return False
+    age_seconds = (at - queued_at).total_seconds()
 
     for record in waiting:
         logger.warning(
@@ -237,6 +253,8 @@ def _replay_pending_case_activities(
     case_id: str,
     dl: DataLayer,
     queue_dl: DataLayer,
+    *,
+    at: datetime,
 ) -> None:
     """Move deferred activities for *case_id* back onto the live inbox queue.
 
@@ -251,6 +269,10 @@ def _replay_pending_case_activities(
         case_id: URI of the case whose pending queue should be drained.
         dl: Shared DataLayer used for case lookup.
         queue_dl: Actor-scoped DataLayer for queue management.
+        at: The instant of the releasing act, the bootstrap's arrival stamp,
+            which the expiry is judged at (ADR-0176).  The replays it queues
+            are not judged again: each runs at its own arrival stamp, inside
+            the window this release found open.
     """
     if not isinstance(dl.read(case_id), VulnerabilityCase):
         return
@@ -261,7 +283,9 @@ def _replay_pending_case_activities(
         return
 
     waiting_before = len(records_awaiting_case(_store(queue_dl), case_id))
-    if _expire_pending_case_activities(case_id=case_id, queue_dl=queue_dl):
+    if _expire_pending_case_activities(
+        case_id=case_id, queue_dl=queue_dl, at=at
+    ):
         logger.warning(
             "Bootstrap arrived for case '%s' but pre-bootstrap queue had "
             "already expired; dropped %d activity ID(s) — a fresh "

@@ -75,7 +75,7 @@ def test_the_notice_embeds_the_body_and_the_stub_replaces_it():
             dl=store, actor_id=MANAGER, dispatcher=make_dispatcher()
         ),
         received_outcome_port=FastAPIReceivedOutcomePort(store),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
