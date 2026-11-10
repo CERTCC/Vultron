@@ -27,6 +27,7 @@ from vultron.adapters.driving.fastapi.deps import (
     get_trigger_dispatcher,
     get_trigger_dl,
 )
+from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
 from vultron.core.models.use_case_result import ActivityResult, OfferResult
 from vultron.core.ports.datalayer import DataLayer
@@ -45,6 +46,7 @@ from vultron.core.use_cases.triggers.requests import (
     SubmitReportTriggerRequest,
     ValidateReportTriggerRequest,
 )
+from vultron.wire.csaf.reader import read_submitted_csaf_document
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
 
@@ -219,6 +221,16 @@ def trigger_reject_report(
         "An optional proposed_embargo_end_time states the Reporter's embargo "
         "terms for the report; the Offer then carries them as "
         "proposedEmbargo (EP-04-004). "
+        "An optional csaf_document, a CSAF 2.1 document as a JSON object, is "
+        "attached to the report as a Document with mediaType "
+        "application/json (CSAF-01-001, CSAF-01-002); one that fails the "
+        "CSAF 2.1 schema, is not a csaf_vulnerability_report, or is longer "
+        "than a receiver reads is refused "
+        "with HTTP 422 naming each fault, and nothing is sent (CSAF-04-009). "
+        "A report_name, report_summary or proposed_embargo_end_time the "
+        "request leaves out is filled from the document (CSAF-04-010), so "
+        "report_name may be left out when the document's title names the "
+        "report. "
         "Returns the serialised offer so the caller can deliver it to the "
         "recipient's inbox."
     ),
@@ -237,15 +249,28 @@ def trigger_submit_report(
 
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-001, TRIG-03-002,
-        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
+        TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001,
+        CSAF-01-001, CSAF-01-002, CSAF-04-009, CSAF-04-010
+
+    The CSAF document is read here, at the edge, so the core request carries
+    the reading and core never imports wire (ARCH-01-001, ADR-0032); the
+    trigger judges it.
     """
+    csaf_document = None
+    if body.csaf_document is not None:
+        # An unsendable document (not valid Unicode, or longer than a
+        # receiver reads) is refused as a 422, before it is parsed as CSAF.
+        with domain_error_translation():
+            csaf_document = read_submitted_csaf_document(body.csaf_document)
     return run_trigger(
         SubmitReportTriggerRequest(
             actor_id=actor_id,
             report_name=body.report_name,
             report_content=body.report_content,
             recipient_id=body.recipient_id,
+            report_summary=body.report_summary,
             proposed_embargo_end_time=body.proposed_embargo_end_time,
+            csaf_document=csaf_document,
         ),
         dispatcher=dispatcher,
         dl=actor_dl,

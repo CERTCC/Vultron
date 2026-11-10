@@ -287,6 +287,9 @@ def test_every_core_request_adds_actor_id_to_a_body_model(
             # A demo route's second step names its first (RSH-08-006).
             "follows_status_id",
         },
+        # The edge's reading of the body's JSON object, so core judges the
+        # CSAF document without importing wire (CSAF-04-009, ARCH-01-001).
+        "SubmitReportTriggerRequest": {"csaf_document"},
     }
     assert own <= allowed_extras.get(request_cls.__name__, set()), (
         f"{request_cls.__name__} declares fields its body model does not:"
@@ -465,4 +468,11 @@ def test_offer_role_body_refuses_an_authority_role(role: str) -> None:
     with pytest.raises(ValidationError, match="CM-20-009"):
         OfferCaseParticipantRoleRequest.model_validate(
             {"case_id": _CASE, "target_actor_id": _ACTOR, "role": role}
+        )
+
+
+def test_submit_report_needs_a_name_or_a_csaf_document() -> None:
+    with pytest.raises(ValidationError, match="report_name is required"):
+        SubmitReportTriggerRequest(
+            actor_id=_ACTOR, report_content="c", recipient_id=_ACTOR
         )

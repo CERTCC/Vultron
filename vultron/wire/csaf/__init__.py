@@ -18,7 +18,9 @@
   ``uv run csaf-models`` (CSAF-05-003).
 - :mod:`~vultron.wire.csaf.reader` recognizes a CSAF 2.1 document attached to
   a received report, checks it with those models and reads what it claims
-  into the core claims models (CSAF-01-003, CSAF-04-001, CSAF-04-003).
+  into the core claims models (CSAF-01-003, CSAF-04-001, CSAF-04-003). It
+  also checks the document a Reporter asks the submit-report trigger to
+  attach, before the trigger judges it (CSAF-04-009).
 
 The copy itself and its pin record are third-party files in
 ``third_party/csaf/``, outside this package; :mod:`vultron.metadata.csaf.pin`
