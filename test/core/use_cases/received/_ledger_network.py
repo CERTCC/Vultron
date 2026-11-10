@@ -22,8 +22,10 @@ CASE_MANAGER's state, from the ``Announce(CaseLedgerEntry)`` broadcast alone
 """
 
 import json
+from collections.abc import Sequence
 from typing import Any, cast
 
+from test.support.act_runner import in_act
 from test.support.embargo_register import (
     activate,
     propose,
@@ -74,6 +76,7 @@ from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
     ConsentRowVerb,
+    EmbargoCaseFile,
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
@@ -114,6 +117,20 @@ NETWORKS: list["LedgerNetwork"] = []
 def _as_json(body: dict[str, Any]) -> str:
     """*body* as key-sorted JSON text, so two bodies compare as sent."""
     return json.dumps(body, sort_keys=True)
+
+
+def commit_entries_in_act(
+    datalayer: SqliteDataLayer,
+    case_id: str,
+    entries: Sequence[PlannedEmbargoEntry],
+) -> EmbargoCaseFile:
+    """Commit *entries* as one act, as the node that plans them would.
+
+    The ledger commit reads the act's instant (ADR-0176), so a test that
+    commits planned entries outside a tree run opens the act itself.
+    """
+    with in_act():
+        return commit_and_apply_embargo_entries(datalayer, case_id, entries)
 
 
 class LedgerNetwork:
@@ -605,7 +622,7 @@ class LedgerNetwork:
         """
         self.drop_consent_row(replica, member)
         change = self.consent_row_change(member, EmbargoConsentState.DECLINED)
-        commit_and_apply_embargo_entries(
+        commit_entries_in_act(
             self.stores[MANAGER],
             self.case_id,
             [self.planned_consent_entry(change, cause_id)],

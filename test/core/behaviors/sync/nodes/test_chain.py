@@ -423,6 +423,29 @@ def test_update_replication_state_node_creates_state_for_peer(
     assert stored.last_acknowledged_hash == entry.entry_hash
 
 
+@pytest.mark.spec("SYNC-04-002")
+@pytest.mark.spec("CS-13-002")
+def test_update_replication_state_node_stamps_the_acts_instant(
+    owner_bridge, owner_store
+):
+    """The record is stamped with the act's instant, not a clock read."""
+    entry = _make_entry(0)
+    at = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)
+
+    result = run_tree(
+        owner_bridge,
+        tree=UpdateReplicationStateNode(name="UpdateReplicationState"),
+        actor_id=OWNER_ACTOR_ID,
+        activity=_reject_event(entry, PARTICIPANT_ACTOR_ID, entry.entry_hash),
+        at=at,
+    )
+
+    assert result.status == Status.SUCCESS
+    stored = owner_store.read(_replication_state_id(PARTICIPANT_ACTOR_ID))
+    assert isinstance(stored, VultronReplicationState)
+    assert stored.updated_at == at
+
+
 @pytest.mark.spec("SYNC-04-001")
 @pytest.mark.spec("SYNC-04-002")
 def test_update_replication_state_node_upserts_existing_state(

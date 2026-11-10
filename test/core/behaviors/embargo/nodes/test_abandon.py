@@ -32,7 +32,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
     setup_blackboard,
 )
-from test.support.act_runner import run_tree
+from test.support.act_runner import in_act, run_tree
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.ledger import committed_semantic_types, fail_commits
 from test.support.received import archive_received
@@ -132,15 +132,16 @@ def _relay(dl: SqliteDataLayer, case_id: str, embargo_id: str) -> str:
         to=[_RELAY_INVITEE],
         attributed_to=OTHER_PARTICIPANT_ACTOR,
     )
-    commit_emitted_activity(
-        datalayer=dl,
-        actor_id=CASE_MANAGER_ACTOR,
-        case_id=case_id,
-        activity_id=invite_id,
-        activity_blob=blob,
-        semantic_type=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
-        sync_port=SyncActivityAdapter(dl),
-    )
+    with in_act():
+        commit_emitted_activity(
+            datalayer=dl,
+            actor_id=CASE_MANAGER_ACTOR,
+            case_id=case_id,
+            activity_id=invite_id,
+            activity_blob=blob,
+            semantic_type=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
+            sync_port=SyncActivityAdapter(dl),
+        )
     return invite_id
 
 

@@ -22,7 +22,7 @@ from typing import cast
 import anyio
 import pytest
 
-from test.support.act_runner import run_in_act
+from test.support.act_runner import in_act, run_in_act
 from test.support.received import delivered, peer_position, received_event
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -781,28 +781,29 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
         diverged.embargo_consents = []
         peer_dl.save(diverged)
 
-    commit_and_apply_embargo_entries(
-        case_actor_dl,
-        case.id_,
-        [
-            consent_row_entry(
-                datalayer=case_actor_dl,
-                trigger_activity=TriggerActivityAdapter(case_actor_dl),
-                actor_id=case_actor_id,
-                case_id=case.id_,
-                change=ConsentRowChange(
-                    verb=ConsentRowVerb.UPDATE,
-                    row=EmbargoConsent(
-                        embargo_id=embargo.id_,
-                        state=EmbargoConsentState.INVITED,
-                        attributed_to=peer_actor_id,
+    with in_act():
+        commit_and_apply_embargo_entries(
+            case_actor_dl,
+            case.id_,
+            [
+                consent_row_entry(
+                    datalayer=case_actor_dl,
+                    trigger_activity=TriggerActivityAdapter(case_actor_dl),
+                    actor_id=case_actor_id,
+                    case_id=case.id_,
+                    change=ConsentRowChange(
+                        verb=ConsentRowVerb.UPDATE,
+                        row=EmbargoConsent(
+                            embargo_id=embargo.id_,
+                            state=EmbargoConsentState.INVITED,
+                            attributed_to=peer_actor_id,
+                        ),
                     ),
-                ),
-                cause_id=f"{case.id_}/activities/invite",
-                sync_port=SyncActivityAdapter(case_actor_dl),
-            )
-        ],
-    )
+                    cause_id=f"{case.id_}/activities/invite",
+                    sync_port=SyncActivityAdapter(case_actor_dl),
+                )
+            ],
+        )
     manager_ledger = ledger_entries(case_actor_dl, case.id_)
     assert len(manager_ledger) == 1
 

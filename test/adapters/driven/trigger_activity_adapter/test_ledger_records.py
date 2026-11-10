@@ -295,6 +295,7 @@ def test_the_record_passes_the_canonical_guard(adapter, recipes, method):
         case_id=CASE_ID,
         payload_snapshot=_snapshot(recipes[method], adapter),
         semantic_type=_SHAPES[method][2],
+        at=datetime.now(UTC),
     )
 
 
