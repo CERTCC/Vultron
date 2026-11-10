@@ -45,7 +45,10 @@ import logging
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.held_ledger_announce import HeldLedgerAnnounce
-from vultron.core.models.received_activity_record import HOLDING_STAGES
+from vultron.core.models.received_activity_record import (
+    HOLDING_STAGES,
+    ReceivedActivityRecord,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.received_activity import (
     held_received_record,
@@ -113,8 +116,13 @@ def discard_held(dl: CasePersistence, held: HeldLedgerAnnounce) -> None:
         discard_holding(dl, held.activity_id)
 
 
-def _received_body(dl: CasePersistence, activity_id: str) -> str:
-    """The body intake recorded for *activity_id* (CLP-10-017).
+def _record_in_holding(
+    dl: CasePersistence, activity_id: str
+) -> ReceivedActivityRecord:
+    """The record intake wrote for *activity_id*, in holding (CLP-10-017).
+
+    Its body is what the hold keeps, and its arrival stamp what the replay
+    runs at (ADR-0176).
 
     Raises:
         VultronWiringError: When intake recorded no body in holding.  Intake
@@ -129,7 +137,7 @@ def _received_body(dl: CasePersistence, activity_id: str) -> str:
             " there is no received body to hold for its replay (CLP-10-017,"
             " SYNC-14-001)"
         )
-    return sealed_body_of(record)
+    return record
 
 
 def _make_room(
@@ -239,7 +247,7 @@ def hold_ledger_announce(
             entry.log_index,
             activity_id,
         )
-    received_body = _received_body(dl, activity_id)
+    held = _record_in_holding(dl, activity_id)
     bound = (
         DEFAULT_HELD_LEDGER_ANNOUNCES_MAX
         if max_per_case is None
@@ -253,7 +261,12 @@ def hold_ledger_announce(
         elif not _make_room(dl, entry, activity_id, bound, actor_id):
             return False
         # A body already owing a replay is the same delivery's; keep it.
-        hold_for_replay(dl, activity_id, received_body)
+        hold_for_replay(
+            dl,
+            activity_id,
+            sealed_body_of(held),
+            received_at=held.received_at,
+        )
         dl.save(
             HeldLedgerAnnounce(
                 case_id=entry.case_id,

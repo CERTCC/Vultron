@@ -32,6 +32,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_manager import add_case_manager_participant
 from test.support.received import delivered_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -136,7 +137,9 @@ def _deliver(
 ) -> None:
     """Run one inbound POST's background task to completion."""
     asyncio.run(
-        run_inbox_pipeline(body, dl, _RECEIVER, dispatcher, AsyncMock())
+        run_inbox_pipeline(
+            body, dl, _RECEIVER, dispatcher, AsyncMock(), arrived_at=ACT_AT
+        )
     )
 
 

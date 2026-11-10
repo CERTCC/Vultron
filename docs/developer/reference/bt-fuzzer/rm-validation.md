@@ -16,14 +16,15 @@ This sub-tree assesses whether an incoming vulnerability report is credible and 
 - **Source file**: `report_management/fuzzer/validate_report.py`
 - **Parent tree**: `RMValidateBt`
 - **Semantic function**: Condition — check whether new information has arrived that makes a new evaluation of the validity of the report necessary
-- **Input dependency**: Report change detection, through a metadata timestamp check, an event subscription, or a manual flag
+- **Input dependency**: Change detection on the sources of validation information outside the protocol, through a timestamp check, an event subscription, or a manual flag
 - **Notes**: Succeeds (no new information) more often than not, to prevent unnecessary repeated evaluation loops
-- **Automation potential**: **High** — an event subscription on the case record, or a metadata timestamp comparison.
+- **Automation potential**: **High** — an event subscription on those sources, or a timestamp comparison.
   This check is fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.NoNewValidationInfo`
 - **Call-out point shape**: Retriever (binary) — the tree asks the sources of validation information on its own tick whether anything new has arrived, and the answer is the `SUCCESS` or `FAILURE` result itself, with no output keys (BT-18-006, BT-18-010).
   It is not ProtocolInternal, because its input comes from outside the protocol (BT-18-017).
   It is not a Sentinel: a Sentinel acts on its own initiative through a trigger and never answers a question the tree asks (BT-18-013).
+- **Store-held answer**: Whether new information reached the outside sources is not recorded in the case file or the actor's store, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — a binary Retriever call-out at the top of the root `ValidateReportBT` Selector.
   It is not wired yet.
   The tree has `CheckRMStateValid` in that position, and this call-out belongs next to it, as a `ValidationCallOutBundle` factory field, when the retry loop exists.
@@ -93,5 +94,6 @@ This sub-tree assesses whether an incoming vulnerability report is credible and 
   Direct contact with the reporter usually needs human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.GatherValidationInfo`
 - **Call-out point shape**: Retriever
+- **Store-held answer**: The case file does not record the outside information this node collects, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Retriever action node in the info-gathering Sequence (not wired yet).
   It runs when `EnoughValidationInfo` returns FAILURE.

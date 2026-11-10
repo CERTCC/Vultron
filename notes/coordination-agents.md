@@ -14,15 +14,13 @@ tracks:
   - "#3423"
   - "#3426"
   - "#6078"
-  - "#6147"
 description: >
   Design for the capability layer's unbuilt work: core-owned typed-port
   contracts and renamed shape base classes (#3421), the call-out latency budget
-  (#3423), the read-first Retriever guard (#6147), the participant-suggestion
-  port (#3426), and the Sentinel call-in pattern (#2450). Also routes a design
-  question to a capability, an ask, or a call-in monitor, and says why Sentinel
-  is not a fifth shape; the call-in and call-out surfaces themselves are
-  defined in call-out-configuration.md.
+  (#3423), the participant-suggestion port (#3426), and the Sentinel call-in
+  pattern (#2450). Also routes a design question to a capability, an ask, or a
+  call-in monitor, and says why Sentinel is not a fifth shape; the call-in and
+  call-out surfaces themselves are defined in call-out-configuration.md.
 related_notes:
   - notes/bt-integration.md
   - notes/agentic-workflow.md
@@ -169,7 +167,7 @@ All four shapes share one convention: synchronous, in-process,
 - **Retriever** — returns external facts. Where the case or the actor's own
   store already holds the fact, the tree reads it there and does not call the
   Retriever: a repeat call costs budget and can contradict the case
-  (#6147). Any cache of external data belongs to the capability
+  (BT-18-039). Any cache of external data belongs to the capability
   implementation, which alone knows how fast its source changes, so where the
   cache lives, how long an entry stays fresh and what clears it are its choice;
   the call-out seam provides none (BT-18-029). A stale answer is the

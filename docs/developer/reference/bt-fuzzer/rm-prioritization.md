@@ -16,15 +16,16 @@ This sub-tree decides whether to accept (engage) or defer a valid report.
 - **Source file**: `report_management/fuzzer/prioritize_report.py`
 - **Parent tree**: `RMPrioritizeBt`
 - **Semantic function**: Condition — check whether new information has arrived that makes a new prioritization of the report necessary
-- **Input dependency**: Report change detection, through a metadata timestamp or an event subscription
+- **Input dependency**: Change detection on the sources of prioritization information outside the protocol, through a timestamp or an event subscription
 - **Notes**: Succeeds more often than not, to prevent unnecessary repeated evaluation
-- **Automation potential**: **High** — a metadata timestamp or case-update event check.
+- **Automation potential**: **High** — a timestamp or update-event check on those sources.
   This check is fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.NoNewPrioritizationInfo`
 - **Call-out point shape**: Retriever (binary) — the tree asks the sources of prioritization information on its own tick whether anything new has arrived, such as new Stakeholder-Specific Vulnerability Categorization (SSVC) data or a Common Vulnerability Scoring System (CVSS) score update.
   The answer is the `SUCCESS` or `FAILURE` result itself, with no output keys (BT-18-006, BT-18-010).
   It is not ProtocolInternal, because its input comes from outside the protocol (BT-18-017).
   It is not a Sentinel: a Sentinel acts on its own initiative through a trigger and never answers a question the tree asks (BT-18-013).
+- **Store-held answer**: Whether new information reached the outside sources is not recorded in the case file or the actor's store, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree` — a binary Retriever call-out at the top of the `PrioritizeBT` Selector.
   It is not wired yet.
   It belongs here, as a `PrioritizationCallOutBundle` factory field, when the re-prioritization loop exists.
@@ -59,6 +60,7 @@ This sub-tree decides whether to accept (engage) or defer a valid report.
   Analyst interpretation and gap-filling still need human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.GatherPrioritizationInfo`
 - **Call-out point shape**: Retriever
+- **Store-held answer**: The case file does not record the outside context this node collects, such as scores and threat data, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree` — Retriever action node in the info-gathering Sequence (not wired yet).
   It runs when `EnoughPrioritizationInfo` returns FAILURE.
 

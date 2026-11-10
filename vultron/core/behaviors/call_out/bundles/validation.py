@@ -57,6 +57,12 @@ class ValidationCallOutBundle(CallOutBundle):
     gather_info_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
+    """GatherValidationInfo (Retriever): p=0.90 → AlwaysSucceed.
+
+    Store-held answer (BT-18-039): **cannot**.  It collects outside
+    information, such as reproduction steps, that the case file does not
+    record, so no read-first guard precedes this Retriever.
+    """
 
 
 VALIDATION_DETERMINISTIC = ValidationCallOutBundle()

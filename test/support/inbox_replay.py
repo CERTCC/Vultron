@@ -26,10 +26,12 @@ held for it, as the inbox replay does, and delivering it.
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, cast
 
 from test.support.received import delivered_body, received_event
 from vultron.adapters.inbox_staging import InlineObjectStaging
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.received_activity_record import (
@@ -151,7 +153,9 @@ def held_depth(dl: Any, case_id: str) -> int:
     return len(held_ledger_announces(dl, case_id))
 
 
-def hold_activity(dl: Any, activity: as_Activity) -> bool:
+def hold_activity(
+    dl: Any, activity: as_Activity, *, received_at: datetime | None = None
+) -> bool:
     """Hold *activity* in *dl* for a replay through the inbox queue.
 
     For a test that queues an activity by id outside a delivery: the activity
@@ -160,6 +164,9 @@ def hold_activity(dl: Any, activity: as_Activity) -> bool:
     there.  An activity built in process carries no body, so it is delivered
     as a sender would send it and held as that sealed body (VM-08-002).
 
+    *received_at* is its arrival stamp, which the replay runs at (ADR-0176);
+    the current time when the test does not care which.
+
     Returns whether this call held it; ``False`` when a record for the same
     id is already held.
     """
@@ -167,4 +174,7 @@ def hold_activity(dl: Any, activity: as_Activity) -> bool:
         activity = parse_activity(delivered_body(activity))
     staging = InlineObjectStaging(dl)
     staging.rehydrate_parsed(activity)
-    return staging.hold_for_replay(activity.id_)
+    return staging.hold_for_replay(
+        activity.id_,
+        received_at=now_utc() if received_at is None else received_at,
+    )

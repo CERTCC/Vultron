@@ -56,7 +56,8 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (
 from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
 from vultron.core.behaviors.bridge.act_instant import (
     act_instant_in_tree_run,
-    open_act,
+    open_received_act,
+    stamp_arrival,
 )
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import VultronEvent
@@ -282,9 +283,9 @@ def handle_inbox_item(
 ) -> None:
     """Handle a single item in the Actor's inbox.
 
-    Processing the item is one act (ADR-0176): it takes the tree lock, then
-    reads *clock* once, and the dispatch's tree runs carry that instant as
-    ``/at``.
+    Processing the item is one act (ADR-0176): *clock* is read once, as the
+    item's arrival stamp, before the act takes the tree lock, and the
+    dispatch's tree runs carry that stamp as ``/at``.
 
     Args:
         actor_id: The canonical URI of the Actor whose inbox is being processed.
@@ -301,7 +302,8 @@ def handle_inbox_item(
     )
     event = prepare_for_dispatch(activity=obj)
     event = event.model_copy(update={"receiving_actor_id": actor_id})
-    with open_act(clock) as at, act_instant_in_tree_run(at):
+    arrived_at = stamp_arrival(clock)
+    with open_received_act(arrived_at) as at, act_instant_in_tree_run(at):
         dispatch(event=event, dl=dl, dispatcher=dispatcher)
 
 

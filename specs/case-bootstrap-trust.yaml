@@ -624,6 +624,34 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CBT-03-003
+  - id: CBT-03-007
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0176
+    statement: >-
+      This codebase MUST treat a case's pre-bootstrap queue interval (CBT-03-001) as
+      expired once the arrival stamp of the first message queued for the case, plus the
+      interval, is not after the instant of the act that judges it: a later delivery
+      naming the case or the bootstrap that releases its messages, at its arrival
+      stamp, or a sweep, at its own instant.
+    rationale: >-
+      Each received act is judged at its arrival stamp (CS-13-010), so a bootstrap
+      that arrived inside the window releases the queue even when a backlog delayed its
+      processing past the window. A released message is not judged again at its
+      replay: it runs at its own arrival stamp, which is inside the window the release
+      found open.
+    verification: >-
+      `test/adapters/driving/fastapi/test_arrival_stamp.py` asserts the boundary
+      (expired when the opening stamp plus the interval equals the judging instant, not
+      one microsecond before), and that a bootstrap stamped inside the window releases
+      the queue when it is processed after the window closed.
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-03-003
+    see_also:
+    - spec_id: CBT-03-001
+      reason: 'names the interval this measures; CBT-03-003 is the rule it refines'
 - id: CBT-04
   title: Late-Joiner Bootstrap
   specs:

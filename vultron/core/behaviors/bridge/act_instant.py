@@ -16,12 +16,20 @@
 """An act's one clock read, and the tree-run key that carries it (ADR-0176).
 
 An **act** is one trigger invocation, the processing of one inbound delivery,
-or one sweep.  Each act reads the clock once, at its entry point, and
-everything below that point takes the instant instead of reading a clock:
+or one sweep.  Each act has one instant, read once from the act clock, and
+everything below its entry point takes the instant instead of reading a
+clock:
 
-- :func:`open_act` is the entry point's half.  It takes the tree lock, then
-  reads the act clock once, and the caller holds the lock until the act
-  commits.  Queueing for the lock is therefore not decision time.
+- :func:`open_act` is the entry point's half for a trigger or a sweep.  It
+  takes the tree lock, then reads the act clock once, and the caller holds
+  the lock until the act commits.  Queueing for the lock is therefore not
+  decision time.
+- :func:`stamp_arrival` and :func:`open_received_act` are the two halves for
+  a received message: the inbox reads the act clock once when the message
+  arrives, before it queues for the tree lock, and the processing takes the
+  lock and runs at that arrival stamp.  Every judgment about the message
+  uses the stamp, even when it is held and replayed later, so a backlog
+  never makes an on-time message late.
 - :func:`act_instant_in_tree_run` places the instant in the tree run's shared
   state as ``/at`` and puts back what was there on exit; the inbox pipeline
   uses it for the delivery it processes.  ``BTBridge.execute_with_setup(...,
@@ -32,8 +40,9 @@ everything below that point takes the instant instead of reading a clock:
   calls it when it ticks; it raises when the run carries no instant, and it
   never reads the clock.
 
-A held activity replayed later is an act of its own and reads its own
-instant, even when its replay runs inside the act that released it.
+A held activity replayed later is an act of its own, and its instant is the
+arrival stamp its held record carries, never the instant of the act that
+released it.
 """
 
 from collections.abc import Iterator
@@ -85,6 +94,39 @@ def open_act(clock: ClockPort) -> Iterator[datetime]:
     """
     with _BT_GLOBAL_LOCK:
         yield _require_aware(clock.now(), type(clock).__name__)
+
+
+def stamp_arrival(clock: ClockPort) -> datetime:
+    """Read *clock* once for a message arriving now; return its arrival stamp.
+
+    The inbox calls this when a message arrives, before the message queues
+    for the tree lock, so the time spent waiting for the lock is not charged
+    to the sender (ADR-0176).  The stamp is the instant of every act that
+    processes the message, its replays included (:func:`open_received_act`).
+
+    Raises:
+        VultronWiringError: *clock* returned something other than a
+            timezone-aware ``datetime``.
+    """
+    return _require_aware(clock.now(), type(clock).__name__)
+
+
+@contextmanager
+def open_received_act(arrived_at: datetime) -> Iterator[datetime]:
+    """Open the act that processes a received message stamped *arrived_at*.
+
+    Takes the tree lock and yields *arrived_at* as the act's instant, with
+    the lock held until the block exits.  No clock is read: the message's
+    arrival stamp (:func:`stamp_arrival`) is its instant, at its first
+    processing and at every replay of it.
+
+    Raises:
+        VultronWiringError: *arrived_at* is not a timezone-aware
+            ``datetime``.
+    """
+    at = _require_aware(arrived_at, "open_received_act")
+    with _BT_GLOBAL_LOCK:
+        yield at
 
 
 @contextmanager
@@ -161,6 +203,8 @@ __all__ = [
     "act_instant_in_tree_run",
     "inherited_act_instant",
     "open_act",
+    "open_received_act",
     "place_act_instant",
     "read_act_instant",
+    "stamp_arrival",
 ]

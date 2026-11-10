@@ -9,9 +9,11 @@ tracks:
   - "#5760"   # slice 6: recordings through the port
   - "#5761"   # follow-on: generated ids, decided in ADR-0185
   - "#5848"   # follow-on: drift limit, after the call-out budget (#3423)
+  - "#6191"   # a received message's instant is its arrival stamp
 description: >
   The remaining migration to ADR-0176: acts already read the clock once at
-  their edge and carry it as /at; tree nodes still to move read that instant from
+  their edge, a received message at its arrival, and carry it
+  as /at; tree nodes still to move read that instant from
   the tree run, and core code takes time as an argument and never reads or
   defaults it.
 related_specs:
@@ -32,9 +34,26 @@ keeps.
 
 ## Rules every slice keeps
 
-- **Lock, then read.** An act takes the tree lock before it reads its instant
-  and holds the lock until it commits, so queueing for the lock is not decision
-  time. A trigger's checks before its tree run inside that lock.
+- **Lock, then read — except a received message.** A trigger or sweep takes the
+  tree lock before it reads its instant and holds the lock until it commits, so
+  queueing for the lock is not decision time. A trigger's checks before its tree
+  run inside that lock. A received message's instant is its arrival stamp,
+  read before it queues (next rule).
+- **A received message is judged at its arrival stamp.** The
+  inbox route reads the act clock once on arrival (`stamp_arrival`, through the
+  `get_act_clock` dependency), before any lock, and every act that processes the
+  message runs at that stamp (`process_payload(..., arrived_at=)`,
+  `open_received_act`), because a backlog the sender cannot see must not make an
+  on-time answer late. The stamp is the record's `received_at`: intake, every
+  hold and a receipt stub write it, a hold of a released record keeps it, and a
+  replay, retry or restart re-run runs at it. Never re-stamp a held message, and
+  never use the releasing act's instant for its replay.
+- **Queue expiry is judged by the act that releases or sweeps.** The
+  pre-bootstrap window opens at the first waiter's arrival stamp and has expired
+  once that plus the interval is not after the judging act's instant (a later
+  delivery or the bootstrap, at its arrival stamp; a sweep, at its own), so a
+  bootstrap that arrived inside the window releases the queue however late it
+  runs; a released message is not judged again at its replay (CBT-03-003).
 - **A stopwatch is not the clock.** Elapsed-time limits read a separate
   monotonic port at named sites; a stopwatch reading never reaches a decision
   about the case or a record, so the architecture test allows it.
@@ -48,10 +67,6 @@ keeps.
   constructors take no time; a node that ticks without the instant fails, because
   a time passed at build would be read before the lock, not at decision time.
   Only the outermost run of an act takes the instant; a nested run inherits it.
-- **A received activity is judged at processing time.** A held activity replayed
-  later gets its replay's instant, because an expiry must be judged when its
-  effect lands; its arrival time stays its own recorded fact. A replay nested in
-  another act is its own act and reads its own instant.
 - **Ordered stamps keep the microsecond bump.** Stamps written by one act share
   its instant, so the smallest step past the previous stamp is what orders them
   (ADR-0167, CM-29-005).
@@ -85,11 +100,13 @@ keeps.
   no slice names is under `KNOWN_UNSLICED_CLOCK_READS` (`# owner: #5676`) until
   the epic routes it. A permitted edge read goes in `CLOCK_EDGE_EXEMPTIONS`, and
   a new module that holds a clock in `CLOCK_HOLDER_EXEMPTIONS`.
-- **An act entry point opens the act with `open_act(clock)`** and takes the
-  `ClockPort` from its composition root (`vultron/core/ports/clock.py`; the system
-  clock is `vultron/adapters/driven/clock.py`). Today's entry points:
-  `process_payload`, `SvcBTTriggerBase.execute`, the participant-role trigger,
-  `state_ledger_positions_trigger` and the sender-sequence hold sweep.
+- **A trigger or sweep entry point opens the act with `open_act(clock)`** and
+  takes the `ClockPort` from its composition root (`vultron/core/ports/clock.py`;
+  the system clock is `vultron/adapters/driven/clock.py`). Today's:
+  `SvcBTTriggerBase.execute`, the participant-role trigger,
+  `state_ledger_positions_trigger` and the sender-sequence hold sweep. A
+  received message's act opens with `open_received_act(arrived_at)` instead:
+  `process_payload` and `handle_inbox_item`.
 
 ## Slices, in order
 
@@ -107,8 +124,8 @@ keeps.
 5. **Parse edge** (#5652). The RSVP computation takes `published` as required
    (CLP-15-008 already refuses an inbound activity without it), and the
    past-deadline warning moves to the handler. The pre-bootstrap queue sweep moves
-   to the reap trigger (#2887); the expiry check at replay stays, judged against
-   the replay act's instant, so an expired activity is never applied (CBT-03-003).
+   to the reap trigger (#2887), judging at its own instant; the queue's two clock
+   reads already moved to the act's instant (#6191).
 6. **Recordings** (#5760). The recording clock goes through the port and steps
    once per act; the clock patch in the recording harness is removed; every
    recording is regenerated once. Update the recording-clock paragraph in

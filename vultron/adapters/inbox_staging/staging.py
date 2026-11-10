@@ -22,6 +22,7 @@ and holds a deferred activity for replay on the activity's one
 import json
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any, cast
 
 from pydantic import ValidationError
@@ -232,17 +233,18 @@ class InlineObjectStaging:
             or activity_id in self._routed_in_place
         )
 
-    def hold_again(self, activity_id: str) -> bool:
+    def hold_again(self, activity_id: str, *, received_at: datetime) -> bool:
         """Hold *activity_id* again before it is re-queued, if this staging
         can (:meth:`can_hold`).
 
         A retry or a dead letter needs the record the rebuild released, or
-        the retry finds nothing to rebuild (DL-06-006).  Returns whether a
-        record was written.
+        the retry finds nothing to rebuild (DL-06-006).  *received_at* is the
+        message's arrival stamp, as :meth:`hold_for_replay` takes it.
+        Returns whether a record was written.
         """
         if not self.can_hold(activity_id):
             return False
-        return self.hold_for_replay(activity_id)
+        return self.hold_for_replay(activity_id, received_at=received_at)
 
     def held(self, activity_id: str) -> ReceivedActivityRecord | None:
         """The record owing a replay of *activity_id*, if one does.
@@ -339,7 +341,11 @@ class InlineObjectStaging:
         return result
 
     def hold_for_replay(
-        self, activity_id: str, *, awaiting_case_id: str | None = None
+        self,
+        activity_id: str,
+        *,
+        received_at: datetime,
+        awaiting_case_id: str | None = None,
     ) -> bool:
         """Hold *activity_id* whole until its deferred replay.
 
@@ -355,7 +361,9 @@ class InlineObjectStaging:
         An activity this staging rebuilt from its record and released
         (:meth:`rehydrate_deferred`) is held again as that record was, so a
         replay deferred again, or re-queued after a failure, keeps the body it
-        was first held with.
+        was first held with, and the arrival stamp too.  Anything else is held
+        stamped *received_at*, the message's arrival stamp, which is the
+        instant of the act that holds it (ADR-0176).
 
         Hold before queueing: the record is the only copy of the activity, so
         an id queued with nothing held would be silently dropped.
@@ -373,6 +381,9 @@ class InlineObjectStaging:
                 self._store,
                 activity_id,
                 sealed_body_of(released),
+                # The first arrival, not this act's: a replay keeps the
+                # stamp it was held with (ADR-0176).
+                received_at=released.received_at,
                 replay_rows_json=released.replay_rows_json,
                 awaiting_case_id=awaiting_case_id or released.awaiting_case_id,
             )
@@ -400,6 +411,7 @@ class InlineObjectStaging:
             self._store,
             activity_id,
             staged.received_body,
+            received_at=received_at,
             replay_rows_json=json.dumps(staged.inline_rows),
             awaiting_case_id=awaiting_case_id,
         )

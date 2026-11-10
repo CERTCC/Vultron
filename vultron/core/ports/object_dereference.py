@@ -20,6 +20,7 @@ Implemented by the inbox adapter over the receiving actor's store
 fetch, by HTTP, after the inbox run (AKM-05-003, AKM-05-007).
 """
 
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from vultron.core.models.base import CoreObject
@@ -52,14 +53,20 @@ class ObjectDereferencePort(Protocol):
         ...  # pragma: no cover
 
     def await_fetches(
-        self, activity_id: str, references: list[ObjectReference]
+        self,
+        activity_id: str,
+        references: list[ObjectReference],
+        *,
+        at: datetime,
     ) -> None:
         """Hold *activity_id* for its replay and wait on each reference's fetch.
 
         The adapter holds the activity's received body under a key the
         receiver derives (DL-06-006, IO-03-009), and records the activity
         among the waiters of one fetch per reference, starting the fetch
-        when none is recorded.
+        when none is recorded.  *at* is the act's instant, the activity's
+        arrival stamp, which the held record keeps for the replay
+        (ADR-0176).
         """
         ...  # pragma: no cover
 

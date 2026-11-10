@@ -62,6 +62,10 @@ class NoNewValidationInfo(RetrieverCallOutPoint, ProbablySucceed):
         re-evaluation loops.  A binary Retriever: the tree asks on its own
         tick, so this is a call-out, not a Sentinel (BT-18-006, BT-18-013).
 
+    Store-held answer (BT-18-039): **cannot** — whether new information
+    reached the outside sources since the last evaluation is not recorded
+    in the case file or the actor's store.
+
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries validation-relevant information sources)
       Output keys: (none — binary result only, per BT-18-006)
@@ -157,6 +161,10 @@ class GatherValidationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
         validate the report (e.g., reproduction steps, affected
         versions, proof-of-concept).  Succeeds most of the time in
         simulation to keep the workflow progressing.
+
+    Store-held answer (BT-18-039): **cannot** — it collects outside
+    information, such as reproduction steps, that the case file does not
+    record.
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries external source / reporter directly)

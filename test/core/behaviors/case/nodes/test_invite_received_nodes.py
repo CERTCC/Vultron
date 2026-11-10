@@ -36,6 +36,7 @@ from vultron.core.behaviors.case.nodes.invite_received import (
     FixInviteTrustAnchorNode,
     RecordInviteTrustAnchorNode,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.services.received_holding import (
     hold_for_replay,
@@ -63,6 +64,7 @@ def _queue_an_activity(scenario: BTTestScenario) -> None:
         QUEUED_ACTIVITY_ID,
         f'{{"id": "{QUEUED_ACTIVITY_ID}", "type": "Announce"}}',
         awaiting_case_id=CASE_ID,
+        received_at=now_utc(),
     )
 
 
