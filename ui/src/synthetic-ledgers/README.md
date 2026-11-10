@@ -10,7 +10,10 @@ These committed fixtures live under `ui/src/synthetic-ledgers/` (they ship with
 the app and are imported by the "Load …" buttons), NOT under the gitignored
 repo-root `devlogs/` (which is runtime output from the container demo).
 `test/demo_unit/test_recordings.py` validates every line against
-`CaseLedgerEntry`, as it does the recordings.
+`CaseLedgerEntry`, as it does the recordings, and `ui/src/utils/ledgerShape.test.ts`
+checks every line against the generated ledger types, statuses included. A line
+that fails that check is not replayed, so a hand edit must keep the current shape
+(`vfState`/`dState`, never the retired `vfdState`).
 
 The recordings under `ui/src/recordings/` are real scenario runs, so they never
 flag anything. This fixture deliberately includes several illegal transitions
@@ -55,11 +58,12 @@ logged and the mapper *inferred* the legal path between them. That inference
 could in principle mask an illegal 1-step jump that happens to be bridgeable by a
 longer legal detour, so the mapper marks such nodes "inferred, not observed."
 
-This fixture: after the offer seeds vendor-1 at `RM=RECEIVED, VFD=Vfd`, a single
-status snapshot jumps straight to `ACCEPTED VFD` — a double multi-hop
-(RM `RECEIVED →validate→ VALID →accept→ ACCEPTED`; VFD `Vfd →fix_is_ready→ VFd
-→fix_is_deployed→ VFD`). Both are legal paths, so **no violation** — the node
-renders with the amber ℹ️ annotation and the tooltip explains each inferred path.
+This fixture: after the offer seeds vendor-1 at `RM=RECEIVED, VFD=vfd`, a single
+status snapshot (`vfState: VF`, `dState: D`) jumps straight to `ACCEPTED VFD` — a
+double multi-hop (RM `RECEIVED →validate→ VALID →accept→ ACCEPTED`; VFD
+`vfd →vendor_becomes_aware→ Vfd →fix_is_ready→ VFd →fix_is_deployed→ VFD`). Both
+are legal paths, so **no violation** — the node renders with the amber ℹ️
+annotation and the tooltip explains each inferred path.
 
 > Real generator output does NOT currently produce multi-hop diffs (validate has
 > its own `validate_report` verb; only ACCEPTED/CLOSED ever appear as RM status
@@ -72,10 +76,10 @@ renders with the amber ℹ️ annotation and the tooltip explains each inferred 
 
 | logIndex | semanticType | derived trigger | shadow source | legal? |
 |---|---|---|---|---|
-| 0 | offer_case_manager_role | seeds (vendor RM=RECEIVED/VFD=Vfd, finder RM=ACCEPTED, EM=ACTIVE) | — | seed |
+| 0 | offer_case_manager_role | seeds (vendor RM=RECEIVED/VFD=vfd, finder RM=ACCEPTED, EM=ACTIVE) | — | seed |
 | 1 | validate_report | rm `validate` | RECEIVED → VALID | ✅ legal |
 | 2 | validate_report | rm `validate` | VALID | ❌ **VIOLATION** (no `validate` from VALID) |
-| 3 | add_participant_status | rm `accept` + vfd `fix_is_ready` | VALID→ACCEPTED, Vfd→VFd | ✅ legal (multi-advance) |
+| 3 | add_participant_status | rm `accept` + vfd `fix_is_ready` | VALID→ACCEPTED, vfd→VFd | ✅ legal (multi-advance; the VFD path is inferred) |
 | 4 | remove_embargo_event_from_case | em `terminate` | ACTIVE → EXITED | ✅ legal |
 | 5 | remove_embargo_event_from_case | em `terminate` | EXITED | ❌ **VIOLATION** (no `terminate` from EXITED) |
 | 6 | add_participant_status | pxa `attacks_are_observed` | pxa → pxA | ✅ legal (case-level PXA advance) |

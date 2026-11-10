@@ -247,6 +247,21 @@ repos:
         files: ^(vultron/demo/scenario/.*\.py|vultron/demo/helpers/.*\.py|vultron/demo/recordings/.*\.py|vultron/enums/roles\.py|vultron/metadata/demo_scenarios/.*\.py|vultron/metadata/generated_files\.py|ui/src/recordings/.*|ui/src/data/scenario_tree\.json)$
         pass_filenames: false
 
+      - id: demo-ledger-types-sync
+        name: Log Replay ledger types in sync with the models
+        # #4729. The TypeScript ledger types are projected from the core
+        # models, so every input is watched: the core models (the three
+        # exported ones, the base classes and dimensions they inherit and
+        # embed), the state and role enums whose values they print, the
+        # NonEmptyString primitive, the exporter and the generated-file
+        # helpers, and the file itself, so a hand-edit is caught too.
+        # test/metadata/demo_scenarios/test_export_ledger_types.py is the
+        # backstop for a deletion, which no `files:` pattern can match.
+        entry: uv run export-demo-ledger-types --check
+        language: system
+        files: ^(vultron/core/models/.*\.py|vultron/core/states/.*\.py|vultron/enums/.*\.py|vultron/primitives\.py|vultron/metadata/demo_scenarios/.*\.py|vultron/metadata/generated_files\.py|ui/src/data/ledgerTypes\.ts)$
+        pass_filenames: false
+
       - id: msm-occasions-sync
         name: Occasion table and message fragments in sync
         # Console script, for the same reason as demo-scenarios-sync.
