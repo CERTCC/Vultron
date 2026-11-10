@@ -114,7 +114,7 @@ def _deliver(dl: SqliteDataLayer, activity: as_Activity) -> InboxOutcome:
         ),
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
         received_outcome_port=FastAPIReceivedOutcomePort(dl),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 

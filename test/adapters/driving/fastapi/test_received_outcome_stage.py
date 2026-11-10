@@ -255,7 +255,7 @@ def _deliver(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=dispatcher
         ),
         received_outcome_port=outcome_port or FastAPIReceivedOutcomePort(dl),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 

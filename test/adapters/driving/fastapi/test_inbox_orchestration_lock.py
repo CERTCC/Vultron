@@ -33,6 +33,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -214,8 +215,22 @@ def test_concurrent_inbox_tasks_serialize_processing(seeded_dl) -> None:
 
     async def _run():
         await asyncio.gather(
-            run_inbox_pipeline(body0, dl, _PEER_ID, dispatcher, null_emitter),
-            run_inbox_pipeline(body1, dl, _PEER_ID, dispatcher, null_emitter),
+            run_inbox_pipeline(
+                body0,
+                dl,
+                _PEER_ID,
+                dispatcher,
+                null_emitter,
+                arrived_at=ACT_AT,
+            ),
+            run_inbox_pipeline(
+                body1,
+                dl,
+                _PEER_ID,
+                dispatcher,
+                null_emitter,
+                arrived_at=ACT_AT,
+            ),
         )
 
     asyncio.run(_run())

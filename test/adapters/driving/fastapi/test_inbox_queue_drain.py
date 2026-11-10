@@ -29,6 +29,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -153,7 +154,11 @@ def _raises(_event: Any, _dl: Any) -> HandlerResult:
 
 def _run(dl: SqliteDataLayer, dispatcher: Mock) -> None:
     """One production inbox run: an unparseable body, then the replays."""
-    asyncio.run(io.run_inbox_pipeline({}, dl, _RECEIVER, dispatcher, None))
+    asyncio.run(
+        io.run_inbox_pipeline(
+            {}, dl, _RECEIVER, dispatcher, None, arrived_at=ACT_AT
+        )
+    )
 
 
 def _rebuild_raises(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:

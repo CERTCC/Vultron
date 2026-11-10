@@ -160,7 +160,7 @@ def _run(port: _Port | None) -> tuple[Any, _Dispatch]:
         _Ingress(_proposal()),
         dispatch,
         dereference_port=port,
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
     return outcome, dispatch
 

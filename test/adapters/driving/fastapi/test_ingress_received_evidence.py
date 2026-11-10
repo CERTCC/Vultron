@@ -254,7 +254,7 @@ def _assert_refused_through_the_inbox(
             FastAPIIngressAdapter(dl=dl, staging=staging),
             dispatch_adp,
             queue,
-            clock=SystemClock(),
+            arrived_at=SystemClock().now(),
         )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -467,7 +467,7 @@ def test_the_same_body_under_a_refused_id_is_routed_on_its_own(
         FastAPIIngressAdapter(dl=dl, staging=staging),
         dispatch_adp,
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
     assert outcome.status is InboxOutcomeStatus.PROCESSED

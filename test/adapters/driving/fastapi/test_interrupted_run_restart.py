@@ -40,6 +40,7 @@ from test.core.use_cases.received._ledger_network import (
     OWNER,
     LedgerNetwork,
 )
+from test.support.act_clock import ACT_AT
 from test.support.emitter import RecordingEmitter
 from test.support.ledger import ledger_entries
 from test.support.received import delivered_body
@@ -136,7 +137,9 @@ def test_an_interrupted_run_is_finished_on_restart_with_nothing_twice(
         stopped = _interrupt_after_the_commit(mp)
         with pytest.raises(_ProcessStop):
             asyncio.run(
-                run_inbox_pipeline(body, dl, MANAGER, dispatcher, emitter)
+                run_inbox_pipeline(
+                    body, dl, MANAGER, dispatcher, emitter, arrived_at=ACT_AT
+                )
             )
     assert stopped, "the run was not interrupted mid-tree"
 
@@ -455,6 +458,8 @@ def test_every_held_record_runs_before_any_queued_item(monkeypatch):
 
     # The control: a delivery replays the queue after itself.
     asyncio.run(
-        run_inbox_pipeline({"id": "delivered"}, dl, MANAGER, None, None)
+        run_inbox_pipeline(
+            {"id": "delivered"}, dl, MANAGER, None, None, arrived_at=ACT_AT
+        )
     )
     assert calls[2:] == ["process delivered", "queue"]

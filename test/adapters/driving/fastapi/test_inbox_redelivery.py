@@ -139,7 +139,9 @@ def _run_pipeline_once(
     dispatch_adp = FastAPIDispatchAdapter(
         dl=dl, actor_id=_ACTOR_ID, dispatcher=dispatcher
     )
-    outcome = process_payload(body, ingress, dispatch_adp, clock=SystemClock())
+    outcome = process_payload(
+        body, ingress, dispatch_adp, arrived_at=SystemClock().now()
+    )
     # IO-04-002: assert on both status and failure_reason field *values*.
     # isinstance guards that process_payload returned the correct type;
     # the InboxOutcomeStatus membership check verifies status is a real enum

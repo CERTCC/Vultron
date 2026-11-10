@@ -129,7 +129,7 @@ def _run(activity, dispatch, port):
         _StubIngress(activity),
         dispatch,
         received_outcome_port=port,
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 
@@ -261,7 +261,7 @@ def test_a_run_with_no_outcome_port_still_answers_the_sender(activity):
         {},
         _StubIngress(activity),
         _StubDispatch(HandlerResult.refused(_REASON)),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED

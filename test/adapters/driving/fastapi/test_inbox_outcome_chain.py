@@ -33,6 +33,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import BaseModel
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import delivered_body
 from vultron.adapters.driven.clock import SystemClock
@@ -125,7 +126,7 @@ def _process(
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=dispatcher
         ),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 
@@ -194,7 +195,7 @@ def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=make_dispatcher()
         ),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
@@ -289,7 +290,12 @@ def _run_pipeline(
     emitter = AsyncMock()
     asyncio.run(
         run_inbox_pipeline(
-            body, dl, _RECEIVER_ID, _dispatcher_for(verdict), emitter
+            body,
+            dl,
+            _RECEIVER_ID,
+            _dispatcher_for(verdict),
+            emitter,
+            arrived_at=ACT_AT,
         )
     )
 
@@ -359,6 +365,7 @@ def test_pipeline_reports_no_use_case_found_at_info_only(dl, body, caplog):
             _RECEIVER_ID,
             DirectActivityDispatcher(use_case_map={}),
             AsyncMock(),
+            arrived_at=ACT_AT,
         )
     )
 
@@ -768,7 +775,7 @@ def test_add_note_at_case_manager_stores_the_note_from_the_event(dl):
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=make_dispatcher()
         ),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
     assert outcome.status is InboxOutcomeStatus.PROCESSED, (
