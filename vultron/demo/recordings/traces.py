@@ -86,11 +86,12 @@ LEDGER_FILENAME = "ledger.jsonl"
 #: The check tree of a written run, as :func:`.check_tree.tree_to_json` writes it.
 CHECKS_FILENAME = "checks.json"
 
-#: An id a run draws.  Every id the protocol mints is a ``uuid4`` drawn from the
-#: run's seeded generator (:mod:`vultron.demo.determinism`), so matching the
-#: UUID alone relabels the ids that shift and leaves the cast's actor URIs
-#: spelled out: the cast is fixed (DEMOCI-11-020), so those never shift, and a
-#: diff that still names ``actor1`` is a diff a person can read.
+#: An id a run draws.  Every id the protocol mints is a version-4 UUID
+#: drawn from the run's seeded id source (:mod:`vultron.demo.determinism`),
+#: so matching the UUID alone relabels the ids that shift and leaves the
+#: cast's actor URIs spelled out: the cast is fixed (DEMOCI-11-020), so those
+#: never shift, and a diff that still names ``actor1`` is a diff a person can
+#: read.
 _ID_RE = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}"
     r"-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
