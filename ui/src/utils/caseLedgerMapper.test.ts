@@ -31,7 +31,6 @@ describe('buildTimelineFromCaseLedger on the rv recording', () => {
     const caseManager = state.participants.get('casemanager')
     expect(reporter?.name).toBe('Reporter')
     expect(reporter?.role).toBe(PARTICIPANT_ROLES.reporter)
-    expect(PARTICIPANT_ROLES.reporter).toBe('REPORTER')
     expect(caseManager?.name).toBe('Case Manager')
     expect(caseManager?.role).toBe('CASE_MANAGER')
   })
@@ -43,11 +42,10 @@ describe('buildTimelineFromCaseLedger on the rv recording', () => {
   })
 
   it('puts the report node in the Reporter lane', () => {
-    const reporterLane = state.participants.get('reporter')?.laneIndex
-    expect(reporterLane).toBeDefined()
-    const report = state.timelineEvents.find(
-      (e) => e.type === 'decision' && e.lane === reporterLane,
-    )
+    const reportEntries = entries.filter((e) => e.semanticType === 'add_report_to_case')
+    expect(reportEntries).toHaveLength(1)
+    const report = state.timelineEvents.find((e) => e.id === `${reportEntries[0].id}-decision`)
     expect(report).toBeDefined()
+    expect(report?.lane).toBe(state.participants.get('reporter')?.laneIndex)
   })
 })

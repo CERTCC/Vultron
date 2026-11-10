@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import type { DemoState } from './types'
 import './App.css'
-import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS, INITIAL_X_POSITION, X_INCREMENT, getVendorNodeColors } from './constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS, INITIAL_X_POSITION, X_INCREMENT, nodeColorsFor } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import { initialState } from './protocol'
 import { getActiveLanes } from './state/participantHelpers'
@@ -178,22 +178,6 @@ const SAMPLE_SCENARIOS: SampleScenario[] = [
 ]
 
 const SCENARIO_GROUPS: ScenarioGroup[] = ['Core', 'Coordinator', 'Diagnostic']
-
-type NodePalette = { decision: string; decisionHover: string; consequence: string; consequenceHover: string }
-
-/**
- * Node color palette for a participant id. Handles any `vendor-N` (via the
- * cycling vendor palette), plus reporter, casemanager, and coordinator; falls back
- * to reporter's palette for anything unrecognized.
- */
-function nodeColorsFor(participantId: string): NodePalette {
-  if (participantId === 'reporter') return NODE_COLORS.reporter
-  if (participantId === 'casemanager') return NODE_COLORS.casemanager
-  if (participantId === 'coordinator') return NODE_COLORS.coordinator
-  const m = participantId.match(/^vendor-(\d+)$/)
-  if (m) return getVendorNodeColors(parseInt(m[1], 10))
-  return NODE_COLORS.reporter
-}
 
 function AppLogReplay() {
   const [demoState, setDemoState] = useState<DemoState | null>(null)

@@ -133,6 +133,41 @@ export function getVendorNodeColors(vendorNumber: number): {
   return VENDOR_NODE_COLORS[index % VENDOR_NODE_COLORS.length]
 }
 
+/** One participant's node colors: decision and consequence, each with a hover shade. */
+export type NodePalette = ReturnType<typeof getVendorNodeColors>
+
+/**
+ * Node colors for a Log Replay lane id. Handles any `vendor-N` (via the cycling
+ * vendor palette), plus reporter, casemanager and coordinator; falls back to the
+ * reporter's palette for anything unrecognized.
+ */
+export function nodeColorsFor(laneId: string): NodePalette {
+  if (laneId === 'reporter') return NODE_COLORS.reporter
+  if (laneId === 'casemanager') return NODE_COLORS.casemanager
+  if (laneId === 'coordinator') return NODE_COLORS.coordinator
+  const m = laneId.match(/^vendor-(\d+)$/)
+  if (m) return getVendorNodeColors(parseInt(m[1], 10))
+  return NODE_COLORS.reporter
+}
+
+// The simulation's own participant ids for its non-vendor lanes, mapped to the
+// palette keys above (which use the Log Replay lane ids).
+const SIM_COLOR_KEYS: Partial<Record<string, keyof typeof NODE_COLORS>> = {
+  finder: 'reporter',
+  caseactor: 'casemanager',
+}
+
+/**
+ * Node colors for a Multi-Vendor simulation participant id. The simulation keeps
+ * its own ids (`finder`, `caseactor`, `vendor-N`); anything unrecognized gets the
+ * reporter's palette.
+ */
+export function simNodeColorsFor(participantId: string): NodePalette {
+  const m = participantId.match(/^vendor-(\d+)$/)
+  if (m) return getVendorNodeColors(parseInt(m[1], 10))
+  return NODE_COLORS[SIM_COLOR_KEYS[participantId] ?? 'reporter']
+}
+
 export const PARTICIPANT_ROLES = {
   reporter: 'REPORTER',
   vendor: 'VENDOR, CASE_OWNER',

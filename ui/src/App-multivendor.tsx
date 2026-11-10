@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { DemoState, ParticipantState } from './types'
 import './App.css'
-import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_COLORS, NODE_WIDTH, NODE_HEIGHT, NODE_HEIGHT_COLLAPSED, getVendorNodeColors } from './constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_WIDTH, NODE_HEIGHT, NODE_HEIGHT_COLLAPSED, simNodeColorsFor } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import {
   getActiveLanes,
@@ -19,13 +19,6 @@ import * as caseActorActions from './actions/caseActorActions'
 import * as inviteActions from './actions/inviteActions'
 import * as ownershipActions from './actions/ownershipActions'
 import * as externalActionHandlers from './actions/externalActions'
-
-// The simulation's own participant ids for its non-vendor lanes, mapped to the
-// shared palette keys in constants.ts (which use the Log Replay lane ids).
-const SIM_COLOR_KEYS: Partial<Record<string, keyof typeof NODE_COLORS>> = {
-  finder: 'reporter',
-  caseactor: 'casemanager',
-}
 
 function App() {
   const [demoState, setDemoState] = useState<DemoState>(() => {
@@ -938,17 +931,7 @@ function App() {
                   // Determine node color based on participant and semantic type
                   let fillColor: string
                   if (participant) {
-                    let colors: { decision: string; decisionHover: string; consequence: string; consequenceHover: string }
-
-                    // Check if participant is a vendor (vendor-1, vendor-2, vendor-3, etc.)
-                    if (participant.id.startsWith('vendor-')) {
-                      const vendorNumber = parseInt(participant.id.split('-')[1], 10)
-                      colors = getVendorNodeColors(vendorNumber)
-                    } else {
-                      // Use base colors for non-vendor participants. The simulation keeps
-                      // its own participant ids; SIM_COLOR_KEYS maps them to the palette.
-                      colors = NODE_COLORS[SIM_COLOR_KEYS[participant.id] ?? 'reporter']
-                    }
+                    const colors = simNodeColorsFor(participant.id)
 
                     if (isDecision) {
                       fillColor = isHovered ? colors.decisionHover : colors.decision
