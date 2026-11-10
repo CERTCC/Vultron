@@ -54,6 +54,7 @@ from vultron.core.behaviors.call_out.actuator import (
     actuator_call,
 )
 from vultron.core.behaviors.call_out.answer import (
+    REFUSAL_REASON_KEY,
     CallOutAnswer,
     CallOutContract,
     CallOutVerdict,
@@ -252,7 +253,10 @@ def test_core_trees_place_actuators_only_through_actuator_call():
     """No core tree calls an Actuator field's factory itself.
 
     A direct call would place the Actuator with no target; ``actuator_call``
-    is the one way that binds it.  The tick-time refusal catches the rest.
+    is the one way that binds it.  Every module under ``core/behaviors`` is
+    scanned, not a list of trees.  A factory called under another name is not
+    found here, and the tick-time refusal
+    (``test_actuator_ticked_without_a_target_raises``) catches it.
     """
     names = sorted({field_name for _, field_name in _ACTUATOR_FIELDS})
     pattern = re.compile(rf"\b({'|'.join(names)})\s*\(")
@@ -264,6 +268,33 @@ def test_core_trees_place_actuators_only_through_actuator_call():
         if pattern.search(line)
     ]
     assert not offenders, offenders
+
+
+@pytest.mark.spec("BT-18-041")
+def test_every_module_that_places_an_actuator_has_a_tree_checked():
+    """A new tree that places an Actuator joins ``_TREES``."""
+    placing = {
+        path.stem
+        for path in _CORE_BEHAVIORS.rglob("*.py")
+        if "call_out" not in path.parts
+        and "actuator_call(" in path.read_text()
+    }
+    checked = {
+        Path(importlib.import_module(m).__file__ or "").stem
+        for m in {
+            builder.__module__
+            for builder in (
+                create_prioritize_subtree,
+                create_deploy_fix_tree,
+                create_deploy_mitigation_tree,
+                create_leave_case_trigger_tree,
+                create_terminate_active_embargo_tree,
+                create_publication_tree,
+                create_publish_artifact_tree,
+            )
+        }
+    }
+    assert placing <= checked, sorted(placing - checked)
 
 
 @pytest.mark.spec("BT-18-041")
@@ -283,9 +314,9 @@ def test_a_non_actuator_backend_is_refused_as_an_actuator():
 def test_an_actuator_call_is_bound_to_one_target():
     backend = unwrap_call_out(actuator_call(acts, "Once", target="urn:a"))
     assert isinstance(backend, ActuatorBackend)
-    backend.bind_target("urn:a")  # the same target again changes nothing
-    with pytest.raises(CallOutContractError, match="one call per target"):
-        backend.bind_target("urn:b")
+    for again in ("urn:a", "urn:b"):
+        with pytest.raises(CallOutContractError, match="one call per target"):
+            backend.bind_target(again)
 
 
 def test_actuator_contract_refuses_outputs():
@@ -299,6 +330,14 @@ def test_actuator_that_overrides_answer_is_refused():
         class _Answers(ActuatorBackend):
             def answer(self) -> CallOutAnswer:
                 return CallOutAnswer.yes()
+
+
+def test_actuator_that_inherits_another_answer_is_refused():
+    """A base listed before ActuatorBackend cannot supply answer() either."""
+    with pytest.raises(TypeError, match="act\\(request\\)"):
+
+        class _ConstantFirst(AlwaysSucceed, ActuatorBackend):
+            pass
 
 
 def test_actuator_that_declares_another_contract_is_refused():
@@ -349,9 +388,13 @@ def _received(activity_id: str) -> VultronEvent:
 
 
 def _request_in_run(
-    target: str, activity: VultronEvent | None, name: str = "Act"
-) -> ActuationRequest:
-    """The request one call gets in a run carrying *activity*."""
+    target: str,
+    activity: VultronEvent | None,
+    name: str = "Act",
+    *,
+    ticks: int = 1,
+) -> list[ActuationRequest]:
+    """The requests one call gets in *ticks* ticks of a run carrying *activity*."""
     run = py_trees.blackboard.Client(name="actuation-test-run")
     run.register_key("actor_id", Access.WRITE)
     run.actor_id = ACTOR_ID
@@ -360,26 +403,26 @@ def _request_in_run(
         run.activity = activity
     backend = unwrap_call_out(actuator_call(acts, name, target=target))
     assert isinstance(backend, FixedAnswerActuator)
-    assert tick_call_out(backend) == Status.SUCCESS
-    (request,) = backend.requests
-    return request
+    for _ in range(ticks):
+        assert tick_call_out(backend) == Status.SUCCESS
+    return backend.requests
 
 
 @pytest.mark.spec("BT-18-043")
 def test_idempotency_id_is_derived_from_the_act_and_the_target():
-    first = _request_in_run("urn:a", _received("urn:act:1"))
+    first = _request_in_run("urn:a", _received("urn:act:1"))[0]
     assert first.target == "urn:a"
     assert first.idempotency_id == actuation_id(
         capability="Act", actor_id=ACTOR_ID, act_id="urn:act:1", target="urn:a"
     )
     # A re-run of the act, with a newly built tree, gets the same id.
-    assert _request_in_run("urn:a", _received("urn:act:1")) == first
+    assert _request_in_run("urn:a", _received("urn:act:1")) == [first]
     others = {
-        _request_in_run("urn:b", _received("urn:act:1")).idempotency_id,
-        _request_in_run("urn:a", _received("urn:act:2")).idempotency_id,
-        _request_in_run(
-            "urn:a", _received("urn:act:1"), "Other"
-        ).idempotency_id,
+        _request_in_run("urn:b", _received("urn:act:1"))[0].idempotency_id,
+        _request_in_run("urn:a", _received("urn:act:2"))[0].idempotency_id,
+        _request_in_run("urn:a", _received("urn:act:1"), "Other")[
+            0
+        ].idempotency_id,
     }
     assert first.idempotency_id not in others
     assert len(others) == 3
@@ -387,14 +430,28 @@ def test_idempotency_id_is_derived_from_the_act_and_the_target():
 
 @pytest.mark.spec("BT-18-043")
 def test_a_trigger_act_mints_its_own_id_once():
-    """No received activity: the act's id is minted once per tree built."""
+    """No received activity: each call mints its act's id once.
+
+    Both calls run as one actor, on one target, under one name, so only the
+    minted act id can tell their idempotency ids apart.
+    """
+    first_call = _request_in_run("urn:a", None, ticks=2)
+    assert first_call[0] == first_call[1]
+    (second_call,) = _request_in_run("urn:a", None)
+    assert second_call.target == first_call[0].target
+    assert second_call.idempotency_id != first_call[0].idempotency_id
+
+
+@pytest.mark.spec("BT-18-043")
+def test_a_received_act_with_no_actor_is_refused():
+    """A received act's id is shared by every receiver, so the actor is required."""
+    run = py_trees.blackboard.Client(name="actuation-test-run")
+    run.register_key("activity", Access.WRITE)
+    run.activity = _received("urn:act:1")
     backend = unwrap_call_out(actuator_call(acts, "Act", target="urn:a"))
     assert isinstance(backend, FixedAnswerActuator)
-    tick_call_out(backend)
-    tick_call_out(backend)
-    first, again = backend.requests
-    assert first == again
-    assert _request_in_run("urn:a", None) != first
+    with pytest.raises(CallOutContractError, match="no /actor_id"):
+        tick_call_out(backend)
 
 
 # ---------------------------------------------------------------------------
@@ -516,6 +573,10 @@ def test_unconfirmed_side_effect_answers_error_and_leaves_the_act_unjudged():
 
     assert result.internal_error
     assert "advisory platform: no confirmation" in (result.feedback_message)
+    # An error writes nothing: no refusal reason reaches the blackboard.
+    assert (
+        f"/{REFUSAL_REASON_KEY}" not in py_trees.blackboard.Blackboard.storage
+    )
     # The run stopped at the unconfirmed target: the report was not tried.
     assert platform.submitted == [advisory_target(CASE_ID, "Exploit"), fix]
 
@@ -530,4 +591,13 @@ def test_rejected_credential_answers_error_not_no():
     assert backend.act(backend.request()).verdict is CallOutVerdict.ERROR
     with pytest.raises(CallOutBackendError, match="credential rejected"):
         tick_call_out(backend)
+    assert platform.submitted == []
+    assert (
+        f"/{REFUSAL_REASON_KEY}" not in py_trees.blackboard.Blackboard.storage
+    )
+
+    # In a received act, the run is an internal error and nothing is sent.
+    result = _deliver(platform, _received("urn:act:credential"))
+    assert result.internal_error
+    assert "credential rejected" in result.feedback_message
     assert platform.submitted == []

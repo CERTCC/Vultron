@@ -2188,8 +2188,8 @@ groups:
       `test_unconfirmed_side_effect_answers_error_and_leaves_the_act_unjudged` and
       `test_rejected_credential_answers_error_not_no` in
       `test/core/behaviors/call_out/test_actuator.py` assert that a reference
-      Actuator answers error in both cases and that the seam then fails the run
-      as an internal error with nothing written.
+      Actuator answers error in both cases, that the received run then fails as an
+      internal error, and that no refusal reason is written.
   - id: BT-18-041
     priority: MUST
     kind: project

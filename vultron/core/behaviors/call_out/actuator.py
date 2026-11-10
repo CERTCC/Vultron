@@ -36,7 +36,7 @@ that processes a received activity carries it as ``/activity``, and its
 ``activity_id`` is the act's id: a re-run from holding processes the same
 activity, so every call gets the id its first run used.  A trigger or sweep
 run carries no received activity and is never re-run from holding (a
-caller's retry is a new act, ADR-0176), so the backend mints the act's id
+caller's retry is a new act, ADR-0176), so each call mints its act's id
 once, as a received note does (ID-04-004).
 
 References
@@ -125,7 +125,8 @@ def actuation_id(
     Derived from the call-out point's *capability* name, the executing
     *actor_id*, the *act_id* and the *target*, so two Actuators, two actors,
     two acts or two targets never share an id, and the same four always give
-    the same one.
+    the same one.  The capability is the node name the tree gives the call;
+    renaming it changes the id, so a rename is a change to held messages.
     """
     return derived_object_id(
         _ACTUATION_KIND, capability, actor_id, act_id, target
@@ -150,7 +151,9 @@ class ActuatorBackend(CallOutBackend):
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
-        if "answer" in vars(cls):
+        # Resolved, not only declared here: a base listed before
+        # ActuatorBackend could supply an answer() that skips the request.
+        if cls.answer is not ActuatorBackend.answer:
             raise TypeError(
                 f"Actuator {cls.__name__} overrides answer(); an Actuator "
                 "implements act(request), so every call takes its one "
@@ -181,16 +184,19 @@ class ActuatorBackend(CallOutBackend):
     def bind_target(self, target: str) -> None:
         """Bind the one target this call acts on; called by :func:`actuator_call`.
 
+        A backend is bound once: one placement is one call, and a tree that
+        acts on several targets places one backend per target.
+
         Raises:
-            CallOutContractError: The call is already bound to another
-                target; one call acts on one target (BT-18-041).
+            CallOutContractError: The call is already bound; one call acts on
+                one target (BT-18-041, BT-18-042).
         """
         require_non_empty(target, "target")
-        if self._target is not None and self._target != target:
+        if self._target is not None:
             raise CallOutContractError(
                 f"Actuator {self.name!r} is bound to {self._target!r} and "
-                f"cannot also act on {target!r}; a tree that acts on several "
-                "targets makes one call per target (BT-18-042)."
+                f"cannot be bound again to {target!r}; a tree that acts on "
+                "several targets makes one call per target (BT-18-042)."
             )
         self._target = target
 
@@ -208,12 +214,11 @@ class ActuatorBackend(CallOutBackend):
                 "actuator_call(), which binds the one target it acts on "
                 "(BT-18-041)."
             )
-        actor_id = self._read_run("actor_id")
         return ActuationRequest(
             target=self._target,
             idempotency_id=actuation_id(
                 capability=self.name,
-                actor_id=actor_id if isinstance(actor_id, str) else "",
+                actor_id=self._actor_id(),
                 act_id=self._act_id(),
                 target=self._target,
             ),
@@ -238,8 +243,36 @@ class ActuatorBackend(CallOutBackend):
             )
         return following()
 
+    def _actor_id(self) -> str:
+        """The executing actor, required when the run carries a received act.
+
+        A received act's id is shared by every actor that receives it, so the
+        actor tells their calls apart.  A run with no received activity mints
+        its act id, which no other call shares, so a run outside a bridge
+        (a unit test ticking a lone backend) may carry no actor.
+
+        Raises:
+            CallOutContractError: A received activity is on the run and no
+                ``/actor_id`` is.
+        """
+        actor_id = self._read_run("actor_id")
+        if isinstance(actor_id, str) and actor_id:
+            return actor_id
+        if isinstance(self._read_run("activity"), VultronEvent):
+            raise CallOutContractError(
+                f"Actuator {self.name!r} runs in a received act with no "
+                "/actor_id, so its idempotency id cannot name the actor "
+                "(BT-18-043)."
+            )
+        return ""
+
     def _act_id(self) -> str:
-        """The act's id: the received activity's, else minted once (ID-04-004)."""
+        """The act's id: the received activity's, else minted once (ID-04-004).
+
+        The minted id is held by this backend, which one tree built for one
+        act places once (:meth:`bind_target`), so it is minted once per call
+        and never shared: a trigger act is never re-run from holding.
+        """
         event = self._read_run("activity")
         if isinstance(event, VultronEvent):
             return event.activity_id

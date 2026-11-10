@@ -289,7 +289,7 @@ its side effect on `request.idempotency_id`. Reason: an *error* leaves a message
 in holding, and the re-run asks every call-out point again, so a call that acted
 before the error must see the id of its first run (BT-18-041 to BT-18-044,
 `call_out/actuator.py`). The act's id is the received activity's `activity_id`;
-a trigger run has none and mints one per tree, as a received note does
+a trigger run has none, and each call mints one once, as a received note does
 (ID-04-004). An unconfirmed side effect or a rejected credential is *error*
 (BT-18-040). A test that ticks an Actuator outside a tree binds a target first
 (`bind_test_target` in `test/support/call_out.py`); `acting(...)` gives an
