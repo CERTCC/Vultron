@@ -126,10 +126,12 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   `CoreActor`, which holds only the id (AKM-02-006). The default,
   `ACTOR_DISCOVERY_DETERMINISTIC`, always succeeds and logs at DEBUG. A failing
   production backend logs a WARNING and still proceeds: discovery never blocks an
-  invite.
+  invite. That holds for a backend that raises or returns RUNNING too. The bridge
+  logs the raise at ERROR as an internal error, and the WARNING follows.
 - **The seam lives in the use case's `_prepare()`, not a BT node.** Recording a
-  peer changes no protocol-observable state, so BT-15-001 does not apply, and a
-  BT node must not be ticked procedurally outside a tree. Promote it to a BT
+  peer changes no protocol-observable state, so BT-15-001 does not apply. The
+  backend still runs as a one-tick tree through `BTBridge`, acting as the acting
+  actor, so its ports are wired (#2707). Promote it to a BT
   subtree only if a real directory service needs async or blackboard
   interaction; the ADR-0025 bundle factory already supports that without
   changing call sites.
