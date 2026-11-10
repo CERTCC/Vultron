@@ -25,9 +25,9 @@ from typing import ClassVar, cast
 
 import py_trees.behaviour
 
-from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-    ACTOR_DISCOVERY_DETERMINISTIC,
-    ActorDiscoveryCallOutBundle,
+from vultron.core.behaviors.call_out.bundles.actor_resolution import (
+    ACTOR_RESOLUTION_DETERMINISTIC,
+    ActorResolutionCallOutBundle,
 )
 from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_case_ownership_transfer_trigger_bt,
@@ -87,7 +87,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         dl: object,
         request: object,
         trigger_activity: object = None,
-        call_out: ActorDiscoveryCallOutBundle = ACTOR_DISCOVERY_DETERMINISTIC,
+        call_out: ActorResolutionCallOutBundle = ACTOR_RESOLUTION_DETERMINISTIC,
         wire_render_port: "WireRenderPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
         *,
@@ -101,7 +101,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
             sync_port=sync_port,
             clock=clock,
         )
-        self._actor_discovery_call_out = call_out
+        self._actor_resolution_call_out = call_out
 
     def _prepare(self) -> None:
         request = cast(OfferCaseOwnershipTransferTriggerRequest, self._request)
@@ -155,7 +155,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
             request.transferee_id,
             "transferee_id",
             offering_actor_id,
-            self._actor_discovery_call_out,
+            self._actor_resolution_call_out,
         )
 
         self._transferee_id = request.transferee_id

@@ -34,7 +34,7 @@ The protocol coordinates the case; the judgment, the data, and the side effects 
 | develop or deploy fixes | [CreateFix](#fix-development), [DeployFix](#fix-deployment) | Composer, Evaluator |
 | know whether an exploit exists | [HaveExploit, FindExploit](#exploit-management) | Retriever |
 | write or publish advisories | [DraftAdvisoryArtifact, ReviewAdvisoryDraft, SubmitAdvisoryArtifact](#publication) | Composer, Evaluator, Actuator |
-| know who else belongs in the case | [IdentifyVendors, ResolveActorDetails, InjectParticipant](#participant-and-actor-discovery) | Retriever, Actuator |
+| know who else belongs in the case | [IdentifyVendors, ResolveActorDetails, InjectParticipant](#participant-suggestion-and-actor-resolution) | Retriever, Actuator |
 | watch threat feeds | [MonitorAttacks, MonitorExploits, MonitorPublicReports](#threat-monitoring), or a [Sentinel](#the-sentinel-call-in-pattern) that reports what it sees | Retriever |
 | update your ticketing system | [OnAccept, OnDefer](#report-prioritization) and [PreCloseAction](#leaving-a-case) | Actuator |
 
@@ -304,11 +304,12 @@ An actor closes its part in a case by calling the `leave-case` trigger, which se
 - **PreCloseAction** (Actuator) — perform any pre-closure integration actions, such as closing your own ticket; `leave-case` runs it before it sends the Leave, for every caller, and a failure stops the trigger with nothing sent
 - **OtherCloseCriteriaMet** (Evaluator) — superseded: the decision to close is the act of calling `leave-case`, so Vultron no longer asks it
 
-### Participant and Actor Discovery
+### Participant Suggestion and Actor Resolution
 
 *See also: [#1142](https://github.com/CERTCC/Vultron/issues/1142)*
 
-- **ResolveActorDetails** / **IdentifyVendors** / **IdentifyCoordinators** (Retrievers) — look up parties who should be involved in this case
+- **ResolveActorDetails** (Retriever) — actor resolution: turn one actor URI into that actor's profile; it does not find who belongs in a case, and it is a separate seam from participant suggestion
+- **IdentifyVendors** / **IdentifyCoordinators** (Retrievers) — participant suggestion: find parties who should be involved in this case
 - **AllPartiesKnown** (Evaluator) — have all relevant parties been identified?
 - **InjectParticipant** (Actuator) — add a discovered party to the case
 

@@ -15,8 +15,8 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-    ActorDiscoveryCallOutBundle,
+from vultron.core.behaviors.call_out.bundles.actor_resolution import (
+    ActorResolutionCallOutBundle,
 )
 from vultron.core.behaviors.helpers.ports_base import (
     DataLayerConditionWithPorts,
@@ -57,7 +57,7 @@ def _directory_backend(
 
 
 def _record(dl: SqliteDataLayer, factory: object) -> None:
-    bundle = ActorDiscoveryCallOutBundle(
+    bundle = ActorResolutionCallOutBundle(
         resolve_actor_factory=factory  # type: ignore[arg-type]
     )
     _record_named_peer(dl, PEER, "peer_id", ACTING, bundle)
@@ -87,7 +87,7 @@ def test_raising_backend_degrades_to_minimal_peer(dl, caplog):
     assert any("AttributeError" in r.getMessage() for r in errors)
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert any(
-        "actor discovery returned FAILURE" in r.getMessage()
+        "actor resolution returned FAILURE" in r.getMessage()
         and "AttributeError" in r.getMessage()
         for r in warnings
     )
