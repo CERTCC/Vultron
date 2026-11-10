@@ -49,6 +49,7 @@ import yaml
 from test.support.scenario_specs import FIRST_STEP, fixture_spec
 from vultron.demo.helpers.story import StoryState, choose, story
 from vultron.demo.scenario.registry import (
+    ScenarioSpec,
     discover_scenarios,
     is_scenario_name,
 )
@@ -67,6 +68,7 @@ from vultron.metadata.demo_scenarios.semantic_types import (
     additional_semantic_types,
     harness_semantic_types,
 )
+from vultron.metadata.demo_scenarios.stories import story_path
 from vultron.metadata.demo_scenarios.sync import (
     ARTIFACTS,
     BEGIN_MARKER,
@@ -91,12 +93,31 @@ _SYNC_HOOK_ID = "demo-scenarios-sync"
 #: them stale": a scenario module (the registry), a story helper that holds the
 #: fragments and ``choose(...)`` items a shared prefix is assembled from (the
 #: plot manifest lists them in order, so a reorder there makes it stale,
-#: DEMOCI-11-034) and a renderer (the projection).
+#: DEMOCI-11-034, and each fragment's opening docstring sentence is the line
+#: its step renders as in the generated story, DEMOCI-11-065) and a renderer
+#: (the projection).
 _ARTIFACT_INPUTS = (
     "vultron/demo/scenario/rv_demo.py",
     "vultron/demo/helpers/coordinated_story/opening.py",
+    "vultron/demo/helpers/coordinated_embargo_story.py",
     "vultron/metadata/demo_scenarios/render.py",
+    "vultron/metadata/demo_scenarios/stories.py",
 )
+
+
+def _artifact_paths(
+    specs: tuple[ScenarioSpec, ...] | None = None,
+) -> list[str]:
+    """Every committed artifact path, in ``desired_contents`` order.
+
+    The declared artifacts, then one generated story per registered scenario
+    (DEMOCI-11-067). Derived rather than listed, because that set's
+    membership *is* the registry.
+    """
+    resolved = discover_scenarios() if specs is None else specs
+    return [artifact.path for artifact in ARTIFACTS] + [
+        story_path(spec.name) for spec in resolved
+    ]
 
 
 def _fixture_fragment(state: StoryState) -> None:
@@ -125,9 +146,9 @@ def artifact_root(tmp_path: Path) -> Path:
     is committed; a fixture that wrote its own starting state could pass while
     the real files were already wrong.
     """
-    for artifact in ARTIFACTS:
-        source = _REPO_ROOT / artifact.path
-        target = tmp_path / artifact.path
+    for path in _artifact_paths():
+        source = _REPO_ROOT / path
+        target = tmp_path / path
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
     return tmp_path
@@ -201,7 +222,8 @@ def test_check_detects_every_artifact_when_the_registry_changes(
     """
     specs = (*discover_scenarios(), _EXTRA_SPEC)
     assert stale_artifacts(artifact_root, specs) == [
-        artifact.path for artifact in ARTIFACTS
+        *(artifact.path for artifact in ARTIFACTS),
+        story_path(_EXTRA_SPEC.name),
     ]
 
 
@@ -209,7 +231,10 @@ def test_write_then_check_round_trips(artifact_root: Path) -> None:
     """``--write`` makes ``--check`` clean, and is idempotent afterwards."""
     specs = (*discover_scenarios(), _EXTRA_SPEC)
     written = write_artifacts(artifact_root, specs)
-    assert written == [artifact.path for artifact in ARTIFACTS]
+    assert written == [
+        *(artifact.path for artifact in ARTIFACTS),
+        story_path(_EXTRA_SPEC.name),
+    ]
     assert stale_artifacts(artifact_root, specs) == []
     assert write_artifacts(artifact_root, specs) == []
 
@@ -487,7 +512,7 @@ def test_console_script_is_declared() -> None:
 
 @pytest.mark.parametrize(
     "path",
-    [artifact.path for artifact in ARTIFACTS] + list(_ARTIFACT_INPUTS),
+    _artifact_paths() + list(_ARTIFACT_INPUTS),
     ids=lambda path: path,
 )
 def test_pre_commit_hook_watches_every_input_and_artifact(path: str) -> None:

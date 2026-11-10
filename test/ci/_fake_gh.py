@@ -12,6 +12,8 @@ every call and answers each with canned data:
   ``FAKE_API_FAIL`` set, the list-issues call fails as an API error would;
 - the triage helper's GraphQL issue query gets ``FAKE_ISSUE_JSON``, wrapped
   as a real response and run through the caller's real ``--jq`` expression;
+- ``gh issue view`` reports the issue type ``FAKE_ISSUE_TYPE`` (``Bug``
+  unless the test passes another, empty for an untyped issue);
 - a body written with ``gh issue edit --body-file <file>`` is saved to
   ``FAKE_BODY_OUT``.
 """
@@ -51,7 +53,7 @@ case "$1 $2" in
           printf '%s' "$FAKE_ISSUES_PAGE" | jq -r "$jq_expr" ;;
       esac
     done ;;
-  "issue view") printf 'ISSUE_NODE_ID\nBug\n' ;;
+  "issue view") printf 'ISSUE_NODE_ID\n%s\n' "$FAKE_ISSUE_TYPE" ;;
   "issue edit")
     if [ -n "$body_file" ]; then cp "$body_file" "$FAKE_BODY_OUT"; fi ;;
   "issue create") echo "https://github.com/OWNER/REPO/issues/999" ;;
@@ -90,6 +92,7 @@ def install_fake_gh(
     issues_page: list[dict[str, object]] | None = None,
     issue: dict[str, object] | None = None,
     api_fails: bool = False,
+    issue_type: str = "Bug",
 ) -> FakeGh:
     """Write the fake ``gh`` under *tmp_path* and return how to run with it."""
     bin_dir = tmp_path / "bin"
@@ -108,6 +111,8 @@ def install_fake_gh(
             UNTHEMED_ISSUE if issue is None else issue
         ),
         "FAKE_BODY_OUT": str(body_out),
+        # The type `gh issue view` reports; empty for an untyped issue.
+        "FAKE_ISSUE_TYPE": issue_type,
         "GH_TOKEN": "fake-token",
         # One attempt: a failure under test should not wait out retry.sh.
         "GH_RETRY_ATTEMPTS": "1",

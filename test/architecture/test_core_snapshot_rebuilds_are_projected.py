@@ -44,6 +44,11 @@ _PROJECTION = "project_wire_snapshot_to_core"
 # permanent: ARCH-20-012 (each entry validates a value that is not a snapshot)
 _NOT_A_SNAPSHOT_EXEMPTIONS: dict[tuple[str, str], str] = {
     (
+        "vultron/core/models/report_claims.py",
+        "_derive_id_and_outcomes",
+    ): "validates the record's own claims reading to derive its id; no"
+    " snapshot is read",
+    (
         "vultron/core/models/embargo_event.py",
         "with_subject",
     ): "revalidates this object's own dump with a new subject",

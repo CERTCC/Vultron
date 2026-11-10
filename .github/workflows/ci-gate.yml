@@ -31,9 +31,22 @@ name: "CI gate"
 on:
   pull_request:
     branches: [main]
+    # The gate's types cover every other pull-request workflow's, or an event
+    # that changes a judged check's verdict leaves this gate's earlier verdict
+    # standing — green over a check that just turned red, which the ruleset
+    # then lets through. `test/ci/test_ci_gate.py` pins the coverage.
     # `edited` re-judges after a body edit re-runs a workflow that reads the
     # body (verification-debt-owners.yml), which a stale red gate would block.
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    # `labeled`/`unlabeled` re-judge after a label change re-runs a workflow
+    # whose verdict the label decides (demo-verdict.yml, DEMOCI-11-063).
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - edited
+      - labeled
+      - unlabeled
 
 permissions:
   actions: read # list the workflow runs on the head commit

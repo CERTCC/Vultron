@@ -88,8 +88,10 @@ from vultron.demo.helpers.vendor_story.continuations import (
     required_participants_are_present,
     the_disclosure_reached_every_replica,
     the_embargo_ends_for,
+    the_fix_ready_milestones,
     the_fix_ready_reached_the_reporter,
     the_joiners_add_their_notes,
+    the_vendors_stopped_at_vfd,
 )
 from vultron.demo.helpers.vendor_story.opening import (
     REPORTER_TELLS_THE_VENDOR,
@@ -124,8 +126,10 @@ __all__ = [
     "required_participants_are_present",
     "the_disclosure_reached_every_replica",
     "the_embargo_ends_for",
+    "the_fix_ready_milestones",
     "the_fix_ready_reached_the_reporter",
     "the_joiners_add_their_notes",
+    "the_vendors_stopped_at_vfd",
     "the_reporter_asks_about_the_workaround",
     "the_reporter_tells_the_vendor",
     "vendor_open_cast",

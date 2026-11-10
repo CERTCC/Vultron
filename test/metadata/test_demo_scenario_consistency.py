@@ -74,6 +74,11 @@ from vultron.metadata.demo_scenarios.semantic_types import (
     additional_semantic_types,
     harness_semantic_types,
 )
+from vultron.metadata.demo_scenarios.stories import (
+    STORY_HEADING,
+    include_directive,
+    story_path,
+)
 from vultron.metadata.markdown_tables import (
     iter_sections,
     iter_tables,
@@ -128,6 +133,12 @@ def prose_root(tmp_path: Path) -> Path:
     # directory there is a structural failure rather than an empty result.
     paths.update(spec.narrative_path for spec in discover_scenarios())
     paths.add(NARRATIVE_INDEX)
+    # Each scenario's generated story, because DEMOCI-11-067 checks that the
+    # page ends with the section that includes it and DEMOCI-11-069 that no
+    # story is left behind. Without them every page would be reported as
+    # missing its story, and a test asserting one mutation's finding would be
+    # reading eleven others.
+    paths.update(story_path(spec.name) for spec in discover_scenarios())
     for relative in sorted(paths):
         source = _REPO_ROOT / relative
         # Every declared path must exist. Skipping a missing one would hide the
@@ -1599,3 +1610,51 @@ def test_scenario_set_statement_check_reports_a_stale_enumeration(
     assert any("DEMOCI-06-002 names scenarios" in p for p in problems), (
         problems
     )
+
+
+@pytest.mark.spec("DEMOCI-11-005", "DEMOCI-11-067")
+def test_consistency_check_reports_a_page_missing_its_story(
+    prose_root: Path,
+) -> None:
+    """A page whose story section lost its include reaches the hook.
+
+    A check that exists only as a pytest module lets a stale page through
+    ``demo-scenarios --check`` and fails later in CI, which is the gap
+    ISSUE-3451 left on DEMOCI-06-003.
+    """
+    spec = discover_scenarios()[0]
+    target = prose_root / spec.narrative_path
+    target.write_text(
+        target.read_text(encoding="utf-8").replace(
+            include_directive(spec.name), "the story goes here"
+        ),
+        encoding="utf-8",
+    )
+
+    reported = [
+        problem
+        for problem in consistency_problems(prose_root)
+        if spec.narrative_path in problem
+    ]
+
+    assert len(reported) == 1, reported
+    assert STORY_HEADING in reported[0]
+    assert "DEMOCI-11-067" in reported[0]
+
+
+@pytest.mark.spec("DEMOCI-11-005", "DEMOCI-11-069")
+def test_consistency_check_reports_an_orphan_story_fragment(
+    prose_root: Path,
+) -> None:
+    """A retired scenario's leftover story reaches the hook too."""
+    orphan = prose_root / story_path("zz-retired")
+    orphan.write_text("1. Nobody tells this story.\n", encoding="utf-8")
+
+    reported = [
+        problem
+        for problem in consistency_problems(prose_root)
+        if story_path("zz-retired") in problem
+    ]
+
+    assert len(reported) == 1, reported
+    assert "delete it" in reported[0]

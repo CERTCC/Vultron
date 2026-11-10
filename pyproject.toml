@@ -123,6 +123,7 @@ theme-gate="vultron.metadata.planning.theme_fit.gate:main"
 theme-labels="vultron.metadata.planning.theme_labels:main"
 csaf-models="vultron.metadata.csaf.regenerate:main"
 csaf-corpus="vultron.metadata.csaf.corpus:main"
+csaf-draft-watch="vultron.metadata.csaf.draft_watch:main"
 
 
 [project.urls]

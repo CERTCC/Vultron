@@ -877,6 +877,17 @@ topics/scenarios/_engagement_status_entry.md
 topics/scenarios/_owner_leaves_last.md
 topics/scenarios/_participant_case_actor.md
 topics/scenarios/_participant_reporter.md
+topics/scenarios/_rccv-extension-story.md
+topics/scenarios/_rccv-handoff-story.md
+topics/scenarios/_rcv-embargo-story.md
+topics/scenarios/_rcv-reject-story.md
+topics/scenarios/_rcv-story.md
+topics/scenarios/_rcvcv-story.md
+topics/scenarios/_rcvv-embargo-story.md
+topics/scenarios/_rv-story.md
+topics/scenarios/_rvcv-extension-story.md
+topics/scenarios/_rvcv-handoff-story.md
+topics/scenarios/_rvv-story.md
 topics/scenarios/index.md
 topics/scenarios/rccv-extension.md
 topics/scenarios/rccv-handoff.md

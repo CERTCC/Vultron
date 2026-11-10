@@ -47,7 +47,7 @@ Since #5536 ``rv`` is composed too, so its fix lifecycle is the
 ``_phase_fix_lifecycle``.  The fragment delegates the trigger and its RM gate
 to ``vendor_notifies_fix_ready`` in
 :mod:`vultron.demo.helpers.coordinated_story` and the milestone pair to
-``the_fix_ready_reached_the_reporter`` in
+``the_fix_ready_milestones`` in
 :mod:`vultron.demo.helpers.vendor_story`, so the collaborators are patched
 where they now live and the Reporter's own poll stays on the scenario module,
 which is where its gate is.
@@ -142,6 +142,11 @@ def test_rv_reporter_timeout_records_single_gate_failure_not_two_check_failures(
         vendor_continuations, "verify_fix_ready", lambda *a, **kw: None
     )
     monkeypatch.setattr(
+        vendor_continuations,
+        "verify_stops_at_fix_ready",
+        lambda *a, **kw: None,
+    )
+    monkeypatch.setattr(
         coordinated_continuations,
         "wait_for_participant_rm_state",
         lambda *a, **kw: None,
@@ -215,6 +220,11 @@ def test_rv_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
     )
     monkeypatch.setattr(
         vendor_continuations, "verify_fix_ready", lambda *a, **kw: None
+    )
+    monkeypatch.setattr(
+        vendor_continuations,
+        "verify_stops_at_fix_ready",
+        lambda *a, **kw: None,
     )
     for module in (
         coordinated_continuations,
