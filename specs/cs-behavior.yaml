@@ -2773,9 +2773,9 @@ groups:
       reject every live case. Ending in an ephemeral state is unavoidable at the
       prefix level: CSB-17-003's forced successor has not happened yet when the
       prefix is cut, which is different from an actor persisting an ephemeral
-      state as its own — SM-09-003 still forbids that. Pinning acceptance to CSB-17-004's prefix
-      closure keeps both directions honest: a validator that merely never
-      rejects a genuine prefix could still accept dead ends.
+      state as its own — SM-09-003 still forbids that. Pinning acceptance to
+      CSB-17-004's prefix closure keeps both directions honest: a validator that
+      merely never rejects a genuine prefix could still accept dead ends.
     verification: >-
       A unit test confirms that every valid prefix of the 70 complete CS histories is
       accepted and that dead-end prefixes with no valid completion are rejected.

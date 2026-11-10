@@ -254,8 +254,8 @@ def test_a_later_claim_with_no_threat_ends_the_embargo_the_case_calls_for(
 ) -> None:
     """AC-4: the teardown follows the case's status, not the claim that
     starts the act.  After a failed teardown leaves the case ``PXa`` beside
-    an active embargo, a later status of the owner's that names no P, X or A ends
-    the embargo, with the case's ``P`` and ``X`` as the cause."""
+    an active embargo, a later status of the owner's that names no P, X or
+    A ends the embargo, with the case's ``P`` and ``X`` as the cause."""
     net = LedgerNetwork(
         "https://example.org/cases/forced-retry", em_state=EM.ACTIVE
     )
@@ -277,9 +277,9 @@ def test_each_act_that_leaves_the_gap_reports_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC-4: the CSB-18 check reads the case's status after every adopted
-    status, so a later status that names no P, X or A and leaves the case ``PXa`` beside the
-    embargo reports the gap again (CSB-18-002: the invariant holds once each
-    CASE_MANAGER act commits)."""
+    status, so a later status that names no P, X or A and leaves the case
+    ``PXa`` beside the embargo reports the gap again (CSB-18-002: the
+    invariant holds once each CASE_MANAGER act commits)."""
     fail_pxa_teardown(monkeypatch)
     net = LedgerNetwork(
         "https://example.org/cases/forced-csb-18-repeat", em_state=EM.ACTIVE
