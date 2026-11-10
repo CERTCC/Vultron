@@ -36,11 +36,13 @@ from vultron.demo.helpers.verification.states import (
     _assert_participant_pxa_only,
     _assert_participant_vf_pxa,
     _check_participant_d_state_in,
+    _check_participant_not_fix_deployed,
     _check_participant_rm_state_in,
     _check_participant_vf_state_in,
 )
 from vultron.demo.utils import DataLayerClient
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -140,6 +142,25 @@ def _assert_vendor_role(
 ) -> None:
     """Assert that *actor_id* holds ``CVDRole.VENDOR`` in the case.
 
+    The guard a caller wants when it needs the role and not the record; see
+    :func:`_fetch_vendor_participant` for the arguments and the raise.
+
+    Spec: DEMOMA-15-001.
+    """
+    _fetch_vendor_participant(client, case_id, actor_id, label)
+
+
+def _fetch_vendor_participant(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    label: str,
+) -> as_CaseParticipant:
+    """Return *actor_id*'s participant record, or raise naming the shortfall.
+
+    One fetch serves both role guards, so a check that needs the roles again
+    does not read the store a second time.
+
     Spec: DEMOMA-15-001.
 
     Args:
@@ -147,6 +168,9 @@ def _assert_vendor_role(
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor to check.
         label: Human-readable label for the ``AssertionError`` message.
+
+    Returns:
+        The participant record, which holds ``CVDRole.VENDOR``.
 
     Raises:
         AssertionError: If the participant is not found or does not hold
@@ -163,6 +187,7 @@ def _assert_vendor_role(
             f"{label}: actor {actor_id!r} does not hold CVDRole.VENDOR;"
             f" actual roles: {participant.case_roles!r}"
         )
+    return participant
 
 
 def verify_fix_ready(
@@ -228,6 +253,104 @@ def verify_fix_ready(
         "verify_fix_ready reporter replica RM",
     )
     logger.info("✓ fix ready: both replicas show CS includes F (fix ready)")
+
+
+def _assert_vendor_only_role(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    label: str,
+) -> None:
+    """Assert *actor_id* holds ``CVDRole.VENDOR`` and not ``CVDRole.DEPLOYER``.
+
+    The claim ``verify_stops_at_fix_ready`` makes is the CSB-15-002 ceiling —
+    this participant cannot advance past VFd — not "it has not deployed yet".
+    A participant that also holds ``CVDRole.DEPLOYER`` has a deploy path, so
+    reading its ``d_state`` as ``d`` says only that the deploy has not landed
+    yet and a later one falsifies the milestone's label.  Refusing it here
+    makes a mis-cast call a clear role failure instead of a check that passes
+    until the scenario grows a deploy step (DEMOMA-15-004).
+
+    Spec: DEMOMA-15-004.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        label: Human-readable label for the ``AssertionError`` message.
+
+    Raises:
+        AssertionError: If the participant is not found, does not hold
+            ``CVDRole.VENDOR``, or also holds ``CVDRole.DEPLOYER``.
+    """
+    participant = _fetch_vendor_participant(client, case_id, actor_id, label)
+    if CVDRole.DEPLOYER in participant.case_roles:
+        raise AssertionError(
+            f"{label}: actor {actor_id!r} holds CVDRole.DEPLOYER, so it has a"
+            f" deploy path and does not stop at VFd; actual roles:"
+            f" {participant.case_roles!r}"
+        )
+
+
+def verify_stops_at_fix_ready(
+    receiver_client: DataLayerClient,
+    reporter_client: DataLayerClient,
+    case_id: str,
+    receiver_actor_id: str,
+) -> None:
+    """Verify that both replicas show the participant stopped at VFd.
+
+    The other half of :func:`verify_fix_ready`: that one reads the f→F
+    transition the vendor made, this one reads the d→D transition it did not.
+    A milestone labelled "stops at VFd" asserts something ``verify_fix_ready``
+    does not say, so the two together are a pair rather than one claim told
+    twice (#5602).
+
+    The ``receiver_actor_id`` MUST be the full URI of an actor holding
+    ``CVDRole.VENDOR`` and not ``CVDRole.DEPLOYER``: the d→D transition is
+    gated on DEPLOYER by ``CheckDeployerRoleNode`` (CSB-15-002), which is what
+    makes reading ``d_state`` as ``d`` a statement about the ceiling rather
+    than about the moment it is read.  Passing a DEPLOYER is a caller error
+    and raises ``AssertionError`` before the state check runs.
+
+    No poll precedes the reads: DEMOMA-06-006 requires one before each
+    positive state a helper asserts, and there is no waiting for a transition
+    that must never happen — the role guard, not a timeout, is what holds it.
+
+    Specs: DEMOMA-06-002, DEMOMA-15-004.
+
+    Args:
+        receiver_client: Client connected to the receiver container.
+        reporter_client: Client connected to the reporter container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        receiver_actor_id: Full URI of the receiver actor whose participant
+            fix-deployed state to check.
+
+    Raises:
+        AssertionError: If ``receiver_actor_id`` does not hold
+            ``CVDRole.VENDOR``, holds ``CVDRole.DEPLOYER``, or either replica
+            records a fix-deployed transition for it.
+    """
+    _assert_vendor_only_role(
+        receiver_client,
+        case_id,
+        receiver_actor_id,
+        "verify_stops_at_fix_ready",
+    )
+    for label, client in (
+        ("receiver", receiver_client),
+        ("reporter replica", reporter_client),
+    ):
+        _check_participant_not_fix_deployed(
+            client,
+            case_id,
+            receiver_actor_id,
+            f"verify_stops_at_fix_ready {label}",
+        )
+    logger.info(
+        "✓ stops at fix ready: both replicas show CS still excludes D (no fix"
+        " deployed)"
+    )
 
 
 def _assert_deployer_role(

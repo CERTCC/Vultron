@@ -41,6 +41,7 @@ from vultron.demo.helpers.milestones import (
     verify_fix_deployed,
     verify_fix_ready,
     verify_publicly_disclosed,
+    verify_stops_at_fix_ready,
 )
 from vultron.demo.helpers.notes import NotePost, add_note_thread
 from vultron.demo.helpers.owner_decision_story import (
@@ -334,6 +335,17 @@ def both_vendors_run_the_fix_lifecycle(state: StoryState) -> None:
             case_id=state.case.id_,
             receiver_actor_id=state.actor_id(V1),
         )
+        # "V1=VFd (no deploy)" is a claim about the d→D transition V1 never
+        # makes, so the label needs this read as well as the VF one (#5602).
+        # Read on C1's replica too, because C1 is the replica the label names
+        # and there is no poll for an absence to cover it (#6186).
+        for stop_watcher in (V1, C1):
+            verify_stops_at_fix_ready(
+                receiver_client=state.client(stop_watcher),
+                reporter_client=state.client(REPORTER),
+                case_id=state.case.id_,
+                receiver_actor_id=state.actor_id(V1),
+            )
         verify_fix_deployed(
             receiver_client=state.client(V2),
             reporter_client=state.client(REPORTER),

@@ -75,7 +75,7 @@ from vultron.demo.helpers.vendor_story import (
     required_participants_are_present,
     the_disclosure_reached_every_replica,
     the_embargo_ends_for,
-    the_fix_ready_reached_the_reporter,
+    the_fix_ready_milestones,
     the_reporter_asks_about_the_workaround,
     vendor_open_cast,
 )
@@ -260,13 +260,11 @@ def _the_reporter_replica_reflects_the_fix(state: StoryState) -> None:
             actor_id=state.actor_id(VENDOR),
             expected_states={CS_vf.VF},
         )
-        the_fix_ready_reached_the_reporter(
+        the_fix_ready_milestones(
             state,
-            milestones=(
-                "M4: both replicas show CS includes F (fix ready)",
-                "M5: both replicas show CS includes F (fix ready) — vendor"
-                " stops at VFd",
-            ),
+            reached="M4: both replicas show CS includes F (fix ready)",
+            stopped="M5: both replicas show the vendor stopped at VFd — no"
+            " fix-deployed transition",
         )
 
 

@@ -26,6 +26,7 @@ import pytest
 
 from test.demo._helpers import (
     mock_case,
+    recorded_milestone_reads,
     story_state,
 )
 from test.demo.coordinated_story._support import (
@@ -46,9 +47,26 @@ from vultron.demo.helpers.coordinated_story import (
     vendor_rejects_invite,
     vendor_reports_the_fix_ready,
 )
+from vultron.demo.utils.check_tree import (
+    CheckKind,
+    recording_checks,
+    walk,
+)
 
 #: Clear the process-global failure accumulator around every test.
 pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
+
+#: ``wait_for_participant_vf_state`` under the name the assertions read it by.
+_VF_WAIT = "wait_for_participant_vf_state"
+
+#: The fix-ready pair's reads, as :func:`recorded_milestone_reads` names them.
+#: The same shape the vendor-first sibling records, so the two families' AC-3
+#: ratchets compare the same thing (CS-22-001).
+_FIX_READY_READS = {
+    _VF_WAIT: ("client", "actor_id"),
+    "verify_fix_ready": ("receiver_client", "receiver_actor_id"),
+    "verify_stops_at_fix_ready": ("receiver_client", "receiver_actor_id"),
+}
 
 # ---------------------------------------------------------------------------
 # Milestone assertions — AC-4 of ISSUE-1976, now on the fragments
@@ -129,6 +147,82 @@ class TestCoordinatedMilestones:
         assert call_order.index("rm_wait") < call_order.index("fix_ready"), (
             "wait_for_participant_rm_state must precede notify_fix_ready"
             " (ADR-0058)"
+        )
+
+    @pytest.mark.spec("CSB-15-002")
+    def test_m4_and_m5_do_not_assert_the_same_thing(self):
+        """The ratchet for #5602, on the coordinator-first copy of the pair.
+
+        M4 and M5 used to run one body twice, so M5 proved nothing M4 had not
+        while its label claimed the Vendor stopped at VFd.  M5 now reads the
+        fix-deployed transition the Vendor never makes.
+
+        The two halves' reads are compared **each way**, on the same
+        ``(helper, container, subject)`` key the vendor-first sibling uses
+        (:func:`test.demo._helpers.recorded_milestone_reads`): a half whose
+        reads are a subset of the other's adds nothing even though the two
+        lists differ.  Keying on the container and the subject rather than on
+        the helper name alone is what catches a rewrite that reads the right
+        thing about the wrong actor, or on the wrong replica — which the
+        earlier call-sequence pin did not (#6186).
+
+        Read through the real ``demo_check``, not a ``nullcontext`` stub: the
+        stub lets an assertion propagate, so the test would pass while proving
+        nothing (``vultron/demo/AGENTS.md`` rule 8, #6127).
+        """
+        state = story_state(*CAST, case=mock_case())
+
+        with (
+            patch.object(
+                coordinated_continuations, "wait_for_participant_rm_state"
+            ),
+            patch.object(ActorSession, "notify_fix_ready"),
+            recorded_milestone_reads(
+                state, coordinated_continuations, _FIX_READY_READS
+            ) as reads,
+            recording_checks() as recorder,
+        ):
+            vendor_reports_the_fix_ready(state)
+
+        labels = [
+            node.label
+            for node in walk(recorder.tree())
+            if node.kind is CheckKind.CHECK and node.label.startswith("M")
+        ]
+        assert len(labels) == 2, labels
+        assert labels[0].startswith("M4: "), labels
+        assert labels[1].startswith("M5: "), labels
+        assert "stopped at VFd" in labels[1], labels[1]
+
+        # The trigger's own gate reads the Vendor's replica, then M4 and M5
+        # read the Coordinator's.  Both halves are about the Vendor, so a
+        # rewrite pointed at the Coordinator's own participant record, or at
+        # the wrong replica, changes this list (#6186).
+        vendor = state.actor_id(VENDOR)
+        assert reads == [
+            (_VF_WAIT, VENDOR, vendor),
+            (_VF_WAIT, COORDINATOR, vendor),
+            ("verify_fix_ready", COORDINATOR, vendor),
+            ("verify_stops_at_fix_ready", COORDINATOR, vendor),
+        ], reads
+
+        # Each half's own reads, sliced by position: the trigger's gate at
+        # index 0 belongs to neither milestone, M4's body is next and M5's
+        # is the rest.
+        reached = set(reads[1:3])
+        stopped = set(reads[3:])
+        assert reached, "the fix-ready half read nothing"
+        assert stopped, "the VFd-ceiling half read nothing"
+        # Difference each way, not inequality: a half whose reads are a subset
+        # of the other's asserts nothing the other does not, which is the
+        # defect even though the two lists are not equal.
+        assert stopped - reached, (
+            "the VFd-ceiling milestone asserts nothing the fix-ready one does"
+            f" not; both read {sorted(stopped)} (#5602)"
+        )
+        assert reached - stopped, (
+            "the fix-ready milestone asserts nothing the VFd-ceiling one does"
+            f" not; both read {sorted(reached)} (#5602)"
         )
 
     def test_everyone_publishes_calls_verify_publicly_disclosed(self):
