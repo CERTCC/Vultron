@@ -19,10 +19,11 @@ pre-bootstrap queue window opens at the first waiter's stamp and is judged at
 the instant of the act that asks, so a message that arrived inside the window
 is on time however late it is processed (CBT-03-003, CBT-03-007).
 
-Spec: CS-13-002, CS-13-010, CBT-03-003, CBT-03-007.
+Spec: CS-13-002, CS-13-010, CBT-03-003, CBT-03-007, CLP-10-018, ID-04-004.
 """
 
 import asyncio
+import json
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -51,6 +52,9 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
     _replay_pending_case_activities,
 )
+from vultron.adapters.driving.fastapi.inbox_startup_replay import (
+    rerun_left_in_holding,
+)
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.inbox import InboxOutcomeStatus, process_payload
@@ -58,6 +62,7 @@ from vultron.core.models.actor import CoreActor
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
+    ReceivedStage,
 )
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.wire.as2.factories import (
@@ -370,3 +375,129 @@ def test_a_deadline_is_judged_at_arrival_not_at_processing(
     assert outcome.status is status
     if status is InboxOutcomeStatus.DEFERRED:
         assert _record(dl, second.id_).received_at == _ARRIVED
+
+
+# ---------------------------------------------------------------------------
+# Every hand-off of the stamp: drain, retry, receipt stub, restart re-run
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def no_outbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _no_outbox(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(io, "outbox_handler", _no_outbox)
+
+
+@pytest.mark.spec("DL-06-006", "IE-06-004")
+@pytest.mark.usefixtures("no_outbox")
+def test_a_queued_item_with_nothing_held_is_refused_before_any_act(
+    dl: SqliteDataLayer,
+) -> None:
+    """With no record there is no body to rebuild and no stamp to run at."""
+    item = "https://example.org/activities/nothing-held"
+    dl.inbox_append(item)
+    dl.set_inbox_attempt_count(item, 2)
+    dispatcher = Mock()
+
+    asyncio.run(
+        io.run_inbox_pipeline(
+            {}, dl, _RECEIVER, dispatcher, None, arrived_at=_PROCESSED
+        )
+    )
+
+    dispatcher.dispatch.assert_not_called()
+    assert dl.inbox_list() == []
+    assert dl.get_inbox_attempt_count(item) == 0
+    assert dl.inbox_dead_letter_list() == []
+
+
+@pytest.mark.spec("CS-13-010", "IE-06-004")
+@pytest.mark.usefixtures("no_outbox")
+def test_every_retry_of_a_replay_runs_at_the_first_arrival_stamp(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dl.save(as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE))
+    held = _note_activity("retried in the drain")
+    assert hold_activity(dl, held, received_at=_ARRIVED)
+    dl.inbox_append(held.id_)
+    monkeypatch.setattr(
+        io, "get_config", lambda: Mock(max_inbox_retry_attempts=2)
+    )
+    instants: list[datetime] = []
+
+    def _raise(_event: Any, _dl: Any) -> HandlerResult:
+        instants.append(read_act_instant())
+        raise RuntimeError("the use case raised")
+
+    dispatcher = Mock()
+    dispatcher.dispatch.side_effect = _raise
+
+    asyncio.run(
+        io.run_inbox_pipeline(
+            {}, dl, _RECEIVER, dispatcher, None, arrived_at=_PROCESSED
+        )
+    )
+
+    # Two attempts, both at 11:59; the record held again for the dead letter
+    # keeps that stamp.
+    assert instants == [_ARRIVED, _ARRIVED]
+    assert _record(dl, held.id_).received_at == _ARRIVED
+
+
+@pytest.mark.spec("CS-13-010", "CLP-10-018")
+def test_a_receipt_stub_with_no_record_behind_it_records_the_arrival_stamp(
+    dl: SqliteDataLayer,
+) -> None:
+    dispatcher = Mock()
+    dispatcher.dispatch.return_value = HandlerResult.refused("refused here")
+    body = delivered_body(_report_activity())
+
+    process_payload(
+        body,
+        FastAPIIngressAdapter(dl=dl),
+        FastAPIDispatchAdapter(
+            dl=dl, actor_id=_RECEIVER, dispatcher=dispatcher
+        ),
+        received_outcome_port=FastAPIReceivedOutcomePort(dl),
+        arrived_at=_ARRIVED,
+    )
+
+    stub = _record(dl, body["id"])
+    assert stub.is_receipt_stub
+    assert stub.received_at == _ARRIVED
+
+
+@pytest.mark.spec("CS-13-010", "ID-04-004")
+@pytest.mark.usefixtures("no_outbox")
+def test_a_restart_re_run_runs_at_the_stamp_its_record_carries(
+    dl: SqliteDataLayer,
+) -> None:
+    body = delivered_body(_report_activity())
+    dl.save(
+        ReceivedActivityRecord(
+            activity_id=body["id"],
+            received_body=json.dumps(body),
+            stage=ReceivedStage.HELD,
+            replay_owed=False,
+            received_at=_ARRIVED,
+        )
+    )
+    probe = _InstantProbe()
+    dispatcher = Mock()
+    dispatcher.dispatch.side_effect = probe.dispatch
+
+    asyncio.run(rerun_left_in_holding(dl, _RECEIVER, dispatcher, None))
+
+    assert probe.instants == [_ARRIVED]
+
+
+@pytest.mark.spec("CS-13-001", "CS-13-010")
+def test_a_stored_stamp_reads_back_aware(dl: SqliteDataLayer) -> None:
+    """A naive stamp is written with a UTC offset (CS-13-007), so the stamp a
+    drain reads back can always open an act; none is left stuck."""
+    held = _note_activity("naive")
+    assert hold_activity(dl, held, received_at=_ARRIVED.replace(tzinfo=None))
+
+    assert _record(dl, held.id_).received_at == _ARRIVED

@@ -167,7 +167,7 @@ async def rerun_left_in_holding(
                 actor_id,
                 dispatcher,
                 emitter,
-                # Judged when it arrived, as its first run was (ADR-0176).
+                # At the time its record says it was received (ADR-0176).
                 arrived_at=record.received_at,
             )
         except Exception:

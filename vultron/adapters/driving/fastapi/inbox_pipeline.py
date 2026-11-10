@@ -185,6 +185,8 @@ class InboxPipeline:
                 "Inbox item %s has no held record owing its replay",
                 activity_id,
             )
+            # Not re-queued, so a later failure starts with the full budget.
+            self._requeue_counts.pop(activity_id, None)
             return None
         with (
             open_received_act(held.received_at) as at,

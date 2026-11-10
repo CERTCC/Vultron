@@ -97,8 +97,11 @@ HTTP call and parses no wire JSON (ARCH-01-001, ADR-0032).
 ### `ClockPort` and `BookkeepingClockPort`
 
 `clock.py` holds the two clocks (ADR-0176). `ClockPort.now()` is the act
-clock: only an act's entry point holds it, and `open_act(clock)` reads it once
-after taking the tree lock. Everything below takes that instant: a ports node
+clock: only an act's entry point holds it. A trigger or sweep reads it once with
+`open_act(clock)`, after taking the tree lock; the inbox reads it once per
+received message with `stamp_arrival(clock)`, on arrival and before the lock,
+and every act processing that message opens with `open_received_act(stamp)`.
+Everything below takes that instant: a ports node
 calls `self._require_act_instant()`, other code takes it as a required
 argument.
 `BookkeepingClockPort.bookkeeping_now()` is for an adapter's own records (a

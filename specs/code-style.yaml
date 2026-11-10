@@ -499,10 +499,11 @@ groups:
     - ADR-0176
     verification: >-
       `test/adapters/driving/fastapi/test_arrival_stamp.py` pins the inbox
-      route's act clock and asserts that a delivery's `/at` and its record's
-      `received_at` are the arrival stamp, read once and before the tree lock,
-      that a held message replayed later runs at that stamp, and that a
-      deadline is judged at arrival, not at processing.
+      route's act clock and asserts that a delivery's `/at` is the arrival
+      stamp, read once and before the tree lock; that a held message replayed
+      later, retried, or re-run after a restart runs at the stamp its record
+      carries; that a receipt stub written with no record behind it records
+      the stamp; and that a deadline is judged at arrival, not at processing.
     statement: >-
       Every act that processes a received message, its replays, retries and
       restart re-runs included, MUST take as its instant the message's arrival

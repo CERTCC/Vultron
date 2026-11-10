@@ -49,10 +49,8 @@ from vultron.core.behaviors.inbox.models import (
 )
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.object_dereference import ObjectDereferencePort
-from vultron.core.services.received_holding import held_for_replay
 from vultron.errors import VultronProtocolViolationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
@@ -437,7 +435,7 @@ def drain_inbox_queue(
             item_id = actor_dl.inbox_pop()
             if item_id is None:
                 break
-            held = held_for_replay(cast(CasePersistence, actor_dl), item_id)
+            held = staging.held(item_id)
             if held is None:
                 # Nothing to rebuild and no arrival stamp to run at: the
                 # item is refused as a rebuild that found nothing is.

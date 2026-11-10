@@ -135,6 +135,8 @@ class _StubQueuePort:
         self._queue_expired = queue_expired
         self.queued: list[tuple[str, str, str | None]] = []
         self.replayed: list[str] = []
+        #: The act instant each call was handed (ADR-0176).
+        self.instants: list[datetime] = []
 
     def is_case_known(self, case_id: str) -> bool:
         return self._case_known
@@ -149,12 +151,15 @@ class _StubQueuePort:
         at: datetime,
     ) -> None:
         self.queued.append((activity_id, case_id, case_actor_id))
+        self.instants.append(at)
 
     def check_and_expire(self, case_id: str, *, at: datetime) -> bool:
+        self.instants.append(at)
         return self._queue_expired
 
     def replay(self, case_id: str, *, at: datetime) -> None:
         self.replayed.append(case_id)
+        self.instants.append(at)
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +379,23 @@ class TestProcessPayloadDeferral:
         assert len(queue.queued) == 1
         assert len(dispatch.dispatched) == 0
 
+    @pytest.mark.spec("CBT-03-007", "CS-13-010")
+    def test_expiry_and_queue_take_the_arrival_stamp(
+        self, note_activity_unknown_case
+    ):
+        """The expiry check and the hold both get the delivery's stamp."""
+        queue = _StubQueuePort(case_known=False)
+
+        process_payload(
+            {},
+            _StubIngressAdapter(activity=note_activity_unknown_case),
+            _StubDispatchAdapter(),
+            queue,
+            arrived_at=_FIRST,
+        )
+
+        assert queue.instants == [_FIRST, _FIRST]
+
     def test_deferred_carries_context_id(self, note_activity_unknown_case):
         ingress = _StubIngressAdapter(activity=note_activity_unknown_case)
         dispatch = _StubDispatchAdapter()
@@ -419,6 +441,23 @@ class TestProcessPayloadBootstrap:
 
         assert outcome.status == "processed"
         assert CASE_ID in queue.replayed
+
+    @pytest.mark.spec("CBT-03-007")
+    def test_bootstrap_replay_is_judged_at_its_arrival_stamp(
+        self, case_activity
+    ):
+        """The release judges the queue at the bootstrap's own stamp."""
+        queue = _StubQueuePort(case_known=True)
+
+        process_payload(
+            {},
+            _StubIngressAdapter(activity=case_activity),
+            _StubDispatchAdapter(),
+            queue,
+            arrived_at=_FIRST,
+        )
+
+        assert queue.instants == [_FIRST]
 
     def test_bootstrap_skips_defer_check(self, case_activity):
         """Bootstrap activity is never deferred even when case unknown."""
