@@ -43,6 +43,7 @@ answers the delivery instead.
 """
 
 import logging
+from datetime import datetime
 
 from vultron.core.models.received_activity_record import (
     HOLDING_STAGES,
@@ -78,6 +79,7 @@ def hold_for_replay(
     activity_id: str,
     received_body: str,
     *,
+    received_at: datetime,
     replay_rows_json: str = "[]",
     awaiting_case_id: str | None = None,
 ) -> bool:
@@ -88,7 +90,9 @@ def hold_for_replay(
     first held is the body replayed.  A record intake recorded, ``HELD`` or
     ``HANDLED``, becomes ``HELD`` and takes the replay flag with the body it
     already holds.  With no record,
-    one ``HELD`` record is created.
+    one ``HELD`` record is created, stamped *received_at*: the message's
+    arrival stamp, which its replay runs at (ADR-0176).  A record already
+    there keeps the stamp it has.
 
     A record that is already at its outcome is not held: an ``ARCHIVED``
     message was applied, and a receipt stub holds no body to replay
@@ -124,6 +128,7 @@ def hold_for_replay(
                 replay_owed=True,
                 awaiting_case_id=awaiting_case_id,
                 replay_rows_json=replay_rows_json,
+                received_at=received_at,
             )
         )
         return True

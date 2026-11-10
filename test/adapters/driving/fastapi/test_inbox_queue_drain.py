@@ -29,6 +29,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -42,6 +43,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.inbox import InboxOutcome, InboxOutcomeStatus
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
 )
@@ -153,7 +155,11 @@ def _raises(_event: Any, _dl: Any) -> HandlerResult:
 
 def _run(dl: SqliteDataLayer, dispatcher: Mock) -> None:
     """One production inbox run: an unparseable body, then the replays."""
-    asyncio.run(io.run_inbox_pipeline({}, dl, _RECEIVER, dispatcher, None))
+    asyncio.run(
+        io.run_inbox_pipeline(
+            {}, dl, _RECEIVER, dispatcher, None, arrived_at=ACT_AT
+        )
+    )
 
 
 def _rebuild_raises(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
@@ -531,7 +537,9 @@ def test_the_queue_port_queues_nothing_when_the_hold_fails(
     )
 
     with pytest.raises(VultronWiringError):
-        queue.queue("https://example.org/activities/unstaged", case_id)
+        queue.queue(
+            "https://example.org/activities/unstaged", case_id, at=now_utc()
+        )
 
     assert dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
 

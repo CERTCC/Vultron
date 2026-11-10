@@ -20,6 +20,7 @@ import pytest
 from test.support.received import received_record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import ReceivedStage
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.inbox_replay import InboxReplayPort
@@ -43,6 +44,7 @@ def _hold(dl: CasePersistence) -> None:
         dl,
         _ANNOUNCE_ID,
         f'{{"id": "{_ANNOUNCE_ID}", "type": "Announce"}}',
+        received_at=now_utc(),
     )
 
 

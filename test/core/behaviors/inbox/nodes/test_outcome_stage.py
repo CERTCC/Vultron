@@ -23,6 +23,7 @@ store is driven in
 ``test/adapters/driving/fastapi/test_received_outcome_stage.py``.
 """
 
+from datetime import datetime
 from typing import Any
 
 import py_trees
@@ -105,6 +106,7 @@ class _RecordingOutcomePort:
         sender_id: str,
         reason: str,
         received_body: str | None,
+        received_at: datetime,
     ) -> None:
         if self._raises:
             raise RuntimeError("store write failed (stub)")
@@ -129,7 +131,7 @@ def _run(activity, dispatch, port):
         _StubIngress(activity),
         dispatch,
         received_outcome_port=port,
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 
@@ -261,7 +263,7 @@ def test_a_run_with_no_outcome_port_still_answers_the_sender(activity):
         {},
         _StubIngress(activity),
         _StubDispatch(HandlerResult.refused(_REASON)),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED

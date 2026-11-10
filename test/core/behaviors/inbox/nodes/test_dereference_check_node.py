@@ -14,6 +14,7 @@
 
 import json
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 import py_trees
@@ -119,6 +120,7 @@ class _Port:
         self._fetched = fetched
         self.awaited: list[tuple[str, list[ObjectReference]]] = []
         self.released: list[tuple[str, str]] = []
+        self.instants: list[datetime] = []
 
     def references_to_fetch(
         self, event: VultronEvent, context_id: str | None
@@ -129,9 +131,14 @@ class _Port:
         return self._fetch
 
     def await_fetches(
-        self, activity_id: str, references: list[ObjectReference]
+        self,
+        activity_id: str,
+        references: list[ObjectReference],
+        *,
+        at: datetime,
     ) -> None:
         self.awaited.append((activity_id, references))
+        self.instants.append(at)
 
     def fetched_object(self, fetch: PendingObjectFetch) -> CoreObject:
         if self._fetched is None:
@@ -153,16 +160,29 @@ def _record(state: ObjectFetchState) -> PendingObjectFetch:
     )
 
 
-def _run(port: _Port | None) -> tuple[Any, _Dispatch]:
+def _run(
+    port: _Port | None, arrived_at: datetime | None = None
+) -> tuple[Any, _Dispatch]:
     dispatch = _Dispatch()
     outcome = process_payload(
         {},
         _Ingress(_proposal()),
         dispatch,
         dereference_port=port,
-        clock=SystemClock(),
+        arrived_at=SystemClock().now() if arrived_at is None else arrived_at,
     )
     return outcome, dispatch
+
+
+@pytest.mark.spec("CS-13-010")
+def test_the_wait_holds_the_activity_at_its_arrival_stamp():
+    """The held record the replay runs at takes the delivery's stamp."""
+    port = _Port([_PROFILE_REF])
+    arrived_at = datetime(2026, 3, 1, 11, 59, tzinfo=UTC)
+
+    _run(port, arrived_at)
+
+    assert port.instants == [arrived_at]
 
 
 @pytest.mark.spec("AKM-05-007")

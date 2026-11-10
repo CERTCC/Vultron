@@ -14,6 +14,7 @@ from vultron.adapters.driving.fastapi.inbox_pipeline import (
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.received_activity_record import ReceivedActivityRecord
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.services.received_holding import records_awaiting_case
 from vultron.core.use_cases.received.actor import (
@@ -654,6 +655,41 @@ def test_failure_after_dispatch_is_still_bounded(
         MAX_REQUEUE_ATTEMPTS + 1
     )
     assert activity_id not in queue_dl.inbox_list()
+
+
+@pytest.mark.spec("IBP-01-001")
+def test_an_item_with_nothing_held_resets_requeue_budget(
+    test_pipeline: PipelineFixture, monkeypatch: MonkeyPatch
+) -> None:
+    """An item no held record owes a replay is not re-queued, so its failure
+    count is cleared: held again later, it gets the full retry budget."""
+    import vultron.adapters.driving.fastapi.inbox_pipeline as ip_module
+
+    pipeline, dl = test_pipeline
+    activity = _store_note_activity_whole(
+        dl, "https://example.org/notes/n-ibp-nothing-held"
+    )
+    activity_id = activity.id_
+    queue_dl = dl.clone_for_actor(RECEIVER_ID)
+
+    def _dispatch(**_kwargs: object) -> HandlerResult:
+        raise VultronValidationError("transient validation failure")
+
+    monkeypatch.setattr(ip_module, "dispatch", _dispatch)
+
+    # One failure spends one attempt and holds the item for its retry.
+    pipeline.process(activity_id)
+    assert queue_dl.inbox_pop() == activity_id
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    assert isinstance(record, ReceivedActivityRecord)
+    dl.save(record.model_copy(update={"replay_owed": False}))
+
+    assert pipeline.process(activity_id) is None
+
+    hold_activity(dl, activity)
+    assert _drain_cycles(pipeline, queue_dl, activity_id) == (
+        MAX_REQUEUE_ATTEMPTS + 1
+    )
 
 
 @pytest.mark.spec("IO-01-006")

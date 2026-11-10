@@ -32,6 +32,7 @@ from typing import Any
 from test.support.ledger_rebuild import run_use_case
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.received_activity_record import HOLDING_STAGES
 from vultron.core.services.received_activity import (
@@ -176,7 +177,9 @@ def rerun_then_replay(
     rerun = rerun_from_holding(dl, event, run=run)
     record = held_received_record(dl, event.activity_id)
     assert record is not None and record.stage in HOLDING_STAGES, record
-    assert hold_for_replay(dl, event.activity_id, sealed_body_of(record))
+    assert hold_for_replay(
+        dl, event.activity_id, sealed_body_of(record), received_at=now_utc()
+    )
     released = release_from_holding(dl, event.activity_id)
     assert released is not None
     assert held_received_record(dl, event.activity_id) is None
@@ -314,7 +317,12 @@ def drained_rerun(
         deliver_outbox(dl)
         record = held_received_record(dl, event.activity_id)
         assert record is not None and record.stage in HOLDING_STAGES, record
-        assert hold_for_replay(dl, event.activity_id, sealed_body_of(record))
+        assert hold_for_replay(
+            dl,
+            event.activity_id,
+            sealed_body_of(record),
+            received_at=now_utc(),
+        )
         assert release_from_holding(dl, event.activity_id) is not None
         last = run(dl, event)
     return DrainedRerun(

@@ -768,7 +768,9 @@ def test_a_replay_of_a_ledgered_activity_is_not_answered_as_late() -> None:
     net.receive(MANAGER, second)
     record = held_received_record(manager_dl, first["id"])
     assert record is not None
-    assert hold_for_replay(manager_dl, first["id"], sealed_body_of(record))
+    assert hold_for_replay(
+        manager_dl, first["id"], sealed_body_of(record), received_at=now_utc()
+    )
     assert release_from_holding(manager_dl, first["id"]) is not None
     entries_before = len(ledger_entries(manager_dl, net.case_id))
     queued_before = manager_dl.outbox_list()

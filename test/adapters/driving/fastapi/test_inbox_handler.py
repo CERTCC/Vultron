@@ -20,6 +20,7 @@ from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.services.received_holding import records_awaiting_case
@@ -93,9 +94,10 @@ def test_handle_inbox_item_dispatches(monkeypatch):
     )
 
 
-@pytest.mark.spec("CS-13-002")
+@pytest.mark.spec("CS-13-002", "CS-13-010")
 def test_handle_inbox_item_dispatches_inside_one_act(monkeypatch):
-    """The CLI delivery path is an act: lock, one read, ``/at`` in force."""
+    """The CLI delivery path is an act: one arrival read before the lock,
+    then ``/at`` in force under it (ADR-0176)."""
     from test.support.act_clock import ACT_AT, CountingClock, tree_lock_held
     from vultron.core.behaviors.bridge.act_instant import read_act_instant
 
@@ -125,7 +127,7 @@ def test_handle_inbox_item_dispatches_inside_one_act(monkeypatch):
     )
 
     assert clock.reads == 1
-    assert clock.locked_at_read == [True]
+    assert clock.locked_at_read == [False]
     assert seen == [(ACT_AT, True)]
 
 
@@ -391,6 +393,7 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
             case_id=case_id,
             queue_dl=queue_dl,
             timeout_seconds=60,  # 1 minute; queue is 10 minutes old
+            at=now_utc(),
         )
 
     assert expired is True
@@ -972,9 +975,7 @@ def test_pending_case_queue_expiry_sends_nothing():
     )
 
     expired = _expire_pending_case_activities(
-        case_id=case_id,
-        queue_dl=queue_dl,
-        timeout_seconds=60,
+        case_id=case_id, queue_dl=queue_dl, timeout_seconds=60, at=now_utc()
     )
 
     assert expired is True
@@ -1047,9 +1048,7 @@ def test_pending_case_queue_expiry_changes_no_local_state():
     )
 
     expired = _expire_pending_case_activities(
-        case_id=case_id,
-        queue_dl=queue_dl,
-        timeout_seconds=60,
+        case_id=case_id, queue_dl=queue_dl, timeout_seconds=60, at=now_utc()
     )
 
     assert expired is True
@@ -1178,9 +1177,7 @@ def test_expired_queue_keeps_a_stub_invite_trust_anchor():
     ] == [activity_id], "precondition: one activity waits on the case"
 
     expired = _expire_pending_case_activities(
-        case_id=case_id,
-        queue_dl=queue_dl,
-        timeout_seconds=60,
+        case_id=case_id, queue_dl=queue_dl, timeout_seconds=60, at=now_utc()
     )
 
     assert expired is True
@@ -1215,8 +1212,6 @@ def test_a_queue_holding_no_activity_does_not_expire():
     )
 
     assert not _expire_pending_case_activities(
-        case_id=case_id,
-        queue_dl=queue_dl,
-        timeout_seconds=60,
+        case_id=case_id, queue_dl=queue_dl, timeout_seconds=60, at=now_utc()
     )
     assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is not None
