@@ -43,7 +43,6 @@ import pytest
 from test.architecture import _corpus
 
 _SEND = "Tracked by #6092 (source #5131)."
-_RECEIVE = "Tracked by #6090 (source #5131)."
 _CASE = "Tracked by #6091 (source #5131)."
 _RECORDS = (
     "Tracked by #6093, which waits on #5132 (vulnerability records on a case)."
@@ -110,17 +109,6 @@ def test_the_csaf_document_is_labelled_application_json(
     assert _has_behavioral_test(request)
 
 
-@pytest.mark.spec("CSAF-01-003")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-01-003: no receiver recognizes CSAF 2.1 yet. {_RECEIVE}",
-)
-def test_a_receiver_recognizes_csaf_by_schema_and_version(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
 @pytest.mark.spec("CSAF-02-001")
 @pytest.mark.xfail(
     strict=True,
@@ -160,28 +148,6 @@ def test_a_vultron_field_beats_the_csaf_value(
     reason=f"CSAF-02-004: the sender fills no field from CSAF yet. {_SEND}",
 )
 def test_a_sender_fills_vultron_fields_that_agree_with_its_csaf(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-02-005")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-02-005: no CSAF value is read yet. {_RECEIVE}",
-)
-def test_an_omitted_csaf_field_or_schema_default_is_no_statement(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-02-006")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-02-006: no receiver reads CSAF leniently yet. {_RECEIVE}",
-)
-def test_a_broken_csaf_attachment_never_refuses_the_report(
     request: pytest.FixtureRequest,
 ) -> None:
     assert _has_behavioral_test(request)
@@ -292,61 +258,6 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_record(
     reason=f"CSAF-03-009: the case has no case references. {_RECORDS}",
 )
 def test_each_csaf_reference_becomes_a_case_reference(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-04-001")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-04-001: no CSAF schema verdict is recorded yet. {_RECEIVE}",
-)
-def test_receipt_records_a_schema_verdict(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-04-002")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-04-002: no CSAF schema verdict exists yet. {_RECEIVE}",
-)
-def test_the_verdict_never_says_valid_csaf(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-04-003")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-04-003: no lenient CSAF read exists yet. {_RECEIVE}",
-)
-def test_a_schema_invalid_document_is_read_field_by_field(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-04-004")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-04-004: no claims record is stored yet. {_RECEIVE}",
-)
-def test_the_report_keeps_a_record_of_what_its_csaf_claimed(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-04-005")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-04-005: no claims record exists yet. {_RECEIVE}",
-)
-def test_the_claims_record_is_never_sent(
     request: pytest.FixtureRequest,
 ) -> None:
     assert _has_behavioral_test(request)

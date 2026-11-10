@@ -44,6 +44,32 @@ def _close_sqlite_datalayers(monkeypatch):
         created.pop().close()
 
 
+#: The CaseActor service a report receiver proposes its case to (ADR-0041).
+CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
+
+
+@pytest.fixture
+def case_actor_service_url(monkeypatch):
+    """Configure the CaseActor service a report receiver proposes its case to.
+
+    A receiver of an ``Offer(VulnerabilityReport)`` refuses to propose a case
+    without one (``EnsureCaseActorHostedNode``).  Mark a module with
+    ``pytest.mark.usefixtures("case_actor_service_url")`` to set it.
+    """
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", CASE_ACTOR_SERVICE_URL
+    )
+    from vultron.config.app import reload_config
+
+    reload_config()
+    yield CASE_ACTOR_SERVICE_URL
+    # Undo the env patch BEFORE reloading: monkeypatch's own undo runs after
+    # this teardown, so reloading first would re-cache this fixture's URL into
+    # the module-level config for the rest of the session (#2086).
+    monkeypatch.undo()
+    reload_config()
+
+
 _CALL_REPORT = pytest.StashKey[pytest.TestReport]()
 
 
