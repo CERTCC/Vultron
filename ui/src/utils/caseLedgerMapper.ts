@@ -39,7 +39,7 @@
  */
 
 import type { DemoState, ParticipantState, TimelineEvent, StepSnapshot } from '../types'
-import { INITIAL_X_POSITION, X_INCREMENT } from '../constants'
+import { INITIAL_X_POSITION, PARTICIPANT_COLORS, X_INCREMENT } from '../constants'
 import {
   isLegalTransition,
   legalTriggers,
@@ -176,8 +176,10 @@ interface ReplayContext {
 }
 
 /**
- * The lane an entry is drawn in when no lane names its actor: an entry whose
- * semantic type is unrecognized must still be visible (#4729 AC-3).
+ * The lane an entry is drawn in when the ledger names no lane at all for it
+ * (no actor, and no CASE_MANAGER): an entry must still be visible (#4729 AC-3).
+ * It is made on first use, outside the pre-scanned directory, below every lane,
+ * with the fallback palette `nodeColorsFor` gives an unknown key.
  */
 const UNATTRIBUTED_LANE = 'unattributed'
 
@@ -738,7 +740,7 @@ function unattributedLane(ctx: ReplayContext): string {
       label: 'Unattributed',
       roleLabel: '',
       palette: 'participant',
-      color: '#eeeeee',
+      color: PARTICIPANT_COLORS.reporter,
       index: ctx.participants.size,
     }
     ctx.participants.set(UNATTRIBUTED_LANE, makeParticipant(lane, true))
@@ -973,7 +975,9 @@ function handleRejectInvite(ctx: ReplayContext, entry: CaseLedgerEntry): MapResu
  * the actor id and its label leaves CASE_OWNER out (`./replayLanes`), so both
  * participants keep their lanes and labels through the handoff.
  *
- * `offer`: `actor` = the OUTGOING owner; `target` = the INCOMING owner.
+ * `offer`: `actor` = the actor that sent the offer (the CASE_MANAGER relaying it
+ * in the current recordings; the outgoing owner in older logs); `target` = the
+ * INCOMING owner. The node goes in the sender's lane.
  */
 function handleOfferOwnershipTransfer(ctx: ReplayContext, entry: CaseLedgerEntry): MapResult {
   const snapshot = entry.payloadSnapshot

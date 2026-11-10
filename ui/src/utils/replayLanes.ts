@@ -18,7 +18,10 @@
  *
  * A ledger with no `CaseParticipant` record for an actor (an older uploaded
  * log) falls back to the `cvdRole` of the actor's `ParticipantStatus` records.
- * An actor with neither is labelled "Participant".
+ * When no record or status names a CASE_MANAGER, the actor of the case's
+ * bootstrap entry is it. Any other actor with no roles is labelled
+ * "Participant": in such a log a Reporter is not recognized, so it gets no
+ * RM=ACCEPTED seed at case creation.
  */
 
 import { getVendorColor, PARTICIPANT_COLORS } from '../constants'
@@ -74,6 +77,9 @@ const ROLE_NAMES: Record<CaseRole, string> = {
 
 /** The roles a label never shows: CASE_OWNER moves between participants. */
 const MOVING_ROLES: ReadonlySet<CaseRole> = new Set(['case_owner'])
+
+/** The case's bootstrap entry: the current verb and the pre-2026-08 one. */
+const BOOTSTRAP_TYPES: ReadonlySet<string> = new Set(['create_case', 'offer_case_manager_role'])
 
 /** Lane order, top to bottom, by kind. */
 const KIND_ORDER: readonly LaneKind[] = ['reporter', 'vendor', 'coordinator', 'participant', 'casemanager']
@@ -168,8 +174,16 @@ export function buildLanes(entries: readonly CaseLedgerEntry[]): LaneDirectory {
     }
   }
 
+  // A ledger that names no CASE_MANAGER by role (an older log) still says who
+  // it is: the actor that records the case's bootstrap entry, since only the
+  // CASE_MANAGER writes the ledger (CLP-02-001).
+  const namesManager = [...recordRoles.values(), ...statusRoleSets.values()].some((set) => set.has('case_manager'))
+  const bootstrapActor = namesManager
+    ? undefined
+    : entries.find((entry) => BOOTSTRAP_TYPES.has(entry.semanticType))?.payloadSnapshot?.actor
   const unordered = seen.map((id) => {
     const named = recordRoles.get(id) ?? statusRoleSets.get(id) ?? new Set<CaseRole>()
+    if (id === bootstrapActor) named.add('case_manager')
     const roles = CASE_ROLES_VALUES.filter((role) => named.has(role))
     return { id, roles, kind: laneKind(roles) }
   })

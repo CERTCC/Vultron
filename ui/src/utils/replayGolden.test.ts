@@ -25,7 +25,7 @@ import semanticRegistry from '../data/semantic_registry.json'
 import type { DemoState, TimelineEvent } from '../types'
 import { buildTimelineFromCaseLedger } from './caseLedgerMapper'
 import { normalizeLedger, parseCaseLedger, type CaseLedgerEntry } from './caseLedgerParser'
-import { baseLabel, buildLanes } from './replayLanes'
+import { buildLanes } from './replayLanes'
 import { statePath } from './testing/ledgerEntries'
 
 const RECORDINGS = import.meta.glob<string>('../recordings/*/case-actor.jsonl', {
@@ -42,6 +42,8 @@ const GOLDEN_FILES = import.meta.glob<string>('./replay-golden/*.txt', {
 
 interface Replay {
   scenario: string
+  /** The golden file's name: the scenario, with the case id when it has several recordings. */
+  golden: string
   path: string
   entries: CaseLedgerEntry[]
   state: DemoState
@@ -52,13 +54,15 @@ function replays(): Replay[] {
   const out: Replay[] = []
   for (const [scenario, info] of Object.entries(scenarioTree.scenarios)) {
     const caseActor: Record<string, string> = info.recordings['case-actor'] ?? {}
-    for (const path of Object.values(caseActor)) {
+    const several = Object.keys(caseActor).length > 1
+    for (const [caseId, path] of Object.entries(caseActor)) {
+      const golden = several ? `${scenario}--${caseId.replace(/[^\w-]+/g, '_')}` : scenario
       const raw = RECORDINGS[`../${path}`]
       if (raw === undefined) throw new Error(`${scenario}: no committed recording at ui/src/${path}`)
       const parsed = parseCaseLedger(raw, path)
       if (parsed.rejected.length > 0) throw new Error(`${path}: ${parsed.rejected.length} rejected line(s)`)
       const entries = normalizeLedger(parsed.entries)
-      out.push({ scenario, path, entries, state: buildTimelineFromCaseLedger(entries) })
+      out.push({ scenario, golden, path, entries, state: buildTimelineFromCaseLedger(entries) })
     }
   }
   return out
@@ -178,17 +182,17 @@ describe('the recordings the golden tests replay', () => {
   })
 
   it('leave no golden file without a scenario', () => {
-    const scenarios = new Set(REPLAYS.map((r) => r.scenario))
+    const goldens = new Set(REPLAYS.map((r) => r.golden))
     const stale = Object.keys(GOLDEN_FILES)
       .map((file) => file.replace(/^\.\/replay-golden\/(.*)\.txt$/, '$1'))
-      .filter((name) => !scenarios.has(name))
+      .filter((name) => !goldens.has(name))
     expect(stale).toEqual([])
   })
 })
 
-describe.each(REPLAYS.map((r) => [r.scenario, r] as const))('the %s replay', (_scenario, replay) => {
+describe.each(REPLAYS.map((r) => [r.golden, r] as const))('the %s replay', (_golden, replay) => {
   it('matches its golden file', async () => {
-    await expect(goldenText(replay)).toMatchFileSnapshot(`./replay-golden/${replay.scenario}.txt`)
+    await expect(goldenText(replay)).toMatchFileSnapshot(`./replay-golden/${replay.golden}.txt`)
   })
 
   it('has no unrecognized, flagged or inferred node', () => {
@@ -207,19 +211,22 @@ describe.each(REPLAYS.map((r) => [r.scenario, r] as const))('the %s replay', (_s
 
   it('keys each lane on an actor id the ledger names and labels it by its roles', () => {
     const lanes = buildLanes(replay.entries)
-    const counts = new Map<string, number>()
     for (const lane of lanes.lanes) {
       expect(lane.id).toMatch(/^https?:\/\//)
-      const base = baseLabel(lane.roles)
-      const n = (counts.get(base) ?? 0) + 1
-      counts.set(base, n)
-      expect(lane.label).toBe(n === 1 ? base : `${base} ${n}`)
-      const participant = replay.state.participants.get(lane.id)
-      expect(participant?.name).toBe(lane.label)
+      // Spelled out here, not taken from replayLanes: a label is the role
+      // names of its lane, then a number from the second lane of that name.
+      const shown = lane.roles.includes('case_manager')
+        ? ['case_manager']
+        : lane.roles.filter((role) => role !== 'case_owner')
+      const base = shown.map((role) => EXPECTED_ROLE_NAMES[role]).join(' / ')
+      expect(lane.label).toMatch(new RegExp(`^${base}( [2-9])?$`))
+      expect(replay.state.participants.get(lane.id)?.name).toBe(lane.label)
     }
+    const labels = lanes.lanes.map((lane) => lane.label)
+    expect(new Set(labels).size).toBe(labels.length)
   })
 
-  it('puts each decision node in its own lane', () => {
+  it('puts every node in the lane of the participant it names', () => {
     for (const event of replay.state.timelineEvents) {
       const participant = replay.state.participants.get(event.participantId ?? '')
       expect(participant?.laneIndex).toBe(event.lane)
@@ -256,21 +263,39 @@ describe('a second Coordinator (#5585)', () => {
   })
 })
 
+/** The role names a lane label uses, as a reader of the timeline would expect them. */
+const EXPECTED_ROLE_NAMES: Record<string, string> = {
+  reporter: 'Reporter',
+  vendor: 'Vendor',
+  deployer: 'Deployer',
+  coordinator: 'Coordinator',
+  case_manager: 'Case Manager',
+}
+
 describe('a case-ownership handoff', () => {
-  it.each(['rccv-handoff', 'rvcv-handoff'])('keeps both participants in their lanes in %s', (name) => {
+  it.each([
+    ['rccv-handoff', 'Coordinator', 'Coordinator 2'],
+    ['rvcv-handoff', 'Vendor', 'Coordinator'],
+  ])('keeps the outgoing and incoming owners in their own lanes and labels in %s', (name, outgoing, incoming) => {
     const replay = byScenario(name)
-    const offer = replay.entries.find((e) => e.semanticType === 'offer_case_ownership_transfer')
-    const accept = replay.entries.find((e) => e.semanticType === 'accept_case_ownership_transfer')
-    expect(offer).toBeDefined()
-    expect(accept).toBeDefined()
-    const node = (entry: CaseLedgerEntry) =>
-      replay.state.timelineEvents.find((e) => e.id === `${entry.id}-decision`)
-    // Each node is in the lane keyed on its own actor id, though CASE_OWNER moves.
-    expect(node(offer!)?.participantId).toBe(offer!.payloadSnapshot.actor)
-    expect(node(accept!)?.participantId).toBe(accept!.payloadSnapshot.actor)
+    // The records that move CASE_OWNER: the first update drops it, the second adds it.
+    const updates = replay.entries.filter((e) => e.semanticType === 'update_case_participant')
+    const [from, to] = updates.map((e) => e.payloadSnapshot.object!.attributedTo!)
+    expect(updates.map((e) => e.payloadSnapshot.object!.caseRoles)).toEqual([
+      [outgoing.toLowerCase().split(' ')[0]],
+      ['coordinator', 'case_owner'],
+    ])
     const lanes = buildLanes(replay.entries)
-    expect(lanes.get(offer!.payloadSnapshot.actor)?.label).not.toContain('Owner')
-    expect(lanes.get(accept!.payloadSnapshot.actor)?.label).not.toContain('Owner')
+    expect([lanes.get(from)?.label, lanes.get(to)?.label]).toEqual([outgoing, incoming])
+    // Every node of each owner, before and after the handoff, is in one lane.
+    for (const actor of [from, to]) {
+      const indices = new Set(
+        replay.state.timelineEvents.filter((e) => e.participantId === actor).map((e) => e.lane)
+      )
+      expect([...indices]).toEqual([lanes.get(actor)!.index])
+    }
+    const accept = replay.entries.find((e) => e.semanticType === 'accept_case_ownership_transfer')!
+    expect(replay.state.timelineEvents.find((e) => e.id === `${accept.id}-decision`)?.participantId).toBe(to)
   })
 })
 

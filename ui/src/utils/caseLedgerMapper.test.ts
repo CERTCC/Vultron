@@ -19,7 +19,7 @@ import { renderPhrase } from '../semanticRegistry'
 import { buildTimelineFromCaseLedger } from './caseLedgerMapper'
 import { normalizeLedger, parseCaseLedger, type CaseLedgerEntry, type RejectedLedgerLine } from './caseLedgerParser'
 import type { CaseRole } from './replayLanes'
-import { ACTORS, createCaseEntry, ledgerEntry, statePath, statusEntry } from './testing/ledgerEntries'
+import { ACTORS, createCaseEntry, ledgerEntry, participantEntry, statePath, statusEntry } from './testing/ledgerEntries'
 
 const parsed = parseCaseLedger(rvLedgerRaw, 'rv')
 const entries = normalizeLedger(parsed.entries)
@@ -286,5 +286,82 @@ describe('the event log', () => {
   it('gives a node whose label is its entry\'s phrase that phrase once', () => {
     const validate = state.eventLog.find((l) => l.includes(renderPhrase('validate_report', { actor: 'Vendor' })))
     expect(validate).toMatch(/\] Vendor validated the report$/)
+  })
+})
+
+describe('a log whose records name no roles (an older upload)', () => {
+  // Hosts that once picked the lanes (`//finder:`, `//vendor:`); nothing here
+  // names a role, so none of them may decide a lane.
+  const manager = 'http://vendor:7999/api/v2/actors/case-actor-1'
+  const vendor = 'http://vendor:7999/api/v2/actors/vendor-1'
+  const finder = 'http://finder:7999/api/v2/actors/finder-1'
+  const s = buildTimelineFromCaseLedger([
+    ledgerEntry(0, 'offer_case_manager_role', {
+      type: 'Offer',
+      actor: manager,
+      object: {
+        type: 'VulnerabilityCase',
+        attributedTo: vendor,
+        actorParticipantIndex: { [finder]: 'urn:p:0', [vendor]: 'urn:p:1', [manager]: 'urn:p:2' },
+        caseStatuses: [{ type: 'CaseStatus', emState: 'ACTIVE', pxaState: 'pxa' }],
+      },
+    }),
+    ledgerEntry(1, 'validate_report', { type: 'Accept', actor: vendor }),
+  ])
+
+  it('takes the actor of the bootstrap entry as the CASE_MANAGER', () => {
+    expect(s.participants.get(manager)?.name).toBe('Case Manager')
+    expect(s.participants.get(manager)?.rmState).toBe('N/A')
+  })
+
+  it('labels every other actor "Participant", never by its host', () => {
+    expect([vendor, finder].map((id) => s.participants.get(id)?.name)).toEqual(['Participant', 'Participant 2'])
+  })
+
+  it('still seeds the case\'s attributedTo as the receiver, so its validation is legal', () => {
+    const node = s.timelineEvents.find((e) => e.id.endsWith('/log/1-decision'))
+    expect(node?.violation).toBeUndefined()
+    expect(s.participants.get(vendor)?.rmState).toBe('VALID')
+  })
+
+  it('gives an unrecognized Reporter no RM=ACCEPTED seed', () => {
+    expect(s.participants.get(finder)?.rmState).toBe('START')
+  })
+})
+
+describe('lane fallbacks when an entry has no actor', () => {
+  const nodeAt = (s: ReturnType<typeof replay>, logIndex: number) =>
+    s.timelineEvents.find((e) => e.id.endsWith(`/log/${logIndex}-decision`))
+
+  it.each([
+    ['add_case_status_to_case', { type: 'Add', object: { type: 'CaseStatus', emState: 'EXITED', pxaState: 'pxa' } }],
+    ['remove_embargo_event_from_case', { type: 'Remove' }],
+    ['add_participant_status_to_participant', { type: 'Add', object: { type: 'ParticipantStatus', caseStatus: { type: 'CaseStatus', emState: 'EXITED' } } }],
+    ['close_case', { type: 'Leave' }],
+  ] as const)('draws %s in the CASE_MANAGER\'s lane', (semanticType, snapshot) => {
+    const s = replay(ledgerEntry(1, semanticType, snapshot as never))
+    expect(nodeAt(s, 1)?.participantId).toBe(ACTORS.manager)
+  })
+
+  it.each([
+    ['add_case_status_to_case', { type: 'Add', object: { type: 'CaseStatus', emState: 'EXITED' } }],
+    ['remove_embargo_event_from_case', { type: 'Remove' }],
+    ['close_case', { type: 'Leave' }],
+  ] as const)('draws %s in an Unattributed lane when the ledger has no lane', (semanticType, snapshot) => {
+    const s = buildTimelineFromCaseLedger([ledgerEntry(0, semanticType, snapshot as never)])
+    expect(s.participants.get(nodeAt(s, 0)!.participantId!)?.name).toBe('Unattributed')
+  })
+
+  it('draws a create_case with no actor and no receiver in the CASE_MANAGER\'s lane', () => {
+    const s = buildTimelineFromCaseLedger([
+      participantEntry(0, ACTORS.reporter, ['reporter']),
+      participantEntry(0, ACTORS.manager, ['case_manager']),
+      ledgerEntry(1, 'create_case', {
+        type: 'Create',
+        object: { type: 'VulnerabilityCase', actorParticipantIndex: { [ACTORS.reporter]: 'urn:p:0' } },
+      }),
+    ])
+    expect(nodeAt(s, 1)?.participantId).toBe(ACTORS.manager)
+    expect(s.participants.get(ACTORS.reporter)?.rmState).toBe('ACCEPTED')
   })
 })
