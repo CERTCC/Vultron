@@ -18,14 +18,12 @@ extractor as the inbox delivers it, and handled by
 """
 
 import json
-from collections.abc import Iterator
-from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import patch
 
 from pydantic import JsonValue
 
+from test.support.act_clock import clock_at
 from test.support.act_runner import run_in_act
 from test.support.received import received_event
 from test.wire.csaf._documents import section, vulnerability_report_document
@@ -37,7 +35,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.case.case_actor_identity import case_actor_identity
-from vultron.core.models._helpers import clock as helpers_clock
 from vultron.core.models.actor import VultronService
 from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.case import VulnerabilityCase
@@ -66,23 +63,6 @@ REPORT_ID = "https://finder.example.org/reports/widget"
 CSAF_ID = f"{REPORT_ID}/csaf"
 OTHER_ID = f"{REPORT_ID}/notes"
 RECEIVED_AT = datetime(2026, 11, 1, 12, tzinfo=UTC)
-
-
-@contextmanager
-def clock_at(at: datetime) -> Iterator[None]:
-    """Hold the clock at *at* while an act at *at* runs.
-
-    The act's instant judges each claimed timestamp (CLP-14-007, CLP-14-008,
-    ADR-0176), and the activities an act sends still stamp ``published`` from
-    the clock, so a test that pins the act pins the clock with it, as one
-    act's clock read and its stamps agree in production.
-    """
-    with patch.object(
-        helpers_clock,
-        "datetime",
-        helpers_clock.SteppingClock(at, step=timedelta(microseconds=1)),
-    ):
-        yield
 
 
 def document(content: str, document_id: str = CSAF_ID) -> AttachedDocument:
