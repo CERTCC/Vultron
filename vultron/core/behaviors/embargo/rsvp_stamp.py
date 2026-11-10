@@ -112,9 +112,9 @@ def stamp_rsvp_deadline(
 
     The one place the window rule lives (CM-28-012): ``published`` plus the
     configured ``default_rsvp_window``, floored at ``min_rsvp_window`` and
-    capped at *embargo_end* when there is one (EP-07-002, EP-07-006).  An embargo Invite
-    passes its embargo's end; a stub Invite passes the active embargo's end,
-    or ``None`` when no embargo is active (CM-11-014).
+    capped at *embargo_end* when there is one (EP-07-002, EP-07-006).  An
+    embargo Invite passes its embargo's end; a stub Invite passes the active
+    embargo's end, or ``None`` when no embargo is active (CM-11-014).
 
     Args:
         embargo_end: The ``end_time`` of the embargo that caps the deadline,

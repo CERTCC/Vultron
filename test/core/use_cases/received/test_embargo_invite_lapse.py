@@ -527,8 +527,8 @@ class TestPastDeadlineIsWarnedByTheHandler:
     @pytest.mark.spec("CS-13-002")
     @pytest.mark.parametrize(
         ("days_after_published", "warned"),
-        [(8, True), (6, False)],
-        ids=["past", "open"],
+        [(8, True), (7, True), (6, False)],
+        ids=["past", "at-the-deadline", "open"],
     )
     def test_warning_follows_the_act_instant(
         self, make_payload, caplog, days_after_published, warned
