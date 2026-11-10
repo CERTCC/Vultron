@@ -504,10 +504,20 @@ class TestNarrativePages:
 
         reported = missing_story_includes(page_root)
 
-        assert reported == [
-            f"{spec.narrative_path} ends with '## Unobservable edges', not "
-            f"with a '{STORY_SECTION}' section"
-        ]
+        # The whole message, so this tells the "ends with the wrong heading"
+        # shape from the "section has no include" one — but the heading it
+        # ends with is read out of the message rather than pinned: that
+        # heading belongs to whichever narrative page sorts first and is
+        # incidental to what is being checked here.
+        assert len(reported) == 1
+        problem = reported[0]
+        prefix = f"{spec.narrative_path} ends with "
+        suffix = f", not with a '{STORY_SECTION}' section"
+        assert problem.startswith(prefix), problem
+        assert problem.endswith(suffix), problem
+        ends_with = problem[len(prefix) : -len(suffix)]
+        assert ends_with.startswith("'##"), ends_with
+        assert STORY_HEADING not in ends_with, ends_with
 
     @pytest.mark.spec("DEMOCI-11-067")
     def test_a_section_with_no_include_is_reported(

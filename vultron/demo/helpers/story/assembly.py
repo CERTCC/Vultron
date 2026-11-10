@@ -108,9 +108,11 @@ def fragment_name(fragment: object, *, scenario: str) -> str:
 #: slot cannot be added without joining this check, and the bare word
 #: ``container`` itself.  A container is *where* a step runs, never what it
 #: does, so naming one in a fragment's opening sentence tells a reader of the
-#: story nothing about the case (DEMOCI-11-066).
+#: story nothing about the case (DEMOCI-11-066).  Each is matched with an
+#: optional plural rather than listed twice, so "the container holds
+#: containers" is the one offence it is and prints one line (EH-07-001).
 _CONTAINER_WORDS: frozenset[str] = frozenset(
-    [*(slot.name for slot in ALL_SLOTS), "container", "containers"]
+    [*(slot.name for slot in ALL_SLOTS), "container"]
 )
 
 #: A code identifier spelled as words joined by underscores:
@@ -121,10 +123,12 @@ _CONTAINER_WORDS: frozenset[str] = frozenset(
 _IDENTIFIER_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b")
 
 #: A code identifier spelled in dotted notation: ``CS.P``, ``EM.ACTIVE``,
-#: ``CVDRole.COORDINATOR``.  One side has to start with a capital, which is
-#: what keeps a sentence's own full stop out of it: ``"Acme Inc. engages"``
-#: has a space after the stop and does not match, and a lowercase pair such
-#: as ``e.g`` is not a name.
+#: ``CVDRole.COORDINATOR``.  One side has to start with a capital, which rules
+#: out a lowercase pair such as ``e.g``.  That alone does not keep a
+#: sentence's own full stop out of it — ``"Acme Inc. engages"`` has a space
+#: after the stop and does not match, but ``"the U.S. CERT"`` would — so the
+#: scan runs on the text :func:`_without_abbreviations` has blanked, the same
+#: text the one-sentence check reads.
 _DOTTED_RE = re.compile(
     r"\b(?:[A-Z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*"
     r"|[A-Za-z][A-Za-z0-9_]*\.[A-Z][A-Za-z0-9_]*)\b"
@@ -152,12 +156,24 @@ _ABBREVIATIONS: tuple[str, ...] = (
     "Inc.",
     "Ltd.",
     "Co.",
+    "U.S.",
+)
+
+#: One of :data:`_ABBREVIATIONS` where a word starts, so a word that merely
+#: *ends* in one is left alone: without the boundary, ``vs.`` matches inside
+#: "the Vendor's revs." and the sentence break after it goes unseen.
+_ABBREVIATION_RE = re.compile(
+    "|".join(
+        rf"(?<!\w){re.escape(abbreviation)}" for abbreviation in _ABBREVIATIONS
+    )
 )
 
 #: A sentence ending followed by more text: the signal that the summary holds
 #: more than one sentence.  Covers ``?`` and ``!`` as well as the full stop,
-#: because a question a step asks is still a whole sentence.
-_SENTENCE_BREAK_RE = re.compile(r"[.!?]\s+\S")
+#: because a question a step asks is still a whole sentence, and spans the
+#: same :data:`_CLOSERS` the full-stop test strips: a first sentence ending
+#: inside a quote or a paren still ends there.
+_SENTENCE_BREAK_RE = re.compile(rf"[.!?][{re.escape(_CLOSERS)}]*\s+\S")
 
 
 def _opening_paragraph(fragment: object) -> str:
@@ -179,16 +195,29 @@ def _opening_paragraph(fragment: object) -> str:
     return " ".join(summary)
 
 
-def _holds_two_sentences(sentence: str) -> bool:
-    """Whether *sentence* ends one sentence and starts another.
+def _without_abbreviations(sentence: str) -> str:
+    """Return *sentence* with each :data:`_ABBREVIATIONS` entry blanked out.
 
-    The abbreviations of :data:`_ABBREVIATIONS` are blanked out first, so
-    their full stops are not read as endings and the author is not told to
-    move a remainder that does not exist.
+    Both checks that read a full stop as punctuation rather than as prose run
+    on this text: the one-sentence check, so an abbreviation's stop is not an
+    ending and the author is not told to move a remainder that does not
+    exist, and the dotted-identifier scan, so ``"the U.S. CERT"`` is not
+    reported as a code name.  One helper for both, because an abbreviation
+    the one check knows and the other does not is how the same sentence came
+    to be refused twice with two wrong reasons.
+
+    Blanked with spaces, not underscores: an underscore run is the one
+    spelling :data:`_IDENTIFIER_RE` looks for, so blanking with it would
+    teach one check by misleading another.
     """
-    scanned = sentence
-    for abbreviation in _ABBREVIATIONS:
-        scanned = scanned.replace(abbreviation, "_" * len(abbreviation))
+    return _ABBREVIATION_RE.sub(
+        lambda match: " " * len(match.group()), sentence
+    )
+
+
+def _holds_two_sentences(sentence: str) -> bool:
+    """Whether *sentence* ends one sentence and starts another."""
+    scanned = _without_abbreviations(sentence)
     return _SENTENCE_BREAK_RE.search(scanned) is not None
 
 
@@ -222,18 +251,24 @@ def _sentence_violations(sentence: str) -> list[str]:
             "bookkeeping rather than anything the case did; move it to the "
             "docstring's body"
         )
+    dotted = set(_DOTTED_RE.findall(_without_abbreviations(sentence)))
+    # A dotted name's own tail is an underscore-joined name too, so
+    # CVDRole.CASE_OWNER matches both patterns.  Report the whole name only:
+    # the offence is one, and naming its half beside it reads as two.
+    identifiers = {
+        match
+        for match in _IDENTIFIER_RE.findall(sentence)
+        if not any(match in name for name in dotted)
+    }
     violations.extend(
         f"it names the code identifier {match!r}"
-        for match in sorted(
-            set(_IDENTIFIER_RE.findall(sentence))
-            | set(_DOTTED_RE.findall(sentence))
-        )
+        for match in sorted(dotted | identifiers)
     )
     lowered = sentence.lower()
     violations.extend(
         f"it names the container {word!r}"
         for word in sorted(_CONTAINER_WORDS)
-        if re.search(rf"\b{re.escape(word)}\b", lowered)
+        if re.search(rf"\b{re.escape(word)}s?\b", lowered)
     )
     return violations
 

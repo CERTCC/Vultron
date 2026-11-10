@@ -259,9 +259,7 @@ def _unfenced_body(section: MarkdownSection) -> str:
     A page that *documents* the include directive in a code block under the
     story heading would otherwise satisfy the check while including nothing.
     """
-    return "\n".join(
-        line for number, line in section.lines if number not in section.fenced
-    )
+    return "\n".join(line for _number, line in section.unfenced_lines)
 
 
 def _section_label(section: MarkdownSection | None) -> str:

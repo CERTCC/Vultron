@@ -62,8 +62,10 @@ the drift channel for every scenario.
 **A fragment's docstring opens with one domain sentence.** That sentence is
 the line the step renders as in the scenario's generated story, so it says what
 the step does in CVD domain terms and names no identifier, helper or container:
-no backtick, no `snake_case` or `SCREAMING_SNAKE` name, no cast container slug
-(DEMOCI-11-065, DEMOCI-11-066). `fragment_sentence` in
+no backtick, no `snake_case` or `SCREAMING_SNAKE` name, no dotted `Name.Member`
+notation, no leading `M<N>:` demo milestone marker, and no word naming a
+container — a cast slug or the bare word itself (DEMOCI-11-065,
+DEMOCI-11-066). `fragment_sentence` in
 `vultron/demo/helpers/story/assembly.py` refuses the rest, reporting every
 violation at once, and the rest of the docstring is the body, which no story
 shows. A requirement or decision id in parentheses is a citation, not a code

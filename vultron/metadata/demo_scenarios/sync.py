@@ -325,13 +325,6 @@ def main(argv: list[str] | None = None) -> None:
     root = repo_root()
     specs = discover_scenarios()
 
-    problems = [
-        f"registered scenario names a path that does not exist — {entry} "
-        "(DEMOCI-11-003). Rename the file to match the scenario name, or fix "
-        "the name in the @scenario decorator."
-        for entry in missing_derived_paths(root, specs)
-    ]
-
     # Whichever mode: an empty registry ends the run before anything is
     # compared or written. On --check every per-scenario artifact, each
     # narrative page's generated story included, would be checked against
@@ -339,10 +332,19 @@ def main(argv: list[str] | None = None) -> None:
     # declared artifacts would be rewritten empty and every committed story
     # orphaned, with exit 0 (DF-09-009). Discovery is a pkgutil walk
     # (DEMOCI-11-002), so an empty result means the walk imported nothing.
-    # Reported alone, because every other finding of such a run is noise.
+    # Reported alone, because every other finding of such a run is noise —
+    # which is why it is decided above the problems list rather than beside
+    # it: a run with no registry has nothing to contribute to it.
     if not specs:
         print(f"[ERROR] {EMPTY_REGISTRY}", file=sys.stderr)
         sys.exit(1)
+
+    problems = [
+        f"registered scenario names a path that does not exist — {entry} "
+        "(DEMOCI-11-003). Rename the file to match the scenario name, or fix "
+        "the name in the @scenario decorator."
+        for entry in missing_derived_paths(root, specs)
+    ]
 
     if args.write:
         if problems:

@@ -764,8 +764,38 @@ def _fragment_with_two_sentences_split_on_an_exclamation(
     """The embargo holds! The Vendor keeps the fix unreleased."""
 
 
+def _fragment_with_two_sentences_split_inside_a_quote(
+    state: StoryState,
+) -> None:
+    """The Vendor answers "it holds." The Reporter agrees."""
+
+
+def _fragment_with_two_sentences_split_inside_a_paren(
+    state: StoryState,
+) -> None:
+    """The Vendor engages (as agreed.) The Reporter is told."""
+
+
+def _fragment_with_a_word_ending_in_an_abbreviation(
+    state: StoryState,
+) -> None:
+    """The Vendor's revs. The Reporter replies."""
+
+
 def _fragment_naming_dotted_code(state: StoryState) -> None:
     """The Reporter publishes; CS.P ends the embargo."""
+
+
+def _fragment_naming_a_dotted_name_and_its_tail(state: StoryState) -> None:
+    """The role CVDRole.CASE_OWNER decides."""
+
+
+def _fragment_naming_the_container_word_twice(state: StoryState) -> None:
+    """The container holds containers."""
+
+
+def _fragment_naming_an_abbreviated_place(state: StoryState) -> None:
+    """The Vendor, a U.S. supplier, engages the case."""
 
 
 def _fragment_naming_the_container_word(state: StoryState) -> None:
@@ -847,6 +877,18 @@ class TestFragmentSentences:
                 _fragment_with_two_sentences_split_on_an_exclamation,
                 "more than one sentence",
             ),
+            (
+                _fragment_with_two_sentences_split_inside_a_quote,
+                "more than one sentence",
+            ),
+            (
+                _fragment_with_two_sentences_split_inside_a_paren,
+                "more than one sentence",
+            ),
+            (
+                _fragment_with_a_word_ending_in_an_abbreviation,
+                "more than one sentence",
+            ),
             (_fragment_with_a_backtick, "holds a backtick"),
             (_fragment_naming_an_identifier, "'CASE_OWNER'"),
             (_fragment_naming_dotted_code, "'CS.P'"),
@@ -867,6 +909,9 @@ class TestFragmentSentences:
             "two-sentences",
             "two-sentences-question",
             "two-sentences-exclamation",
+            "two-sentences-closing-quote",
+            "two-sentences-closing-paren",
+            "two-sentences-word-ending-in-an-abbreviation",
             "backtick",
             "identifier",
             "dotted-identifier",
@@ -892,8 +937,12 @@ class TestFragmentSentences:
     @pytest.mark.spec("DEMOCI-11-065")
     @pytest.mark.parametrize(
         "fragment",
-        [_fragment_with_an_abbreviation, _fragment_ending_in_a_quote],
-        ids=["abbreviation", "closing-quote"],
+        [
+            _fragment_with_an_abbreviation,
+            _fragment_ending_in_a_quote,
+            _fragment_naming_an_abbreviated_place,
+        ],
+        ids=["abbreviation", "closing-quote", "abbreviation-with-a-capital"],
     )
     def test_a_legitimate_single_sentence_is_not_refused(
         self, fragment: Callable[[StoryState], None]
@@ -901,11 +950,50 @@ class TestFragmentSentences:
         """Neither an abbreviation's full stop nor a closing quote is an end.
 
         Both were false refusals, and the message then told the author to
-        move a remainder into the docstring's body that was not there.
+        move a remainder into the docstring's body that was not there. The
+        third is the pair of them: ``U.S.`` is followed by a capital, so
+        before the two checks read one blanked text it was refused twice
+        over — as two sentences *and* as the code identifier ``U.S``.
         """
         assert fragment_sentence(fragment, scenario="rv").startswith(
             "The Vendor"
         )
+
+    @pytest.mark.spec("EH-07-001")
+    @pytest.mark.parametrize(
+        ("fragment", "prefix", "named"),
+        [
+            (
+                _fragment_naming_a_dotted_name_and_its_tail,
+                "it names the code identifier",
+                "'CVDRole.CASE_OWNER'",
+            ),
+            (
+                _fragment_naming_the_container_word_twice,
+                "it names the container",
+                "'container'",
+            ),
+        ],
+        ids=["dotted-name-and-its-tail", "container-word-and-its-plural"],
+    )
+    def test_one_offence_is_one_line(
+        self,
+        fragment: Callable[[StoryState], None],
+        prefix: str,
+        named: str,
+    ) -> None:
+        """Two spellings of one offence are not two violations.
+
+        A dotted name's tail is an underscore-joined name too, and the plural
+        of a container word is the same word, so each used to print a second
+        line naming half of what the first line already named.
+        """
+        with pytest.raises(DemoStoryError) as raised:
+            fragment_sentence(fragment, scenario="rv")
+
+        reported = str(raised.value)
+        assert reported.count(prefix) == 1
+        assert named in reported
 
     @pytest.mark.spec("EH-07-001")
     def test_one_identifier_named_twice_is_reported_once(self) -> None:
