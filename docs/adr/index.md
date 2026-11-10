@@ -276,6 +276,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0179 A Local Check Runs Only When It Answers Before a Required CI Gate](0179-a-local-check-runs-only-when-it-answers-before-a-required-ci-gate.md) *(provisional)* — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md, 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md, 0173-a-push-is-gated-by-cis-non-suite-checks-and-a-scratch-merge-of-the-overlap.md
 - [ADR-0180 The Case Owner Adds an Embargo to the Case, and Each Owner Decision Points at the Proposal It Answers](0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md) *(revision 2)* *(provisional)* — partially supersedes 0122-per-embargo-participant-consent.md
 - [ADR-0181 Wire Artifacts Publish Under the Versioned Namespace, and Type Schemas Are Informative](0181-wire-artifacts-publish-under-the-versioned-namespace-and-type-schemas-are-informative.md) *(provisional)*
+- [ADR-0183 A Call-Out Backend Answers Yes, No or Error, and the Seam Turns the Answer Into Tree Behaviour](0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md) *(provisional)* — partially supersedes 0025-call-out-point-abstraction-layer.md, 0097-capability-layer-four-shapes-and-core-declared-contracts.md
 - [ADR-0184 A CSAF Document Travels as a Report Attachment and Speaks for the Sender Only at the First Report](0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md) *(provisional)*
 - [ADR-0185 The One Id Minter Draws From an Id Source, Not a Patched uuid4](0185-the-one-id-minter-draws-from-an-id-source-not-a-patched-uuid4.md) *(provisional)*
 
@@ -289,7 +290,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0174 CVD Measures Read a Case Ledger Through a Read-Only Event History, Derived by State Comparison](0174-cvd-measures-read-a-case-ledger-through-a-read-only-event-history.md)
 - [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)
 - [ADR-0182 CVD Measures Take Chance From the Smallest Model That Holds Each Desideratum](0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md)
-- [ADR-0183 A Call-Out Backend Answers Yes, No or Error, and the Seam Turns the Answer Into Tree Behaviour](0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md) — partially supersedes 0025-call-out-point-abstraction-layer.md, 0097-capability-layer-four-shapes-and-core-declared-contracts.md
 - [ADR-0186 One Participant-Suggestion Port, Narrowed by a Core Projection, Serves Both a Call-Out and a Call-In Caller](0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md) *(revision 2)*
 
 ## Rejected ADRs

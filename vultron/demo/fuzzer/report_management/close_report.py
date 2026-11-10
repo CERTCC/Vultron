@@ -34,6 +34,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import AlwaysSucceed, UsuallyFail
 from vultron.demo.fuzzer.call_out_point import (
     ActuatorCallOutPoint,
@@ -56,7 +59,7 @@ class OtherCloseCriteriaMet(EvaluatorCallOutPoint, UsuallyFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates case-specific criteria from caller's DataLayer)
-      Output keys: other_close_criteria_met_verdict: str  (SUCCESS only)
+      Output keys: other_close_criteria_met_verdict: str  (yes only)
 
     Input category: Human decision / policy.
 
@@ -68,9 +71,9 @@ class OtherCloseCriteriaMet(EvaluatorCallOutPoint, UsuallyFail):
     final closure decision usually benefits from human confirmation.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "other_close_criteria_met_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"other_close_criteria_met_verdict": str}
+    )
 
 
 class PreCloseAction(ActuatorCallOutPoint, AlwaysSucceed):

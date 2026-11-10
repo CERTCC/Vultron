@@ -27,6 +27,7 @@ import random
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -64,7 +65,9 @@ _TOLERANCE = 0.03  # ±3 percentage points
 def _run_trials(node_cls: type[WeightedBehavior], n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
-    successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
+    successes = sum(
+        1 for _ in range(n) if tick_call_out(node) == Status.SUCCESS
+    )
     return successes / n
 
 
@@ -93,12 +96,12 @@ class TestWeightedBehavior:
 
     def test_update_returns_status(self) -> None:
         node = WeightedBehavior()
-        result = node.update()
+        result = tick_call_out(node)
         assert result in (Status.SUCCESS, Status.FAILURE)
 
     def test_update_never_returns_running(self) -> None:
         node = WeightedBehavior()
-        results = {node.update() for _ in range(200)}
+        results = {tick_call_out(node) for _ in range(200)}
         assert Status.RUNNING not in results
 
     def test_probability_distribution(self) -> None:
@@ -114,9 +117,9 @@ class TestWeightedBehavior:
         """Same seed → same sequence."""
         random.seed(42)
         node = WeightedBehavior()
-        seq_a = [node.update() for _ in range(20)]
+        seq_a = [tick_call_out(node) for _ in range(20)]
         random.seed(42)
-        seq_b = [node.update() for _ in range(20)]
+        seq_b = [tick_call_out(node) for _ in range(20)]
         assert seq_a == seq_b
 
 
@@ -128,7 +131,7 @@ class TestWeightedBehavior:
 class TestAlwaysSucceed:
     def test_always_succeeds(self) -> None:
         node = AlwaysSucceed()
-        assert all(node.update() == Status.SUCCESS for _ in range(100))
+        assert all(tick_call_out(node) == Status.SUCCESS for _ in range(100))
 
     def test_success_rate_attribute(self) -> None:
         assert AlwaysSucceed.success_rate == 1.0
@@ -137,7 +140,7 @@ class TestAlwaysSucceed:
 class TestAlwaysFail:
     def test_always_fails(self) -> None:
         node = AlwaysFail()
-        assert all(node.update() == Status.FAILURE for _ in range(100))
+        assert all(tick_call_out(node) == Status.FAILURE for _ in range(100))
 
     def test_success_rate_attribute(self) -> None:
         assert AlwaysFail.success_rate == 0.0
@@ -184,7 +187,7 @@ def test_update_returns_valid_status(
     cls: type[WeightedBehavior], expected_rate: float
 ) -> None:
     node = cls()
-    result = node.update()
+    result = tick_call_out(node)
     assert result in (Status.SUCCESS, Status.FAILURE)
 
 

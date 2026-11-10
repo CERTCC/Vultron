@@ -28,7 +28,10 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import answer_for, tick_call_out
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
     CNA_RULES_REFERENCE_EDITION,
@@ -73,9 +76,9 @@ _RETIRED_CRITERION_NODES = [
 
 def _marker_factory(label, status=Status.SUCCESS):
     def factory(name):
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return status
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return answer_for(status)
 
         return _Marker(name=label)
 
@@ -324,14 +327,15 @@ def test_eligibility_docstring_documents_edition_and_outputs(contract_owner):
     assert f"v{CNA_RULES_REFERENCE_EDITION}" in doc
     for key, typ in CVE_ELIGIBILITY_OUTPUT_KEYS.items():
         assert f"{key}: {typ.__name__}" in doc
-    assert cls.output_keys == CVE_ELIGIBILITY_OUTPUT_KEYS
+    assert cls.contract.outputs == CVE_ELIGIBILITY_OUTPUT_KEYS
 
 
+@pytest.mark.spec("BT-23-013")
 def test_deterministic_default_writes_declared_outputs_on_success():
-    """The DETERMINISTIC default writes both declared outputs on SUCCESS (BT-23-013)."""
+    """The DETERMINISTIC default gives both declared outputs on yes (BT-23-013)."""
     node = DeterministicEvaluateCveEligibility("EvaluateCveEligibility")
-    node.tick_once()  # no setup(): the outputs must still be written
-    assert node.status == Status.SUCCESS
+    # no setup(): the seam must still write the outputs
+    assert tick_call_out(node) == Status.SUCCESS
     storage = py_trees.blackboard.Blackboard.storage
     assert storage[f"/{CVE_ELIGIBILITY_VERDICT_KEY}"] is True
     rationale = storage[f"/{CVE_ELIGIBILITY_RATIONALE_KEY}"]
@@ -342,10 +346,11 @@ def test_deterministic_default_writes_declared_outputs_on_success():
 @pytest.mark.parametrize(
     "roll,expected", [(0.0, Status.SUCCESS), (0.99, Status.FAILURE)]
 )
+@pytest.mark.spec("BT-18-003")
 def test_stochastic_eligibility_writes_outputs_only_on_success(
     monkeypatch, roll, expected
 ):
-    """The fuzzer writes type-conformant outputs on SUCCESS only (BT-18-003)."""
+    """The fuzzer gives type-conformant outputs on yes only (BT-18-003)."""
     from vultron.demo.fuzzer import base
     from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
     from vultron.demo.fuzzer.report_management.assign_vul_id import (
@@ -356,8 +361,7 @@ def test_stochastic_eligibility_writes_outputs_only_on_success(
     monkeypatch.setattr(base.random, "random", lambda: roll)
     node = EvaluateCveEligibility()
     node.setup()
-    node.tick_once()
-    assert node.status == expected
+    assert tick_call_out(node) == expected
     storage = py_trees.blackboard.Blackboard.storage
     for key, typ in CVE_ELIGIBILITY_OUTPUT_KEYS.items():
         if expected == Status.SUCCESS:

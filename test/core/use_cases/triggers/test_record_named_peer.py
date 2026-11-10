@@ -15,6 +15,8 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.actor_resolution import (
     ActorResolutionCallOutBundle,
 )
@@ -43,15 +45,15 @@ def _directory_backend(
 ) -> Callable[[str], py_trees.behaviour.Behaviour]:
     """A backend class that records what its wired ports gave it."""
 
-    class _DirectoryBackend(DataLayerConditionWithPorts):
+    class _DirectoryBackend(CallOutBackend, DataLayerConditionWithPorts):
         def initialise(self) -> None:
             self.datalayer = self.get_input("datalayer")
             self.actor_id = self.get_input("actor_id")
 
-        def update(self) -> Status:
+        def answer(self) -> CallOutAnswer:
             assert self.datalayer is not None
             seen.append((self.datalayer.read(PEER), self.actor_id))
-            return Status.SUCCESS
+            return CallOutAnswer.yes()
 
     return _DirectoryBackend
 
@@ -75,8 +77,8 @@ def test_real_backend_has_its_ports_when_record_named_peer_ticks_it(dl):
 
 
 def test_raising_backend_degrades_to_minimal_peer(dl, caplog):
-    class _Broken(py_trees.behaviour.Behaviour):
-        def update(self) -> Status:
+    class _Broken(CallOutBackend):
+        def answer(self) -> CallOutAnswer:
             raise AttributeError("directory client not configured")
 
     with caplog.at_level(logging.WARNING):
@@ -95,7 +97,7 @@ def test_raising_backend_degrades_to_minimal_peer(dl, caplog):
 
 @pytest.mark.spec("BT-18-011")
 def test_running_backend_logs_internal_error_then_warning(dl, caplog):
-    class _Running(py_trees.behaviour.Behaviour):
+    class _Running(CallOutBackend):
         def update(self) -> Status:
             return Status.RUNNING
 

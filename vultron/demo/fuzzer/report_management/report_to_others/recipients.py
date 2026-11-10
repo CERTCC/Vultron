@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -62,7 +65,7 @@ class AllPartiesKnown(EvaluatorCallOutPoint, UniformSucceedFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates party-identification state from caller's DataLayer)
-      Output keys: all_parties_known_verdict: str  (SUCCESS only)
+      Output keys: all_parties_known_verdict: str  (yes only)
 
     Input category: Human decision / Environmental check.
 
@@ -73,7 +76,9 @@ class AllPartiesKnown(EvaluatorCallOutPoint, UniformSucceedFail):
     context; hard to automate reliably.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"all_parties_known_verdict": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"all_parties_known_verdict": str}
+    )
 
 
 class IdentifyVendors(RetrieverCallOutPoint, AlwaysSucceed):
@@ -88,7 +93,7 @@ class IdentifyVendors(RetrieverCallOutPoint, AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries CPE/product databases and SBOM data)
-      Output keys: identified_vendors: list  (SUCCESS only)
+      Output keys: identified_vendors: list  (yes only)
 
     Input category: Human decision / System integration.
 
@@ -100,7 +105,9 @@ class IdentifyVendors(RetrieverCallOutPoint, AlwaysSucceed):
     benefit from human review.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"identified_vendors": list}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"identified_vendors": list}
+    )
 
 
 class IdentifyCoordinators(RetrieverCallOutPoint, AlwaysSucceed):
@@ -115,7 +122,7 @@ class IdentifyCoordinators(RetrieverCallOutPoint, AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries FIRST member directory and CSIRT registries)
-      Output keys: identified_coordinators: list  (SUCCESS only)
+      Output keys: identified_coordinators: list  (yes only)
 
     Input category: Human decision / System integration.
 
@@ -126,7 +133,9 @@ class IdentifyCoordinators(RetrieverCallOutPoint, AlwaysSucceed):
     a coordinator) may require human judgment.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"identified_coordinators": list}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"identified_coordinators": list}
+    )
 
 
 class IdentifyOthers(AlwaysSucceed):
@@ -174,7 +183,7 @@ class ChooseRecipient(RetrieverCallOutPoint, AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — reads pending notification queue from DataLayer)
-      Output keys: chosen_recipient: str  (SUCCESS only)
+      Output keys: chosen_recipient: str  (yes only)
 
     Input category: System integration.
 
@@ -184,7 +193,9 @@ class ChooseRecipient(RetrieverCallOutPoint, AlwaysSucceed):
     the identified-parties list; fully automatable.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"chosen_recipient": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"chosen_recipient": str}
+    )
 
 
 class RemoveRecipient(ActuatorCallOutPoint, AlwaysSucceed):
@@ -220,7 +231,7 @@ class RecipientEffortExceeded(EvaluatorCallOutPoint, AlmostCertainlyFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates per-recipient effort counter from caller's DataLayer)
-      Output keys: recipient_effort_exceeded_verdict: str  (SUCCESS only)
+      Output keys: recipient_effort_exceeded_verdict: str  (yes only)
 
     Input category: Environmental check / Human decision.
 
@@ -231,9 +242,9 @@ class RecipientEffortExceeded(EvaluatorCallOutPoint, AlmostCertainlyFail):
     policy is defined.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "recipient_effort_exceeded_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"recipient_effort_exceeded_verdict": str}
+    )
 
 
 class PolicyCompatible(EvaluatorCallOutPoint, ProbablySucceed):
@@ -247,7 +258,7 @@ class PolicyCompatible(EvaluatorCallOutPoint, ProbablySucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates recipient and case policy from caller's DataLayer)
-      Output keys: policy_compatible_verdict: str  (SUCCESS only)
+      Output keys: policy_compatible_verdict: str  (yes only)
 
     Input category: Environmental check / Human decision.
 
@@ -259,7 +270,9 @@ class PolicyCompatible(EvaluatorCallOutPoint, ProbablySucceed):
     human review needed for ambiguous or informal policies.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"policy_compatible_verdict": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"policy_compatible_verdict": str}
+    )
 
 
 class RcptNotInQrmS(AlmostAlwaysSucceed):
@@ -312,7 +325,7 @@ class TotalEffortLimitMet(EvaluatorCallOutPoint, AlmostAlwaysFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates total effort counter from caller's DataLayer)
-      Output keys: total_effort_limit_met_verdict: str  (SUCCESS only)
+      Output keys: total_effort_limit_met_verdict: str  (yes only)
 
     Input category: Environmental check / Human decision.
 
@@ -322,6 +335,6 @@ class TotalEffortLimitMet(EvaluatorCallOutPoint, AlmostAlwaysFail):
     against a configurable policy ceiling; fully automatable.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "total_effort_limit_met_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"total_effort_limit_met_verdict": str}
+    )

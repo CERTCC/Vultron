@@ -7,6 +7,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_in_act
+from test.support.call_out import answer_for
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
@@ -22,6 +23,8 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
     CloseReportCallOutBundle,
@@ -316,10 +319,10 @@ class _PreCloseRecorder:
     def factory(self, name: str) -> py_trees.behaviour.Behaviour:
         recorder = self
 
-        class _Recording(py_trees.behaviour.Behaviour):
-            def update(self) -> Status:
+        class _Recording(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
                 recorder.outbox_at_run.append(set(recorder.dl.outbox_list()))
-                return recorder.status
+                return answer_for(recorder.status)
 
         return _Recording(name)
 

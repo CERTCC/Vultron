@@ -19,9 +19,9 @@ Also verifies the two Phase 2 reserved factory parameters (enough_info_factory,
 gather_info_factory) are accepted via bundle without error.
 """
 
-import py_trees
-
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.report.prioritize_tree import (
     create_prioritize_subtree,
 )
@@ -35,9 +35,9 @@ ACTOR_ID = "https://example.org/actors/vendor"
 
 def _marker_factory(label):
     def factory(name):
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name=label)
 

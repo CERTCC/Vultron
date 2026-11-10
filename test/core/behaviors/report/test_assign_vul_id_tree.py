@@ -21,6 +21,8 @@ produces the correct fuzzer classes.
 import py_trees
 
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.report.assign_vul_id_tree import (
     create_assign_vul_id_tree,
@@ -40,9 +42,9 @@ CASE_ID = "https://example.org/cases/test-001"
 
 def _marker_factory(label):
     def factory(name):
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name=label)
 
@@ -83,9 +85,9 @@ def test_id_assignable_factory_used():
     def custom_factory(name):
         sentinel["called"] = True
 
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name="CustomIdAssignable")
 
@@ -103,9 +105,9 @@ def test_in_scope_factory_used():
     def custom_factory(name):
         sentinel["called"] = True
 
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name="CustomInScope")
 

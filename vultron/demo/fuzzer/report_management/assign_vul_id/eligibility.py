@@ -17,8 +17,11 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
-    CVE_ELIGIBILITY_OUTPUT_KEYS,
+    CVE_ELIGIBILITY_CONTRACT,
 )
 from vultron.demo.fuzzer.base import (
     ProbablySucceed,
@@ -42,7 +45,7 @@ class InScope(EvaluatorCallOutPoint, UsuallySucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates vulnerability attributes from caller's DataLayer)
-      Output keys: in_scope_verdict: str  (SUCCESS only)
+      Output keys: in_scope_verdict: str  (yes only)
 
     Input category: Environmental check / policy.
 
@@ -54,7 +57,9 @@ class InScope(EvaluatorCallOutPoint, UsuallySucceed):
     judgment.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"in_scope_verdict": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"in_scope_verdict": str}
+    )
 
 
 class ProductInCNAScope(EvaluatorCallOutPoint, UsuallySucceed):
@@ -68,8 +73,8 @@ class ProductInCNAScope(EvaluatorCallOutPoint, UsuallySucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates product attributes from caller's DataLayer)
-      Output keys: product_in_cna_scope: bool  (SUCCESS only)
-                   product_in_cna_scope_rationale: str  (SUCCESS only)
+      Output keys: product_in_cna_scope: bool  (yes only)
+                   product_in_cna_scope_rationale: str  (yes only)
 
     Input category: Environmental check / policy.
 
@@ -79,10 +84,12 @@ class ProductInCNAScope(EvaluatorCallOutPoint, UsuallySucceed):
     (e.g., CVE CNA scope registry); fully automatable via a policy lookup.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "product_in_cna_scope": bool,
-        "product_in_cna_scope_rationale": str,
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={
+            "product_in_cna_scope": bool,
+            "product_in_cna_scope_rationale": str,
+        }
+    )
 
 
 class IsMostAppropriateCNA(EvaluatorCallOutPoint, UsuallySucceed):
@@ -96,8 +103,8 @@ class IsMostAppropriateCNA(EvaluatorCallOutPoint, UsuallySucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates CNA registry from caller's DataLayer)
-      Output keys: is_most_appropriate_cna: bool  (SUCCESS only)
-                   is_most_appropriate_cna_rationale: str  (SUCCESS only)
+      Output keys: is_most_appropriate_cna: bool  (yes only)
+                   is_most_appropriate_cna_rationale: str  (yes only)
 
     Input category: Environmental check / policy.
 
@@ -107,10 +114,12 @@ class IsMostAppropriateCNA(EvaluatorCallOutPoint, UsuallySucceed):
     machine-readable; fully automatable via a CNA hierarchy lookup.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "is_most_appropriate_cna": bool,
-        "is_most_appropriate_cna_rationale": str,
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={
+            "is_most_appropriate_cna": bool,
+            "is_most_appropriate_cna_rationale": str,
+        }
+    )
 
 
 class EvaluateCveEligibility(EvaluatorCallOutPoint, ProbablySucceed):
@@ -138,8 +147,8 @@ class EvaluateCveEligibility(EvaluatorCallOutPoint, ProbablySucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates the report and product from caller's DataLayer)
-      Output keys: cve_eligibility_verdict: bool  (SUCCESS only)
-                   cve_eligibility_rationale: str  (SUCCESS only)
+      Output keys: cve_eligibility_verdict: bool  (yes only)
+                   cve_eligibility_rationale: str  (yes only)
 
     Input category: Environmental check / policy.
 
@@ -151,4 +160,4 @@ class EvaluateCveEligibility(EvaluatorCallOutPoint, ProbablySucceed):
     ambiguous report.
     """
 
-    output_keys: ClassVar[dict[str, type]] = dict(CVE_ELIGIBILITY_OUTPUT_KEYS)
+    contract: ClassVar[CallOutContract] = CVE_ELIGIBILITY_CONTRACT

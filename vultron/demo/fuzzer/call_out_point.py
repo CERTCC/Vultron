@@ -11,15 +11,23 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-out point abstraction layer for the Vultron BT port/adapter seam.
+"""Call-out point shape mixins for the Vultron demo fuzzer.
 
 This module provides:
 
 - :data:`CallOutBackendFactory` — the factory callable type used to inject
   swappable backends into tree builder functions (ADR-0025, BT-18-004).
 - Four shape mixin classes, one per capability shape (Evaluator, Retriever,
-  Composer, Actuator), that document the lifecycle pattern and blackboard
-  contract for each call-out point shape.
+  Composer, Actuator), that name the shape of a fuzzer node.
+
+A fuzzer node combines one shape mixin with a ``WeightedBehavior``
+probability class from :mod:`vultron.demo.fuzzer.base`.  The probability
+class is the :class:`~vultron.core.behaviors.call_out.backend.CallOutBackend`:
+it answers *yes* with a zero value for each output the node's ``contract``
+declares (BT-18-003) and *no* with a reason, and the seam
+(:class:`~vultron.core.behaviors.call_out.guard.SynchronousCallOut`) writes
+them (ADR-0183).  The mixins carry no behaviour of their own; the Actuator
+mixin refuses a subclass that declares outputs (BT-18-028).
 
 There is no Sentinel mixin.  A Sentinel is a call-in integration pattern, not
 a capability shape: it watches a condition and calls a trigger endpoint on its
@@ -31,14 +39,11 @@ References
 - ADR-0024: ``docs/adr/0024-coordination-agent-taxonomy.md``
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
 - ADR-0097: ``docs/adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md``
+- ADR-0183: ``docs/adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-18-001 through BT-18-004
 """
 
 from __future__ import annotations
-
-from typing import ClassVar
-
-from py_trees.common import Access, Status
 
 from vultron.core.behaviors.call_out_point import (
     CallOutBackendFactory,
@@ -61,114 +66,51 @@ __all__ = [
 class EvaluatorCallOutPoint:
     """Mixin for Evaluator-shaped call-out points (ADR-0024).
 
-    An Evaluator receives situation context and writes a structured
-    recommendation to a declared output key on SUCCESS.
-
-    Lifecycle:
-      - ``setup()``: registers output keys for WRITE access on the blackboard.
-      - ``update()``: calls the backend logic (via super()); on SUCCESS writes
-        type-conformant synthetic data to all declared output keys (BT-18-002,
-        BT-18-003).
+    An Evaluator receives situation context and records a decision: on *yes*
+    it gives a structured recommendation for its declared output ports
+    (BT-18-002, BT-18-003); on *no* it gives the reason for the decision
+    (BT-18-007, ADR-0183).
 
     Subclasses must:
-      - Declare ``output_keys: dict[str, type]`` with the blackboard keys
-        written on SUCCESS and their expected Python types.
+      - Declare ``contract`` with the output ports given on *yes* and their
+        expected Python types.
       - Document a blackboard contract section in their docstring (BT-18-001).
 
     Example blackboard contract docstring section::
 
         Blackboard contract (BT-18-001):
           Input keys:  report_id — str (read from caller's context)
-          Output keys: credibility_verdict: str  (SUCCESS only)
+          Output keys: credibility_verdict: str  (yes only)
     """
-
-    output_keys: ClassVar[dict[str, type]] = {}
-
-    def setup(self, **kwargs) -> None:  # type: ignore[override]
-        super().setup(**kwargs)  # type: ignore[misc]
-        if self.output_keys:
-            self._bb_writer = self.attach_blackboard_client(  # type: ignore[attr-defined]
-                name=f"{self.__class__.__name__}_writer"
-            )
-            for key in self.output_keys:
-                self._bb_writer.register_key(key, Access.WRITE)
-
-    def update(self) -> Status:
-        status = super().update()  # type: ignore[misc]
-        if status == Status.SUCCESS and self.output_keys:
-            for key, typ in self.output_keys.items():
-                setattr(self._bb_writer, key, typ())
-        return Status(status)  # type: ignore[arg-type]
 
 
 class RetrieverCallOutPoint:
     """Mixin for Retriever-shaped call-out points (ADR-0024).
 
-    A Retriever receives an on-demand query and writes structured facts from
-    an external source to declared output keys on SUCCESS.  For binary-result
-    Retrievers (boolean queries), output_keys is empty and the result is
-    expressed as SUCCESS/FAILURE only (BT-18-006).
-
-    Lifecycle identical to :class:`EvaluatorCallOutPoint`; the distinction is
-    semantic: a Retriever fetches external facts, an Evaluator produces a
-    structured recommendation based on context.
+    A Retriever receives an on-demand query and gives structured facts from
+    an external source for its declared output ports on *yes*.  For
+    binary-result Retrievers (boolean queries), the contract declares no
+    outputs and the result is the verdict alone (BT-18-006, BT-18-010).
 
     Subclasses must:
-      - Declare ``output_keys: dict[str, type]``.
+      - Declare ``contract``.
       - Document a blackboard contract section in their docstring (BT-18-001).
     """
-
-    output_keys: ClassVar[dict[str, type]] = {}
-
-    def setup(self, **kwargs) -> None:  # type: ignore[override]
-        super().setup(**kwargs)  # type: ignore[misc]
-        if self.output_keys:
-            self._bb_writer = self.attach_blackboard_client(  # type: ignore[attr-defined]
-                name=f"{self.__class__.__name__}_writer"
-            )
-            for key in self.output_keys:
-                self._bb_writer.register_key(key, Access.WRITE)
-
-    def update(self) -> Status:
-        status = super().update()  # type: ignore[misc]
-        if status == Status.SUCCESS and self.output_keys:
-            for key, typ in self.output_keys.items():
-                setattr(self._bb_writer, key, typ())
-        return Status(status)  # type: ignore[arg-type]
 
 
 class ComposerCallOutPoint:
     """Mixin for Composer-shaped call-out points (ADR-0024).
 
-    A Composer receives composition context and writes a generated content
-    artifact to a declared output key on SUCCESS.
-
-    Lifecycle identical to :class:`EvaluatorCallOutPoint`; the distinction is
-    semantic: a Composer generates a *new* content artifact (advisory, patch
-    notes, exploit write-up), whereas an Evaluator produces a recommendation.
+    A Composer receives composition context and gives a generated content
+    artifact for a declared output port on *yes*.  The distinction from an
+    Evaluator is semantic: a Composer generates a *new* content artifact
+    (advisory, patch notes, exploit write-up), whereas an Evaluator produces
+    a recommendation.
 
     Subclasses must:
-      - Declare ``output_keys: dict[str, type]`` with the artifact output key.
+      - Declare ``contract`` with the artifact output port.
       - Document a blackboard contract section in their docstring (BT-18-001).
     """
-
-    output_keys: ClassVar[dict[str, type]] = {}
-
-    def setup(self, **kwargs) -> None:  # type: ignore[override]
-        super().setup(**kwargs)  # type: ignore[misc]
-        if self.output_keys:
-            self._bb_writer = self.attach_blackboard_client(  # type: ignore[attr-defined]
-                name=f"{self.__class__.__name__}_writer"
-            )
-            for key in self.output_keys:
-                self._bb_writer.register_key(key, Access.WRITE)
-
-    def update(self) -> Status:
-        status = super().update()  # type: ignore[misc]
-        if status == Status.SUCCESS and self.output_keys:
-            for key, typ in self.output_keys.items():
-                setattr(self._bb_writer, key, typ())
-        return Status(status)  # type: ignore[arg-type]
 
 
 class ActuatorCallOutPoint:
@@ -177,18 +119,21 @@ class ActuatorCallOutPoint:
     An Actuator receives a trigger and context; it invokes an external system
     to cause a side effect (notification dispatch, state write, queue mutation,
     API call).  It does NOT produce a content artifact on the blackboard.
-    SUCCESS means the side effect was confirmed; FAILURE means it could not
-    be executed.
+    *Yes* means the side effect was confirmed; *no* means the backend decided
+    not to act.  A side effect it cannot confirm is *error* (ADR-0183).
 
     Subclasses must:
-      - Declare ``output_keys = {}`` (no blackboard output — see ADR-0024).
+      - Declare no outputs (see ADR-0024); a subclass that does is refused
+        when the class is created (BT-18-028).
       - Document a blackboard contract section in their docstring (BT-18-001).
     """
 
-    output_keys: ClassVar[dict[str, type]] = {}
-
-    def setup(self, **kwargs) -> None:  # type: ignore[override]
-        super().setup(**kwargs)  # type: ignore[misc]
-
-    def update(self) -> Status:
-        return Status(super().update())  # type: ignore[misc, arg-type]
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        contract = getattr(cls, "contract", None)
+        if contract is not None and contract.outputs:
+            raise TypeError(
+                f"Actuator {cls.__name__} declares outputs "
+                f"{sorted(contract.outputs)}; an Actuator places no artifact "
+                "on the blackboard (BT-18-028)."
+            )

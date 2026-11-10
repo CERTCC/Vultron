@@ -70,12 +70,16 @@ Each node entry has these fields:
 Shapes follow ADR-0024 as amended by ADR-0097, and BT-18-013 lists them normatively.
 The shape comes from the seam structure, not from the automation potential (BT-18-005).
 
-- **Evaluator**: reads situation context and writes a structured recommendation; `SUCCESS` means a recommendation is available.
-- **Retriever**: reads a query and writes structured facts from an external source; `SUCCESS` means the facts were retrieved.
-  A synchronous yes-or-no query is a Retriever whose fact is the `SUCCESS` or `FAILURE` result itself, with no output keys (BT-18-006).
-- **Composer**: reads composition context and writes a generated artifact; `SUCCESS` means the artifact is ready.
+- **Evaluator**: reads situation context and gives a structured recommendation; *yes* means a recommendation is available.
+- **Retriever**: reads a query and gives structured facts from an external source; *yes* means the facts were retrieved.
+  A synchronous yes-or-no query is a Retriever whose fact is the verdict itself, with no output keys (BT-18-006).
+- **Composer**: reads composition context and gives a generated artifact; *yes* means the artifact is ready.
 - **Actuator**: receives a trigger and context and invokes an external system for a side effect, such as a notification, a state write, or an API call.
-  It returns `SUCCESS` when the side effect is confirmed and writes no content artifact to the blackboard.
+  It answers *yes* when the side effect is confirmed and gives no content artifact for the blackboard.
+
+Every fuzzer node answers *yes* or *no*, and the call-out seam writes a *yes* node's declared outputs (ADR-0183).
+A simulation never answers *error*.
+
 - **ProtocolInternal**: the node resolves entirely inside the protocol implementation, with no external input, output, or monitoring seam.
   It applies only to terminal placeholders and structural composites, never to a node because that node is highly automatable (BT-18-005).
 

@@ -32,8 +32,11 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.call_out import tick_call_out
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.develop_fix import (
     DEVELOP_FIX_DETERMINISTIC,
     DevelopFixCallOutBundle,
@@ -246,8 +249,8 @@ def test_create_fix_output_key_mechanism():
     """Mechanism test: output_keys["fix_artifact"] is str (AC-2, BT-18-001)."""
     from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
 
-    assert "fix_artifact" in CreateFix.output_keys
-    assert CreateFix.output_keys["fix_artifact"] is str
+    assert "fix_artifact" in CreateFix.contract.outputs
+    assert CreateFix.contract.outputs["fix_artifact"] is str
 
 
 def test_create_fix_is_composer_call_out_point():
@@ -292,9 +295,9 @@ def test_custom_factory_is_wired():
     def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
         sentinel["called"] = True
 
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self) -> Status:
-                return Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name="CustomCreateFix")
 
@@ -330,11 +333,11 @@ def test_create_fix_behavior_contract_stochastic():
     succeeded_and_checked = False
     for _ in range(30):
         py_trees.blackboard.Blackboard.storage.clear()
-        result = node.update()
+        result = tick_call_out(node)
         if result == Status.SUCCESS:
             storage = py_trees.blackboard.Blackboard.storage
-            if "fix_artifact" in storage:
-                assert isinstance(storage["fix_artifact"], str)
+            if "/fix_artifact" in storage:
+                assert isinstance(storage["/fix_artifact"], str)
                 succeeded_and_checked = True
                 break
 

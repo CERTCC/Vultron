@@ -28,7 +28,7 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssigned`
 - **Call-out point shape**: Retriever — synchronous on-demand query to case metadata or an external vulnerability registry, such as a CVE database.
   The node returns SUCCESS if the vulnerability already has an identifier.
-  It writes the existing ID to `output_keys = {"assigned_vul_id": str}`, so the parent tree has a guaranteed key on any successful path.
+  It writes the existing ID to `contract.outputs = {"assigned_vul_id": str}`, so the parent tree has a guaranteed key on any successful path.
   A boolean is the simplest structured fact (ADR-0024, BT-18-006).
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — early-exit Retriever guard at the top of the `AssignVulID` Fallback Selector.
   The guard returns SUCCESS if an ID is already assigned, and so the tree skips the assignment work
@@ -112,7 +112,7 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.RequestId`
 - **Call-out point shape**: Retriever — sends a reservation/assignment request to an external ID assignment authority, such as the CVE Services API.
   The node writes the assigned ID to the case record.
-  `output_keys = {"assigned_id": str}`.
+  `contract.outputs = {"assigned_id": str}`.
   SUCCESS means that the node retrieved and recorded the ID.
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Retriever action node in the `_AssignOrRequestId` Fallback.
   The tree uses it when `_AssignIdIfPossible` fails (the non-CNA or out-of-scope path)
@@ -131,7 +131,7 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.AssignId`
 - **Call-out point shape**: Composer — makes a new vulnerability identifier from the ID pool of this participant.
   It uses the ID management system or the CVE Services reserve/assign endpoint.
-  `output_keys = {"assigned_vul_id": str}`.
+  `contract.outputs = {"assigned_vul_id": str}`.
   The artifact is the newly assigned ID, recorded in the case.
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Composer action node at the end of the `_AssignIdIfPossible` Sequence.
   The tree uses it when `EvaluateCveEligibility` succeeds (the CNA-direct path)
@@ -152,7 +152,7 @@ The section numbers cite the CNA Operational Rules v4.1.0.
 - **Semantic function**: Condition — evaluate whether the affected product is in the declared scope of this CNA (§3.1, §4.2.16.1).
 - **Automation potential**: **High** — scope lists are machine-readable.
 - **Call-out point shape**: Evaluator — evaluates the product against the scope registry of the CNA and returns a policy judgment with rationale.
-  `output_keys = {"product_in_cna_scope": bool, "product_in_cna_scope_rationale": str}`.
+  `contract.outputs = {"product_in_cna_scope": bool, "product_in_cna_scope_rationale": str}`.
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Evaluator in `_AssignIdIfPossible` Sequence, after `IsIDAssignmentAuthority`, before `IsMostAppropriateCNA`
 
 ### `IsMostAppropriateCNA`
@@ -163,7 +163,7 @@ The section numbers cite the CNA Operational Rules v4.1.0.
 - **Semantic function**: Condition — evaluate whether this CNA has first-refusal authority for the affected product (§4.2.1.1, §4.2.16.6).
 - **Automation potential**: **High** — first-refusal registries are machine-readable.
 - **Call-out point shape**: Evaluator — evaluates the CNA first-refusal registry and returns a judgment with rationale.
-  `output_keys = {"is_most_appropriate_cna": bool, "is_most_appropriate_cna_rationale": str}`.
+  `contract.outputs = {"is_most_appropriate_cna": bool, "is_most_appropriate_cna_rationale": str}`.
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Evaluator in `_AssignIdIfPossible` Sequence, after `ProductInCNAScope`, before `IsOrWillBePubliclyDisclosed`
 
 ### `IsOrWillBePubliclyDisclosed`
@@ -193,6 +193,6 @@ The section numbers cite the CNA Operational Rules v4.1.0.
 - **Automation potential**: **Medium** — report and product metadata checks and CVE corpus queries are automatable.
   The holistic real-vulnerability judgment can need a human for a new or ambiguous report.
 - **Call-out point shape**: Evaluator — records an eligibility decision with a rationale.
-  `output_keys = {"cve_eligibility_verdict": bool, "cve_eligibility_rationale": str}`.
+  `contract.outputs = {"cve_eligibility_verdict": bool, "cve_eligibility_rationale": str}`.
   The DETERMINISTIC default `DeterministicEvaluateCveEligibility` succeeds and writes both keys (BT-23-013).
 - **Factory-fn placement**: `create_assign_cve_id_tree` — `evaluate_cve_eligibility_factory` on `AssignCveIdCallOutBundle`, the Evaluator in the `_AssignIdIfPossible` Sequence after `IsOrWillBePubliclyDisclosed` and before `AssignId`

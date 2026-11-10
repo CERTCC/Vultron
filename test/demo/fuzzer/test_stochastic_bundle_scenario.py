@@ -29,6 +29,8 @@ import logging
 import py_trees
 
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 
 logger = logging.getLogger(__name__)
 
@@ -218,9 +220,9 @@ def test_three_mode_comparison():
 
     # CUSTOM mode — per-field override
     def _custom_deploy_fix(name):
-        class _Custom(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Custom(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Custom(name="CustomDeployFix")
 

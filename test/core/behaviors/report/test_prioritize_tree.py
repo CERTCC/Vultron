@@ -34,6 +34,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
 )
@@ -1070,16 +1072,15 @@ def test_prioritize_subtree_custom_on_accept_factory_used(
     case_with_participant, actor_id, trigger_activity
 ):
     """on_accept_factory node appears in the engage path when custom bundle is passed."""
-    import py_trees
 
     from vultron.demo.fuzzer.bundles.prioritization import (
         PrioritizationCallOutBundle,
     )
 
     def custom_on_accept(name):
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name="CustomOnAccept")
 
@@ -1099,16 +1100,15 @@ def test_prioritize_subtree_custom_on_defer_factory_used(
     case_with_participant, actor_id, trigger_activity
 ):
     """on_defer_factory node appears in the defer path when custom bundle is passed."""
-    import py_trees
 
     from vultron.demo.fuzzer.bundles.prioritization import (
         PrioritizationCallOutBundle,
     )
 
     def custom_on_defer(name):
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name="CustomOnDefer")
 

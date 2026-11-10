@@ -41,6 +41,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
@@ -396,11 +398,11 @@ def test_factory_field_is_wired(field, parent_idx, child_idx):
     def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
         sentinel["called"] = True
 
-        class _Marker(py_trees.behaviour.Behaviour):
+        class _Marker(CallOutBackend):
             IS_CUSTOM_MARKER = True
 
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name=name)
 

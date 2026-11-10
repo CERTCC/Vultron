@@ -24,7 +24,10 @@ import py_trees
 import pytest
 from py_trees.common import Access, Status
 
+from test.support.call_out import no as call_out_no, yes_with
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.report.publish_artifact_tree import (
     DRAFT_ARTIFACT_KEY,
     REVIEW_DECISION_KEY,
@@ -45,9 +48,9 @@ CASE_ID = "https://example.org/cases/test-001"
 
 def _marker_factory(label):
     def factory(name):
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name=label)
 
@@ -267,32 +270,19 @@ def test_submit_factory_used():
 # ---------------------------------------------------------------------------
 
 
-class _WritingReview(py_trees.behaviour.Behaviour):
-    """Evaluator stub that writes a fixed AdvisoryReviewDecision."""
-
-    def __init__(self, name, decision):
-        super().__init__(name=name)
-        self._decision = decision
-
-    def setup(self, **kwargs):
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(
-            key=REVIEW_DECISION_KEY, access=Access.WRITE
-        )
-
-    def update(self):
-        setattr(self.blackboard, REVIEW_DECISION_KEY, self._decision)
-        return Status.SUCCESS
+def _WritingReview(name, decision):
+    """Evaluator stand-in that answers *yes* with a fixed AdvisoryReviewDecision."""
+    return yes_with({REVIEW_DECISION_KEY: decision})(name)
 
 
-class _Recording(py_trees.behaviour.Behaviour):
+class _Recording(CallOutBackend):
     def __init__(self, name, ran):
         super().__init__(name=name)
         self._ran = ran
 
-    def update(self):
+    def answer(self) -> CallOutAnswer:
         self._ran.add(self.name)
-        return Status.SUCCESS
+        return CallOutAnswer.yes()
 
 
 def _tick_tree(tree):
@@ -347,13 +337,9 @@ def test_draft_failure_fails_pipeline():
     """A Draft failure propagates to the root Sequence."""
     ran: set[str] = set()
 
-    class _Fail(py_trees.behaviour.Behaviour):
-        def update(self):
-            return Status.FAILURE
-
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
-        draft_advisory_artifact_factory=lambda name: _Fail(name=name),
+        draft_advisory_artifact_factory=call_out_no,
         review_advisory_draft_factory=_marker_factory("Review"),
         revise_advisory_draft_factory=_marker_factory("Revise"),
         submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
@@ -367,14 +353,10 @@ def test_review_failure_fails_pipeline():
     """A Review failure propagates to the root Sequence."""
     ran: set[str] = set()
 
-    class _Fail(py_trees.behaviour.Behaviour):
-        def update(self):
-            return Status.FAILURE
-
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
         draft_advisory_artifact_factory=_marker_factory("Draft"),
-        review_advisory_draft_factory=lambda name: _Fail(name=name),
+        review_advisory_draft_factory=call_out_no,
         revise_advisory_draft_factory=_marker_factory("Revise"),
         submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
     )
@@ -387,17 +369,13 @@ def test_revise_failure_fails_pipeline():
     """When revision is required, a Revise failure propagates to root."""
     ran: set[str] = set()
 
-    class _Fail(py_trees.behaviour.Behaviour):
-        def update(self):
-            return Status.FAILURE
-
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
         draft_advisory_artifact_factory=_marker_factory("Draft"),
         review_advisory_draft_factory=lambda name: _WritingReview(
             name, AdvisoryReviewDecision(needs_revision=True)
         ),
-        revise_advisory_draft_factory=lambda name: _Fail(name=name),
+        revise_advisory_draft_factory=call_out_no,
         submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
     )
     status = _tick_tree(tree)
@@ -408,16 +386,12 @@ def test_revise_failure_fails_pipeline():
 def test_submit_failure_fails_pipeline():
     """When Submit fails, the root Sequence returns FAILURE."""
 
-    class _Fail(py_trees.behaviour.Behaviour):
-        def update(self):
-            return Status.FAILURE
-
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
         draft_advisory_artifact_factory=_marker_factory("Draft"),
         review_advisory_draft_factory=_marker_factory("Review"),
         revise_advisory_draft_factory=_marker_factory("Revise"),
-        submit_advisory_artifact_factory=lambda name: _Fail(name=name),
+        submit_advisory_artifact_factory=call_out_no,
     )
     status = _tick_tree(tree)
     assert status == Status.FAILURE
@@ -430,14 +404,14 @@ def test_submit_failure_fails_pipeline():
 
 def test_draft_artifact_key_is_declared():
     """AC-1: DraftAdvisoryArtifact declares the draft_advisory_artifact output key."""
-    assert DRAFT_ARTIFACT_KEY in DraftAdvisoryArtifact.output_keys
-    assert DraftAdvisoryArtifact.output_keys[DRAFT_ARTIFACT_KEY] is str
+    assert DRAFT_ARTIFACT_KEY in DraftAdvisoryArtifact.contract.outputs
+    assert DraftAdvisoryArtifact.contract.outputs[DRAFT_ARTIFACT_KEY] is str
 
 
 def test_review_decision_key_is_declared():
     """AC-1: ReviewAdvisoryDraft declares the advisory_review_decision output key."""
-    assert REVIEW_DECISION_KEY in ReviewAdvisoryDraft.output_keys
+    assert REVIEW_DECISION_KEY in ReviewAdvisoryDraft.contract.outputs
     assert (
-        ReviewAdvisoryDraft.output_keys[REVIEW_DECISION_KEY]
+        ReviewAdvisoryDraft.contract.outputs[REVIEW_DECISION_KEY]
         is AdvisoryReviewDecision
     )

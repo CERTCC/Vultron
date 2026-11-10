@@ -32,6 +32,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import tick_call_out
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
@@ -116,8 +117,7 @@ def test_require_case_owner_approval_node_returns_failure():
     )
 
     node = RequireCaseOwnerApprovalNode("probe")
-    node.tick_once()
-    assert node.status == Status.FAILURE
+    assert tick_call_out(node) == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------

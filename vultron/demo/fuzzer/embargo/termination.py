@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import (
     AlwaysFail,
     AlwaysSucceed,
@@ -48,7 +51,7 @@ class ExitEmbargoWhenDeployed(EvaluatorCallOutPoint, ProbablyFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates deployment state from caller's DataLayer)
-      Output keys: exit_embargo_when_deployed_verdict: str  (SUCCESS only)
+      Output keys: exit_embargo_when_deployed_verdict: str  (yes only)
 
     Input category: Human decision / policy judgment.
 
@@ -59,9 +62,9 @@ class ExitEmbargoWhenDeployed(EvaluatorCallOutPoint, ProbablyFail):
     requires policy-rule evaluation or human confirmation.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "exit_embargo_when_deployed_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"exit_embargo_when_deployed_verdict": str}
+    )
 
 
 class ExitEmbargoWhenFixReady(EvaluatorCallOutPoint, UsuallyFail):
@@ -75,7 +78,7 @@ class ExitEmbargoWhenFixReady(EvaluatorCallOutPoint, UsuallyFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates fix-readiness state from caller's DataLayer)
-      Output keys: exit_embargo_when_fix_ready_verdict: str  (SUCCESS only)
+      Output keys: exit_embargo_when_fix_ready_verdict: str  (yes only)
 
     Input category: Human decision / policy judgment.
 
@@ -86,9 +89,9 @@ class ExitEmbargoWhenFixReady(EvaluatorCallOutPoint, UsuallyFail):
     policy that may require human override.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "exit_embargo_when_fix_ready_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"exit_embargo_when_fix_ready_verdict": str}
+    )
 
 
 class ExitEmbargoForOtherReason(EvaluatorCallOutPoint, OneInTwoHundred):
@@ -102,7 +105,7 @@ class ExitEmbargoForOtherReason(EvaluatorCallOutPoint, OneInTwoHundred):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates case context from caller's DataLayer)
-      Output keys: exit_embargo_other_reason_verdict: str  (SUCCESS only)
+      Output keys: exit_embargo_other_reason_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -113,9 +116,9 @@ class ExitEmbargoForOtherReason(EvaluatorCallOutPoint, OneInTwoHundred):
     cannot be anticipated by a general policy rule.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "exit_embargo_other_reason_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"exit_embargo_other_reason_verdict": str}
+    )
 
 
 class EmbargoTimerExpired(RetrieverCallOutPoint, OneInOneHundred):
@@ -178,7 +181,7 @@ class EmbargoExitPolicyGuard(EvaluatorCallOutPoint, AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — reads policy state from caller's DataLayer)
-      Output keys: embargo_exit_policy_guard_verdict: str  (SUCCESS only)
+      Output keys: embargo_exit_policy_guard_verdict: str  (yes only)
 
     Input category: Automated policy evaluation.
 
@@ -188,9 +191,9 @@ class EmbargoExitPolicyGuard(EvaluatorCallOutPoint, AlwaysSucceed):
     approval status) are fully automatable via case-management API calls.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "embargo_exit_policy_guard_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"embargo_exit_policy_guard_verdict": str}
+    )
 
 
 class EmbargoExitOverride(EvaluatorCallOutPoint, AlwaysFail):
@@ -204,7 +207,7 @@ class EmbargoExitOverride(EvaluatorCallOutPoint, AlwaysFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — override is actor-initiated)
-      Output keys: embargo_exit_override_verdict: str  (SUCCESS only)
+      Output keys: embargo_exit_override_verdict: str  (yes only)
 
     Input category: Explicit actor acknowledgment.
 
@@ -214,6 +217,6 @@ class EmbargoExitOverride(EvaluatorCallOutPoint, AlwaysFail):
     acknowledgment for accountability; should not be auto-approved.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "embargo_exit_override_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"embargo_exit_override_verdict": str}
+    )
