@@ -350,6 +350,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
                     ledger_position=peer_position(entry0.entry_hash),
                     actor=peer_actor_id,
                     to=[case_actor_id],
+                    in_reply_to="https://example.org/activities/prompting-announce",
                 )
             ),
         )

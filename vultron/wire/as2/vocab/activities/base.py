@@ -16,7 +16,9 @@ Provides the base class for all Vultron ActivityStreams activity wire types.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol, Self, cast
+
+from pydantic import model_validator
 
 from vultron.core.models.activity import VultronActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -82,3 +84,46 @@ class as_VultronActivity(as_TransitiveActivity):
             if domain_field in data:
                 data[wire_field] = data.pop(domain_field)
         return cls.model_validate(data)
+
+
+class _Identified(Protocol):
+    """The answered activity: anything with an ``id_``."""
+
+    @property
+    def id_(self) -> str | None: ...
+
+
+class _ObjectReply(Protocol):
+    """A response whose ``object`` is the inline activity it answers."""
+
+    @property
+    def in_reply_to(self) -> object: ...
+
+    @property
+    def object_(self) -> _Identified: ...
+
+
+def reply_to_object(reply: _ObjectReply) -> None:
+    """Set *reply*'s ``in_reply_to`` to its ``object_``'s id when unset.
+
+    The rule of every response whose ``object`` is the activity it answers,
+    such as ``Accept(Offer(...))`` or ``Reject(Invite(...))`` (RF-08-001,
+    RF-08-002).  A sender that names another antecedent, such as the
+    original recommender's Offer, keeps its own value.
+    """
+    if reply.in_reply_to is None:
+        object.__setattr__(reply, "in_reply_to", reply.object_.id_)
+
+
+class RepliesToObject:
+    """Mixin: a response whose ``object`` is the activity it answers.
+
+    Put it before the ``as_Accept``, ``as_Reject`` or ``as_TentativeReject``
+    base.  Its ``model_validator`` applies :func:`reply_to_object`, so no
+    such response is built without ``inReplyTo`` (RF-08-002, RF-08-003).
+    """
+
+    @model_validator(mode="after")
+    def _reply_to_object(self) -> Self:
+        reply_to_object(cast(_ObjectReply, self))
+        return self

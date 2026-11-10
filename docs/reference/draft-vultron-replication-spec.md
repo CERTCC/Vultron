@@ -213,6 +213,7 @@ Message ingress MUST NOT use the canonical ledger store as a scratch or lookup c
 A receiver MUST reject a replication message whose predecessor hash
 (`prev_log_hash`) does not match the receiver's current log tail hash.
 The receiver sends `Reject(CaseLedgerEntry)` stating its ledger tail, the last entry it accepted, as its `ledgerPosition`; that position is the recovery signal. (SYNC-03-001, SYNC-08-005, SYNC-08-007, SYNC-18-001)
+The `Reject` names in `inReplyTo` the inbound activity that prompted it: the `Announce(CaseLedgerEntry)` it could not apply, or the `Announce(VulnerabilityCase)` whose copy is ahead of its chain. (RF-08-004)
 
 Before that check, a receiver MUST recompute the entry's hash from its content and compare it with the stated `entry_hash`. (SYNC-03-006)
 An entry that states no hash, or whose content does not reproduce it, MUST be refused and logged, and is not buffered, applied or stored.

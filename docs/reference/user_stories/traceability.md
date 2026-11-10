@@ -1649,6 +1649,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | MSM — Protocol Shorthand to MessageSemantics Mapping | [MSM-05-007](../vultron-spec/requirements/messages.md#msm-05-007), [MSM-05-008](../vultron-spec/requirements/messages.md#msm-05-008) |
+| RF — Response Format | [RF-08-004](../vultron-spec/requirements/message-processing.md#rf-08-004) |
 | SYNC — Case Event Log Synchronization | [SYNC-02-002](../vultron-spec/requirements/ledger-replication.md#sync-02-002), [SYNC-02-004](../vultron-spec/requirements/ledger-replication.md#sync-02-004), [SYNC-03-001](../vultron-spec/requirements/ledger-replication.md#sync-03-001), [SYNC-08-004](../vultron-spec/requirements/ledger-replication.md#sync-08-004), [SYNC-08-005](../vultron-spec/requirements/ledger-replication.md#sync-08-005), [SYNC-08-007](../vultron-spec/requirements/ledger-replication.md#sync-08-007), [SYNC-14-002](../vultron-spec/requirements/ledger-replication.md#sync-14-002), [SYNC-15-001](../vultron-spec/requirements/ledger-replication.md#sync-15-001), [SYNC-16-001](../vultron-spec/requirements/ledger-replication.md#sync-16-001), [SYNC-16-007](../vultron-spec/requirements/ledger-replication.md#sync-16-007), [SYNC-16-027](../vultron-spec/requirements/ledger-replication.md#sync-16-027), [SYNC-16-028](../vultron-spec/requirements/ledger-replication.md#sync-16-028) |
 
 ## [story_2026_046](story_2026_046.md)
