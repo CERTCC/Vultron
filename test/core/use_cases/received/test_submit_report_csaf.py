@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 from pydantic import JsonValue
 
+from test.support.act_runner import run_in_act
 from test.support.received import received_event
 from test.wire.csaf._documents import (
     minimal_csaf_document,
@@ -37,7 +38,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.behaviors.bridge.act_instant import act_instant_in_tree_run
 from vultron.core.models.actor import VultronService
 from vultron.core.models.attached_document import (
     AttachedDocument,
@@ -102,12 +102,14 @@ class _Receipt:
 
     def handle(self) -> HandlerResult:
         # The inbox runs each delivery inside an act (ADR-0176).
-        with act_instant_in_tree_run(_RECEIVED_AT):
-            return SubmitReportReceivedUseCase(
+        return run_in_act(
+            SubmitReportReceivedUseCase(
                 self.dl,
                 self.event,
                 trigger_activity=TriggerActivityAdapter(self.dl),
-            ).execute()
+            ),
+            at=_RECEIVED_AT,
+        )
 
     def records(self) -> list[ReportClaimsRecord]:
         found = self.dl.list_objects("ReportClaimsRecord")

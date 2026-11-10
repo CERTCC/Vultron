@@ -104,8 +104,8 @@ def test_claims_node_stores_one_record_per_reading_and_logs_each_skip(caplog):
     actor = f"{VENDOR}/{uuid.uuid4()}"  # a store no other test has written
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor)
     with caplog.at_level("INFO"):
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            _claims_node(), actor_id=actor, at=_AT
+        result = run_tree(
+            BTBridge(datalayer=dl), _claims_node(), actor_id=actor, at=_AT
         )
 
     assert result.status == Status.SUCCESS
@@ -125,14 +125,12 @@ def test_claims_node_keeps_a_record_it_already_holds(caplog):
     actor = f"{VENDOR}/{uuid.uuid4()}"
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor)
     bridge = BTBridge(datalayer=dl)
-    bridge.execute_with_setup(_claims_node(), actor_id=actor, at=_AT)
+    run_tree(bridge, _claims_node(), actor_id=actor, at=_AT)
     first = dl.list_objects("ReportClaimsRecord")
     assert len(first) == 1
 
     with caplog.at_level("INFO"):
-        result = bridge.execute_with_setup(
-            _claims_node(), actor_id=actor, at=_AT
-        )
+        result = run_tree(bridge, _claims_node(), actor_id=actor, at=_AT)
 
     assert result.status == Status.SUCCESS
     assert dl.list_objects("ReportClaimsRecord") == first
