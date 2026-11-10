@@ -26,8 +26,9 @@ from pydantic import Field, field_validator
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.report_claims import ClaimsReading
 from vultron.enums.roles import CVDRole
-from vultron.primitives import NormalisedActorId
+from vultron.primitives import NonEmptyString, NormalisedActorId
 
 
 class CreateCaseProposalReceivedEvent(VultronEvent):
@@ -45,6 +46,17 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     # inline (CP-01-008, EP-04-004); ``context`` is still the report until the
     # CASE_MANAGER rewrites it at case creation (EP-04-009).
     proposed_embargo: EmbargoEvent | None = None
+    # The report the carried Offer offered, as its Reporter sent it
+    # (CP-01-008): its name and summary, which beat a CSAF document's
+    # (CSAF-02-003), and the wire edge's reading of each CSAF 2.1 document
+    # attached to it (CSAF-02-001).  The proposal is the initial report
+    # reaching the coordinating function, so its CASE_MANAGER fills the
+    # inputs of a case it creates from these (ADR-0184).  All are empty when
+    # the proposal carries no Offer: the CASE_MANAGER then reads nothing it
+    # would have to reconstruct (CP-01-021).
+    offered_report_name: NonEmptyString | None = None
+    offered_report_summary: NonEmptyString | None = None
+    claims_readings: list[ClaimsReading] = Field(default_factory=list)
     # The proposer's actor profile: sent inline as the Create's ``actor``, or
     # named by its id, which the inbox dereferences from the proposer before
     # dispatch and swaps for the fetched profile (CP-01-009, AKM-05-007).  Its
