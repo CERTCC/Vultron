@@ -46,7 +46,6 @@ force or of an open proposal, before its end time, is recorded (EMB-17-002,
 ADR-0152), and replicas copy the row it states.
 """
 
-from datetime import datetime
 from typing import Any
 
 import py_trees
@@ -94,7 +93,6 @@ class EvaluateInviteExpiryNode(DataLayerActionWithPorts):
         case_id: str,
         invitee_id: str,
         embargo_id: str,
-        now: datetime,
         result_out: dict[str, Any],
         name: str | None = None,
     ) -> None:
@@ -102,7 +100,6 @@ class EvaluateInviteExpiryNode(DataLayerActionWithPorts):
         self._case_id = case_id
         self._invitee_id = invitee_id
         self._embargo_id = embargo_id
-        self._now = now
         self._result_out = result_out
 
     def update(self) -> Status:
@@ -118,7 +115,7 @@ class EvaluateInviteExpiryNode(DataLayerActionWithPorts):
                 case_id=self._case_id,
                 actor_id=self._invitee_id,
                 embargo_id=self._embargo_id,
-                now=self._now,
+                now=self._require_act_instant(),
             )
         except VultronNotFoundError as exc:
             self.feedback_message = str(exc)

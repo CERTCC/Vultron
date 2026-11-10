@@ -39,7 +39,6 @@ CS-18-001 size cap; it re-exports both factories.
 """
 
 import logging
-from datetime import datetime
 
 import py_trees
 
@@ -92,7 +91,6 @@ def accept_invite_to_embargo_tree(
     invite_id: str,
     *,
     sender_rule: SenderRule,
-    now: datetime,
     accept_id: str | None = None,
     expiry_out: dict[str, object] | None = None,
     actor_config: ActorConfig | None = None,
@@ -162,8 +160,6 @@ def accept_invite_to_embargo_tree(
         invite_id: ID of the InviteToEmbargoOnCase activity.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-025).
-        now: The CASE_MANAGER's clock reading the RSVP deadline is compared
-            against.
         accept_id: The Accept's own id; a re-invite's id derives from it,
             so a redelivery rebuilds the same Invite (OX-06-002).
         expiry_out: Receives the expiry decision's ``IS_EXPIRED_KEY`` and
@@ -195,19 +191,16 @@ def accept_invite_to_embargo_tree(
                 invitee_id=accepting_actor_id,
                 invite_id=invite_id,
                 embargo_id=embargo_id,
-                now=now,
                 result_out=expiry_out,
             ),
             # Then every other overdue invitation of the case (CM-28-028).
-            *embargo_clock_decisions(case_id, now),
+            *embargo_clock_decisions(case_id),
         ],
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
             # An Accept of terms the register never held is not understood:
             # a ProcessingFault, no refusal notice (MSM-07-039, MSM-05-001).
-            never_held_embargo_fault(
-                case_id=case_id, embargo_id=embargo_id, now=now
-            ),
+            never_held_embargo_fault(case_id=case_id, embargo_id=embargo_id),
             # A repeat of an Accept already recorded commits nothing and
             # announces nothing (CM-13-005, HP-01-014).
             case_manager_admits_embargo_answer_guard(
@@ -231,7 +224,6 @@ def accept_invite_to_embargo_tree(
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
                 answers=accept_id,
-                now=now,
                 actor_config=actor_config,
             ),
             # The Accept's entry carries the row it states (ADR-0122), so an

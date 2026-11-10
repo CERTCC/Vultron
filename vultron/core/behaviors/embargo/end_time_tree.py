@@ -31,7 +31,7 @@ no change once an entry is ``TERMINATED``::
 
     EndEmbargoAtEndTimeBT (Selector)
     ├─ EmbargoAlreadyEndedNode          # EM EXITED: already done
-    └─ TerminateEmbargoBT               # END_TIME_REACHED, claimed at *now*
+    └─ TerminateEmbargoBT               # END_TIME_REACHED, at the act's instant
 
     EmbargoEndTimeDecision (Selector; a clock decision, gated by its stage)
     ├─ EndTimeNotPassed (Inverter(EmbargoEndTimePassedNode))
@@ -46,7 +46,6 @@ beside a ``PROPOSED`` one (EP-08-004), then the ``Add(CaseStatus)`` and each
 re-issued stub ``Invite`` (CLP-10-052).
 """
 
-from datetime import datetime
 from typing import cast
 
 import py_trees
@@ -120,19 +119,17 @@ class EmbargoAlreadyEndedNode(DataLayerConditionWithPorts):
 class EmbargoEndTimePassedNode(DataLayerConditionWithPorts):
     """SUCCESS when the case's embargo in force has reached its end time.
 
-    Compares the ``ACTIVE`` entry's ``end_time`` with *now*; FAILURE when
+    Compares the ``ACTIVE`` entry's ``end_time`` with the act's instant,
+    read from the tree run when it ticks (ADR-0176); FAILURE when
     there is no embargo in force or its end time is still ahead.  The
     embargo is read inline from the register when carried there, else from
     the store; one that cannot be read is FAILURE with a WARNING, so the
     lazy check never ends an embargo whose terms it cannot see.
     """
 
-    def __init__(
-        self, case_id: str, now: datetime, name: str | None = None
-    ) -> None:
+    def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
-        self._now = now
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -154,7 +151,9 @@ class EmbargoEndTimePassedNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
         embargo_id = embargo.id_
-        if not has_reached_end_time(embargo.end_time, self._now):
+        if not has_reached_end_time(
+            embargo.end_time, self._require_act_instant()
+        ):
             self.feedback_message = (
                 f"Embargo '{embargo_id}' on case '{self.case_id}' ends at"
                 f" {embargo.end_time.isoformat()}"
@@ -172,15 +171,14 @@ def end_embargo_at_end_time_bt(
     *,
     case_id: str,
     result_out: dict[str, object],
-    now: datetime,
     activity_builder: EmbargoActivityBuilder | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """The one idempotent end-time termination path (ADR-0122).
 
     An embargo already ended answers as already done and commits nothing;
     otherwise ``terminate_embargo_bt`` ends it with ``END_TIME_REACHED``
-    claimed at *now* — refused before the embargo's end time — and runs the
-    full cascade.  *activity_builder* is the trigger's own builder; ``None``
+    claimed at the act's instant — refused before the embargo's end time —
+    and runs the full cascade.  *activity_builder* is the trigger's own builder; ``None``
     lets the commit node build the ``Remove`` (the lazy check).
     """
     return py_trees.composites.Selector(
@@ -192,20 +190,18 @@ def end_embargo_at_end_time_bt(
                 case_id=case_id,
                 result_out=result_out,
                 termination=EmbargoTermination.end_time_reached(),
-                terminated_at=now,
                 activity_builder=activity_builder,
             ),
         ],
     )
 
 
-def end_time_clock_decision(
-    *, case_id: str, now: datetime
-) -> py_trees.behaviour.Behaviour:
+def end_time_clock_decision(*, case_id: str) -> py_trees.behaviour.Behaviour:
     """The CASE_MANAGER's lazy end-time check for *case_id* (ADR-0122).
 
     A clock decision (CLP-10-025): runs :func:`end_embargo_at_end_time_bt`
-    only when the embargo in force has reached its end time at *now*, and is
+    only when the embargo in force has reached its end time at the act's
+    instant, and is
     otherwise SUCCESS with nothing done.  A gapped local ledger, the one way
     the ledger refuses a CASE_MANAGER commit, is FAILURE before anything is
     committed, so the stage logs it and the tree continues (CLP-10-059); a
@@ -224,7 +220,7 @@ def end_time_clock_decision(
         children=[
             py_trees.decorators.Inverter(
                 name="EndTimeNotPassed",
-                child=EmbargoEndTimePassedNode(case_id=case_id, now=now),
+                child=EmbargoEndTimePassedNode(case_id=case_id),
             ),
             py_trees.composites.Sequence(
                 name="EndEmbargoOnAFreshLedger",
@@ -242,7 +238,7 @@ def end_time_clock_decision(
                         case_id,
                     ),
                     end_embargo_at_end_time_bt(
-                        case_id=case_id, result_out=result_out, now=now
+                        case_id=case_id, result_out=result_out
                     ),
                 ],
             ),

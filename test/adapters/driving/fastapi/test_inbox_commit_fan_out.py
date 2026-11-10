@@ -29,7 +29,7 @@ from typing import Any
 
 import pytest
 
-from test.support.act_runner import in_act
+from test.support.act_runner import run_dispatch
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -131,8 +131,7 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
         update={"receiving_actor_id": _MANAGER_ID}
     )
 
-    with in_act():
-        result = ih.dispatch(event, dl, dispatcher=ih.make_dispatcher())
+    result = run_dispatch(ih, event, dl, dispatcher=ih.make_dispatcher())
 
     assert result.disposition is HandlerDisposition.APPLIED
     entries = [
