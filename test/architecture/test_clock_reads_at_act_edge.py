@@ -309,7 +309,7 @@ KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
     ),
     (
         "vultron/core/use_cases/triggers/request_bodies/report.py",
-        "SubmitReportRequest.proposed_end_must_be_tz_aware_and_future",
+        "SubmitReportFields.proposed_end_must_be_tz_aware_and_future",
         "require_future_aware",
     ),
     (
@@ -390,11 +390,6 @@ KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
     (
         "vultron/core/behaviors/case/nodes/refusal_notice.py",
         "ClearRefusedAssertionNode.update",
-        "now_utc",
-    ),
-    (
-        "vultron/core/use_cases/received/_sender_embargo_proposal.py",
-        "sender_embargo_proposal_inputs",
         "now_utc",
     ),
     (

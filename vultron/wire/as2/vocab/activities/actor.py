@@ -19,6 +19,7 @@ from typing import ClassVar
 
 from pydantic import Field
 
+from vultron.wire.as2.vocab.activities.base import RepliesToObject
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
@@ -51,7 +52,7 @@ class _RecommendActorActivity(as_Offer):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
 
-class _AcceptActorRecommendationActivity(as_Accept):
+class _AcceptActorRecommendationActivity(RepliesToObject, as_Accept):
     """The case owner is accepting a recommendation to add an actor to the case.
 
     - object_: the _RecommendActorActivity offer being accepted (inline typed
@@ -65,7 +66,7 @@ class _AcceptActorRecommendationActivity(as_Accept):
     target: as_VulnerabilityCaseRef = None
 
 
-class _RejectActorRecommendationActivity(as_Reject):
+class _RejectActorRecommendationActivity(RepliesToObject, as_Reject):
     """The case owner is rejecting a recommendation to add an actor to the case.
 
     - object_: the _RecommendActorActivity offer being rejected (inline typed
@@ -94,7 +95,7 @@ class _OfferCaseParticipantActivity(as_Offer):
     target: as_VulnerabilityCaseRef = None
 
 
-class _AcceptCaseParticipantOfferActivity(as_Accept):
+class _AcceptCaseParticipantOfferActivity(RepliesToObject, as_Accept):
     """Case Owner accepts Offer(CaseParticipant) from the CaseActor.
 
     Routed to the CaseActor inbox (CM-16-006).
@@ -106,7 +107,7 @@ class _AcceptCaseParticipantOfferActivity(as_Accept):
     target: as_VulnerabilityCaseRef = None
 
 
-class _RejectCaseParticipantOfferActivity(as_Reject):
+class _RejectCaseParticipantOfferActivity(RepliesToObject, as_Reject):
     """Case Owner rejects Offer(CaseParticipant) from the CaseActor.
 
     Routed to the CaseActor inbox (CM-16-007).

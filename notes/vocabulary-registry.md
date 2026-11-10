@@ -17,6 +17,7 @@ related_specs:
     ARCH-12-014, ARCH-14-001, ARCH-20-002, ARCH-23-002, ARCH-25-003)
   - specs/docs-build-workflow.yaml (DOCBW-03-005)
   - specs/message-validation.yaml (MV-04-003)
+  - specs/csaf-report-content.yaml (CSAF-01-001)
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
@@ -165,8 +166,11 @@ shares another's declares `_wire_type_alias: ClassVar[bool] = True` and takes no
 `WIRE_TYPE_MAP` key. The Vultron actor classes (`as_VultronPerson`, …) are
 the only sanctioned unflagged sharers: they register after the base actors and
 shadow them, so `{"type": "Person"}` gets the subclass carrying
-`embargo_policy`. The ratchet fails on any other collision, which would silently
-move the key to whichever class imports last
+`embargo_policy`. A core class may own an AS2 `type` whose wire class stays a base
+for others: the attached-file classes own `Document`, `Image`, `Audio` and `Video`,
+and `as_Document` and its file subtypes declare `_wire_type_alias`, so the owner
+does not depend on import order (CSAF-01-001). The ratchet fails on any other
+collision, which would silently move the key to whichever class imports last
 (`test/architecture/test_vocab_registry_keys.py`; disjointness from
 `CORE_VOCABULARY` in `test/wire/as2/vocab/base/test_registry.py`). Do not
 restate a key count in prose (MS-16-001).

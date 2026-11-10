@@ -32,3 +32,5 @@ The CSAF 2.1 draft's JSON schemas and every schema they reference (CSAF-05-002).
 - `uv run csaf-models` generates `vultron/wire/csaf/models/` from this copy, and
   `uv run csaf-models --check` fails when the models no longer match it
   (CSAF-05-003). Nothing reads these files at runtime.
+- The scheduled `CSAF Draft Watch` workflow opens one issue when the draft's
+  head changes what the models depend on (CSAF-05-005). It never moves the pin.

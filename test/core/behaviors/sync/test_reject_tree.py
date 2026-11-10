@@ -167,6 +167,7 @@ def _make_event(
         ledger_position=peer_position(tail_hash),
         actor=PEER_ID,
         to=recipients,
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
@@ -1038,6 +1039,7 @@ def test_reject_from_stranger_halts_before_any_write(
                 entry=wire_entry,
                 actor=stranger,
                 to=[OWNER_ACTOR_ID],
+                in_reply_to="https://example.org/activities/prompting-announce",
             ),
             at=datalayer,
         ),

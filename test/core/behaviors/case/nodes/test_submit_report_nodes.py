@@ -15,6 +15,8 @@
 Issue #3872.
 """
 
+import uuid
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -25,13 +27,23 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.submit_report import (
     CheckOfferNamesReceiverInToNode,
+    StoreReportClaimsRecordsNode,
     StoreSubmitReportOfferRecordNode,
 )
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report_claims import (
+    ClaimsReading,
+    ReportClaims,
+    ReportClaimsRecord,
+    SchemaError,
+    SchemaVerdict,
+    SkippedClaim,
+)
 
 VENDOR = "https://example.org/actors/vendor"
 OFFER = "https://example.org/activities/offer-n1"
+_AT = datetime(2026, 11, 1, 12, tzinfo=UTC)
 REPORT = "https://example.org/reports/r-n1"
 FINDER = "https://example.org/users/finder"
 
@@ -67,6 +79,65 @@ def test_offer_record_node_is_idempotent():
     for _ in range(2):
         result = run_tree(bridge, _record_node(), actor_id=VENDOR)
         assert result.status == Status.SUCCESS
+
+
+def _claims_node() -> StoreReportClaimsRecordsNode:
+    reading = ClaimsReading(
+        document_id=f"{REPORT}/csaf",
+        document_digest="b" * 64,
+        document_format="CSAF 2.1",
+        schema_verdict=SchemaVerdict.SCHEMA_INVALID,
+        schema_errors=[SchemaError(path="$.document.title", message="bad")],
+        claims=ReportClaims(document_category="csaf_vulnerability_report"),
+        skipped=[SkippedClaim(path="$.document.title", reason="not a string")],
+    )
+    return StoreReportClaimsRecordsNode(
+        report_id=REPORT,
+        activity_id=OFFER,
+        sender_id=FINDER,
+        readings=[reading],
+    )
+
+
+@pytest.mark.spec("CSAF-04-004")
+def test_claims_node_stores_one_record_per_reading_and_logs_each_skip(caplog):
+    actor = f"{VENDOR}/{uuid.uuid4()}"  # a store no other test has written
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor)
+    with caplog.at_level("INFO"):
+        result = run_tree(
+            BTBridge(datalayer=dl), _claims_node(), actor_id=actor, at=_AT
+        )
+
+    assert result.status == Status.SUCCESS
+    record = dl.read(ReportClaimsRecord.build_id(REPORT, "b" * 64))
+    assert isinstance(record, ReportClaimsRecord)
+    assert record.activity_id == OFFER
+    assert record.received_at == _AT, "the act's instant, never a clock read"
+    assert record.reading.schema_verdict is SchemaVerdict.SCHEMA_INVALID
+    [skip] = [r for r in caplog.records if "(CSAF-04-003)" in r.getMessage()]
+    assert skip.levelname == "INFO"
+    assert OFFER in skip.getMessage() and FINDER in skip.getMessage()
+
+
+def test_claims_node_keeps_a_record_it_already_holds(caplog):
+    # A store of its own: in-memory stores are shared per actor id, and a
+    # record another test left behind would make the first run a no-op.
+    actor = f"{VENDOR}/{uuid.uuid4()}"
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor)
+    bridge = BTBridge(datalayer=dl)
+    run_tree(bridge, _claims_node(), actor_id=actor, at=_AT)
+    first = dl.list_objects("ReportClaimsRecord")
+    assert len(first) == 1
+    # caplog keeps every record since the test began, and whether the first
+    # run's INFO lines reach it depends on the level other tests left set.
+    caplog.clear()
+
+    with caplog.at_level("INFO"):
+        result = run_tree(bridge, _claims_node(), actor_id=actor, at=_AT)
+
+    assert result.status == Status.SUCCESS
+    assert dl.list_objects("ReportClaimsRecord") == first
+    assert not [r for r in caplog.records if "(CSAF-04-003)" in r.getMessage()]
 
 
 def _offer_event(to: list[str], sender: str = FINDER) -> SimpleNamespace:

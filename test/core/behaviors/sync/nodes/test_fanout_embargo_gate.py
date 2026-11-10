@@ -324,6 +324,7 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
         ),
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     event = cast(
         RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)
@@ -368,6 +369,7 @@ def test_genesis_pre_seed_itself_withholds_case_from_non_signatory(
         ),
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     event = cast(
         RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)
@@ -590,6 +592,7 @@ def test_a_closed_peers_reject_is_answered_up_to_its_own_closure(
         ledger_position=peer_position(entries[0].entry_hash),
         actor=SIGNATORY_ID,
         to=[MANAGER_ID],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     event = cast(
         RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)

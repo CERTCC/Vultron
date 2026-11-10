@@ -66,6 +66,7 @@ class SyncActivityPort(Protocol):
         actor_id: str,
         to: list[str],
         *,
+        in_reply_to: str,
         asked_at: datetime | None = None,
     ) -> None:
         """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
@@ -81,6 +82,11 @@ class SyncActivityPort(Protocol):
                 reject's derived id (ID-04-004).
             actor_id: URI of the actor sending the rejection.
             to: List of recipient actor URIs (typically the CaseActor).
+            in_reply_to: The id of the inbound activity that prompted the
+                Reject, which it names in ``inReplyTo`` (RF-08-004): the
+                ``Announce(CaseLedgerEntry)`` of *entry*, or the
+                ``Announce(VulnerabilityCase)`` whose copy is ahead of the
+                chain (SYNC-16-007).
             asked_at: For a genesis Reject from a receiver that holds no
                 case yet, when it asked; it keys the id too, so a request
                 after the interval is a new activity, not a redelivery the
@@ -95,6 +101,8 @@ class SyncActivityPort(Protocol):
         copy_tail_hash: str,
         actor_id: str,
         to: list[str],
+        *,
+        in_reply_to: str,
     ) -> None:
         """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
 
@@ -111,6 +119,9 @@ class SyncActivityPort(Protocol):
                 copy is not a repeat of an earlier one (ID-04-004).
             actor_id: URI of the actor sending the rejection.
             to: List of recipient actor URIs (the CASE_MANAGER).
+            in_reply_to: The id of the ``Announce(VulnerabilityCase)`` whose
+                copy replaced the case, which the Reject names in
+                ``inReplyTo`` (RF-08-004).
         """
         ...
 

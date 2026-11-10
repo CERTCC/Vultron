@@ -87,6 +87,9 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         ("report/nodes/develop_fix_conditions.py", "VfDimension"),
         # SNAPSHOT — EmitCaseStatusUpdateNode: post-mutation CaseStatus snapshot (ISSUE-2175)
         ("case_status_snapshot.py", "PxaDimension"),
+        # BOOTSTRAP — a new case's first CaseStatus, with the P/X/A its report
+        # states (CSAF-03-003 to CSAF-03-005); no prior state to transition from.
+        ("case/nodes/proposal_case_resolution.py", "PxaDimension"),
         # BOOTSTRAP — ADR-0114 birth write: invitee's first ParticipantStatus
         # at RM.RECEIVED (no prior state; embed directly in CaseParticipant,
         # not via CreateParticipantStatusNode). CM-11-006 / #4048.

@@ -27,6 +27,9 @@ from datetime import datetime
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_apply import RegisterStep, RegisterStepKind
+from vultron.core.models.embargo_consent_move import (
+    assert_owner_has_not_declined,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
@@ -178,7 +181,8 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         *embargo_id*'s register entry and ``SUPERSEDE`` any ``ACTIVE`` one in
         the same step, so EM derives ``ACTIVE``, or ``REVISE`` while another
         proposal stays open as a revision (ADR-0130).  In ``STRICT`` mode the entry
-        must be an open proposal and P/X/A must be clear (EMB-02-002).  In
+        must be an open proposal, P/X/A must be clear (EMB-02-002) and the
+        case owner's row for it must not read ``DECLINED`` (MSM-07-037).  In
         ``OBSERVED`` mode a replica that never saw the proposal records it
         first, and a step the register refuses is skipped (EP-09-007).
 
@@ -191,9 +195,11 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         carried over to B by ``CARRY_OVER``; under a longer B the signatories
         who have not agreed to it have lapsed by derivation (CM-18-001).
         Whoever holds an ``AGREED`` row for B — its proposer, for one — is a
-        signatory by lookup, with nothing to advance.  An owner whose row for
-        *embargo_id* is ``DECLINED`` has changed its answer by activating it:
-        its row moves straight to ``AGREED``, in either mode (MSM-07-028).
+        signatory by lookup, with nothing to advance.  ``STRICT`` refuses an
+        activation from an owner whose row reads ``DECLINED`` (MSM-07-037);
+        ``OBSERVED`` copies what the committed activation states, so a
+        replica's ``DECLINED`` owner row becomes ``AGREED`` as the entry says
+        (CM-23-016).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
@@ -212,8 +218,9 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             VultronValidationError: If either embargo record is not an
                 ``EmbargoEvent``.
             VultronInvalidStateTransitionError: In ``STRICT`` mode, if
-                *embargo_id* is not an open proposal of the case or P/X/A is
-                set.
+                *embargo_id* is not an open proposal of the case, P/X/A is
+                set, or the case owner's row for it reads ``DECLINED``
+                (MSM-07-037).
         """
         case = self._read_case(case_id)
 
@@ -229,6 +236,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             self._assert_pxa_embargo_eligible(
                 case.current_status.pxa.state, case_id, "activate embargo"
             )
+            assert_owner_has_not_declined(self._case_file(case), embargo_id)
 
         if not self._activate_entry(
             case,

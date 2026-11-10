@@ -11,13 +11,14 @@ registry lookup automatically, use ``vultron.semantic_registry.extract_event``.
 
 import logging
 from datetime import timedelta
-from typing import cast
+from typing import Any, cast
 
 from vultron.core.models.events import (
     AnyReceivedEvent,
     MessageSemantics,
     VultronEvent,
 )
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     DEFAULT_RSVP_WINDOW,
@@ -50,6 +51,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseReference,
     case_reference,
 )
+from vultron.wire.csaf.reader import read_report_attachments
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +98,43 @@ def _named_case_only(semantics: MessageSemantics, obj: object) -> object:
         if reduced is not inner:
             return obj.model_copy(update={"object_": reduced})
     return obj
+
+
+def _report_claims_kwargs(
+    obj: object, activity_id: str, sender_id: str
+) -> dict[str, Any]:
+    """The CSAF readings of the report an initial report activity offers.
+
+    An ``Offer(VulnerabilityReport)`` offers its own object.  A
+    ``Create(CaseProposal)`` carries the initial Offer inline (CP-01-008):
+    the report that Offer offered, as its Reporter sent it, is the one the
+    CASE_MANAGER fills a new case's inputs from, with that report's own name
+    and summary beside it (CSAF-02-001, CSAF-02-003).  A proposal with no
+    inline Offer yields nothing: the terms are read only from the carried
+    Offer (CP-01-021).
+
+    Read at the edge, so core receives claims and never a CSAF document
+    (ADR-0032).  An unreadable attachment yields no reading; nothing here
+    refuses the activity (CSAF-02-006).
+    """
+    if isinstance(obj, as_CaseProposal):
+        report = getattr(obj.in_reply_to, "object_", None)
+        if not isinstance(report, VulnerabilityReport):
+            return {}
+        return {
+            "offered_report_name": report.name,
+            "offered_report_summary": report.summary,
+            "claims_readings": read_report_attachments(
+                report.attachment, activity_id=activity_id, actor_id=sender_id
+            ),
+        }
+    if isinstance(obj, VulnerabilityReport):
+        return {
+            "claims_readings": read_report_attachments(
+                obj.attachment, activity_id=activity_id, actor_id=sender_id
+            )
+        }
+    return {}
 
 
 def extract_intent(
@@ -192,6 +231,11 @@ def extract_intent(
         extra_kwargs["proposed_embargo"] = proposed_embargo
 
     extra_kwargs.update(_content_kwargs(activity, event_class))
+
+    if "claims_readings" in event_class.model_fields:
+        extra_kwargs.update(
+            _report_claims_kwargs(obj, activity.id_, sender_id)
+        )
 
     if "proposer_profile" in event_class.model_fields:
         extra_kwargs["proposer_profile"] = _proposer_profile(activity)

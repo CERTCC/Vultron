@@ -10,12 +10,17 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""CSAF 2.1 documents at the wire edge (ADR-0184, CSAF-05).
+"""CSAF 2.1 documents at the wire edge (ADR-0184, CSAF-04, CSAF-05).
 
 - ``models/`` holds the Pydantic models generated from the pinned local copy
   of the CSAF 2.1 draft's schemas, whose root is
   ``CommonSecurityAdvisoryFramework``. Never edit them by hand: run
   ``uv run csaf-models`` (CSAF-05-003).
+- :mod:`~vultron.wire.csaf.reader` recognizes a CSAF 2.1 document attached to
+  a received report, checks it with those models and reads what it claims
+  into the core claims models (CSAF-01-003, CSAF-04-001, CSAF-04-003). It
+  also checks the document a Reporter asks the submit-report trigger to
+  attach, before the trigger judges it (CSAF-04-009).
 
 The copy itself and its pin record are third-party files in
 ``third_party/csaf/``, outside this package; :mod:`vultron.metadata.csaf.pin`

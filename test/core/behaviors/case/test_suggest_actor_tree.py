@@ -72,6 +72,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     RequireRecordedOfferAnswerNode,
     SeatRecordedInviteeNode,
     SuggestedActorIsInvitableNode,
+    SuggestedRolesAreGrantableNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     offer_case_participant_id,
@@ -1111,6 +1112,26 @@ class TestDuplicateDetectionTreeStructure:
 
     def test_selector_has_six_children(self):
         assert len(self._duplicate_selector().children) == 6
+
+    @pytest.mark.spec("CM-20-008")
+    def test_the_authority_role_guard_runs_before_the_commit_and_every_arm(
+        self,
+    ):
+        """One guard refuses an authority role for every arm (CM-20-008).
+
+        It sits in the precondition stage, outside the arms' selector and
+        before the guarded commit, so no arm can act on such a suggestion.
+        """
+        guard = next(
+            n
+            for n in self.all_nodes
+            if isinstance(n, SuggestedRolesAreGrantableNode)
+        )
+        assert guard not in list(self._duplicate_selector().iterate())
+        order = [n.name for n in self.all_nodes]
+        assert order.index(guard.name) < order.index(
+            "GuardedCommitCaseLedgerEntryBT"
+        )
 
     @pytest.mark.spec("CM-16-009", "CM-16-022")
     def test_the_in_flight_and_participant_arms_emit_no_invite(self):

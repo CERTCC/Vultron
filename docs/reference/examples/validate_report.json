@@ -6,6 +6,7 @@
   "type": "Accept",
   "id": "urn:uuid:f4740aec-67af-4680-b41a-2427e33edef3",
   "name": "https://vultron.example/organizations/vendorco Accept https://vultron.example/users/finndervul Offer FDR-8675309",
+  "inReplyTo": "urn:uuid:0ff0a347-3e73-4af8-b221-af087d20f7b7",
   "content": "We've validated the report. We'll be creating a case shortly.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {

@@ -75,7 +75,7 @@ from vultron.demo.helpers.vendor_story import (
     required_participants_are_present,
     the_disclosure_reached_every_replica,
     the_embargo_ends_for,
-    the_fix_ready_reached_the_reporter,
+    the_fix_ready_milestones,
     the_reporter_asks_about_the_workaround,
     vendor_open_cast,
 )
@@ -155,7 +155,10 @@ Workflow (six phases; titles match docs/tutorials/rv-demo.md):
 
 
 def the_case_is_active(state: StoryState) -> None:
-    """M1: the Reporter and the Vendor are seated and the embargo is active."""
+    """The Reporter and the Vendor are seated and the embargo is active.
+
+    Milestone M1 of the scenario's spec group.
+    """
     required_participants_are_present(
         state,
         check=(
@@ -166,7 +169,9 @@ def the_case_is_active(state: StoryState) -> None:
 
 
 def the_reporter_replica_converges(state: StoryState) -> None:
-    """M2: the Reporter's replica follows the Vendor's authoritative state.
+    """The Reporter's replica follows the Vendor's authoritative state.
+
+    Milestone M2 of the scenario's spec group.
 
     Synthetic checkpoint entries (``demo_verification``) are excluded from the
     canonical case ledger (ADR-0019, CLP-07-004), so replication is verified
@@ -204,7 +209,9 @@ def the_reporter_replica_converges(state: StoryState) -> None:
 
 
 def the_vendor_holds_the_final_case(state: StoryState) -> None:
-    """M3: the Vendor's container holds the authoritative case, both notes on it.
+    """The Vendor holds the authoritative case, with both notes on it.
+
+    Milestone M3 of the scenario's spec group.
 
     Reads both notes of the thread the opening posted, so the check names the
     question and the answer rather than asserting ``None`` twice
@@ -253,18 +260,16 @@ def _the_reporter_replica_reflects_the_fix(state: StoryState) -> None:
             actor_id=state.actor_id(VENDOR),
             expected_states={CS_vf.VF},
         )
-        the_fix_ready_reached_the_reporter(
+        the_fix_ready_milestones(
             state,
-            milestones=(
-                "M4: both replicas show CS includes F (fix ready)",
-                "M5: both replicas show CS includes F (fix ready) — vendor"
-                " stops at VFd",
-            ),
+            reached="M4: both replicas show CS includes F (fix ready)",
+            stopped="M5: both replicas show the vendor stopped at VFd — no"
+            " fix-deployed transition",
         )
 
 
 def both_publish(state: StoryState) -> None:
-    """The Vendor, as CASE_OWNER, publishes first; then the Reporter."""
+    """The Vendor, the Case Owner, publishes first; then the Reporter."""
     reports_published(state, VENDOR)
     the_embargo_ends_for(
         state,

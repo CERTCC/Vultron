@@ -98,7 +98,11 @@ _ACTIVITIES_ROOT = (
 )
 
 # ``class _RmCloseReportActivity(as_Reject):`` -> ("_RmCloseReportActivity", "as_Reject")
-_CLASS_DECL = re.compile(r"^class (\w+Activity)\((as_\w+)\)", re.MULTILINE)
+# The AS2 base is the last one; a mixin such as ``RepliesToObject`` may come
+# before it.
+_CLASS_DECL = re.compile(
+    r"^class (\w+Activity)\((?:\w+, )*(as_\w+)\)", re.MULTILINE
+)
 
 # Every activity class declaration, whatever its bases. Used to prove
 # _CLASS_DECL did not silently skip one (a mixin, or a formatter-wrapped
@@ -343,8 +347,9 @@ def test_class_and_pattern_verbs_agree():
 def test_class_verb_map_covers_every_activity_class():
     """Every activity class declaration must land in the map.
 
-    ``_CLASS_DECL`` matches only a single ``(as_X)`` base on one physical line.
-    A mixin (``class _FooActivity(as_Create, SomeMixin)``) or a formatter-wrapped
+    ``_CLASS_DECL`` matches an ``(as_X)`` base, last, on one physical line,
+    after any mixins.  A mixin after it (``class _FooActivity(as_Create,
+    SomeMixin)``) or a formatter-wrapped
     declaration would not match, dropping that activity from the map — and,
     because an unmapped name is skipped rather than reported, silently
     unchecking every pairing the docs assert for it.  Asserting equality rather

@@ -155,6 +155,7 @@ def test_a_genesis_replay_request_needs_the_case_it_names(dl) -> None:
             copy_tail_hash="ab" * 32,
             actor_id=_ACTOR,
             to=["https://example.org/users/manager"],
+            in_reply_to="https://example.org/activities/prompting-announce",
         )
 
     assert list(dl.outbox_list()) == []
@@ -170,6 +171,7 @@ def test_a_genesis_replay_request_states_the_empty_chain(dl) -> None:
         copy_tail_hash="ab" * 32,
         actor_id=_ACTOR,
         to=["https://example.org/users/manager"],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
 
     (reject_id,) = dl.outbox_list()
@@ -179,3 +181,38 @@ def test_a_genesis_replay_request_states_the_empty_chain(dl) -> None:
         "logIndex": EMPTY_LEDGER_LOG_INDEX,
         "entryHash": case.genesis_hash,
     }
+
+
+@pytest.mark.spec("ID-04-004")
+@pytest.mark.spec("RF-08-004")
+def test_a_genesis_replay_repeat_under_another_announce_names_the_first(
+    dl,
+) -> None:
+    """``inReplyTo`` does not key the genesis-replay Reject's id, so a repeat
+    for the same copy under another Announce sends the stored body, which
+    names the first Announce."""
+    dl.create(VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR))
+    adapter = SyncActivityAdapter(dl)
+    first_announce = "https://example.org/activities/first-copy-announce"
+
+    adapter.send_genesis_replay_reject(
+        case_id=_CASE,
+        copy_tail_hash="ab" * 32,
+        actor_id=_ACTOR,
+        to=["https://example.org/users/manager"],
+        in_reply_to=first_announce,
+    )
+    (reject_id,) = dl.outbox_list()
+    assert dl.outbox_pop() == reject_id  # the drain took it
+    adapter.send_genesis_replay_reject(
+        case_id=_CASE,
+        copy_tail_hash="ab" * 32,
+        actor_id=_ACTOR,
+        to=["https://example.org/users/manager"],
+        in_reply_to="https://example.org/activities/later-copy-announce",
+    )
+
+    assert list(dl.outbox_list()) == [reject_id]
+    body = read_sealed_body_dict(dl, reject_id)
+    assert body is not None
+    assert body["inReplyTo"] == first_announce

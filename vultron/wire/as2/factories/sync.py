@@ -82,6 +82,7 @@ def announce_log_entry_activity(
 
 def reject_log_entry_activity(
     entry: as_CaseLedgerEntry,
+    in_reply_to: str,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(CaseLedgerEntry) — hash-chain mismatch report.
@@ -96,6 +97,10 @@ def reject_log_entry_activity(
 
     Args:
         entry: The ``CaseLedgerEntry`` the receiver could not apply.
+        in_reply_to: The id of the inbound activity that prompted the
+            Reject: the ``Announce(CaseLedgerEntry)``, or the
+            ``Announce(VulnerabilityCase)`` whose copy is ahead of the
+            chain (RF-08-004).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``, ``id_``).
 
@@ -107,7 +112,9 @@ def reject_log_entry_activity(
     """
     kwargs.setdefault("context", getattr(entry, "case_id", None))
     try:
-        return _RejectLogEntryActivity(object_=entry, **kwargs)
+        return _RejectLogEntryActivity(
+            object_=entry, in_reply_to=in_reply_to, **kwargs
+        )
     except ValidationError as exc:
         logger.warning("reject_log_entry_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -116,7 +123,10 @@ def reject_log_entry_activity(
 
 
 def genesis_replay_reject_activity(
-    case_id: str, ledger_position: LedgerPosition, **kwargs
+    case_id: str,
+    ledger_position: LedgerPosition,
+    in_reply_to: str,
+    **kwargs,
 ) -> as_Reject:
     """Build the Reject(CaseLedgerEntry) that names no entry (SYNC-16-027).
 
@@ -125,7 +135,9 @@ def genesis_replay_reject_activity(
     for a replay from genesis.  Its *ledger_position* is the sender's tail,
     which for a chain that stores no entry is index -1 and the case's
     genesis hash (SYNC-18-001, CLP-08-004); the case is both the ``target``
-    and the ``context``.
+    and the ``context``.  Its *in_reply_to* is the id of the
+    ``Announce(VulnerabilityCase)`` whose copy replaced the case
+    (RF-08-004).
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails,
@@ -137,6 +149,7 @@ def genesis_replay_reject_activity(
             target=case_id,
             context=case_id,
             ledger_position=ledger_position,
+            in_reply_to=in_reply_to,
             **kwargs,
         )
     except ValidationError as exc:

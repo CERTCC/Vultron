@@ -19,6 +19,10 @@ from typing import Any, ClassVar
 from pydantic import Field, model_validator
 
 from vultron.primitives import NonEmptyString
+from vultron.wire.as2.vocab.activities.base import (
+    RepliesToObject,
+    reply_to_object,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
@@ -61,7 +65,7 @@ class _RmInviteToCaseActivity(as_Invite):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
 
-class _RmAcceptInviteToCaseActivity(as_Accept):
+class _RmAcceptInviteToCaseActivity(RepliesToObject, as_Accept):
     """The actor is accepting an invitation to a case.
     This corresponds to the Vultron Message Type RV when the case already exists.
     See also _RmValidateReportActivity for the scenario when the case does not exist yet.
@@ -74,14 +78,8 @@ class _RmAcceptInviteToCaseActivity(as_Accept):
         ..., validation_alias="object", serialization_alias="object"
     )
 
-    @model_validator(mode="after")
-    def set_in_reply_to_from_invite(self):
-        if self.in_reply_to is None:
-            object.__setattr__(self, "in_reply_to", self.object_.id_)
-        return self
 
-
-class _RmRejectInviteToCaseActivity(as_Reject):
+class _RmRejectInviteToCaseActivity(RepliesToObject, as_Reject):
     """The actor is rejecting an invitation to a case.
     This corresponds to the Vultron Message Type RI when the case already exists.
     See also _RmInvalidateReportActivity for the scenario when the case does not exist yet.
@@ -93,12 +91,6 @@ class _RmRejectInviteToCaseActivity(as_Reject):
     object_: _RmInviteToCaseActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-
-    @model_validator(mode="after")
-    def set_in_reply_to_from_invite(self):
-        if self.in_reply_to is None:
-            object.__setattr__(self, "in_reply_to", self.object_.id_)
-        return self
 
 
 def _check_ledger_position(activity: Any, what: str) -> None:
@@ -145,8 +137,7 @@ def _check_full_case_reply(reply: Any) -> None:
     (CM-11-011, SYNC-18-001) and answers the Invite it embeds.
     """
     _check_ledger_position(reply, "a reply to the full-case Invite")
-    if reply.in_reply_to is None:
-        object.__setattr__(reply, "in_reply_to", reply.object_.id_)
+    reply_to_object(reply)
 
 
 class _RmAcceptFullCaseInviteActivity(as_Accept):

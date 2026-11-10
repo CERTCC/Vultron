@@ -32,10 +32,10 @@ const VENDOR_COLOR_PALETTE = [
 
 // Base colors for non-vendor participants
 const BASE_PARTICIPANT_COLORS = {
-  finder: '#e3f2fd',      // Light blue
-  caseactor: '#fff3e0',   // Light orange
+  reporter: '#e3f2fd',      // Light blue
+  casemanager: '#fff3e0',   // Light orange
   coordinator: '#e0f7fa', // Light teal — a real coordinator participant, kept
-                          // visually distinct from the caseactor recorder's orange.
+                          // visually distinct from the casemanager recorder's orange.
 }
 
 // Generate participant colors dynamically
@@ -91,13 +91,13 @@ const VENDOR_NODE_COLORS = [
 ]
 
 const BASE_NODE_COLORS = {
-  finder: {
+  reporter: {
     decision: '#1976D2',        // Dark blue for decisions
     decisionHover: '#1565C0',   // Darker blue on hover
     consequence: '#BBDEFB',     // Light blue for consequences
     consequenceHover: '#90CAF9' // Slightly darker on hover
   },
-  caseactor: {
+  casemanager: {
     decision: '#F57C00',        // Dark orange for decisions
     decisionHover: '#E65100',   // Darker orange on hover
     consequence: '#FFE0B2',     // Light orange for consequences
@@ -133,12 +133,47 @@ export function getVendorNodeColors(vendorNumber: number): {
   return VENDOR_NODE_COLORS[index % VENDOR_NODE_COLORS.length]
 }
 
+/** One participant's node colors: decision and consequence, each with a hover shade. */
+export type NodePalette = ReturnType<typeof getVendorNodeColors>
+
+/**
+ * Node colors for a Log Replay lane id. Handles any `vendor-N` (via the cycling
+ * vendor palette), plus reporter, casemanager and coordinator; falls back to the
+ * reporter's palette for anything unrecognized.
+ */
+export function nodeColorsFor(laneId: string): NodePalette {
+  if (laneId === 'reporter') return NODE_COLORS.reporter
+  if (laneId === 'casemanager') return NODE_COLORS.casemanager
+  if (laneId === 'coordinator') return NODE_COLORS.coordinator
+  const m = laneId.match(/^vendor-(\d+)$/)
+  if (m) return getVendorNodeColors(parseInt(m[1], 10))
+  return NODE_COLORS.reporter
+}
+
+// The simulation's own participant ids for its non-vendor lanes, mapped to the
+// palette keys above (which use the Log Replay lane ids).
+const SIM_COLOR_KEYS: Partial<Record<string, keyof typeof NODE_COLORS>> = {
+  finder: 'reporter',
+  caseactor: 'casemanager',
+}
+
+/**
+ * Node colors for a Multi-Vendor simulation participant id. The simulation keeps
+ * its own ids (`finder`, `caseactor`, `vendor-N`); anything unrecognized gets the
+ * reporter's palette.
+ */
+export function simNodeColorsFor(participantId: string): NodePalette {
+  const m = participantId.match(/^vendor-(\d+)$/)
+  if (m) return getVendorNodeColors(parseInt(m[1], 10))
+  return NODE_COLORS[SIM_COLOR_KEYS[participantId] ?? 'reporter']
+}
+
 export const PARTICIPANT_ROLES = {
-  finder: 'FINDER, REPORTER',
+  reporter: 'REPORTER',
   vendor: 'VENDOR, CASE_OWNER',
   vendor2: 'VENDOR',
-  caseactor: 'COORDINATOR, CASE_MANAGER (virtual)',
-  // A real coordinator participant (distinct from the virtual caseactor recorder),
+  casemanager: 'CASE_MANAGER',
+  // A real coordinator participant (distinct from the virtual casemanager recorder),
   // 2026-07 coordinator scenarios. Its actual CVD role varies by scenario
   // (COORDINATOR in fvcv-extension; CASE_OWNER in fcv/fccv-extension), so the
   // static label is generic; the movable per-cvdRole label is deferred handoff work.

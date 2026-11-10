@@ -399,9 +399,8 @@ groups:
       `test_a_response_built_without_in_reply_to_names_what_it_answers` in
       `test/architecture/test_response_in_reply_to.py` builds every response class
       in `vultron/wire/as2/vocab/activities/` from its vocab example with no
-      `inReplyTo` and checks that the class itself sets it. The classes that do not
-      yet are listed by name in its `_KNOWN_GAP` record, owned by #5641.
-      `test_rm_accept_invite_to_case_in_reply_to_auto_set` and
+      `inReplyTo` and checks that the class itself sets it, or refuses the body for
+      the missing field. `test_rm_accept_invite_to_case_in_reply_to_auto_set` and
       `test_rm_reject_invite_to_case_in_reply_to_auto_set` in
       `test/wire/as2/factories/test_case_factories.py` check the two Invite replies.
     relationships:
@@ -420,13 +419,36 @@ groups:
       `test_a_response_built_without_in_reply_to_names_what_it_answers` in
       `test/architecture/test_response_in_reply_to.py` builds every response class
       with no `inReplyTo` and checks that the result carries one or that
-      construction fails on the missing field. The classes listed in its
-      `_KNOWN_GAP` record (#5641) do not meet this yet, and
-      `test_a_known_gap_class_still_builds_without_in_reply_to` keeps that record
-      current.
+      construction fails on the missing field.
     relationships:
     - rel_type: extends
       spec_id: RF-08-002
+  - id: RF-08-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `Reject(CaseLedgerEntry)` MUST name in `inReplyTo` the inbound activity that
+      prompted it: the `Announce(CaseLedgerEntry)` it could not apply, or the
+      `Announce(VulnerabilityCase)` whose copy is ahead of the sender's chain.
+    rationale: >-
+      The `object` of this Reject is a ledger entry, or nothing, not an activity, so
+      the response cannot name what it answers through its `object`. The inbound
+      activity is the one each sender holds on every path. The `Create(ProcessingFault)`
+      for a refused entry names its `Announce` the same way (SYNC-16-003).
+    verification: >-
+      `test_send_reject_log_entry_node_sends_reject` in
+      `test/core/behaviors/sync/nodes/test_receive.py` checks the hash-mismatch path,
+      `test_a_genesis_reject_names_the_announce_that_prompted_it` in
+      `test/core/behaviors/sync/test_announce_tree.py` the genesis Reject for a case the
+      sender does not hold, and `test_a_copy_ahead_of_the_chain_asks_for_the_rest` and
+      `test_a_replica_with_no_entry_asks_for_a_replay_from_genesis` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` the two paths after a
+      case copy.
+    relationships:
+    - rel_type: refines
+      spec_id: RF-08-001
+    stories:
+    - story_2026_045
 - id: RF-09
   title: Idempotent Responses
   specs:

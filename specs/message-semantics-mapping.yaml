@@ -1711,8 +1711,12 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_embargo_owner_decision.py`
       (`test_an_activation_the_owner_declined_is_refused_uncommitted`) confirms the
-      activation is refused with nothing committed and the owner's row left DECLINED.
-      It is a strict `xfail` until #6043 builds the refusal.
+      activation is refused with nothing committed, the owner's row left DECLINED and
+      one refusal notice telling the owner to accept the invitation first;
+      `test/core/use_cases/received/test_embargo_answer_idempotency.py`
+      (`test_an_owner_that_declined_accepts_then_activates`) confirms that Reject,
+      Accept, then the activation ends with the embargo ACTIVE and the owner's row
+      AGREED.
     relationships:
     - rel_type: refines
       spec_id: MSM-07-028

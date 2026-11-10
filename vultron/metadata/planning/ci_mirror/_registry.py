@@ -266,6 +266,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
         "ui-install", _UI + "Install dependencies", group="ui", tool="npm"
     ),
     MirrorCheck("ui-lint", _UI + "Lint", group="ui", tool="npm"),
+    MirrorCheck("ui-test", _UI + "Test", group="ui", tool="npm"),
     MirrorCheck("ui-build", _UI + "Build", group="ui", tool="npm"),
 )
 
@@ -288,6 +289,13 @@ EXCLUSIONS: Mapping[str, str] = {
     ),
     "demo-integration.yml": (
         "container demos need Docker and take many minutes; they stay CI's"
+    ),
+    "demo-verdict.yml": (
+        "CI's demo-verdict job owns the base-versus-head comparison: it "
+        "records the whole scenario tree twice, about 366 s a pass, and it "
+        "reads the pull request's merge base and its labels, neither of which "
+        "a pre-push run has. The required CI gate judges it, so nothing is "
+        "merged past it unseen (PAD-18-023, PAD-18-031)"
     ),
     "ci-gate.yml": (
         "waits on GitHub for the other checks on the PR's head commit and "

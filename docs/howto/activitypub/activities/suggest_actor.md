@@ -21,6 +21,8 @@ You finish with the suggested actor either invited or the recommendation decline
   Any participant can suggest an actor.
   The CASE_MANAGER refuses a suggestion from an actor that is not a participant, and forwards nothing to the Case Owner.
 - The suggested actor's Uniform Resource Identifier (URI).
+- The roles you suggest for the actor, if any.
+  Do not suggest `CASE_MANAGER` or `CASE_OWNER`: the CASE_MANAGER refuses the suggestion, sends you a refusal notice, and forwards nothing (CM-20-006, CM-20-008).
 - The CASE_MANAGER's actor URI.
 
 If you hold the Case Owner role and the decision is yours alone, invite the actor directly instead — see [How to Invite an Actor to a Case](invite_actor.md).
@@ -102,6 +104,7 @@ As Case Owner, answer the forwarded offer, addressing the reply to the CASE_MANA
 
 - If the actor should join, send `Accept(Offer(CaseParticipant))`, with the forwarded `Offer(CaseParticipant)` as its `object`.
   The CASE_MANAGER then invites the actor.
+  It refuses an `Accept` of an offer that names `CASE_MANAGER` or `CASE_OWNER` for the actor, and sends no invitation (CM-20-008).
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/accept-case-participant-offer.md" %}
 

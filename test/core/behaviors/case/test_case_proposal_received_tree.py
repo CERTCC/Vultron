@@ -1280,17 +1280,19 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         assert stored.active_embargo == prior
         assert stored.current_status.em.state == EM.REVISE
 
+    @pytest.mark.spec("MSM-07-037")
     @pytest.mark.parametrize(
         ("decliner", "expected"),
-        [(_VENDOR_URI, "SUCCESS"), (_CASE_ACTOR_URI, "SUCCESS")],
+        [(_VENDOR_URI, "FAILURE"), (_CASE_ACTOR_URI, "SUCCESS")],
     )
-    def test_no_decline_blocks_the_owners_activation(
+    def test_only_the_owners_decline_blocks_its_activation(
         self, make_payload, decliner, expected
     ):
-        """Neither the owner's decline nor the case actor's blocks activation.
+        """The owner's own decline blocks its activation; the case actor's not.
 
-        An owner that declined and then activates has changed its answer
-        (MSM-07-028, maintainer ruling 2026-10-14).
+        An owner that declined accepts the invitation first, then activates
+        (MSM-07-037, ADR-0180).  Another participant's decline is that
+        participant's answer and refuses nothing.
         """
         from test.core.behaviors.bt_harness import BTTestScenario
         from vultron.core.behaviors.embargo.nodes import (
@@ -3555,6 +3557,19 @@ class TestEP04SenderProposalAtCaseCreation:
 
     _SENDER_END_DAYS = 10
     _ACTOR_DEFAULT = timedelta(days=30)
+
+    @pytest.fixture(autouse=True)
+    def _inside_an_act(self):
+        """The inbox handles each delivery inside an act (ADR-0176), and the
+        Reporter's terms are measured from its instant."""
+        from vultron.core.behaviors.bridge.act_instant import (
+            act_instant_in_tree_run,
+        )
+        from vultron.core.models._helpers import now_utc
+
+        with act_instant_in_tree_run(now_utc()):
+            yield
+
     #: The policy the proposing vendor's inline profile carries, if any.
     _owner_policy: timedelta | None = None
 
@@ -3901,19 +3916,18 @@ class TestEP04SenderProposalAtCaseCreation:
         self._assert_relayed(dl, case, loser=_REPORTER_URI, winner=_VENDOR_URI)
 
     @pytest.mark.spec("EP-04-011")
-    def test_a_tie_relays_nothing(self, make_payload, monkeypatch):
+    def test_a_tie_relays_nothing(self, make_payload):
         """Equal terms leave nothing contested, so there is nothing to relay.
 
-        The sender's remaining time is measured from the clock, so the clock
-        is pinned to make it exactly the owner's thirty days.
+        The sender's remaining time is measured from the act's instant, so
+        the act is pinned to make it exactly the owner's thirty days.
         """
-        from vultron.core.models.embargo_event import EmbargoEvent
-        from vultron.core.use_cases.received import (
-            _sender_embargo_proposal as sender_module,
+        from vultron.core.behaviors.bridge.act_instant import (
+            act_instant_in_tree_run,
         )
+        from vultron.core.models.embargo_event import EmbargoEvent
 
         now = datetime.now(tz=UTC).replace(microsecond=0)
-        monkeypatch.setattr(sender_module, "now_utc", lambda: now)
         terms = EmbargoEvent(
             id_=f"{_REPORT_URI}/embargo_proposals/1",
             context=_REPORT_URI,
@@ -3921,7 +3935,8 @@ class TestEP04SenderProposalAtCaseCreation:
         )
         dl = self._store()
         self._publish_owner_policy()
-        case, _ = self._run(make_payload, dl, sender_days=30, terms=terms)
+        with act_instant_in_tree_run(now):
+            case, _ = self._run(make_payload, dl, sender_days=30, terms=terms)
 
         assert case.current_status.em.state == EM.ACTIVE
         assert case.proposed_embargo_ids == []

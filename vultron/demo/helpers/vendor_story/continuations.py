@@ -31,6 +31,7 @@ from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_fix_ready,
     verify_publicly_disclosed,
+    verify_stops_at_fix_ready,
 )
 from vultron.demo.helpers.notes import NotePost, add_note_thread
 from vultron.demo.helpers.polling import (
@@ -83,41 +84,105 @@ def required_participants_are_present(
 
 
 def the_fix_ready_reached_the_reporter(
-    state: StoryState, *, milestones: Sequence[str]
+    state: StoryState,
+    *,
+    check: str,
+    vendors: Sequence[str] = (VENDOR,),
 ) -> None:
-    """The first Vendor reads VF on its own and on the Reporter's replica.
+    """Each named Vendor reads VF on its own and on the Reporter's replica.
 
-    One copy of the check every scenario of this family makes **twice**, under
-    two milestone labels — ``rv``'s M4 and M5, ``rvv``'s M4 and M5,
-    ``rvcv-extension``'s M5 and M6, and ``rvcv-handoff``'s two unnumbered
-    ones.  The second one asserts exactly what the first does; a consolidation
-    must not change what a scenario passes or fails on (DEMOMA-17-002), so the
-    repetition is kept as it was and #5602 tracks making the pair say two
-    different things.
+    The first half of the pair (:func:`the_fix_ready_milestones`): the f→F
+    transition each Vendor made, read on its own replica and on the
+    Reporter's, then verified for each (DEMOMA-06-002).  Every named Vendor is
+    read, so a scenario whose milestone label says "both vendors" checks both
+    — reading Vendor1 alone under that label is the over-claim #5602 was filed
+    for.  Each Vendor's own fix path is independent (DEMOMA-09-009), so each
+    gets its own poll pair and its own verification.
+
+    One ``demo_check`` covers them all, because the scenario reports one
+    milestone label: the block fails as a unit, so a Vendor1 shortfall is
+    recorded before Vendor2 is read.  A block per Vendor would need a label
+    per Vendor, which is a scenario's call and not this helper's.
 
     Args:
         state: The running story's state.
-        milestones: The ``demo_check`` label of each milestone, in order.
+        check: This scenario's ``demo_check`` label for the milestone.
+        vendors: The cast names whose fix paths the label names.
     """
-    for check in milestones:
-        with demo_check(check):
-            for watcher in (VENDOR, REPORTER):
+    with demo_check(check):
+        for vendor in vendors:
+            for watcher in (vendor, REPORTER):
                 wait_for_participant_vf_state(
                     client=state.client(watcher),
                     case_id=state.case.id_,
-                    actor_id=state.actor_id(VENDOR),
+                    actor_id=state.actor_id(vendor),
                     expected_states={CS_vf.VF},
                 )
             verify_fix_ready(
-                receiver_client=state.client(VENDOR),
+                receiver_client=state.client(vendor),
                 reporter_client=state.client(REPORTER),
                 case_id=state.case.id_,
-                receiver_actor_id=state.actor_id(VENDOR),
+                receiver_actor_id=state.actor_id(vendor),
             )
 
 
+def the_vendors_stopped_at_vfd(
+    state: StoryState,
+    *,
+    check: str,
+    vendors: Sequence[str] = (VENDOR,),
+) -> None:
+    """Each named Vendor's replicas record no fix-deployed transition.
+
+    The second half of the pair: what
+    :func:`the_fix_ready_reached_the_reporter` does **not** say.  Each named
+    Vendor holds ``CVDRole.VENDOR`` and not ``DEPLOYER``, so VFd is its
+    ceiling (CSB-15-002), and the milestone whose label says so reads the d→D
+    transition that never happened rather than repeating the VF read.
+
+    Args:
+        state: The running story's state.
+        check: This scenario's ``demo_check`` label for the milestone.
+        vendors: The cast names whose fix paths the label names.
+    """
+    with demo_check(check):
+        for vendor in vendors:
+            verify_stops_at_fix_ready(
+                receiver_client=state.client(vendor),
+                reporter_client=state.client(REPORTER),
+                case_id=state.case.id_,
+                receiver_actor_id=state.actor_id(vendor),
+            )
+
+
+def the_fix_ready_milestones(
+    state: StoryState,
+    *,
+    reached: str,
+    stopped: str,
+    vendors: Sequence[str] = (VENDOR,),
+) -> None:
+    """The two fix-ready milestones every scenario of this family tells.
+
+    The pair used to be one check told twice under two labels — ``rv``'s M4
+    and M5, ``rvv``'s M4 and M5, ``rvcv-extension``'s M5 and M6, and
+    ``rvcv-handoff``'s two unnumbered ones — which made the second milestone
+    assert exactly what the first did (#5602).  The two labels are separate
+    parameters rather than a sequence, so neither half can be handed the
+    other's label without saying which is which.
+
+    Args:
+        state: The running story's state.
+        reached: This scenario's label for the fix-ready milestone.
+        stopped: This scenario's label for the VFd-ceiling milestone.
+        vendors: The cast names both labels name.
+    """
+    the_fix_ready_reached_the_reporter(state, check=reached, vendors=vendors)
+    the_vendors_stopped_at_vfd(state, check=stopped, vendors=vendors)
+
+
 def both_vendors_report_the_fix_ready(
-    state: StoryState, *, milestones: Sequence[str]
+    state: StoryState, *, reached: str, stopped: str
 ) -> None:
     """Each Vendor reports fix ready (VFd), gated on its own RM state.
 
@@ -126,16 +191,18 @@ def both_vendors_report_the_fix_ready(
     record is out of triage, which is the gate
     (:func:`~vultron.demo.helpers.coordinated_story\
     .vendor_notifies_fix_ready`, CSB-18-001).  Told by every scenario of this
-    family that has a second Vendor.
+    family that has a second Vendor, so both milestones read both Vendors.
 
     Args:
         state: The running story's state.
-        milestones: This scenario's labels for the two milestones that follow
-            (:func:`the_fix_ready_reached_the_reporter`).
+        reached: This scenario's label for the fix-ready milestone.
+        stopped: This scenario's label for the VFd-ceiling milestone.
     """
     for name, label in ((VENDOR, VENDOR_LABEL), (VENDOR2, VENDOR2_LABEL)):
         vendor_notifies_fix_ready(state, name, label)
-    the_fix_ready_reached_the_reporter(state, milestones=milestones)
+    the_fix_ready_milestones(
+        state, reached=reached, stopped=stopped, vendors=(VENDOR, VENDOR2)
+    )
 
 
 def the_joiners_add_their_notes(
@@ -226,6 +293,8 @@ __all__ = [
     "required_participants_are_present",
     "the_disclosure_reached_every_replica",
     "the_embargo_ends_for",
+    "the_fix_ready_milestones",
     "the_fix_ready_reached_the_reporter",
     "the_joiners_add_their_notes",
+    "the_vendors_stopped_at_vfd",
 ]

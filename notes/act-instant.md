@@ -73,10 +73,12 @@ keeps.
   raise `VultronMissingActInstantError` when the run carries no `/at`, which the
   bridge reports as an internal error, so a missing instant is never answered by
   a clock read (ARCH-10-001).
-- **A test that ticks a reading node outside an act publishes the instant
-  itself**, with `act_instant_in_tree_run(at)` around the tick or `at=` on the
-  outermost `BTBridge.execute_with_setup` call. A nested run takes no `at`; one
-  that passes a different instant fails with `VultronConflictingActInstantError`.
+- **A test runs a use case or a tree through `test/support/act_runner.py`**:
+  `run_in_act(use_case, at=...)` or `run_tree(bridge, tree, ..., at=...)`, and
+  a trigger takes `FixedClock(at)` because it opens its own act. A direct
+  `.execute()` or `execute_with_setup` call skips the act, so a node that reads
+  the instant fails; `test_tests_run_acts_through_the_runner.py` refuses one. A
+  nested run takes no `at`; one that passes a different instant fails.
 - **Delete your own lines from the ratchet.**
   `test/architecture/test_clock_reads_at_act_edge.py` lists each read as
   `(path, scope, read)` under the constant whose `# owner:` is your slice; a read

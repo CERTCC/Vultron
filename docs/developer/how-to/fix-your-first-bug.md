@@ -262,7 +262,8 @@ A failed fetch must stop the gate rather than let it run against a stale base, a
 
 No local gate runs the whole unit or integration suite (PAD-18-003, PAD-18-008).
 CI runs both on your pull request, and the `CI gate` check that GitHub requires before a merge waits for them.
-That holds for a change under `vultron/demo/` or `test/demo/` too: CI runs those tests — `demo-integration.yml` for the first, `python-app.yml`'s `rest` part for the second — and the gate's `-m ""` keeps a selected integration test in (PAD-18-011).
+That holds for a change under `vultron/demo/` or `test/demo/` too: CI runs those tests — `demo-integration.yml` and `demo-verdict.yml` for the first, `python-app.yml`'s `rest` part for the second — and the gate's `-m ""` keeps a selected integration test in (PAD-18-011).
+`demo-verdict.yml` is the one that fails when your change moved what a scenario records or checks; if the move is deliberate, it takes the `demo-verdict-change` label.
 If you want the whole suite anyway, by hand, see [How to run maintainer tests](run-tests.md).
 
 Read the `exit:` line first — it is the verdict; the tail is only detail.

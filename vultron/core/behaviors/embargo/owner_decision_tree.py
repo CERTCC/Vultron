@@ -90,7 +90,7 @@ def activate_embargo_on_case_tree(
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ ActivityNotYetLedgeredNode        # a repeat is SKIPPED (CLP-05-006)
         ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
-        ├─ OwnerMayActivateEmbargoNode       # P/X/A clear (EMB-02-002)
+        ├─ OwnerMayActivateEmbargoNode       # P/X/A clear, owner not declined
         ├─ ActivationAppliesNode             # decide + trial apply (ADR-0124)
         └─ ActivateEmbargoOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT    # the Add: ACTIVATE (+ SUPERSEDE)
@@ -102,8 +102,10 @@ def activate_embargo_on_case_tree(
               └─ ReissueStubInvitesNode         # CM-11-016
 
     The guards refuse the activation before the commit when P/X/A is set
-    (EMB-02-002) or the owner had declined the proposal (ADR-0122), so a
-    refused activation is never ledgered; the activation itself runs
+    (EMB-02-002) or the owner's row for the proposal reads ``DECLINED``
+    (MSM-07-037), so a refused activation is never ledgered and the owner
+    gets the refusal notice, whose reason tells it to accept the invitation
+    first (CLP-05-001); the activation itself runs
     ``STRICT``.  The CASE_MANAGER decides the activation and trial-applies it
     among the guards, so a step the register refuses commits nothing; once
     the guarded commit has committed the ``Add`` (the whole register step and the
