@@ -279,6 +279,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0183 A Call-Out Backend Answers Yes, No or Error, and the Seam Turns the Answer Into Tree Behaviour](0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md) *(provisional)* — partially supersedes 0025-call-out-point-abstraction-layer.md, 0097-capability-layer-four-shapes-and-core-declared-contracts.md
 - [ADR-0184 A CSAF Document Travels as a Report Attachment and Speaks for the Sender Only at the First Report](0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md) *(provisional)*
 - [ADR-0185 The One Id Minter Draws From an Id Source, Not a Patched uuid4](0185-the-one-id-minter-draws-from-an-id-source-not-a-patched-uuid4.md) *(provisional)*
+- [ADR-0187 A Case's Vulnerabilities Are CSAF-Shaped Items That Participants Offer and the CASE_MANAGER Admits](0187-a-cases-vulnerabilities-are-csaf-shaped-items-that-participants-offer-and-the-case-manager-admits.md) *(provisional)*
 
 ## Proposed ADRs
 

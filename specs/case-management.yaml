@@ -970,10 +970,16 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      An actor MUST NOT interpret a `VulnerabilityRecord` identifier, nor restrict it to
-      the CVE ID format or any other namespace.
-    rationale: Different organizations use different identifier namespaces (CVE, CERT/CC VU#, vendor-assigned IDs, etc.);
-      requiring a specific format excludes valid records and prevents multi-namespace support
+      An actor MUST NOT interpret the value of a vulnerability identifier, nor restrict
+      vulnerability identifiers to the CVE namespace or any other one namespace.
+    rationale: >-
+      No namespace is the only one: CVE, CERT/CC VU#, GHSA, CNNVD and vendor IDs all
+      name real vulnerabilities. A rule that reads meaning out of an identifier's value,
+      or admits only one namespace, would refuse valid identifiers. A field that is
+      CVE-typed on purpose may still check the CVE ID format (CM-05-018), because it
+      chose its namespace up front (ADR-0187).
+    adr:
+    - ADR-0187
     stories:
     - story_2022_030
   - id: CM-05-009
@@ -987,14 +993,19 @@ groups:
   - id: CM-05-010
     priority: MUST
     kind: protocol
-    statement: When a `VulnerabilityRecord` is a `CVERecord` (i.e., it carries a CVE ID), its data MUST conform to the CVE
-      JSON schema (<https://github.com/CVEProject/cve-schema>)
+    statement: >-
+      When a vulnerability item carries a CVE record as its content, that content MUST
+      conform to the CVE JSON schema (<https://github.com/CVEProject/cve-schema>).
     rationale: >-
-      Tools that read a record with a CVE ID expect the CVE JSON schema. Data that
-      conforms goes to the CVE ecosystem without translation. Those tools refuse or
-      misread data that does not conform.
-    verification: Inspection of `vultron/core/` confirms that `CVERecord` (or the equivalent
-      CVE-typed `VulnerabilityRecord`) validates its data against the CVE JSON schema.
+      Tools that read a CVE record expect the CVE JSON schema, and they refuse or misread
+      data that does not conform. A CVE ID on its own is an identifier, not a CVE record,
+      so it carries no data for the schema to check (CM-05-008, ADR-0187).
+    verification: >-
+      A test marked `CM-05-010` gives a vulnerability item CVE record content that fails
+      the CVE JSON schema and asserts it is refused, and gives an item a CVE ID with no
+      content and asserts it is accepted.
+    adr:
+    - ADR-0187
     stories:
     - story_2022_030
   - id: CM-05-011
@@ -1015,6 +1026,78 @@ groups:
       Type descriptor tags allow consumers to filter or categorise references without
       parsing the URL or name.
     stories:
+    - story_2022_069
+  - id: CM-05-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A vulnerability item MUST carry the identity fields of a CSAF 2.1 vulnerability
+      entry: an optional `cve`, a list of `ids` that each pair a `system_name` with a
+      `text`, an optional `title`, a list of `notes`, and a list of `references`.
+    rationale: >-
+      A vulnerability item is the case's entry for one vulnerability. Shaped like a CSAF
+      vulnerability entry, it takes a CSAF report's vulnerabilities in and gives a CSAF
+      projection's vulnerabilities out with no translation. Pairing each identifier with
+      its tracking system says which namespace it belongs to without parsing its value
+      (CM-05-008, ADR-0187).
+    verification: >-
+      A test marked `CM-05-018` builds a vulnerability item from each field and asserts
+      a CSAF 2.1 vulnerability entry's `cve`, `ids`, `title`, `notes` and `references`
+      round-trip through it.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-05-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `cve` of a vulnerability item MUST match the CVE ID format that CSAF 2.1 gives
+      its `cve` field.
+    rationale: >-
+      The `cve` field is CVE-typed on purpose, so its format is known, and a value that
+      passes it also passes CSAF. Identifiers in `ids` stay opaque (CM-05-008, ADR-0187).
+    verification: >-
+      A test marked `CM-05-019` builds a vulnerability item with a well-formed and with a
+      malformed `cve` and asserts the second is refused.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-05-020
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A vulnerability item MUST NOT hold the per-vulnerability state of a CSAF
+      vulnerability entry, such as product status, metrics, dates, remediations, threats
+      or flags.
+    rationale: >-
+      The item names and describes a vulnerability. The case's state lives in its own
+      records, so a second copy on the item could disagree with them (ADR-0187).
+    verification: >-
+      A test marked `CM-05-020` asserts a vulnerability item refuses a CSAF
+      `product_status`, `metrics` or `remediations` field.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-05-021
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `VulnerabilityCase` MUST hold a list of its vulnerability items and a list of
+      its case references, each empty by default.
+    rationale: >-
+      CM-05-003 expects a case to reference a vulnerability item and CM-05-004 lets it
+      have references, so the case needs a place for both. Each item and each reference
+      is an object of its own, which the case lists as it lists its reports (ADR-0187).
+    verification: >-
+      A test marked `CM-05-021` saves a case holding a vulnerability item and a case
+      reference and asserts both survive `dl.save` and `dl.read`.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
     - story_2022_069
 - id: CM-06
   title: Case Update Broadcast
@@ -11926,3 +12009,182 @@ groups:
       spec_id: CM-33-006
     adr:
     - ADR-0039
+- id: CM-34
+  title: Vulnerability Items and References Offered to a Case
+  description: >-
+    A participant proposes a new vulnerability item, a change to one, or a new case
+    reference by offering it to the case. The CASE_MANAGER records the offer, then admits
+    or declines it, and answers the sender either way; a deployment may admit offers
+    automatically (ADR-0187). An item or reference offer is an `Offer`, with the case as
+    `target`, of a new `VulnerabilityItem`, of an `Update` of one, or of a new
+    `CaseReference`.
+  specs:
+  - id: CM-34-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant that proposes a new vulnerability item for a case MUST send the
+      CASE_MANAGER an `Offer` whose `object` is the `VulnerabilityItem` and whose
+      `target` is the case.
+    rationale: >-
+      A participant's statement about what the case is about is a claim until the
+      CASE_MANAGER admits it, as with the other things participants assert (ADR-0187).
+    verification: >-
+      A test marked `CM-34-001` runs the propose-item trigger and asserts one queued
+      `Offer(VulnerabilityItem)` addressed to the CASE_MANAGER with the case as `target`.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-34-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant that proposes a change to a vulnerability item MUST send the
+      CASE_MANAGER an `Offer` whose `object` is an `Update` of that item and whose
+      `target` is the case.
+    rationale: >-
+      A CVE ID is usually assigned after the item exists, so the case learns of it as a
+      change to that item, not as a second item for the same vulnerability (ADR-0187).
+    verification: >-
+      A test marked `CM-34-002` runs the propose-change trigger and asserts one queued
+      `Offer(Update(VulnerabilityItem))` addressed to the CASE_MANAGER with the case as
+      `target`.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-34-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant that proposes a new case reference MUST send the CASE_MANAGER an
+      `Offer` whose `object` is the `CaseReference` and whose `target` is the case.
+    rationale: >-
+      A reference is a claim about the case like an item, so it takes the same path
+      (ADR-0187).
+    verification: >-
+      A test marked `CM-34-003` runs the propose-reference trigger and asserts one queued
+      `Offer(CaseReference)` addressed to the CASE_MANAGER with the case as `target`.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_069
+  - id: CM-34-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST answer an item or reference offer with an `Accept` when
+      it admits the offer and a `Reject` when it declines it.
+    rationale: >-
+      The sender cannot tell an ignored offer from one still under review. An answer
+      either way closes the ask (ADR-0187).
+    verification: >-
+      A test marked `CM-34-004` delivers each offer to the CASE_MANAGER once to be
+      admitted and once to be declined, and asserts a queued `Accept` and a queued
+      `Reject` to the sender.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-34-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER admits an item or reference offer, it MUST apply the
+      offered change to the case and commit the change as its own ledger entry after
+      the offer's entry.
+    rationale: >-
+      Every change to the case file is its own entry, and replicas learn of items and
+      references only from the entries they replay (CLP-07-013, CLP-07-021).
+    verification: >-
+      A test marked `CM-34-005` admits each offer at the CASE_MANAGER and asserts the
+      case holds the change and the ledger holds the offer's entry followed by the
+      change's entry.
+    adr:
+    - ADR-0187
+    relationships:
+    - rel_type: extends
+      spec_id: CLP-07-021
+    stories:
+    - story_2022_030
+  - id: CM-34-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT change the case when it declines an item or reference
+      offer.
+    rationale: >-
+      A decline means the claim was not admitted, so the case stays as it was.
+    verification: >-
+      A test marked `CM-34-006` declines each offer at the CASE_MANAGER and asserts the
+      case's items and references are unchanged.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-34-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An admitted update of a vulnerability item MUST replace the fields the update
+      supplies and leave every other field of the item unchanged.
+    rationale: >-
+      This is the partial-update meaning ActivityStreams gives `Update`. Two admitted
+      updates to different fields of one item then both survive, and a full revision is
+      an update that supplies every field (ADR-0187).
+    verification: >-
+      A test marked `CM-34-007` admits an update that supplies only `cve` to an item that
+      has a `title` and asserts the item keeps its `title` and gains the `cve`.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-34-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST decline an offered update of a vulnerability item the case
+      does not hold.
+    rationale: >-
+      An update needs an item to change. Admitting one for an unknown item would create
+      the item by a path meant only for changes.
+    verification: >-
+      A test marked `CM-34-008` offers an update of an item id the case does not hold
+      and asserts a `Reject` and an unchanged case.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-34-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST decline an item or reference offer from a sender that is
+      not an active participant of the case.
+    rationale: >-
+      Only the case's active participants may make claims about it, as with their other
+      assertions (ADR-0187).
+    verification: >-
+      A test marked `CM-34-009` delivers each offer from an actor that is not an active
+      participant and asserts a `Reject` and an unchanged case.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030
+  - id: CM-34-010
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A CASE_MANAGER MAY admit item and reference offers automatically.
+    rationale: >-
+      Many deployments trust their participants' identifiers and references, and a human
+      review of each would only delay the case. Others want the review, so admission is a
+      choice, not a rule (ADR-0187).
+    verification: >-
+      A test marked `CM-34-010` configures automatic admission and asserts a delivered
+      offer is admitted with no further input.
+    adr:
+    - ADR-0187
+    stories:
+    - story_2022_030

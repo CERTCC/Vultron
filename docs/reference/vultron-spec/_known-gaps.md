@@ -222,16 +222,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5132](https://github.com/CERTCC/Vultron/issues/5132) and [#6093](https://github.com/CERTCC/Vultron/issues/6093)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CSAF-03-008",
-    "CSAF-03-009",
-))
-```
-
 ### Tracked by [#5386](https://github.com/CERTCC/Vultron/issues/5386)
 
 ```python exec="true" idprefix=""
@@ -266,6 +256,63 @@ print(requirement_callout(
 from vultron.metadata.specs.docs_render import requirement_callout
 print(requirement_callout(
     "VP-05-021",
+))
+```
+
+### Tracked by [#6093](https://github.com/CERTCC/Vultron/issues/6093) and [#6235](https://github.com/CERTCC/Vultron/issues/6235)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CSAF-03-008",
+    "CSAF-03-009",
+))
+```
+
+### Tracked by [#6235](https://github.com/CERTCC/Vultron/issues/6235)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-05-018",
+    "CM-05-019",
+    "CM-05-020",
+    "CM-05-021",
+))
+```
+
+### Tracked by [#6236](https://github.com/CERTCC/Vultron/issues/6236)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-34-001",
+    "CM-34-003",
+    "CM-34-004",
+    "CM-34-005",
+    "CM-34-006",
+    "CM-34-009",
+))
+```
+
+### Tracked by [#6237](https://github.com/CERTCC/Vultron/issues/6237)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-34-002",
+    "CM-34-007",
+    "CM-34-008",
+    "CM-34-010",
+))
+```
+
+### Tracked by [#6241](https://github.com/CERTCC/Vultron/issues/6241)
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout
+print(requirement_callout(
+    "CM-05-010",
 ))
 ```
 
@@ -662,7 +709,6 @@ print(requirement_callout(
     "CM-05-007",
     "CM-05-008",
     "CM-05-009",
-    "CM-05-010",
     "CM-05-011",
     "CM-05-012",
     "CM-06-004",
