@@ -562,11 +562,13 @@ groups:
       can hold back a vulnerability whose state differs. The Case Owner decides
       whether to split the case.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_disagreeing_vulnerabilities_raise_a_case_split_signal`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a receive-path test attaches a document whose vulnerabilities differ
-      in P, X or A and reads the stored case-split signal.
-    tracking_issue: '#6091'
+      `test/core/use_cases/received/test_submit_report_csaf_signals.py::test_vulnerabilities_that_differ_in_exploitation_raise_a_split_signal`
+      and `::test_vulnerabilities_that_differ_in_public_status_raise_a_split_signal`
+      attach documents whose vulnerabilities differ in X and A, and in public
+      status and future disclosure date, and read the stored case-split signal;
+      `::test_agreeing_vulnerabilities_raise_no_split_signal` checks that agreeing
+      ones raise none. `test/core/services/test_report_case_inputs.py` checks the
+      signal's differences one by one.
   - id: CSAF-04-007
     priority: MUST
     kind: project
@@ -582,12 +584,13 @@ groups:
       actor only through a directory that does not exist yet, so the receiver's
       own `name` is the one comparison that needs none.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_several_affected_vendors_raise_a_candidate_parties_signal`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: receive-path tests attach a document with two affected vendors, and
-      one with a single affected vendor whose name is not the receiver's, and read the
-      stored candidate-parties signal of each.
-    tracking_issue: '#6091'
+      `test/core/use_cases/received/test_submit_report_csaf_signals.py::test_two_affected_vendors_raise_a_candidate_parties_signal`
+      and `::test_one_affected_vendor_other_than_the_receiver_is_a_candidate`
+      attach a document with two affected vendors, and one with a single affected
+      vendor whose name is not the receiver's, and read the stored
+      candidate-parties signal of each;
+      `::test_the_receiver_as_the_only_affected_vendor_raises_no_signal` checks
+      that the receiver's own name raises none.
   - id: CSAF-04-008
     priority: MUST_NOT
     kind: project
@@ -598,16 +601,15 @@ groups:
       A split and an invitation are decisions of the Case Owner. A signal only
       shows that one may be needed.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_signal_never_splits_suggests_or_invites`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: the tests of CSAF-04-006 and CSAF-04-007 check that no split,
-      suggestion or invitation follows a signal.
+      `test/core/use_cases/received/test_submit_report_csaf_signals.py::test_vulnerabilities_that_differ_in_exploitation_raise_a_split_signal`
+      and `::test_two_affected_vendors_raise_a_candidate_parties_signal` check
+      that the receipt that stores a signal sends only its case proposal: no
+      split, suggestion or invitation follows it.
     relationships:
     - rel_type: extends
       spec_id: CSAF-04-006
     - rel_type: extends
       spec_id: CSAF-04-007
-    tracking_issue: '#6091'
   - id: CSAF-04-009
     priority: MUST
     kind: project

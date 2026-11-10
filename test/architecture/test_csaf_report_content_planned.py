@@ -263,39 +263,6 @@ def test_each_csaf_reference_becomes_a_case_reference(
     assert _has_behavioral_test(request)
 
 
-@pytest.mark.spec("CSAF-04-006")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-04-006: no case-split signal is recorded yet. {_CASE}",
-)
-def test_disagreeing_vulnerabilities_raise_a_case_split_signal(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-04-007")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-04-007: no candidate-parties signal is recorded yet. {_CASE}",
-)
-def test_several_affected_vendors_raise_a_candidate_parties_signal(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
-@pytest.mark.spec("CSAF-04-008")
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"CSAF-04-008: no signal exists yet. {_CASE}",
-)
-def test_a_signal_never_splits_suggests_or_invites(
-    request: pytest.FixtureRequest,
-) -> None:
-    assert _has_behavioral_test(request)
-
-
 @pytest.mark.spec("CSAF-04-009")
 @pytest.mark.xfail(
     strict=True,

@@ -32,6 +32,7 @@ list is empty.
 """
 
 import urllib.parse
+from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
@@ -226,6 +227,40 @@ def _model_value_paths(model: BaseModel, prefix: str) -> list[str]:
     return paths
 
 
+class CaseSplitDifference(StrEnum):
+    """One way in which a document's vulnerabilities disagree (CSAF-04-006)."""
+
+    PUBLIC_STATUS = "public-status"
+    EXPLOIT_PUBLIC = "exploit-public"
+    ATTACKS_OBSERVED = "attacks-observed"
+    FUTURE_DISCLOSURE_DATE = "future-disclosure-date"
+
+
+class CaseSplitSignal(_ClaimsModel):
+    """The document's vulnerabilities may need cases of their own.
+
+    One case takes the most cautious value of its vulnerabilities
+    (CSAF-03-002 to CSAF-03-005), which can hold back one whose state
+    differs.  The signal names each way they differ, in a fixed order
+    (CSAF-04-006).  It only shows that a split may be needed: nothing splits
+    a case because of it (CSAF-04-008).
+    """
+
+    differs_in: list[CaseSplitDifference] = Field(min_length=1)
+
+
+class CandidatePartiesSignal(_ClaimsModel):
+    """The document names vendors the case may need as parties.
+
+    ``vendors`` are the vendors of the products the document lists as known
+    affected, other than the receiving actor itself, each once, in the order
+    first found (CSAF-04-007).  It only shows that a party may be needed:
+    nothing suggests or invites an actor because of it (CSAF-04-008).
+    """
+
+    vendors: list[NonEmptyString] = Field(min_length=1)
+
+
 class ClaimsReading(_ClaimsModel):
     """The wire edge's reading of one document attached to a report.
 
@@ -266,7 +301,9 @@ class ReportClaimsRecord(CoreRecord):
     One per attached document a reader recognized, stored with the report it
     came on and kept apart from it, so the report stays as received
     (VM-08-002).  It holds the reading, the receiver's time of receipt and
-    one :class:`ClaimOutcome` for every value read (CSAF-04-004).  It is
+    one :class:`ClaimOutcome` for every value read (CSAF-04-004), with the
+    case-split and candidate-parties signals the document raised, each
+    ``None`` when it raised none (CSAF-04-006, CSAF-04-007).  It is
     receiver-local and is never sent to another actor (CSAF-04-005).
 
     ``received_at`` is the instant of the act that read the document, so no
@@ -288,6 +325,8 @@ class ReportClaimsRecord(CoreRecord):
     received_at: datetime
     reading: ClaimsReading
     outcomes: dict[NonEmptyString, ClaimOutcome] = Field(default_factory=dict)
+    case_split_signal: CaseSplitSignal | None = None
+    candidate_parties_signal: CandidatePartiesSignal | None = None
 
     _serialize_received_at = timestamp_serializer("received_at")
 
@@ -344,18 +383,43 @@ class ReportClaimsRecord(CoreRecord):
         self, path: str, outcome: ClaimOutcome
     ) -> "ReportClaimsRecord":
         """Return a copy recording *outcome* for the value at *path*."""
-        if path not in self.outcomes:
+        return self.with_outcomes({path: outcome})
+
+    def with_outcomes(
+        self, outcomes: Mapping[str, ClaimOutcome]
+    ) -> "ReportClaimsRecord":
+        """Return a copy recording each outcome of *outcomes* at its path.
+
+        Raises:
+            KeyError: when a path names no value the document claimed.
+        """
+        unknown = sorted(set(outcomes) - set(self.outcomes))
+        if unknown:
             raise KeyError(
-                f"'{path}' names no value the document claimed (CSAF-04-004)"
+                f"{unknown} name no value the document claimed (CSAF-04-004)"
             )
-        fields = {
-            **self.model_dump(),
-            "outcomes": {**self.outcomes, path: outcome},
-        }
-        return type(self)(**fields)
+        return self._copy_with(outcomes={**self.outcomes, **outcomes})
+
+    def with_signals(
+        self,
+        case_split: CaseSplitSignal | None,
+        candidate_parties: CandidatePartiesSignal | None,
+    ) -> "ReportClaimsRecord":
+        """Return a copy holding *case_split* and *candidate_parties*."""
+        return self._copy_with(
+            case_split_signal=case_split,
+            candidate_parties_signal=candidate_parties,
+        )
+
+    def _copy_with(self, **changes: Any) -> "ReportClaimsRecord":
+        """A validated copy with *changes*, so no assignment skips validation."""
+        return type(self)(**{**self.model_dump(), **changes})
 
 
 __all__ = [
+    "CandidatePartiesSignal",
+    "CaseSplitDifference",
+    "CaseSplitSignal",
     "ClaimOutcome",
     "ClaimedAcknowledgment",
     "ClaimedReference",

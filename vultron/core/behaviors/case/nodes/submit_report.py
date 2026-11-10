@@ -51,12 +51,14 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.events.report import SubmitReportReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_claims import (
     ClaimsReading,
     ReportClaimsRecord,
 )
+from vultron.core.services.report_case_inputs import claims_signals
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -111,7 +113,11 @@ class StoreReportClaimsRecordsNode(DataLayerActionWithPorts):
 
     Writes one :class:`~vultron.core.models.report_claims.ReportClaimsRecord`
     per reading the wire edge made, apart from the report, which stays as
-    received (VM-08-002, CSAF-04-004).  The record is the receiver's own and
+    received (VM-08-002, CSAF-04-004), with the case-split and
+    candidate-parties signals the document raises, measured against the time
+    of receipt and the receiver's own ``name`` (CSAF-04-006, CSAF-04-007).
+    A signal only shows a split or a party may be needed; nothing here acts
+    on it (CSAF-04-008).  The record is the receiver's own and
     no emitted activity carries it (CSAF-04-005).  Each field the reader
     skipped is logged at INFO with the Offer and its sender (CSAF-04-003).
 
@@ -136,18 +142,25 @@ class StoreReportClaimsRecordsNode(DataLayerActionWithPorts):
         self._readings = list(readings)
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         if not self._readings:
             return Status.SUCCESS
         received_at = self._require_act_instant()
+        receiver_name = self._receiver_name()
         for reading in self._readings:
             record = ReportClaimsRecord(
                 report_id=self._report_id,
                 activity_id=self._activity_id,
                 received_at=received_at,
                 reading=reading,
+            ).with_signals(
+                *claims_signals(
+                    reading.claims,
+                    reference_time=received_at,
+                    receiver_name=receiver_name,
+                )
             )
             try:
                 self.datalayer.create(record)
@@ -162,10 +175,18 @@ class StoreReportClaimsRecordsNode(DataLayerActionWithPorts):
                     self._sender_id,
                 )
                 continue
-            self._log_stored(reading)
+            self._log_stored(record)
         return Status.SUCCESS
 
-    def _log_stored(self, reading: ClaimsReading) -> None:
+    def _receiver_name(self) -> str | None:
+        """The receiving actor's ``name``, which a vendor name is compared
+        with (CSAF-04-007); ``None`` when its record names none."""
+        assert self.datalayer is not None and self.actor_id is not None
+        actor = self.datalayer.read(self.actor_id)
+        return actor.name if isinstance(actor, CoreActor) else None
+
+    def _log_stored(self, record: ReportClaimsRecord) -> None:
+        reading = record.reading
         for skipped in reading.skipped:
             self.logger.info(
                 "%s: skipped %s field '%s' of document '%s' in activity '%s'"
@@ -192,6 +213,28 @@ class StoreReportClaimsRecordsNode(DataLayerActionWithPorts):
             len(reading.schema_errors),
             len(reading.skipped),
         )
+        if record.case_split_signal is not None:
+            self.logger.info(
+                "%s: document '%s' on report '%s' from actor '%s' raised a"
+                " case-split signal, its vulnerabilities differing in %s;"
+                " nothing acts on it (CSAF-04-006, CSAF-04-008)",
+                self.name,
+                reading.document_id,
+                self._report_id,
+                self._sender_id,
+                [d.value for d in record.case_split_signal.differs_in],
+            )
+        if record.candidate_parties_signal is not None:
+            self.logger.info(
+                "%s: document '%s' on report '%s' from actor '%s' raised a"
+                " candidate-parties signal for vendors %s; nothing acts on"
+                " it (CSAF-04-007, CSAF-04-008)",
+                self.name,
+                reading.document_id,
+                self._report_id,
+                self._sender_id,
+                record.candidate_parties_signal.vendors,
+            )
 
 
 class CheckOfferNamesReceiverInToNode(DataLayerConditionWithPorts):
