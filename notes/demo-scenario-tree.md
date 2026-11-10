@@ -12,8 +12,6 @@ tracks:
   - "#5348"
   - "#5349"
   - "#5613"
-  - "#5649"
-  - "#5650"
   - "#5651"
   - "#5652"
   - "#6025"
@@ -303,10 +301,9 @@ vendor-first half, whose Reporter tells a Vendor.
   the instant from the act whose check they are (#5591), which is the shape a
   read that needs a time should take — a new clock read inside a read path is
   a defect, not a measurement problem.
-  Other read paths still read it — the decision-tree builders (#5649), five
-  guard nodes (#5650), the sync cooldown checks (#5651) and the inbound
-  extraction edge (#5652) — so a stretch that reaches one of those is not
-  byte-stable yet even though it is deterministic today.
+  Other read paths still read it — the sync cooldown checks (#5651) and the
+  inbound extraction edge (#5652) — so a stretch that reaches one of those is
+  not byte-stable yet even though it is deterministic today.
 - **A decision both halves make gets its own module, not a family's.** The
   owner-keep-case choice — keep the case and approve the joiner's suggestion,
   or hand the case over and let the new owner invite — appears in the
@@ -557,5 +554,4 @@ point stops a run there.
    stops a run at a step mark), then the pilot #5346, then the migrations
    #5347 and #5348, and last #5349.
 2. The clock-reading read paths that keep a shared stretch from being
-   byte-stable: #5649, #5650, #5651 and #5652. The plot manifest they follow is
-   committed.
+   byte-stable: #5651 and #5652. The plot manifest they follow is committed.

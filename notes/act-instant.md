@@ -4,7 +4,6 @@ status: active
 kind: plan
 tracks:
   - "#5676"   # epic: a re-recorded scenario equals the committed one
-  - "#5649"   # slice 2: tree builders and guard nodes (absorbed #5650)
   - "#5651"   # slice 3: sync rate-limit checks and the replication-state key
   - "#5758"   # slice 4: core models and time helpers
   - "#5652"   # slice 5: the parse edge reads no clock
