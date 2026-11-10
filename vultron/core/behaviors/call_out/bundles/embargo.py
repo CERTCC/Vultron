@@ -45,7 +45,11 @@ from dataclasses import dataclass, field
 import py_trees
 
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import (
+    AlwaysFail,
+    AlwaysSucceed,
+    NoOpActuator,
+)
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 
@@ -99,13 +103,13 @@ class EmbargoCallOutBundle(CallOutBundle):
         default=_always_succeed  # type: ignore[assignment]
     )
     on_embargo_exit_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=NoOpActuator  # type: ignore[assignment]
     )
     on_embargo_accept_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=NoOpActuator  # type: ignore[assignment]
     )
     on_embargo_reject_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=NoOpActuator  # type: ignore[assignment]
     )
     case_owner_approves_embargo_response_factory: CallOutBackendFactory = (
         field(

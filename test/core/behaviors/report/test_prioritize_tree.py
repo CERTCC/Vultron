@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.call_out import acting_as
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -34,8 +35,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.call_out.answer import CallOutAnswer
-from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
 )
@@ -1077,14 +1076,9 @@ def test_prioritize_subtree_custom_on_accept_factory_used(
         PrioritizationCallOutBundle,
     )
 
-    def custom_on_accept(name):
-        class _Marker(CallOutBackend):
-            def answer(self) -> CallOutAnswer:
-                return CallOutAnswer.yes()
+    custom_on_accept = acting_as("CustomOnAccept")
 
-        return _Marker(name="CustomOnAccept")
-
-    bundle = PrioritizationCallOutBundle(on_accept_factory=custom_on_accept)  # type: ignore[arg-type]
+    bundle = PrioritizationCallOutBundle(on_accept_factory=custom_on_accept)
     tree = create_prioritize_subtree(
         case_id=case_with_participant.id_,
         actor_id=actor_id,
@@ -1105,14 +1099,9 @@ def test_prioritize_subtree_custom_on_defer_factory_used(
         PrioritizationCallOutBundle,
     )
 
-    def custom_on_defer(name):
-        class _Marker(CallOutBackend):
-            def answer(self) -> CallOutAnswer:
-                return CallOutAnswer.yes()
+    custom_on_defer = acting_as("CustomOnDefer")
 
-        return _Marker(name="CustomOnDefer")
-
-    bundle = PrioritizationCallOutBundle(on_defer_factory=custom_on_defer)  # type: ignore[arg-type]
+    bundle = PrioritizationCallOutBundle(on_defer_factory=custom_on_defer)
     tree = create_prioritize_subtree(
         case_id=case_with_participant.id_,
         actor_id=actor_id,

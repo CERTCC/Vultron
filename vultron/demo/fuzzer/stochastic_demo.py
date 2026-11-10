@@ -53,6 +53,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.bridge.act_instant import open_act
+from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.embargo.manage_embargo_tree import (
     create_manage_embargo_tree,
 )
@@ -126,8 +127,17 @@ def _validation_nodes() -> list[py_trees.behaviour.Behaviour]:
 
 def _prioritization_nodes() -> list[py_trees.behaviour.Behaviour]:
     return [
-        PRIORITIZATION_STOCHASTIC.on_accept_factory("OnAccept"),
-        PRIORITIZATION_STOCHASTIC.on_defer_factory("OnDefer"),
+        # An Actuator acts on the one target its call names (BT-18-041).
+        actuator_call(
+            PRIORITIZATION_STOCHASTIC.on_accept_factory,
+            "OnAccept",
+            target=_DEMO_CASE_ID,
+        ),
+        actuator_call(
+            PRIORITIZATION_STOCHASTIC.on_defer_factory,
+            "OnDefer",
+            target=_DEMO_CASE_ID,
+        ),
         PRIORITIZATION_STOCHASTIC.enough_info_factory(
             "EnoughPrioritizationInfo"
         ),

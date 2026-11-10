@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 import py_trees
 
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 
@@ -60,7 +60,7 @@ class DeploymentMonitoringBundle(CallOutBundle):
         default=_always_succeed  # type: ignore[assignment]
     )
     monitor_deployment_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=NoOpActuator  # type: ignore[assignment]
     )
     no_new_deployment_info_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
