@@ -62,6 +62,8 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR_URI = "https://example.org/actors/alice"
 _CASE_URI = "https://example.org/cases/case-001"
+# The sending act's instant, which a deadline is measured from (ADR-0176).
+_PUBLISHED = datetime.now(tz=UTC)
 
 
 @pytest.fixture
@@ -139,6 +141,7 @@ def test_em_propose_embargo_rsvp_deadline_sets_end_time(sample_embargo):
     result = em_propose_embargo_activity(
         embargo=sample_embargo,
         rsvp_deadline=deadline,
+        published=_PUBLISHED,
         actor=_ACTOR_URI,
     )
     assert result.end_time == deadline
@@ -163,6 +166,7 @@ def test_em_propose_embargo_rsvp_below_min_window_raises(sample_embargo):
         em_propose_embargo_activity(
             embargo=sample_embargo,
             rsvp_deadline=deadline,
+            published=_PUBLISHED,
             actor=_ACTOR_URI,
         )
 
@@ -177,6 +181,7 @@ def test_em_propose_embargo_naive_deadline_raises(sample_embargo):
         em_propose_embargo_activity(
             embargo=sample_embargo,
             rsvp_deadline=naive_deadline,
+            published=_PUBLISHED,
             actor=_ACTOR_URI,
         )
 
@@ -189,6 +194,7 @@ def test_em_propose_embargo_custom_min_window_respected(sample_embargo):
         em_propose_embargo_activity(
             embargo=sample_embargo,
             rsvp_deadline=deadline,
+            published=_PUBLISHED,
             min_rsvp_window=timedelta(days=2),
             actor=_ACTOR_URI,
         )
@@ -204,6 +210,7 @@ def test_em_propose_embargo_rsvp_deadline_overrides_caller_end_time(
     result = em_propose_embargo_activity(
         embargo=sample_embargo,
         rsvp_deadline=rsvp,
+        published=_PUBLISHED,
         end_time=raw_end_time,
         actor=_ACTOR_URI,
     )
@@ -221,6 +228,7 @@ def test_em_propose_embargo_deadline_after_embargo_end_raises():
         em_propose_embargo_activity(
             embargo=embargo,
             rsvp_deadline=embargo.end_time + timedelta(seconds=1),
+            published=_PUBLISHED,
             actor=_ACTOR_URI,
         )
 
@@ -236,6 +244,7 @@ def test_em_propose_embargo_minimum_is_remaining_embargo_when_shorter():
     result = em_propose_embargo_activity(
         embargo=embargo,
         rsvp_deadline=embargo.end_time,
+        published=_PUBLISHED,
         actor=_ACTOR_URI,
     )
     assert result.end_time == embargo.end_time
@@ -254,18 +263,18 @@ def test_em_propose_embargo_minimum_measured_from_published(sample_embargo):
         )
 
 
+@pytest.mark.spec("CS-13-002")
 @pytest.mark.spec("EP-07-002")
-def test_em_propose_embargo_minimum_measured_from_stamped_published(
+def test_em_propose_embargo_deadline_without_published_raises(
     sample_embargo,
 ):
-    """The ``published`` the sender measures from is the one it stamps."""
-    result = em_propose_embargo_activity(
-        embargo=sample_embargo,
-        rsvp_deadline=datetime.now(tz=UTC) + timedelta(days=5),
-        actor=_ACTOR_URI,
-    )
-    assert result.published is not None and result.end_time is not None
-    assert result.end_time - result.published >= timedelta(hours=72)
+    """The caller supplies ``published``; the factory reads no clock for it."""
+    with pytest.raises(VultronActivityConstructionError, match="published"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=datetime.now(tz=UTC) + timedelta(days=5),
+            actor=_ACTOR_URI,
+        )
 
 
 @pytest.mark.spec("EP-07-002")
@@ -326,6 +335,7 @@ def test_em_propose_embargo_naive_embargo_end_is_read_as_utc():
         em_propose_embargo_activity(
             embargo=embargo,
             rsvp_deadline=aware_end + timedelta(seconds=1),
+            published=_PUBLISHED,
             actor=_ACTOR_URI,
         )
 

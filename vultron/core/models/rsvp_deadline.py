@@ -32,7 +32,7 @@ from enum import StrEnum
 
 from pydantic import ConfigDict
 
-from vultron.core.models._helpers import now_utc, timestamp_serializer
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.base import ValidatedAssignmentMixin
 
 DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
@@ -80,7 +80,7 @@ class RsvpDeadline(ValidatedAssignmentMixin):
 def resolve_rsvp_deadline(
     *,
     requested: datetime | None,
-    published: datetime | None,
+    published: datetime,
     embargo_end: datetime | None,
     min_window: timedelta = DEFAULT_MIN_RSVP_WINDOW,
     default_window: timedelta = DEFAULT_RSVP_WINDOW,
@@ -90,8 +90,9 @@ def resolve_rsvp_deadline(
     Args:
         requested: The invite's explicit ``end_time``, if any.
         published: The invitation's ``published`` time; every window is
-            measured from it (EP-07-001, EP-07-002).  ``None`` measures from
-            now.
+            measured from it (EP-07-001, EP-07-002).  Required: a caller
+            passes the time the activity states, never a clock reading in its
+            place (CLP-15-008, ADR-0176).
         embargo_end: The invited embargo's ``end_time``; ``None`` when the
             embargo has no end, in which case no down-clamp applies.
         min_window: Configured minimum RSVP window (EP-07-002).
@@ -107,8 +108,6 @@ def resolve_rsvp_deadline(
         The resolved deadline.  ``effective`` never falls after
         *embargo_end* (EP-07-006, EP-07-011) and never before ``minimum``.
     """
-    if published is None:
-        published = now_utc()
     computed = (
         requested if requested is not None else published + default_window
     )

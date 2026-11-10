@@ -301,7 +301,10 @@ class RelayEmbargoInviteToEachNode(
         # re-raised as internal, as ``_invite_where_legal`` does (ADR-0095).
         try:
             stamp = stamp_invite_rsvp_deadline(
-                dl, self._embargo_id, self._actor_config
+                dl,
+                self._embargo_id,
+                self._require_act_instant(),
+                self._actor_config,
             )
         except VultronNotFoundError as exc:
             raise RuntimeError(

@@ -397,26 +397,6 @@ KNOWN_PARSE_EDGE_CLOCK_READS: tuple[ClockRead, ...] = (
         "_queue_pending_case_activity",
         "now_utc",
     ),
-    (
-        "vultron/core/behaviors/embargo/rsvp_stamp.py",
-        "stamp_rsvp_deadline",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/rsvp_deadline.py",
-        "resolve_rsvp_deadline",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/extractor/_builders/semantic_kwargs.py",
-        "_effective_rsvp_deadline",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/factories/embargo/negotiation.py",
-        "em_propose_embargo_activity",
-        "now_utc",
-    ),
 )
 
 # Reads below an act's edge that no slice names yet: the epic routes each one.

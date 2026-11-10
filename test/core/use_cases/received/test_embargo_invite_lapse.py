@@ -14,6 +14,7 @@
 compatibility (#2213)."""
 
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 
@@ -418,6 +419,75 @@ class TestDetectAndApplyExpiry:
 # ---------------------------------------------------------------------------
 
 
+_RECEIPT_CASE = "https://example.org/cases/store1"
+
+
+def _receive_invite_at_invitee(
+    make_payload: Any, published: datetime, at: datetime | None = None
+) -> SqliteDataLayer:
+    """Deliver a relayed Invite with an RSVP deadline to the invitee's store.
+
+    The Invite is published at *published* with the manager's deadline a
+    week later (CM-28-012), and processed as one act at *at*.  Returns the
+    invitee's store.
+    """
+    dl = _make_dl(actor_id=_INVITEE)
+    embargo_id = f"{_RECEIPT_CASE}/embargos/e1"
+
+    case = VulnerabilityCase(
+        id_=_RECEIPT_CASE, name="Store Deadline", attributed_to=_COORD
+    )
+    embargo = as_EmbargoEvent(
+        id_=embargo_id,
+        context=_RECEIPT_CASE,
+        end_time=published + timedelta(days=45),
+    )
+    propose(case, embargo_id)
+
+    invitee_cp = WireCP(
+        attributed_to=_INVITEE,
+        context=_RECEIPT_CASE,
+        case_roles=[CVDRole.VENDOR],
+    )
+    # The CASE_MANAGER role is never unfilled (CM-02-014); the invitee
+    # addresses its answer to the holder.
+    coord_cp = WireCP(
+        attributed_to=_COORD,
+        context=_RECEIPT_CASE,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+
+    dl.create(case)
+    dl.create(embargo)
+    dl.create(invitee_cp)
+    dl.create(coord_cp)
+    case.actor_participant_index[_INVITEE] = invitee_cp.id_
+    case.actor_participant_index[_COORD] = coord_cp.id_
+    dl.save(case)
+
+    invite = em_propose_embargo_activity(
+        embargo=embargo,
+        context=case.id_,
+        actor=_COORD,
+        to=[_INVITEE],
+        published=published,
+        rsvp_deadline=published + timedelta(days=7),
+    )
+    event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
+
+    run_in_act(
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ),
+        at=at,
+    )
+    return dl
+
+
 class TestInviteReceiptStoresNoDeadline:
     """Receiving an Invite stores no RSVP deadline (CM-28-024, ADR-0113).
 
@@ -429,63 +499,10 @@ class TestInviteReceiptStoresNoDeadline:
     @pytest.mark.spec("CM-28-024")
     def test_invite_with_deadline_stores_no_rsvp_deadline(self, make_payload):
         """An Invite carrying ``endTime`` leaves the invitee's record bare."""
-        dl = _make_dl(actor_id=_INVITEE)
-        case_id = "https://example.org/cases/store1"
-        embargo_id = "https://example.org/cases/store1/embargos/e1"
-
-        case = VulnerabilityCase(
-            id_=case_id, name="Store Deadline", attributed_to=_COORD
-        )
-        embargo = as_EmbargoEvent(
-            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
-        )
-        propose(case, embargo_id)
-
-        invitee_cp = WireCP(
-            attributed_to=_INVITEE,
-            context=case_id,
-            case_roles=[CVDRole.VENDOR],
-        )
-        invitee_cp_core = invitee_cp
-
-        # The CASE_MANAGER role is never unfilled (CM-02-014); the invitee
-        # addresses its answer to the holder.
-        coord_cp = WireCP(
-            attributed_to=_COORD,
-            context=case_id,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-
-        dl.create(case)
-        dl.create(embargo)
-        dl.create(invitee_cp_core)
-        dl.create(coord_cp)
-        case.actor_participant_index[_INVITEE] = invitee_cp_core.id_
-        case.actor_participant_index[_COORD] = coord_cp.id_
-        dl.save(case)
-
-        # Propose with a deadline
-        invite = em_propose_embargo_activity(
-            embargo=embargo,
-            context=case.id_,
-            actor=_COORD,
-            to=[_INVITEE],
-            rsvp_deadline=_FUTURE,
-        )
-        event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
-
-        run_in_act(
-            InviteToEmbargoOnCaseReceivedUseCase(
-                dl,
-                event,
-                trigger_activity=TriggerActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            )
-        )
+        dl = _receive_invite_at_invitee(make_payload, published=_NOW)
 
         # Receipt is not a record: the deadline arrives with the ledger entry.
-        fresh_case = dl.read(case_id)
+        fresh_case = dl.read(_RECEIPT_CASE)
         assert isinstance(fresh_case, CoreCase)
         p_id = fresh_case.actor_participant_index.get(_INVITEE)
         assert p_id is not None
@@ -493,6 +510,35 @@ class TestInviteReceiptStoresNoDeadline:
         assert isinstance(participant, CaseParticipant)
         assert all(
             r.rsvp_deadline is None for r in participant.embargo_consents
+        )
+
+
+class TestPastDeadlineIsWarnedByTheHandler:
+    """The handler, not the extractor, says a deadline has passed (ADR-0176).
+
+    Only the handler holds the act's instant; the extractor reads no clock.
+    """
+
+    @pytest.mark.spec("CS-13-002")
+    @pytest.mark.parametrize(
+        ("days_after_published", "warned"),
+        [(8, True), (6, False)],
+        ids=["past", "open"],
+    )
+    def test_warning_follows_the_act_instant(
+        self, make_payload, caplog, days_after_published, warned
+    ):
+        """The deadline is a week after ``published``; the act decides."""
+        with caplog.at_level(logging.WARNING):
+            _receive_invite_at_invitee(
+                make_payload,
+                published=_NOW,
+                at=_NOW + timedelta(days=days_after_published),
+            )
+
+        assert warned == any(
+            r.levelno == logging.WARNING and "already past" in r.getMessage()
+            for r in caplog.records
         )
 
 
@@ -617,6 +663,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
+            published=_NOW,
         )
         event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
@@ -659,6 +706,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
+            published=_NOW,
         )
         event = make_payload(invite, at=dl)
         assert event.receiving_actor_id is None
@@ -703,6 +751,7 @@ class TestInviteeIsTheAddressee:
             context=case.id_,
             actor=_COORD,
             rsvp_deadline=_FUTURE,
+            published=_NOW,
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
@@ -801,6 +850,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_OTHER, _INVITEE],
             rsvp_deadline=_FUTURE,
+            published=_NOW,
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
@@ -850,6 +900,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE + "/"],
             rsvp_deadline=_FUTURE,
+            published=_NOW,
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
@@ -895,6 +946,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE, _OTHER],
             rsvp_deadline=_FUTURE,
+            published=_NOW,
         )
         event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
@@ -947,6 +999,7 @@ class TestInviteeIsTheAddressee:
             actor=_INVITEE,
             to=[_COORD],
             rsvp_deadline=_FUTURE,
+            published=_NOW,
         )
         event = make_payload(proposal, receiving_actor_id=_COORD, at=dl)
 
@@ -991,6 +1044,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE + "/"],  # non-canonical: trailing slash
             rsvp_deadline=_FUTURE,
+            published=_NOW,
         )
         event = make_payload(invite, receiving_actor_id=_OTHER, at=dl)
 
@@ -1460,6 +1514,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
+            published=_NOW,
         )
         event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
