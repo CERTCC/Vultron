@@ -1,4 +1,44 @@
 {
+  "AttachedAudio": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ],
+    "id": "urn:test:attachedaudio:golden",
+    "published": "2026-01-02T03:04:05.000000+00:00",
+    "type": "Audio",
+    "updated": "2026-01-02T03:04:05.000000+00:00"
+  },
+  "AttachedDocument": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ],
+    "id": "urn:test:attacheddocument:golden",
+    "published": "2026-01-02T03:04:05.000000+00:00",
+    "type": "Document",
+    "updated": "2026-01-02T03:04:05.000000+00:00"
+  },
+  "AttachedImage": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ],
+    "id": "urn:test:attachedimage:golden",
+    "published": "2026-01-02T03:04:05.000000+00:00",
+    "type": "Image",
+    "updated": "2026-01-02T03:04:05.000000+00:00"
+  },
+  "AttachedVideo": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld"
+    ],
+    "id": "urn:test:attachedvideo:golden",
+    "published": "2026-01-02T03:04:05.000000+00:00",
+    "type": "Video",
+    "updated": "2026-01-02T03:04:05.000000+00:00"
+  },
   "CaseLedgerEntry": {
     "@context": [
       "https://www.w3.org/ns/activitystreams",

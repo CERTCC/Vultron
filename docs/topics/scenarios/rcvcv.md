@@ -216,3 +216,7 @@ V1, V2, C2, and the Reporter leave first; C1, the Case Owner, leaves last.
 | Unobservable step | Why not in ledger |
 |---|---|
 | Reporter submits report to C1 | Report submission precedes the case. |
+
+## The story as the code tells it
+
+{% include-markdown "./_rcvcv-story.md" %}

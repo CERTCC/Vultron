@@ -71,9 +71,8 @@ _SYSTEM_SOURCE = frozenset({"system_id_source"})
 #: keyed on (repo-relative path, dotted enclosing function).
 #: Pinned exemption set: each entry is a recorded decision, not a debt.
 # permanent: OID-01-004 (each entry draws, or replaces the draw of, a
-# UUID that never mints an object id); the two replacement entries are
-# removed when #6116 and #6117 move their runs to install_id_source
-# (OID-01-012, ADR-0185)
+# UUID that never mints an object id); the replacement entry is removed
+# when #6116 moves its run to install_id_source (OID-01-012, ADR-0185)
 NON_ID_RANDOM_UUID_EXEMPTIONS: dict[tuple[str, str], str] = {
     (
         "vultron/adapters/driving/fastapi/app.py",
@@ -82,14 +81,6 @@ NON_ID_RANDOM_UUID_EXEMPTIONS: dict[tuple[str, str], str] = {
     ("vultron/demo/determinism.py", "deterministic_run"): (
         "replaces uuid4 with a seeded stand-in for a recording run, so the "
         "shared minter's ids repeat; it mints nothing itself"
-    ),
-    (
-        "vultron/wire/as2/vocab/examples/_base.py",
-        "_example_scope",
-    ): (
-        "replaces uuid4 with a derived stand-in while the docs examples are "
-        "built, so the committed corpus does not move between runs; it mints "
-        "nothing itself"
     ),
 }
 

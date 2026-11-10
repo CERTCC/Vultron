@@ -320,16 +320,9 @@ def _annotation_nodes(tree: ast.AST) -> set[int]:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if node.returns is not None:
                 roots.append(node.returns)
-            args = node.args
             roots.extend(
                 a.annotation
-                for a in [
-                    *args.posonlyargs,
-                    *args.args,
-                    *args.kwonlyargs,
-                    *([args.vararg] if args.vararg else []),
-                    *([args.kwarg] if args.kwarg else []),
-                ]
+                for a in _corpus.parameters_of(node)
                 if a.annotation is not None
             )
         elif isinstance(node, ast.AnnAssign):

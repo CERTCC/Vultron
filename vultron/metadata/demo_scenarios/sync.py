@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Generate and check the committed demo scenario artifacts (DEMOCI-11-005).
 
-Four artifacts are generated from the scenario registry and committed:
+These artifacts are generated from the scenario registry and committed:
 
 - ``.github/demo-scenarios.json`` — whole file. It stays committed because the
   ``scenarios`` job in ``demo-integration.yml`` resolves the CI matrix with
@@ -23,6 +23,12 @@ Four artifacts are generated from the scenario registry and committed:
   DEMOCI-11-035).
 - ``test/ci/README-case-log-ratchet.md`` — the table between the markers.
 - ``vultron/demo/scenario/README.md`` — the table between the markers.
+- ``docs/topics/scenarios/_<scenario>-story.md`` — whole file, one per
+  registered scenario: the same plot rendered as a numbered story in domain
+  terms, included by that scenario's narrative page (:mod:`.stories`,
+  DEMOCI-11-067, DEMOCI-11-069). This is the one set whose *membership*
+  comes from the registry rather than from a declaration, so it is added to
+  :func:`desired_contents` beside :data:`ARTIFACTS` rather than listed in it.
 
 Both markdown files sit outside the MkDocs tree, so they cannot use
 ``{% include-markdown %}``: the directive expands only at mkdocs build time and
@@ -72,11 +78,22 @@ from vultron.metadata.demo_scenarios.render import (
     render_page,
     scenario_matrix_json,
 )
+from vultron.metadata.demo_scenarios.stories import story_fragments
 from vultron.metadata.generated_block import splice_between
 from vultron.metadata.generated_files import stale_paths, write_generated
 
 #: Command that regenerates every artifact, quoted in every failure message.
 WRITE_COMMAND = "uv run demo-scenarios --write"
+
+#: The one finding of a run that discovered no scenario at all (DF-09-009).
+#: A module constant so the test that pins the refusal reads the same string
+#: the CLI prints, rather than a substring of it.
+EMPTY_REGISTRY = (
+    "the scenario registry is empty, so there is nothing to generate or "
+    "compare; an empty target set is a failure, not a pass (DF-09-009). "
+    "Check that the scenario modules under vultron/demo/scenario/ still "
+    "import (DEMOCI-11-002)."
+)
 
 #: Opening marker of a generated table. Carries the regeneration command so a
 #: reader who found the table by grep, not by reading this module, still learns
@@ -167,6 +184,9 @@ def desired_contents(
 ) -> dict[str, str]:
     """Return ``{repo-relative path: desired full contents}`` for every artifact.
 
+    The declared artifacts first, in :data:`ARTIFACTS` order, then one
+    generated story per registered scenario (:mod:`.stories`).
+
     Args:
         root: Repository root. Defaults to the enclosing checkout.
         specs: Scenarios to render. Defaults to the discovered registry.
@@ -178,7 +198,9 @@ def desired_contents(
         ValueError: If a marker-block artifact's markers are missing or
             malformed.
         DemoStoryError: If a story holds an item the plot manifest cannot
-            name (:mod:`.plots`, DEMOCI-11-034). It is raised from the demo
+            name (:mod:`.plots`, DEMOCI-11-034), or a fragment whose docstring
+            does not open with one sentence in domain terms (:mod:`.stories`,
+            DEMOCI-11-065). It is raised from the demo
             layer and left to propagate as a traceback, from here through
             :func:`stale_artifacts`, :func:`write_artifacts` and
             :func:`main`: neither ``--check`` nor ``--write`` can say
@@ -206,6 +228,7 @@ def desired_contents(
                 f"'{WRITE_COMMAND}'."
             )
         contents[artifact.path] = artifact.desired(resolved, current)
+    contents.update(story_fragments(resolved, WRITE_COMMAND))
     return contents
 
 
@@ -302,6 +325,20 @@ def main(argv: list[str] | None = None) -> None:
     root = repo_root()
     specs = discover_scenarios()
 
+    # Whichever mode: an empty registry ends the run before anything is
+    # compared or written. On --check every per-scenario artifact, each
+    # narrative page's generated story included, would be checked against
+    # nothing and the gate would pass over the whole set; on --write the four
+    # declared artifacts would be rewritten empty and every committed story
+    # orphaned, with exit 0 (DF-09-009). Discovery is a pkgutil walk
+    # (DEMOCI-11-002), so an empty result means the walk imported nothing.
+    # Reported alone, because every other finding of such a run is noise —
+    # which is why it is decided above the problems list rather than beside
+    # it: a run with no registry has nothing to contribute to it.
+    if not specs:
+        print(f"[ERROR] {EMPTY_REGISTRY}", file=sys.stderr)
+        sys.exit(1)
+
     problems = [
         f"registered scenario names a path that does not exist — {entry} "
         "(DEMOCI-11-003). Rename the file to match the scenario name, or fix "
@@ -358,6 +395,7 @@ if __name__ == "__main__":
 __all__ = [
     "ARTIFACTS",
     "BEGIN_MARKER",
+    "EMPTY_REGISTRY",
     "END_MARKER",
     "HARNESS_README",
     "MATRIX_JSON",

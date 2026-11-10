@@ -25,7 +25,9 @@ CLI calls:
   :mod:`.prose_tables` (the ``notes/`` scenario tables), :mod:`.prose_counts`
   (restated counts and stray include directives), :mod:`.scenario_groups` (the
   two-register partition), :mod:`.narrative_pages` (the scenario narrative
-  pages under ``docs/topics/scenarios/``) and the DEMOCI-06 spec enumerations.
+  pages under ``docs/topics/scenarios/``), :mod:`.stories` (whether each of
+  those pages ends with its generated story, and whether a retired
+  scenario left one behind) and the DEMOCI-06 spec enumerations.
 
 The table and prose halves live in sibling modules because one module holding
 both grew past the size CS-18-001 asks a multi-responsibility module to stay
@@ -64,6 +66,11 @@ from vultron.metadata.demo_scenarios.prose_tables import (
 from vultron.metadata.demo_scenarios.scenario_groups import (
     partition_problems,
     per_scenario_semantic_type_requirements,
+)
+from vultron.metadata.demo_scenarios.stories import (
+    STORY_HEADING,
+    missing_story_includes,
+    orphan_story_fragments,
 )
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
 
@@ -230,6 +237,18 @@ def consistency_problems(
             "(DEMOCI-11-012, MS-16-002)."
             for claim in narrative_status_claims(base, resolved)
         ],
+        lambda: [
+            f"{problem}; add a '## {STORY_HEADING}' section at the end of the "
+            "page holding the include directive for its generated story "
+            "(DEMOCI-11-067)."
+            for problem in missing_story_includes(base, resolved)
+        ],
+        lambda: [
+            f"generated story {fragment} belongs to no registered scenario, "
+            "so nothing regenerates it and it keeps publishing a story the "
+            "code no longer tells; delete it (DEMOCI-11-069)."
+            for fragment in orphan_story_fragments(base, resolved)
+        ],
     ):
         try:
             problems.extend(check())
@@ -241,10 +260,13 @@ def consistency_problems(
 __all__ = [
     "SCENARIO_TABLES",
     "SCENARIO_TABLE_CONSUMERS",
+    "STORY_HEADING",
     "ScenarioTable",
     "consistency_problems",
     "missing_semantic_type_requirements",
     "missing_narrative_nav_entries",
+    "missing_story_includes",
+    "orphan_story_fragments",
     "narrative_status_claims",
     "restated_counts",
     "scenario_set_statement_problems",

@@ -11,20 +11,24 @@ description: >
   `timeout-minutes` every job needs and the reusable-workflow exemption, why an
   automated find-or-file lookup must not go through the search index, why a
   `GITHUB_TOKEN`-raised event never triggers another workflow, why a script
-  must use the spellings macOS's bash 3.2 understands, why a bot-filed issue
+  must use the spellings macOS's bash 3.2 understands, why a capping `head`
+  behind a pipe kills its own step, why a bot-filed issue
   gets a theme but no Epic parent, why an artifact name needs the run attempt,
   why a GitHub write is retried and a label swap is split, how to read a red CI
   job correctly, why a new pull-request step must be mirrored locally or
   excluded with a reason, why a check moved from a local gate to CI needs a
   job with no `paths` filter, why the `CI gate` must be re-run after a re-run
-  check, how to read the red checks its log names, why the ruleset requiring the
-  gate admits no bypass actor, and why a new pull-request check is verified on
-  later pull requests rather than its own.
+  check, why its `types` cover every other pull-request workflow's, how to read
+  the red checks its log names, why the ruleset requiring the
+  gate admits no bypass actor, why a new pull-request check is verified on
+  later pull requests rather than its own, and why a conflicting pull request
+  starts no workflow at all.
 related_notes:
   - notes/testing-pitfalls.md
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
   - notes/demo-ci-diagnostics.md
+  - notes/demo-scenario-tree.md
   - notes/git-workflow-pitfalls.md
   - notes/lint-tooling.md
 related_specs:
@@ -91,6 +95,19 @@ on the head commit after it finished is never judged. After any such run,
 re-run the `CI gate` job too before merging. Otherwise a flaky check re-run
 green leaves the gate red, and a green check re-run red leaves it green.
 
+### The Gate's `types` Cover Every Other Pull-Request Workflow's
+
+Because the gate judges once per event, an event that starts another workflow
+but not the gate leaves the gate's earlier verdict standing over a check that
+has since changed — and since the ruleset requires the gate and nothing else,
+a check turned red behind a green gate is a merge GitHub admits. So a `types:`
+list added to any `pull_request` workflow is added to `ci-gate.yml` too:
+`edited` for `verification-debt-owners.yml`, which reads the body, and
+`labeled`/`unlabeled` for `demo-verdict.yml`, whose verdict a label decides
+(#6026). `test/ci/test_ci_gate.py` compares the gate's list with every
+sibling's, defaulting an undeclared list to GitHub's `opened`, `synchronize`,
+`reopened`.
+
 A red gate names what it judged, one `##[error]Red check: <name>: <conclusion>`
 line per red check, so the gate's own log says which check to open instead of
 leaving a reader to compare the whole check list (#5971).
@@ -120,6 +137,14 @@ to be — and every other verdict has to be read off ordinary pull requests that
 come later. So a new check destined for a ruleset needs a verification task
 *after* the merge, listing the verdicts still unobserved, and the ruleset waits
 on that task rather than on the pull request that added the check (#5971).
+
+A **conflicting** pull request has no merge commit at all, so GitHub starts no
+`pull_request` workflow on it — not the new one, and not any existing one. The
+symptom is a pull request whose only check is a `pull_request_target`-style run
+such as CodeQL, which reads as "my new workflow did not trigger" and sends a
+reader hunting through `paths` and `types` that are in fact correct. Read
+`mergeStateStatus` first: `DIRTY` means resolve the conflict, and every workflow
+starts on the next push (#6026).
 
 ## Push-to-`main` and Scheduled Workflows MUST Wire `notify-failure`
 
@@ -198,8 +223,9 @@ A workflow that needs a typed issue calls
 `.github/scripts/ensure-issue-type.sh <repo> <issue> <type>` on both its create
 and update arms. The script resolves the type by name, applies it with
 `updateIssue`, leaves a typed issue alone, and fails the step when the type does
-not exist (CISEC-05-017 to CISEC-05-019). `notify-failure` and
-`demo-recordings.yml` use it; never copy its body into a workflow.
+not exist (CISEC-05-017 to CISEC-05-019). `notify-failure`,
+`demo-recordings.yml` and `csaf-draft-watch-issue.sh` use it; never copy its
+body into a workflow.
 
 ## A Script Runs On The Host's bash, Which May Be 3.2
 
@@ -225,6 +251,30 @@ Lookup Must Not Use the Search Index", CISEC-05-011).
 `test/ci/test_shell_script_portability.py` scans every tracked `*.sh`; it
 cannot see the empty-array case, which is a question about the script's logic
 rather than a construct.
+
+## A Capping `head` Behind a Pipe Kills Its Own Step Under `pipefail`
+
+`head -n LIMIT "$log" | head -c LIMIT` under `set -euo pipefail` exits 141 on
+exactly the oversized input the caps exist for: the right-hand `head` exits at
+its byte cap and SIGPIPEs the left-hand one, `pipefail` makes 141 the
+pipeline's status, and `set -e` ends the shell there — inside any `{ … } >>
+"$GITHUB_STEP_SUMMARY"` group, so the truncation pointer and the closing
+fence are never written and the step goes red. Read it as two sequential
+commands through a file instead:
+
+```sh
+head -n "$LINE_LIMIT" "$log" > "$RUNNER_TEMP/capped"
+head -c "$BYTE_LIMIT" "$RUNNER_TEMP/capped"
+```
+
+Not `|| true`: that hides a real failure in the same step, and
+`test/ci/_workflows.py`'s `neutering` flags it. The same shape bites any
+early-exiting reader behind a pipe (`grep -q`, `head`, an `awk` with `exit`).
+A test over the `run:` text cannot see it — presence of both `head` calls is
+what stayed true while the behaviour broke — so the check that catches it runs
+the step's own script over an oversized log and asserts the pointer landed and
+the status was zero (#6026,
+`test/ci/test_demo_verdict_workflow.py::test_an_oversized_diff_is_summarized_and_the_step_still_passes`).
 
 ## A Bot-Filed Issue Gets a Theme From the Filer, and No Parent
 

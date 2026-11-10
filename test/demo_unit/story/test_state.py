@@ -16,6 +16,14 @@
 Pins :mod:`vultron.demo.helpers.story.state`: :class:`StoryState`, the
 :class:`StoryProp` artifacts kept on it, and a character actor seated
 mid-story.
+
+The rules *about* the declared props — one name per declaration, a keep site
+and a read site each, and a required keyword on the step that reads one — are
+enumerated from the declaration sites in
+``test/architecture/test_story_props_have_readers.py`` (DEMOMA-22-019,
+DEMOMA-22-014 and DEMOMA-22-016 respectively).  One enumeration serves them
+all, so this module pins the behaviour of a single prop on a single state and
+nothing walks the demo packages twice.
 """
 
 from __future__ import annotations
@@ -38,41 +46,6 @@ from vultron.demo.helpers.story import (
 from vultron.errors import (
     DemoStoryError,
 )
-
-
-def _story_prop_declarations() -> dict[str, dict[int, str]]:
-    """Every :class:`StoryProp` the demo helper and scenario packages declare.
-
-    ``{prop name: {id(prop): where it is declared}}``.  Keyed on the object's
-    identity inside each name, so a prop a second module imports is the one
-    declaration it is, and two separate ``StoryProp(...)`` calls spelling one
-    name are two.  Both packages are walked with ``pkgutil`` rather than
-    listed, for the reason :func:`~vultron.demo.scenario.registry.
-    scenario_module_stems` enumerates its own (DEMOCI-11-002): a listed module
-    is checked only while someone remembers to add it.
-    """
-    import importlib
-    import pkgutil
-
-    found: dict[str, dict[int, str]] = {}
-    for package_name in ("vultron.demo.helpers", "vultron.demo.scenario"):
-        package = importlib.import_module(package_name)
-        # Recursive, because a split module is a subpackage whose submodules
-        # declare its props (#5592, CS-18-005); a flat walk would drop them.
-        for info in pkgutil.walk_packages(
-            package.__path__, f"{package_name}."
-        ):
-            if info.ispkg:
-                continue
-            module = importlib.import_module(info.name)
-            for attr, value in vars(module).items():
-                if isinstance(value, StoryProp):
-                    where = found.setdefault(value.name, {})
-                    # setdefault, so an object's site is the first module
-                    # walked that holds it rather than the last to import it.
-                    where.setdefault(id(value), f"{module.__name__}.{attr}")
-    return found
-
 
 # ---------------------------------------------------------------------------
 # StoryState
@@ -258,6 +231,13 @@ class TestStoryProps:
         Overwriting would leave the previous id in place when a revision
         failed, and the steps that presuppose the new one would run against
         the old embargo instead of stopping.
+
+        This is the half of the name rule a single state can show: two
+        different names are two artifacts.  The other half, that no two
+        *declarations* spell one name, is enumerated from the declaration
+        sites in ``test/architecture/test_story_props_have_readers.py``
+        (``test_every_prop_name_is_declared_once``), which reads every module
+        under ``vultron/demo/`` including a package's ``__init__``.
         """
         revised: StoryProp[str] = StoryProp("revised embargo", str)
         state = make_state()
@@ -267,70 +247,6 @@ class TestStoryProps:
             "first",
             "second",
         )
-
-    def test_every_story_prop_name_is_unique(self) -> None:
-        """One name, one declaration: the state keys the artifact on the name.
-
-        ``StoryState._props`` is one dictionary per run, keyed on the declared
-        name, and a composed scenario draws fragments from more than one
-        family's module.  Nothing in :class:`StoryProp` reserves a name, so a
-        second declaration spelling an existing one would have the two
-        families overwrite each other's artifact.  Worse when their types
-        differ: ``kept()`` checks the type it got back, so the cross-type
-        collision is reported as "the story has no X yet" — the message for a
-        fragment placed before the one that makes what it reads, which is a
-        different defect with a different fix.
-
-        The sibling above covers the other half, that two *different* names do
-        not collide.
-        """
-        declarations = _story_prop_declarations()
-        assert declarations, (
-            "no StoryProp was collected, so this check proves nothing; the "
-            "declarations have moved out of vultron/demo/helpers/ and "
-            "vultron/demo/scenario/ and the walk needs the new location"
-        )
-        collisions = {
-            name: sorted(where.values())
-            for name, where in declarations.items()
-            if len(where) > 1
-        }
-        assert not collisions, (
-            f"these story prop names are declared more than once: "
-            f"{collisions}. The name is the key StoryState keeps the artifact "
-            "under, so each family would read the other's."
-        )
-
-    def test_the_walk_reads_every_module_a_prop_is_declared_in(self) -> None:
-        """A prop below a helper package or a scenario package is collected.
-
-        The uniqueness check above asserts an absence, so it is only worth
-        what the walk reaches: a flat walk of ``vultron/demo/helpers/`` would
-        pass over every package a module split made (#5592), and a walk that
-        skipped a scenario package would miss rcvcv's own fragments (#5846,
-        #5825).  Pin one declaration from each shape.
-        """
-        from vultron.demo.helpers.coordinated_story import opening
-        from vultron.demo.helpers.owner_decision_story import handover
-        from vultron.demo.scenario.rcvcv_demo import fragments
-
-        declarations = _story_prop_declarations()
-        # Keyed on the prop object itself, not on the module the walk first
-        # saw it in, so an import added elsewhere cannot break the pin. Each
-        # pinned prop is held by no other module the walk reads (a package
-        # ``__init__`` is skipped), so a walk that missed its declaring
-        # module misses the prop: ``TIMELINE_ANSWER`` would not do, since
-        # ``fragments`` imports it.
-        missed = [
-            prop.name
-            for prop in (
-                opening.ENGAGED_CASE,
-                handover.HANDED_OVER_CASE,
-                fragments.C2_JOINED,
-            )
-            if id(prop) not in declarations.get(prop.name, {})
-        ]
-        assert not missed, f"the walk did not collect {missed}"
 
 
 @pytest.mark.spec("DEMOCI-11-018")

@@ -170,7 +170,7 @@ def vendor1_hands_the_case_to_the_coordinator(state: StoryState) -> None:
 
 
 def the_coordinator_invites_the_second_vendor(state: StoryState) -> None:
-    """The Coordinator, the new CASE_OWNER, invites Vendor2 (DEMOMA-11-003)."""
+    """The Coordinator, the new Case Owner, invites Vendor2 (DEMOMA-11-003)."""
     the_new_owner_invites(
         state,
         new_owner=COORDINATOR_PART,
@@ -181,7 +181,9 @@ def the_coordinator_invites_the_second_vendor(state: StoryState) -> None:
 
 
 def the_case_is_active(state: StoryState) -> None:
-    """M1: every participant has joined and the embargo is still active.
+    """Every participant has joined and the embargo is still active.
+
+    Milestone M1 of the scenario's spec group.
 
     DEMOMA-11-013: the embargo established before the transfer still covers
     every participant, Vendor2 included, after it.
@@ -220,11 +222,9 @@ def both_vendors_fix_the_vul(state: StoryState) -> None:
     """Both vendors report fix ready; both stop at VFd (CSB-15-002)."""
     both_vendors_report_the_fix_ready(
         state,
-        milestones=(
-            "Reporter replica shows both vendors CS include F (fix ready)",
-            "Reporter replica shows both vendors CS include F (fix ready) —"
-            " vendors stop at VFd",
-        ),
+        reached="the Reporter and each vendor's own replica show that vendor's"
+        " CS includes F (fix ready), for both vendors",
+        stopped="both vendors stopped at VFd — no fix-deployed transition",
     )
 
 

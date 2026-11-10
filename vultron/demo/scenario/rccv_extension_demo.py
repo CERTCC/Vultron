@@ -133,7 +133,8 @@ Workflow:
 
 
 def replicas_drain_before_the_vendor(state: StoryState) -> None:
-    """Wait for the opening's ledger to reach the Reporter's and C2's replicas.
+    """Everything the opening recorded has reached the Reporter's and C2's
+    replicas of the case.
 
     This scenario's own step: ``rccv-handoff`` never drained here, and a
     fragment only one scenario tells belongs in its own module

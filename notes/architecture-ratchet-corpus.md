@@ -14,6 +14,7 @@ related_specs:
   - specs/architecture.yaml
   - specs/testability.yaml
 related_notes:
+  - notes/demo-scenario-tree.md
   - notes/wire-core-boundary.md
   - notes/spec-authoring-rules.md
   - notes/testing-pitfalls.md
@@ -183,6 +184,14 @@ migration has emptied one, **that shape is found no more** — which is what
 arms, every scenario being written as composition (#5536). Flipping the arm
 beats deleting it: the scan still covers the shape, so one written again is
 reported rather than silently exempt.
+
+When the subject is a value rather than a call, the act is its construction:
+the story-prop ratchet selects every `StoryProp(...)` call under
+`vultron/demo/`, so a renamed constant, a renamed family module or a module
+split moves no subject out of the scan. Pair that with failing a construction
+that is *not* a module-level constant, and the enumeration is complete rather
+than best-effort: every construction is then either a subject the arms check
+or a failure (#5598).
 
 Flipping is for an arm whose act is still forbidden. When a rule change
 abolishes the property a name-keyed baseline measured, delete that baseline and
