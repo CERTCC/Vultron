@@ -259,28 +259,13 @@ KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
         "now_utc",
     ),
     (
-        "vultron/demo/exchange/embargo_lifecycle.py",
-        "_end_time",
-        "now_utc",
-    ),
-    (
-        "vultron/demo/exchange/report_with_embargo_demo.py",
-        "_run_negotiated_submission",
-        "now_utc",
-    ),
-    (
-        "vultron/demo/exchange/transfer_ownership_demo.py",
-        "demo_transfer_ownership_accept",
-        "now_utc",
-    ),
-    (
         "vultron/demo/helpers/embargo.py",
         "make_embargo_event",
         "now_utc",
     ),
     (
-        "vultron/demo/helpers/seeding/participants.py",
-        "_seed_active_embargo",
+        "vultron/demo/wall_clock.py",
+        "from_now",
         "now_utc",
     ),
     (

@@ -109,7 +109,7 @@ class CaseStatusHistoryMixin:
                 " CaseStatus field"
             )
         current = self.current_status
-        now = stamp_after(at, current.published)
+        stamp = stamp_after(at, current.published)
 
         # The new entry is its own status: a fresh ``id_``, and a ``name``
         # left unset so ``CaseStatus._set_name`` re-derives the label from
@@ -125,7 +125,7 @@ class CaseStatusHistoryMixin:
         for name, value in {
             **updates,
             "context": self.id_,
-            "published": now,
+            "published": stamp,
             "updated": None,
         }.items():
             setattr(status, name, value)

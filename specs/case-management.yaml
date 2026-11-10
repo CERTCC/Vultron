@@ -9349,9 +9349,9 @@ groups:
       (ADR-0176), and a clock can step back.
     verification: >-
       `test_snapshot_published_is_strictly_after_the_previous_status` in
-      `test/core/behaviors/status/nodes/test_case_status.py` commits two snapshots at
-      one act's instant, set before the seeded status's time, and asserts each
-      `published` is later than the one before.
+      `test/core/behaviors/status/nodes/test_case_status.py` runs two acts at the
+      same instant, set before the seeded status's time, and asserts each
+      snapshot's `published` is one microsecond after the one before.
       `test_two_appends_in_one_act_sort_in_append_order` in
       `test/core/models/test_case.py` asserts two `append_case_status` calls at one
       instant sort in append order.

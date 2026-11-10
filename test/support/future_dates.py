@@ -57,29 +57,9 @@ An idiom 2 or idiom 3 site stays as it is, carrying a one-line reason that says
 which it is.  See also ``notes/testing-pitfalls.md`` § "Assertion Quality".
 """
 
-from datetime import datetime, timedelta
+from vultron.demo.wall_clock import days_from_now, from_now
 
-from vultron.core.models._helpers.clock import (
-    days_after,
-    deadline_from,
-    now_utc,
-)
-
-
-def from_now(delta: timedelta) -> datetime:
-    """Return the UTC instant *delta* after the wall clock, for test data.
-
-    The core deadline helpers take an act's instant and read no clock
-    (ADR-0176, CS-13-004).  A test that builds data outside an act and needs a
-    date relative to the wall clock (a deadline a validator compares with the
-    clock, say) reads the clock here, once, and measures from it.
-    """
-    return deadline_from(now_utc(), delta)
-
-
-def days_from_now(days: int) -> datetime:
-    """Return the UTC instant *days* days after the wall clock, for test data."""
-    return days_after(now_utc(), days)
+__all__ = ["FAR_FUTURE", "days_from_now", "from_now"]
 
 
 #: A far-future UTC datetime: five years from today's import-time clock read.

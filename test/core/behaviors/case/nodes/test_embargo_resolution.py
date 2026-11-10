@@ -25,6 +25,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -157,6 +158,7 @@ def _run(
     actor_config: ActorConfig | None = None,
     with_sender_event: bool = True,
     report_id: str | None = REPORT_ID,
+    outside_an_act: bool = False,
     **context: Any,
 ) -> tuple[Status, datetime, datetime]:
     """Run ``InitializeDefaultEmbargoNode`` on the fixture case.
@@ -167,7 +169,8 @@ def _run(
     ``CreateEmbargoEventNode`` is the one exercised.  An explicit
     ``sender_proposed_embargo`` in *context* replaces that event, and
     ``with_sender_event=False`` withholds it, for tests about the
-    inconsistent blackboard.
+    inconsistent blackboard.  ``outside_an_act=True`` runs the node with no
+    act's instant, for the tests that it refuses such a run.
     """
     extra: dict[str, Any] = dict(context)
     extra.setdefault("owner_profile", _profile(owner_policy))
@@ -181,16 +184,22 @@ def _run(
                     context=REPORT_ID, end_time=from_now(sender_proposal)
                 ),
             )
-    result = bt_scenario.run(
-        InitializeDefaultEmbargoNode(
-            actor_config=actor_config
-            or ActorConfig(protocol_default_embargo_duration=PROTOCOL_DEFAULT),
-            report_id=report_id,
-        ),
-        actor_id=ACTOR_ID,
-        case_id=CASE_ID,
-        **extra,
+    node = InitializeDefaultEmbargoNode(
+        actor_config=actor_config
+        or ActorConfig(protocol_default_embargo_duration=PROTOCOL_DEFAULT),
+        report_id=report_id,
     )
+    if outside_an_act:
+        # Straight through the bridge, outside any act: the run carries no
+        # ``/at`` for the nodes to read (ADR-0176).
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bt_scenario.bridge.execute_with_setup(
+            node, actor_id=ACTOR_ID, case_id=CASE_ID, **extra
+        )
+    else:
+        result = bt_scenario.run(
+            node, actor_id=ACTOR_ID, case_id=CASE_ID, **extra
+        )
     return result.status, before, datetime.now(tz=UTC)
 
 
@@ -576,7 +585,7 @@ def test_the_default_embargo_ends_the_duration_after_the_act_instant(
     The instant is a year past the wall clock, so an end measured from a
     clock read would miss it by that year (ADR-0176).
     """
-    at = datetime.now(tz=UTC) + timedelta(days=365)
+    at = from_now(timedelta(days=365))
 
     status, _, _ = _run(bt_scenario, at=at)
 
@@ -593,7 +602,7 @@ def test_the_revision_ends_the_actor_default_after_the_act_instant(
 ) -> None:
     """``ResolveCreationTimeRevisionNode`` measures the losing actor default
     from the act's instant, a year past the wall clock (ADR-0176)."""
-    at = datetime.now(tz=UTC) + timedelta(days=365)
+    at = from_now(timedelta(days=365))
 
     status, _, _ = _run(
         bt_scenario,
@@ -609,6 +618,42 @@ def test_the_revision_ends_the_actor_default_after_the_act_instant(
     revision = bt_scenario.dl.read(revision_id)
     assert isinstance(revision, EmbargoEvent)
     assert revision.end_time == at + ACTOR_DEFAULT
+
+
+@pytest.mark.spec("CS-13-002")
+@pytest.mark.parametrize(
+    "paths",
+    [
+        pytest.param({}, id="default-embargo"),
+        pytest.param(
+            {
+                "owner_policy": ACTOR_DEFAULT,
+                "sender_proposal": SENDER_PROPOSAL,
+            },
+            id="creation-time-revision",
+        ),
+    ],
+)
+def test_a_run_with_no_act_instant_creates_no_embargo(
+    bt_scenario: BTTestScenario,
+    case_obj: VulnerabilityCase,
+    paths: dict[str, timedelta],
+) -> None:
+    """A run with no act's instant fails and writes nothing (ADR-0176).
+
+    On the default path ``CreateEmbargoEventNode`` is the node that needs the
+    instant.  On the revision path the sender's own event carries over, so
+    ``CreateEmbargoEventNode`` reads none and ``ResolveCreationTimeRevisionNode``
+    is the one that refuses.  Neither falls back to the clock (ARCH-10-001).
+    """
+    status, _, _ = _run(bt_scenario, outside_an_act=True, **paths)
+
+    assert status == Status.FAILURE
+    assert _em_state(bt_scenario) == EM.NONE
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    assert case.active_embargo is None
+    assert case.proposed_embargo_ids == []
 
 
 @pytest.mark.spec("EP-04-003")

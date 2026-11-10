@@ -404,7 +404,7 @@ class TestEmitCaseStatusUpdateNode:
     def test_snapshot_published_is_strictly_after_the_previous_status(
         self, populated_dl, populated_bridge
     ):
-        """Two snapshots at one act's instant get strictly rising times.
+        """Two acts at one instant give their snapshots strictly rising times.
 
         Both acts run at an instant before the seeded status's time, so the
         clock has also stepped back: only the ``stamp_after`` bump keeps each
@@ -481,6 +481,26 @@ class TestEmitCaseStatusUpdateNode:
         case = populated_dl.read(CASE_ID)
         assert isinstance(case, CoreCase)
         assert case.current_status.published == at
+
+    @pytest.mark.spec("CS-13-002")
+    def test_a_run_with_no_act_instant_appends_no_status(
+        self, populated_dl, populated_bridge
+    ):
+        """The node reads the act's instant, never the clock: a run outside
+        any act fails and appends no status (ADR-0176, ARCH-10-001)."""
+        before = _case_status_entries(populated_dl)
+        py_trees.blackboard.Blackboard.storage.clear()
+
+        result = populated_bridge.execute_with_setup(
+            EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        assert len(case.case_statuses) == 1
+        assert _case_status_entries(populated_dl) == before
 
     @pytest.mark.spec("ARCH-15-001")
     @pytest.mark.parametrize(
