@@ -461,9 +461,9 @@ vendor-first half, whose Reporter tells a Vendor.
   person can read. **Leaving times out costs coverage**: a time the protocol
   *derives* is left out with the clock's, so an embargo's `startTime` and `endTime`
   and an invite's `rsvpDeadline` do not count, and an embargo name that quotes them
-  reads the same. A change to the default embargo window or the RSVP window
-  therefore compares equal unless it also changes a kept field such as `duration`,
-  and the gate is not a check on those constants.
+  reads the same. No kept field a scenario writes carries either window today, so a
+  change to the default embargo window or the RSVP window compares equal, and the
+  gate is not a check on those constants.
 - **A deliberate verdict change takes the `demo-verdict-change` label.** It belongs in
   its own change (DEMOMA-17-004); the label passes the job, and the job still prints
   the diff to its summary, so the opt-out shows what it admits (DEMOCI-11-063,

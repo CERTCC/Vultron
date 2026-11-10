@@ -27,16 +27,18 @@ import json
 import pkgutil
 import re
 import typing
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import replace
 
 import pytest
 from pydantic import BaseModel
 
 import vultron.core.models
+import vultron.wire.as2.vocab
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.demo.recordings.traces import (
     CHECKS_FILENAME,
     LEDGER_FILENAME,
@@ -54,6 +56,7 @@ from vultron.demo.utils.check_tree import (
     CheckOutcome,
 )
 from vultron.errors import DemoRecordingError
+from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 
 CASE_ID = "urn:uuid:ed045a61-5ca4-4c92-b278-3dff7bb2199f"
 ACTIVITY_ID = "urn:uuid:04d8febf-f9aa-5967-a17f-54e8c633ea16"
@@ -118,7 +121,13 @@ def _entry(
                 "attributedTo": VENDOR,
                 "caseRoles": [role, "case_owner"],
                 "participantStatuses": [
-                    {"type": "ParticipantStatus", "rmState": rm_state}
+                    {
+                        "id": f"{case_id}/status/{index}",
+                        "type": "ParticipantStatus",
+                        "published": published,
+                        "rmState": rm_state,
+                        "proof": _proof(signature, published),
+                    }
                 ],
             },
             "proof": _proof(signature, published),
@@ -140,7 +149,18 @@ def _proof(signature: str, created: str) -> dict[str, object]:
     }
 
 
-def _ledger(*entries: dict[str, object]) -> str:
+def _reversed_keys(value: object) -> object:
+    """*value* with every mapping's keys in reverse order, at every depth."""
+    if isinstance(value, dict):
+        return {
+            key: _reversed_keys(item) for key, item in reversed(value.items())
+        }
+    if isinstance(value, list):
+        return [_reversed_keys(item) for item in value]
+    return value
+
+
+def _ledger(*entries: object) -> str:
     return "".join(f"{json.dumps(entry)}\n" for entry in entries)
 
 
@@ -264,9 +284,7 @@ class TestWhatComparesEqual:
     @pytest.mark.spec("DEMOCI-11-058")
     def test_the_order_fields_are_written_in_compares_equal(self):
         """A serializer writing fields in another order changes no act."""
-        flipped = _run(
-            _ledger(*(dict(reversed(_entry(i).items())) for i in (0, 1)))
-        )
+        flipped = _run(_ledger(*(_reversed_keys(_entry(i)) for i in (0, 1))))
         assert normalize_run(flipped) == normalize_run(BASE)
 
 
@@ -315,14 +333,32 @@ class TestWhatComparesDifferent:
                 [{"status": "ENDED", "termination": {"reason": "EXPIRED"}}],
                 [{"status": "ENDED", "termination": {"reason": "CANCELLED"}}],
             ),
+            (
+                "object",
+                {
+                    "type": "Organization",
+                    "embargoPolicy": {"preferredDuration": "P90D"},
+                },
+                {
+                    "type": "Organization",
+                    "embargoPolicy": {"preferredDuration": "P7D"},
+                },
+            ),
         ],
-        ids=["result", "audience", "removal", "register-termination"],
+        ids=[
+            "result",
+            "audience",
+            "removal",
+            "register-termination",
+            "embargo-policy",
+        ],
     )
     def test_a_changed_act_detail_compares_different(
         self, field: str, before: object, after: object
     ):
         """What an act resulted in, whom it also went to, a participant's
-        removal and how an embargo ended are all part of the verdict."""
+        removal, how an embargo ended and the embargo terms an actor states
+        are all part of the verdict."""
 
         def run(value: object) -> ScenarioRun:
             entries = [_entry(0), _entry(1)]
@@ -381,21 +417,27 @@ def _models_in(annotation: object) -> Iterator[type[BaseModel]]:
 def _ledgerable_models() -> set[type[BaseModel]]:
     """Every model a ledger entry can carry.
 
-    A ledger entry's payload is an activity, and what an activity carries is
-    reached through its fields' annotations: the case, its participants and
-    their statuses, the embargo register and how an embargo ends.  Walking
-    the annotations rather than every core model keeps out models no ledger
-    entry carries, such as an inbox receipt record.
+    A ledger entry's payload is an activity.  Many of an activity's fields
+    are typed ``Any`` (``object``, ``target``, ``result``), so the walk does
+    not start from the activity alone: it starts from every class a ``type``
+    value names, in the core and the wire vocabularies, which is every
+    object a ledger entry can serialize.  From there it follows the fields'
+    annotations to the case, its participants and their statuses, the
+    embargo register, an actor's embargo policy and how an embargo ends.
     """
-    for module in pkgutil.walk_packages(
-        vultron.core.models.__path__, f"{vultron.core.models.__name__}."
-    ):
-        importlib.import_module(module.name)
+    for package in (vultron.core.models, vultron.wire.as2.vocab):
+        for module in pkgutil.walk_packages(
+            package.__path__, f"{package.__name__}."
+        ):
+            importlib.import_module(module.name)
     seen: set[type[BaseModel]] = set()
     pending: list[type[BaseModel]] = [
         *_subclasses(VultronActivity),
         VulnerabilityCase,
         CaseLedgerEntry,
+        *CORE_VOCABULARY.values(),
+        *VOCABULARY.values(),
+        *WIRE_TYPE_MAP.values(),
     ]
     while pending:
         model = pending.pop()
@@ -406,6 +448,14 @@ def _ledgerable_models() -> set[type[BaseModel]]:
             for named in _models_in(field.annotation):
                 pending.extend(_subclasses(named))
     return seen
+
+
+def _is_mapping(annotation: object) -> bool:
+    """Whether *annotation* names a ``dict`` or ``Mapping``, through unions."""
+    origin = typing.get_origin(annotation) or annotation
+    if isinstance(origin, type) and issubclass(origin, Mapping):
+        return True
+    return any(_is_mapping(arg) for arg in typing.get_args(annotation))
 
 
 def _wire_names(models: set[type[BaseModel]]) -> set[str]:
@@ -424,6 +474,7 @@ def _wire_names(models: set[type[BaseModel]]) -> set[str]:
 _OUTSIDE_THE_VERDICT = frozenset(
     {
         # Minted by the clock, or derived from a time it minted.
+        "deleted",
         "endTime",
         "published",
         "receivedAt",
@@ -439,11 +490,28 @@ _OUTSIDE_THE_VERDICT = frozenset(
         "expectedSenderSequence",
         "senderSequence",
         "term",
+        # Where an actor is reached and the keys it signs with: fixed by the
+        # cast's addresses (DEMOCI-11-020), or derived from keys.
+        "assertionMethod",
+        "controller",
+        "endpoints",
+        "inbox",
+        "outbox",
+        "publicKeyMultibase",
         # Lookup indexes derived from fields the verdict already holds.
         "actorParticipantIndex",
         "pendingEmbargoProposalIndex",
         # The JSON-LD context, the same on every object.
         "@context",
+    }
+)
+
+#: Mapping-typed verdict fields whose keys are field names, not data: the
+#: projection walks into them as it does into a model.
+_FIELD_NAMED_MAPPINGS = frozenset(
+    {
+        # The activity an entry records, stored as its serialized dict.
+        "payloadSnapshot",
     }
 )
 
@@ -488,6 +556,9 @@ class TestWhatTheVerdictHolds:
             assert left_out not in snapshot
         assert "ledgerPosition" not in snapshot
         assert "proof" not in snapshot["object"]
+        [status] = snapshot["target"]["participantStatuses"]
+        assert "published" not in status
+        assert "proof" not in status
 
     @pytest.mark.spec("DEMOCI-11-071")
     def test_a_timestamp_quoted_in_a_kept_string_reads_as_a_placeholder(self):
@@ -509,7 +580,11 @@ class TestWhatTheVerdictHolds:
         assert snapshot["content"] == "first contact"
         assert snapshot["target"]["caseRoles"] == ["vendor", "case_owner"]
         assert snapshot["target"]["participantStatuses"] == [
-            {"type": "ParticipantStatus", "rmState": "RECEIVED"}
+            {
+                "id": "urn:uuid:id-1/status/0",
+                "rmState": "RECEIVED",
+                "type": "ParticipantStatus",
+            }
         ]
 
     @pytest.mark.spec("DEMOCI-11-072")
@@ -539,6 +614,37 @@ class TestWhatTheVerdictHolds:
         }
         assert not left_out, (
             f"a state, role, status or consent field is left out: {left_out}"
+        )
+
+    @pytest.mark.spec("DEMOCI-11-072")
+    def test_the_walk_reaches_what_activities_carry(self):
+        """``object``, ``target`` and ``result`` are typed ``Any``, so an
+        annotation walk from the activity alone misses what they carry: a
+        note, an actor and its embargo policy, a case stub."""
+        names = {model.__name__ for model in _ledgerable_models()}
+        assert {
+            "VultronNote",
+            "VultronOrganization",
+            "EmbargoPolicy",
+            "VulnerabilityRecord",
+        } <= names
+
+    @pytest.mark.spec("DEMOCI-11-072")
+    def test_no_verdict_field_is_a_mapping(self):
+        """``_project`` keeps a mapping's keys only when they are verdict
+        fields, so a field holding a mapping keyed by data (ids, actor URIs)
+        would compare as ``{}`` whatever it held."""
+        mappings = {
+            field.serialization_alias or field.alias or name
+            for model in _ledgerable_models()
+            for name, field in model.model_fields.items()
+            if _is_mapping(field.annotation)
+        }
+        assert "payloadSnapshot" in mappings, "the walk found no mapping"
+        mappings -= _FIELD_NAMED_MAPPINGS
+        assert not mappings & VERDICT_FIELDS, (
+            "a verdict field holds a mapping keyed by data, which the "
+            f"projection would empty: {sorted(mappings & VERDICT_FIELDS)}"
         )
 
     def test_the_two_lists_do_not_overlap(self):
