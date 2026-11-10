@@ -2153,9 +2153,13 @@ groups:
       `test/core/use_cases/triggers/test_record_named_peer.py` assert that the
       actor-resolution backend is not called when the actor's store holds the peer,
       and is called when it does not.
-      `test_retriever_docstring_states_its_store_held_answer` in
-      `test/fuzzer/test_retriever_store_held_answer.py` asserts that every Retriever
-      call-out point states in its docstring whether the store can hold its answer.
+      In `test/fuzzer/test_retriever_store_held_answer.py`,
+      `test_retriever_docstring_states_its_store_held_answer` asserts that every
+      fuzzer Retriever node states in its docstring whether the store can hold its
+      answer, `test_bundle_retriever_field_states_its_store_held_answer` asserts the
+      same of every core call-out bundle field that places a Retriever, and
+      `test_actor_resolution_is_classified_as_store_held` asserts that actor
+      resolution is classified **can**.
     relationships:
     - rel_type: refines
       spec_id: BT-18-028

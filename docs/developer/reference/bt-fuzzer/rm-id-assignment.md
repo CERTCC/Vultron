@@ -114,6 +114,7 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
   It writes the assigned ID to its output port, `contract.outputs = {"assigned_id": str}`.
   SUCCESS means that the node retrieved the ID.
   The case file has no field that records it.
+- **Store-held answer**: Nothing in the case file or the actor's store holds the new identifier before the authority answers, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Retriever action node in the `_AssignOrRequestId` Fallback.
   The tree uses it when `_AssignIdIfPossible` fails (the non-CNA or out-of-scope path)
 

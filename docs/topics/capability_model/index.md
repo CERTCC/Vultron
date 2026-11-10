@@ -167,7 +167,7 @@ Retrievers are data lookups.
 Examples are whether a CVE ID already exists for this vulnerability, whether a public exploit database lists an exploit, and what the current SSVC decision is for this case.
 A yes-or-no question the protocol asks is also a Retriever, never a Sentinel.
 When the case or the actor's own records already hold the fact, the tree reads it there and does not ask the Retriever (BT-18-039).
-A Retriever is asked only for facts the protocol does not record, so any cache of what it fetches is the Retriever's own (BT-18-029).
+A Retriever is asked only for what the case and the actor's records do not already hold, so any cache of what it fetches is the Retriever's own (BT-18-029).
 
 Most Retrievers can be wired directly to an API or database without human involvement.
 

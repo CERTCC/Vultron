@@ -197,7 +197,12 @@ class AssignCveIdCallOutBundle(CallOutBundle):
     request_id_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
-    """RequestId: p=0.75 → AlwaysSucceed."""
+    """RequestId (Retriever): p=0.75 → AlwaysSucceed.
+
+    Store-held answer (BT-18-039): **cannot**.  It asks an outside authority
+    for a new identifier, which nothing in the case file or the actor's store
+    holds before the answer, so no read-first guard precedes this Retriever.
+    """
 
 
 ASSIGN_CVE_ID_DETERMINISTIC = AssignCveIdCallOutBundle()

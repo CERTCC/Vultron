@@ -46,17 +46,18 @@ This tree models how a participant deploys a developed fix or mitigation to affe
 - **Source file**: `report_management/fuzzer/deploy_fix.py`
 - **Parent tree**: `Deployment`
 - **Semantic function**: Condition — check whether new deployment-related information has arrived that makes a new evaluation of the deployment workflow necessary
-- **Input dependency**: Report/case change detection.
-  A metadata timestamp or an event subscription on the deployment status field
+- **Input dependency**: Change detection on the deployment data sources outside the protocol.
+  A timestamp or an event subscription on the deployment status those sources keep
 - **Notes**: New deployment information is uncommon.
   Most ticks pass through without an update
-- **Automation potential**: **High** — metadata timestamp or deployment-event subscription check.
+- **Automation potential**: **High** — a timestamp or deployment-event subscription check.
   Full automation is possible.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.NoNewDeploymentInfo`
 - **Call-out point shape**: Retriever (binary) — the tree asks the deployment data sources on its own tick whether anything new has arrived, such as a patch management system, a CI/CD pipeline, or an asset inventory.
   The answer is the `SUCCESS` or `FAILURE` result itself, with no output keys (BT-18-006, BT-18-010).
   It is not ProtocolInternal, because its input comes from outside the protocol (BT-18-017).
   It is not a Sentinel: a Sentinel acts on its own initiative through a trigger and never answers a question the tree asks (BT-18-013).
+- **Store-held answer**: Whether new information reached the deployer's own systems is not recorded in the case file or the actor's store, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `no_new_deployment_info_factory` on `DeploymentMonitoringBundle`, so both `DeployFixCallOutBundle` and `DeployMitigationCallOutBundle` carry it.
   `create_stay_deferred_arm` in `vultron.core.behaviors.report.deploy_fix_tree` places it second in the `_ShouldStayInRmDeferred` arm, which both `create_deploy_fix_tree` and `create_deploy_mitigation_tree` use.
   DETERMINISTIC default: `AlwaysSucceed` (p=0.75, BT-23-002), so a deferred deployer stays deferred.
