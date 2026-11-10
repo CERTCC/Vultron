@@ -577,6 +577,12 @@ def test_new_deployment_info_ends_stay_deferred(
     stay_arm = tree.children[1]
     assert stay_arm.children[0].status == Status.SUCCESS
     assert stay_arm.status == Status.FAILURE
+    # The deploy arm is re-evaluated: it passes the role guard and fails at
+    # CheckRMStateAccepted (RM is DEFERRED); the monitor arm then succeeds.
+    deploy_arm = tree.children[2]
+    assert deploy_arm.children[0].status == Status.SUCCESS
+    assert deploy_arm.children[1].status == Status.FAILURE
+    assert tree.children[3].status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------

@@ -449,7 +449,10 @@ def test_stay_deferred_fails_when_new_info_present(
     stay_arm = tree.children[1]
     assert stay_arm.children[0].status == Status.SUCCESS
     assert stay_arm.status == Status.FAILURE
+    # The deploy arm fails at its CheckRMStateAccepted guard (RM is DEFERRED).
+    assert tree.children[2].children[0].status == Status.FAILURE
     # Monitor arm (all AlwaysSucceed by default) rescues the tree.
+    assert tree.children[3].status == Status.SUCCESS
     assert result.status == Status.SUCCESS
 
 

@@ -22,12 +22,16 @@ This check imports every module of the call-out taxonomy — the shape mixins
 and fuzzer nodes in ``vultron/demo/fuzzer/`` and the bundles and backends in
 ``vultron/core/behaviors/call_out/`` — and fails when:
 
-- a class there is a Sentinel shape base, or subclasses one;
+- a class there is a Sentinel shape base, or subclasses one.  A shape base is
+  a py_trees ``Behaviour`` or a ``*CallOutPoint`` mixin, so a programming-sense
+  marker class such as ``_MissingSentinel`` does not count (AC-6 of #3424);
 - a call-out bundle exposes a Sentinel factory field; or
-- a docstring anywhere under ``vultron/`` credits a Sentinel with writing a
-  blackboard key or flag, which is what the old ``CheckNoNewDeploymentInfoNode``
-  docstring did.  A sentence that denies it ("never writes", "not a flag") is
-  allowed, since that is how a docstring explains the call-in pattern.
+- a docstring anywhere under ``vultron/``, or a sentence in a
+  ``docs/developer/reference/bt-fuzzer/`` catalog, credits a Sentinel with
+  writing a blackboard key or flag, which is what the old
+  ``CheckNoNewDeploymentInfoNode`` docstring and the catalogs did.  A denial
+  ("never writes", "not a flag") is allowed, since that is how the text explains
+  the call-in pattern; the negation must come just before the write word.
 """
 
 import ast
@@ -37,6 +41,7 @@ import pkgutil
 import re
 from types import ModuleType
 
+import py_trees
 import pytest
 
 import vultron.core.behaviors.call_out as core_call_out
@@ -58,6 +63,13 @@ _SHAPE_BASES: tuple[type, ...] = (
 
 def _is_sentinel_name(name: str) -> bool:
     return "sentinel" in name.lower()
+
+
+def _is_shape_like(cls: type) -> bool:
+    """A class that could serve as a call-out shape: a BT node or a mixin."""
+    return issubclass(
+        cls, py_trees.behaviour.Behaviour
+    ) or cls.__name__.endswith("CallOutPoint")
 
 
 def _taxonomy_modules() -> list[ModuleType]:
@@ -104,7 +116,14 @@ def sentinel_shape_violations(classes: set[type]) -> list[str]:
             for base in cls.__mro__
             if _is_sentinel_name(base.__name__)
         ]
-        if sentinel_bases:
+        if sentinel_bases and (
+            _is_shape_like(cls)
+            or any(
+                _is_shape_like(b)
+                for b in cls.__mro__
+                if _is_sentinel_name(b.__name__)
+            )
+        ):
             violations.append(
                 f"{cls.__module__}.{cls.__qualname__} "
                 f"(Sentinel in MRO: {', '.join(sentinel_bases)})"
@@ -132,14 +151,39 @@ def _taxonomy_bundles() -> set[type]:
     }
 
 
-#: A capitalised ``Sentinel`` ending a word, so ``FooSentinel`` counts but the
-#: programming sense ("sentinel value", AC-6 of #3424) and ``SentinelSite`` do not.
-_SENTINEL_WORD = re.compile(r"Sentinel\b")
-_WRITES_STATE = re.compile(r"\b(writ\w*|blackboard|flag)\b", re.IGNORECASE)
-_NEGATION = re.compile(r"\b(never|not|no)\b", re.IGNORECASE)
+#: A capitalised ``Sentinel`` (or ``Sentinels``) anywhere in a word, so
+#: ``FooSentinel``, ``NewInfoSentinelNode`` and the plural count, but the
+#: programming sense ("sentinel value", AC-6 of #3424) does not.
+_SENTINEL_WORD = re.compile(r"Sentinels?(?![a-z])")
+_WRITES_STATE = re.compile(
+    r"\b(writ\w*|wrote|blackboard|flags?)\b", re.IGNORECASE
+)
+#: A denial: a negation at most two words before the write word ("never
+#: writes", "not a flag", "never by writing", "no blackboard").
+_DENIED_WRITE = re.compile(
+    r"\b(never|not|no)\s+(?:\w+\s+){0,2}?(writ\w*|wrote|blackboard|flags?)\b",
+    re.IGNORECASE,
+)
 _SENTENCE_END = re.compile(r"(?<=[.;:])\s+")
 
+#: The fuzzer-node catalogs that once credited Sentinels with writing flags.
+_CATALOG_DIR = (
+    _corpus.REPO_ROOT / "docs" / "developer" / "reference" / "bt-fuzzer"
+)
+
 _DocNode = ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def sentinel_writer_sentences(text: str) -> list[str]:
+    """Return each sentence of ``text`` crediting a Sentinel with a write."""
+    claims: list[str] = []
+    for sentence in _SENTENCE_END.split(" ".join(text.split())):
+        if not _SENTINEL_WORD.search(sentence):
+            continue
+        undenied = _DENIED_WRITE.sub(" ", sentence)
+        if _WRITES_STATE.search(undenied):
+            claims.append(sentence)
+    return claims
 
 
 def sentinel_writer_claims(tree: ast.AST, label: str) -> list[str]:
@@ -152,13 +196,10 @@ def sentinel_writer_claims(tree: ast.AST, label: str) -> list[str]:
         if not doc:
             continue
         owner = getattr(node, "name", "<module>")
-        for sentence in _SENTENCE_END.split(" ".join(doc.split())):
-            if (
-                _SENTINEL_WORD.search(sentence)
-                and _WRITES_STATE.search(sentence)
-                and not _NEGATION.search(sentence)
-            ):
-                claims.append(f"{label}:{owner}: {sentence}")
+        claims.extend(
+            f"{label}:{owner}: {sentence}"
+            for sentence in sentinel_writer_sentences(doc)
+        )
     return claims
 
 
@@ -180,12 +221,34 @@ def test_no_docstring_credits_a_sentinel_with_a_blackboard_write() -> None:
     assert claims == []
 
 
+@pytest.mark.spec("BT-18-013")
+def test_no_fuzzer_catalog_credits_a_sentinel_with_a_blackboard_write() -> (
+    None
+):
+    scanned = [
+        (path, text)
+        for path, text in _corpus.docs_mentioning("Sentinel")
+        if path.is_relative_to(_CATALOG_DIR)
+    ]
+    assert scanned, "found no bt-fuzzer catalog page that mentions a Sentinel"
+    claims = [
+        f"{path.relative_to(_corpus.REPO_ROOT).as_posix()}: {sentence}"
+        for path, text in scanned
+        for sentence in sentinel_writer_sentences(text)
+    ]
+    assert claims == []
+
+
 def test_docstring_check_catches_a_sentinel_writer_claim() -> None:
     source = (
         "class Reads:\n"
         '    """Reads the flag written by the upstream FooSentinel.\n\n'
         "    A Sentinel writes the change-detection flag this reads.\n\n"
-        "    A Sentinel never writes into this tree.\n"
+        "    A Sentinel never writes into this tree.\n\n"
+        "    Upstream Sentinels write the new_info flag.\n\n"
+        "    The Sentinel writes the flag when no new info arrives.\n\n"
+        "    The NewInfoSentinelNode writes it.\n\n"
+        "    A Sentinel is not a flag; a sentinel value marks absence.\n"
         '    """\n'
     )
     claims = sentinel_writer_claims(_corpus.parse_inline(source), "planted.py")
@@ -193,6 +256,10 @@ def test_docstring_check_catches_a_sentinel_writer_claim() -> None:
         "planted.py:Reads: Reads the flag written by the upstream FooSentinel.",
         "planted.py:Reads: A Sentinel writes the change-detection flag this "
         "reads.",
+        "planted.py:Reads: Upstream Sentinels write the new_info flag.",
+        "planted.py:Reads: The Sentinel writes the flag when no new info "
+        "arrives.",
+        "planted.py:Reads: The NewInfoSentinelNode writes it.",
     ]
 
 
@@ -233,11 +300,25 @@ def test_shape_check_catches_a_sentinel_base_and_its_subclass() -> None:
     class Unrelated:
         pass
 
+    class NewInfoSentinel(py_trees.behaviour.Behaviour):
+        pass
+
+    class _MissingSentinel:
+        """A programming-sense marker class (AC-6), not a shape."""
+
     violations = sentinel_shape_violations(
-        {SentinelCallOutPoint, WatchesSomething, Unrelated}
+        {
+            SentinelCallOutPoint,
+            WatchesSomething,
+            Unrelated,
+            NewInfoSentinel,
+            _MissingSentinel,
+        }
     )
-    assert len(violations) == 2
+    assert len(violations) == 3
     assert any("WatchesSomething" in v for v in violations)
+    assert any("NewInfoSentinel " in v for v in violations)
+    assert not any("_MissingSentinel" in v for v in violations)
 
 
 def test_bundle_check_catches_a_sentinel_factory_field() -> None:

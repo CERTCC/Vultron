@@ -23,8 +23,7 @@ full mitigation-deployment workflow as a ``DeployMitigationBT`` Fallback:
     ├─ _ShouldStayInRmDeferred (Sequence)
     │  ├─ RMinStateDeferred
     │  └─ <NoNewDeploymentInfo call-out>    # Retriever, injected
-    ├─ _DeployMitigationIfAvailable (Sequence)
-    │  ├─ CheckDeployerRoleNode
+    ├─ _DeployMitigationIfAvailable (Sequence)  # no role guard (#2664)
     │  ├─ CheckRMStateAccepted
     │  ├─ <MitigationAvailable call-out>    # Retriever, injected
     │  ├─ <PrioritizeDeployment call-out>   # Evaluator, injected
