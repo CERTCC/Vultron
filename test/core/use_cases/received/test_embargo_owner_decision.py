@@ -32,6 +32,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
 from test.support.owner_decision import (
     seeded_activation,
@@ -129,7 +130,7 @@ def _receive(
         "trigger_activity": TriggerActivityAdapter(dl),
     }
     event = make_payload(activity, receiving_actor_id=receiver, at=dl)
-    return use_case(dl, event, **ports).execute()
+    return run_in_act(use_case(dl, event, **ports))
 
 
 def _case(dl: SqliteDataLayer) -> VulnerabilityCase:

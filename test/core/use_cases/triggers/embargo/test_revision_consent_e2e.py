@@ -38,6 +38,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -181,18 +182,20 @@ class _Revision:
         (EP-09-008); the owner's adjudication of the queued ``Invite`` is what
         moves the case to REVISE and indexes the proposal (EP-09-001).
         """
-        result = SvcProposeEmbargoRevisionUseCase(
-            self.proposer_dl,
-            ProposeEmbargoRevisionTriggerRequest(
-                actor_id=PROPOSER,
-                case_id=self.case.id_,
-                end_time=now_utc() + timedelta(days=days),
-            ),
-            trigger_activity=TriggerActivityAdapter(self.proposer_dl),
-            sync_port=SyncActivityAdapter(self.proposer_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcProposeEmbargoRevisionUseCase(
+                self.proposer_dl,
+                ProposeEmbargoRevisionTriggerRequest(
+                    actor_id=PROPOSER,
+                    case_id=self.case.id_,
+                    end_time=now_utc() + timedelta(days=days),
+                ),
+                trigger_activity=TriggerActivityAdapter(self.proposer_dl),
+                sync_port=SyncActivityAdapter(self.proposer_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
         activity = activity_of(result)
         assert activity["to"] == [OWNER]
         self._receive_as_owner(str(activity["id"]))
@@ -213,7 +216,7 @@ class _Revision:
         }
         accepted = inspect.signature(use_case).parameters
         ports = {k: v for k, v in offered.items() if k in accepted}
-        verdict = use_case(self.dl, event, **ports).execute()
+        verdict = run_in_act(use_case(self.dl, event, **ports))
         assert verdict.disposition is HandlerDisposition.APPLIED, (
             verdict.reason
         )
@@ -222,31 +225,39 @@ class _Revision:
         proposal_id = self.read_case().pending_embargo_proposal_index[
             revision_id
         ]
-        SvcAcceptEmbargoUseCase(
-            self.dl,
-            AcceptEmbargoTriggerRequest(
-                actor_id=OWNER, case_id=self.case.id_, proposal_id=proposal_id
-            ),
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcAcceptEmbargoUseCase(
+                self.dl,
+                AcceptEmbargoTriggerRequest(
+                    actor_id=OWNER,
+                    case_id=self.case.id_,
+                    proposal_id=proposal_id,
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
     def owner_rejects(self, revision_id: str) -> None:
         proposal_id = self.read_case().pending_embargo_proposal_index[
             revision_id
         ]
-        SvcRejectEmbargoUseCase(
-            self.dl,
-            RejectEmbargoTriggerRequest(
-                actor_id=OWNER, case_id=self.case.id_, proposal_id=proposal_id
-            ),
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcRejectEmbargoUseCase(
+                self.dl,
+                RejectEmbargoTriggerRequest(
+                    actor_id=OWNER,
+                    case_id=self.case.id_,
+                    proposal_id=proposal_id,
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
     # -- the reads ---------------------------------------------------------
 

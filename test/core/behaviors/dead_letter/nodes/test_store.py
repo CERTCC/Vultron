@@ -18,6 +18,7 @@
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.dead_letter.nodes.store import (
@@ -61,8 +62,8 @@ class TestStoreDeadLetterRecordNode:
     ) -> None:
         """Happy path: BT stores a DeadLetterRecord in the DataLayer."""
         tree = StoreDeadLetterRecordNode(request=unresolvable_event)
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_URI, activity=unresolvable_event
+        result = run_tree(
+            bridge, tree=tree, actor_id=ACTOR_URI, activity=unresolvable_event
         )
         assert result.status == Status.SUCCESS
         stored = dl.by_type("DeadLetterRecord")
@@ -73,8 +74,8 @@ class TestStoreDeadLetterRecordNode:
     ) -> None:
         """The stored DeadLetterRecord includes the unresolvable URI."""
         tree = StoreDeadLetterRecordNode(request=unresolvable_event)
-        bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_URI, activity=unresolvable_event
+        run_tree(
+            bridge, tree=tree, actor_id=ACTOR_URI, activity=unresolvable_event
         )
         record_data = next(iter(dl.by_type("DeadLetterRecord").values()))
         assert record_data["unresolvable_uri"] == UNRESOLVABLE_URI
@@ -84,8 +85,8 @@ class TestStoreDeadLetterRecordNode:
     ) -> None:
         """The stored DeadLetterRecord includes the actor ID."""
         tree = StoreDeadLetterRecordNode(request=unresolvable_event)
-        bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_URI, activity=unresolvable_event
+        run_tree(
+            bridge, tree=tree, actor_id=ACTOR_URI, activity=unresolvable_event
         )
         record_data = next(iter(dl.by_type("DeadLetterRecord").values()))
         assert record_data["actor_id"] == ACTOR_URI
@@ -95,12 +96,12 @@ class TestStoreDeadLetterRecordNode:
     ) -> None:
         """StoreDeadLetterRecordNode can be called multiple times (no dedup)."""
         tree1 = StoreDeadLetterRecordNode(request=unresolvable_event)
-        bridge.execute_with_setup(
-            tree=tree1, actor_id=ACTOR_URI, activity=unresolvable_event
+        run_tree(
+            bridge, tree=tree1, actor_id=ACTOR_URI, activity=unresolvable_event
         )
         tree2 = StoreDeadLetterRecordNode(request=unresolvable_event)
-        result = bridge.execute_with_setup(
-            tree=tree2, actor_id=ACTOR_URI, activity=unresolvable_event
+        result = run_tree(
+            bridge, tree=tree2, actor_id=ACTOR_URI, activity=unresolvable_event
         )
         assert result.status == Status.SUCCESS
         # At least one record is stored

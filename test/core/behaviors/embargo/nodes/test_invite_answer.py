@@ -28,6 +28,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -93,7 +94,8 @@ def _store(
 
 
 def _run(dl, tree, *, actor_id: str = INVITEE, factory=None):
-    return BTBridge(datalayer=dl).execute_with_setup(
+    return run_tree(
+        BTBridge(datalayer=dl),
         tree=tree,
         actor_id=actor_id,
         trigger_activity_factory=(
@@ -169,8 +171,8 @@ class TestSendEmbargoInviteAnswerNode:
     @pytest.mark.spec("BT-14-001")
     def test_a_missing_factory_is_a_wiring_fault(self):
         dl = _store()
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=_send(True), actor_id=INVITEE
+        result = run_tree(
+            BTBridge(datalayer=dl), tree=_send(True), actor_id=INVITEE
         )
         assert result.status == Status.FAILURE
         assert result.internal_error

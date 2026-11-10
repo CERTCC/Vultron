@@ -40,6 +40,7 @@ from typing import Any, cast
 import py_trees
 import pytest
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -170,7 +171,8 @@ class BTTestScenario:
             BTExecutionResult with status, feedback, and any errors.
         """
         py_trees.blackboard.Blackboard.storage.clear()
-        return self.bridge.execute_with_setup(
+        return run_tree(
+            self.bridge,
             tree=tree,
             actor_id=actor_id if actor_id is not None else self.actor_id,
             activity=activity,

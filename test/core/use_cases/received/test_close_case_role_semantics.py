@@ -36,6 +36,7 @@ import pytest
 from test.core.use_cases.received._archived_redelivery import (
     archived_redelivery,
 )
+from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
@@ -351,13 +352,15 @@ class TestOwnerLeaveReceivePath:
     def test_owner_leave_advances_owner_to_rm_closed(self):
         """Owner Leave: the leaving owner actor is advanced to RM.CLOSED."""
         dl = _make_full_dl()
-        result = CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
         rm_states = _participant_rm_states(dl, OWNER_ID)
@@ -370,13 +373,15 @@ class TestOwnerLeaveReceivePath:
     def test_owner_leave_advances_case_actor_to_rm_closed(self):
         """Owner Leave: the CaseActor is also advanced to RM.CLOSED (CM-23-002 step 2)."""
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         rm_states = _participant_rm_states(dl, CASE_ACTOR_ID)
         assert RM.CLOSED in rm_states, (
@@ -392,13 +397,15 @@ class TestOwnerLeaveReceivePath:
         Non-leaving participants learn via Announce(CaseLedgerEntry) fan-out.
         """
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         rm_states = _participant_rm_states(dl, VENDOR_ID)
         assert RM.CLOSED not in rm_states, (
@@ -412,13 +419,15 @@ class TestOwnerLeaveReceivePath:
         """Owner Leave: the CASE_MANAGER's own RM.CLOSED entry is last, and
         no closure marker or ``Update(VulnerabilityCase)`` is committed."""
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         ledger = _case_ledger(dl)
         assert _boundary_is_last(dl), [e.semantic_type for e in ledger]
@@ -451,13 +460,15 @@ class TestOwnerLeaveReceivePath:
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         status_entries = [
             e
@@ -497,13 +508,15 @@ class TestOwnerLeaveReceivePath:
         """
 
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         by_index = _case_ledger(dl)
         case_actor_idx = [i for i, e in enumerate(by_index) if _is_boundary(e)]
@@ -535,13 +548,15 @@ class TestOwnerLeaveReceivePath:
         """
         dl = _make_full_dl()
         sync_mock = MagicMock(spec=SyncActivityPort)
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=sync_mock,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=sync_mock,
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         recipients = [
             to for entry, to in _announced(sync_mock) if _is_boundary(entry)
@@ -562,13 +577,15 @@ class TestOwnerLeaveReceivePath:
         """
         dl = _make_full_dl()
         sync_mock = MagicMock(spec=SyncActivityPort)
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=sync_mock,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=sync_mock,
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         owner = dl.read(_participant_id_for(dl, OWNER_ID))
         assert isinstance(owner, CaseParticipant)
@@ -598,13 +615,15 @@ class TestNonOwnerLeaveReceivePath:
     def test_non_owner_leave_advances_only_leaving_participant(self):
         """Non-owner Leave: the leaving vendor actor is advanced to RM.CLOSED."""
         dl = _make_full_dl()
-        result = CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=VENDOR_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=VENDOR_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
         rm_states = _participant_rm_states(dl, VENDOR_ID)
@@ -617,13 +636,15 @@ class TestNonOwnerLeaveReceivePath:
     def test_non_owner_leave_does_not_close_owner(self):
         """Non-owner Leave: the case owner remains open (CM-23-030)."""
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=VENDOR_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=VENDOR_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         rm_states = _participant_rm_states(dl, OWNER_ID)
         assert RM.CLOSED not in rm_states, (
@@ -635,13 +656,15 @@ class TestNonOwnerLeaveReceivePath:
     def test_non_owner_leave_does_not_close_case_actor(self):
         """Non-owner Leave: the CaseActor remains open (CM-23-030)."""
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=VENDOR_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=VENDOR_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         rm_states = _participant_rm_states(dl, CASE_ACTOR_ID)
         assert RM.CLOSED not in rm_states, (
@@ -706,15 +729,17 @@ class TestNonOwnerLeaveReceivePath:
 def _close(
     dl: SqliteDataLayer, sender_actor_id: str, activity_id: str
 ) -> HandlerResult:
-    return CloseCaseReceivedUseCase(
-        dl=dl,
-        request=_make_close_case_event(
-            sender_actor_id=sender_actor_id, activity_id=activity_id
-        ),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(
+                sender_actor_id=sender_actor_id, activity_id=activity_id
+            ),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
 
 
 def _redeliver_close(dl: SqliteDataLayer, activity_id: str) -> HandlerResult:
@@ -724,13 +749,15 @@ def _redeliver_close(dl: SqliteDataLayer, activity_id: str) -> HandlerResult:
         dl, activity_id, receiving_actor_id=CASE_ACTOR_ID
     )
     assert isinstance(event, CloseCaseReceivedEvent)
-    return CloseCaseReceivedUseCase(
-        dl=dl,
-        request=event,
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
 
 
 def _seed_pending_invite(
@@ -1107,9 +1134,10 @@ class TestOwnerCloseSettlesPendingInvites:
                 )
             )
             prev_hash = entry.entry_hash
-            result = BTBridge(
-                datalayer=replica, wire_render_port=As2WireRenderAdapter()
-            ).execute_with_setup(
+            result = run_tree(
+                BTBridge(
+                    datalayer=replica, wire_render_port=As2WireRenderAdapter()
+                ),
                 tree=create_announce_log_entry_tree(
                     sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
                 ),
@@ -1133,16 +1161,18 @@ def _close_with_policy(
     activity_id: str,
     policy: PostCloseReply,
 ) -> HandlerResult:
-    return CloseCaseReceivedUseCase(
-        dl=dl,
-        request=_make_close_case_event(
-            sender_actor_id=sender_actor_id, activity_id=activity_id
-        ),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(dl),
-        actor_config=ActorConfig(post_close_reply=policy),
-    ).execute()
+    return run_in_act(
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(
+                sender_actor_id=sender_actor_id, activity_id=activity_id
+            ),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            actor_config=ActorConfig(post_close_reply=policy),
+        )
+    )
 
 
 def _closed_dl() -> SqliteDataLayer:
@@ -1182,12 +1212,14 @@ def _add_note(dl: SqliteDataLayer, note_id: str, sync_port=None):
     )
 
     _, event = _add_note_event(note_id, at=dl)
-    return AddNoteToCaseReceivedUseCase(
-        dl,
-        event,
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=sync_port or SyncActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=sync_port or SyncActivityAdapter(dl),
+        )
+    )
 
 
 class TestPostCloseWriteBoundary:
@@ -1346,13 +1378,15 @@ class TestPostCloseWriteBoundary:
         """#3060 AC-4: the boundary is announced, then nothing more is."""
         dl = _make_full_dl()
         sync = MagicMock(wraps=SyncActivityAdapter(dl))
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=sync,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=sync,
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
         announced = [
             c.kwargs.get("entry") or c.args[0]
             for c in sync.send_announce_log_entry.call_args_list
@@ -1428,13 +1462,15 @@ class TestPostCloseWriteBoundary:
         entries_at_close = len(_case_ledger(dl))
         outbox_before = set(dl.outbox_list())
 
-        result = AddParticipantStatusToParticipantReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            AddParticipantStatusToParticipantReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "CM-23-013" in (result.reason or "")
@@ -1551,9 +1587,10 @@ def _replay(manager: SqliteDataLayer, replica: SqliteDataLayer) -> None:
 def _deliver(replica: SqliteDataLayer, entries) -> None:
     """Announce each of *entries* to *replica*, in order."""
     for entry in entries:
-        result = BTBridge(
-            datalayer=replica, wire_render_port=As2WireRenderAdapter()
-        ).execute_with_setup(
+        result = run_tree(
+            BTBridge(
+                datalayer=replica, wire_render_port=As2WireRenderAdapter()
+            ),
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1695,13 +1732,15 @@ class TestLeaveCommitsEachClosureStep:
         _seed_rm(dl, leaver_id, RM.VALID)
         sync_port = MagicMock(spec=SyncActivityPort)
 
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=leaver_id),
-            sync_port=sync_port,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(sender_actor_id=leaver_id),
+                sync_port=sync_port,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         sent_to_leaver = {
             call.kwargs["entry"].log_object_id
@@ -1963,12 +2002,14 @@ class TestTheBoundaryIsTheCaseManagersOwnClosure:
         """
         dl = _make_full_dl()
         with pytest.raises(VultronBTInternalError):
-            CloseCaseReceivedUseCase(
-                dl=dl,
-                request=_make_close_case_event(sender_actor_id=OWNER_ID),
-                sync_port=SyncActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+            run_in_act(
+                CloseCaseReceivedUseCase(
+                    dl=dl,
+                    request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                    sync_port=SyncActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                )
+            )
         assert not _case_is_fully_closed(dl)
 
 
@@ -2018,13 +2059,15 @@ class TestReplicaAppliesTheClosureSteps:
         replica = _replica_of(manager, leaver_id)
         sync_port = MagicMock(spec=SyncActivityPort)
 
-        CloseCaseReceivedUseCase(
-            dl=manager,
-            request=_make_close_case_event(sender_actor_id=leaver_id),
-            sync_port=sync_port,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(manager),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=manager,
+                request=_make_close_case_event(sender_actor_id=leaver_id),
+                sync_port=sync_port,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(manager),
+            )
+        )
         assert _latest_rm(replica, leaver_id) == RM.VALID
 
         sent = [e for e, to in _announced(sync_port) if leaver_id in to]
@@ -2051,16 +2094,18 @@ class TestReplicaAppliesTheClosureSteps:
         _close(manager, VENDOR_ID, "https://example.org/activities/leave-v")
         sync_port = MagicMock(spec=SyncActivityPort)
 
-        CloseCaseReceivedUseCase(
-            dl=manager,
-            request=_make_close_case_event(
-                sender_actor_id=OWNER_ID,
-                activity_id="https://example.org/activities/leave-o",
-            ),
-            sync_port=sync_port,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(manager),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=manager,
+                request=_make_close_case_event(
+                    sender_actor_id=OWNER_ID,
+                    activity_id="https://example.org/activities/leave-o",
+                ),
+                sync_port=sync_port,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(manager),
+            )
+        )
 
         sent = _announced(sync_port)
         assert _boundary_is_last(manager)
@@ -2079,9 +2124,8 @@ class TestReplicaAppliesTheClosureSteps:
         before = {a: _status_history(dl, a) for a in (OWNER_ID, VENDOR_ID)}
         entry = _make_close_case_ledger_entry(dl, departing_actor_id=OWNER_ID)
 
-        BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
-        ).execute_with_setup(
+        run_tree(
+            BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter()),
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -2170,9 +2214,11 @@ class TestReplicaAppliesTheClosureSteps:
 
         with caplog.at_level(logging.WARNING):
             for entry in _case_ledger(manager):
-                BTBridge(
-                    datalayer=replica, wire_render_port=As2WireRenderAdapter()
-                ).execute_with_setup(
+                run_tree(
+                    BTBridge(
+                        datalayer=replica,
+                        wire_render_port=As2WireRenderAdapter(),
+                    ),
                     tree=create_announce_log_entry_tree(
                         sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
                     ),
@@ -2258,13 +2304,15 @@ class TestClosureRMBoundary:
         _seed_rm(dl, leaver_id, source)
         before = _participant_rm_states(dl, leaver_id)
 
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=leaver_id),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=leaver_id),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         after = _participant_rm_states(dl, leaver_id)
         assert after == [*before, RM.CLOSED], (
@@ -2291,13 +2339,15 @@ class TestClosureRMBoundary:
         _seed_rm(dl, leaver_id, RM.VALID)
         before = _participant_rm_states(dl, leaver_id)
 
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=leaver_id),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=leaver_id),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         after = _participant_rm_states(dl, leaver_id)
         assert after == [*before, RM.DEFERRED, RM.CLOSED], (
@@ -2317,13 +2367,15 @@ class TestClosureRMBoundary:
         assert _latest_rm(dl, VENDOR_ID) == RM.START
         before = _participant_rm_states(dl, VENDOR_ID)
 
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=VENDOR_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=VENDOR_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         after = _participant_rm_states(dl, VENDOR_ID)
         assert after == [*before, RM.RECEIVED, RM.CLOSED], after
@@ -2353,13 +2405,15 @@ class TestClosureRMBoundary:
         _seed_rm(dl, CASE_ACTOR_ID, source)
         before = _case_actor_rm_entry_states(dl)
 
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         after = _case_actor_rm_entry_states(dl)
         assert after[: len(before)] == before
@@ -2378,13 +2432,15 @@ class TestClosureRMBoundary:
         dl = _make_full_dl()
         _seed_rm(dl, VENDOR_ID, RM.VALID)
 
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         assert _latest_rm(dl, VENDOR_ID) == RM.VALID, (
             "Bystander seeded at RM.VALID must retain RM.VALID after owner-close"
@@ -2406,9 +2462,8 @@ class TestClosureRMBoundary:
         tree = create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         )
-        BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
-        ).execute_with_setup(
+        run_tree(
+            BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter()),
             tree=tree,
             actor_id=VENDOR_ID,
             activity=event,
@@ -2482,13 +2537,15 @@ class TestOwnerLeaveDuringActiveEmbargo:
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=em_state)
 
-        result = CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         # HP-01-003: answering with a Reject is a refusal, not "processed".
         assert result.disposition == HandlerDisposition.REFUSED
@@ -2517,13 +2574,15 @@ class TestOwnerLeaveDuringActiveEmbargo:
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         outbox = dl.outbox_list()
         assert len(outbox) == 1, (
@@ -2550,13 +2609,15 @@ class TestOwnerLeaveDuringActiveEmbargo:
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
-        result = CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "embargo" in result.reason
@@ -2577,25 +2638,29 @@ class TestOwnerLeaveDuringActiveEmbargo:
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
         # First close: declined while embargoed.
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
         assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID)
         assert not _case_is_fully_closed(dl)
 
         # Terminate the embargo, then re-issue the same close.
         _terminate_embargo(dl)
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert RM.CLOSED in _participant_rm_states(dl, OWNER_ID), (
             "After embargo termination the owner close must proceed to"
@@ -2622,13 +2687,15 @@ class TestOwnerLeaveDuringActiveEmbargo:
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
         # No trigger_activity port → EmitRejectCloseCaseNode fails.
-        result = CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=None,
-        ).execute()
+        result = run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=None,
+            )
+        )
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "embargo" in result.reason
 
@@ -2672,15 +2739,17 @@ class TestDeclineArmIsCaseManagerGated:
         dl = _make_full_dl(store_owner_id=VENDOR_ID)
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
-        result = CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(
-                sender_actor_id=OWNER_ID, receiving_actor_id=VENDOR_ID
-            ),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(
+                    sender_actor_id=OWNER_ID, receiving_actor_id=VENDOR_ID
+                ),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert dl.outbox_list() == [], (
@@ -2701,15 +2770,17 @@ class TestDeclineArmIsCaseManagerGated:
         dl = _make_full_dl(store_owner_id=VENDOR_ID)
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(
-                sender_actor_id=OWNER_ID, receiving_actor_id=VENDOR_ID
-            ),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(
+                    sender_actor_id=OWNER_ID, receiving_actor_id=VENDOR_ID
+                ),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID)
         assert not _case_is_fully_closed(dl)
@@ -2727,15 +2798,17 @@ class TestDeclineArmIsCaseManagerGated:
         dl = _make_full_dl(store_owner_id=VENDOR_ID)
         rm_before = _participant_rm_states(dl, CASE_ACTOR_ID)
 
-        result = CloseCaseReceivedUseCase(
-            dl=dl,
-            request=_make_close_case_event(
-                sender_actor_id=CASE_ACTOR_ID, receiving_actor_id=VENDOR_ID
-            ),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(
+                    sender_actor_id=CASE_ACTOR_ID, receiving_actor_id=VENDOR_ID
+                ),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None
@@ -2790,11 +2863,13 @@ def _case_actor_rm_closed_entries(dl: SqliteDataLayer) -> list:
 @pytest.mark.spec("HP-01-003")
 def test_close_without_case_id_is_refused():
     """A Leave with no case id is malformed, so REFUSED (#2255)."""
-    result = CloseCaseReceivedUseCase(
-        dl=_make_full_dl(),
-        request=cast(CloseCaseReceivedEvent, MagicMock(case_id=None)),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        CloseCaseReceivedUseCase(
+            dl=_make_full_dl(),
+            request=cast(CloseCaseReceivedEvent, MagicMock(case_id=None)),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert result.disposition == HandlerDisposition.REFUSED
 
@@ -2993,13 +3068,15 @@ class TestCaseActorRMClosedRecordingIsRoleGated:
         participant.case_roles = [CVDRole.VENDOR]
         dl.save(participant)
 
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         assert not _case_actor_rm_closed_entries(dl), (
             "a receiver that does not hold CVDRole.CASE_MANAGER must not mint a"
@@ -3011,13 +3088,15 @@ class TestCaseActorRMClosedRecordingIsRoleGated:
     def test_case_manager_receiver_still_commits_the_entry(self):
         """Control: the gate does not block the CASE_MANAGER itself."""
         dl = _make_full_dl()
-        CloseCaseReceivedUseCase(
-            dl=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            request=_make_close_case_event(sender_actor_id=OWNER_ID),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         assert _case_actor_rm_closed_entries(dl), (
             "the CASE_MANAGER must still record its own RM.CLOSED (CM-23-005)"

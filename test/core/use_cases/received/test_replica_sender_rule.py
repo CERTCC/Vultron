@@ -29,6 +29,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -97,13 +98,15 @@ def _deliver_offer_actor(
         to=[REPLICA_ID],
     )
     event = make_payload(activity, receiving_actor_id=REPLICA_ID, at=dl)
-    return OfferActorToCaseReceivedUseCase(
-        dl,
-        event,  # type: ignore[arg-type]
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        OfferActorToCaseReceivedUseCase(
+            dl,
+            event,  # type: ignore[arg-type]
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
 
 
 def _deliver_participant_status(
@@ -125,12 +128,14 @@ def _deliver_participant_status(
         to=[REPLICA_ID],
     )
     event = make_payload(activity, receiving_actor_id=REPLICA_ID, at=dl)
-    return AddParticipantStatusToParticipantReceivedUseCase(
-        dl,
-        event,  # type: ignore[arg-type]
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,  # type: ignore[arg-type]
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 DELIVERIES = [

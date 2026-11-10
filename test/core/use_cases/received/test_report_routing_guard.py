@@ -48,6 +48,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -254,23 +255,27 @@ def _run_invalidate(dl, request):
     must be the manager (see ``_make_dl``) and the use case needs the sync and
     wire-render ports the inbox would supply.
     """
-    return InvalidateReportReceivedUseCase(
-        dl=dl,
-        request=request,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        InvalidateReportReceivedUseCase(
+            dl=dl,
+            request=request,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 def _run_close(dl, request):
     """Execute CloseReportReceivedUseCase with the ports the inbox gives it."""
-    return CloseReportReceivedUseCase(
-        dl=dl,
-        request=request,
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        CloseReportReceivedUseCase(
+            dl=dl,
+            request=request,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 # ---------------------------------------------------------------------------

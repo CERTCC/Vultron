@@ -26,6 +26,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.actor import VultronService
@@ -147,7 +148,8 @@ class TestReportReplicatedToPostTransferParticipant:
         entry = _make_add_report_ledger_entry()
         event = _make_event(entry, actor_id=new_owner_case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ApplyOfferReportFromLedgerNode(
                 name="ApplyOfferReportFromLedger"
             ),
@@ -182,7 +184,8 @@ class TestReportReplicatedToPostTransferParticipant:
         entry = _make_add_report_ledger_entry()
         event = _make_event(entry, actor_id=new_owner_case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ApplyOfferReportFromLedgerNode(
                 name="ApplyOfferReportFromLedger"
             ),
@@ -206,7 +209,8 @@ class TestReportReplicatedToPostTransferParticipant:
         event = _make_event(entry, actor_id=new_owner_case_actor.id_)
 
         for _ in range(2):
-            result = bridge.execute_with_setup(
+            result = run_tree(
+                bridge,
                 tree=ApplyOfferReportFromLedgerNode(
                     name="ApplyOfferReportFromLedger"
                 ),

@@ -26,6 +26,7 @@ from unittest.mock import patch
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_manager import (
     CASE_MANAGER_ID,
     make_case_with_case_manager,
@@ -120,12 +121,14 @@ class TestSvcAddObjectToCaseUseCase:
             case_id=case_id or self.case.id_,
             object_id=object_id,
         )
-        return SvcAddObjectToCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcAddObjectToCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
     def test_add_object_to_case_happy_path(self):
         """SvcAddObjectToCaseUseCase adds an existing object to a case."""
@@ -141,12 +144,14 @@ class TestSvcAddObjectToCaseUseCase:
             case_id=self.case.id_,
             object_id=report.id_,
         )
-        result = SvcAddObjectToCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAddObjectToCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         # Verify activity was queued in outbox
         assert _activity_in_outbox(self.actor, self.dl), (
@@ -360,12 +365,14 @@ class TestSvcAddObjectToCaseUseCase:
             object_id=report.id_,
         )
         with pytest.raises(VultronNotFoundError, match="Actor"):
-            SvcAddObjectToCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcAddObjectToCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_add_object_to_case_raises_when_case_not_found(self):
         """SvcAddObjectToCaseUseCase raises VultronNotFoundError when case
@@ -382,12 +389,14 @@ class TestSvcAddObjectToCaseUseCase:
             object_id=report.id_,
         )
         with pytest.raises(VultronNotFoundError, match="VulnerabilityCase"):
-            SvcAddObjectToCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcAddObjectToCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_add_object_to_case_raises_when_object_not_found(self):
         """SvcAddObjectToCaseUseCase raises VultronNotFoundError when object_id
@@ -398,12 +407,14 @@ class TestSvcAddObjectToCaseUseCase:
             object_id="https://example.org/nonexistent",
         )
         with pytest.raises(VultronNotFoundError, match="AS2Object"):
-            SvcAddObjectToCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcAddObjectToCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_add_object_to_case_activity_queued_in_delivery_queue(self):
         """SvcAddObjectToCaseUseCase queues activity in delivery queue for
@@ -419,12 +430,14 @@ class TestSvcAddObjectToCaseUseCase:
             case_id=self.case.id_,
             object_id=report.id_,
         )
-        result = SvcAddObjectToCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAddObjectToCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         # Verify activity ID is in result
         activity_dict = activity_of(result)
@@ -456,12 +469,14 @@ class TestSvcAddObjectToCaseUseCase:
             case_id=self.case.id_,
             object_id=report1.id_,
         )
-        result1 = SvcAddObjectToCaseUseCase(
-            self.dl,
-            request1,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result1 = run_in_act(
+            SvcAddObjectToCaseUseCase(
+                self.dl,
+                request1,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         # Add second object
         request2 = AddObjectToCaseTriggerRequest(
@@ -469,12 +484,14 @@ class TestSvcAddObjectToCaseUseCase:
             case_id=self.case.id_,
             object_id=report2.id_,
         )
-        result2 = SvcAddObjectToCaseUseCase(
-            self.dl,
-            request2,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result2 = run_in_act(
+            SvcAddObjectToCaseUseCase(
+                self.dl,
+                request2,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         # Verify both activities were queued
         items = self.dl.outbox_list()

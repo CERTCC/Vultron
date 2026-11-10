@@ -33,6 +33,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import BaseModel
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import delivered_body
 from vultron.adapters.driven.clock import SystemClock
@@ -1008,16 +1009,18 @@ def test_late_joiner_after_accepted_invite_accepts_case_manager_announce(dl):
     assert anchor.case_actor_id == _CASE_MANAGER_ID
     assert dl.read(_LEGIT_CASE_ID) is None
 
-    accepted = SvcAcceptCaseInviteUseCase(
-        dl,
-        AcceptCaseInviteTriggerRequest(
-            actor_id=_RECEIVER_ID, invite_id=invite.id_
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    accepted = run_in_act(
+        SvcAcceptCaseInviteUseCase(
+            dl,
+            AcceptCaseInviteTriggerRequest(
+                actor_id=_RECEIVER_ID, invite_id=invite.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     assert accepted.activity is not None
     assert accepted.activity["inReplyTo"] == invite.id_

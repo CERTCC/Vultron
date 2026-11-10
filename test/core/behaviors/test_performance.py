@@ -30,6 +30,7 @@ import py_trees.behaviour
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.embargo_register import register
 from test.support.participant_status import advance_participant_rm
 from vultron.core.behaviors.bridge import BTBridge
@@ -271,8 +272,11 @@ def test_bt_execution_performance_single_run(perf_bridge, sample_activity):
     )
 
     start = time.perf_counter()
-    result = bridge.execute_with_setup(
-        tree, actor_id="https://example.org/vendor", activity=sample_activity
+    result = run_tree(
+        bridge,
+        tree,
+        actor_id="https://example.org/vendor",
+        activity=sample_activity,
     )
     elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -311,7 +315,8 @@ def test_bt_execution_performance_percentiles(perf_bridge, sample_activity):
         )
 
         start = time.perf_counter()
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree,
             actor_id="https://example.org/vendor",
             activity=sample_activity,

@@ -22,6 +22,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import delivered_body, received_event
 from test.support.trigger_results import recipient_ids
@@ -135,12 +136,14 @@ class TestNoteUseCases:
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 
-        result = AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         refreshed = dl.read(case_id)
         assert refreshed is not None
@@ -206,12 +209,14 @@ class TestNoteUseCases:
             " carry it (PCR-04-002)"
         )
 
-        result = AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.APPLIED
         assert (
@@ -249,12 +254,14 @@ class TestNoteUseCases:
             receiving_actor_id=case_actor_id,
             at=dl,
         )
-        result = AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.APPLIED
         stored = dl.read(note.id_)
@@ -288,12 +295,14 @@ class TestNoteUseCases:
             receiving_actor_id=case_actor_id,
             at=dl,
         )
-        result = AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert getattr(dl.read(note_id), "content", None) == "Original"
@@ -322,12 +331,14 @@ class TestNoteUseCases:
             update={"receiving_actor_id": case_actor_id}
         )
         assert isinstance(event, AddNoteToCaseReceivedEvent)
-        result = AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
         # Ingress holds nothing under the Add's own id (DL-06-006).
         assert dl.read(activity.id_) is None
         return result
@@ -421,12 +432,14 @@ class TestNoteUseCases:
             receiving_actor_id=case_actor_id,
             at=dl,
         )
-        result = AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert dl.read(note_id) is None
@@ -466,12 +479,14 @@ class TestNoteUseCases:
             update={"receiving_actor_id": case_actor_id}
         )
         assert isinstance(event, AddNoteToCaseReceivedEvent)
-        result = AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.APPLIED
         assert _as_id(getattr(dl.read(note_id), "in_reply_to", None)) == (
@@ -500,12 +515,14 @@ class TestNoteUseCases:
             at=dl,
         ).model_copy(update={"object_": None})
 
-        result = AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "inline note" in result.reason
@@ -537,12 +554,14 @@ class TestNoteUseCases:
         )
 
         def run():
-            return AddNoteToCaseReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+            return run_in_act(
+                AddNoteToCaseReceivedUseCase(
+                    dl,
+                    event,
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
         assert run().disposition == HandlerDisposition.APPLIED
         entries_after_first = len(dl.list_objects("CaseLedgerEntry"))
@@ -571,21 +590,23 @@ class TestNoteUseCases:
         )
 
         def run():
-            return AddNoteToCaseReceivedUseCase(
-                dl,
-                make_payload(
-                    add_note_to_case_activity(
-                        note,
-                        target=case,
-                        actor="https://example.org/users/finder",
-                        to=[dl.actor_id],
+            return run_in_act(
+                AddNoteToCaseReceivedUseCase(
+                    dl,
+                    make_payload(
+                        add_note_to_case_activity(
+                            note,
+                            target=case,
+                            actor="https://example.org/users/finder",
+                            to=[dl.actor_id],
+                        ),
+                        receiving_actor_id=case_actor_id,
+                        at=dl,
                     ),
-                    receiving_actor_id=case_actor_id,
-                    at=dl,
-                ),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
         assert run().disposition == HandlerDisposition.APPLIED
         entries_after_first = len(dl.list_objects("CaseLedgerEntry"))
@@ -642,12 +663,14 @@ class TestNoteUseCases:
             at=dl,
         )
 
-        result = AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
@@ -681,12 +704,14 @@ class TestNoteUseCases:
             ),
             at=dl,
         )
-        return RemoveNoteFromCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        return run_in_act(
+            RemoveNoteFromCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
     @pytest.mark.spec("CM-30-001")
     @pytest.mark.spec("CLP-10-005")
@@ -834,12 +859,14 @@ class TestNoteUseCases:
         )
         event = make_payload(activity, at=dl)
 
-        result = RemoveNoteFromCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RemoveNoteFromCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "not found" in result.reason
@@ -858,7 +885,7 @@ class TestNoteUseCases:
         event.note_id = None
         event.case_id = "https://example.org/cases/c"
 
-        result = use_case(dl, event).execute()
+        result = run_in_act(use_case(dl, event))
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -886,12 +913,14 @@ class TestNoteUseCases:
             at=dl,
         )
 
-        result = AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -982,12 +1011,14 @@ class TestNoteUseCases:
             return bool(send_announce(entry, actor_id, to))
 
         sync_port.send_announce_log_entry = recording_send_announce  # type: ignore[method-assign]
-        AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=sync_port,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=sync_port,
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         assert stored_at_fan_out and all(stored_at_fan_out)
 
@@ -1091,12 +1122,14 @@ class TestNoteUseCases:
 
         # No sync_port — the commit's fan-out is a wiring fault.
         with pytest.raises(VultronBTInternalError, match="sync_port"):
-            AddNoteToCaseReceivedUseCase(
-                dl,
-                event,
-                sync_port=None,
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+            run_in_act(
+                AddNoteToCaseReceivedUseCase(
+                    dl,
+                    event,
+                    sync_port=None,
+                    wire_render_port=As2WireRenderAdapter(),
+                )
+            )
 
         stored_case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert stored_case is not None

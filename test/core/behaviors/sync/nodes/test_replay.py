@@ -16,6 +16,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     _make_entry,
 )
+from test.support.act_runner import run_tree
 from test.support.received import extract_stamped, peer_position
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import (
@@ -126,7 +127,8 @@ def test_send_missing_entries_node_replays_entries_after_divergence(
     second_entry = _make_entry(1, first_entry.entry_hash)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=SendMissingEntriesNode(name="SendMissingEntries"),
         actor_id=OWNER_ACTOR_ID,
         sync_port=sync_port,
@@ -199,7 +201,8 @@ class TestFindCaseActorNode:
                 seen["case_id"] = storage.get("/case_id")
                 return Status.SUCCESS
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=py_trees.composites.Sequence(
                 name="FindThenRead",
                 memory=False,
@@ -240,7 +243,8 @@ class TestFindCaseActorNode:
         tree, probe = BlackboardKeyProbe.after(
             FindCaseActorNode(name="FindCaseActor"), "case_actor_id"
         )
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=tree,
             actor_id=OWNER_ACTOR_ID,
             activity=event,
@@ -273,7 +277,8 @@ class TestFindCaseActorNode:
         )
         event = _make_reject_event(tail_hash="")
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=FindCaseActorNode(name="FindCaseActor"),
             actor_id=OWNER_ACTOR_ID,
             activity=event,
@@ -297,7 +302,8 @@ class TestFindCaseActorNode:
         """
         event = _make_reject_event(tail_hash="")
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=FindCaseActorNode(name="FindCaseActor"),
             actor_id=OWNER_ACTOR_ID,
             activity=event,
@@ -315,7 +321,8 @@ def test_collect_and_find_replay_context_writes_blackboard(bridge, datalayer):
     datalayer.save(first_entry)
     event = _make_reject_event(tail_hash=first_entry.entry_hash)
 
-    collect_result = bridge.execute_with_setup(
+    collect_result = run_tree(
+        bridge,
         tree=CollectAndSortCaseLedgerEntriesNode(
             name="CollectAndSortCaseLedgerEntries"
         ),
@@ -334,7 +341,8 @@ def test_collect_and_find_replay_context_writes_blackboard(bridge, datalayer):
         == PARTICIPANT_ACTOR_ID
     )
 
-    find_result = bridge.execute_with_setup(
+    find_result = run_tree(
+        bridge,
         tree=FindDivergenceIndexNode(name="FindDivergenceIndex"),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
@@ -375,7 +383,8 @@ def test_replay_missing_entries_node_replays_from_divergence(
     event = _make_reject_event(tail_hash=first_entry.entry_hash)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=ReplayMissingEntriesNode(name="ReplayMissingEntries"),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
@@ -415,7 +424,8 @@ def test_fanout_log_entry_node_sends_to_active_participants(bridge, datalayer):
     entry = _make_entry(0)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry"),
         actor_id=OWNER_ACTOR_ID,
         log_entry=entry,
@@ -442,7 +452,8 @@ def test_fanout_log_entry_node_without_sync_port_is_a_wiring_fault(
     """
     _seed_owner_and_participant_case(datalayer)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry"),
         actor_id=OWNER_ACTOR_ID,
         log_entry=_make_entry(0),
@@ -477,7 +488,8 @@ def _queued_announces(datalayer) -> list[tuple[str, list[str]]]:
 
 
 def _replay(bridge, case_actor, sync_port, entries, *, from_index: int):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=SendMissingEntriesNode(name="SendMissingEntries"),
         actor_id=OWNER_ACTOR_ID,
         sync_port=sync_port,
@@ -576,7 +588,8 @@ def test_a_position_that_names_no_entry_replays_from_the_start(
     assert from_hash not in {first_entry.entry_hash, second_entry.entry_hash}
     event = _make_reject_event(tail_hash=from_hash)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=FindDivergenceIndexNode(name="FindDivergenceIndex"),
         actor_id=OWNER_ACTOR_ID,
         activity=event,

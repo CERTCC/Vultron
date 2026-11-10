@@ -18,6 +18,7 @@
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -57,21 +58,21 @@ def note():
 class TestSaveNoteNode:
     def test_saves_note_to_datalayer(self, bridge, dl, note):
         tree = SaveNoteNode(note_obj=note)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         assert dl.read(NOTE_ID) is not None
 
     def test_idempotent_on_duplicate(self, bridge, dl, note):
         dl.create(note)
         tree = SaveNoteNode(note_obj=note)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
 
 class TestStoreNoteIfAbsentNode:
     def test_stores_an_absent_note(self, bridge, dl, note):
         tree = StoreNoteIfAbsentNode(note_obj=note)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         assert (
             getattr(dl.read(NOTE_ID), "content", None) == "Test note content"
@@ -84,7 +85,7 @@ class TestStoreNoteIfAbsentNode:
         tree = StoreNoteIfAbsentNode(
             note_obj=note.model_copy(update={"summary": "carried summary"})
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         assert getattr(dl.read(NOTE_ID), "summary", None) == "stored summary"
 
@@ -98,7 +99,7 @@ class TestAttachNoteToCaseNode:
         dl.create(case)
         dl.save(note)
         tree = AttachNoteToCaseNode(note_id=NOTE_ID, case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         refreshed = dl.read(CASE_ID)
         assert refreshed is not None
@@ -115,7 +116,7 @@ class TestAttachNoteToCaseNode:
         dl.create(case)
         dl.save(note)
         tree = AttachNoteToCaseNode(note_id=NOTE_ID, case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
         refreshed = dl.read(CASE_ID)
         assert refreshed is not None
@@ -124,7 +125,7 @@ class TestAttachNoteToCaseNode:
     def test_succeeds_when_case_id_is_none(self, bridge, dl, note):
         dl.save(note)
         tree = AttachNoteToCaseNode(note_id=NOTE_ID, case_id=None)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_fails_when_case_not_in_datalayer(self, bridge, dl, note):
@@ -133,5 +134,5 @@ class TestAttachNoteToCaseNode:
             note_id=NOTE_ID,
             case_id="https://example.org/cases/does-not-exist",
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE

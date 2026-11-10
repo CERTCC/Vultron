@@ -33,6 +33,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -175,7 +176,7 @@ class TestStoreReportNode:
         """StoreReportNode persists a VulnerabilityReport → SUCCESS."""
         report = CoreReport(id_=REPORT_ID)
         node = StoreReportNode(report_id=REPORT_ID, report_obj=report)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
         stored = dl.read(REPORT_ID)
@@ -187,14 +188,14 @@ class TestStoreReportNode:
         dl.create(report)  # pre-store
 
         node = StoreReportNode(report_id=REPORT_ID, report_obj=report)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_no_report_obj_succeeds_with_warning(self, dl, bridge, caplog):
         """StoreReportNode with report_obj=None logs warning → SUCCESS."""
         node = StoreReportNode(report_id=REPORT_ID, report_obj=None)
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+            result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
         assert dl.read(REPORT_ID) is None
@@ -204,7 +205,7 @@ class TestStoreReportNode:
         node = StoreReportNode(
             report_id="", report_obj=CoreReport(id_=REPORT_ID)
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
 
@@ -232,8 +233,8 @@ class TestCreateParticipantStatusNodeClosed:
             d_state=None,
             pxa_state=None,
         )
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
         )
 
         assert result.status == Status.SUCCESS
@@ -259,7 +260,7 @@ class TestCreateParticipantStatusNodeClosed:
             pxa_state=None,
         )
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+            result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.FAILURE
         warn_msgs = [
@@ -288,8 +289,8 @@ class TestCreateParticipantStatusNodeClosed:
             d_state=None,
             pxa_state=None,
         )
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
         )
         assert result.status == Status.FAILURE
 
@@ -313,8 +314,8 @@ class TestCreateParticipantStatusNodeInvalid:
             d_state=None,
             pxa_state=None,
         )
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
         )
 
         assert result.status == Status.SUCCESS
@@ -340,7 +341,7 @@ class TestCreateParticipantStatusNodeInvalid:
             pxa_state=None,
         )
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+            result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.FAILURE
         warn_msgs = [
@@ -369,8 +370,8 @@ class TestCreateParticipantStatusNodeInvalid:
             d_state=None,
             pxa_state=None,
         )
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
+        result = run_tree(
+            bridge, tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
         )
         assert result.status == Status.FAILURE
 
@@ -461,9 +462,7 @@ class TestCreateReportReceivedTree:
         event = _make_create_report_event()
         tree = create_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
 
         assert result.status == Status.SUCCESS
         assert dl.read(REPORT_ID) is not None
@@ -476,8 +475,8 @@ class TestCreateReportReceivedTree:
 
         for _ in range(2):
             tree = create_report_received_tree(event)
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=ACTOR_ID, activity=event
+            result = run_tree(
+                bridge, tree=tree, actor_id=ACTOR_ID, activity=event
             )
             assert result.status == Status.SUCCESS
 
@@ -490,7 +489,7 @@ class TestCreateReportReceivedUseCase:
             actor_id=ACTOR_ID,
         )
         event = _make_create_report_event()
-        CreateReportReceivedUseCase(dl, event).execute()
+        run_in_act(CreateReportReceivedUseCase(dl, event))
 
         assert dl.read(REPORT_ID) is not None
         assert _archived_by_intake(dl, ACTIVITY_ID)
@@ -502,8 +501,8 @@ class TestCreateReportReceivedUseCase:
             actor_id=ACTOR_ID,
         )
         event = _make_create_report_event()
-        CreateReportReceivedUseCase(dl, event).execute()
-        CreateReportReceivedUseCase(dl, event).execute()
+        run_in_act(CreateReportReceivedUseCase(dl, event))
+        run_in_act(CreateReportReceivedUseCase(dl, event))
 
         assert dl.read(REPORT_ID) is not None
         assert _archived_by_intake(dl, ACTIVITY_ID)
@@ -523,9 +522,7 @@ class TestAckReportReceivedTree:
             event, sender_rule=AckReportReceivedUseCase.sender_entitlement
         )
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
 
         assert result.status == Status.SUCCESS
         assert _archived_by_intake(dl, ACTIVITY_ID)
@@ -538,7 +535,7 @@ class TestAckReportReceivedTree:
             event, sender_rule=AckReportReceivedUseCase.sender_entitlement
         )
         bridge = BTBridge(datalayer=dl)
-        bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID, activity=event)
+        run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
 
         all_statuses = dl.get_all("ParticipantStatus")
         assert all_statuses == [], (
@@ -555,8 +552,8 @@ class TestAckReportReceivedTree:
             tree = create_ack_report_received_tree(
                 event, sender_rule=AckReportReceivedUseCase.sender_entitlement
             )
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=ACTOR_ID, activity=event
+            result = run_tree(
+                bridge, tree=tree, actor_id=ACTOR_ID, activity=event
             )
             assert result.status == Status.SUCCESS
 
@@ -570,7 +567,7 @@ class TestAckReportReceivedUseCase:
         )
         _record_offer_to_sender(dl)
         event = _make_ack_report_event()
-        AckReportReceivedUseCase(dl, event).execute()
+        run_in_act(AckReportReceivedUseCase(dl, event))
 
         assert _archived_by_intake(dl, ACTIVITY_ID)
 
@@ -582,7 +579,7 @@ class TestAckReportReceivedUseCase:
         )
         _record_offer_to_sender(dl)
         event = _make_ack_report_event()
-        AckReportReceivedUseCase(dl, event).execute()
+        run_in_act(AckReportReceivedUseCase(dl, event))
 
         all_statuses = dl.get_all("ParticipantStatus")
         assert all_statuses == []
@@ -593,9 +590,9 @@ class TestAckReportReceivedUseCase:
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
         )
-        result = AckReportReceivedUseCase(
-            dl, _make_ack_report_event()
-        ).execute()
+        result = run_in_act(
+            AckReportReceivedUseCase(dl, _make_ack_report_event())
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         # A door refused it before intake, so nothing is recorded; the
@@ -625,7 +622,7 @@ class TestCloseReportReceivedUseCase:
         )
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
         event = _make_close_report_event()
-        result = CloseReportReceivedUseCase(dl, event).execute()
+        result = run_in_act(CloseReportReceivedUseCase(dl, event))
 
         assert result.disposition is HandlerDisposition.REFUSED
         # A door refused it before intake, so nothing is recorded; the
@@ -652,7 +649,7 @@ class TestCloseReportReceivedUseCase:
         event = _make_close_report_event()
 
         with caplog.at_level(logging.WARNING):
-            CloseReportReceivedUseCase(dl, event).execute()
+            run_in_act(CloseReportReceivedUseCase(dl, event))
 
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
@@ -685,9 +682,7 @@ class TestInvalidateReportReceivedTree:
             sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
         )
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
 
         assert result.status == Status.SUCCESS
         assert _archived_by_intake(dl, ACTIVITY_ID)
@@ -714,8 +709,8 @@ class TestInvalidateReportReceivedTree:
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.INFO):
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=ACTOR_ID, activity=event
+            result = run_tree(
+                bridge, tree=tree, actor_id=ACTOR_ID, activity=event
             )
 
         assert result.status == Status.FAILURE
@@ -739,8 +734,8 @@ class TestInvalidateReportReceivedTree:
                 case_id=CASE_ID,
                 sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
             )
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=ACTOR_ID, activity=event
+            result = run_tree(
+                bridge, tree=tree, actor_id=ACTOR_ID, activity=event
             )
             assert result.status == Status.SUCCESS
 
@@ -758,7 +753,7 @@ class TestInvalidateReportReceivedUseCase:
         )
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
-        InvalidateReportReceivedUseCase(dl, event).execute()
+        run_in_act(InvalidateReportReceivedUseCase(dl, event))
 
         assert _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
@@ -779,7 +774,7 @@ class TestInvalidateReportReceivedUseCase:
         event = _make_invalidate_report_event()
 
         with caplog.at_level(logging.WARNING):
-            InvalidateReportReceivedUseCase(dl, event).execute()
+            run_in_act(InvalidateReportReceivedUseCase(dl, event))
 
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING

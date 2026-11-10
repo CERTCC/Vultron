@@ -24,6 +24,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.act_transaction import (
     ActTransaction,
@@ -82,9 +83,7 @@ def _raise() -> None:
 
 
 def _run(dl: SqliteDataLayer, tree: py_trees.behaviour.Behaviour):
-    return BTBridge(datalayer=dl).execute_with_setup(
-        tree=tree, actor_id=_ACTOR
-    )
+    return run_tree(BTBridge(datalayer=dl), tree=tree, actor_id=_ACTOR)
 
 
 def _held(dl: SqliteDataLayer, name: str) -> bool:

@@ -33,6 +33,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.sync.nodes.role_grant_effect import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
 )
@@ -101,7 +102,8 @@ def _target(datalayer) -> CaseParticipant:
 
 
 def _apply_node(bridge, datalayer, snapshot: dict[str, Any]) -> Status:
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=ApplyCaseParticipantRoleGrantFromLedgerNode(
             name="ApplyRoleGrant"
         ),

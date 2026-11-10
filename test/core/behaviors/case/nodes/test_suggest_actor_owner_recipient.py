@@ -34,6 +34,7 @@ and ending with a 422 from ``accept-actor-recommendation``.
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.note_wire import assert_case_manager_note_recorded
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -122,7 +123,7 @@ def _run(dl: SqliteDataLayer, node) -> Status:
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
     )
-    return bridge.execute_with_setup(tree=node, actor_id=CASE_ACTOR_ID).status
+    return run_tree(bridge, tree=node, actor_id=CASE_ACTOR_ID).status
 
 
 def _queued_recipients(dl: SqliteDataLayer, type_: str) -> list[str]:
@@ -272,11 +273,15 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
         fail_commits(monkeypatch, commit_tree)
         _seed_case_actor_store(case_actor_dl)
 
-        result = BTBridge(
-            datalayer=case_actor_dl,
-            trigger_activity=TriggerActivityAdapter(case_actor_dl),
-            sync_port=SyncActivityAdapter(case_actor_dl),
-        ).execute_with_setup(tree=_note_node(), actor_id=CASE_ACTOR_ID)
+        result = run_tree(
+            BTBridge(
+                datalayer=case_actor_dl,
+                trigger_activity=TriggerActivityAdapter(case_actor_dl),
+                sync_port=SyncActivityAdapter(case_actor_dl),
+            ),
+            tree=_note_node(),
+            actor_id=CASE_ACTOR_ID,
+        )
 
         assert result.internal_error
         case = case_actor_dl.read_case(CASE_ID)

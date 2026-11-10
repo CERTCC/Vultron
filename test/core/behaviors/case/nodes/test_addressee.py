@@ -27,6 +27,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.addressee import (
@@ -220,13 +221,12 @@ class TestOfferReportReadsTheToHalf:
 
     def _run(self, dl: SqliteDataLayer, receiver: str) -> Status:
         node = CheckOfferNamesReceiverInToNode()
-        return (
-            BTBridge(datalayer=dl)
-            .execute_with_setup(
-                node, actor_id=receiver, activity=_event([_COLLECTION])
-            )
-            .status
-        )
+        return run_tree(
+            BTBridge(datalayer=dl),
+            node,
+            actor_id=receiver,
+            activity=_event([_COLLECTION]),
+        ).status
 
     @pytest.mark.spec("HP-09-001")
     @pytest.mark.spec("HP-01-012")
@@ -339,8 +339,11 @@ def _run(
     tree = py_trees.composites.Sequence(
         name="Probe", memory=False, children=[node]
     )
-    BTBridge(datalayer=dl or _store(actor_id)).execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=event
+    run_tree(
+        BTBridge(datalayer=dl or _store(actor_id)),
+        tree=tree,
+        actor_id=actor_id,
+        activity=event,
     )
     return node
 

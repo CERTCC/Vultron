@@ -27,6 +27,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -125,9 +126,7 @@ class TestCheckCaseStatusIdempotencyNode:
         node = CheckCaseStatusIdempotencyNode(
             case_id=CASE_ID, status_id=STATUS_ID
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_duplicate_status_fails_with_sentinel(self, populated_dl):
@@ -145,7 +144,7 @@ class TestCheckCaseStatusIdempotencyNode:
         node = CheckCaseStatusIdempotencyNode(
             case_id=CASE_ID, status_id=STATUS_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert node.feedback_message == CASE_STATUS_ALREADY_PRESENT
 
@@ -153,7 +152,7 @@ class TestCheckCaseStatusIdempotencyNode:
         node = CheckCaseStatusIdempotencyNode(
             case_id="https://example.org/cases/missing", status_id=STATUS_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.spec("ARCH-15-001")
@@ -162,7 +161,7 @@ class TestCheckCaseStatusIdempotencyNode:
     ):
         """Empty string case_id → FAILURE with a diagnostic mentioning absence."""
         node = CheckCaseStatusIdempotencyNode(case_id="", status_id=STATUS_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert (
             "absent" in node.feedback_message.lower()
@@ -175,7 +174,7 @@ class TestCheckCaseStatusIdempotencyNode:
         node = CheckCaseStatusIdempotencyNode(
             case_id=None, status_id=STATUS_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert (
             "absent" in node.feedback_message.lower()
@@ -221,7 +220,7 @@ class TestEmitCaseStatusUpdateNode:
         initial_count = len(case_before.case_statuses)
 
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
         case_after = populated_dl.read(CASE_ID)
@@ -262,12 +261,16 @@ class TestEmitCaseStatusUpdateNode:
         node = EmitCaseStatusUpdateNode(
             case_id=CASE_ID, reported_status_id=report.id_
         )
-        result = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(
+            BTBridge(
+                datalayer=dl,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            ),
+            tree=node,
+            actor_id=ACTOR_ID,
+        )
 
         assert result.status == Status.SUCCESS
         stored = dl.read(CASE_ID)
@@ -291,17 +294,13 @@ class TestEmitCaseStatusUpdateNode:
         """A snapshot equal in EM and PXA to the last committed one is no
         change, so it is neither committed nor appended (#5123)."""
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
-        first = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        first = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert first.status == Status.SUCCESS
         after_first = populated_dl.read(CASE_ID)
         assert isinstance(after_first, CoreCase)
 
         again = EmitCaseStatusUpdateNode(case_id=CASE_ID)
-        second = populated_bridge.execute_with_setup(
-            tree=again, actor_id=ACTOR_ID
-        )
+        second = run_tree(populated_bridge, tree=again, actor_id=ACTOR_ID)
 
         assert second.status == Status.SUCCESS
         assert len(_case_status_entries(populated_dl)) == 1
@@ -333,8 +332,10 @@ class TestEmitCaseStatusUpdateNode:
         assert isinstance(case, CoreCase)
         case.append_case_status(pxa=CS_pxa.Pxa)
         populated_dl.save(case)
-        first = populated_bridge.execute_with_setup(
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        first = run_tree(
+            populated_bridge,
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
         )
         assert first.status == Status.SUCCESS
         report = ParticipantStatus(
@@ -345,7 +346,8 @@ class TestEmitCaseStatusUpdateNode:
         )
         populated_dl.create(report)
 
-        result = populated_bridge.execute_with_setup(
+        result = run_tree(
+            populated_bridge,
             tree=EmitCaseStatusUpdateNode(
                 case_id=CASE_ID, reported_status_id=report.id_
             ),
@@ -367,8 +369,10 @@ class TestEmitCaseStatusUpdateNode:
         from vultron.core.states.em import EM
         from vultron.core.states.embargo_register import RegisterTrigger
 
-        first = populated_bridge.execute_with_setup(
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        first = run_tree(
+            populated_bridge,
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
         )
         assert first.status == Status.SUCCESS
         case = populated_dl.read(CASE_ID)
@@ -384,8 +388,10 @@ class TestEmitCaseStatusUpdateNode:
         populated_dl.save(case)
         assert case.current_status.em.state is EM.PROPOSED
 
-        result = populated_bridge.execute_with_setup(
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        result = run_tree(
+            populated_bridge,
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
         )
 
         assert result.status == Status.SUCCESS
@@ -416,8 +422,10 @@ class TestEmitCaseStatusUpdateNode:
             helpers_clock, "datetime", SteppingClock(pinned, step=timedelta(0))
         )
 
-        first = populated_bridge.execute_with_setup(
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        first = run_tree(
+            populated_bridge,
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
         )
         assert first.status == Status.SUCCESS
         case = populated_dl.read(CASE_ID)
@@ -431,8 +439,10 @@ class TestEmitCaseStatusUpdateNode:
             ]
         )
         populated_dl.save(case)
-        second = populated_bridge.execute_with_setup(
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        second = run_tree(
+            populated_bridge,
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
         )
         assert second.status == Status.SUCCESS
 
@@ -456,8 +466,10 @@ class TestEmitCaseStatusUpdateNode:
     ):
         """A last committed status that cannot be read is a broken store, not
         a first status: the node fails and writes nothing (ARCH-15-001)."""
-        first = populated_bridge.execute_with_setup(
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        first = run_tree(
+            populated_bridge,
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
         )
         assert first.status == Status.SUCCESS
         (entry,) = _case_status_entries(populated_dl)
@@ -475,8 +487,10 @@ class TestEmitCaseStatusUpdateNode:
         assert isinstance(case, CoreCase)
         statuses_before = len(case.case_statuses)
 
-        result = populated_bridge.execute_with_setup(
-            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        result = run_tree(
+            populated_bridge,
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
         )
 
         assert result.status == Status.FAILURE
@@ -504,11 +518,15 @@ class TestEmitCaseStatusUpdateNode:
         initial_count = len(case_before.case_statuses)
 
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
-        result = BTBridge(
-            datalayer=populated_dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(populated_dl),
-        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(
+            BTBridge(
+                datalayer=populated_dl,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(populated_dl),
+            ),
+            tree=node,
+            actor_id=ACTOR_ID,
+        )
 
         assert result.status == Status.FAILURE
         assert result.internal_error is True
@@ -532,7 +550,7 @@ class TestEmitCaseStatusUpdateNode:
             trigger_activity=TriggerActivityAdapter(populated_dl),
         )
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
         entries = [
@@ -577,9 +595,7 @@ class TestEmitCaseStatusUpdateNode:
         node = EmitCaseStatusUpdateNode(
             case_id=CASE_ID, reported_status_id=reported_status_id
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.FAILURE
         assert reported_status_id in node.feedback_message
@@ -598,7 +614,7 @@ class TestEmitCaseStatusUpdateNode:
         node = EmitCaseStatusUpdateNode(
             case_id="https://example.org/cases/nonexistent"
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.spec("RSH-04-004")
@@ -613,7 +629,7 @@ class TestEmitCaseStatusUpdateNode:
             trigger_activity=TriggerActivityAdapter(populated_dl),
         )
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
         case_after = populated_dl.read(CASE_ID)
@@ -630,7 +646,7 @@ class TestEmitCaseStatusUpdateNode:
     ):
         """Empty string case_id → FAILURE with a diagnostic mentioning absence."""
         node = EmitCaseStatusUpdateNode(case_id="")
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert (
             "absent" in node.feedback_message.lower()
@@ -641,7 +657,7 @@ class TestEmitCaseStatusUpdateNode:
     def test_none_case_id_returns_failure_with_diagnostic(self, bridge):
         """None case_id → FAILURE with a diagnostic mentioning absence."""
         node = EmitCaseStatusUpdateNode(case_id=None)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert (
             "absent" in node.feedback_message.lower()

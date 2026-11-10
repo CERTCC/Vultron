@@ -28,6 +28,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -68,7 +69,7 @@ def _make_case_with_pxa(pxa_state: CS_pxa) -> VulnerabilityCase:
 
 
 def _run(bridge: BTBridge, node: py_trees.behaviour.Behaviour) -> Status:
-    result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+    result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
     return result.status
 
 

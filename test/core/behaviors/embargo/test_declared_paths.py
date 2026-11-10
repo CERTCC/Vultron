@@ -50,6 +50,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     OTHER_PARTICIPANT_ACTOR,
     make_case_with_manager,
 )
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.received_path import (
@@ -322,7 +323,7 @@ def _run_stage(
         "the path stage is a door guard, so its refusal ends the tree before"
         " any commit (CLP-10-010)"
     )
-    BTBridge(datalayer=dl).execute_with_setup(tree=door, actor_id=actor)
+    run_tree(BTBridge(datalayer=dl), tree=door, actor_id=actor)
     return stage, case_id
 
 

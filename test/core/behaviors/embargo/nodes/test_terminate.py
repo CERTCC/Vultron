@@ -28,6 +28,7 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_runner import run_tree
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -159,9 +160,11 @@ def _run(
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     _seed_case_with_manager(dl)
     _seed_ask_blackboard()
-    result = BTBridge(
-        datalayer=dl, trigger_activity=factory
-    ).execute_with_setup(tree=tree, actor_id=actor_id)
+    result = run_tree(
+        BTBridge(datalayer=dl, trigger_activity=factory),
+        tree=tree,
+        actor_id=actor_id,
+    )
     return dl, result
 
 

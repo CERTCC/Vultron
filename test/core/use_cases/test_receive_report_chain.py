@@ -18,6 +18,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
 from vultron.adapters.driven.clock import SystemClock
@@ -220,23 +221,29 @@ class TestValidateEngageChain:
 
     @staticmethod
     def _validate(dl, vendor, offer) -> None:
-        SvcValidateReportUseCase(
-            dl,
-            ValidateReportTriggerRequest(
-                actor_id=vendor.id_, offer_id=offer.id_
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                dl,
+                ValidateReportTriggerRequest(
+                    actor_id=vendor.id_, offer_id=offer.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
 
     @staticmethod
     def _engage(dl, vendor, case) -> None:
-        SvcEngageCaseUseCase(
-            dl,
-            EngageCaseTriggerRequest(actor_id=vendor.id_, case_id=case.id_),
-            trigger_activity=TriggerActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcEngageCaseUseCase(
+                dl,
+                EngageCaseTriggerRequest(
+                    actor_id=vendor.id_, case_id=case.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
 
     @staticmethod
     def _rm_history(dl, vendor, case) -> list[RM]:
@@ -364,14 +371,16 @@ class TestValidateEngageChain:
         vendor, _, case_actor, dl, _, offer, _ = chain_context
 
         before = set(dl.outbox_list())
-        SvcValidateReportUseCase(
-            dl,
-            ValidateReportTriggerRequest(
-                actor_id=vendor.id_, offer_id=offer.id_
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                dl,
+                ValidateReportTriggerRequest(
+                    actor_id=vendor.id_, offer_id=offer.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(dl.outbox_list())
         new_ids = after - before
         assert new_ids, (

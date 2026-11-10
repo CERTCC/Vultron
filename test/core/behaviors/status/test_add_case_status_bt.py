@@ -51,6 +51,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from test.support.received import TEST_SENDER_POSITION, received_event
@@ -192,8 +193,8 @@ def _run_at_replica(
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
     )
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=str(dl.actor_id), activity=event
+    result = run_tree(
+        bridge, tree=tree, actor_id=str(dl.actor_id), activity=event
     )
     return result, tree
 
@@ -274,9 +275,7 @@ class TestCheckCaseStatusIdempotencyNode:
         node = CheckCaseStatusIdempotencyNode(
             case_id=CASE_ID, status_id=STATUS_ID
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_duplicate_status_fails_with_sentinel(self, populated_dl):
@@ -295,7 +294,7 @@ class TestCheckCaseStatusIdempotencyNode:
         node = CheckCaseStatusIdempotencyNode(
             case_id=CASE_ID, status_id=STATUS_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert node.feedback_message == CASE_STATUS_ALREADY_PRESENT
 
@@ -305,7 +304,7 @@ class TestCheckCaseStatusIdempotencyNode:
             case_id="https://example.org/cases/nonexistent",
             status_id=STATUS_ID,
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert node.feedback_message != CASE_STATUS_ALREADY_PRESENT
 
@@ -368,9 +367,7 @@ class TestCheckCaseStatusAcceptableNodeBug2704:
             status_id=STATUS_ID,
             status_obj_fallback=None,
         )
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID_2704
-        )
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID_2704)
         assert result.status == Status.FAILURE, (
             "CheckCaseStatusAcceptableNode must return FAILURE when the status object"
             " cannot be resolved (CLP-10-009, #2704)"
@@ -426,14 +423,14 @@ class TestCheckCaseStatusAcceptableNodeAbsentCaseId:
     def test_none_case_id_returns_success(self, bridge):
         """None case_id → SUCCESS (no case to look up; nothing to filter)."""
         node = CheckCaseStatusAcceptableNode(case_id=None, status_id=STATUS_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     @pytest.mark.spec("ARCH-15-001")
     def test_empty_string_case_id_returns_success(self, bridge):
         """Empty-string case_id → SUCCESS (no case to look up; nothing to filter)."""
         node = CheckCaseStatusAcceptableNode(case_id="", status_id=STATUS_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
 
@@ -451,7 +448,7 @@ class TestCheckCaseStatusAcceptableNode:
         node = CheckCaseStatusAcceptableNode(
             case_id=CASE_ID, status_id=STATUS_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         return result.status, node.feedback_message
 
     @pytest.mark.spec("RSH-09-005")
@@ -937,12 +934,14 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         dl = _replica_with_status(status_obj)
 
-        result = AddCaseStatusToCaseReceivedUseCase(
-            dl,
-            make_payload(_from_manager(status_obj), at=dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AddCaseStatusToCaseReceivedUseCase(
+                dl,
+                make_payload(_from_manager(status_obj), at=dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED, result
         assert STATUS_ID not in _status_ids(dl)
@@ -956,11 +955,13 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         dl = _replica_with_status(status_obj, preload=True)
 
         with caplog.at_level(logging.DEBUG):
-            result = AddCaseStatusToCaseReceivedUseCase(
-                dl,
-                make_payload(_from_manager(status_obj), at=dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+            result = run_in_act(
+                AddCaseStatusToCaseReceivedUseCase(
+                    dl,
+                    make_payload(_from_manager(status_obj), at=dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                )
+            )
 
         assert result.disposition is HandlerDisposition.SKIPPED, result
         info_msgs = [
@@ -992,11 +993,13 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         dl = _replica_with_status(bad_status, initial=initial)
 
         with caplog.at_level(logging.DEBUG):
-            result = AddCaseStatusToCaseReceivedUseCase(
-                dl,
-                make_payload(_from_manager(bad_status), at=dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+            result = run_in_act(
+                AddCaseStatusToCaseReceivedUseCase(
+                    dl,
+                    make_payload(_from_manager(bad_status), at=dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                )
+            )
 
         assert result.disposition is HandlerDisposition.REFUSED
         # The guards refused the content, not the sender (HP-01-006).
@@ -1030,9 +1033,11 @@ class TestAddCaseStatusToCaseReceivedUseCase:
             return_value=None,
         ):
             with caplog.at_level(logging.DEBUG):
-                result = AddCaseStatusToCaseReceivedUseCase(
-                    dl, event, wire_render_port=As2WireRenderAdapter()
-                ).execute()
+                result = run_in_act(
+                    AddCaseStatusToCaseReceivedUseCase(
+                        dl, event, wire_render_port=As2WireRenderAdapter()
+                    )
+                )
 
         assert result.disposition is HandlerDisposition.REFUSED
         warn_msgs = [
@@ -1100,7 +1105,7 @@ class TestThreatTerminationBranchNode:
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_skips_when_no_active_embargo(self, dl):
@@ -1119,7 +1124,7 @@ class TestThreatTerminationBranchNode:
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_skips_when_status_obj_none(self, dl):
@@ -1130,7 +1135,7 @@ class TestThreatTerminationBranchNode:
             sync_port=SyncActivityAdapter(dl),
         )
         node = ThreatTerminationBranchNode(status_obj=None, case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_skips_when_case_id_none(self, dl):
@@ -1142,7 +1147,7 @@ class TestThreatTerminationBranchNode:
             sync_port=SyncActivityAdapter(dl),
         )
         node = ThreatTerminationBranchNode(status_obj=status_obj, case_id=None)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     @pytest.mark.spec("RSH-03-001")
@@ -1183,7 +1188,7 @@ class TestThreatTerminationBranchNode:
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
@@ -1207,7 +1212,7 @@ class TestThreatTerminationBranchNode:
             status_obj=status_obj, case_id=CASE_ID
         )
         # No trigger_activity in bridge → no Remove → FAILURE (BT-14-001)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
@@ -1236,7 +1241,7 @@ class TestThreatTerminationBranchNode:
             status_obj=status_obj,
             case_id=CASE_ID,
         )
-        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
         assert updated.current_status.em.state == EM.EXITED
@@ -1255,7 +1260,7 @@ class TestThreatTerminationBranchNode:
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
-        return bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID).status
+        return run_tree(bridge, tree=node, actor_id=ACTOR_ID).status
 
     @pytest.mark.spec("EP-09-008")
     def test_a_non_manager_running_the_branch_asks_the_manager(self, dl):
@@ -1296,7 +1301,7 @@ class TestThreatTerminationBranchNode:
         node = ThreatTerminationBranchNode(
             status_obj=status_obj, case_id=CASE_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.FAILURE
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
@@ -1336,12 +1341,14 @@ class TestThreatTerminationBranchNode:
         event = cast(
             AnnounceLogEntryReceivedEvent, received_event(activity, at=dl)
         )
-        AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            event.model_copy(update={"receiving_actor_id": ACTOR_ID}),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                event.model_copy(update={"receiving_actor_id": ACTOR_ID}),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
     @pytest.mark.spec("EP-09-008")
     @pytest.mark.spec("SYNC-11-002")
@@ -1453,7 +1460,7 @@ class TestThreatTerminationBranchNodeProposedEm:
     def test_as_the_case_manager_em_returns_to_none(self):
         dl, bridge, node = self._setup(CASE_MANAGER_ID)
 
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        result = run_tree(bridge, tree=node, actor_id=CASE_MANAGER_ID)
 
         assert result.status == Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
@@ -1465,7 +1472,7 @@ class TestThreatTerminationBranchNodeProposedEm:
         """A non-manager neither abandons the open proposal nor asks."""
         dl, bridge, node = self._setup(ACTOR_ID)
 
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
@@ -1551,8 +1558,8 @@ class TestRegressionCSPTeardownPath:
         )
         # Runs as the case manager: the seeded case names CASE_MANAGER_ID as
         # its only participant, and teardown authority is the manager's.
-        new_result = new_bridge.execute_with_setup(
-            tree=new_node, actor_id=CASE_MANAGER_ID
+        new_result = run_tree(
+            new_bridge, tree=new_node, actor_id=CASE_MANAGER_ID
         )
         assert new_result.status == Status.SUCCESS
 
@@ -1682,7 +1689,7 @@ class TestEmitCaseStatusUpdateNodePromotion:
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=EMIT_ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=EMIT_ACTOR_ID)
         assert result.status == Status.SUCCESS
 
         updated_case = dl.read(CASE_ID)
@@ -1712,7 +1719,7 @@ class TestCheckCaseStatusAcceptableNodeMissingCase:
         node = CheckCaseStatusAcceptableNode(
             case_id=CASE_ID, status_id=STATUS_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     def test_missing_case_feedback_message_names_case(self, bridge):
@@ -1720,7 +1727,7 @@ class TestCheckCaseStatusAcceptableNodeMissingCase:
         node = CheckCaseStatusAcceptableNode(
             case_id=CASE_ID, status_id=STATUS_ID
         )
-        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert node.feedback_message
         assert CASE_ID in node.feedback_message
 
@@ -1811,8 +1818,8 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=REPLICA_ID, activity=event
+        result = run_tree(
+            bridge, tree=tree, actor_id=REPLICA_ID, activity=event
         )
         assert result.status == expected, result.feedback_message
         return dl

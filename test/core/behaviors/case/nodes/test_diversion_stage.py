@@ -35,6 +35,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     OTHER_PARTICIPANT_ACTOR,
     make_case_with_manager,
 )
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     Diversion,
@@ -381,12 +382,16 @@ class TestManagerOnlyDeclarationReachesItsDiversion:
         )
         door = probe.path_stage.parent
         assert door is not None
-        BTBridge(datalayer=probe.datalayer).execute_with_setup(
-            tree=door, actor_id=store_actor
+        run_tree(
+            BTBridge(datalayer=probe.datalayer),
+            tree=door,
+            actor_id=store_actor,
         )
         if probe.path_stage.status is Status.SUCCESS:
-            BTBridge(datalayer=probe.datalayer).execute_with_setup(
-                tree=probe.stage, actor_id=store_actor
+            run_tree(
+                BTBridge(datalayer=probe.datalayer),
+                tree=probe.stage,
+                actor_id=store_actor,
             )
         return probe.stage, probe.condition, probe.effect
 

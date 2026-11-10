@@ -40,6 +40,7 @@ import importlib
 import pytest
 
 from test.architecture import _corpus
+from test.support.act_runner import run_in_act
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
@@ -663,7 +664,7 @@ def test_a_processing_fault_is_never_recorded_in_the_ledger() -> None:
         )
         event = received_event(activity, at=dl)
         assert isinstance(event, CreateProcessingFaultReceivedEvent)
-        result = CreateProcessingFaultReceivedUseCase(dl, event).execute()
+        result = run_in_act(CreateProcessingFaultReceivedUseCase(dl, event))
 
         assert result.disposition is HandlerDisposition.SKIPPED, result
         # The fault did arrive and was handled: intake archived it.

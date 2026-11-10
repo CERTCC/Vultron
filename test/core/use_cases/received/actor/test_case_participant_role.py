@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.case_participant_role import (
@@ -111,13 +112,15 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             As2WireRenderAdapter,
         )
 
-        return OfferCaseParticipantRoleReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=MagicMock(),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        return run_in_act(
+            OfferCaseParticipantRoleReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=MagicMock(),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
     def test_offer_case_participant_role_persists_offer(self, make_payload):
         """Intake archives the Offer the CASE_MANAGER receives (CLP-10-017)."""
@@ -143,9 +146,11 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
         )
 
-        result = OfferCaseParticipantRoleReceivedUseCase(
-            dl, event, trigger_activity=MagicMock(), sync_port=MagicMock()
-        ).execute()
+        result = run_in_act(
+            OfferCaseParticipantRoleReceivedUseCase(
+                dl, event, trigger_activity=MagicMock(), sync_port=MagicMock()
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         # The path stage, a door, refused it before intake (CLP-10-010).
@@ -179,9 +184,11 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         )
         trigger = MagicMock(wraps=TriggerActivityAdapter(dl))
 
-        result = OfferCaseParticipantRoleReceivedUseCase(
-            dl, event, trigger_activity=trigger, sync_port=MagicMock()
-        ).execute()
+        result = run_in_act(
+            OfferCaseParticipantRoleReceivedUseCase(
+                dl, event, trigger_activity=trigger, sync_port=MagicMock()
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
         trigger.accept_case_participant_role.assert_called_once()
@@ -276,9 +283,11 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         trigger.accept_case_participant_role.side_effect = RuntimeError("down")
         trigger.reject_case_participant_role.side_effect = RuntimeError("down")
 
-        result = OfferCaseParticipantRoleReceivedUseCase(
-            dl, event, trigger_activity=trigger
-        ).execute()
+        result = run_in_act(
+            OfferCaseParticipantRoleReceivedUseCase(
+                dl, event, trigger_activity=trigger
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason

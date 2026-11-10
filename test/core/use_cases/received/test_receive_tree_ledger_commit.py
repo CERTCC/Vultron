@@ -28,6 +28,7 @@ from typing import cast
 import py_trees
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -192,9 +193,9 @@ class TestCloseAndInvalidateReportCommit:
             ).model_copy(update={"receiving_actor_id": receiver}),
         )
 
-        result = InvalidateReportReceivedUseCase(
-            dl, event, **_ports(dl)
-        ).execute()
+        result = run_in_act(
+            InvalidateReportReceivedUseCase(dl, event, **_ports(dl))
+        )
 
         assert result.disposition is (
             HandlerDisposition.APPLIED
@@ -225,7 +226,9 @@ class TestCloseAndInvalidateReportCommit:
             ).model_copy(update={"receiving_actor_id": receiver}),
         )
 
-        result = CloseReportReceivedUseCase(dl, event, **_ports(dl)).execute()
+        result = run_in_act(
+            CloseReportReceivedUseCase(dl, event, **_ports(dl))
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert _committed(dl) == []
@@ -257,7 +260,7 @@ class TestCloseAndInvalidateReportCommit:
         )
         event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
 
-        result = use_case(dl, event, **_ports(dl)).execute()
+        result = run_in_act(use_case(dl, event, **_ports(dl)))
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert _committed(dl) == []
@@ -320,7 +323,7 @@ class TestCloseAndInvalidateReportCommit:
         )
         event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
 
-        result = use_case(dl, event, **_ports(dl)).execute()
+        result = run_in_act(use_case(dl, event, **_ports(dl)))
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert _committed(dl) == expected
@@ -342,12 +345,12 @@ class TestCloseAndInvalidateReportCommit:
             ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
         )
 
-        first = InvalidateReportReceivedUseCase(
-            dl, event, **_ports(dl)
-        ).execute()
-        second = InvalidateReportReceivedUseCase(
-            dl, event, **_ports(dl)
-        ).execute()
+        first = run_in_act(
+            InvalidateReportReceivedUseCase(dl, event, **_ports(dl))
+        )
+        second = run_in_act(
+            InvalidateReportReceivedUseCase(dl, event, **_ports(dl))
+        )
 
         assert first.disposition is HandlerDisposition.APPLIED
         assert second.disposition is HandlerDisposition.SKIPPED

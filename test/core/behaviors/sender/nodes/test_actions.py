@@ -20,6 +20,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BlackboardKeyProbe
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -105,7 +106,7 @@ class TestResolveCaseManagerNode:
         store, actor = dl
         case, _ = _make_case_with_case_manager(store, actor.id_, CASE_ACTOR_ID)
         node = ResolveCaseManagerNode(case_id=case.id_)
-        result = bridge.execute_with_setup(tree=node, actor_id=actor.id_)
+        result = run_tree(bridge, tree=node, actor_id=actor.id_)
         assert result.status == Status.SUCCESS
 
     def test_writes_case_manager_id_to_blackboard(self, dl, bridge):
@@ -117,7 +118,7 @@ class TestResolveCaseManagerNode:
         tree, probe = BlackboardKeyProbe.after(
             ResolveCaseManagerNode(case_id=case.id_), "case_manager_id"
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+        result = run_tree(bridge, tree=tree, actor_id=actor.id_)
         assert result.status == Status.SUCCESS
         assert probe.value == CASE_ACTOR_ID
         assert "/case_manager_id" not in py_trees.blackboard.Blackboard.storage
@@ -125,7 +126,7 @@ class TestResolveCaseManagerNode:
     def test_failure_when_case_not_found(self, dl, bridge):
         _, actor = dl
         node = ResolveCaseManagerNode(case_id="https://missing.example/case")
-        result = bridge.execute_with_setup(tree=node, actor_id=actor.id_)
+        result = run_tree(bridge, tree=node, actor_id=actor.id_)
         assert result.status == Status.FAILURE
 
     def test_failure_when_no_case_manager(self, dl, bridge):
@@ -144,7 +145,7 @@ class TestResolveCaseManagerNode:
         store.create(case)
         store.create(participant)
         node = ResolveCaseManagerNode(case_id=case.id_)
-        result = bridge.execute_with_setup(tree=node, actor_id=actor.id_)
+        result = run_tree(bridge, tree=node, actor_id=actor.id_)
         assert result.status == Status.FAILURE
         assert "CASE_MANAGER" in node.feedback_message
 
@@ -167,7 +168,7 @@ class TestConstructActivitiesNode:
                 ConstructActivitiesNode(activity_builder=_builder),
             ],
         )
-        result = bridge.execute_with_setup(tree=seq, actor_id=actor.id_)
+        result = run_tree(bridge, tree=seq, actor_id=actor.id_)
         assert result.status == Status.SUCCESS
         assert received_ids == [CASE_ACTOR_ID]
 
@@ -186,13 +187,13 @@ class TestConstructActivitiesNode:
                 ConstructActivitiesNode(activity_builder=_failing_builder),
             ],
         )
-        result = bridge.execute_with_setup(tree=seq, actor_id=actor.id_)
+        result = run_tree(bridge, tree=seq, actor_id=actor.id_)
         assert result.status == Status.FAILURE
 
     def test_failure_without_resolve_first(self, dl, bridge):
         _, actor = dl
         node = ConstructActivitiesNode(activity_builder=lambda _: [])
-        result = bridge.execute_with_setup(tree=node, actor_id=actor.id_)
+        result = run_tree(bridge, tree=node, actor_id=actor.id_)
         assert result.status == Status.FAILURE
 
 
@@ -214,7 +215,7 @@ class TestQueueToOutboxNode:
                 QueueToOutboxNode(),
             ],
         )
-        result = bridge.execute_with_setup(tree=seq, actor_id=actor.id_)
+        result = run_tree(bridge, tree=seq, actor_id=actor.id_)
         assert result.status == Status.SUCCESS
         outbox_items = store.clone_for_actor(actor.id_).outbox_list()
         assert ACTIVITY_ID in outbox_items

@@ -33,6 +33,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import activate, propose, reject
 from test.support.ledger import is_consent_row_update
 from test.support.owner_decision import (
@@ -194,7 +195,7 @@ def _decide(
 ):
     activity = factory(embargo, target=_CASE_ID, actor=sender, to=[_MANAGER])
     event = make_payload(activity, receiving_actor_id=_MANAGER, at=dl)
-    return use_case(dl, event, **_ports(dl)).execute()
+    return run_in_act(use_case(dl, event, **_ports(dl)))
 
 
 def _ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
@@ -247,12 +248,16 @@ def _consent(
 def _sweep(dl: SqliteDataLayer) -> py_trees.common.Status:
     """Run the sweep alone, as the CASE_MANAGER, with production's ports."""
     (decision,) = embargo_clock_decisions(_CASE_ID)
-    result = BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute_with_setup(tree=decision, actor_id=_MANAGER)
+    result = run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ),
+        tree=decision,
+        actor_id=_MANAGER,
+    )
     assert not result.internal_error, result.feedback_message
     return result.status
 
@@ -436,12 +441,16 @@ class TestSweepScope:
         )
         (decision,) = embargo_clock_decisions(_CASE_ID)
 
-        result = BTBridge(
-            datalayer=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute_with_setup(tree=decision, actor_id=_MANAGER)
+        result = run_tree(
+            BTBridge(
+                datalayer=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ),
+            tree=decision,
+            actor_id=_MANAGER,
+        )
 
         assert result.internal_error
         assert _expiries(dl) == []
@@ -458,12 +467,16 @@ class TestSweepScope:
             _CASE_ID, embargo_clock_decisions(_CASE_ID)
         )
 
-        BTBridge(
-            datalayer=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute_with_setup(tree=gate, actor_id=_OWNER)
+        run_tree(
+            BTBridge(
+                datalayer=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ),
+            tree=gate,
+            actor_id=_OWNER,
+        )
 
         assert _expiries(dl) == []
         assert _consent(dl, _INVITEE) == EmbargoConsentState.INVITED
@@ -494,9 +507,11 @@ class TestOtherEmbargoActivity:
             to=[_MANAGER],
         )
         event = make_payload(answer, receiving_actor_id=_MANAGER, at=dl)
-        return RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, **_ports(dl, sync)
-        ).execute()
+        return run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, **_ports(dl, sync)
+            )
+        )
 
     @pytest.mark.spec("CM-28-028")
     def test_a_participants_reject_of_its_invite_sweeps_first(
@@ -596,14 +611,18 @@ class TestOwnerTrigger:
         case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         dl.save(case)
 
-        use_case(
-            dl,
-            request_model(
-                actor_id=_MANAGER, case_id=_CASE_ID, proposal_id=proposal.id_
-            ),
-            **_ports(dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            use_case(
+                dl,
+                request_model(
+                    actor_id=_MANAGER,
+                    case_id=_CASE_ID,
+                    proposal_id=proposal.id_,
+                ),
+                **_ports(dl),
+                clock=SystemClock(),
+            )
+        )
 
         types = _semantic_types(dl)
         assert _expiry_index(dl) < types.index(decided)

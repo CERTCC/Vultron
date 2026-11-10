@@ -40,6 +40,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
@@ -199,13 +200,15 @@ def _deliver(
 ) -> Any:
     handler = _HANDLERS[declared]
     event = make_payload(handler.build(sender), at=dl)
-    return handler.use_case(
-        dl,
-        event,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        handler.use_case(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ID)
@@ -350,7 +353,8 @@ def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
     )
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=add_participant_status_tree(
             request=event,
             case_id=CASE_ID,
@@ -534,13 +538,15 @@ class TestRefusedRegressionIsNoted:
         dl.create(status)
         tail = ledger_tail_position(CASE_ID, dl)
 
-        result = AddParticipantStatusToParticipantReceivedUseCase(
-            dl,
-            make_payload(activity, at=dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        result = run_in_act(
+            AddParticipantStatusToParticipantReceivedUseCase(
+                dl,
+                make_payload(activity, at=dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert recorded_rm(dl) == RM.ACCEPTED
@@ -579,16 +585,14 @@ class TestRefusedRegressionIsNoted:
         event = make_payload(_HANDLERS[declared].build(ACTOR_ID), at=dl)
 
         def deliver() -> Any:
-            return (
-                _HANDLERS[declared]
-                .use_case(
+            return run_in_act(
+                _HANDLERS[declared].use_case(
                     dl,
                     event,
                     trigger_activity=TriggerActivityAdapter(dl),
                     sync_port=SyncActivityAdapter(dl),
                     wire_render_port=As2WireRenderAdapter(),
                 )
-                .execute()
             )
 
         first = deliver()
@@ -645,9 +649,7 @@ class TestRefusedRegressionIsNoted:
             case_id=CASE_ID,
             sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
 
         assert result.status.name == "FAILURE"
         # The refusal is the adjudication's, so the refusal stage ran and

@@ -84,6 +84,7 @@ from test.demo._helpers import (
 from test.demo.conftest import (
     submit_report_through_reporter,
 )
+from test.support.act_runner import run_in_act
 from test.support.received import received_event, received_of_type
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -556,9 +557,11 @@ class TestCaseProposalRoundTrip:
                 AnnounceVulnerabilityCaseReceivedEvent,
                 received_event(activity),
             ).model_copy(update={"receiving_actor_id": reporter_actor_id})
-            return AnnounceVulnerabilityCaseReceivedUseCase(
-                reporter_iso.dl, event
-            ).execute()
+            return run_in_act(
+                AnnounceVulnerabilityCaseReceivedUseCase(
+                    reporter_iso.dl, event
+                )
+            )
 
         accepted = _announce_from(case_actor_id)
         assert accepted.disposition is not HandlerDisposition.REFUSED, (

@@ -33,6 +33,7 @@ import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
 from test.support.received import (
@@ -173,11 +174,16 @@ def _tree(
 
 def _run(net: LedgerNetwork, receiver: str, tree: Any, event: Any) -> Any:
     dl = net.stores[receiver]
-    return BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute_with_setup(tree=tree, actor_id=receiver, activity=event)
+    return run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ),
+        tree=tree,
+        actor_id=receiver,
+        activity=event,
+    )
 
 
 def _notices(net: LedgerNetwork, sender: str, to: str) -> list[Any]:
@@ -629,9 +635,9 @@ def test_a_notice_naming_no_case_is_refused():
     assert isinstance(routed, RefusalNoticeReceivedEvent)
     assert routed.case_id is None
 
-    verdict = RefusalNoticeReceivedUseCase(
-        net.stores[BYSTANDER], routed
-    ).execute()
+    verdict = run_in_act(
+        RefusalNoticeReceivedUseCase(net.stores[BYSTANDER], routed)
+    )
 
     assert verdict.disposition is HandlerDisposition.REFUSED
 

@@ -33,6 +33,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import (
     activate,
     terminate,
@@ -180,13 +181,15 @@ def _deliver(dl: SqliteDataLayer, activity, make_payload, receiving_actor_id):
     event = make_payload(
         activity, receiving_actor_id=receiving_actor_id, at=dl
     )
-    return InviteToEmbargoOnCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 @pytest.mark.spec("EP-09-001")
@@ -838,12 +841,13 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     assert len(_relayed_invites(dl)) == invites_before
 
     # The cascade reacting to the recorded P/X/A status ends the embargo.
-    result = BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ),
         tree=ThreatTerminationBranchNode(
             status_obj=case.current_status, case_id=case_id
         ),
@@ -1052,12 +1056,14 @@ def test_a_missing_trigger_port_is_a_wiring_fault_that_moves_no_state(
     with pytest.raises(
         VultronBTInternalError, match="trigger_activity_factory"
     ):
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
     assert cast(
         VulnerabilityCase, dl.read(case_id)
@@ -1080,13 +1086,15 @@ def test_an_invite_naming_no_embargo_is_refused(make_payload):
         proposal, receiving_actor_id=MANAGER, at=dl
     ).model_copy(update={"object_": None})
 
-    verdict = InviteToEmbargoOnCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    verdict = run_in_act(
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert "names no embargo" in (verdict.reason or "")
@@ -1148,13 +1156,15 @@ def test_a_redelivered_proposal_is_skipped_and_relays_nothing_twice(
     invites_after_first = len(_relayed_invites(dl))
 
     event = make_payload(proposal, receiving_actor_id=MANAGER, at=dl)
-    second = InviteToEmbargoOnCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    second = run_in_act(
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert second.disposition is HandlerDisposition.SKIPPED
     assert "already applied" in (second.reason or "")
@@ -1232,13 +1242,15 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
     adapter = _AdapterFailingOnSecondInvite(dl)
 
     with pytest.raises(VultronBTInternalError, match="mid-relay"):
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=adapter,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=adapter,
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
     assert adapter.calls == 2, "the fault came after the first Invite"
     _assert_relay_kept_nothing(
@@ -1247,13 +1259,15 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
 
     # Nothing was kept, so a redelivery is a fresh act: the proposal is
     # committed, and relayed to each other participant.
-    again = InviteToEmbargoOnCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    again = run_in_act(
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert again.disposition is HandlerDisposition.APPLIED, again.reason
     assert [
@@ -1303,13 +1317,15 @@ def test_a_received_proposal_whose_relay_commit_fails_keeps_no_consequence(
             when=lambda kw: kw["semantic_type"] == "invite_to_embargo_on_case",
         )
         with pytest.raises(VultronBTInternalError):
-            InviteToEmbargoOnCaseReceivedUseCase(
-                dl,
-                event,
-                sync_port=SyncActivityAdapter(dl),
-                trigger_activity=TriggerActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+            run_in_act(
+                InviteToEmbargoOnCaseReceivedUseCase(
+                    dl,
+                    event,
+                    sync_port=SyncActivityAdapter(dl),
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                )
+            )
     (first_invite,) = failed
     assert dl.read(first_invite) is None
     _assert_relay_kept_nothing(

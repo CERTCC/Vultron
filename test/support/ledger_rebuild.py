@@ -39,6 +39,7 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
+from test.support.act_runner import run_in_act
 from test.support.ledger import (
     assert_case_at_chain_tail,
     case_snapshot_position_violations,
@@ -118,7 +119,7 @@ def run_use_case(
     ports = {
         k: v for k, v in offered.items() if k in accepted and k not in without
     }
-    verdict = use_case(dl, event, **ports).execute()
+    verdict = run_in_act(use_case(dl, event, **ports))
     replay_inbox(dl, event.receiving_actor_id, without=without)
     return verdict
 
