@@ -84,17 +84,9 @@ _LATER_NODES = (ReissueStubInvitesNode, RelayEmbargoInviteToEachNode)
 ONE_ACT_EXEMPT_TREES: dict[_Site, str] = {}
 
 #: ``(module, factory, node class)`` of each later node that runs outside an
-#: ``ActTransaction``, with the reason.
-OUTSIDE_AN_ACT: dict[tuple[str, str, str], str] = {
-    (
-        f"{_B}/embargo/answer_trees.py",
-        "accept_invite_to_embargo_tree",
-        "ReinviteLateAccepterNode",
-    ): (
-        "the re-invite is the act itself, not a later node: its Invite and"
-        " row commit in the node's own transaction"
-    ),
-}
+#: ``ActTransaction``, with the reason.  Empty: the refused accepter's
+#: re-invite runs in its diversion's act beside the refusal notice.
+OUTSIDE_AN_ACT: dict[tuple[str, str, str], str] = {}
 
 
 def _ancestors(

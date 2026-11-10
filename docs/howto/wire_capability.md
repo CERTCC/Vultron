@@ -34,9 +34,8 @@ The reference implementation's [behavior trees](../topics/behavior_logic/index.m
 points** — nodes where the protocol cannot determine the correct next action
 autonomously and must request a decision, fact, or side-effect from an
 external service. During development and simulation, each call-out point is
-filled by a **fuzzer node**: a stub that returns a random SUCCESS or FAILURE
-based on a probability. In production, you replace a fuzzer node with a
-**real capability backend** that applies actual business logic.
+filled by a **fuzzer node**: a stub that answers *yes* or *no* at random, based on a probability.
+In production, you replace a fuzzer node with a **real capability backend** that applies actual business logic.
 
 The three-step process is:
 
@@ -67,7 +66,7 @@ fuzzer node in `vultron/demo/fuzzer/`. Browse by domain:
 The [Capability Model](../topics/capability_model/index.md) page lists every
 known integration point by domain and shape.
 
-Each fuzzer node's docstring tells you:
+Each fuzzer node's docstring tells you the following:
 
 - **What decision or fact it represents** ("Assess whether the report's
   source and content are credible").
@@ -92,25 +91,120 @@ class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates report context from caller's DataLayer)
-      Output keys: report_credibility_verdict: str  (SUCCESS only)
+      Output keys: report_credibility_verdict: str  (yes only)
     ...
     """
 
-    output_keys = {"report_credibility_verdict": str}
+    contract = CallOutContract(outputs={"report_credibility_verdict": str})
 ```
 
-Your backend must honor this contract: read any declared input keys from the
-blackboard and write any declared output keys on SUCCESS. The tree will fail
-unexpectedly if you skip a required write.
+The `contract` class attribute is the capability declaration.
+It names the output keys a *yes* answer carries, and the refusal keys a *no* answer carries.
+Every declaration has a refusal reason key; it is `call_out_refusal_reason` unless the capability names its own.
+Your backend must honor this contract: a *yes* answer carries a value for every declared output key, and nothing else.
+The seam refuses a *yes* that omits a declared key, so the omission is named at your backend and not at a later node.
 
 ---
 
-## Step 2 — Implement a backend factory
+## Step 2 — Implement a backend
+
+### A backend answers yes, no or error
+
+Every call-out backend gives one answer for each call: a fixed verdict and the data its capability declares for that verdict ([ADR-0183](../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
+
+| Verdict | When to give it | Data it carries | What the tree sees |
+|---|---|---|---|
+| *yes* | The backend decided in favor, fetched the fact, made the artifact, or confirmed the side effect. | A value for every declared output key. | The seam writes the outputs, and the node succeeds. |
+| *no* | The backend made a decision against the request. | A human-readable reason, and any declared refusal fields. | The seam writes the reason and fields to the refusal keys, and the node fails. |
+| *error* | The backend could not decide or act. | Diagnostics for the logs. | The seam raises an error that names the node; the message is not judged and stays in holding to be tried again. |
+
+Your backend never writes its declared keys itself and never chooses a `Status`.
+The seam, `SynchronousCallOut`, is the only place that turns an answer into tree behavior.
+The domain bundle puts every backend it hands out behind the seam, so you do not wire the seam yourself.
+
+### When to answer error instead of no
+
+Answer *no* only for a decision your backend made about this request.
+A recorded *no* is permanent: the tree acts on it as a decision, and a later delivery of the same message does not ask again.
+
+Answer *error* in each of these cases:
+
+1. The service that makes the decision cannot be reached, or does not answer in time.
+2. The backend's credential is rejected.
+3. The backend started a side effect but cannot confirm that it happened.
+4. Any other case where the backend cannot tell what the answer is.
+
+An *error* leaves the message in holding.
+The next delivery asks again, and its answer is the decision.
+A backend that answers *no* for an outage turns that outage into a permanent refusal.
+
+### Subclass `CallOutBackend`
+
+Subclass `CallOutBackend`, set `contract`, and implement `answer()`.
+`answer()` returns a `CallOutAnswer`, which you build with `CallOutAnswer.yes()`, `CallOutAnswer.no()` or `CallOutAnswer.error()`.
+Do not override `update()`: the base class holds your answer for the seam.
+
+```python
+from typing import ClassVar
+
+from vultron.core.behaviors.call_out import (
+    CallOutAnswer,
+    CallOutBackend,
+    CallOutContract,
+)
+
+
+class MyCredibilityEvaluator(CallOutBackend):
+    """Real credibility evaluator backed by a reputation scoring service.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries reputation service using DataLayer context)
+      Output keys: report_credibility_verdict: str  (yes only)
+      Refusal keys: call_out_refusal_reason: str  (no only)
+    """
+
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"report_credibility_verdict": str}
+    )
+
+    def answer(self) -> CallOutAnswer:
+        try:
+            verdict = my_reputation_service.evaluate(...)
+        except ConnectionError as exc:
+            # The service is unreachable: no decision was made.
+            return CallOutAnswer.error(f"reputation service: {exc}")
+        if verdict.credible:
+            return CallOutAnswer.yes(
+                {"report_credibility_verdict": verdict.summary}
+            )
+        return CallOutAnswer.no(f"reporter not credible: {verdict.summary}")
+
+
+# This class is the CallOutBackendFactory: it takes the node name.
+my_credibility_factory = MyCredibilityEvaluator
+```
+
+A backend that reads its own input keys or needs the actor's DataLayer can attach a blackboard client or combine `CallOutBackend` with a ports base class.
+It still answers through `answer()`.
+
+### A binary backend
+
+When the call-out point's contract declares no output keys, a *yes* carries no data:
+
+```python
+class _CredibilityCheck(CallOutBackend):
+    """Backend that consults a reputation service. Binary answer."""
+
+    def answer(self) -> CallOutAnswer:
+        score = my_reputation_service.score_reporter(reporter_id=...)
+        if score >= 0.5:
+            return CallOutAnswer.yes()
+        return CallOutAnswer.no(f"reputation score {score:.2f} is below 0.5")
+```
 
 ### The `CallOutBackendFactory` Protocol
 
-A backend factory is any callable that satisfies the
-`CallOutBackendFactory` Protocol:
+A backend factory is any callable that satisfies the `CallOutBackendFactory` Protocol:
 
 ```python
 from vultron.core.behaviors.call_out import CallOutBackendFactory
@@ -119,101 +213,19 @@ class CallOutBackendFactory(Protocol):
     def __call__(self, name: str) -> py_trees.behaviour.Behaviour: ...
 ```
 
-The factory accepts a single `name: str` argument (the BT node's display
-name) and returns a `py_trees.behaviour.Behaviour`. Any callable that matches
-this signature is valid — a plain function, a lambda, or a class with
-`__call__`. No registration, inheritance, or decorator is required.
+The factory accepts a single `name: str` argument (the BT node's display name) and returns a `CallOutBackend`.
+A `CallOutBackend` subclass is itself a valid factory, and so is a plain function or a lambda that returns one.
+The seam refuses a factory product that is not a `CallOutBackend`, when the tree is built.
 
-### Implementing as a `py_trees.behaviour.Behaviour` subclass
+### What the seam refuses
 
-Subclass `py_trees.behaviour.Behaviour` and implement both `setup()` and
-`update()`. The `setup()` method runs once when the tree is first started —
-it registers the blackboard keys your node will write. The `update()` method
-runs on every BT tick.
+The seam raises `CallOutContractError`, which the bridge reports as an internal error, when a backend does any of the following:
 
-!!! warning "Blackboard access requires `setup()`"
-
-    py_trees does **not** create `self.blackboard` automatically. You must
-    call `self.attach_blackboard_client()` in `setup()` and register each
-    key before `update()` can use them. Skipping this raises `AttributeError`
-    on the first tick.
-
-```python
-import py_trees
-from py_trees.common import Access, Status
-
-
-class MyCredibilityEvaluator(py_trees.behaviour.Behaviour):
-    """Real credibility evaluator backed by a reputation scoring service.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries reputation service using DataLayer context)
-      Output keys: report_credibility_verdict: str  (SUCCESS only)
-    """
-
-    def __init__(self, name: str) -> None:
-        super().__init__(name=name)
-
-    def setup(self, **kwargs) -> None:
-        # Register every blackboard key this node writes before update() runs.
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(
-            "report_credibility_verdict", access=Access.WRITE
-        )
-
-    def update(self) -> Status:
-        verdict = my_reputation_service.evaluate(...)
-        if verdict.credible:
-            self.blackboard.report_credibility_verdict = verdict.summary
-            return Status.SUCCESS
-        return Status.FAILURE
-
-
-# This function is the CallOutBackendFactory.
-def my_credibility_factory(name: str) -> py_trees.behaviour.Behaviour:
-    return MyCredibilityEvaluator(name)
-```
-
-### Implementing as a factory function (no blackboard writes)
-
-When your backend has no blackboard output keys — for example, a binary
-yes/no condition check that only needs to return SUCCESS or FAILURE — a
-plain module-level function and a minimal class are sufficient:
-
-```python
-import py_trees
-from py_trees.common import Status
-
-
-class _CredibilityCheck(py_trees.behaviour.Behaviour):
-    """Backend that consults a reputation service. No blackboard writes."""
-
-    def update(self) -> Status:
-        score = my_reputation_service.score_reporter(reporter_id=...)
-        return Status.SUCCESS if score >= 0.5 else Status.FAILURE
-
-
-def my_credibility_factory(name: str) -> py_trees.behaviour.Behaviour:
-    return _CredibilityCheck(name=name)
-```
-
-Use this pattern only when the call-out point's blackboard contract declares
-no output keys. If you need to write output keys, use the full
-`setup()` + `attach_blackboard_client()` pattern above.
-
-### What to return
-
-| Condition | Return | Blackboard writes |
-|---|---|---|
-| Decision approved, fact retrieved, artifact created | `SUCCESS` | Write all declared output keys |
-| Decision denied, fact unavailable, error | `FAILURE` | None required |
-
-A call-out backend MUST answer synchronously: return `SUCCESS` or `FAILURE`,
-never `RUNNING` (BT-18-011). The reference implementation has nowhere to suspend
-a tick (ADR-0080), so this is enforced, not advisory. The domain bundle wraps
-every backend it hands out in a `SynchronousCallOut` guard: a `RUNNING` return
-raises `CallOutContractError` immediately, naming the offending node, instead of
-silently stalling the tree.
+- returns `RUNNING` (BT-18-011): the reference implementation has nowhere to suspend a tick (ADR-0080);
+- gives something that is not a `CallOutAnswer`;
+- gives a *yes* that omits a declared output key, adds an undeclared one, or has a value of the wrong type;
+- gives a *no* with a refusal field that its contract does not declare;
+- is ticked outside the seam, for example placed in a tree by hand.
 
 ---
 
@@ -305,7 +317,7 @@ class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates report context from caller's DataLayer)
-      Output keys: report_credibility_verdict: str  (SUCCESS only)
+      Output keys: report_credibility_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -317,57 +329,58 @@ class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     requires human analyst review.
     """
 
-    output_keys = {"report_credibility_verdict": str}
+    contract = CallOutContract(outputs={"report_credibility_verdict": str})
 ```
 
 Key facts to carry into your implementation:
 
 - **Shape**: Evaluator (returns a decision, no content artifact).
 - **Input**: None from the blackboard — your backend queries its own data source.
-- **Output**: Must write `report_credibility_verdict: str` on SUCCESS.
+- **Output**: A *yes* carries `report_credibility_verdict: str`.
 - **Default**: `AlmostAlwaysSucceed` (p = 0.90) → deterministic ceiling is `AlwaysSucceed`.
 
 ### 2. Implement the backend
 
 ```python
 # myproject/behaviors/credibility.py
-import py_trees
-from py_trees.common import Access, Status
+from typing import ClassVar
+
+from vultron.core.behaviors.call_out import (
+    CallOutAnswer,
+    CallOutBackend,
+    CallOutContract,
+)
 
 
-class ReputationServiceCredibilityEvaluator(py_trees.behaviour.Behaviour):
+class ReputationServiceCredibilityEvaluator(CallOutBackend):
     """Credibility evaluator backed by an internal reporter reputation service.
 
     Blackboard contract (BT-18-001):
       Input keys:  (none)
-      Output keys: report_credibility_verdict: str  (SUCCESS only)
+      Output keys: report_credibility_verdict: str  (yes only)
+      Refusal keys: call_out_refusal_reason: str  (no only)
     """
 
-    def __init__(self, name: str) -> None:
-        super().__init__(name=name)
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"report_credibility_verdict": str}
+    )
 
-    def setup(self, **kwargs) -> None:
-        # Register every blackboard key this node writes before the first tick.
-        self.blackboard = self.attach_blackboard_client(name=self.name)
-        self.blackboard.register_key(
-            "report_credibility_verdict", access=Access.WRITE
-        )
-
-    def update(self) -> Status:
+    def answer(self) -> CallOutAnswer:
         from myproject.services import reputation_service
 
-        score = reputation_service.score_reporter(reporter_id=...)
-        threshold = 0.5
+        try:
+            score = reputation_service.score_reporter(reporter_id=...)
+        except reputation_service.Unavailable as exc:
+            return CallOutAnswer.error(f"reputation service: {exc}")
 
-        if score >= threshold:
-            self.blackboard.report_credibility_verdict = (
-                f"credible (score={score:.2f})"
+        if score >= 0.5:
+            return CallOutAnswer.yes(
+                {"report_credibility_verdict": f"credible (score={score:.2f})"}
             )
-            return Status.SUCCESS
-        return Status.FAILURE
+        return CallOutAnswer.no(f"reputation score {score:.2f} is below 0.5")
 
 
-def reputation_credibility_factory(name: str) -> py_trees.behaviour.Behaviour:
+def reputation_credibility_factory(name: str) -> CallOutBackend:
     return ReputationServiceCredibilityEvaluator(name)
 ```
 
@@ -411,10 +424,11 @@ unchanged.
 
 - **[Capability Model](../topics/capability_model/index.md)** — the four capability shapes and the full catalog of known call-out points
 - **[Reference Implementation Architecture](../topics/reference_architecture.md)** — the hexagonal boundary, inbox pipeline, and behavior-tree model
-- **`vultron/core/behaviors/call_out/`** — `CallOutBackendFactory` Protocol, `AlwaysSucceed`/`AlwaysFail`, and all domain bundle dataclasses
+- **`vultron/core/behaviors/call_out/`** — `CallOutBackend`, `CallOutAnswer`, `CallOutContract`, the `SynchronousCallOut` seam, the `CallOutBackendFactory` Protocol, `AlwaysSucceed`/`AlwaysFail`, and all domain bundle dataclasses
 - **`vultron/demo/fuzzer/`** — probabilistic fuzzer nodes (one per call-out point) and `STOCHASTIC` bundle singletons
 - **ADR-0024** — capability shape taxonomy
 - **ADR-0025** — call-out point abstraction layer and factory-injection pattern
+- **[ADR-0183](../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)** — the *yes* / *no* / *error* answer and the seam that interprets it
 
 {% include-markdown "../start/_paths/connect-your-tracker/howto__wire_capability.md" %}
 

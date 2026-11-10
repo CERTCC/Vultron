@@ -78,7 +78,7 @@ def test_bundle_fields_satisfy_protocol():
 # The roster is discovered, never hand-listed.  Four hard-coded lists used to
 # police it, so adding a bundle took four hand edits and forgetting one of them
 # failed nothing — the roster silently stopped covering the new bundle.  Two of
-# the fourteen modules (``actor_discovery``, ``develop_fix``) were in fact
+# the fourteen modules (``actor_resolution``, ``develop_fix``) were in fact
 # already missing when this was reflective-ised (#3429).  The security-defaults
 # guard already discovers bundles this way; this mirrors it.
 

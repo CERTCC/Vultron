@@ -63,6 +63,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.actor import (
@@ -442,7 +443,7 @@ class TestSvcInviteActorToCaseUseCase:
         and under per-actor storage a peer's record lives in *its* store, not
         the inviter's (ADR-0073#peer-records-in-knowers-store).
 
-        With the injectable ActorDiscoveryCallOutBundle seam (ADR-0025), the
+        With the injectable ActorResolutionCallOutBundle seam (ADR-0025), the
         default DETERMINISTIC backend (AlwaysSucceed) logs at DEBUG rather than
         WARNING — the seam is wired, no gap to report (AKM-05-016).
         """
@@ -468,7 +469,7 @@ class TestSvcInviteActorToCaseUseCase:
             )
 
         assert activity_of(result)["type"] == "Offer"
-        assert "actor discovery returned" not in caplog.text
+        assert "actor resolution returned" not in caplog.text
 
     @pytest.mark.parametrize(
         ("bad_id", "refused_by_model"),
@@ -1035,7 +1036,7 @@ class TestSvcSuggestActorToCaseUseCase:
         found`` for a vendor that was running and reachable in another container
         (#2548).
 
-        With the injectable ActorDiscoveryCallOutBundle seam (ADR-0025), the
+        With the injectable ActorResolutionCallOutBundle seam (ADR-0025), the
         default DETERMINISTIC backend (AlwaysSucceed) logs at DEBUG, not WARNING.
         """
         actor, dl = _make_actor_dl("Coordinator")
@@ -1063,7 +1064,7 @@ class TestSvcSuggestActorToCaseUseCase:
 
         assert result is not None
         # No WARNING with the default DETERMINISTIC bundle (AlwaysSucceed)
-        assert "actor discovery returned" not in caplog.text
+        assert "actor resolution returned" not in caplog.text
 
     @pytest.mark.parametrize(
         ("bad_id", "refused_by_model"),
@@ -1879,7 +1880,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         under per-actor storage that node's record is in *its* store (ADR-0073
         decision 5) — so the old 404 refused exactly the transfers the protocol
         exists to support. Same defect as the invite and recommend paths; all
-        three share ``_record_named_peer`` with the ActorDiscoveryCallOutBundle
+        three share ``_record_named_peer`` with the ActorResolutionCallOutBundle
         seam. With DETERMINISTIC (AlwaysSucceed), no WARNING fires (AKM-05-016).
         """
         owner, dl = _make_actor_dl("Vendor")
@@ -1913,7 +1914,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
 
         assert result is not None
         # No WARNING with the default DETERMINISTIC bundle (AlwaysSucceed)
-        assert "actor discovery returned" not in caplog.text
+        assert "actor resolution returned" not in caplog.text
 
     def test_offer_raises_when_case_not_in_dl(self):
         owner, dl = _make_actor_dl("Vendor")
@@ -2538,8 +2539,8 @@ class TestSvcOfferCaseParticipantRoleUseCase:
             )
 
 
-class TestActorDiscoveryCallOut:
-    """Tests for the ActorDiscoveryCallOutBundle seam (ADR-0024, ADR-0025, AKM-05).
+class TestActorResolutionCallOut:
+    """Tests for the ActorResolutionCallOutBundle seam (ADR-0024, ADR-0025, AKM-05).
 
     Verifies that the injectable call-out factory:
     - fires no WARNING with the DETERMINISTIC (AlwaysSucceed) default
@@ -2549,8 +2550,8 @@ class TestActorDiscoveryCallOut:
 
     def test_default_bundle_no_warning_on_missing_invitee(self, caplog):
         """DETERMINISTIC (AlwaysSucceed) logs at DEBUG; no WARNING emitted."""
-        from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-            ACTOR_DISCOVERY_DETERMINISTIC,
+        from vultron.core.behaviors.call_out.bundles.actor_resolution import (
+            ACTOR_RESOLUTION_DETERMINISTIC,
         )
 
         actor, dl = _make_actor_dl("Coordinator")
@@ -2569,26 +2570,26 @@ class TestActorDiscoveryCallOut:
                     request,
                     trigger_activity=TriggerActivityAdapter(dl),
                     sync_port=SyncActivityAdapter(dl),
-                    call_out=ACTOR_DISCOVERY_DETERMINISTIC,
+                    call_out=ACTOR_RESOLUTION_DETERMINISTIC,
                     wire_render_port=As2WireRenderAdapter(),
                     clock=SystemClock(),
                 )
             )
 
         assert result is not None
-        assert "actor discovery returned" not in caplog.text
+        assert "actor resolution returned" not in caplog.text
 
     def test_failure_backend_warns_on_missing_invitee(self, caplog):
         """When the backend returns FAILURE an explicit WARNING is emitted (AKM-05-016)."""
-        from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-            ActorDiscoveryCallOutBundle,
+        from vultron.core.behaviors.call_out.bundles.actor_resolution import (
+            ActorResolutionCallOutBundle,
         )
         from vultron.core.behaviors.call_out.nodes import AlwaysFail
 
         def _always_fail(name: str):
             return AlwaysFail(name)
 
-        fail_bundle = ActorDiscoveryCallOutBundle(
+        fail_bundle = ActorResolutionCallOutBundle(
             resolve_actor_factory=_always_fail  # type: ignore[arg-type]
         )
 
@@ -2617,20 +2618,20 @@ class TestActorDiscoveryCallOut:
         # Invite proceeds even on FAILURE — annotating, not blocking (AC-4)
         assert result is not None
         # Explicit WARNING is emitted (AC-3, AKM-05-016)
-        assert "actor discovery returned FAILURE" in caplog.text
+        assert "actor resolution returned FAILURE" in caplog.text
         assert missing_id in caplog.text
 
     def test_failure_backend_records_minimal_peer(self):
         """Even when discovery fails, a minimal CoreActor record is created."""
-        from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-            ActorDiscoveryCallOutBundle,
+        from vultron.core.behaviors.call_out.bundles.actor_resolution import (
+            ActorResolutionCallOutBundle,
         )
         from vultron.core.behaviors.call_out.nodes import AlwaysFail
 
         def _always_fail(name: str):
             return AlwaysFail(name)
 
-        fail_bundle = ActorDiscoveryCallOutBundle(
+        fail_bundle = ActorResolutionCallOutBundle(
             resolve_actor_factory=_always_fail  # type: ignore[arg-type]
         )
 
@@ -2699,18 +2700,17 @@ class TestActorDiscoveryCallOut:
         request must not crash: it records a minimal peer (as with any other
         non-SUCCESS) and surfaces the offending backend via a WARNING.
         """
-        import py_trees
         from py_trees.common import Status
 
-        from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-            ActorDiscoveryCallOutBundle,
+        from vultron.core.behaviors.call_out.bundles.actor_resolution import (
+            ActorResolutionCallOutBundle,
         )
 
-        class _Running(py_trees.behaviour.Behaviour):
+        class _Running(CallOutBackend):
             def update(self):
                 return Status.RUNNING
 
-        running_bundle = ActorDiscoveryCallOutBundle(
+        running_bundle = ActorResolutionCallOutBundle(
             resolve_actor_factory=_Running  # type: ignore[arg-type]
         )
 

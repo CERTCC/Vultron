@@ -16,6 +16,13 @@
 # on the head commit after it finished is not judged: re-run the `CI gate`
 # job too before merging, whichever way the re-run went.
 #
+# No concurrency group: a burst of events on one commit (Dependabot's `opened`
+# then one `labeled` per label) would cancel all but one gate run, and the
+# ruleset judges a single `CI gate` check run per commit that need not be the
+# survivor, so a cancelled run blocks the merge (PR #6209). Every run judges
+# the same head commit, so duplicate runs agree; a run on a superseded commit
+# is never judged by the ruleset. test/ci/test_ci_gate.py pins the absence.
+#
 # Unrelated to the publish workflow's "CI gate" (deploy_site.yml, ADR-0171),
 # which checks that main's CI is green before a site publish.
 #
@@ -52,10 +59,6 @@ permissions:
   actions: read # list the workflow runs on the head commit
   checks: read # list the check runs on the head commit
   contents: read # actions/checkout
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 jobs:
   gate:

@@ -802,7 +802,7 @@ def test_trigger_invite_actor_to_case_unknown_invitee_is_accepted(
     A local record is not required: it was read and discarded, delivery derives
     the invitee's inbox from its URI alone, and under per-actor storage a peer's
     record lives in its own store (ADR-0073#peer-records-in-knowers-store) — so refusing meant
-    refusing every cross-node invitee. The injectable ActorDiscoveryCallOutBundle
+    refusing every cross-node invitee. The injectable ActorResolutionCallOutBundle
     seam (ADR-0025) handles the gap; with the DETERMINISTIC default it logs at
     DEBUG rather than WARNING (AKM-05-016).
 

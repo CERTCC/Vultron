@@ -50,7 +50,7 @@ export function handleValidateReport(state: DemoState, vendorId: string): DemoSt
     type: 'decision' as const,
     timestamp: now + timestampOffset++,
     consequences: [
-      'Accept(Offer) activity created',
+      'Accept(Offer(VulnerabilityReport)) activity created',
       'ValidateReportReceivedUseCase executes',
       `${vendor.name} RM state: RECEIVED → VALID`,
       'Report deemed legitimate',
@@ -123,7 +123,7 @@ export function handleAcceptReport(state: DemoState, vendorId: string): DemoStat
     type: 'decision' as const,
     timestamp: now + timestampOffset++,
     consequences: [
-      'Accept(Report) activity created',
+      'Join(VulnerabilityCase) activity created',
       `${vendor.name} RM state: ${vendor.rmState} → ACCEPTED`,
       'Report accepted and prioritized',
       'Vendor commits to working on fix',
@@ -265,7 +265,7 @@ export function handleInvalidateReport(state: DemoState, vendorId: string): Demo
     type: 'decision' as const,
     timestamp: now + timestampOffset++,
     consequences: [
-      'Reject(Offer) activity created',
+      'TentativeReject(Offer(VulnerabilityReport)) activity created',
       `${vendor.name} RM state: RECEIVED → INVALID`,
       'Report deemed invalid',
       'Case held until reconsideration or closure',
@@ -656,9 +656,9 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
   let newState = state
 
   // VFD destination computed from the protocol artifact (fix_is_ready: Vfd → VFd).
-  const nextVfdState = requireNextState('vfd', vendor.vfdState, 'fix_is_ready')
+  const nextVfdState = requireNextState('vfd', vendor.vfd, 'fix_is_ready')
 
-  newState = updateParticipant(newState, vendorId, { vfdState: nextVfdState })
+  newState = updateParticipant(newState, vendorId, { vfd: nextVfdState })
   newState = setPhase(newState, 'fix-ready')
 
   const events = []
@@ -768,9 +768,9 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
   let newState = state
 
   // VFD destination computed from the protocol artifact (fix_is_deployed: VFd → VFD).
-  const nextVfdState = requireNextState('vfd', vendor.vfdState, 'fix_is_deployed')
+  const nextVfdState = requireNextState('vfd', vendor.vfd, 'fix_is_deployed')
 
-  newState = updateParticipant(newState, vendorId, { vfdState: nextVfdState })
+  newState = updateParticipant(newState, vendorId, { vfd: nextVfdState })
   newState = setPhase(newState, 'fix-deployed')
 
   const events = []
@@ -1049,7 +1049,7 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
       'Note created: "Vendor Response"',
       'Content: "Yes, disable the network stack component"',
       'inReplyTo: previous note',
-      'Add(Note, target=Case) activity created',
+      'Add(Note)[target=VulnerabilityCase] activity created',
       'Activity sent via Vendor\'s outbox',
       'Triggers delivery to participants',
     ],
@@ -1070,7 +1070,7 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
       causedBy: eventId,
       timestamp: now + timestampOffset,
       consequences: [
-        'Add(Note) received in inbox',
+        'Add(Note)[target=VulnerabilityCase] received in inbox',
         'Reply delivered to Finder\'s DataLayer',
         'Finder can now see workaround',
         '✓ M3 REACHED: Notes exchanged',

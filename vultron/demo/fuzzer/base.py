@@ -14,13 +14,16 @@
 """Probabilistic base node types for the demo fuzzer, built on py_trees.
 
 This module provides ``WeightedBehavior`` and a set of named probability
-subclasses that return ``SUCCESS`` or ``FAILURE`` stochastically, matching
-the Words of Estimative Probability naming convention used throughout the
-Vultron demo layer.
+subclasses that answer *yes* or *no* stochastically, matching the Words of
+Estimative Probability naming convention used throughout the Vultron demo
+layer.
 
-Each subclass sets a ``success_rate`` class attribute and overrides
-``update()`` to return ``py_trees.common.Status.SUCCESS`` or
-``py_trees.common.Status.FAILURE`` (or ``RUNNING`` where noted).
+``WeightedBehavior`` is a
+:class:`~vultron.core.behaviors.call_out.backend.CallOutBackend`: each
+subclass sets a ``success_rate`` class attribute, and ``answer()`` gives *yes*
+with that probability, carrying a type-conformant zero value for every output
+its ``contract`` declares (BT-18-003), and *no* otherwise, with a reason
+naming the simulated refusal (ADR-0183).  A simulation never answers *error*.
 
 References
 ----------
@@ -36,16 +39,15 @@ from __future__ import annotations
 
 import random
 
-import py_trees
-from py_trees.common import Status
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 
 
-class WeightedBehavior(py_trees.behaviour.Behaviour):
+class WeightedBehavior(CallOutBackend):
     """Base class for probabilistic demo fuzzer nodes.
 
-    Returns ``Status.SUCCESS`` with probability ``success_rate`` and
-    ``Status.FAILURE`` otherwise.  Subclasses set ``success_rate`` as a
-    class attribute.
+    Answers *yes* with probability ``success_rate`` and *no* otherwise.
+    Subclasses set ``success_rate`` as a class attribute.
 
     Args:
         name: Display name for the node in the behaviour tree.  Defaults
@@ -54,114 +56,125 @@ class WeightedBehavior(py_trees.behaviour.Behaviour):
 
     success_rate: float = 0.5
 
-    def __init__(self, name: str = "") -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    def update(self) -> Status:
-        """Return SUCCESS or FAILURE based on success_rate probability."""
+    def answer(self) -> CallOutAnswer:
+        """Answer *yes* or *no* based on the ``success_rate`` probability."""
         if random.random() < self.success_rate:
-            return Status.SUCCESS
-        return Status.FAILURE
+            return self.yes()
+        return self.no()
+
+    def yes(self) -> CallOutAnswer:
+        """A *yes* with a zero value for every declared output (BT-18-003)."""
+        return CallOutAnswer.yes(
+            {key: typ() for key, typ in self.contract.outputs.items()}
+        )
+
+    def no(self) -> CallOutAnswer:
+        """A *no* whose reason names the simulated refusal."""
+        return CallOutAnswer.no(
+            f"{self.name}: simulated refusal "
+            f"(success rate {self.success_rate:.3g})",
+            {key: typ() for key, typ in self.contract.refusal_fields.items()},
+        )
 
 
 class AlwaysSucceed(WeightedBehavior):
-    """Always returns ``Status.SUCCESS`` (success_rate = 1.0)."""
+    """Always answers *yes* (success_rate = 1.0)."""
 
     success_rate = 1.0
 
-    def update(self) -> Status:
-        return Status.SUCCESS
+    def answer(self) -> CallOutAnswer:
+        return self.yes()
 
 
 class AlwaysFail(WeightedBehavior):
-    """Always returns ``Status.FAILURE`` (success_rate = 0.0)."""
+    """Always answers *no* (success_rate = 0.0)."""
 
     success_rate = 0.0
 
-    def update(self) -> Status:
-        return Status.FAILURE
+    def answer(self) -> CallOutAnswer:
+        return self.no()
 
 
 class AlmostCertainlySucceed(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.93."""
+    """Answers *yes* with probability 0.93."""
 
     success_rate = 93.0 / 100.0
 
 
 class AlmostAlwaysSucceed(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.90."""
+    """Answers *yes* with probability 0.90."""
 
     success_rate = 9.0 / 10.0
 
 
 class UsuallySucceed(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.75."""
+    """Answers *yes* with probability 0.75."""
 
     success_rate = 3.0 / 4.0
 
 
 class OftenSucceed(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.70."""
+    """Answers *yes* with probability 0.70."""
 
     success_rate = 7.0 / 10.0
 
 
 class ProbablySucceed(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.6667."""
+    """Answers *yes* with probability 0.6667."""
 
     success_rate = 2.0 / 3.0
 
 
 class UniformSucceedFail(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.50."""
+    """Answers *yes* with probability 0.50."""
 
     success_rate = 1.0 / 2.0
 
 
 class ProbablyFail(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.3333."""
+    """Answers *yes* with probability 0.3333."""
 
     success_rate = 1.0 / 3.0
 
 
 class OftenFail(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.30."""
+    """Answers *yes* with probability 0.30."""
 
     success_rate = 3.0 / 10.0
 
 
 class UsuallyFail(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.25."""
+    """Answers *yes* with probability 0.25."""
 
     success_rate = 1.0 / 4.0
 
 
 class AlmostAlwaysFail(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.10."""
+    """Answers *yes* with probability 0.10."""
 
     success_rate = 1.0 / 10.0
 
 
 class AlmostCertainlyFail(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.07."""
+    """Answers *yes* with probability 0.07."""
 
     success_rate = 7.0 / 100.0
 
 
 class OneInTwenty(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.05."""
+    """Answers *yes* with probability 0.05."""
 
     success_rate = 1.0 / 20.0
 
 
 class OneInOneHundred(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.01."""
+    """Answers *yes* with probability 0.01."""
 
     success_rate = 1.0 / 100.0
 
 
 class OneInTwoHundred(WeightedBehavior):
-    """Returns ``Status.SUCCESS`` with probability 0.005."""
+    """Answers *yes* with probability 0.005."""
 
     success_rate = 1.0 / 200.0
 

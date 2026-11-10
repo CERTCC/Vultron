@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
 
 import { NODE_COLORS, getVendorNodeColors, nodeColorsFor, simNodeColorsFor } from './constants'
 
-describe('nodeColorsFor (Log Replay lane ids)', () => {
+describe('nodeColorsFor (Log Replay lane palette keys)', () => {
   it.each([
     ['reporter', NODE_COLORS.reporter],
     ['casemanager', NODE_COLORS.casemanager],

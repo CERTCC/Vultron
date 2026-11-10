@@ -70,6 +70,7 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
+from vultron.core.behaviors.call_out.guard import guard_call_out_factory
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
@@ -291,6 +292,21 @@ def create_publish_artifact_tree(
         submit_advisory_artifact_factory = (
             call_out.submit_advisory_artifact_factory
         )
+
+    # A factory passed here directly, not through a bundle, still puts its
+    # backend behind the call-out seam (BT-18-032); guarding is idempotent.
+    draft_advisory_artifact_factory = guard_call_out_factory(
+        draft_advisory_artifact_factory
+    )
+    review_advisory_draft_factory = guard_call_out_factory(
+        review_advisory_draft_factory
+    )
+    revise_advisory_draft_factory = guard_call_out_factory(
+        revise_advisory_draft_factory
+    )
+    submit_advisory_artifact_factory = guard_call_out_factory(
+        submit_advisory_artifact_factory
+    )
 
     suffix = f"_{artifact_label}" if artifact_label else ""
 

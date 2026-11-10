@@ -137,9 +137,10 @@ export function getVendorNodeColors(vendorNumber: number): {
 export type NodePalette = ReturnType<typeof getVendorNodeColors>
 
 /**
- * Node colors for a Log Replay lane id. Handles any `vendor-N` (via the cycling
- * vendor palette), plus reporter, casemanager and coordinator; falls back to the
- * reporter's palette for anything unrecognized.
+ * Node colors for a Log Replay lane's palette key (`ParticipantState.palette`,
+ * set from the lane's roles by `utils/replayLanes.ts`). Handles any `vendor-N`
+ * (via the cycling vendor palette), plus reporter, casemanager and coordinator;
+ * falls back to the reporter's palette for anything unrecognized.
  */
 export function nodeColorsFor(laneId: string): NodePalette {
   if (laneId === 'reporter') return NODE_COLORS.reporter
@@ -151,7 +152,7 @@ export function nodeColorsFor(laneId: string): NodePalette {
 }
 
 // The simulation's own participant ids for its non-vendor lanes, mapped to the
-// palette keys above (which use the Log Replay lane ids).
+// palette keys above (which Log Replay lanes carry as `palette`).
 const SIM_COLOR_KEYS: Partial<Record<string, keyof typeof NODE_COLORS>> = {
   finder: 'reporter',
   caseactor: 'casemanager',
@@ -168,16 +169,11 @@ export function simNodeColorsFor(participantId: string): NodePalette {
   return NODE_COLORS[SIM_COLOR_KEYS[participantId] ?? 'reporter']
 }
 
+// The Multi-Vendor simulation's static role labels. Log Replay labels its lanes
+// from the roles the ledger records (utils/replayLanes.ts).
 export const PARTICIPANT_ROLES = {
   reporter: 'REPORTER',
-  vendor: 'VENDOR, CASE_OWNER',
-  vendor2: 'VENDOR',
   casemanager: 'CASE_MANAGER',
-  // A real coordinator participant (distinct from the virtual casemanager recorder),
-  // 2026-07 coordinator scenarios. Its actual CVD role varies by scenario
-  // (COORDINATOR in fvcv-extension; CASE_OWNER in fcv/fccv-extension), so the
-  // static label is generic; the movable per-cvdRole label is deferred handoff work.
-  coordinator: 'COORDINATOR',
 }
 
 export const INITIAL_X_POSITION = 130

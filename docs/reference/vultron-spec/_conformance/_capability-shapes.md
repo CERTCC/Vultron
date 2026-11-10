@@ -26,7 +26,7 @@ All four are consulted *by* the protocol, and each answers within the single tic
 | **Evaluator** | A situation and a set of options | A structured recommendation | Its result gates downstream execution. |
 | **Retriever** | A query | Structured facts from an external source | A boolean is the simplest structured fact; a yes/no external query is a Retriever. |
 | **Composer** | Context | A new content artifact written to the blackboard | The discriminator vs. Actuator: if a content artifact lands on the blackboard, it is a Composer. |
-| **Actuator** | A trigger | SUCCESS when the side effect is confirmed; FAILURE otherwise | Invokes an external system for a side effect. Produces no content artifact. |
+| **Actuator** | A trigger | Yes when the side effect is confirmed, no when it decides not to act, error when it cannot confirm | Invokes an external system for a side effect. Produces no content artifact. |
 
 !!! warning "Distinguishing Composer from Actuator"
     Both shapes call external systems. The discriminator is whether a content
@@ -86,11 +86,6 @@ contract is carried as prose plus a key dictionary.
 
 This mapping is specific to the hexagonal architecture of the reference
 implementation. Other implementations are not required to use this structure.
-
-!!! info "Reference implementation note"
-    The simulation layer (`vultron/demo/fuzzer/call_out_point.py`) still exports a `SentinelCallOutPoint` mixin and three illustrative Sentinel subclasses.
-    They sit alongside the four shape mixins, which differs from [G.1 The Four Capability Shapes](#g1-the-four-capability-shapes).
-    Removing the Sentinel classes is tracked by [#3424](https://github.com/CERTCC/Vultron/issues/3424).
 
 !!! info "See also"
     - ADR-0024 (original shape taxonomy; the term "call-out point")

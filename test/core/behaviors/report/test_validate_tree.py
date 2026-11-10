@@ -27,9 +27,12 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.call_out import yes as call_out_yes
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
@@ -46,14 +49,8 @@ from vultron.enums.roles import CVDRole
 CASE_MANAGER_ID = "https://example.org/actors/case-manager"
 
 
-def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
-    """Deterministic factory for integration tests: always returns SUCCESS."""
-
-    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
-        def update(self):
-            return py_trees.common.Status.SUCCESS
-
-    return _AlwaysSucceed(name)
+#: Deterministic factory: its backend always answers *yes*.
+_always_succeed_factory = call_out_yes
 
 
 _ALWAYS_SUCCEED_BUNDLE = ValidationCallOutBundle(
@@ -907,14 +904,13 @@ def test_validate_tree_custom_credibility_factory_used(report, offer):
     sentinel = {"called": False}
 
     def custom_factory(name):
-        import py_trees
 
         sentinel["called"] = True
         sentinel["name"] = name
 
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name="CustomCredibility")
 
@@ -935,9 +931,9 @@ def test_validate_tree_custom_validity_factory_used(report, offer):
     import py_trees
 
     def custom_factory(name):
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name="CustomValidity")
 
@@ -960,11 +956,10 @@ def test_validate_tree_gather_info_factory_signature_accepted(report, offer):
     """
 
     def gather_factory(name):
-        import py_trees
 
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name="CustomGather")
 

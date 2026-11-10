@@ -16,8 +16,8 @@
 Covers the pieces that moved into ``vultron/core/behaviors/call_out/`` when the
 ADR-0025 core→demo inversion was fixed (issue #1793):
 
-- The deterministic ``AlwaysSucceed`` / ``AlwaysFail`` nodes: SUCCESS/FAILURE
-  contract, ``success_rate`` parity attributes, py_trees ``Behaviour`` identity,
+- The deterministic ``AlwaysSucceed`` / ``AlwaysFail`` nodes: *yes* / *no*
+  answers (ADR-0183), ``success_rate`` parity attributes, py_trees ``Behaviour`` identity,
   and default/custom naming.
 - The ``CallOutBackendFactory`` Protocol: the core nodes and the demo
   ``WeightedBehavior`` nodes both satisfy it (the sole substitutability contract
@@ -34,12 +34,14 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import tick_call_out
 from vultron.core.behaviors.call_out import (
     AlwaysFail,
     AlwaysSucceed,
     CallOutBackendFactory,
     unwrap_call_out,
 )
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.bundles import (
     ACQUIRE_EXPLOIT_DETERMINISTIC,
     ASSIGN_CVE_ID_DETERMINISTIC,
@@ -53,7 +55,17 @@ from vultron.core.behaviors.call_out.bundles import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     VALIDATION_DETERMINISTIC,
 )
-from vultron.core.behaviors.call_out.nodes import RequireCaseOwnerApprovalNode
+from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
+    DeterministicEvaluateCveEligibility,
+)
+from vultron.core.behaviors.call_out.bundles.publication import (
+    _DeterministicPrioritizePublicationIntents,
+)
+from vultron.core.behaviors.call_out.nodes import (
+    CASE_OWNER_APPROVAL_REQUIRED_REASON,
+    DETERMINISTIC_REFUSAL_REASON,
+    RequireCaseOwnerApprovalNode,
+)
 
 # All pre-built core DETERMINISTIC bundle singletons.
 _DETERMINISTIC_BUNDLES = [
@@ -84,11 +96,11 @@ def _factory_fields(bundle) -> list:
 class TestAlwaysSucceed:
     def test_update_returns_success(self):
         node = AlwaysSucceed("EvaluateReportCredibility")
-        assert all(node.update() == Status.SUCCESS for _ in range(50))
+        assert all(tick_call_out(node) == Status.SUCCESS for _ in range(50))
 
     def test_tick_sets_success_status(self):
         node = AlwaysSucceed("n")
-        node.tick_once()
+        assert tick_call_out(node) == Status.SUCCESS
         assert node.status == Status.SUCCESS
 
     def test_success_rate_attribute(self):
@@ -107,11 +119,11 @@ class TestAlwaysSucceed:
 class TestAlwaysFail:
     def test_update_returns_failure(self):
         node = AlwaysFail("DeployFix")
-        assert all(node.update() == Status.FAILURE for _ in range(50))
+        assert all(tick_call_out(node) == Status.FAILURE for _ in range(50))
 
     def test_tick_sets_failure_status(self):
         node = AlwaysFail("n")
-        node.tick_once()
+        assert tick_call_out(node) == Status.FAILURE
         assert node.status == Status.FAILURE
 
     def test_success_rate_attribute(self):
@@ -130,11 +142,11 @@ class TestAlwaysFail:
 class TestRequireCaseOwnerApprovalNode:
     def test_update_returns_failure(self):
         node = RequireCaseOwnerApprovalNode("CaseOwnerApprovesStatusUpdate")
-        assert all(node.update() == Status.FAILURE for _ in range(50))
+        assert all(tick_call_out(node) == Status.FAILURE for _ in range(50))
 
     def test_tick_sets_failure_status(self):
         node = RequireCaseOwnerApprovalNode("n")
-        node.tick_once()
+        assert tick_call_out(node) == Status.FAILURE
         assert node.status == Status.FAILURE
 
     def test_success_rate_attribute(self):
@@ -153,6 +165,21 @@ class TestRequireCaseOwnerApprovalNode:
             RequireCaseOwnerApprovalNode().name
             == "RequireCaseOwnerApprovalNode"
         )
+
+
+@pytest.mark.spec("BT-18-007")
+def test_deterministic_refusals_carry_a_reason():
+    """AlwaysFail and the approval gate answer no, each with its reason."""
+    assert AlwaysFail("n").answer() == CallOutAnswer.no(
+        DETERMINISTIC_REFUSAL_REASON
+    )
+    assert RequireCaseOwnerApprovalNode("n").answer() == CallOutAnswer.no(
+        CASE_OWNER_APPROVAL_REQUIRED_REASON
+    )
+
+
+def test_always_succeed_answers_yes_with_no_outputs():
+    assert AlwaysSucceed("n").answer() == CallOutAnswer.yes()
 
 
 def test_core_nodes_do_not_subclass_weighted_behavior():
@@ -203,6 +230,8 @@ _CORE_DETERMINISTIC_NODE_TYPES = (
     AlwaysSucceed,
     AlwaysFail,
     RequireCaseOwnerApprovalNode,
+    DeterministicEvaluateCveEligibility,
+    _DeterministicPrioritizePublicationIntents,
 )
 
 
@@ -211,8 +240,9 @@ def test_bundle_factories_build_core_deterministic_nodes(bundle):
     """Every field of each DETERMINISTIC bundle builds a core deterministic node
     that honours the CallOutBackendFactory contract.
 
-    Accepted types: AlwaysSucceed, AlwaysFail, or RequireCaseOwnerApprovalNode
-    (security-significant gates default to RequireCaseOwnerApprovalNode per ADR-0076).
+    Accepted types: AlwaysSucceed, AlwaysFail, RequireCaseOwnerApprovalNode
+    (security-significant gates default to RequireCaseOwnerApprovalNode per
+    ADR-0076), or the two output-giving defaults (BT-23-013).
     """
     fields = _factory_fields(bundle)
     assert fields, f"{type(bundle).__name__} has no factory fields"

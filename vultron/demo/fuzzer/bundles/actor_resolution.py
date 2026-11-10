@@ -11,14 +11,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""STOCHASTIC call-out bundle for the actor discovery domain.
+"""STOCHASTIC call-out bundle for the actor resolution domain.
 
-Provides the simulation-layer :data:`ACTOR_DISCOVERY_STOCHASTIC` singleton.
+Provides the simulation-layer :data:`ACTOR_RESOLUTION_STOCHASTIC` singleton.
 The bundle dataclass and DETERMINISTIC default are core concerns
-(``vultron.core.behaviors.call_out.bundles.actor_discovery``) and are
+(``vultron.core.behaviors.call_out.bundles.actor_resolution``) and are
 re-exported here for backward-compatible import paths.
 
-Actor discovery is a production-only domain: the demo seeds actors into each
+Actor resolution is a production-only domain: the demo seeds actors into each
 other's DataLayers so scenarios need no global directory (AC-2).  The
 STOCHASTIC singleton uses ``AlmostAlwaysSucceed`` (p=0.90) to occasionally
 exercise the FAILURE path during fuzz runs, matching the convention for
@@ -30,9 +30,9 @@ from __future__ import annotations
 
 import py_trees
 
-from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-    ACTOR_DISCOVERY_DETERMINISTIC,
-    ActorDiscoveryCallOutBundle,
+from vultron.core.behaviors.call_out.bundles.actor_resolution import (
+    ACTOR_RESOLUTION_DETERMINISTIC,
+    ActorResolutionCallOutBundle,
 )
 from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
 
@@ -41,13 +41,13 @@ def _stochastic_resolve_actor(name: str) -> py_trees.behaviour.Behaviour:
     return AlmostAlwaysSucceed(name)
 
 
-ACTOR_DISCOVERY_STOCHASTIC = ActorDiscoveryCallOutBundle(
+ACTOR_RESOLUTION_STOCHASTIC = ActorResolutionCallOutBundle(
     resolve_actor_factory=_stochastic_resolve_actor,  # type: ignore[arg-type]
 )
 """Stochastic bundle: resolve_actor uses AlmostAlwaysSucceed (p=0.90)."""
 
 __all__ = [
-    "ActorDiscoveryCallOutBundle",
-    "ACTOR_DISCOVERY_DETERMINISTIC",
-    "ACTOR_DISCOVERY_STOCHASTIC",
+    "ActorResolutionCallOutBundle",
+    "ACTOR_RESOLUTION_DETERMINISTIC",
+    "ACTOR_RESOLUTION_STOCHASTIC",
 ]

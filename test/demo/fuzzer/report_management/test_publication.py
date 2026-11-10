@@ -3,6 +3,7 @@
 import py_trees
 import pytest
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -92,7 +93,7 @@ def test_update_returns_status(node_cls):
     """update() must return a valid py_trees Status."""
     node = node_cls()
     node.setup()
-    status = node.update()
+    status = tick_call_out(node)
     assert status in (
         py_trees.common.Status.SUCCESS,
         py_trees.common.Status.FAILURE,
@@ -129,7 +130,7 @@ def test_prioritize_publication_intents_output_is_structured_record():
         PublicationIntentDecision,
     )
 
-    output_keys = PrioritizePublicationIntents.output_keys
+    output_keys = PrioritizePublicationIntents.contract.outputs
     assert INTENT_DECISION_KEY in output_keys
     assert output_keys[INTENT_DECISION_KEY] is PublicationIntentDecision
     assert "publication_intents_verdict" not in output_keys
@@ -156,11 +157,11 @@ def test_prepare_exploit_is_composer():
 
 
 def test_prepare_exploit_output_keys_declared():
-    assert "prepared_exploit_artifact" in PrepareExploit.output_keys
+    assert "prepared_exploit_artifact" in PrepareExploit.contract.outputs
 
 
 def test_prepare_exploit_output_key_type_is_str():
-    assert PrepareExploit.output_keys["prepared_exploit_artifact"] is str
+    assert PrepareExploit.contract.outputs["prepared_exploit_artifact"] is str
 
 
 def test_prepare_exploit_docstring_has_blackboard_contract():
@@ -187,11 +188,11 @@ def test_prepare_fix_is_composer():
 
 
 def test_prepare_fix_output_keys_declared():
-    assert "prepared_fix_artifact" in PrepareFix.output_keys
+    assert "prepared_fix_artifact" in PrepareFix.contract.outputs
 
 
 def test_prepare_fix_output_key_type_is_str():
-    assert PrepareFix.output_keys["prepared_fix_artifact"] is str
+    assert PrepareFix.contract.outputs["prepared_fix_artifact"] is str
 
 
 def test_prepare_fix_docstring_has_blackboard_contract():
@@ -295,7 +296,7 @@ def test_draft_advisory_artifact_output_key_declared():
         DRAFT_ARTIFACT_KEY,
     )
 
-    assert DRAFT_ARTIFACT_KEY in DraftAdvisoryArtifact.output_keys
+    assert DRAFT_ARTIFACT_KEY in DraftAdvisoryArtifact.contract.outputs
 
 
 def test_draft_advisory_artifact_output_key_type_is_str():
@@ -303,7 +304,7 @@ def test_draft_advisory_artifact_output_key_type_is_str():
         DRAFT_ARTIFACT_KEY,
     )
 
-    assert DraftAdvisoryArtifact.output_keys[DRAFT_ARTIFACT_KEY] is str
+    assert DraftAdvisoryArtifact.contract.outputs[DRAFT_ARTIFACT_KEY] is str
 
 
 def test_review_advisory_draft_is_evaluator():
@@ -324,9 +325,9 @@ def test_review_advisory_draft_output_key_declared():
         AdvisoryReviewDecision,
     )
 
-    assert REVIEW_DECISION_KEY in ReviewAdvisoryDraft.output_keys
+    assert REVIEW_DECISION_KEY in ReviewAdvisoryDraft.contract.outputs
     assert (
-        ReviewAdvisoryDraft.output_keys[REVIEW_DECISION_KEY]
+        ReviewAdvisoryDraft.contract.outputs[REVIEW_DECISION_KEY]
         is AdvisoryReviewDecision
     )
 
@@ -348,7 +349,7 @@ def test_revise_advisory_draft_output_key_declared():
         DRAFT_ARTIFACT_KEY,
     )
 
-    assert DRAFT_ARTIFACT_KEY in ReviseAdvisoryDraft.output_keys
+    assert DRAFT_ARTIFACT_KEY in ReviseAdvisoryDraft.contract.outputs
 
 
 def test_submit_advisory_artifact_is_actuator():
@@ -365,4 +366,4 @@ def test_submit_advisory_artifact_success_rate():
 
 def test_submit_advisory_artifact_no_output_keys():
     """Actuator is a side-effect node — it declares no output keys."""
-    assert SubmitAdvisoryArtifact.output_keys == {}
+    assert SubmitAdvisoryArtifact.contract.outputs == {}

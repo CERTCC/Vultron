@@ -26,9 +26,9 @@ from vultron.core.behaviors.call_out.bundles.acquire_exploit import (
     ACQUIRE_EXPLOIT_DETERMINISTIC,
     AcquireExploitCallOutBundle,
 )
-from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-    ACTOR_DISCOVERY_DETERMINISTIC,
-    ActorDiscoveryCallOutBundle,
+from vultron.core.behaviors.call_out.bundles.actor_resolution import (
+    ACTOR_RESOLUTION_DETERMINISTIC,
+    ActorResolutionCallOutBundle,
 )
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
@@ -85,7 +85,7 @@ from vultron.core.behaviors.call_out.bundles.validation import (
 
 __all__ = [
     # Bundle classes
-    "ActorDiscoveryCallOutBundle",
+    "ActorResolutionCallOutBundle",
     "AcquireExploitCallOutBundle",
     "AssignCveIdCallOutBundle",
     "DevelopFixCallOutBundle",
@@ -101,7 +101,7 @@ __all__ = [
     "StatusAuthorizationCallOutBundle",
     "ValidationCallOutBundle",
     # Deterministic singletons
-    "ACTOR_DISCOVERY_DETERMINISTIC",
+    "ACTOR_RESOLUTION_DETERMINISTIC",
     "ACQUIRE_EXPLOIT_DETERMINISTIC",
     "ASSIGN_CVE_ID_DETERMINISTIC",
     "DEVELOP_FIX_DETERMINISTIC",

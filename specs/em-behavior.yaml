@@ -3057,6 +3057,8 @@ groups:
     invitation's RSVP deadline (CM-28-001) has passed. The protocol is liberal
     in what it accepts: a late accepter has signalled willingness to coordinate
     and MUST NOT be sent away. Codified by ADR-0065. Source: IDEA-2066.
+    What decides the answer is whether the named embargo is still available
+    (MSM-07-012), as for an on-time Accept, never the deadline.
     The trigger is a Participant's consent answer, which carries no protocol
     shorthand (MSM-02-010).
   trigger:
@@ -3097,24 +3099,28 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST check whether a late `Accept(Invite(EmbargoEvent))` names
-      an embargo the case can still answer.
-      Those are the case's Active Embargo and its open proposals (MSM-07-003).
+      an available embargo (MSM-07-012).
+      Those are the case's Active Embargo and its open proposals (MSM-07-003), before
+      their end time.
       It then applies EMB-17-002, EMB-17-003 or EMB-17-004.
     rationale: >-
       A late Accept can name the embargo in force, an open proposal, terms the case
-      has already decided or replaced, or none the case holds. Each needs its own
-      answer, so the CASE_MANAGER checks which case holds first. Reading the check
-      as "is this the Active Embargo" leaves out a case under proposal, which has an
-      open proposal and no Active Embargo. See ADR-0065.
+      decided, replaced or let run out, or terms it never held. Each needs its own
+      answer, read by the same test as for an on-time Accept. "Is this the Active
+      Embargo" leaves out a case under proposal, and a test without the end time
+      honours an Accept of terms that bind nobody. See ADR-0065.
     verification: >-
-      `test/core/behaviors/embargo/nodes/test_late_accept.py` confirms a late Accept is
-      routed by the named entry's register status and by whether the case holds any
-      ACTIVE or PROPOSED entry, to exactly one of the EMB-17-002, EMB-17-003 or
-      EMB-17-004 outcomes, for every EM state. `test_each_case_state_has_one_route`
-      covers each EM state against an answerable and an unanswerable embargo, and
-      `test_an_accepted_open_proposal_is_honoured` and
-      `test_a_rejected_proposal_beside_open_ones_reinvites_to_the_earliest` cover a
-      case in EM PROPOSED.
+      `test/core/behaviors/embargo/nodes/test_accept_availability.py` confirms the one
+      availability test reads the named entry's register status and its end time:
+      `test_the_active_embargo_and_open_proposals_are_available` covers EM PROPOSED,
+      ACTIVE and REVISE, `test_an_active_embargo_past_its_end_time_is_unavailable` an
+      ACTIVE entry at and after its end time, and
+      `test_the_condition_holds_only_for_the_embargos_availability` that exactly one
+      answer's condition holds.
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_the_managers_reinvite_is_committed_and_replayed_by_a_replica`,
+      `test_an_accept_of_an_active_embargo_past_its_end_time_is_refused`) drives the
+      check on the late path.
     testable: true
     preconditions:
     - description: The referenced invitation's effective RSVP deadline has passed
@@ -3123,6 +3129,8 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: EMB-17-001
+    - rel_type: refines
+      spec_id: MSM-07-012
     - rel_type: uses_definition
       spec_id: MSM-07-003
     adr:
@@ -3141,8 +3149,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the accepted embargo is the case's Active Embargo or one of its open
-      proposals (MSM-07-003), the CASE_MANAGER MUST honour the late Accept.
+      When the accepted embargo is available (MSM-07-012), the CASE_MANAGER MUST
+      honour the late Accept.
+      Available means the case's Active Embargo or one of its open proposals
+      (MSM-07-003), before its end time.
+      An ACTIVE entry past its end time is not available, so a late Accept of it is
+      refused, not honoured.
       It marks the participant's consent row for that embargo AGREED, exactly as it
       would for an on-time Accept.
       A row at TIMED_OUT moves directly to AGREED (`TIMED_OUT → AGREED`, ADR-0118).
@@ -3169,6 +3181,10 @@ groups:
       naming an open proposal is committed verbatim and moves the row for that
       proposal to AGREED from TIMED_OUT or DECLINED, while the accepter's row for
       the Active Embargo is unchanged.
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_an_accept_of_an_active_embargo_past_its_end_time_is_refused`) confirms a
+      late Accept of an Active Embargo past its end time is refused and its row does
+      not move to AGREED.
     testable: true
     preconditions:
     - em_state:
@@ -3178,7 +3194,7 @@ groups:
       description: EM state is Proposed, Active or Revise
     - description: >-
         The accepted embargo is the case's Active Embargo or one of its open
-        proposals
+        proposals, and its end time has not passed
     steps:
     - order: 1
       actor: system
@@ -3191,6 +3207,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-17-001
+    - rel_type: uses_definition
+      spec_id: MSM-07-012
     - rel_type: uses_definition
       spec_id: MSM-07-003
     - rel_type: uses_definition
@@ -3206,11 +3224,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The case can answer no late Accept of the named embargo, but holds terms of
-      its own. The CASE_MANAGER MUST then send the accepting actor a fresh
-      `Invite(EmbargoEvent)` naming those terms.
-      The terms are the case's Active Embargo.
-      With no Active Embargo they are its earliest-expiring open proposal
+      An Accept, late or on time, may name an embargo the register holds but that is
+      not available. The CASE_MANAGER refuses it with the refusal notice (MSM-07-012).
+      When the case holds terms of its own, the CASE_MANAGER MUST also send the
+      accepter a fresh `Invite(EmbargoEvent)` naming those terms.
+      The fresh Invite goes alongside the refusal notice.
+      The terms are the case's Active Embargo, while it is available.
+      Otherwise they are its earliest-expiring available open proposal
       (EP-08-002).
       An accepting participant at TIMED_OUT moves `TIMED_OUT → INVITED` for the
       invited embargo (ADR-0118).
@@ -3218,47 +3238,49 @@ groups:
       Its `attributedTo` names the invited embargo's proposer, or the CASE_MANAGER
       itself when it made the embargo as the protocol default, without a proposal.
     note: >-
-      Only a live proposal is terms: a `PROPOSED` entry stays open after its
+      Only an available embargo is terms: a `PROPOSED` entry stays open after its
       embargo's end time, but an Invite to it can carry no RSVP deadline that
-      EP-07-002 and EP-07-006 allow. A case whose proposals have all ended thus
-      holds no terms, and the late Accept takes the EMB-17-004 no-op. An accepter
+      EP-07-002 and EP-07-006 allow, and an ACTIVE entry past its end time binds
+      nobody. A case whose embargoes have all ended thus holds no terms, and the
+      accepter gets the refusal notice alone (EMB-17-004). The re-invite does not
+      depend on lateness: what decides the answer is the named embargo, so an on-time
+      Accept of terms the case replaced is asked about the current ones too
+      (maintainer ruling on #5745, #6029). An accepter
       whose row for the terms is already INVITED or AGREED has been asked or has
       answered, and INVITE does not move that row (CM-18-003), so nothing is sent.
       A DECLINED or TIMED_OUT row is asked again: the late Accept shows the
       participant is now willing (maintainer decision on #5732, 2026-11-09).
     rationale: >-
-      Recording the stale Accept as consent would bind the participant to terms it
-      never saw; rejecting it would discard a willing participant. Re-inviting
-      resolves both, and carries a relay's shape (ADR-0152). Naming the Active
-      Embargo alone leaves a case under proposal with nothing to invite to, so a
-      willing accepter hears nothing back. The earliest-expiring proposal is the one
-      a participant answers first (EP-08-001); arrival order would ask about
-      superseded terms. See ADR-0065.
+      Recording the stale Accept as consent binds the participant to terms it never
+      saw; refusing it alone leaves a willing participant unasked. The re-invite asks
+      about the terms that bind, in a relay's shape (ADR-0152). Naming the Active
+      Embargo alone leaves a case under proposal with nothing to invite to. The
+      earliest-expiring proposal is the one a participant answers first (EP-08-001);
+      arrival order would ask about superseded terms. See ADR-0065.
     verification: >-
       `test/core/use_cases/received/test_embargo_answer_routing.py`
       (`test_the_managers_reinvite_is_committed_and_replayed_by_a_replica`) confirms a
-      late Accept naming an embargo the case has decided or replaced causes a fresh
-      `Invite(EmbargoEvent)` carrying the case's Active Embargo, without recording the
-      stale Accept as consent.
-      `test/core/behaviors/embargo/nodes/test_late_accept.py`
-      (`test_a_rejected_proposal_beside_open_ones_reinvites_to_the_earliest`,
-      `test_a_proposal_whose_embargo_has_ended_is_not_invited_to`) confirms that with
-      no Active Embargo the fresh Invite carries the earliest-expiring open proposal
-      whose embargo has not ended, and
+      late Accept naming an embargo the case has decided or replaced gets the refusal
+      notice and a fresh `Invite(EmbargoEvent)` carrying the case's Active Embargo,
+      without recording the stale Accept as consent.
+      `test/core/behaviors/embargo/nodes/test_accept_availability.py`
+      (`test_the_terms_are_the_earliest_ending_live_proposal`,
+      `test_an_active_embargo_past_its_end_time_is_no_terms`) confirms the terms are
+      the available Active Embargo, else the earliest-expiring open proposal whose
+      embargo has not ended, and
       `test_an_accepter_already_asked_or_answered_is_not_asked_again` confirms an
       accepter whose row for those terms takes no INVITE is not asked again.
     testable: true
     preconditions:
     - description: >-
-        The accepted embargo is neither the case's Active Embargo nor one of its
-        open proposals, and the case has an Active Embargo or at least one open
-        proposal
+        The register holds the accepted embargo, but it is not available, and the
+        case has an available Active Embargo or open proposal
     steps:
     - order: 1
       actor: system
       action: >-
-        Emit a fresh Invite(EmbargoEvent) to the accepting actor carrying the
-        case's current terms
+        Emit the refusal notice and a fresh Invite(EmbargoEvent) to the accepting
+        actor carrying the case's current terms
       expected: >-
         Accepting participant's consent row for the invited embargo is INVITED;
         stale Accept is not recorded as consent
@@ -3269,6 +3291,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-17-001
+    - rel_type: extends
+      spec_id: MSM-07-012
     - rel_type: uses_definition
       spec_id: EP-08-002
     - rel_type: uses_definition
@@ -3355,16 +3379,26 @@ groups:
   - id: EMB-17-006
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
-      When the accepted embargo is neither the Active Embargo nor an open proposal,
-      the CASE_MANAGER MUST NOT reject the accepting actor.
+      When the accepted embargo is not available, the CASE_MANAGER refuses the Accept
+      (MSM-07-012). It MUST NOT refuse the accepting actor's participation: the
+      refusal is of the Accept alone.
     rationale: >-
-      Rejecting a willing participant discards coordination capacity; re-inviting
-      to the current terms is the correct response. See ADR-0065.
+      Refusing a willing participant discards coordination capacity. The refusal
+      notice says the answer is moot, never that the actor is unwelcome, and
+      re-inviting to the current terms is the rest of the answer. See ADR-0065.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_invite_lapse.py`
+      (`test_late_accept_refused_when_em_exited`) and
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_a_late_accept_with_no_terms_gets_the_refusal_notice_alone`) refuse an
+      Accept of a terminated embargo and assert the accepter is still a case
+      participant.
     relationships:
     - rel_type: extends
       spec_id: EMB-17-003
+    - rel_type: refines
+      spec_id: MSM-07-012
     adr:
     - ADR-0065
     stories:
@@ -3373,9 +3407,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the case has no Active Embargo and no Proposed Embargo (EM EXITED or
-      NONE), the CASE_MANAGER MUST treat a late Accept as a no-op.
-      The no-op is not a refusal (HP-01-003).
+      This rule covers a case with no Active and no Proposed Embargo (EM EXITED or
+      NONE). There, the CASE_MANAGER MUST answer a late Accept of an embargo its
+      register holds with the refusal notice alone (MSM-07-012).
       A redelivery of the same Accept gets the same result.
     note: >-
       EMB-13-002 independently forbids seeking or accepting new embargoes for a
@@ -3386,22 +3420,20 @@ groups:
       Follows the EMB-07-003 precedent for post-terminal messages: no transition.
       There is nothing to invite the actor to, so a fresh invitation would
       manufacture a negotiation nobody requested — but the actor's case
-      participation is independent of embargo consent and MUST survive. An entry
-      or reply acknowledging the Accept would change nothing at any receiver, and
-      anything that holds the case and its ledger can see the Accept named an
-      embargo the case no longer holds, so the no-op is not ledgered (ADR-0152,
-      CLP-02-013). See ADR-0065.
+      participation is independent of embargo consent and MUST survive. The
+      sender is still owed word that its answer did not count, which the refusal
+      notice gives (CLP-05-001). An Accept of terms the case never held gets a
+      processing fault instead (MSM-07-039). See ADR-0065.
     verification: >-
       Tests in `test/core/use_cases/received/test_embargo_answer_routing.py` and
       `test/core/use_cases/received/test_embargo_invite_lapse.py` confirm that a late Accept
-      arriving when EM is EXITED or NONE is reported `SKIPPED`, commits no ledger entry,
-      queues
-      nothing and leaves every consent row unchanged, and that a redelivery, with or
-      without
-      its received body, gets the same result.
-      `test/core/behaviors/embargo/nodes/test_late_accept.py`
-      (`test_a_case_whose_only_proposal_has_ended_binds_nothing`) confirms a case
-      whose open proposals have all ended takes the same no-op.
+      arriving when EM is EXITED or NONE is reported `REFUSED`, commits no ledger entry,
+      queues the refusal notice and nothing else, and leaves every consent row
+      unchanged, and that a redelivery, with or without its received body, is refused
+      again and sends nothing more.
+      `test/core/behaviors/embargo/nodes/test_accept_availability.py`
+      (`test_a_case_with_no_active_or_proposed_embargo_holds_no_terms`) confirms such a
+      case holds no terms to invite to.
     testable: true
     preconditions:
     - em_state:
@@ -3411,16 +3443,20 @@ groups:
     steps:
     - order: 1
       actor: system
-      action: Treat the Accept as a no-op, committing and sending nothing
+      action: >-
+        Refuse the Accept with the refusal notice, committing nothing and sending
+        nothing else
       expected: >-
         Participant consent rows are unchanged; participant remains in the
-        case; no ledger entry is committed and nothing is sent
+        case; no ledger entry is committed and only the refusal notice is sent
     postconditions:
     - description: >-
         No embargo state change; accepting actor remains a case participant
     relationships:
     - rel_type: refines
       spec_id: EMB-17-001
+    - rel_type: refines
+      spec_id: MSM-07-012
     adr:
     - ADR-0065
     - ADR-0118
@@ -3428,9 +3464,6 @@ groups:
     stories:
     - story_2022_013
     - story_2026_064
-    see_also:
-    - spec_id: HP-01-003
-      reason: 'context for the reader'
   - id: EMB-17-015
     priority: MUST_NOT
     kind: protocol
@@ -3438,12 +3471,11 @@ groups:
       The CASE_MANAGER MUST NOT commit any ledger entry for a late Accept that arrives
       when the case has no Active Embargo and no Proposed Embargo (EMB-17-004).
     rationale: >-
-      An entry acknowledging the Accept would change nothing at any receiver. Anything
-      that holds the case and its ledger can see the Accept named an embargo the case
-      no longer holds, so the no-op is not ledgered (ADR-0152, CLP-02-013).
+      An entry acknowledging the Accept would change nothing at any receiver. The
+      Accept is refused, and a refusal is never written to the ledger (CLP-04-007).
     verification: >-
       `test/core/use_cases/received/test_embargo_answer_routing.py`
-      (`test_a_late_accept_with_no_embargo_to_bind_records_and_sends_nothing`)
+      (`test_a_late_accept_with_no_terms_gets_the_refusal_notice_alone`)
       confirms that a late Accept arriving when EM is EXITED commits no ledger entry.
     testable: true
     relationships:
@@ -3458,16 +3490,18 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST NOT send any activity in reply to a late Accept that
-      arrives when the case has no Active Embargo and no Proposed Embargo
-      (EMB-17-004).
+      This rule covers a late Accept of an embargo the register holds, in a case with
+      no Active and no Proposed Embargo (EMB-17-004). The CASE_MANAGER MUST NOT send
+      any activity in reply to it but the refusal notice.
     rationale: >-
-      There is nothing to invite the actor to, so a reply or fresh invitation would
-      manufacture a negotiation nobody requested.
+      There is nothing to invite the actor to, so a fresh invitation would
+      manufacture a negotiation nobody requested. The refusal notice is owed: it
+      tells the sender its answer did not count (MSM-07-012).
     verification: >-
       `test/core/use_cases/received/test_embargo_answer_routing.py`
-      (`test_a_late_accept_with_no_embargo_to_bind_records_and_sends_nothing`)
-      confirms that a late Accept arriving when EM is EXITED queues nothing.
+      (`test_a_late_accept_with_no_terms_gets_the_refusal_notice_alone`)
+      confirms that a late Accept arriving when EM is EXITED queues the refusal
+      notice and nothing else.
     testable: true
     relationships:
     - rel_type: part_of
@@ -3492,8 +3526,9 @@ groups:
       consent and survives.
     verification: >-
       `test/core/use_cases/received/test_embargo_answer_routing.py`
-      (`test_a_late_accept_with_no_embargo_to_bind_records_and_sends_nothing`)
-      confirms that a late Accept arriving when EM is EXITED leaves every consent row unchanged.
+      (`test_a_late_accept_with_no_terms_gets_the_refusal_notice_alone`)
+      confirms that a late Accept arriving when EM is EXITED leaves every consent row
+      unchanged.
     testable: true
     relationships:
     - rel_type: part_of
@@ -3506,7 +3541,6 @@ groups:
   - id: EMB-17-007
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       When the case has no Active Embargo and no Proposed Embargo (EM state is
       EXITED or NONE), the CASE_MANAGER MUST NOT issue a fresh embargo invitation
@@ -3514,6 +3548,14 @@ groups:
     rationale: >-
       There is no active embargo to invite the actor to; a fresh invitation would
       manufacture a negotiation nobody requested. See ADR-0065.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_a_late_accept_with_no_terms_gets_the_refusal_notice_alone`) drives a late
+      Accept into a case in EM EXITED and asserts the refusal notice is the only
+      activity queued, so no Invite is sent.
+      `test/core/behaviors/embargo/nodes/test_accept_availability.py`
+      (`test_a_case_with_no_active_or_proposed_embargo_holds_no_terms`) asserts such a
+      case holds no terms to invite to.
     relationships:
     - rel_type: derives_from
       spec_id: EMB-17-004
@@ -3524,7 +3566,6 @@ groups:
   - id: EMB-17-008
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       When the case has no Active Embargo and no Proposed Embargo (EM state is
       EXITED or NONE), the CASE_MANAGER MUST NOT remove the accepting actor from
@@ -3532,6 +3573,13 @@ groups:
     rationale: >-
       Case participation is independent of embargo consent; the actor's
       willingness to coordinate must not result in their removal. See ADR-0065.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_invite_lapse.py`
+      (`test_late_accept_refused_when_em_exited`) and
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_a_late_accept_with_no_terms_gets_the_refusal_notice_alone`) drive a late
+      Accept into a case in EM EXITED and assert the accepter is still in the case's
+      participant index afterwards.
     relationships:
     - rel_type: derives_from
       spec_id: EMB-17-004

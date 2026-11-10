@@ -3,6 +3,7 @@
 import py_trees
 import pytest
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     ProbablySucceed,
@@ -57,7 +58,7 @@ def test_update_returns_status(node_cls):
     """update() must return a valid py_trees Status."""
     node = node_cls()
     node.setup()
-    status = node.update()
+    status = tick_call_out(node)
     assert status in (
         py_trees.common.Status.SUCCESS,
         py_trees.common.Status.FAILURE,

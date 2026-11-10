@@ -86,19 +86,21 @@ class IsActiveEmbargoNode(DataLayerConditionWithPorts):
 
 
 class IsAnswerableEmbargoNode(DataLayerConditionWithPorts):
-    """Guard that an answer names an embargo the case can still answer.
+    """Guard that a ``Reject`` names an embargo the case can still answer.
 
     SUCCESS when ``embargo_id`` is the case's active embargo or one of its
-    open proposals — the two embargoes an ``Accept`` or a ``Reject`` of an
-    embargo Invite may name (MSM-07-003, MSM-07-004).  For a Reject,
-    ``RejectIsNotWithdrawalNode`` refuses the one reading of the first that
-    would withdraw (MSM-07-010).  FAILURE otherwise: an answer to a proposal
-    already decided, to terms the case replaced or ended, or to an embargo
-    the case never knew has nothing to change, since a row for an entry in a
-    final register status accepts no trigger (CM-18-003).  Read-only, so it
-    sits ahead of the guarded commit (CLP-10-009): an answer the effects
-    would refuse is never committed, and no replica is sent an entry it
-    cannot replay (SYNC-12-001).
+    open proposals, the embargoes a ``Reject`` of an embargo Invite may name
+    (MSM-07-004); ``RejectIsNotWithdrawalNode`` refuses the one reading of
+    the first that would withdraw (MSM-07-010).  FAILURE otherwise: a Reject
+    of a proposal already decided, of terms the case replaced or ended, or of
+    an embargo the case never knew has nothing to change, since a row for an
+    entry in a final register status accepts no trigger (CM-18-003).
+    Read-only, so it sits ahead of the guarded commit (CLP-10-009): a Reject
+    the effects would refuse is never committed, and no replica is sent an
+    entry it cannot replay (SYNC-12-001).  An ``Accept`` is answered by the
+    embargo's availability instead, which adds its end time to this test
+    (:func:`~vultron.core.services.embargo_availability.embargo_availability`,
+    MSM-07-012).
     """
 
     def __init__(
@@ -106,13 +108,11 @@ class IsAnswerableEmbargoNode(DataLayerConditionWithPorts):
         case_id: str,
         embargo_id: str,
         *,
-        accept: bool,
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.embargo_id = embargo_id
-        self.accept = accept
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -125,10 +125,9 @@ class IsAnswerableEmbargoNode(DataLayerConditionWithPorts):
 
         if case.can_answer_embargo(self.embargo_id):
             return Status.SUCCESS
-        verb = "accept" if self.accept else "reject"
         self.feedback_message = (
             f"Embargo '{self.embargo_id}' is neither the active embargo nor"
-            f" an open proposal of case '{self.case_id}': nothing to {verb}"
+            f" an open proposal of case '{self.case_id}': nothing to reject"
             " (CM-18-003)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)

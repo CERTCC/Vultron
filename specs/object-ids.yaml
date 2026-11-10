@@ -234,9 +234,9 @@ groups:
       for an object id or replace the `uuid` module's draw.
     rationale: >-
       A replacement of `uuid.uuid4` reaches every caller of it, py_trees included, so a
-      reproducible run's ids would depend on how many tree nodes it built. The one run
-      that still patches the draw, `deterministic_run`, is a listed exemption until
-      #6116 moves it to the scoped install (OID-01-011).
+      reproducible run's ids would depend on how many tree nodes it built. A run that
+      needs repeatable ids therefore installs its source through the scoped install
+      (OID-01-011).
     verification: >-
       `test/architecture/test_single_object_id_minter.py` confirms that
       `vultron.core.models._helpers.ids.system_id_source` is the one function under

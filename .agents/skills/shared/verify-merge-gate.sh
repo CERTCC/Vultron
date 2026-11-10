@@ -101,8 +101,8 @@ fi
 { [ "${draft}" = true ] || [ "${status}" = DRAFT ]; } && flags+=(PR-IS-DRAFT)
 
 # BLOCKED's non-bypassable cause: the `CI gate` required by `main-3` (#5945).
-# A cancelled or superseded earlier run sits on the head commit beside the live
-# one, so the reading has to pick among several. Any run still going makes the
+# Several runs can sit on the head commit: one per pull-request event, and a
+# run cancelled by hand or by a timeout, so the reading has to pick among them. Any run still going makes the
 # answer PENDING, whatever the others concluded: the verdict is not settled, and
 # GitHub blocks the merge until it is. Only when every run has finished does the
 # newest one decide, which is the run GitHub's own evaluation decides by.

@@ -56,6 +56,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
     CaseProposalCallOutBundle,
@@ -134,26 +136,28 @@ def dl():
     _dl.close()
 
 
-class _SpyBackend(py_trees.behaviour.Behaviour):
-    """Records every ``update()`` so a test can assert whether it was *ticked*.
+class _SpyBackend(CallOutBackend):
+    """Records every ``answer()`` so a test can assert whether it was *ticked*.
 
     A factory-call counter would not answer the question: tree builders invoke
     the factory while composing the tree, so a bundle field is called even for a
-    branch that never runs. Only ``update()`` tells you the decision was made.
+    branch that never runs. Only ``answer()`` tells you the decision was made.
     """
 
-    def __init__(self, name: str, ticks: list[str], verdict: Status) -> None:
+    def __init__(
+        self, name: str, ticks: list[str], verdict: CallOutAnswer
+    ) -> None:
         super().__init__(name=name)
         self._ticks = ticks
         self._verdict = verdict
 
-    def update(self) -> Status:
+    def answer(self) -> CallOutAnswer:
         self._ticks.append(self.name)
         return self._verdict
 
 
 def _spy_bundle(
-    ticks: list[str], verdict: Status
+    ticks: list[str], verdict: CallOutAnswer
 ) -> CaseProposalCallOutBundle:
     """Bundle whose admission backend returns *verdict* and records its ticks."""
 
@@ -166,11 +170,11 @@ def _spy_bundle(
 
 
 def _declining_bundle(ticks: list[str]) -> CaseProposalCallOutBundle:
-    return _spy_bundle(ticks, Status.FAILURE)
+    return _spy_bundle(ticks, CallOutAnswer.no("admission policy declines"))
 
 
 def _admitting_bundle(ticks: list[str]) -> CaseProposalCallOutBundle:
-    return _spy_bundle(ticks, Status.SUCCESS)
+    return _spy_bundle(ticks, CallOutAnswer.yes())
 
 
 def _proposal(
@@ -610,10 +614,10 @@ def test_stochastic_singleton_lives_in_the_simulation_layer():
 
 @pytest.mark.spec("BT-18-001")
 def test_stochastic_backend_declares_its_blackboard_output():
-    """BT-18-001: an Evaluator declares the keys it writes on SUCCESS."""
+    """BT-18-001: an Evaluator declares the keys given on yes."""
     from vultron.demo.fuzzer.case_management import EvaluateCaseProposal
 
-    assert EvaluateCaseProposal.output_keys == {
+    assert EvaluateCaseProposal.contract.outputs == {
         "evaluate_case_proposal_verdict": str
     }
 
@@ -623,9 +627,9 @@ class TestDeclineReasonReachesTheProposer:
     """The reason travels on the decline record, not as a call argument.
 
     The ``Reject`` reads its summary from the record its decision wrote.  The
-    admission call-out point writes no reason yet — it signals refusal by
-    returning FAILURE and BT-18 defines outputs only for the SUCCESS case
-    (see #3399) — while the closed-case decline does (``TestTheOwnersNewProposalForAClosedCaseIsDeclined``
+    admission backend's *no* reason reaches the blackboard (ADR-0183), but the
+    decline record does not read it yet (#6077), while the closed-case decline
+    records its reason (``TestTheOwnersNewProposalForAClosedCaseIsDeclined``
     below).
     """
 

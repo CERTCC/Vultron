@@ -1,0 +1,127 @@
+# Log Replay golden: rcvcv (ui/src/recordings/rcvcv/case-actor.jsonl)
+# Written by ui/src/utils/replayGolden.test.ts. After an intended change,
+# regenerate with `npm test -- -u` in ui/ and review the diff.
+
+## Lanes, top to bottom: label, roles, actor id
+Reporter           REPORTER              http://actor0:7999/api/v2/actors/actor0
+Vendor             VENDOR                http://actor1:7999/api/v2/actors/actor1
+Vendor / Deployer  VENDOR, DEPLOYER      http://actor4:7999/api/v2/actors/actor4
+Coordinator        COORDINATOR           http://actor2:7999/api/v2/actors/actor2
+Coordinator 2      COORDINATOR           http://actor3:7999/api/v2/actors/actor3
+Case Manager       CASE_MANAGER          http://case-actor:7999/api/v2/actors/case-actor
+
+## States: each lane's distinct states in step order, then the case
+Reporter           RM ACCEPTED → CLOSED
+Vendor             RM RECEIVED → VALID → ACCEPTED → CLOSED; VFD vfd → Vfd → VFd
+Vendor / Deployer  RM RECEIVED → VALID → ACCEPTED → CLOSED; VFD vfd → Vfd → VFd → VFD
+Coordinator        RM RECEIVED → VALID → ACCEPTED → CLOSED
+Coordinator 2      RM RECEIVED → VALID → CLOSED
+Case Manager       RM N/A, VFD N/A
+Case               EM ACTIVE → EXITED; PXA pxa → Pxa
+
+## Events: step, decision lane, label [flags], then details and the lanes it reaches
+01  Case Manager       Case Manager created the case
+      Create(VulnerabilityCase) · EM: ACTIVE · PXA: pxa
+      → Reporter, Coordinator
+02  Reporter           Reporter submitted the report
+      Offer(VulnerabilityReport) · Report: "Remote Code Execution in Network Stack"
+      → Coordinator, Case Manager
+03  Coordinator        Coordinator validated the report
+      Accept(Offer(VulnerabilityReport)) · RM: RECEIVED → VALID
+      → Reporter, Case Manager
+04  Coordinator        Case Manager updated Coordinator's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: VALID → ACCEPTED (accept)
+      → Reporter, Case Manager
+05  Coordinator        Coordinator suggested Vendor for the case
+      Offer(Actor)[target=VulnerabilityCase]
+      → Reporter, Case Manager
+06  Case Manager       Case Manager invited Vendor to the case
+      Invite(Actor)[target=VulnerabilityCaseStub]
+      → Reporter, Coordinator
+07  Vendor             Vendor accepted the case invitation
+      Accept(Invite(Actor)[target=VulnerabilityCaseStub]) · RM → RECEIVED · VFD → vfd
+      → Reporter, Coordinator, Case Manager
+08  Vendor             Case Manager updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · VFD: vfd → Vfd (vendor_becomes_aware)
+      → Reporter, Coordinator, Case Manager
+09  Vendor             Case Manager updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: RECEIVED → VALID (validate)
+      → Reporter, Coordinator, Case Manager
+10  Vendor             Case Manager updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: VALID → ACCEPTED (accept)
+      → Reporter, Coordinator, Case Manager
+11  Reporter           Reporter added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "Question from Reporter" · Could you share the timeline for patch availability with Vendor?
+      → Vendor, Coordinator, Case Manager
+12  Vendor             Vendor added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "Vendor Status Update" · We have confirmed the issue and are developing a fix. Estimated patch availability: 14 …
+      → Reporter, Coordinator, Case Manager
+13  Coordinator        Coordinator added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "Coordinator Summary" · All three parties engaged. Vendor fix expected in 14 days. Embargo holds until patch is…
+      → Reporter, Vendor, Case Manager
+14  Coordinator        Coordinator suggested Coordinator 2 for the case
+      Offer(Actor)[target=VulnerabilityCase]
+      → Reporter, Vendor, Case Manager
+15  Case Manager       Case Manager invited Coordinator 2 to the case
+      Invite(Actor)[target=VulnerabilityCaseStub]
+      → Reporter, Vendor, Coordinator
+16  Coordinator 2      Coordinator 2 accepted the case invitation
+      Accept(Invite(Actor)[target=VulnerabilityCaseStub]) · RM → RECEIVED
+      → Reporter, Vendor, Coordinator, Case Manager
+17  Coordinator 2      Case Manager updated Coordinator 2's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: RECEIVED → VALID (validate)
+      → Reporter, Vendor, Coordinator, Case Manager
+18  Coordinator 2      Coordinator 2 suggested Vendor / Deployer for the case
+      Offer(Actor)[target=VulnerabilityCase]
+      → Reporter, Vendor, Coordinator, Case Manager
+19  Case Manager       Case Manager invited Vendor / Deployer to the case
+      Invite(Actor)[target=VulnerabilityCaseStub]
+      → Reporter, Vendor, Coordinator, Coordinator 2
+20  Vendor / Deployer  Vendor / Deployer accepted the case invitation
+      Accept(Invite(Actor)[target=VulnerabilityCaseStub]) · RM → RECEIVED · VFD → vfd
+      → Reporter, Vendor, Coordinator, Coordinator 2, Case Manager
+21  Vendor / Deployer  Case Manager updated Vendor / Deployer's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · VFD: vfd → Vfd (vendor_becomes_aware)
+      → Reporter, Vendor, Coordinator, Coordinator 2, Case Manager
+22  Vendor / Deployer  Case Manager updated Vendor / Deployer's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: RECEIVED → VALID (validate)
+      → Reporter, Vendor, Coordinator, Coordinator 2, Case Manager
+23  Vendor / Deployer  Case Manager updated Vendor / Deployer's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: VALID → ACCEPTED (accept)
+      → Reporter, Vendor, Coordinator, Coordinator 2, Case Manager
+24  Coordinator 2      Coordinator 2 added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "C2 Update" · C2 confirms V2 is engaged. Target disclosure in 30 days.
+      → Reporter, Vendor, Vendor / Deployer, Coordinator, Case Manager
+25  Vendor / Deployer  Vendor / Deployer added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "V2 Status Update" · V2 confirms the issue affects our component. We will align our fix and deployment timel…
+      → Reporter, Vendor, Coordinator, Coordinator 2, Case Manager
+26  Vendor             Vendor updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · VFD: Vfd → VFd (fix_is_ready)
+      → Reporter, Vendor / Deployer, Coordinator, Coordinator 2, Case Manager
+27  Vendor / Deployer  Vendor / Deployer updated Vendor / Deployer's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · VFD: Vfd → VFd (fix_is_ready)
+      → Reporter, Vendor, Coordinator, Coordinator 2, Case Manager
+28  Vendor / Deployer  Vendor / Deployer updated Vendor / Deployer's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · VFD: VFd → VFD (fix_is_deployed)
+      → Reporter, Vendor, Coordinator, Coordinator 2, Case Manager
+29  Vendor             Vendor updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · PXA: pxa → Pxa (public_becomes_aware)
+      → Reporter, Vendor / Deployer, Coordinator, Coordinator 2, Case Manager
+30  Case Manager       Case Manager removed an embargo from the case
+      Remove(EmbargoEvent) · EM: ACTIVE → EXITED (terminate)
+      → Reporter, Vendor, Vendor / Deployer, Coordinator, Coordinator 2
+31  Vendor             Vendor closed the case
+      Leave(VulnerabilityCase) · RM: ACCEPTED → CLOSED (Leave) · EM: EXITED
+      → Reporter, Vendor / Deployer, Coordinator, Coordinator 2, Case Manager
+32  Vendor / Deployer  Vendor / Deployer closed the case
+      Leave(VulnerabilityCase) · RM: ACCEPTED → CLOSED (Leave) · EM: EXITED
+      → Reporter, Coordinator, Coordinator 2, Case Manager
+33  Coordinator 2      Coordinator 2 closed the case
+      Leave(VulnerabilityCase) · RM: VALID → CLOSED (Leave) · EM: EXITED
+      → Reporter, Coordinator, Case Manager
+34  Reporter           Reporter closed the case
+      Leave(VulnerabilityCase) · RM: ACCEPTED → CLOSED (Leave) · EM: EXITED
+      → Coordinator, Case Manager
+35  Coordinator        Coordinator closed the case
+      Leave(VulnerabilityCase) · RM: ACCEPTED → CLOSED (Leave) · EM: EXITED
+      → Case Manager

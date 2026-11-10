@@ -7,7 +7,7 @@ description: >
   access, this codebase's full-inline-object rule for outbound activities (a
   prototype shortcut, not a protocol rule, except for the bootstrap `Create`'s
   case and participant records, CBT-01-007), the outbox last-resort guard, and
-  the use-case-level actor-discovery seam, and how an actor known only by URI
+  the use-case-level actor-resolution seam, and how an actor known only by URI
   travels (AKM-05, AKM-02-006).
 related_specs:
   - specs/actor-knowledge-model.yaml
@@ -94,7 +94,7 @@ body has a bare-string or `Link` `object`. The outbox is a dumb relay
 (VM-08-003): it never expands a reference, so code must not count on anything
 downstream to fill in a bare ID. If the error fires, fix the activity builder.
 
-## AKM-05: Actor Addressing and Discovery
+## AKM-05: Actor Addressing and Resolution
 
 - **A deliverable `http(s)` URI is enough to address a peer (AKM-05-001).** A
   local `CoreActor` record is enrichment, never a precondition: under per-actor
@@ -120,16 +120,18 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   creation (`hosted_endpoints`, `vultron/core/models/actor.py`), so its published
   profile carries both (ISSUE-3616). A peer record built with no endpoints
   passes `published=None, updated=None` too, or the base class stamps the clock.
-- **Discovery is an injectable Retriever call-out (AKM-05-002).** With no local
+- **Actor resolution is an injectable Retriever call-out (AKM-05-002).** With no local
   record, `_record_named_peer` (`vultron/core/use_cases/triggers/actor/_peers.py`) asks
-  the injected `ActorDiscoveryCallOutBundle` before recording a minimal
+  the injected `ActorResolutionCallOutBundle` before recording a minimal
   `CoreActor`, which holds only the id (AKM-02-006). The default,
-  `ACTOR_DISCOVERY_DETERMINISTIC`, always succeeds and logs at DEBUG. A failing
-  production backend logs a WARNING and still proceeds: discovery never blocks an
-  invite.
+  `ACTOR_RESOLUTION_DETERMINISTIC`, always succeeds and logs at DEBUG. A failing
+  production backend logs a WARNING and still proceeds: resolution never blocks an
+  invite. That holds for a backend that raises or returns RUNNING too. The bridge
+  logs the raise at ERROR as an internal error, and the WARNING follows.
 - **The seam lives in the use case's `_prepare()`, not a BT node.** Recording a
-  peer changes no protocol-observable state, so BT-15-001 does not apply, and a
-  BT node must not be ticked procedurally outside a tree. Promote it to a BT
+  peer changes no protocol-observable state, so BT-15-001 does not apply. The
+  backend still runs as a one-tick tree through `BTBridge`, acting as the acting
+  actor, so its ports are wired (#2707). Promote it to a BT
   subtree only if a real directory service needs async or blackboard
   interaction; the ADR-0025 bundle factory already supports that without
   changing call sites.
