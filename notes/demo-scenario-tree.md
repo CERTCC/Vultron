@@ -19,6 +19,7 @@ tracks:
   - "#6025"
   - "#6026"
   - "#6028"
+  - "#6194"
 description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,
@@ -444,20 +445,23 @@ vendor-first half, whose Reporter tells a Vendor.
   managers and the recorder's routed client are the only paths, not by reading the
   source: a static pass cannot resolve which actor `state.session(owner.name)` is, and
   that subject is what EDF-06-002 constrains.
-- **Normalize ids and clocks, nothing else.** Relabel every id by its first appearance
-  with one mapping across a scenario's ledger and check labels, and drop timestamps
-  and hash-chain digests (DEMOCI-11-058 to DEMOCI-11-060). The recording clock ticks
-  10 ms on every read, so one added `now_utc()` call shifts every later timestamp, and
-  one extra id draw shifts every later id; neither is a change in what the scenario
-  does. A byte comparison would fail on both, which is why comparing a fresh run with
-  the committed files was rejected. A cast actor's URI is left spelled out: it is
-  derived from a fixed container address (DEMOCI-11-020), so it never shifts, and a
-  diff that still names `actor1` is one a person can read. **Dropping timestamps costs
-  coverage**: a time the protocol *derives* reads the same as one the clock minted, so
-  an embargo's `startTime` and `endTime`, an invite's `rsvpDeadline` and the embargo
-  name that quotes them all go with the clock. A change to the default embargo window
-  or the RSVP window therefore compares equal, and the gate is not a check on those
-  constants.
+- **Compare the verdict, an allow-list of fields, never a cleaned copy.** Each ledger
+  entry is projected onto `VERDICT_FIELDS` in `vultron/demo/recordings/traces.py`:
+  which act, at which position, by whom, to whom, with which states, roles and
+  content. Ids in it are relabelled by first appearance, one mapping across ledger and
+  check labels, and a quoted timestamp reads as a placeholder (DEMOCI-11-058 to
+  DEMOCI-11-060). A list of noise fields is the wrong shape: it failed on the first PR
+  that drew ids another way, because the signatures cover the raw ids and
+  `proofValue` was not on it (#6194). A field joins the list only if a change in it is
+  a change in what the scenario did; a new state, role, status or consent field of a
+  core model fails `test_recording_traces.py` until it joins. A cast actor's URI is
+  left spelled out: it is derived from a fixed container address (DEMOCI-11-020), so
+  it never shifts, and a diff that still names `actor1` is one a person can read.
+  **Leaving times out costs coverage**: a time the protocol *derives* is left out with
+  the clock's, so an embargo's `startTime` and `endTime`, an invite's `rsvpDeadline`
+  and the embargo name that quotes them do not count. A change to the default embargo
+  window or the RSVP window therefore compares equal, and the gate is not a check on
+  those constants.
 - **A deliberate verdict change takes the `demo-verdict-change` label.** It belongs in
   its own change (DEMOMA-17-004); the label passes the job, and the job still prints
   the diff to its summary, so the opt-out shows what it admits (DEMOCI-11-063,

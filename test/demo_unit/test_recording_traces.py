@@ -11,28 +11,34 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The normal form two runs are compared in (DEMOCI-11-058 to DEMOCI-11-060).
+"""A run's verdict, the form two runs are compared in (DEMOCI-11-058 to -060).
 
 The recording clock ticks 10 ms on every read and every id is drawn from one
 seeded generator, so a shifted clock or one extra draw moves every later
-timestamp, digest and id without changing what the scenario did.  These tests
-hold the line between that and a real change: a changed note text, an added
-entry and a changed check label all survive the normalizer.
+timestamp, digest, signature and id without changing what the scenario did.
+These tests hold the line between that and a real change, in both
+directions: id, time and signature churn compares equal, and a changed note
+text, an added or reordered act, a changed act type, state or role, and a
+changed check label or outcome each compare different.
 """
 
+import importlib
 import json
+import pkgutil
 import re
+from collections.abc import Iterator
 from dataclasses import replace
 
 import pytest
 
+import vultron.core.models
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.demo.recordings.traces import (
     CHECKS_FILENAME,
-    DIGEST_KEY_SUFFIX,
-    DIGEST_PLACEHOLDER,
     LEDGER_FILENAME,
     TIMESTAMP_PLACEHOLDER,
+    VERDICT_FIELDS,
     ScenarioRun,
     normalize_run,
     prune_runs,
@@ -68,8 +74,17 @@ def _entry(
     published: str = "2026-01-01T00:00:00.560000+00:00",
     note: str = "first contact",
     digest: str = "a" * 64,
+    signature: str = "zFirstSignature",
+    act: str = "Create",
+    rm_state: str = "RECEIVED",
+    role: str = "vendor",
 ) -> dict[str, object]:
-    """One ledger entry, in the shape the recorder writes one."""
+    """One ledger entry, in the shape the recorder writes one.
+
+    The payload carries a proof, and so does the activity it embeds, as a
+    signed act does: a signature covers the raw ids, so it changes whenever
+    an id does.
+    """
     return {
         "id": f"{case_id}/log/{index}",
         "type": "CaseLedgerEntry",
@@ -81,14 +96,44 @@ def _entry(
         "semanticType": "create_case",
         "payloadSnapshot": {
             "id": activity_id,
-            "type": "Create",
+            "type": act,
             "published": published,
             "actor": CASE_ACTOR,
             "to": [VENDOR],
             "content": note,
+            "senderSequence": index + 1,
+            "ledgerPosition": {"logIndex": index - 1, "entryHash": digest},
+            "object": {
+                "id": case_id,
+                "type": "Offer",
+                "actor": VENDOR,
+                "proof": _proof(signature, published),
+            },
+            "target": {
+                "id": case_id,
+                "type": "CaseParticipant",
+                "attributedTo": VENDOR,
+                "caseRoles": [role, "case_owner"],
+                "participantStatuses": [
+                    {"type": "ParticipantStatus", "rmState": rm_state}
+                ],
+            },
+            "proof": _proof(signature, published),
         },
         "prevLogHash": "0" * 64,
         "entryHash": digest,
+    }
+
+
+def _proof(signature: str, created: str) -> dict[str, object]:
+    """A Data Integrity proof, as a signed activity carries one."""
+    return {
+        "type": "DataIntegrityProof",
+        "cryptosuite": "eddsa-jcs-2022",
+        "verificationMethod": f"{CASE_ACTOR}#main-key",
+        "proofPurpose": "assertionMethod",
+        "created": created,
+        "proofValue": signature,
     }
 
 
@@ -127,7 +172,7 @@ def _run(
 BASE = _run()
 
 
-class TestWhatSurvivesNormalization:
+class TestWhatComparesEqual:
     @pytest.mark.spec("DEMOCI-11-059")
     def test_a_shifted_clock_compares_equal(self):
         shifted = _run(
@@ -166,6 +211,63 @@ class TestWhatSurvivesNormalization:
         )
         assert normalize_run(redrawn) == normalize_run(BASE)
 
+    @pytest.mark.spec("DEMOCI-11-059")
+    def test_redrawn_ids_and_their_signatures_compare_equal(self):
+        """The shape of PR #6182's diff (#6194): ids drawn another way, so
+        every signature over them changes, on the payload and on the
+        activity it embeds, and nothing the scenario did changes."""
+        redrawn = _run(
+            _ledger(
+                *(
+                    _entry(
+                        index,
+                        case_id=OTHER_CASE_ID,
+                        activity_id=OTHER_ACTIVITY_ID,
+                        signature=f"zOtherSignature{index}",
+                    )
+                    for index in (0, 1)
+                )
+            ),
+            checks=(
+                replace(
+                    CHECKS[0],
+                    label=f"case {OTHER_CASE_ID} reached RM.VALID",
+                ),
+            ),
+        )
+        assert normalize_run(redrawn) == normalize_run(BASE)
+
+    @pytest.mark.spec("DEMOCI-11-059")
+    def test_a_new_derived_field_compares_equal_without_an_edit(self):
+        """An allow-list, not a noise list: a field nobody has named yet, such
+        as a new digest or signature, is left out of the verdict as it
+        stands, so it cannot trip the comparison the way ``proofValue``
+        did."""
+
+        def with_derived(index: int, value: str) -> dict[str, object]:
+            entry = _entry(index)
+            entry["contentDigest"] = value
+            snapshot = entry["payloadSnapshot"]
+            assert isinstance(snapshot, dict)
+            snapshot["signature"] = {"value": value, "keyId": value}
+            return entry
+
+        assert normalize_run(
+            _run(_ledger(with_derived(0, "x"), with_derived(1, "y")))
+        ) == normalize_run(
+            _run(_ledger(with_derived(0, "p"), with_derived(1, "q")))
+        )
+
+    @pytest.mark.spec("DEMOCI-11-058")
+    def test_the_order_fields_are_written_in_compares_equal(self):
+        """A serializer writing fields in another order changes no act."""
+        flipped = _run(
+            _ledger(*(dict(reversed(_entry(i).items())) for i in (0, 1)))
+        )
+        assert normalize_run(flipped) == normalize_run(BASE)
+
+
+class TestWhatComparesDifferent:
     @pytest.mark.spec("DEMOCI-11-060")
     def test_a_changed_note_text_compares_different(self):
         changed = _run(_ledger(_entry(0), _entry(1, note="second contact")))
@@ -178,13 +280,72 @@ class TestWhatSurvivesNormalization:
         assert len(normalize_run(added).ledger) == 3
 
     @pytest.mark.spec("DEMOCI-11-060")
+    def test_a_reordered_act_compares_different(self):
+        base = _run(_ledger(_entry(0), _entry(1, act="Accept")))
+        swapped = _run(_ledger(_entry(0, act="Accept"), _entry(1)))
+        assert normalize_run(swapped) != normalize_run(base)
+
+    @pytest.mark.spec("DEMOCI-11-060")
+    def test_a_changed_act_type_compares_different(self):
+        changed = _run(_ledger(_entry(0), _entry(1, act="Reject")))
+        assert normalize_run(changed) != normalize_run(BASE)
+
+    @pytest.mark.spec("DEMOCI-11-060")
+    def test_a_changed_state_compares_different(self):
+        changed = _run(_ledger(_entry(0), _entry(1, rm_state="VALID")))
+        assert normalize_run(changed) != normalize_run(BASE)
+
+    @pytest.mark.spec("DEMOCI-11-060")
+    def test_a_changed_role_compares_different(self):
+        changed = _run(_ledger(_entry(0), _entry(1, role="coordinator")))
+        assert normalize_run(changed) != normalize_run(BASE)
+
+    @pytest.mark.spec("DEMOCI-11-060")
     def test_a_changed_check_label_compares_different(self):
         moved = _run(checks=(replace(CHECKS[0], label="the Vendor answered"),))
         assert normalize_run(moved).ledger == normalize_run(BASE).ledger
         assert normalize_run(moved).checks != normalize_run(BASE).checks
 
+    @pytest.mark.spec("DEMOCI-11-060")
+    def test_a_changed_check_outcome_compares_different(self):
+        failed = _run(
+            checks=(
+                replace(
+                    CHECKS[0],
+                    children=(
+                        replace(
+                            CHECKS[0].children[0],
+                            outcome=CheckOutcome.FAILED,
+                        ),
+                    ),
+                ),
+            )
+        )
+        assert normalize_run(failed).ledger == normalize_run(BASE).ledger
+        assert normalize_run(failed).checks != normalize_run(BASE).checks
 
-class TestWhatTheNormalizerDoes:
+
+def _core_model_classes() -> Iterator[type[CoreObject]]:
+    """Every :class:`CoreObject` subclass the core model packages define."""
+    for module in pkgutil.walk_packages(
+        vultron.core.models.__path__, f"{vultron.core.models.__name__}."
+    ):
+        importlib.import_module(module.name)
+    pending: list[type[CoreObject]] = [CoreObject]
+    while pending:
+        cls = pending.pop()
+        yield cls
+        pending.extend(cls.__subclasses__())
+
+
+#: A field name that holds a state, a role, a status or a consent: what a
+#: scenario's verdict most depends on (DEMOCI-11-058).
+_VERDICT_SHAPED = re.compile(
+    r"(?i)state|role|status|consent|engagement|joined"
+)
+
+
+class TestWhatTheVerdictHolds:
     @pytest.mark.spec("DEMOCI-11-058")
     def test_ids_are_relabelled_by_first_appearance(self):
         first = json.loads(normalize_run(BASE).ledger[0])
@@ -209,30 +370,69 @@ class TestWhatTheNormalizerDoes:
         assert first["payloadSnapshot"]["to"] == [VENDOR]
 
     @pytest.mark.spec("DEMOCI-11-059")
-    def test_timestamps_and_digests_are_dropped_wherever_they_sit(self):
+    def test_times_digests_proofs_and_counters_are_left_out(self):
         first = json.loads(normalize_run(BASE).ledger[0])
-        assert first["published"] == TIMESTAMP_PLACEHOLDER
-        assert first["receivedAt"] == TIMESTAMP_PLACEHOLDER
-        assert first["payloadSnapshot"]["published"] == TIMESTAMP_PLACEHOLDER
-        assert first["prevLogHash"] == DIGEST_PLACEHOLDER
-        assert first["entryHash"] == DIGEST_PLACEHOLDER
+        snapshot = first["payloadSnapshot"]
+        for left_out in ("published", "receivedAt", "prevLogHash"):
+            assert left_out not in first
+        for left_out in ("published", "proof", "senderSequence"):
+            assert left_out not in snapshot
+        assert "ledgerPosition" not in snapshot
+        assert "proof" not in snapshot["object"]
+
+    @pytest.mark.spec("DEMOCI-11-059")
+    def test_a_timestamp_quoted_in_a_kept_string_reads_as_a_placeholder(self):
+        quoted = _run(
+            _ledger(_entry(0, note="ends 2026-01-04T00:00:00.510000+00:00"))
+        )
+        snapshot = json.loads(normalize_run(quoted).ledger[0])[
+            "payloadSnapshot"
+        ]
+        assert snapshot["content"] == f"ends {TIMESTAMP_PLACEHOLDER}"
 
     @pytest.mark.spec("DEMOCI-11-060")
-    def test_nothing_else_is_touched(self):
+    def test_the_verdict_fields_are_kept_as_they_are(self):
         first = json.loads(normalize_run(BASE).ledger[0])
+        snapshot = first["payloadSnapshot"]
         assert first["logIndex"] == 0
         assert first["semanticType"] == "create_case"
-        assert first["payloadSnapshot"]["content"] == "first contact"
+        assert snapshot["type"] == "Create"
+        assert snapshot["content"] == "first contact"
+        assert snapshot["target"]["caseRoles"] == ["vendor", "case_owner"]
+        assert snapshot["target"]["participantStatuses"] == [
+            {"type": "ParticipantStatus", "rmState": "RECEIVED"}
+        ]
+
+    @pytest.mark.spec("DEMOCI-11-060")
+    def test_every_state_and_role_field_of_a_core_model_counts(self):
+        """Keyed on a field's shape, not on a list of names (#5535).
+
+        The cost of an allow-list is that a field counts only once it is
+        named.  A new state, role, status or consent field of a core model
+        is exactly the kind of field a verdict must not lose, so it fails
+        here until it joins :data:`VERDICT_FIELDS`, rather than silently
+        going uncompared.
+        """
+        aliases = {
+            field.serialization_alias or field.alias or name
+            for cls in _core_model_classes()
+            for name, field in cls.model_fields.items()
+        }
+        verdict_shaped = {a for a in aliases if _VERDICT_SHAPED.search(a)}
+        assert {"rmState", "caseRoles", "emState"} <= verdict_shaped, (
+            "the walk found no core model fields; the guard checks nothing"
+        )
+        assert verdict_shaped <= VERDICT_FIELDS, (
+            "core model fields a scenario's verdict depends on are not in "
+            f"VERDICT_FIELDS: {sorted(verdict_shaped - VERDICT_FIELDS)}"
+        )
 
     @pytest.mark.spec("DEMOCI-11-059")
     def test_no_hash_chain_digest_of_a_real_entry_survives(self):
-        """Keyed on a digest's shape, not on the two field names.
+        """Keyed on a digest's shape, not on the field names.
 
-        A guard that listed ``prevLogHash`` and ``entryHash`` would lose its
-        subject to a rename: the list would shrink, the suffix assertion would
-        still pass, and the renamed field would silently stop being dropped
-        (#5535). A renamed field keeps its 64-character hex value, so it still
-        fails here.
+        A renamed digest field keeps its 64-character hex value, so a rename
+        that put it in the verdict would fail here (#5535).
         """
         entry = CaseLedgerEntry(
             case_id=CASE_ID,
@@ -251,8 +451,8 @@ class TestWhatTheNormalizerDoes:
         [normalized] = normalize_run(_run(f"{line}\n")).ledger
 
         assert not re.search(_DIGEST_VALUE, normalized), (
-            "a hash-chain digest survived normalization; every digest field "
-            f"of a ledger entry must end in {DIGEST_KEY_SUFFIX!r}"
+            "a hash-chain digest is in the verdict; a digest field must not "
+            "be in VERDICT_FIELDS"
         )
 
     def test_a_ledger_line_that_is_not_an_entry_is_refused(self):

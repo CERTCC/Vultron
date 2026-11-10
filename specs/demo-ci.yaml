@@ -2963,47 +2963,75 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The comparison of DEMOCI-11-055 MUST relabel every id by its first
-          appearance, with one mapping across a scenario's ledger and check labels.
+          The comparison of DEMOCI-11-055 MUST compare each scenario's verdict: the
+          projection of each ledger entry onto an explicit allow-list of the fields
+          that say which act happened, at which ledger position, by whom, to whom,
+          and with which resulting states, roles and content, together with each
+          check tree node's kind, label, outcome and the cast members it read. It
+          MUST relabel every id in the verdict by its first appearance, with one
+          mapping across a scenario's ledger and check labels.
         rationale: >-
-          A refactor that draws one more id shifts every later id without changing
-          what the scenario does. One mapping across both traces keeps an id in a
-          check label tied to the same entity as in the ledger.
+          "Demo verdict unchanged" means the scenario did the same things in the
+          same order and its checks reached the same outcomes. A list of the
+          fields that carry that is what the comparison compares. A refactor that
+          draws one more id shifts every later id without changing what the
+          scenario does, and one mapping across both traces keeps an id in a check
+          label tied to the same entity as in the ledger.
         verification: >-
-          A unit test asserts that a run with one extra id draw compares equal to
-          the run without it.
+          Unit tests assert that a run with one extra id draw, and a run whose
+          fields are written in another order, compare equal to the run without
+          the change.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-055
 
       - id: DEMOCI-11-059
-        priority: MUST
+        priority: MUST_NOT
         kind: project
         statement: >-
-          The comparison of DEMOCI-11-055 MUST drop timestamps and hash-chain
-          digests.
+          The comparison of DEMOCI-11-055 MUST NOT compare a field outside the
+          allow-list of DEMOCI-11-058. A value derived from ids, times or keys,
+          such as a timestamp, a hash-chain digest, a signature or its proof, or a
+          sender's sequence counter, MUST NOT be on the allow-list, and a
+          timestamp quoted inside an allow-listed string MUST read as a
+          placeholder.
         rationale: >-
-          The recording clock ticks on every read, so one added clock read shifts
-          every later timestamp and digest without changing what the scenario does.
+          The recording clock ticks on every read and a signature covers the raw
+          ids, so one added clock read or one id drawn another way changes every
+          later timestamp, digest and signature without changing what the
+          scenario does. An allow-list rather than a list of noise fields, because
+          a noise list fails on the next derived field nobody has named, as it did
+          on the signatures of #6182 (#6194).
         verification: >-
-          A unit test asserts that a run with a shifted clock compares equal to the
-          run without the shift.
+          Unit tests assert that a run with a shifted clock, a run with redrawn
+          ids and the signatures over them, and a run with a new, unnamed derived
+          field each compare equal to the run without the change.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-055
+          - rel_type: constrains
+            spec_id: DEMOCI-11-058
 
       - id: DEMOCI-11-060
         priority: MUST_NOT
         kind: project
         statement: >-
-          The comparison of DEMOCI-11-055 MUST NOT normalize anything other than
-          ids, timestamps and hash-chain digests.
+          The comparison of DEMOCI-11-055 MUST NOT rewrite an allow-listed value
+          other than by relabelling its ids and replacing its quoted timestamps,
+          and MUST NOT leave a state, role, status or consent field of a core
+          model off the allow-list.
         rationale: >-
-          Anything else that differs, such as a note's text, an added act or a
-          changed argument, is a change the reviewer must see.
+          Anything in the verdict that differs, such as a note's text, an added or
+          reordered act, a changed act type, a changed state or role, or a changed
+          check label or outcome, is a change the reviewer must see. An allow-list
+          counts a field only once it is named, so the fields a verdict most
+          depends on are held by their shape rather than by a reviewer's memory.
         verification: >-
-          Unit tests assert that a changed note text, an added entry and a changed
-          check label each compare different.
+          Unit tests assert that a changed note text, an added entry, a reordered
+          act, a changed act type, a changed state, a changed role, a changed
+          check label and a changed check outcome each compare different, and
+          that every core model field whose name holds a state, role, status or
+          consent is on the allow-list.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-055
