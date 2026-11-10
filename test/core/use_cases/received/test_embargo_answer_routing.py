@@ -789,8 +789,9 @@ def _late_accept_on_an_exited_embargo(
     assert body is not None
 
     # Terminate the embargo on MANAGER's store (EM EXITED), so the Accept is
-    # refused with the notice alone (EMB-17-004).  Only MANAGER's store needs EXITED: it is the
-    # judge.  BYSTANDER's store keeps the original state — it is the sender.
+    # refused with the notice alone (EMB-17-004).  Only MANAGER's store needs
+    # EXITED: it is the judge.  BYSTANDER's store keeps the original state — it
+    # is the sender.
     # The termination is written outside the ledger, so no rebuild reaches it.
     net.bypass_ledger()
     dl_mgr = net.stores[MANAGER]
