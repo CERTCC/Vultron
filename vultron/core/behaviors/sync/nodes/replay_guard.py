@@ -57,7 +57,6 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import cast
 
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.case_persistence import CasePersistence
@@ -153,17 +152,20 @@ def read_replication_state(
     datalayer: CasePersistence, *, case_id: str, peer_id: str
 ) -> VultronReplicationState | None:
     """Return the stored replication state for *peer_id*, or ``None``."""
-    state_key = VultronReplicationState(case_id=case_id, peer_id=peer_id).id_
+    state_key = VultronReplicationState.build_id(case_id, peer_id)
     existing = datalayer.read(state_key)
     if existing is None:
         return None
     return cast(VultronReplicationState, existing)
 
 
-def cooldown_elapsed(since: datetime | None, seconds: float) -> bool:
+def cooldown_elapsed(
+    since: datetime | None, seconds: float, *, at: datetime
+) -> bool:
     """True when nothing was sent (*since* is ``None``) or *seconds* have
-    passed since *since*: the rate-limit test every per-peer bound shares."""
-    return since is None or now_utc() - since >= timedelta(seconds=seconds)
+    passed between *since* and *at*, the act's instant: the rate-limit test
+    every per-peer bound shares.  It reads no clock (ADR-0176)."""
+    return since is None or at - since >= timedelta(seconds=seconds)
 
 
 def update_replication_state(
@@ -172,17 +174,21 @@ def update_replication_state(
     case_id: str,
     peer_id: str,
     change: Callable[[VultronReplicationState], None],
+    at: datetime,
 ) -> None:
     """Apply *change* to *peer_id*'s replication state and save it.
 
     The stored record, or a fresh one when the peer has none; ``updated_at``
-    is stamped after *change* runs (SYNC-04-002).
+    is stamped with *at*, the act's instant, after *change* runs
+    (SYNC-04-002, ADR-0176).
     """
     state = read_replication_state(
         datalayer, case_id=case_id, peer_id=peer_id
-    ) or VultronReplicationState(case_id=case_id, peer_id=peer_id)
+    ) or VultronReplicationState(
+        case_id=case_id, peer_id=peer_id, updated_at=at
+    )
     change(state)
-    state.updated_at = now_utc()
+    state.updated_at = at
     datalayer.save(state)
 
 
@@ -192,6 +198,7 @@ def should_replay(
     case_id: str,
     peer_id: str,
     from_hash: str,
+    at: datetime,
     log: logging.Logger | None = None,
     node_name: str = "SendMissingEntriesNode",
 ) -> bool:
@@ -207,6 +214,7 @@ def should_replay(
         peer_id: URI of the peer that sent the Reject.
         from_hash: Replication position the replay would resume from, as
             returned by :func:`replay_from_hash`.
+        at: The act's instant, which the cooldown is judged against.
         log: Optional logger; a suppressed replay is logged at INFO so the
             storm-vs-stall distinction is visible in container logs.
         node_name: Name used as the log prefix.
@@ -241,7 +249,7 @@ def should_replay(
     cooldown = replay_cooldown_seconds(
         from_hash, replays_at_position=state.replays_at_position
     )
-    if cooldown_elapsed(state.last_replayed_at, cooldown):
+    if cooldown_elapsed(state.last_replayed_at, cooldown, at=at):
         return True
     if log is not None:
         log.info(
@@ -262,6 +270,7 @@ def record_replay(
     peer_id: str,
     from_hash: str,
     through_index: int | None,
+    at: datetime,
 ) -> None:
     """Record that entries were replayed to *peer_id* from *from_hash*.
 
@@ -283,9 +292,10 @@ def record_replay(
     position leaves that index alone: it no longer counts, since the recorded
     position is then not genesis.
 
+    The replay is stamped with *at*, the act's instant (ADR-0176).
+
     Spec: SYNC-15-003, SYNC-15-013, SYNC-15-022.
     """
-    now = now_utc()
 
     def _record(state: VultronReplicationState) -> None:
         state.replays_at_position = (
@@ -295,12 +305,12 @@ def record_replay(
             else 1
         )
         state.last_replayed_from_hash = from_hash
-        state.last_replayed_at = now
+        state.last_replayed_at = at
         if from_hash == "":
             state.last_genesis_replay_through_index = through_index
 
     update_replication_state(
-        datalayer, case_id=case_id, peer_id=peer_id, change=_record
+        datalayer, case_id=case_id, peer_id=peer_id, change=_record, at=at
     )
 
 
@@ -310,6 +320,7 @@ def genesis_reject_answered(
     case_id: str,
     peer_id: str,
     rejected_index: int | None,
+    at: datetime,
 ) -> bool:
     """Report whether the last replay from genesis already answered a genesis Reject.
 
@@ -328,7 +339,8 @@ def genesis_reject_answered(
     - *rejected_index* is at or below the highest ``log_index`` that replay
       sent; a Reject naming no entry (``None``) or a later one is answered;
     - less than :data:`MAX_REPLAY_COOLDOWN_SECONDS` has passed since that
-      replay, so the limit never becomes a stop (SYNC-15-018).
+      replay, judged at *at*, the act's instant, so the limit never becomes
+      a stop (SYNC-15-018).
 
     Read-only: a declined Reject changes no replay record (SYNC-15-025).  A
     record stored before the covered index existed reads as nothing covered.
@@ -347,5 +359,5 @@ def genesis_reject_answered(
     ):
         return False
     return not cooldown_elapsed(
-        state.last_replayed_at, MAX_REPLAY_COOLDOWN_SECONDS
+        state.last_replayed_at, MAX_REPLAY_COOLDOWN_SECONDS, at=at
     )

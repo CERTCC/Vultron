@@ -22,6 +22,7 @@ the whole replay.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import cast
 
 import py_trees
@@ -151,6 +152,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         entries = cast(list[CaseLedgerEntry], self.replay_case_ledger_entries)
         from_index = cast(int, self.replay_from_index)
         datalayer = cast(CasePersistence, self.datalayer)
+        at = self._require_act_instant()
 
         # CM-10-005: replay is case content too. A peer that is not an active
         # participant gets nothing — not even the gap it asked for — and when
@@ -187,6 +189,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
                     case_id=case_id,
                     peer_id=peer_id,
                     from_index=from_index + 1,
+                    at=at,
                 )
             self.logger.info(
                 "%s: peer '%s' is not an active participant of case"
@@ -217,6 +220,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             case_id=case_id,
             peer_id=peer_id,
             from_hash=from_hash,
+            at=at,
             log=self.logger,
             node_name=self.name,
         ):
@@ -237,7 +241,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             through_index=cutoff,
         )
         return self._record_replay_outcome(
-            sent, case_id=case_id, peer_id=peer_id, from_hash=from_hash
+            sent, case_id=case_id, peer_id=peer_id, from_hash=from_hash, at=at
         )
 
     def _record_replay_outcome(
@@ -247,6 +251,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         case_id: str,
         peer_id: str,
         from_hash: str,
+        at: datetime,
     ) -> Status:
         """Update the pause and the cooldown for a replay, and report it."""
         datalayer = cast(CasePersistence, self.datalayer)
@@ -268,6 +273,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
                 peer_id=peer_id,
                 from_hash=from_hash,
                 through_index=sent.through_index,
+                at=at,
             )
 
         self.logger.info(

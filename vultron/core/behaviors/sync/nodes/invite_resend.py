@@ -42,6 +42,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import cast
 
 from py_trees.common import Status
@@ -56,7 +57,7 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
     cooldown_elapsed,
     doubling_cooldown_seconds,
 )
-from vultron.core.models._helpers import _as_id, now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -141,12 +142,17 @@ def _latest_embargo_invites(
 
 
 def _embargo_invite_owed(
-    case: VulnerabilityCase, participant: CaseParticipant, embargo_id: str
+    case: VulnerabilityCase,
+    participant: CaseParticipant,
+    embargo_id: str,
+    *,
+    at: datetime,
 ) -> bool:
     """Whether *participant*'s answer to *embargo_id*'s Invite still counts.
 
     Its row is ``INVITED``, the embargo is open or in force, and the row's
-    RSVP deadline has not passed (EP-09-002, EP-09-011, CM-31-013).
+    RSVP deadline has not passed at *at*, the act's instant (EP-09-002,
+    EP-09-011, CM-31-013).
     """
     entry = case.embargo_register_entry(embargo_id)
     if entry is None or entry.status not in _ANSWERABLE_EMBARGO:
@@ -154,7 +160,7 @@ def _embargo_invite_owed(
     row = participant.held_row(embargo_id)
     if row is None or row.state is not EmbargoConsentState.INVITED:
         return False
-    return row.rsvp_deadline is None or now_utc() < row.rsvp_deadline
+    return row.rsvp_deadline is None or at < row.rsvp_deadline
 
 
 def _full_case_invite(
@@ -194,6 +200,7 @@ def owed_invites(
     *,
     manager_id: str,
     peer_id: str,
+    at: datetime,
     excluding: Collection[str] = (),
 ) -> list[OwedInvite]:
     """The Invites *manager_id* sent *peer_id* that *peer_id* still owes.
@@ -204,6 +211,7 @@ def owed_invites(
     for each embargo, then the unanswered full-case Invite, minus the ids in
     *excluding* (the Invite the stating activity answers).  Read from the
     ledger, which records every Invite the CASE_MANAGER sent (ADR-0119).
+    An RSVP deadline is judged at *at*, the act's instant (ADR-0176).
 
     Spec: SYNC-20-002.
     """
@@ -219,7 +227,7 @@ def owed_invites(
         for embargo_id, invite_id in _latest_embargo_invites(
             entries, manager_id=manager_id, peer_id=peer_id
         ).items()
-        if _embargo_invite_owed(case, participant, embargo_id)
+        if _embargo_invite_owed(case, participant, embargo_id, at=at)
     ]
     full_case = _full_case_invite(
         entries, manager_id=manager_id, peer_id=peer_id
@@ -230,8 +238,11 @@ def owed_invites(
     return [invite for invite in owed if invite.invite_id not in skip]
 
 
-def _resend_due(dl: CasePersistence, invite_id: str, peer_id: str) -> bool:
-    """Whether the resend cooldown for *invite_id* to *peer_id* has passed.
+def _resend_due(
+    dl: CasePersistence, invite_id: str, peer_id: str, *, at: datetime
+) -> bool:
+    """Whether the resend cooldown for *invite_id* to *peer_id* has passed
+    at *at*, the act's instant.
 
     One resend waits the configured base; each further one doubles it, up to
     the configured ceiling (SYNC-20-005, SYNC-20-006).
@@ -245,11 +256,13 @@ def _resend_due(dl: CasePersistence, invite_id: str, peer_id: str) -> bool:
         ledger.invite_resend_max_cooldown_seconds,
         sent=record.resends,
     )
-    return cooldown_elapsed(record.last_resent_at, cooldown)
+    return cooldown_elapsed(record.last_resent_at, cooldown, at=at)
 
 
-def _record_resend(dl: CasePersistence, invite_id: str, peer_id: str) -> None:
-    """Count one more resend of *invite_id* to *peer_id*, stamped now."""
+def _record_resend(
+    dl: CasePersistence, invite_id: str, peer_id: str, *, at: datetime
+) -> None:
+    """Count one more resend of *invite_id* to *peer_id*, stamped *at*."""
     record = dl.read(InviteResendRecord.build_id(invite_id, peer_id))
     resends = (
         record.resends + 1 if isinstance(record, InviteResendRecord) else 1
@@ -259,7 +272,7 @@ def _record_resend(dl: CasePersistence, invite_id: str, peer_id: str) -> None:
             invite_id=invite_id,
             peer_id=peer_id,
             resends=resends,
-            last_resent_at=now_utc(),
+            last_resent_at=at,
         )
     )
 
@@ -336,11 +349,13 @@ class ResendOwedInvitesNode(DataLayerActionWithPorts):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
+        at = self._require_act_instant()
         owed = owed_invites(
             case,
             dl,
             manager_id=self.actor_id,
             peer_id=self.sender_id,
+            at=at,
             excluding=self._answered_ids(),
         )
         if not owed:
@@ -350,12 +365,14 @@ class ResendOwedInvitesNode(DataLayerActionWithPorts):
                 f"{self.name}: sync_port must be injected to resend Invites"
             )
         for invite in owed:
-            self._resend(dl, invite)
+            self._resend(dl, invite, at)
         return Status.SUCCESS
 
-    def _resend(self, dl: CasePersistence, invite: OwedInvite) -> None:
+    def _resend(
+        self, dl: CasePersistence, invite: OwedInvite, at: datetime
+    ) -> None:
         assert self._sync_port is not None
-        if not _resend_due(dl, invite.invite_id, self.sender_id):
+        if not _resend_due(dl, invite.invite_id, self.sender_id, at=at):
             self.logger.debug(
                 "%s: Invite '%s' (%s) to '%s' was resent inside its cooldown;"
                 " not resent again (SYNC-20-005)",
@@ -371,7 +388,7 @@ class ResendOwedInvitesNode(DataLayerActionWithPorts):
         with dl.transaction():
             outcome = self._sync_port.resend_sealed_activity(invite.invite_id)
             if outcome is ResendOutcome.QUEUED:
-                _record_resend(dl, invite.invite_id, self.sender_id)
+                _record_resend(dl, invite.invite_id, self.sender_id, at=at)
         if outcome is ResendOutcome.QUEUED:
             self.resent.append(invite.invite_id)
             self.logger.info(

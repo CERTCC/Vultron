@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from datetime import datetime
 from typing import NamedTuple
 
 from vultron.core.behaviors.sync.nodes.replay_guard import (
@@ -175,11 +176,13 @@ def record_embargo_pause(
     case_id: str,
     peer_id: str,
     from_index: int,
+    at: datetime,
 ) -> None:
     """Record that the gate withheld entries from *peer_id* starting at *from_index*.
 
     A pause already on record keeps the earlier index: the backfill must start
-    with the *first* entry withheld (CM-10-006), not the latest.
+    with the *first* entry withheld (CM-10-006), not the latest.  The record
+    is stamped with *at*, the act's instant (ADR-0176).
     """
     state = read_replication_state(datalayer, case_id=case_id, peer_id=peer_id)
     current = None if state is None else state.embargo_paused_from_index
@@ -190,7 +193,7 @@ def record_embargo_pause(
         paused.embargo_paused_from_index = from_index
 
     update_replication_state(
-        datalayer, case_id=case_id, peer_id=peer_id, change=_pause
+        datalayer, case_id=case_id, peer_id=peer_id, change=_pause, at=at
     )
     logger.info(
         "embargo gate: paused ledger stream to '%s' for case '%s' from"
