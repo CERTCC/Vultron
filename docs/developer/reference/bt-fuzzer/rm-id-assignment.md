@@ -111,9 +111,9 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
 - **Automation potential**: **High** — an API call to the CVE Services endpoint, or to an equivalent ID-request interface, can fully automate it.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.RequestId`
 - **Call-out point shape**: Retriever — sends a reservation/assignment request to an external ID assignment authority, such as the CVE Services API.
-  The node writes the assigned ID to the case record.
-  `contract.outputs = {"assigned_id": str}`.
-  SUCCESS means that the node retrieved and recorded the ID.
+  It writes the assigned ID to its output port, `contract.outputs = {"assigned_id": str}`.
+  SUCCESS means that the node retrieved the ID.
+  The case file has no field that records it.
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Retriever action node in the `_AssignOrRequestId` Fallback.
   The tree uses it when `_AssignIdIfPossible` fails (the non-CNA or out-of-scope path)
 
@@ -132,7 +132,7 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
 - **Call-out point shape**: Composer — makes a new vulnerability identifier from the ID pool of this participant.
   It uses the ID management system or the CVE Services reserve/assign endpoint.
   `contract.outputs = {"assigned_vul_id": str}`.
-  The artifact is the newly assigned ID, recorded in the case.
+  The artifact is the newly assigned ID, written to that output port; the case file has no field that records it.
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — Composer action node at the end of the `_AssignIdIfPossible` Sequence.
   The tree uses it when `EvaluateCveEligibility` succeeds (the CNA-direct path)
 

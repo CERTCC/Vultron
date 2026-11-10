@@ -130,6 +130,11 @@ class EmbargoTimerExpired(RetrieverCallOutPoint, OneInOneHundred):
         this fires rarely; in production it is a simple timestamp
         comparison.
 
+    Store-held answer (BT-18-039): **can** — the embargo end time is in the
+    case's embargo register.  Core reads it there and compares it with the
+    act's instant (``vultron/core/behaviors/embargo/end_time_tree.py``), so
+    no core tree places this Retriever.
+
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries embargo expiry timestamp from case record)
       Output keys: (none — binary result only, per BT-18-006)

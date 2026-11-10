@@ -82,10 +82,13 @@ def _record_named_peer(
     have is the peer's details; the Retriever call-out in *call_out* is the
     injectable seam for a real directory service (ADR-0024, ADR-0025).
 
-    The actor's own store can hold that Retriever's answer, so the store is
-    read first: a peer already recorded there is not resolved again
-    (BT-18-039).  A second lookup would spend call-out budget on a known
-    peer, and its answer could disagree with the record this actor keeps.
+    The fact this function needs is whether this actor already knows the
+    peer, and the actor's own store holds that, so the store is read first: a
+    peer already recorded there is not looked up again (BT-18-039).  A
+    second lookup would spend call-out budget on a peer the actor already
+    knows.  The record kept here is the URI alone, whatever the backend
+    answered, so a peer recorded after a failed lookup is not looked up again
+    either.
 
     Minting from an unvalidated string would accept anything, though, so the id
     has to be a deliverable URI first: it *is* the address outbound delivery

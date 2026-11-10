@@ -93,6 +93,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
   The behavior tree (BT) tick drives this node.
   The node does not run independently or fire a trigger endpoint.
   A timestamp comparison is the simplest kind of structured fact (ADR-0024, BT-18-006: binary on-demand queries are Retrievers, not Sentinels).
+- **Store-held answer**: The embargo end time is in the case's embargo register, so core reads it there (`vultron/core/behaviors/embargo/end_time_tree.py`) and never asks this Retriever (BT-18-039).
 - **Factory-fn placement**: Not placed in a production factory.
   `create_terminate_active_embargo_tree` models actor-chosen exit reasons only.
   `vultron.core.behaviors.embargo.expiry_tree` handles invite-deadline expiry.

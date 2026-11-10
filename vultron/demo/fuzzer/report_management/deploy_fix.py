@@ -65,6 +65,10 @@ class NoNewDeploymentInfo(RetrieverCallOutPoint, UsuallySucceed):
         re-evaluation.  A binary Retriever: the tree asks on its own tick, so
         this is a call-out, not a Sentinel (BT-18-006, BT-18-013).
 
+    Store-held answer (BT-18-039): **cannot** — whether new information
+    reached the deployer's own systems since the last evaluation is not
+    recorded in the case file or the actor's store.
+
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries deployment-relevant data sources)
       Output keys: (none — binary result only, per BT-18-006)

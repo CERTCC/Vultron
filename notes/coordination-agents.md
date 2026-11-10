@@ -17,11 +17,10 @@ tracks:
 description: >
   Design for the capability layer's unbuilt work: core-owned typed-port
   contracts and renamed shape base classes (#3421), the call-out latency budget
-  (#3423), the participant-suggestion
-  port (#3426), and the Sentinel call-in pattern (#2450). Also routes a design
-  question to a capability, an ask, or a call-in monitor, and says why Sentinel
-  is not a fifth shape; the call-in and call-out surfaces themselves are
-  defined in call-out-configuration.md.
+  (#3423), the participant-suggestion port (#3426), and the Sentinel call-in
+  pattern (#2450). Also routes a design question to a capability, an ask, or a
+  call-in monitor, and says why Sentinel is not a fifth shape; the call-in and
+  call-out surfaces themselves are defined in call-out-configuration.md.
 related_notes:
   - notes/bt-integration.md
   - notes/agentic-workflow.md

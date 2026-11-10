@@ -73,7 +73,7 @@ class DeployMitigationCallOutBundle(DeploymentMonitoringBundle):
     """MitigationDeployed (Retriever): p=0.25 → AlwaysFail.
 
     Store-held answer (BT-18-039): **cannot**.  Mitigation has no case state
-    bit and no protocol message (BT-20-005), so neither the case file nor the
+    bit and no protocol message (BT-20-006), so neither the case file nor the
     actor's store records a deployed mitigation, and no read-first guard
     precedes this Retriever.  The answer lives in the deployer's own systems,
     such as an asset inventory or a configuration-management database.

@@ -2153,6 +2153,9 @@ groups:
       `test/core/use_cases/triggers/test_record_named_peer.py` assert that the
       actor-resolution backend is not called when the actor's store holds the peer,
       and is called when it does not.
+      `test_retriever_docstring_states_its_store_held_answer` in
+      `test/fuzzer/test_retriever_store_held_answer.py` asserts that every Retriever
+      call-out point states in its docstring whether the store can hold its answer.
     relationships:
     - rel_type: refines
       spec_id: BT-18-028
@@ -2600,7 +2603,7 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: The `create_deploy_mitigation_tree` tree MUST NOT include a CS state transition or protocol activity emission
-      node; mitigation deployment is tracked externally (CMDB or case record) and the protocol has no dedicated
+      node; mitigation deployment is tracked externally (for example in a CMDB) and the protocol has no dedicated
       mitigation-deployed message type.
     rationale: The VFD state machine tracks only vendor-aware/fix-ready/fix-deployed bits; there is no mitigation-deployed
       bit. Emitting a CS state transition or protocol activity from the mitigation tree would conflate fix-deployment

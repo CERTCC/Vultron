@@ -123,6 +123,10 @@ class RequestId(RetrieverCallOutPoint, UsuallySucceed):
         call, or may involve prompting a human operator to file the request
         manually.
 
+    Store-held answer (BT-18-039): **cannot** — it asks an outside
+    authority for a new identifier, which nothing in the case file or the
+    actor's store holds before the answer.
+
     Blackboard contract (BT-18-001):
       Input keys:  (none — submits request to external ID authority)
       Output keys: assigned_id: str  (yes only)
