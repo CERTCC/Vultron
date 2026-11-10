@@ -23,6 +23,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
 related_notes:
+  - notes/bt-pitfalls.md
   - notes/wire-core-boundary.md
   - notes/ci-workflow-authoring.md
   - notes/datalayer-design.md
@@ -109,12 +110,16 @@ and archive it.
   others stay display only, so two documents never compete for one input.
 - **P/X/A are the case's first status**, built at construction, not a
   transition. X starts with P (the pX to PX invariant). A case that starts with
-  P, X or A gets no embargo (EP-04-020), so no disclosure date is applied as its
-  end then.
+  P, X or A gets no embargo (EP-04-020), so it takes no embargo end, not even a
+  stated one, and its future disclosure dates stay display only, neither applied
+  nor overridden.
 - **A CSAF embargo end is a sender proposal.** With no `proposedEmbargo` on the
   Offer, the node seeds `sender_proposed_embargo` with an `EmbargoEvent` whose id
   derives from the proposal (`csaf_proposed_embargo_id`), so it competes with the
   owner's actor default by shortest-wins and redelivery names the same event.
+  `BTBridge` scopes both sender keys and `report_case_inputs` to the execution
+  (`managed_keys`), because an output port outlives its run: unscoped, a later
+  proposal stating no terms took the previous report's embargo (BT-09).
 
 ## Two-stage parse
 

@@ -229,3 +229,19 @@ def test_no_future_date_is_applied_when_the_document_sets_x() -> None:
     assert inputs.proposed_embargo_end is None
     assert not inputs.embargo_eligible
     assert "vulnerabilities[0].disclosure_date" not in inputs.outcomes
+
+
+def test_a_stated_end_is_not_taken_when_the_document_sets_x() -> None:
+    """With X set the case takes no embargo, the stated one included, so the
+    document's future date is neither applied nor overridden (EP-04-020)."""
+    claims = _claims(
+        VulnerabilityClaims(disclosure_date=_LATER, exploitation="P")
+    )
+    inputs = case_inputs_from_claims(
+        claims,
+        reference_time=_NOW,
+        stated=StatedReportFields(proposed_embargo_end=_LATER),
+    )
+    assert inputs.proposed_embargo_end is None
+    assert not inputs.embargo_eligible
+    assert "vulnerabilities[0].disclosure_date" not in inputs.outcomes

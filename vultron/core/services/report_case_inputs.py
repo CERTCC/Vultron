@@ -94,7 +94,9 @@ class ReportCaseInputs(BaseModel):
     """The case inputs a report states, filled from its document.
 
     ``name``, ``summary`` and ``proposed_embargo_end`` are the stated value
-    when there is one, else the document's.  ``public``, ``exploit_public``
+    when there is one, else the document's; ``proposed_embargo_end`` is
+    ``None`` when the document sets P, X or A, since the case then starts
+    with no embargo (EP-04-020).  ``public``, ``exploit_public``
     and ``attacks_observed`` are the P, X and A the document states for any
     of its vulnerabilities; no Vultron field states them.  ``outcomes`` names
     each document value this mapping used (``APPLIED``) or set aside for a
@@ -242,8 +244,9 @@ def case_inputs_from_claims(
     A value *stated* gives beats the document's, which is then recorded
     ``OVERRIDDEN`` (CSAF-02-003); a past ``disclosure_date`` still sets P,
     because no Vultron field states P.  When the document sets P, X or A,
-    the case starts with no embargo (EP-04-020), so no future date is taken
-    as its end, and those dates stay display only.
+    the case starts with no embargo (EP-04-020): no embargo end is
+    returned, not even a stated one, and the future dates stay display
+    only, neither applied nor overridden.
 
     Args:
         claims: What the attached document claims.
@@ -287,7 +290,7 @@ def case_inputs_from_claims(
         prefix = f"vulnerabilities[{index}]."
         if state.public:
             outcomes[f"{prefix}disclosure_date"] = ClaimOutcome.APPLIED
-        elif state.future_disclosure_date is not None:
+        elif state.future_disclosure_date is not None and eligible:
             if stated.proposed_embargo_end is not None:
                 outcomes[f"{prefix}disclosure_date"] = ClaimOutcome.OVERRIDDEN
             elif earliest is not None and (
@@ -303,9 +306,11 @@ def case_inputs_from_claims(
     return ReportCaseInputs(
         name=name,
         summary=summary,
+        # No embargo end at all when the case starts with P, X or A: the
+        # stated one is not taken either (EP-04-020).
         proposed_embargo_end=(
             stated.proposed_embargo_end
-            if stated.proposed_embargo_end is not None
+            if stated.proposed_embargo_end is not None and eligible
             else earliest
         ),
         public=any(s.public for s in states),

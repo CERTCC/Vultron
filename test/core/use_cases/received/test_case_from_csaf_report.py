@@ -408,3 +408,37 @@ def test_csaf_on_the_proposal_itself_changes_no_case_data() -> None:
     assert case.current_status.pxa.state is CS_pxa.pxa
     assert case.em_state is EM.ACTIVE
     assert manager.records() == []
+
+
+@pytest.mark.spec("CSAF-03-001")
+def test_a_csaf_embargo_end_does_not_reach_the_next_proposal() -> None:
+    """The CSAF date seeded as one proposal's terms is that execution's
+    alone: a later proposal for another report, with no document and no
+    ``proposedEmbargo``, states no terms (BT-09)."""
+    manager = CaseManager()
+    first = Receipt(csaf(_quiet_document(disclosure_date=_SOONER)))
+    first.handle()
+    result = manager.receive(first.proposal_body())
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+
+    second = Receipt(
+        report_id="https://finder.example.org/reports/gadget",
+        receiver_id="https://coordinator.example.org/actors/coord",
+    )
+    second.handle()
+    result = manager.receive(second.proposal_body())
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    [case] = [
+        c
+        for c in manager.cases()
+        if second.report_id
+        in {
+            r if isinstance(r, str) else r.id_ for r in c.vulnerability_reports
+        }
+    ]
+    embargo = manager.dl.read(str(case.active_embargo_id))
+    assert not (
+        isinstance(embargo, EmbargoEvent)
+        and embargo.end_time == _when(_SOONER)
+    )

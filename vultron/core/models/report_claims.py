@@ -430,7 +430,7 @@ class ReportClaimsRecord(CoreRecord):
             candidate_parties_signal=candidate_parties,
         )
 
-    def _copy_with(self, **changes: Any) -> "ReportClaimsRecord":
+    def _copy_with(self, **changes: object) -> "ReportClaimsRecord":
         """A validated copy with *changes*, so no assignment skips validation."""
         return type(self)(**{**self.model_dump(), **changes})
 
