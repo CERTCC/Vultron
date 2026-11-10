@@ -169,7 +169,6 @@ async def rerun_left_in_holding(
                 emitter,
                 # At the time its record says it was received (ADR-0176).
                 arrived_at=record.received_at,
-                verified_proofs=record.verified_proofs,
             )
         except Exception:
             # One record's failure must not keep the others, or the queue,

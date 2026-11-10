@@ -219,7 +219,7 @@ class InlineObjectStaging:
         activity: as_Activity,
         *,
         received_body: str | None,
-        verified_proofs: Sequence[VerifiedProof] = (),
+        verified_proofs: Sequence[VerifiedProof],
     ) -> as_Activity | None:
         """Rebuild *activity*, holding *received_body* as what arrived."""
 
@@ -473,7 +473,7 @@ class InlineObjectStaging:
         stage: Callable[[DataLayer], None],
         *,
         received_body: str | None,
-        verified_proofs: Sequence[VerifiedProof] = (),
+        verified_proofs: Sequence[VerifiedProof],
     ) -> as_Activity | None:
         with _STAGING_LOCK:
             store = _StagingStore(self._dl, activity_id)

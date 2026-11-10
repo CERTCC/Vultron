@@ -258,11 +258,14 @@ groups:
       posts a signed body to a served inbox and reads the archived record;
       `test_a_reused_id_from_another_sender_leaves_the_first_senders_key` posts a second
       sender's body under the same id; `test_a_deferred_delivery_keeps_its_proofs_through_its_replay`
-      holds a parsed delivery through the staging and replays it;
+      holds a parsed delivery through the staging and checks that the replayed activity
+      and its event, which intake records, carry them;
+      `test_a_replay_deferred_again_is_held_again_with_its_proofs` holds a released
+      replay again; `test_a_relayed_entry_archives_the_managers_proof_then_the_authors`
+      posts a CASE_MANAGER's relayed entry to a served replica and reads both proofs
+      from its record;
       `test/adapters/driving/fastapi/test_interrupted_run_restart.py::test_an_interrupted_run_keeps_its_verified_proofs_through_the_rerun`
-      interrupts `run_inbox_pipeline` mid-tree and finishes it with the startup re-run;
-      `test/adapters/driving/fastapi/test_inbox_verification.py::test_a_relayed_entry_returns_the_managers_proof_then_the_authors`
-      checks both proofs of a relayed entry.
+      interrupts `run_inbox_pipeline` mid-tree and finishes it with the startup re-run.
     relationships:
     - rel_type: depends_on
       spec_id: SIG-03-001

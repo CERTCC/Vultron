@@ -27,6 +27,7 @@ A replay seals them again from the held record it rebuilds from.
 from collections.abc import Sequence
 
 from vultron.core.models.verified_proof import VerifiedProof
+from vultron.errors import VultronWiringError
 
 
 class VerifiedProofs:
@@ -41,9 +42,22 @@ class VerifiedProofs:
     def note(
         self, activity_id: str | None, proofs: Sequence[VerifiedProof]
     ) -> None:
-        """Note that *proofs* verified on the delivery of *activity_id*."""
-        if activity_id and proofs:
-            self._by_activity[activity_id] = tuple(proofs)
+        """Note that *proofs* verified on the delivery of *activity_id*.
+
+        Raises:
+            VultronWiringError: *proofs* verified on a body that names no
+                ``id``, so nothing could key them to its received record
+                and they would be lost without a word (SIG-03-004).
+        """
+        if not proofs:
+            return
+        if not activity_id:
+            raise VultronWiringError(
+                "the inbox verified proofs on a delivery whose body names no"
+                " id, so its received record could not keep them"
+                " (SIG-03-004)"
+            )
+        self._by_activity[activity_id] = tuple(proofs)
 
     def of(self, activity_id: str) -> tuple[VerifiedProof, ...]:
         """The proofs noted for *activity_id*; empty when none were."""

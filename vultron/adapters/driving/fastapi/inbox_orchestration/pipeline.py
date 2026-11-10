@@ -315,7 +315,6 @@ async def run_delivery_without_replay(
     emitter: ActivityEmitter | None,
     *,
     arrived_at: datetime,
-    verified_proofs: Sequence[VerifiedProof] = (),
 ) -> None:
     """Run one delivery as :func:`run_inbox_pipeline` does, with no replay.
 
@@ -325,15 +324,16 @@ async def run_delivery_without_replay(
     queue replay (IE-06-014); the queue replay that follows them drains the
     queue and makes the fetches.  *arrived_at* is the arrival stamp the
     record carries, so the re-run judges the message when it arrived
-    (ADR-0176).  *verified_proofs* are the ones the held record carries, so
-    its archive keeps them (SIG-03-004).
+    (ADR-0176).  It passes no verified proofs: the held record already
+    keeps them from its first save, and the copy the staging rebuilds from
+    that record carries them again (SIG-03-004).
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
     await _run_serialised(
         actor_dl,
         actor_id,
         emitter,
-        lambda: _process_one(run, payload, arrived_at, verified_proofs),
+        lambda: _process_one(run, payload, arrived_at),
     )
 
 

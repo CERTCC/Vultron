@@ -50,6 +50,7 @@ from vultron.adapters.driving.fastapi.verified_proofs import (
     payload_activity_id,
 )
 from vultron.adapters.inbox_staging import InlineObjectStaging
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -64,6 +65,7 @@ from vultron.core.services.received_outcome import (
     archive_applied,
     write_receipt_stub,
 )
+from vultron.errors import VultronWiringError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -213,6 +215,27 @@ def test_a_deferred_delivery_keeps_its_proofs_through_its_replay():
 
 
 @pytest.mark.spec("SIG-03-004")
+def test_a_replay_deferred_again_is_held_again_with_its_proofs():
+    """The released record's proofs go into the hold that replaces it."""
+    net = LedgerNetwork(CASE_ID)
+    dl = net.stores[MANAGER]
+    activity = _parsed(net, "https://example.org/notes/again", (_proof(),))
+    staging = InlineObjectStaging(dl)
+    assert staging.rehydrate_parsed(activity) is not None
+    assert staging.hold_for_replay(activity.id_, received_at=now_utc())
+    replaying = InlineObjectStaging(dl)
+    assert replaying.rehydrate_deferred(activity.id_) is not None
+    assert _record(dl, activity.id_) is None, "the replay released it"
+
+    assert replaying.hold_for_replay(activity.id_, received_at=now_utc())
+
+    held = _record(dl, activity.id_)
+    assert held is not None
+    assert held.replay_owed
+    assert held.verified_proofs == [_proof()]
+
+
+@pytest.mark.spec("SIG-03-004")
 def test_a_new_hold_records_the_proofs_given(dl: SqliteDataLayer):
     hold_for_replay(
         dl,
@@ -319,3 +342,39 @@ def test_payload_activity_id_reads_only_a_named_id():
     assert payload_activity_id({"id": ""}) is None
     assert payload_activity_id({}) is None
     assert payload_activity_id("not a body") is None
+
+
+@pytest.mark.integration
+@pytest.mark.spec("SIG-03-004")
+def test_a_relayed_entry_archives_the_managers_proof_then_the_authors():
+    """A replica's record of a relayed entry names both proofs it verified."""
+    net = LedgerNetwork(CASE_ID)
+    net.receive(MANAGER, _owner_note(net, "https://example.org/notes/relayed"))
+    [announce] = net.queued(MANAGER, to=BYSTANDER, type_="Announce")[-1:]
+    relayed = read_sealed_body_dict(net.stores[MANAGER], announce.id_)
+    assert relayed is not None
+
+    with served_store(net.stores[BYSTANDER], BYSTANDER, "Bystander") as (
+        replica,
+        _emitter,
+    ):
+        response = replica.post("/api/v2/actors/vendor-b/inbox/", json=relayed)
+
+    assert response.status_code == 202, response.text
+    record = _record(net.stores[BYSTANDER], relayed["id"])
+    assert record is not None
+    assert record.verified_proofs == [_proof(MANAGER), _proof(OWNER)]
+
+
+def test_proofs_for_a_body_that_names_no_id_are_refused():
+    """They could reach no record, so noting them raises, never drops them."""
+    with pytest.raises(VultronWiringError, match="names no id"):
+        VerifiedProofs().note(
+            payload_activity_id({"type": "Create"}), [_proof()]
+        )
+
+
+def test_no_proofs_for_a_body_that_names_no_id_note_nothing():
+    verified = VerifiedProofs()
+    verified.note(None, ())
+    assert verified.of(_ACTIVITY) == ()
