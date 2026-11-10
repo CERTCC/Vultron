@@ -71,22 +71,40 @@ def publish_embargo_policy(
     return policy
 
 
-def case_minted_at(case: as_VulnerabilityCase) -> datetime:
-    """The instant *case* was minted: its ``published``, as the server stamped it.
+def case_minted_at(
+    client: DataLayerClient, case: as_VulnerabilityCase, holder_id: str
+) -> datetime:
+    """The instant *case* was minted, as *holder_id*'s stored copy records it.
 
-    A demo step that dates something it builds for *case* takes its time from
-    the case rather than reading the clock, so building it moves no recording
-    (ADR-0176).
+    The case a demo step holds is often a stub it built itself (see
+    ``create_case_via_trigger``), whose ``published`` is the demo's own clock
+    read.  This reads the ``published`` the holder's store wrote instead, the
+    instant of the act that minted the case, so a demo step that dates
+    something it builds for the case reads no clock of its own (ADR-0176).
+
+    Args:
+        client: Client connected to the container hosting *holder_id*.
+        case: The case, by its id.
+        holder_id: The actor whose stored copy of *case* is read, typically
+            its CASE_MANAGER.
 
     Raises:
-        ValueError: *case* carries no ``published``.
+        ValueError: The stored copy carries no timezone-aware ``published``.
     """
-    if case.published is None:
+    stored = client.get(client.dl_path(case.id_, actor_id=holder_id))
+    raw = stored.get("published")
+    if not isinstance(raw, str) or not raw:
         raise ValueError(
-            f"case '{case.id_}' carries no published time to date its"
-            " embargo proposal from"
+            f"'{holder_id}''s copy of case '{case.id_}' carries no published"
+            " time to date its embargo proposal from"
         )
-    return case.published
+    minted = datetime.fromisoformat(raw)
+    if minted.utcoffset() is None:
+        raise ValueError(
+            f"'{holder_id}''s copy of case '{case.id_}' carries a naive"
+            f" published time {raw!r} (CS-13-001)"
+        )
+    return minted
 
 
 def make_embargo_event(
@@ -118,13 +136,7 @@ def make_embargo_event(
     Returns:
         A new :class:`as_EmbargoEvent` with start/end times set.
 
-    Raises:
-        ValueError: *at* is naive.
     """
-    if at.tzinfo is None or at.utcoffset() is None:
-        raise ValueError(
-            f"make_embargo_event needs a timezone-aware instant, got {at!r}"
-        )
     now = at.replace(second=0, microsecond=0)
     end_at = (now + timedelta(days=days)).replace(
         hour=0, minute=0, second=0, microsecond=0

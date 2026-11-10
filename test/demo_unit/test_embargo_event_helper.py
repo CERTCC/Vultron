@@ -14,28 +14,46 @@
 
 ``make_embargo_event`` takes the instant from the demo step that calls it
 and reads no clock, so the same instant builds the same event and building
-it moves no recording (ADR-0176).
+it moves no recording.  ``case_minted_at`` gives that step the instant its
+CASE_MANAGER's store stamped on the case, not a clock read of its own
+(ADR-0176).
 """
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 
 from test.support.act_clock import recorded_clock_reads
 from vultron.demo.helpers.embargo import case_minted_at, make_embargo_event
+from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
 _MINTED = datetime(2026, 3, 1, 12, 34, 56, 789, tzinfo=UTC)
+_MANAGER = "https://example.org/actors/embargo-helper-vendor"
 
 
 def _case() -> as_VulnerabilityCase:
     return as_VulnerabilityCase(
-        name="Embargo helper case",
-        attributed_to="https://example.org/actors/embargo-helper-vendor",
-        published=_MINTED,
+        name="Embargo helper case", attributed_to=_MANAGER, published=_MINTED
     )
+
+
+def _client_holding(
+    monkeypatch: pytest.MonkeyPatch, stored: dict[str, Any]
+) -> tuple[DataLayerClient, list[str]]:
+    """A client whose GET answers *stored*; returns it and the paths read."""
+    client = DataLayerClient(base_url="http://vendor:7999/api/v2")
+    paths: list[str] = []
+
+    def _get(_self: DataLayerClient, path: str, **_: Any) -> dict[str, Any]:
+        paths.append(path)
+        return stored
+
+    monkeypatch.setattr(DataLayerClient, "get", _get)
+    return client, paths
 
 
 @pytest.mark.spec("CS-13-002")
@@ -54,27 +72,43 @@ def test_the_event_is_dated_from_the_callers_instant() -> None:
     assert first.id_ == f"{case.id_}/embargo_events/45d-2026-04-15-1"
 
 
-def test_a_naive_instant_is_refused() -> None:
-    naive = datetime(2026, 3, 1, 12)  # noqa: DTZ001 — deliberately naive
-    with pytest.raises(ValueError, match="timezone-aware"):
-        make_embargo_event(_case(), naive)
-
-
-def test_the_case_is_minted_at_its_published_time() -> None:
-    assert case_minted_at(_case()) == _MINTED
-
-
-def test_a_case_without_a_published_time_has_no_minted_instant() -> None:
-    case = _case()
-    case.published = None
-
-    with pytest.raises(ValueError, match="no published time"):
-        case_minted_at(case)
-
-
 def test_a_later_instant_moves_the_event_with_it() -> None:
     later = _MINTED + timedelta(days=1)
 
     event = make_embargo_event(_case(), later, days=45)
 
     assert event.end_time == datetime(2026, 4, 16, tzinfo=UTC)
+
+
+@pytest.mark.spec("CS-13-002")
+def test_the_case_is_minted_at_its_holders_stored_published_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = _case()
+    stored = "2026-02-01T09:00:00.000001+00:00"
+    client, paths = _client_holding(monkeypatch, {"published": stored})
+
+    with recorded_clock_reads() as clock_reads:
+        minted = case_minted_at(client, case, _MANAGER)
+
+    assert clock_reads == []
+    assert minted == datetime.fromisoformat(stored)
+    assert paths == [client.dl_path(case.id_, actor_id=_MANAGER)]
+
+
+@pytest.mark.parametrize(
+    ("stored", "match"),
+    [
+        ({}, "no published time"),
+        ({"published": ""}, "no published time"),
+        ({"published": "2026-02-01T09:00:00"}, "naive published time"),
+    ],
+    ids=["absent", "empty", "naive"],
+)
+def test_a_stored_copy_without_an_aware_published_time_is_refused(
+    monkeypatch: pytest.MonkeyPatch, stored: dict[str, Any], match: str
+) -> None:
+    client, _ = _client_holding(monkeypatch, stored)
+
+    with pytest.raises(ValueError, match=match):
+        case_minted_at(client, _case(), _MANAGER)
