@@ -76,6 +76,7 @@ The shape comes from the seam structure, not from the automation potential (BT-1
 - **Composer**: reads composition context and gives a generated artifact; *yes* means the artifact is ready.
 - **Actuator**: receives a trigger and context and invokes an external system for a side effect, such as a notification, a state write, or an API call.
   It answers *yes* when the side effect is confirmed and gives no content artifact for the blackboard.
+  Each call acts on the one target its tree binds with `actuator_call()` and carries an idempotency id derived from the act and the target, so a re-run from holding repeats no side effect (BT-18-041, BT-18-043).
 
 Every fuzzer node answers *yes* or *no*, and the call-out seam writes a *yes* node's declared outputs (ADR-0183).
 A simulation never answers *error*.
