@@ -95,6 +95,9 @@ class RetrieverCallOutPoint:
     Subclasses must:
       - Declare ``contract``.
       - Document a blackboard contract section in their docstring (BT-18-001).
+      - Say in a ``Store-held answer (BT-18-039):`` line of their docstring
+        whether the case file or the actor's own store can hold the fact
+        they fetch, and so whether a read-first guard must precede them.
     """
 
 

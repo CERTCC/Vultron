@@ -89,6 +89,7 @@ class GenesisRejectAlreadyAnsweredNode(DataLayerConditionWithPorts):
             case_id=case_id,
             peer_id=peer_id,
             rejected_index=rejected_index,
+            at=self._require_act_instant(),
         ):
             return Status.FAILURE
         self.logger.info(
@@ -197,6 +198,7 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
             case_id=case_id,
             peer_id=peer_id,
             from_hash="",
+            at=self._require_act_instant(),
         ):
             self.logger.debug(
                 "%s: genesis replay to peer '%s' is rate-limited; not"

@@ -91,6 +91,11 @@ class IdentifyVendors(RetrieverCallOutPoint, AlwaysSucceed):
         ``AlwaysSucceed``: identification resolves in one tick and never
         hard-fails.
 
+    Store-held answer (BT-18-039): **can**, in part — vendors already in
+    the case are in its participant list, so a tree that places this
+    Retriever reads that list first and asks only for vendors the case does
+    not list.  No core tree places it today.
+
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries CPE/product databases and SBOM data)
       Output keys: identified_vendors: list  (yes only)
@@ -119,6 +124,11 @@ class IdentifyCoordinators(RetrieverCallOutPoint, AlwaysSucceed):
         call-out point MUST answer synchronously (BT-18-011, ADR-0080), so it
         is modeled with ``AlwaysSucceed``: identification resolves in one tick
         and never hard-fails.
+
+    Store-held answer (BT-18-039): **can**, in part — coordinators already
+    in the case are in its participant list, so a tree that places this
+    Retriever reads that list first and asks only for coordinators the case
+    does not list.  No core tree places it today.
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries FIRST member directory and CSIRT registries)
@@ -180,6 +190,10 @@ class ChooseRecipient(RetrieverCallOutPoint, AlwaysSucceed):
         Action — select the next recipient from the identified-parties
         list for notification.  Could be fully automated; always succeeds
         in simulation.
+
+    Store-held answer (BT-18-039): **cannot** — its answer is a choice
+    among the identified parties, not a fact the case file or the actor's
+    store holds.
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — reads pending notification queue from DataLayer)

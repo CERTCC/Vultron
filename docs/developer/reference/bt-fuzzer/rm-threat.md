@@ -35,6 +35,7 @@ None of them is wired into the received-side pipeline of the CASE_MANAGER.
   It returns SUCCESS if it detects active attacks, and FAILURE otherwise.
   The BT invokes this node on demand each tick.
   The node does not run independently or fire a trigger endpoint (see BT-18-006).
+- **Store-held answer**: The case's attacks-observed bit (`A`) can hold part of the answer, so a tree that places this Retriever reads that bit first and asks only while it is unset (BT-18-039).
 - **Factory-fn placement**: Internal logic of the monitoring actor, not wired into the CASE_MANAGER received-side pipeline.
   The monitoring actor posts `Add(ParticipantStatus)` with A=True when it detects attacks.
 
@@ -54,6 +55,7 @@ None of them is wired into the received-side pipeline of the CASE_MANAGER.
   It returns SUCCESS if it finds a new published exploit, and FAILURE otherwise.
   The BT invokes this node on demand each tick.
   The node does not run independently or fire a trigger endpoint (see BT-18-006).
+- **Store-held answer**: The case's exploit-public bit (`X`) can hold part of the answer, so a tree that places this Retriever reads that bit first and asks only while it is unset (BT-18-039).
 - **Factory-fn placement**: Internal logic of the monitoring actor, not wired into the CASE_MANAGER received-side pipeline.
   The monitoring actor posts `Add(ParticipantStatus)` with X=True when it detects an exploit.
 
@@ -73,6 +75,7 @@ None of them is wired into the received-side pipeline of the CASE_MANAGER.
   It returns SUCCESS if it finds evidence of public disclosure, and FAILURE otherwise.
   The BT invokes this node on demand each tick.
   The node does not run independently or fire a trigger endpoint (see BT-18-006).
+- **Store-held answer**: The case's public-awareness bit (`P`) can hold part of the answer, so a tree that places this Retriever reads that bit first and asks only while it is unset (BT-18-039).
 - **Factory-fn placement**: Internal logic of the monitoring actor, not wired into the CASE_MANAGER received-side pipeline.
   The monitoring actor posts `Add(ParticipantStatus)` with P=True when it detects public disclosure.
 

@@ -12,9 +12,13 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """An act clock for tests that checks how an act reads it (ADR-0176)."""
 
-from datetime import UTC, datetime
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
+from vultron.core.models._helpers import clock as helpers_clock
 
 #: The instant a :class:`CountingClock` returns when given none.
 ACT_AT = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
@@ -42,3 +46,21 @@ class CountingClock:
         value = self._instants[min(self.reads, len(self._instants) - 1)]
         self.reads += 1
         return value
+
+
+@contextmanager
+def clock_at(at: datetime) -> Iterator[None]:
+    """Hold the clock at *at*, a microsecond per read, while an act at *at*
+    runs.
+
+    The act's instant judges each claimed timestamp (CLP-14-007, CLP-14-008),
+    while what the act stamps still reads the clock until #5758, so a test
+    that pins an act away from the wall clock pins the clock with it: one
+    act's instant and its stamps agree, as in production (ADR-0176).
+    """
+    with patch.object(
+        helpers_clock,
+        "datetime",
+        helpers_clock.SteppingClock(at, step=timedelta(microseconds=1)),
+    ):
+        yield

@@ -28,6 +28,7 @@ everyone else gets it, and the fan-out returns ``SUCCESS`` (decided on #5120).
 """
 
 import logging
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -112,7 +113,11 @@ def _paused_from_one_then_admitted(datalayer) -> list:
     seed_case(datalayer, embargo_active=True)
     entries = seed_ledger(datalayer, 4)
     record_embargo_pause(
-        datalayer, case_id=CASE_ID, peer_id=NON_SIGNATORY_ID, from_index=1
+        datalayer,
+        case_id=CASE_ID,
+        peer_id=NON_SIGNATORY_ID,
+        from_index=1,
+        at=datetime.now(UTC),
     )
     accept_embargo(datalayer, NON_SIGNATORY_ID)
     return entries
@@ -442,7 +447,11 @@ def test_admission_backfill_holds_back_one_peer_and_backfills_the_other(
     """
     entries = _paused_from_one_then_admitted(datalayer)
     record_embargo_pause(
-        datalayer, case_id=CASE_ID, peer_id=SIGNATORY_ID, from_index=3
+        datalayer,
+        case_id=CASE_ID,
+        peer_id=SIGNATORY_ID,
+        from_index=3,
+        at=datetime.now(UTC),
     )
     _break_stored(datalayer, entries, 2, break_entry)
     sync_port = MagicMock(spec=SyncActivityPort)

@@ -61,6 +61,7 @@ def test_validate_canonical_entry_rejects_empty_snapshot():
             case_id=CASE_ID,
             payload_snapshot={},
             semantic_type="note_added",
+            at=datetime.now(UTC),
         )
 
 
@@ -74,6 +75,7 @@ def test_validate_canonical_entry_refuses_a_create_note_snapshot():
             case_id=CASE_ID,
             payload_snapshot=snapshot,
             semantic_type="create_note",
+            at=datetime.now(UTC),
         )
 
 
@@ -123,6 +125,7 @@ def _call_with_ts(
         future_tolerance=future_tolerance,
         staleness_window=staleness_window,
         skew_tolerance=skew_tolerance,
+        at=datetime.now(UTC),
     )
 
 
@@ -299,6 +302,7 @@ def test_timestamp_checks_are_not_gated_on_case_published():
             case_id=CASE_ID,
             payload_snapshot=_ts_snapshot(published=None),
             semantic_type="note_added",
+            at=datetime.now(UTC),
         )
 
 
@@ -336,6 +340,7 @@ def test_bare_target_equal_to_the_case_uri_is_accepted():
         case_id=CASE_ID,
         payload_snapshot=_offer_participant_snapshot(CASE_ID),
         semantic_type="offer_case_participant",
+        at=datetime.now(UTC),
     )
 
 
@@ -364,6 +369,7 @@ def test_bare_target_naming_a_held_object_is_recorded_as_received():
         case_id=CASE_ID,
         payload_snapshot=snapshot,
         semantic_type="add_participant_status_to_participant",
+        at=datetime.now(UTC),
     )
 
 
@@ -391,6 +397,7 @@ def test_a_bare_reference_nested_in_the_object_is_recorded_as_received():
         case_id=CASE_ID,
         payload_snapshot=snapshot,
         semantic_type="rm_accept_invite_to_case",
+        at=datetime.now(UTC),
     )
 
 
@@ -412,6 +419,7 @@ def test_bare_target_naming_the_case_is_accepted_when_nested():
         case_id=CASE_ID,
         payload_snapshot=snapshot,
         semantic_type="accept_actor_recommendation",
+        at=datetime.now(UTC),
     )
 
 
@@ -426,6 +434,7 @@ def test_bare_object_is_still_refused():
             case_id=CASE_ID,
             payload_snapshot=snapshot,
             semantic_type="offer_case_participant",
+            at=datetime.now(UTC),
         )
 
 
@@ -449,6 +458,7 @@ def test_invite_with_a_bare_case_target_resolves_to_the_case_signature():
         case_id=CASE_ID,
         payload_snapshot=snapshot,
         semantic_type="invite_actor_to_case",
+        at=datetime.now(UTC),
     )
 
 
@@ -479,6 +489,7 @@ def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
         case_id=CASE_ID,
         payload_snapshot=snapshot,
         semantic_type="invite_actor_to_case",
+        at=datetime.now(UTC),
     )
 
 
@@ -501,6 +512,7 @@ def test_remove_note_snapshot_is_a_canonical_signature():
         case_id=CASE_ID,
         payload_snapshot=snapshot,
         semantic_type="remove_note_from_case",
+        at=datetime.now(UTC),
     )
 
 
@@ -524,6 +536,7 @@ def test_ack_report_snapshot_is_not_a_canonical_signature():
             case_id=CASE_ID,
             payload_snapshot=snapshot,
             semantic_type="ack_report",
+            at=datetime.now(UTC),
         )
 
 
@@ -556,6 +569,7 @@ def test_a_snapshot_naming_no_context_is_accepted():
         case_id=CASE_ID,
         payload_snapshot=_note_snapshot(context=None),
         semantic_type="add_note_to_case",
+        at=datetime.now(UTC),
     )
 
 
@@ -567,6 +581,7 @@ def test_a_context_naming_the_case_inline_is_accepted():
             context={"type": "VulnerabilityCase", "id": CASE_ID}
         ),
         semantic_type="add_note_to_case",
+        at=datetime.now(UTC),
     )
 
 
@@ -584,6 +599,7 @@ def test_a_context_naming_another_case_inline_is_refused():
                 }
             ),
             semantic_type="add_note_to_case",
+            at=datetime.now(UTC),
         )
 
 
@@ -597,6 +613,7 @@ def test_an_inline_actor_profile_is_accepted():
             actor={"type": "Organization", "id": OWNER_ACTOR_ID}
         ),
         semantic_type="add_note_to_case",
+        at=datetime.now(UTC),
     )
 
 
@@ -609,4 +626,5 @@ def test_an_actor_naming_no_id_is_refused():
                 actor={"type": "Organization", "name": "nobody"}
             ),
             semantic_type="add_note_to_case",
+            at=datetime.now(UTC),
         )

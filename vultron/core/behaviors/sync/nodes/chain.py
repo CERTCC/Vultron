@@ -245,6 +245,7 @@ class UpdateReplicationStateNode(CaseNamedReplayNode):
             case_id=case_id,
             peer_id=peer_id,
             change=_acknowledge,
+            at=self._require_act_instant(),
         )
         return Status.SUCCESS
 
@@ -360,6 +361,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             future_tolerance=ledger_cfg.future_tolerance,
             staleness_window=ledger_cfg.staleness_window,
             skew_tolerance=ledger_cfg.clock_skew_tolerance,
+            at=self._require_act_instant(),
         )
 
         tail_hash = self.tail_hash

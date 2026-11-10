@@ -29,7 +29,7 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.act_runner import run_tree
+from test.support.act_runner import in_act, run_tree
 from test.support.inbox_replay import held_depth
 from test.support.ledger import chain_tail, ledger_entries
 from test.support.received import delivered_body
@@ -54,6 +54,7 @@ from ._ledger_network import (
     OWNER,
     PROPOSER,
     LedgerNetwork,
+    commit_entries_in_act,
 )
 
 _CAUSE = "https://example.org/activities/the-act"
@@ -160,6 +161,24 @@ def test_an_active_participants_fault_is_answered_with_the_case() -> None:
     assert state is not None
     assert state.last_reseeded_at is not None
     assert state.last_reseed_position == position
+
+
+@pytest.mark.spec("SYNC-16-004")
+@pytest.mark.spec("CS-13-002")
+def test_a_reseed_is_recorded_at_the_acts_instant() -> None:
+    """The re-seed record carries the act's instant, not a clock read: the
+    act runs an hour ahead of the wall clock (ADR-0176)."""
+    net, _ = _diverged("reseed-act-instant")
+    at = datetime.now(UTC).replace(microsecond=0) + timedelta(hours=1)
+
+    with in_act(at):
+        verdict = _report(net)
+
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
+    state = _state(net, BYSTANDER)
+    assert state is not None
+    assert state.last_reseeded_at == at
+    assert state.updated_at == at
 
 
 @pytest.mark.spec("SYNC-16-003")
@@ -381,14 +400,10 @@ def test_an_acknowledgement_short_of_the_reseed_is_no_error(
     or a hash this ledger does not hold, has shown no sign of applying that
     copy, so the repeat fault is a WARNING.
     """
-    from vultron.core.behaviors.embargo.copy_commit import (
-        commit_and_apply_embargo_entries,
-    )
-
     net, announce_id = _diverged(f"reseed-ack-{acknowledged}")
     first, *_ = ledger_entries(net.stores[MANAGER], net.case_id)
     change = net.consent_row_change(PROPOSER, EmbargoConsentState.DECLINED)
-    commit_and_apply_embargo_entries(
+    commit_entries_in_act(
         net.stores[MANAGER],
         net.case_id,
         [net.planned_consent_entry(change, _CAUSE)],
@@ -444,14 +459,10 @@ def test_a_divergence_past_the_last_reseed_is_routine(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A refused entry newer than the last copy is ordinary recovery."""
-    from vultron.core.behaviors.embargo.copy_commit import (
-        commit_and_apply_embargo_entries,
-    )
-
     net, _ = _diverged("reseed-newer")
     _report(net)
     change = net.consent_row_change(PROPOSER, EmbargoConsentState.DECLINED)
-    commit_and_apply_embargo_entries(
+    commit_entries_in_act(
         net.stores[MANAGER],
         net.case_id,
         [net.planned_consent_entry(change, _CAUSE)],
