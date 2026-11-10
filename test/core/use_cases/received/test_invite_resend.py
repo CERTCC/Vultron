@@ -158,9 +158,14 @@ def _ledger_ids(dl: SqliteDataLayer) -> set[str]:
 
 
 def _state_position(
-    dl: SqliteDataLayer, case_id: str, sender: str, make_payload
+    dl: SqliteDataLayer,
+    case_id: str,
+    sender: str,
+    make_payload,
+    at: datetime | None = None,
 ) -> HandlerResult:
-    """*sender* states its position at the CASE_MANAGER's tail."""
+    """*sender* states its position at the CASE_MANAGER's tail, in an act at
+    *at* (the runner's clock when ``None``)."""
     read = read_ledger_entry_activity(
         _tail(dl, case_id), actor=sender, to=[MANAGER]
     )
@@ -171,7 +176,8 @@ def _state_position(
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
-        )
+        ),
+        at=at,
     )
 
 
@@ -244,6 +250,23 @@ def test_a_read_resends_the_relayed_invite_as_first_sent(make_payload):
     assert read_sealed_body_dict(dl, invite_id) == sealed
     assert sealed is not None and "ledgerPosition" in sealed
     assert "endTime" in sealed
+
+
+@pytest.mark.spec("SYNC-20-005", "CS-13-002")
+def test_a_resend_is_recorded_at_the_acts_instant(make_payload):
+    """The resend record carries the act's instant, not a clock read: the
+    act runs an hour ahead of the wall clock (ADR-0176)."""
+    case_id = "https://example.org/cases/resend-act-instant"
+    dl, _ = _joined(case_id, make_payload)
+    at = now_utc().replace(microsecond=0) + timedelta(hours=1)
+
+    result = _state_position(dl, case_id, JOINER, make_payload, at=at)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    invite_id = _full_case_invite(dl)
+    record = dl.read(InviteResendRecord.build_id(invite_id, JOINER))
+    assert isinstance(record, InviteResendRecord)
+    assert record.last_resent_at == at
 
 
 @pytest.mark.spec("SYNC-20-001", "SYNC-20-002", "CM-11-010")

@@ -742,7 +742,9 @@ def _receive_reject(
     sync_port: MagicMock,
     entry: CaseLedgerEntry,
     tail_hash: str,
+    at: datetime | None = None,
 ) -> None:
+    """Receive the Reject in an act at *at*, the frozen clock by default."""
     py_trees.blackboard.Blackboard.storage.clear()
     result = run_tree(
         bridge,
@@ -753,7 +755,7 @@ def _receive_reject(
         actor_id=OWNER_ACTOR_ID,
         activity=_make_event(entry, tail_hash=tail_hash),
         sync_port=sync_port,
-        at=helpers_clock.now_utc(),
+        at=at if at is not None else helpers_clock.now_utc(),
     )
     assert result.status == Status.SUCCESS
 
@@ -768,6 +770,30 @@ def _replay_record(datalayer) -> tuple[str | None, datetime | None, int]:
         state.last_replayed_at,
         state.replays_at_position,
     )
+
+
+@pytest.mark.spec("SYNC-15-003")
+@pytest.mark.spec("CS-13-002")
+def test_a_genesis_replay_is_recorded_and_judged_at_the_acts_instant(
+    datalayer, case_manager_case, monkeypatch
+):
+    """The replay is stamped with the act's instant, and a repeat is judged
+    by it: the clock never moves, so only the act's instant can pass the
+    ceiling and let the repeat replay again (ADR-0176)."""
+    entries = _five_entry_ledger(datalayer)
+    bridge, sync_port, _ = _replay_bridge(datalayer)
+    _set_clock(monkeypatch, 0)
+    at = helpers_clock.now_utc() + timedelta(hours=1)
+
+    _receive_reject(bridge, sync_port, entries[0], tail_hash="", at=at)
+    assert _replay_record(datalayer)[1] == at
+    assert sync_port.send_announce_log_entry.call_count == 5
+
+    later = at + timedelta(seconds=MAX_REPLAY_COOLDOWN_SECONDS)
+    _receive_reject(bridge, sync_port, entries[2], tail_hash="", at=later)
+
+    assert sync_port.send_announce_log_entry.call_count > 5
+    assert _replay_record(datalayer)[1] == later
 
 
 @pytest.mark.spec("SYNC-15-019")

@@ -132,33 +132,44 @@ _LATER = _AT + timedelta(seconds=1)
 
 @pytest.mark.spec("CS-13-002")
 @pytest.mark.parametrize(
-    "path",
+    ("path", "expected"),
     [
         pytest.param(
-            lambda dl: read_replication_state(dl, **_KEYS),
+            lambda dl: read_replication_state(dl, **_KEYS) is not None,
+            True,
             id="read_replication_state",
         ),
         pytest.param(
             lambda dl: should_replay(dl, **_KEYS, from_hash="", at=_LATER),
+            False,
             id="should_replay",
         ),
         pytest.param(
             lambda dl: genesis_reject_answered(
                 dl, **_KEYS, rejected_index=1, at=_LATER
             ),
+            True,
             id="genesis_reject_answered",
         ),
         pytest.param(
             lambda dl: should_reseed(dl, **_KEYS, at=_LATER),
+            False,
             id="should_reseed",
         ),
     ],
 )
 def test_a_replication_state_check_reads_no_clock(
     replayed: SqliteDataLayer,
-    path: Callable[[SqliteDataLayer], object],
+    path: Callable[[SqliteDataLayer], bool],
+    expected: bool,
 ) -> None:
-    _assert_reads_no_clock(lambda: path(replayed))
+    """Each check reaches its cooldown (the verdict is the one inside the
+    window) and reads no clock doing it."""
+    verdicts: list[bool] = []
+
+    _assert_reads_no_clock(lambda: verdicts.append(path(replayed)))
+
+    assert verdicts == [expected]
 
 
 @pytest.mark.spec("CS-13-002")

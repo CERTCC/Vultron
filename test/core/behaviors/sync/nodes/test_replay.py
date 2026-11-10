@@ -30,6 +30,9 @@ from vultron.core.behaviors.sync.nodes import (
     SendLogEntryToEachNode,
     SendMissingEntriesNode,
 )
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    read_replication_state,
+)
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import compute_genesis_hash
@@ -144,6 +147,38 @@ def test_send_missing_entries_node_replays_entries_after_divergence(
     assert kwargs["entry"].id_ == second_entry.id_
     assert kwargs["actor_id"] == case_actor.id_
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
+
+
+@pytest.mark.spec("SYNC-15-003")
+@pytest.mark.spec("CS-13-002")
+def test_send_missing_entries_node_stamps_the_replay_with_the_acts_instant(
+    bridge, datalayer, case_actor, case_obj
+):
+    """The replay record carries the act's instant, not a clock read."""
+    first_entry = _make_entry(0)
+    second_entry = _make_entry(1, first_entry.entry_hash)
+    at = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)
+
+    result = run_tree(
+        bridge,
+        tree=SendMissingEntriesNode(name="SendMissingEntries"),
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=MagicMock(spec=SyncActivityPort),
+        case_actor_id=case_actor.id_,
+        replay_case_id=second_entry.case_id,
+        replay_peer_id=PARTICIPANT_ACTOR_ID,
+        replay_case_ledger_entries=[first_entry, second_entry],
+        replay_from_index=0,
+        at=at,
+    )
+
+    assert result.status == Status.SUCCESS
+    state = read_replication_state(
+        datalayer, case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+    )
+    assert state is not None
+    assert state.last_replayed_at == at
+    assert state.updated_at == at
 
 
 #: A CASE_MANAGER that is deliberately *not* the store owner or the executing

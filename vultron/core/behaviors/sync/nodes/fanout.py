@@ -33,6 +33,7 @@ paused peer the gate now admits (CM-10-006) — see ``embargo_pause.py``.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import cast
 
 import py_trees
@@ -228,9 +229,14 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
             self._sync_port = None
 
     def _pause_and_backfill(
-        self, entry: CaseLedgerEntry, sync_port: SyncActivityPort
+        self,
+        entry: CaseLedgerEntry,
+        sync_port: SyncActivityPort,
+        at: datetime,
     ) -> list[str]:
         """Pause the withheld peers and backfill the admitted ones.
+
+        Each pause is stamped with *at*, the act's instant (ADR-0176).
 
         Returns the peers whose backfill was held back at an entry that does
         not verify (SYNC-03-009); each keeps its pause.
@@ -244,7 +250,7 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
                 case_id=entry.case_id,
                 peer_id=peer_id,
                 from_index=entry.log_index,
-                at=self._require_act_instant(),
+                at=at,
             )
         case_obj = datalayer.read(entry.case_id)
         if not isinstance(case_obj, VulnerabilityCase):
@@ -276,8 +282,13 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
 
         held_back: list[str] = []
         if self.datalayer is not None:
+            # Read outside the gate's except: a missing instant is a wiring
+            # fault, not an undecidable gate (ARCH-10-001, ADR-0176).
+            at = self._require_act_instant()
             try:
-                held_back = self._pause_and_backfill(entry, self._sync_port)
+                held_back = self._pause_and_backfill(
+                    entry, self._sync_port, at
+                )
             except VultronError as exc:
                 self.feedback_message = str(exc)
                 self.logger.exception(

@@ -39,6 +39,9 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
     record_embargo_pause,
 )
 from vultron.core.behaviors.sync.nodes.fanout import SendLogEntryToEachNode
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    read_replication_state,
+)
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
@@ -48,6 +51,7 @@ from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
+from vultron.errors import VultronMissingActInstantError
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -180,6 +184,60 @@ def test_fanout_send_fails_without_sending_when_the_case_is_missing(
 
     assert result.status == Status.FAILURE
     sync_port.send_announce_log_entry.assert_not_called()
+
+
+def _fan_out_withheld(bridge, datalayer, **kwargs):
+    """Fan an entry out to the signatory while withholding the finder."""
+    seed_case(datalayer, embargo_active=True)
+    (entry,) = seed_ledger(datalayer, 1)
+    return run_tree(
+        bridge,
+        tree=SendLogEntryToEachNode(name="SendLogEntryToEach"),
+        actor_id=MANAGER_ID,
+        log_entry=entry,
+        fanout_recipients=[SIGNATORY_ID],
+        fanout_withheld=[NON_SIGNATORY_ID],
+        sync_port=MagicMock(spec=SyncActivityPort),
+        **kwargs,
+    )
+
+
+@pytest.mark.spec("CM-10-005")
+@pytest.mark.spec("CS-13-002")
+def test_fanout_stamps_a_withheld_peers_pause_with_the_acts_instant(
+    bridge, datalayer
+) -> None:
+    at = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)
+
+    result = _fan_out_withheld(bridge, datalayer, at=at)
+
+    assert result.status == Status.SUCCESS, result.feedback_message
+    state = read_replication_state(
+        datalayer, case_id=CASE_ID, peer_id=NON_SIGNATORY_ID
+    )
+    assert state is not None
+    assert state.embargo_paused_from_index == 0
+    assert state.updated_at == at
+
+
+@pytest.mark.spec("ARCH-10-001")
+def test_fanout_without_an_act_instant_is_an_internal_error(
+    bridge, datalayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing instant is a wiring fault, never an undecidable gate."""
+
+    def _missing(_self: object) -> datetime:
+        raise VultronMissingActInstantError("no act instant")
+
+    monkeypatch.setattr(
+        SendLogEntryToEachNode, "_require_act_instant", _missing
+    )
+
+    result = _fan_out_withheld(bridge, datalayer)
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error
+    assert paused_from(datalayer) is None
 
 
 @pytest.mark.spec("CM-10-004")
