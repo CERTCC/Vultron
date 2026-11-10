@@ -2139,7 +2139,7 @@ groups:
     statement: >-
       Where the case file or the actor's own store can hold the fact a Retriever
       call-out point fetches, a read-first guard MUST precede the call-out point and
-      MUST skip it when the fact is present.
+      skip it when the fact is present.
     rationale: >-
       Asking for a fact the actor already holds spends call-out budget (BT-18-015)
       on a known answer, and the answer can contradict the case. The guard reads the
@@ -2603,8 +2603,8 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: The `create_deploy_mitigation_tree` tree MUST NOT include a CS state transition or protocol activity emission
-      node; mitigation deployment is tracked externally (for example in a CMDB) and the protocol has no dedicated
-      mitigation-deployed message type.
+      node; mitigation deployment is tracked externally (for example in a CMDB) and the
+      protocol has no dedicated mitigation-deployed message type.
     rationale: The VFD state machine tracks only vendor-aware/fix-ready/fix-deployed bits; there is no mitigation-deployed
       bit. Emitting a CS state transition or protocol activity from the mitigation tree would conflate fix-deployment
       semantics with mitigation tracking.
