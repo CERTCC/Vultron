@@ -33,6 +33,7 @@ from fastapi import (
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.sender_sequence_stamp import with_outbound_stamps
 from vultron.adapters.driving.fastapi.deps import (
+    get_act_clock,
     get_actor_dl,
 )
 from vultron.adapters.driving.fastapi.errors import unsignable_http_exception
@@ -48,6 +49,8 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _resolve_actor_or_404,
 )
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
+from vultron.core.behaviors.bridge.act_instant import stamp_arrival
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.errors import VultronUnsignableJsonError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -108,6 +111,7 @@ def post_actor_inbox(
     background_tasks: BackgroundTasks,
     activity: as_Activity = Depends(parse_activity),
     dl: DataLayer = Depends(get_actor_dl),
+    clock: ClockPort = Depends(get_act_clock),
 ) -> None:
     """Adds an item to the Actor's Inbox.
     The 202 Accepted status code indicates that the request has been accepted for
@@ -129,6 +133,10 @@ def post_actor_inbox(
         request: The FastAPI Request (used to resolve the per-app emitter/dispatcher).
         activity: The Activity item (parsed by the ``parse_activity`` dependency).
         background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
+        clock: The act clock.  Read once, here, for the message's arrival
+            stamp, before the background task queues for any lock: the
+            stamp is the instant every act processing the message judges it
+            at, its replays included (ADR-0176).
     Returns:
         None
     Raises:
@@ -148,6 +156,9 @@ def post_actor_inbox(
             detail=f"Activity is not addressed to actor {canonical_actor_id}.",
         )
 
+    # The postmark: read once, as the message is accepted, so neither the
+    # per-actor lock nor the tree lock moves the instant it is judged at.
+    arrived_at = stamp_arrival(clock)
     emitter = getattr(request.app.state, "emitter", None)
     dispatcher = getattr(request.app.state, "dispatcher", None)
 
@@ -158,6 +169,7 @@ def post_actor_inbox(
         canonical_actor_id,
         dispatcher,
         emitter,
+        arrived_at=arrived_at,
     )
 
 

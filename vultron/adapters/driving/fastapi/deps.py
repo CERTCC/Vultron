@@ -39,6 +39,9 @@ get_ledger_stream_shutdown
 get_hosted_actor_dls
     Return every store this node hosts, keyed by canonical actor URI, for
     node-level operations such as the admin reset.
+get_act_clock
+    Return the act clock the inbox stamps a message's arrival with
+    (ADR-0176), so a test can pin the arrival stamp with one override.
 get_trigger_dispatcher
     Construct and return the registry-backed
     :class:`~vultron.core.ports.trigger_dispatcher.TriggerDispatcher`
@@ -67,6 +70,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi.ledger_stream import SHUTDOWN_STATE_KEY
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.trigger_dispatcher import RegistryTriggerDispatcher
@@ -258,6 +262,17 @@ def outbox_store(dl: DataLayer) -> CaseOutboxPersistence:
     written once.
     """
     return cast(CaseOutboxPersistence, dl)
+
+
+def get_act_clock() -> ClockPort:
+    """FastAPI dependency: the act clock the inbox stamps arrivals with.
+
+    The system clock (ADR-0176).  The inbox route reads it once per message,
+    when the message arrives and before it queues for any lock, and that
+    arrival stamp is the instant of every act that processes the message.
+    ``app.dependency_overrides[get_act_clock]`` pins the stamp in a test.
+    """
+    return SystemClock()
 
 
 def get_trigger_dispatcher(

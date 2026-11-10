@@ -31,6 +31,7 @@ This module owns that replay:
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from datetime import datetime
 from typing import Any, cast
 
 from vultron.adapters.inbox_staging import InlineObjectStaging
@@ -48,9 +49,10 @@ from vultron.core.behaviors.inbox.models import (
 )
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
-from vultron.core.ports.clock import ClockPort
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.object_dereference import ObjectDereferencePort
+from vultron.core.services.received_holding import held_for_replay
 from vultron.errors import VultronProtocolViolationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
@@ -301,6 +303,7 @@ def _retry_or_dead_letter(
     retry: RetryStore,
     max_attempts: int,
     staging: InlineObjectStaging,
+    received_at: datetime,
 ) -> bool:
     """Count a failed attempt; dead-letter on exhaustion, re-queue otherwise.
 
@@ -319,6 +322,8 @@ def _retry_or_dead_letter(
         staging: The staging whose rebuild released the item's record; a
             re-queued item is held again through it, or the retry would find
             nothing to rebuild (DL-06-006).
+        received_at: The item's arrival stamp, which the record held again
+            keeps, so the retry is judged when the item arrived (ADR-0176).
 
     Returns:
         ``True`` when the item was dead-lettered, so no retry follows;
@@ -328,7 +333,7 @@ def _retry_or_dead_letter(
     total = retry.get_inbox_attempt_count(item_id) + 1
     # The rebuild released the record, and the retry, or an operator reading
     # the dead letter, needs the activity it held (DL-06-006).
-    staging.hold_again(item_id)
+    staging.hold_again(item_id, received_at=received_at)
     if total >= max_attempts:
         retry.inbox_dead_letter_append(
             item_id,
@@ -368,8 +373,6 @@ def drain_inbox_queue(
     max_attempts: int,
     dereference: ObjectDereferencePort | None = None,
     received_outcome: ReceivedOutcomePort | None = None,
-    *,
-    clock: ClockPort,
 ) -> None:
     """Replay every item queued in *actor_dl*'s inbox, with bounded retry.
 
@@ -395,6 +398,12 @@ def drain_inbox_queue(
 
     Every other attempt settles the item, and clears its attempt count.
 
+    Each replay is an act of its own, at the arrival stamp the item's held
+    record carries (``received_at``), so a held activity is judged when it
+    arrived, not when its replay runs (ADR-0176).  An item with no record
+    owing its replay has nothing to rebuild and no stamp to run at: it is
+    dropped, as a rebuild that found nothing would drop it (DL-06-006).
+
     Args:
         actor_dl: The receiving actor's DataLayer, which holds the queue.
         actor_id: Canonical URI of the receiving actor.
@@ -408,9 +417,6 @@ def drain_inbox_queue(
         received_outcome: The received-outcome port; a replay the receiver refuses
             gives its body up for a receipt stub, exactly as a live delivery
             does (CLP-10-018).
-        clock: The act clock.  Each replay is an act of its own and reads it
-            once, at the replay, so a held activity is judged when its effect
-            lands, not when it arrived (ADR-0176).
     """
     attempt = ReplayAttempt()
     ingress = StoredActivityIngressAdapter(
@@ -431,6 +437,17 @@ def drain_inbox_queue(
             item_id = actor_dl.inbox_pop()
             if item_id is None:
                 break
+            held = held_for_replay(cast(CasePersistence, actor_dl), item_id)
+            if held is None:
+                logger.warning(
+                    "Inbox item activity_id=%s for actor_id=%s has no held"
+                    " record owing its replay; nothing to replay, dropped"
+                    " (DL-06-006).",
+                    item_id,
+                    actor_id,
+                )
+                retry.clear_inbox_attempt_count(item_id)
+                continue
             attempt.begin()
             outcome = process_payload(
                 item_id,
@@ -440,7 +457,7 @@ def drain_inbox_queue(
                 actor_config=actor_config,
                 dereference_port=dereference,
                 received_outcome_port=received_outcome,
-                clock=clock,
+                arrived_at=held.received_at,
             )
             logger.debug(
                 "run_inbox_pipeline: replayed status=%s context_id=%s",
@@ -459,6 +476,7 @@ def drain_inbox_queue(
                     retry,
                     max_attempts,
                     staging,
+                    held.received_at,
                 ):
                     replay_dispatch.send_held_fault()
                 continue

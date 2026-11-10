@@ -18,6 +18,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from datetime import datetime
 from typing import cast
 
 from vultron.adapters.driving.fastapi.inbox_handler import (
@@ -119,6 +120,8 @@ class FastAPIQueuePort:
         activity_id: str,
         case_id: str,
         case_actor_id: str | None = None,
+        *,
+        at: datetime,
     ) -> None:
         """Persist *activity_id* in the deferred queue for *case_id*.
 
@@ -127,32 +130,37 @@ class FastAPIQueuePort:
         receiver keeps no copy under its id (DL-06-006).  It is held before
         it is queued, so a failed hold queues nothing.  The hold is what
         records the wait: the held record names *case_id* it waits on, and
-        the per-case record only opens the expiry window (ADR-0154).
+        the per-case record only opens the expiry window (ADR-0154).  Both
+        take *at*, the activity's arrival stamp (ADR-0176).
         """
         # Read before the hold: the hold is what makes this activity one of
         # the waiting, so only a reading taken first tells a first arrival
         # from a redelivery of the only waiter (CBT-03-003).
         window_already_open = _case_window_is_open(self._actor_dl, case_id)
-        self._staging.hold_for_replay(activity_id, awaiting_case_id=case_id)
+        self._staging.hold_for_replay(
+            activity_id, received_at=at, awaiting_case_id=case_id
+        )
         _queue_pending_case_activity(
             queue_dl=self._actor_dl,
             case_id=case_id,
             case_actor_id=case_actor_id,
             window_already_open=window_already_open,
+            at=at,
         )
 
-    def check_and_expire(self, case_id: str) -> bool:
-        """Check expiry; drop queue and return ``True`` when expired."""
+    def check_and_expire(self, case_id: str, *, at: datetime) -> bool:
+        """Drop *case_id*'s queue and return ``True`` if it expired by *at*."""
         return _expire_pending_case_activities(
-            case_id=case_id, queue_dl=self._actor_dl
+            case_id=case_id, queue_dl=self._actor_dl, at=at
         )
 
-    def replay(self, case_id: str) -> None:
+    def replay(self, case_id: str, *, at: datetime) -> None:
         """Move deferred activities for *case_id* back to the live inbox."""
         _replay_pending_case_activities(
             case_id=case_id,
             dl=self._dl,
             queue_dl=self._actor_dl,
+            at=at,
         )
 
 
@@ -185,6 +193,7 @@ class FastAPIReceivedOutcomePort:
         sender_id: str,
         reason: str,
         received_body: str | None,
+        received_at: datetime,
     ) -> None:
         """Replace what is held for *activity_id* with a receipt stub."""
         write_receipt_stub(
@@ -193,4 +202,5 @@ class FastAPIReceivedOutcomePort:
             sender_id=sender_id,
             reason=reason,
             received_body=received_body,
+            received_at=received_at,
         )

@@ -60,6 +60,7 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.inbox.models import InboxOutcomeStatus
 from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 from vultron.core.models.events import (
@@ -412,8 +413,10 @@ class DeferCheckNode(_InboxNodeWithPorts):
         if queue.is_case_known(context_id):
             return Status.SUCCESS
 
-        # Case is not yet known — check if the pending queue has expired.
-        if queue.check_and_expire(context_id):
+        # Case is not yet known — check if the pending queue has expired, at
+        # this act's instant: the activity's arrival stamp (ADR-0176).
+        at = read_act_instant()
+        if queue.check_and_expire(context_id, at=at):
             reason = (
                 f"Pre-bootstrap queue for case '{context_id}' expired; "
                 "resend required after new bootstrap"
@@ -425,6 +428,7 @@ class DeferCheckNode(_InboxNodeWithPorts):
             activity_id=event.activity_id,
             case_id=context_id,
             case_actor_id=event.actor_id,
+            at=at,
         )
         reason = f"Deferred: case '{context_id}' not yet known locally"
         return self._defer(reason)

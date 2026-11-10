@@ -27,6 +27,7 @@ from __future__ import annotations
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.inbox.models import (
     DispatchAdapter,
     InboxOutcomeStatus,
@@ -140,7 +141,9 @@ class DispatchNode(_InboxNodeWithPorts):
             and context_id is not None
             and queue is not None
         ):
-            queue.replay(context_id)
+            # Judged for expiry at this act's instant, the bootstrap's
+            # arrival stamp (CBT-03-003, ADR-0176).
+            queue.replay(context_id, at=read_act_instant())
             self.logger.info(
                 "%s: triggered replay for case '%s'", self.name, context_id
             )

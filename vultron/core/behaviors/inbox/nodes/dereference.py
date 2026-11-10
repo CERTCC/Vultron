@@ -30,6 +30,7 @@ from __future__ import annotations
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.inbox.nodes.pipeline import (
     KEY_CONTEXT_ID,
     KEY_DEREFERENCE,
@@ -130,7 +131,9 @@ class DereferenceCheckNode(_InboxNodeWithPorts):
             event = self._hand_off(event, reference, port, fetch)
 
         if outstanding:
-            port.await_fetches(event.activity_id, outstanding)
+            port.await_fetches(
+                event.activity_id, outstanding, at=read_act_instant()
+            )
             waited = ", ".join(repr(r.object_id) for r in outstanding)
             return self._defer(f"Deferred: awaiting the fetch of {waited}")
 

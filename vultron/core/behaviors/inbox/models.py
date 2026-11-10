@@ -25,6 +25,7 @@ Per specs/inbox-orchestration.yaml:
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol, Self, runtime_checkable
 
@@ -147,6 +148,8 @@ class PendingCaseQueuePort(Protocol):
         activity_id: str,
         case_id: str,
         case_actor_id: str | None = None,
+        *,
+        at: datetime,
     ) -> None:
         """Persist *activity_id* in the deferred queue for *case_id*.
 
@@ -155,18 +158,29 @@ class PendingCaseQueuePort(Protocol):
         IO-03-009); the hold is what records the wait, naming *case_id* on
         that record (ADR-0154), and a core reader loads the body from there
         before the outcome stage archives it.
+
+        *at* is the act's instant, the activity's arrival stamp: the held
+        record keeps it for the replay, and a first waiter opens the case's
+        expiry window at it (CBT-03-001, ADR-0176).
         """
         ...  # pragma: no cover
 
-    def check_and_expire(self, case_id: str) -> bool:
-        """Check expiry; drop queue and return ``True`` when expired."""
+    def check_and_expire(self, case_id: str, *, at: datetime) -> bool:
+        """Drop *case_id*'s queue and return ``True`` if it expired by *at*.
+
+        The queue has expired when the arrival stamp that opened its window
+        plus the interval (CBT-03-005) is not after *at*, the instant of the
+        act that asks (CBT-03-003, ADR-0176).
+        """
         ...  # pragma: no cover
 
-    def replay(self, case_id: str) -> None:
+    def replay(self, case_id: str, *, at: datetime) -> None:
         """Move the activities waiting on *case_id* back to the live inbox.
 
         Which they are is read from the waiting records themselves, in the
-        order they arrived (ADR-0154).
+        order they arrived (ADR-0154).  The queue is judged for expiry at
+        *at*, the instant of the act that releases it, first: an expired
+        queue is dropped, not replayed (CBT-03-003, ADR-0176).
         """
         ...  # pragma: no cover
 
@@ -200,13 +214,15 @@ class ReceivedOutcomePort(Protocol):
         sender_id: str,
         reason: str,
         received_body: str | None,
+        received_at: datetime,
     ) -> None:
         """Give up *activity_id*'s body for a receipt stub.
 
         The stub records *sender_id*, the activity id, the time of receipt,
         *reason* and the digest of the body (CLP-10-018).  A delivery a door
         refused before intake ran has no record, so its stub is written from
-        *received_body*, its own sealed body.  Idempotent: a second refusal
+        *received_body*, its own sealed body, stamped *received_at*, the
+        delivery's arrival stamp (ADR-0176).  Idempotent: a second refusal
         of the same activity leaves the first reason standing.
 
         A body still owed to a replay is left as it is: the replay is the
