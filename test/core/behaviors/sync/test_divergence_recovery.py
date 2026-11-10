@@ -36,6 +36,7 @@ from test.support.inbox_replay import ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
 from test.support.received import received_event
 from test.support.signing import signed_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -733,6 +734,7 @@ def test_the_inbox_routes_the_copy_not_the_held_case() -> None:
                 dl=dl, actor_id=_REPLICA_ID, dispatcher=make_dispatcher()
             ),
             FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
+            clock=SystemClock(),
         )
 
     stale = deliver(
@@ -974,6 +976,7 @@ def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
             dl=dl, actor_id=_CASE_ACTOR_ID, dispatcher=make_dispatcher()
         ),
         FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
+        clock=SystemClock(),
     )
 
     # Routed and judged: the stranger is no participant, so the sender
@@ -1243,6 +1246,7 @@ def test_the_inbox_takes_the_position_of_a_copy_ahead() -> None:
                 dl=dl, actor_id=_REPLICA_ID, dispatcher=make_dispatcher()
             ),
             FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
+            clock=SystemClock(),
         )
 
     replaced = deliver(_at(_owned_case("copy ahead"), ahead))

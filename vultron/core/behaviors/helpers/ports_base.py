@@ -27,15 +27,17 @@ Per specs/behavior-tree-node-design.yaml BTND-03-009 through BTND-03-011:
 """
 
 import logging
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.bridge.act_instant import ACT_INSTANT_KEY
 from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronWiringError
+from vultron.errors import VultronMissingActInstantError, VultronWiringError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -58,9 +60,44 @@ from vultron.core.behaviors.helpers.messages import (
 # BTBridge.setup_tree().
 _DL_KEY = "/datalayer"
 _ACTOR_KEY = "/actor_id"
+# The act's instant, placed by the act's outermost run (ADR-0176).
+_AT_KEY = f"/{ACT_INSTANT_KEY}"
 
 
-class DataLayerConditionWithPorts(BehaviourWithPorts):
+class _ActInstantPort:
+    """The ``at`` input port both ports bases declare (ADR-0176).
+
+    A node that needs the time calls :meth:`_require_act_instant` when it
+    ticks.  The port is optional in the declaration because most nodes never
+    read it; reading it in a run that carries no instant raises.
+    """
+
+    def _require_act_instant(self) -> datetime:
+        """Return the act's instant from the tree run, or raise.
+
+        Called in ``update()``, never at build or in ``__init__``: a time read
+        then would be read before the act took the tree lock.
+
+        Raises:
+            VultronMissingActInstantError: The run carries no ``/at``.  A
+                composition fault, which ``BTBridge`` reports as an internal
+                error; it is never answered by reading the clock
+                (ARCH-10-001).
+        """
+        node = cast(BehaviourWithPorts, self)
+        try:
+            at = node.get_input(ACT_INSTANT_KEY)
+        except (NoDataAvailable, NotImplementedError):
+            at = None
+        if not isinstance(at, datetime):
+            raise VultronMissingActInstantError(
+                f"{node.name}: this tree run carries no act instant"
+                f" ({_AT_KEY}); start it inside an act (ADR-0176)"
+            )
+        return at
+
+
+class DataLayerConditionWithPorts(_ActInstantPort, BehaviourWithPorts):
     """Base class for typed-Ports BT condition nodes with DataLayer access.
 
     Declares ``datalayer`` and ``actor_id`` as required input ports, remapped
@@ -86,6 +123,7 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
     INPUT_PORTS: dict[str, PortInformation] = {
         "datalayer": PortInformation(data_type=object, required=True),
         "actor_id": PortInformation(data_type=str, required=True),
+        ACT_INSTANT_KEY: PortInformation(data_type=object, required=False),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
@@ -115,6 +153,7 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
             port_remappings={
                 "datalayer": _DL_KEY,
                 "actor_id": _ACTOR_KEY,
+                ACT_INSTANT_KEY: _AT_KEY,
                 **self._domain_port_remappings(),
                 **self._instance_port_remappings(),
             },
@@ -161,7 +200,7 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
         )
 
 
-class DataLayerActionWithPorts(BehaviourWithPorts):
+class DataLayerActionWithPorts(_ActInstantPort, BehaviourWithPorts):
     """Base class for typed-Ports BT action nodes with DataLayer access.
 
     Declares ``datalayer``, ``actor_id``, and optionally
@@ -190,6 +229,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
             data_type=object, required=False
         ),
         "wire_render_port": PortInformation(data_type=object, required=False),
+        ACT_INSTANT_KEY: PortInformation(data_type=object, required=False),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
@@ -221,6 +261,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
                 "actor_id": _ACTOR_KEY,
                 "trigger_activity_factory": "/trigger_activity_factory",
                 "wire_render_port": "/wire_render_port",
+                ACT_INSTANT_KEY: _AT_KEY,
                 **self._domain_port_remappings(),
                 **self._instance_port_remappings(),
             },

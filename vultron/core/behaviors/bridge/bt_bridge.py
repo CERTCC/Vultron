@@ -37,6 +37,7 @@ Per specs/sync-ledger-replication.yaml:
 
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import py_trees
@@ -48,6 +49,7 @@ from vultron.core.behaviors.blackboard_scope import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
+    VultronConflictingActInstantError,
     VultronError,
 )
 
@@ -56,6 +58,11 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.bridge.act_instant import (
+    ACT_INSTANT_KEY,
+    inherited_act_instant,
+    place_act_instant,
+)
 from vultron.core.behaviors.bridge.leadership import _default_is_leader
 from vultron.core.behaviors.bridge.lock import _BT_GLOBAL_LOCK
 from vultron.core.behaviors.bridge.result import BTExecutionResult
@@ -128,16 +135,56 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
             f"{_LOGGER_PREFIX}.{self.__class__.__name__}"
         )
 
+    @staticmethod
+    def _place_act_instant(at: datetime | None) -> None:
+        """Carry *at* as this run's ``/at``, or inherit the one in force.
+
+        The act's instant is placed by the act's outermost run and inherited
+        by every nested one, never minted below the act's edge (ADR-0176).
+        Called inside the lock and inside the managed-key snapshot, whose
+        restore removes the key again when the run ends.
+
+        Raises:
+            VultronConflictingActInstantError: *at* differs from the instant
+                already in force.
+        """
+        if at is None:
+            return
+        inherited = inherited_act_instant()
+        if inherited is None:
+            place_act_instant(at)
+            return
+        if at != inherited:
+            raise VultronConflictingActInstantError(
+                f"a nested BT run was handed the instant {at.isoformat()}"
+                f" inside an act whose instant is {inherited.isoformat()}"
+                " (ADR-0176)"
+            )
+
     def execute_with_setup(
         self,
         tree: py_trees.behaviour.Behaviour,
         actor_id: str,
         activity: Any = None,
         max_iterations: int = 100,
+        *,
+        at: datetime | None = None,
         **context_data: Any,
     ) -> BTExecutionResult:
         """
         Convenience method combining setup and execution.
+
+        **The act's instant (ADR-0176).**  An act's outermost run passes the
+        instant it read after taking the tree lock as *at*, and the run
+        carries it as ``/at`` for its nodes to read
+        (:func:`~vultron.core.behaviors.bridge.act_instant.read_act_instant`).
+        A nested run omits *at* and inherits the enclosing run's instant, as
+        it inherits ``/is_leader``, so every run of one act sees one instant.
+        Omitting it is never a request to read the clock: a run with no
+        instant to inherit carries none, and a node that reads one fails.
+        Passing an *at* that differs from the one already in force fails the
+        run with ``VultronConflictingActInstantError``, an internal error,
+        because only an act's entry point reads the clock.
 
         Checks the leadership guard before executing.  If the effective
         ``is_leader()`` returns ``False``, execution is skipped and a FAILURE
@@ -176,6 +223,8 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
             actor_id: ID of actor executing this tree
             activity: Optional ActivityStreams activity being processed
             max_iterations: Safety limit on tick count
+            at: The act's instant, from the act's outermost run only; a
+                nested run omits it and inherits ``/at``.
             **context_data: Additional context for blackboard
 
         Returns:
@@ -245,6 +294,10 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 "sync_port",
                 "is_leader",
                 "wire_render_port",
+                # The act's instant (ADR-0176).  Placed by the act's outermost
+                # run and inherited by its nested ones; restoring it here is
+                # what keeps one act's instant from reaching the next act.
+                ACT_INSTANT_KEY,
                 # Published by ResolveCreationTimeRevisionNode, read by
                 # InitializeCreationEmbargoNode and RelayCreationTimeRevisionNode
                 # (EP-04-011).  The writer ticks only on the creation arm, so a
@@ -416,6 +469,7 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # rather than letting the one call outside the net through
                 # (CONCERN-3019).
                 try:
+                    self._place_act_instant(at)
                     bt = self.setup_tree(
                         tree, actor_id, activity, **context_data
                     )

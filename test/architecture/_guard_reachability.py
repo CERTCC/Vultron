@@ -373,23 +373,15 @@ def none_defaulted_params(
     ``None`` as the index marks a keyword-only parameter, which no positional
     argument can reach.  A parameter without a ``None`` default is excluded:
     a caller cannot omit it, so it is always supplied.
+
+    The slot alignment itself is ``_corpus.defaults_of``, shared with
+    ``_corpus.defaulted_parameters`` rather than re-derived here (CS-22-001).
     """
-    arguments = fn.args
-    positional = arguments.posonlyargs + arguments.args
     found: dict[str, int | None] = {}
-    first_default = len(positional) - len(arguments.defaults)
-    for order, (argument, default) in enumerate(
-        zip(positional[first_default:], arguments.defaults, strict=True)
-    ):
-        if isinstance(default, ast.Constant) and default.value is None:
-            found[argument.arg] = first_default + order - offset
-    # ``kw_defaults`` carries ``None`` for a keyword-only parameter with no
-    # default at all, which is why the element type is optional.
-    for argument, kw_default in zip(
-        arguments.kwonlyargs, arguments.kw_defaults, strict=True
-    ):
-        if isinstance(kw_default, ast.Constant) and kw_default.value is None:
-            found[argument.arg] = None
+    for argument, default, index in _corpus.defaults_of(fn):
+        if not (isinstance(default, ast.Constant) and default.value is None):
+            continue
+        found[argument.arg] = None if index is None else index - offset
     return found
 
 

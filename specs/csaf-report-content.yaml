@@ -715,12 +715,13 @@ groups:
       upstream commits change neither the schema nor the profiles, so a filter on
       what the models and profiles depend on keeps the job from reporting them.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_a_scheduled_job_watches_the_csaf_draft`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a test of the job's comparison script feeds it two schema revisions
-      that differ only in a description and two that differ in a property, and checks
-      that only the second reports a change.
-    tracking_issue: '#6094'
+      `test/metadata/test_csaf_draft_watch.py::test_a_description_only_revision_reports_no_change`
+      and `test_a_revision_that_changes_a_property_reports_a_change` in the same
+      module feed the comparison script, `uv run csaf-draft-watch`
+      (`vultron/metadata/csaf/draft_watch/`), an upstream schema that differs
+      from the pinned local copy only in a description and one that differs in a
+      property, and check that only the second reports a change. The workflow is
+      `.github/workflows/csaf-draft-watch.yml`.
   - id: CSAF-05-006
     priority: MUST_NOT
     kind: process
@@ -731,14 +732,13 @@ groups:
       One open issue says that the pin is behind. Repeating it adds noise and no
       information.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_the_watch_job_keeps_one_open_issue`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a test of the job's issue step checks that an open issue with the
-      job's marker makes it exit without writing.
+      `test/ci/test_csaf_draft_watch_issue.py::test_an_open_issue_with_the_marker_makes_the_step_write_nothing`
+      runs the job's issue step, `.github/scripts/csaf-draft-watch-issue.sh`,
+      against a fake `gh` with an open issue carrying the `csaf-draft-watch`
+      label, and checks that it creates, edits and comments on nothing.
     relationships:
     - rel_type: extends
       spec_id: CSAF-05-005
-    tracking_issue: '#6094'
   - id: CSAF-05-007
     priority: MUST
     kind: process
@@ -749,11 +749,9 @@ groups:
       A change to a field that sets a case input needs a review of its mapping, and
       a change elsewhere needs only a regeneration.
     verification: >-
-      `test/architecture/test_csaf_report_content_planned.py::test_the_watch_issue_names_the_fields_affected`
-      holds a strict xfail probe until the work lands. The behavioral test that
-      replaces it: a test of the job's comparison script checks that a changed
-      `disclosure_date` property is listed as a read field.
+      `test/metadata/test_csaf_draft_watch.py::test_a_changed_disclosure_date_is_listed_as_a_read_field`
+      changes the `disclosure_date` property in an upstream schema and checks that
+      the comparison script lists it as a read field in the issue body.
     relationships:
     - rel_type: extends
       spec_id: CSAF-05-005
-    tracking_issue: '#6094'

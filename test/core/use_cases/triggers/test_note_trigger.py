@@ -33,6 +33,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.trigger_results import activity_of, note_of
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -220,7 +221,10 @@ class TestSvcAddNoteToCaseUseCase:
             in_reply_to=in_reply_to,
         )
         return SvcAddNoteToCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            clock=SystemClock(),
         ).execute()
 
     # ------------------------------------------------------------------
@@ -384,6 +388,7 @@ class TestSvcAddNoteToCaseUseCase:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
             ).execute()
 
     # ------------------------------------------------------------------
@@ -523,6 +528,7 @@ class TestSvcAddNoteToCaseUseCase:
             request,
             trigger_activity=TriggerActivityAdapter(manager_dl),
             sync_port=SyncActivityAdapter(manager_dl),
+            clock=SystemClock(),
         ).execute()
 
         assert activity_of(result)["id"] is not None
@@ -545,6 +551,7 @@ class TestSvcAddNoteToCaseUseCase:
             request,
             trigger_activity=TriggerActivityAdapter(manager_dl),
             sync_port=SyncActivityAdapter(manager_dl),
+            clock=SystemClock(),
         ).execute()
         return result, manager, manager_dl, case
 

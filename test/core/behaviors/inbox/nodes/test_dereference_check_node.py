@@ -21,6 +21,7 @@ import pytest
 from py_trees.ports import NoDataAvailable
 
 from test.support.signing import signed_body
+from vultron.adapters.driven.clock import SystemClock
 from vultron.core.behaviors.inbox import InboxOutcomeStatus, process_payload
 from vultron.core.behaviors.inbox.nodes import (
     KEY_DEREFERENCE,
@@ -155,7 +156,11 @@ def _record(state: ObjectFetchState) -> PendingObjectFetch:
 def _run(port: _Port | None) -> tuple[Any, _Dispatch]:
     dispatch = _Dispatch()
     outcome = process_payload(
-        {}, _Ingress(_proposal()), dispatch, dereference_port=port
+        {},
+        _Ingress(_proposal()),
+        dispatch,
+        dereference_port=port,
+        clock=SystemClock(),
     )
     return outcome, dispatch
 

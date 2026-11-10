@@ -223,8 +223,9 @@ A workflow that needs a typed issue calls
 `.github/scripts/ensure-issue-type.sh <repo> <issue> <type>` on both its create
 and update arms. The script resolves the type by name, applies it with
 `updateIssue`, leaves a typed issue alone, and fails the step when the type does
-not exist (CISEC-05-017 to CISEC-05-019). `notify-failure` and
-`demo-recordings.yml` use it; never copy its body into a workflow.
+not exist (CISEC-05-017 to CISEC-05-019). `notify-failure`,
+`demo-recordings.yml` and `csaf-draft-watch-issue.sh` use it; never copy its
+body into a workflow.
 
 ## A Script Runs On The Host's bash, Which May Be 3.2
 

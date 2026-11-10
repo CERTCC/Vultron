@@ -44,6 +44,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.received import delivered_body, intake_received
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -254,6 +255,7 @@ def _deliver(
             dl=dl, actor_id=_RECEIVER_ID, dispatcher=dispatcher
         ),
         received_outcome_port=outcome_port or FastAPIReceivedOutcomePort(dl),
+        clock=SystemClock(),
     )
 
 

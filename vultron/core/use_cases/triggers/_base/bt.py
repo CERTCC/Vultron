@@ -31,19 +31,20 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge.act_instant import open_act
 from vultron.core.behaviors.case.case_clock_decisions import (
     case_clock_decisions,
 )
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     create_clock_decision_gate,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.pending_assertion import (
     ASSERTED_ACTIVITY_KEY,
     record_pending_assertion,
 )
 from vultron.core.models.use_case_result import TriggerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.received_activity_loader import ReceivedActivityLoader
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -61,7 +62,10 @@ from vultron.errors import (
 class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
     """Abstract base for all BT-backed trigger use cases.
 
-    The :meth:`execute` template method orchestrates the common workflow:
+    The :meth:`execute` template method orchestrates the common workflow,
+    all of it one act (ADR-0176): it takes the tree lock, then reads the act
+    clock once into :attr:`_at`, and holds the lock until it returns, so the
+    checks before the tree judge against the same instant as the tree.
 
     1. Initialise transient state (``_captured``, ``_result_out``,
        ``_actor_id``).
@@ -96,17 +100,14 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         trigger_activity: TriggerActivityPort | None = None,
         wire_render_port: WireRenderPort | None = None,
         sync_port: SyncActivityPort | None = None,
+        *,
+        clock: ClockPort,
     ) -> None:
         self._dl = dl
         self._request = request
-        #: This act's instant, read once when the use case is built — before
-        #: anything decides anything, and whatever the run then decides.
-        #: Every clock decision this run takes judges against it, and so does
-        #: the pending-assertion check in :meth:`_suppressed_duplicate`,
-        #: which therefore reads no clock of its own: the check's verdict
-        #: cannot move the clock, and thread interleaving cannot move the
-        #: verdict (#5591).
-        self._at: datetime = now_utc()
+        # The act clock, supplied by the composition root and read once, by
+        # execute(), after it takes the tree lock (ADR-0176).
+        self._clock = clock
         self._trigger_activity = trigger_activity
         # A tree that captures a core object in a ledger snapshot renders it
         # through this port; core cannot produce the AS2 shape itself
@@ -135,7 +136,29 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
             )
         return self._trigger_activity
 
+    #: This act's instant, read once by :meth:`execute` after it takes the
+    #: tree lock — before anything decides anything, and whatever the run
+    #: then decides.  Every clock decision this run takes judges against it,
+    #: and so does the pending-assertion check in
+    #: :meth:`_suppressed_duplicate`, which therefore reads no clock of its
+    #: own: the check's verdict cannot move the clock, and thread
+    #: interleaving cannot move the verdict (#5591, ADR-0176).  Unset before
+    #: :meth:`execute`.
+    _at: datetime
+
     def execute(self) -> TriggerResultT:
+        """Run the trigger as one act: lock, read the clock once, then run.
+
+        The tree lock covers the whole invocation, so :meth:`_prepare` and
+        :meth:`_suppressed_duplicate` run inside it against the act's
+        instant; the lock is re-entrant, so the bridge taking it again is
+        safe (ADR-0176).
+        """
+        with open_act(self._clock) as at:
+            self._at = at
+            return self._execute_act()
+
+    def _execute_act(self) -> TriggerResultT:
         """Template method: prepare → gate → run BT → handle result."""
         self._captured: dict = {}
         self._result_out: dict[str, object] = {}
@@ -163,6 +186,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         result = bridge.execute_with_setup(
             tree,
             actor_id=self._actor_id,
+            at=self._at,
             **self._extra_execute_kwargs(),
         )
 

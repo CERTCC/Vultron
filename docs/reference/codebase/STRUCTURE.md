@@ -21,7 +21,7 @@ stakeholder_type: [project-contributor]
 | `vultron/enums/` | Shared CVD-domain enums (roles, object types) imported by config and core | `vultron/enums/roles.py`, `vultron/enums/object_types.py` |
 | `vultron/errors.py`, `vultron/primitives.py`, `vultron/logging_setup.py`, `vultron/subclasses.py` | Shared exception hierarchy, shared type aliases (`NonEmptyString`), logging configuration, the one subclass-tree walk (`all_subclasses`) | `vultron/errors.py`, `vultron/primitives.py` |
 | `vultron/demo/` | Demo CLI, scenario registry, multi-actor scenarios (`scenario/`), single-exchange demos (`exchange/`), shared helpers (`helpers/`), stochastic fuzzers (`fuzzer/`), and the in-process recorder of each scenario's canonical case ledger for the UI's Log Replay (`recordings/`, `in_process.py`) | `vultron/demo/AGENTS.md`, `vultron/demo/cli/`, `vultron/demo/recordings/__init__.py` |
-| `vultron/metadata/` | Project tooling: spec registry, history CLI, notes and ADR metadata, docs-site validators, demo-scenario sync, JSON-LD context generation (`wire_context/`), CSAF model regeneration and corpus check (`csaf/`), planning helpers (`planning/`), message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/AGENTS.md`, `vultron/metadata/file_loading.py` |
+| `vultron/metadata/` | Project tooling: spec registry, history CLI, notes and ADR metadata, docs-site validators, demo-scenario sync, JSON-LD context generation (`wire_context/`), CSAF model regeneration, corpus check and draft watch (`csaf/`), planning helpers (`planning/`), message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/AGENTS.md`, `vultron/metadata/file_loading.py` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary and ratchet tests | `test/architecture/test_core_no_adapter_imports.py` |
 | `specs/` | Structured YAML specification files | `specs/README.md` |
@@ -154,6 +154,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 | Module | Purpose |
 |--------|---------|
 | `vultron/trigger_registry/` | `TRIGGER_REGISTRY`, the verb-keyed table that every trigger route, the dispatcher and the ratchets read (ADR-0110) |
+| `vultron/core/ports/clock.py` + `vultron/core/behaviors/bridge/act_instant.py` + `vultron/adapters/driven/clock.py` | The act and bookkeeping clock ports, `open_act()` and the `/at` tree-run key, and the system clocks behind the ports (ADR-0176) |
 | `vultron/core/ports/trigger_dispatcher.py` + `vultron/core/trigger_dispatcher.py` | One-method `TriggerDispatcher` port and its `RegistryTriggerDispatcher` implementation; replaced the deleted `TriggerService` facade |
 | `vultron/adapters/driving/fastapi/trigger_runner.py` | `run_trigger()`, the single call every trigger route makes; it schedules a drain of the emitting actor's outbox after the use case returns |
 | `vultron/core/use_cases/triggers/request_bodies/` | Trigger request-body models; the core `*TriggerRequest` models derive from them and add `actor_id` |

@@ -12,8 +12,9 @@
 # name fails loudly rather than leaving the issue silently untyped
 # (CISEC-05-019).
 #
-# Used by .github/actions/notify-failure (Bug) and
-# .github/workflows/demo-recordings.yml (Task). Needs GH_TOKEN.
+# Used by .github/actions/notify-failure (Bug),
+# .github/workflows/demo-recordings.yml (Task) and
+# .github/scripts/csaf-draft-watch-issue.sh (Task). Needs GH_TOKEN.
 
 set -euo pipefail
 

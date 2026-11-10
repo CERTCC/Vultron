@@ -30,6 +30,7 @@ case alone, because the outcome stage belongs to the inbox.
 import pytest
 
 from test.support.refusal_notice import assert_refusal_notice
+from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
@@ -74,6 +75,7 @@ def test_the_notice_embeds_the_body_and_the_stub_replaces_it():
             dl=store, actor_id=MANAGER, dispatcher=make_dispatcher()
         ),
         received_outcome_port=FastAPIReceivedOutcomePort(store),
+        clock=SystemClock(),
     )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED

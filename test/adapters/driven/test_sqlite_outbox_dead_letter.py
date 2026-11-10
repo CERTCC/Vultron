@@ -33,9 +33,16 @@ assumption that ``clone_for_actor`` shared an engine; it does not, because a
 clone is a *different actor's store*.
 """
 
+from datetime import UTC, datetime
+
 import pytest
+from pydantic import ValidationError
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.outbox_dead_letter import (
+    InboxDeadLetterEntry,
+    OutboxDeadLetterEntry,
+)
 
 _ALICE = "https://example.org/actors/alice"
 _BOB = "https://example.org/actors/bob"
@@ -447,3 +454,64 @@ def test_inbox_dead_letter_survives_store_restart(tmp_db_url):
     )
     assert entries[0].activity_id == _ACT_ID
     assert entries[0].total_attempts == 12
+
+
+# ---------------------------------------------------------------------------
+# recorded_at comes from the store's bookkeeping clock (ADR-0176)
+# ---------------------------------------------------------------------------
+
+
+class _FixedBookkeepingClock:
+    def __init__(self, at: datetime) -> None:
+        self.at = at
+        self.reads = 0
+
+    def bookkeeping_now(self) -> datetime:
+        self.reads += 1
+        return self.at
+
+
+_BOOKKEPT = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+
+
+def test_dead_letters_stamp_from_the_bookkeeping_clock():
+    clock = _FixedBookkeepingClock(_BOOKKEPT)
+    store = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=_ALICE, bookkeeping_clock=clock
+    )
+    store.dead_letter_append(
+        _ACT_ID, reason="max", total_attempts=1, failed_recipients=[_BOB]
+    )
+    store.inbox_dead_letter_append(_ACT_ID, reason="max", total_attempts=1)
+
+    assert [e.recorded_at for e in store.dead_letter_list()] == [_BOOKKEPT]
+    assert [e.recorded_at for e in store.inbox_dead_letter_list()] == [
+        _BOOKKEPT
+    ]
+    assert clock.reads == 2
+
+
+def test_a_cloned_store_keeps_the_bookkeeping_clock():
+    clock = _FixedBookkeepingClock(_BOOKKEPT)
+    store = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=_ALICE, bookkeeping_clock=clock
+    )
+    clone = store.clone_for_actor(_BOB)
+    clone.dead_letter_append(
+        _ACT_ID, reason="max", total_attempts=1, failed_recipients=[_ALICE]
+    )
+
+    assert [e.recorded_at for e in clone.dead_letter_list()] == [_BOOKKEPT]
+
+
+@pytest.mark.parametrize(
+    "entry_type", [OutboxDeadLetterEntry, InboxDeadLetterEntry]
+)
+def test_a_dead_letter_entry_needs_its_recorded_at(entry_type):
+    with pytest.raises(ValidationError, match="recorded_at"):
+        entry_type(
+            activity_id=_ACT_ID,
+            actor_id=_ALICE,
+            reason="max",
+            total_attempts=1,
+        )
