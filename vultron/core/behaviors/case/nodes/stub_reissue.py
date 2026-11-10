@@ -45,7 +45,6 @@ from vultron.core.behaviors.embargo.decided_entries import (
 from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
@@ -110,7 +109,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
             return failure  # Regime 1 (ADR-0087)
         dl = cast(CaseOutboxPersistence, self.datalayer)
         stale_stubs = outstanding_stale_stubs(
-            dl, case, self.actor_id, now_utc()
+            dl, case, self.actor_id, self._require_act_instant()
         )
         if not stale_stubs:
             return Status.SUCCESS

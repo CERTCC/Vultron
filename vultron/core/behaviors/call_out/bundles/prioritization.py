@@ -65,6 +65,12 @@ class PrioritizationCallOutBundle(CallOutBundle):
     gather_info_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
+    """GatherPrioritizationInfo (Retriever): p=0.90 → AlwaysSucceed.
+
+    Store-held answer (BT-18-039): **cannot**.  It collects outside context,
+    such as scores and threat data, that the case file does not record, so
+    no read-first guard precedes this Retriever.
+    """
 
 
 PRIORITIZATION_DETERMINISTIC = PrioritizationCallOutBundle()

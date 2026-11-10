@@ -428,7 +428,7 @@ class TestAskCaseManagerToTerminateOnce:
 
     def test_pending_guard_without_an_actor_is_a_wiring_fault(self) -> None:
         """A FAILURE here would read as "not pending" and send the ask."""
-        node = TeardownAskPendingNode(case_id=CASE_ID, at=now_utc())
+        node = TeardownAskPendingNode(case_id=CASE_ID)
         node.actor_id = None
         node.embargo_id = _EMBARGO_ID
 

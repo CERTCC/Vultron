@@ -110,7 +110,12 @@ def _persist_prior_entry(
     datalayer.save(entry)
 
 
-def _run(bridge, snapshot: dict[str, object], tail_index: int = -1):
+def _run(
+    bridge,
+    snapshot: dict[str, object],
+    tail_index: int = -1,
+    at: datetime | None = None,
+):
     return run_tree(
         bridge,
         tree=CreateLogEntryNode(
@@ -123,6 +128,7 @@ def _run(bridge, snapshot: dict[str, object], tail_index: int = -1):
         actor_id=OWNER_ACTOR_ID,
         tail_hash=_ZERO_HASH,
         tail_index=tail_index,
+        at=at,
     )
 
 
@@ -357,6 +363,38 @@ def test_create_log_entry_node_rejects_far_future_payload_published(
 
     assert result.status == Status.FAILURE
     assert "CLP-14-007" in result.feedback_message
+
+
+@pytest.mark.spec("CLP-14-007")
+@pytest.mark.spec("CS-13-002")
+@pytest.mark.parametrize(
+    ("act_offset", "refused"),
+    [
+        pytest.param(timedelta(0), False, id="at-the-claim"),
+        pytest.param(timedelta(minutes=-10), True, id="before-the-claim"),
+    ],
+)
+def test_create_log_entry_node_judges_the_future_ceiling_at_the_acts_instant(
+    bridge, timed_case, act_offset: timedelta, refused: bool
+):
+    """The ceiling is measured from the act's instant, not a clock read.
+
+    The claim is in the past by the wall clock either way, so only the act's
+    instant can make the earlier act refuse it (ADR-0176).
+    """
+    published = CASE_CREATED + timedelta(minutes=30)
+
+    result = _run(
+        bridge,
+        _note_snapshot(PARTICIPANT_ACTOR_ID, published),
+        at=published + act_offset,
+    )
+
+    if refused:
+        assert result.status == Status.FAILURE
+        assert "CLP-14-007" in result.feedback_message
+    else:
+        assert result.status == Status.SUCCESS, result.feedback_message
 
 
 @pytest.mark.spec("CLP-14-009")

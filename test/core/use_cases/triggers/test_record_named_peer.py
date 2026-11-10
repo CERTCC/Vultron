@@ -76,6 +76,42 @@ def test_real_backend_has_its_ports_when_record_named_peer_ticks_it(dl):
     assert isinstance(dl.read(PEER), CoreActor)
 
 
+def _counting_backend(calls: list[str]) -> type[CallOutBackend]:
+    """A backend class that counts the times the seam asks it."""
+
+    class _CountingBackend(CallOutBackend):
+        def answer(self) -> CallOutAnswer:
+            calls.append(self.name)
+            return CallOutAnswer.yes()
+
+    return _CountingBackend
+
+
+@pytest.mark.spec("BT-18-039")
+def test_known_peer_is_not_resolved_again(dl):
+    held = CoreActor(id_=PEER, name="Held Peer", published=None, updated=None)
+    dl.create(held)
+    calls: list[str] = []
+
+    _record(dl, _counting_backend(calls))
+
+    assert calls == []
+    stored = dl.read(PEER)
+    assert isinstance(stored, CoreActor)
+    assert stored.name == "Held Peer"
+
+
+@pytest.mark.spec("BT-18-039")
+def test_unknown_peer_is_resolved_before_it_is_recorded(dl):
+    assert dl.read(PEER) is None
+    calls: list[str] = []
+
+    _record(dl, _counting_backend(calls))
+
+    assert calls == ["ResolveActorDetails"]
+    assert isinstance(dl.read(PEER), CoreActor)
+
+
 def test_raising_backend_degrades_to_minimal_peer(dl, caplog):
     class _Broken(CallOutBackend):
         def answer(self) -> CallOutAnswer:

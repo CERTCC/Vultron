@@ -65,6 +65,13 @@ class DeploymentMonitoringBundle(CallOutBundle):
     no_new_deployment_info_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
+    """NoNewDeploymentInfo (Retriever): p=0.75 → AlwaysSucceed.
+
+    Store-held answer (BT-18-039): **cannot**.  Whether new information
+    reached the deployer's own systems since the last evaluation is not
+    recorded in the case file or the actor's store, so no read-first guard
+    precedes this Retriever.
+    """
 
 
 __all__ = [

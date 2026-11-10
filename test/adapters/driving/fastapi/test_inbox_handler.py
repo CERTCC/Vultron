@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from test.support.act_runner import run_dispatch
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
     assert_held_only_as_received,
@@ -137,7 +138,7 @@ def test_dispatch_uses_explicit_dispatcher(monkeypatch):
     )
     mock_dl = MagicMock()
 
-    ih.dispatch(fake_event, mock_dl, dispatcher=explicit_dispatcher)
+    run_dispatch(ih, fake_event, mock_dl, dispatcher=explicit_dispatcher)
 
     explicit_dispatcher.dispatch.assert_called_once_with(fake_event, mock_dl)
 
@@ -314,7 +315,7 @@ def test_make_dispatcher_does_not_mutate_global(monkeypatch):
     )
     mock_dl = MagicMock()
     with pytest.raises(RuntimeError, match="not initialised"):
-        ih.dispatch(fake_event, mock_dl)
+        run_dispatch(ih, fake_event, mock_dl)
 
 
 def test_init_dispatcher_sets_dispatcher(monkeypatch):
@@ -922,7 +923,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
         )
     )
 
-    dispatcher.dispatch(event, dl)
+    run_dispatch(dispatcher, event, dl)
 
     # The report is persisted; the Offer is held as intake archived it,
     # never under the id its sender chose (DL-06-006).

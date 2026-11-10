@@ -187,6 +187,16 @@ class VultronReplicationState(CoreRecord):
         serialization_alias="lastReseedPosition",
     )
 
+    @classmethod
+    def build_id(cls, case_id: str, peer_id: str) -> str:
+        """The record id for *peer_id*'s replication state in *case_id*.
+
+        A lookup derives the key here rather than building a record, whose
+        ``updated_at`` default would read the clock (ADR-0176).
+        """
+        slug = urllib.parse.quote(peer_id, safe="")
+        return f"{case_id}/replication/{slug}"
+
     @model_validator(mode="before")
     @classmethod
     def _set_id(cls, data: Any) -> Any:
@@ -196,6 +206,5 @@ class VultronReplicationState(CoreRecord):
         case_id = data.get("case_id")
         peer_id = data.get("peer_id")
         if case_id is not None and peer_id is not None:
-            slug = urllib.parse.quote(peer_id, safe="")
-            data = with_record_id(data, f"{case_id}/replication/{slug}")
+            data = with_record_id(data, cls.build_id(case_id, peer_id))
         return data

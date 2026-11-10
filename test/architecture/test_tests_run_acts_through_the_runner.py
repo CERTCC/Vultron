@@ -16,15 +16,17 @@ In production every tree run belongs to an act, which carries the act's
 instant (ADR-0176).  A test that calls ``.execute()`` on a use case or
 ``BTBridge.execute_with_setup`` directly skips the act, so a node that reads
 the instant finds none.  Tests go through ``test/support/act_runner.py``
-(``run_in_act``, ``run_tree``) instead, and this test fails on a direct call
-anywhere else under ``test/``.
+(``run_in_act``, ``run_tree``, ``run_dispatch``) instead, and this test fails
+on a direct call anywhere else under ``test/``.
 
-A direct call is a call of ``.execute()`` with no arguments, or of
-``.execute_with_setup(...)``, on anything but ``super()``.  A call inside a
+A direct call is a call of ``.execute()`` with no arguments, of
+``.execute_with_setup(...)``, or of ``.dispatch(event, dl, ...)``, on
+anything but ``super()``.  A call inside a
 method of that name is a test double's own body and is not counted.
 
 :data:`DIRECT_RUN_EXEMPTIONS` is a pinned exemption set (ARCH-18-001): the
-files that test the bridge's own act handling, which must call it bare.
+files that test the bridge's own act handling, or a run with no act, which
+must call it bare.
 
 Spec: CS-13-002 (time enters at the act's edge), ARCH-18-001.
 """
@@ -39,15 +41,18 @@ from test.architecture import _corpus
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _RUNNER = "test/support/act_runner.py"
-_DIRECT_NAMES = ("execute", "execute_with_setup")
+_DIRECT_NAMES = ("execute", "execute_with_setup", "dispatch")
 
 # Pinned exemption set: files that test how the bridge carries an act's
-# instant, so they call it without the runner on purpose.
+# instant, what a run with no act does, or the dispatcher's routing on a
+# mock, so they call it without the runner on purpose.
 # permanent: ADR-0176 (the runner is built on the behavior these files test)
 DIRECT_RUN_EXEMPTIONS: frozenset[str] = frozenset(
     {
         "test/core/behaviors/test_act_instant.py",
         "test/core/behaviors/test_bridge.py",
+        # Unit tests of the dispatcher's routing, on a mock store.
+        "test/test_behavior_dispatcher.py",
     }
 )
 
@@ -64,6 +69,9 @@ def _is_direct_run(node: ast.Call) -> bool:
         return False
     if func.attr == "execute":
         return not node.args and not node.keywords
+    if func.attr == "dispatch":
+        # A received dispatch takes the event and the store.
+        return len(node.args) + len(node.keywords) >= 2
     return True
 
 
@@ -108,7 +116,8 @@ def test_tests_run_use_cases_and_trees_through_the_act_runner() -> None:
     stale = DIRECT_RUN_EXEMPTIONS - found.keys()
     assert not new, (
         "A test runs a use case or a tree outside an act (ADR-0176).  Use"
-        " run_in_act(use_case) or run_tree(bridge, tree, ...) from"
+        " run_in_act(use_case), run_tree(bridge, tree, ...) or"
+        " run_dispatch(dispatcher, event, dl) from"
         " test/support/act_runner.py:\n"
         + "\n".join(
             f"  {p}:{line}" for p, ls in sorted(new.items()) for line in ls
@@ -125,8 +134,10 @@ def test_x(uc, bridge, tree):
     uc.execute()
     Thing(a, b).execute()
     bridge.execute_with_setup(tree, actor_id="a")
+    dispatcher.dispatch(event, dl)
     super().execute()
     cursor.execute("select 1")
+    queue.dispatch(event)
 
 
 class Double:
@@ -139,4 +150,4 @@ class Double:
 def test_the_finder_names_each_direct_run_and_nothing_else() -> None:
     lines = list(direct_runs_in(_corpus.parse_inline(_EVERY_SHAPE)))
 
-    assert sorted(lines) == [3, 4, 5]
+    assert sorted(lines) == [3, 4, 5, 6]

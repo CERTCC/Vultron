@@ -13,12 +13,15 @@
 """An act reads the clock once, and its tree runs carry that instant (ADR-0176)."""
 
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.use_cases.received.conftest import make_embargo_case_with_actor
 from test.support.act_clock import CountingClock, tree_lock_held
+from test.support.embargo_register import activate
 from vultron.adapters.driven.clock import SystemBookkeepingClock, SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -28,16 +31,24 @@ from vultron.core.behaviors.bridge.act_instant import (
     open_act,
     read_act_instant,
 )
+from vultron.core.behaviors.case.case_clock_decisions import (
+    case_clock_decisions,
+)
+from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+    create_clock_decision_gate,
+)
 from vultron.core.behaviors.helpers.ports_base import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
 from vultron.core.models._helpers import SteppingClock, clock as helpers_clock
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.clock import BookkeepingClockPort, ClockPort
 from vultron.errors import (
     VultronMissingActInstantError,
     VultronWiringError,
 )
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR = "https://example.org/actors/act-instant"
 _AT = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
@@ -310,3 +321,34 @@ class TestPortsNodeReadsTheInstant:
             result.feedback_message
         )
         assert seen == []
+
+
+_CASE = "https://example.org/cases/act-instant-no-act"
+
+
+@pytest.mark.spec("CS-13-002")
+def test_a_clock_decision_outside_an_act_is_an_internal_error() -> None:
+    """With no instant in the run, a deciding node raises; it never reads
+    the clock instead (ARCH-10-001)."""
+    store, _, case, embargo = make_embargo_case_with_actor(
+        _CASE, _ACTOR, case_manager_actor_id=_ACTOR
+    )
+    store.save(
+        as_EmbargoEvent(
+            id_=embargo.id_, context=_CASE, end_time=_AT + timedelta(days=30)
+        )
+    )
+    stored = cast(VulnerabilityCase, store.read(case.id_))
+    activate(stored, embargo.id_)
+    store.save(stored)
+    gate = create_clock_decision_gate(_CASE, case_clock_decisions(_CASE))
+    tree = py_trees.composites.Sequence(
+        name="NoAct", memory=False, children=[gate]
+    )
+
+    result = BTBridge(datalayer=store).execute_with_setup(
+        tree, actor_id=_ACTOR
+    )
+
+    assert result.internal_error
+    assert "act instant" in result.feedback_message
