@@ -194,6 +194,11 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
     request queued once more, which the receiver deduplicates (ID-04-005),
     never a new one.
 
+    The ``Reject``'s ``inReplyTo`` names the ``Announce(VulnerabilityCase)``
+    that carried the copy (RF-08-004).  That id does not key the
+    ``Reject``'s, so a stored body sent again for a later copy still names
+    the first copy: a true cause, and the replay it asks for is the same.
+
     Raises:
         VultronWiringError: A ``Reject`` is due and no ``sync_port`` was
             injected.
@@ -277,6 +282,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
                 copy_tail_hash=position.entry_hash,
                 actor_id=self.actor_id,
                 to=to,
+                in_reply_to=self._request.activity_id,
             )
             return
         self._sync_port.send_reject_log_entry(
@@ -284,6 +290,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
             tail_hash=chain_tail.entry_hash,
             actor_id=self.actor_id,
             to=to,
+            in_reply_to=self._request.activity_id,
         )
 
 

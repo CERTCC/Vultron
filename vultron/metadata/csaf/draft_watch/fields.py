@@ -37,7 +37,7 @@ class ReadField:
 READ_FIELDS: tuple[ReadField, ...] = (
     ReadField("$schema", ("CSAF-01-003",)),
     ReadField("document.csaf_version", ("CSAF-01-003",)),
-    ReadField("document.category", ("CSAF-04-009",)),
+    ReadField("document.category", ("CSAF-02-001", "CSAF-04-009")),
     ReadField("document.title", ("CSAF-03-007",)),
     ReadField("document.notes[].category", ("CSAF-03-007",)),
     ReadField("document.notes[].text", ("CSAF-03-007",)),

@@ -381,6 +381,23 @@ class BTBridge(_BridgeSetup, _BridgeExecution):
                 # possibly another actor's, would address a genesis Announce
                 # or a replay to the wrong actor (BT-09, BTND-03-009).
                 "case_actor_id",
+                # The Reporter's proposed embargo terms, read by
+                # InitializeCreationEmbargoNode and
+                # ResolveCreationTimeRevisionNode (EP-04-003).  A use case
+                # passes them as ``context_data`` when the Offer carries a
+                # ``proposedEmbargo``, but ResolveReportCaseInputsNode
+                # publishes them as output ports when a CSAF disclosure date
+                # is the proposal instead (CSAF-03-001).  Without these
+                # entries that CSAF value outlives its execution, and a later
+                # proposal that states no terms creates its case under
+                # another report's embargo (BT-09).
+                "sender_proposed_embargo_duration",
+                "sender_proposed_embargo",
+                # Published by ResolveReportCaseInputsNode, read by
+                # CreateCaseFromProposalNode and
+                # StoreCaseInputClaimsRecordsNode on the new-case arm: one
+                # proposal's inputs must never fill another's case.
+                "report_case_inputs",
                 # --- Output-port keys audited and deliberately NOT scoped ---
                 #
                 # Each key below has more than one writer, but no reader can

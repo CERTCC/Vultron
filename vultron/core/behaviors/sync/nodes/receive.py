@@ -374,8 +374,16 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
             raise VultronError(
                 f"{self.name}: activity.actor_id missing for rejection target"
             )
+        announce_id = getattr(self.activity, "activity_id", None)
+        if not announce_id:
+            raise VultronError(
+                f"{self.name}: activity.activity_id missing for the"
+                " rejection's inReplyTo (RF-08-004)"
+            )
 
-        self._reject(entry, self._sync_port, self.actor_id, sender_id)
+        self._reject(
+            entry, self._sync_port, self.actor_id, sender_id, announce_id
+        )
         return Status.FAILURE
 
     def _reject(
@@ -384,8 +392,13 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
         sync_port: SyncActivityPort,
         actor_id: str,
         sender_id: str,
+        announce_id: str,
     ) -> None:
-        """Queue the ``Reject(CaseLedgerEntry)`` of *entry* to *sender_id*."""
+        """Queue the ``Reject(CaseLedgerEntry)`` of *entry* to *sender_id*.
+
+        The Reject names *announce_id*, the ``Announce(CaseLedgerEntry)``
+        that carried *entry*, in ``inReplyTo`` (RF-08-004).
+        """
         self.logger.warning(
             "%s: log entry '%s' prev_log_hash %.16s… does not match local tail "
             "%.16s…; sending Reject(CaseLedgerEntry)",
@@ -399,6 +412,7 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
             tail_hash=self.tail_hash,
             actor_id=actor_id,
             to=[sender_id],
+            in_reply_to=announce_id,
         )
 
 

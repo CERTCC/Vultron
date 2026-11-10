@@ -38,6 +38,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.case_proposal import (
     CreateCaseProposalReceivedEvent,
 )
@@ -47,6 +48,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.services.report_case_inputs import StatedReportFields
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     find_node,
@@ -67,6 +69,37 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
+
+
+def _stated_report_fields(
+    request: CreateCaseProposalReceivedEvent,
+    inline_report: VulnerabilityReport | None,
+    sender_terms: dict[str, Any],
+) -> StatedReportFields:
+    """What the carried Offer and its report state, which a CSAF value never beats.
+
+    The name and summary are the carried Offer's report's (CP-01-008), else
+    the proposal's own report's, which is the same report: a case starts
+    with its report's name and summary (CSAF-03-006).  The proposed
+    embargo end is that of the Offer's ``proposedEmbargo`` only when it is
+    still terms for this report (*sender_terms*, from
+    :func:`sender_embargo_proposal_inputs`): a proposal already run out, or
+    about another subject, is read as no proposal, so it neither shapes the
+    case nor sets a CSAF disclosure date aside (CSAF-02-003, CSAF-03-001).
+    """
+    name = request.offered_report_name
+    summary = request.offered_report_summary
+    if inline_report is not None:
+        name = name or inline_report.name
+        summary = summary or inline_report.summary
+    proposal = sender_terms.get("sender_proposed_embargo")
+    return StatedReportFields(
+        name=name,
+        summary=summary,
+        proposed_embargo_end=(
+            proposal.end_time if isinstance(proposal, EmbargoEvent) else None
+        ),
+    )
 
 
 class CreateCaseProposalReceivedUseCase:
@@ -217,6 +250,13 @@ class CreateCaseProposalReceivedUseCase:
                 proposal_dict = rendered
 
         inline_report = self._core_inline_report(activity_obj, proposal_id)
+        # A proposal with no id is refused in-tree, so its terms are never
+        # read (CLP-10-018).
+        sender_terms = (
+            sender_embargo_proposal_inputs(request)
+            if proposal_id is not None
+            else {}
+        )
 
         tree = create_case_proposal_received_tree(
             report_id=report_id,
@@ -228,6 +268,11 @@ class CreateCaseProposalReceivedUseCase:
             call_out=self._call_out,
             proposer_case_roles=request.proposer_case_roles,
             sender_rule=self.sender_entitlement,
+            claims_readings=request.claims_readings,
+            stated_report_fields=_stated_report_fields(
+                request, inline_report, sender_terms
+            ),
+            activity_id=request.activity_id,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -241,13 +286,7 @@ class CreateCaseProposalReceivedUseCase:
             # The proposer's inline profile is the only source of the
             # CASE_OWNER's actor default (CP-01-010).
             owner_profile=request.proposer_profile,
-            # A proposal with no id is refused in-tree, so its terms are
-            # never read (CLP-10-018).
-            **(
-                sender_embargo_proposal_inputs(request)
-                if proposal_id is not None
-                else {}
-            ),
+            **sender_terms,
         )
         verdict = verdict_from_bt(
             tree, result, label="CreateCaseProposalReceivedBT"

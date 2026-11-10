@@ -433,11 +433,6 @@ KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
         "now_utc",
     ),
     (
-        "vultron/core/use_cases/received/_sender_embargo_proposal.py",
-        "sender_embargo_proposal_inputs",
-        "now_utc",
-    ),
-    (
         "vultron/core/use_cases/received/actor/ownership.py",
         "AcceptCaseOwnershipTransferReceivedUseCase.execute",
         "now_utc",

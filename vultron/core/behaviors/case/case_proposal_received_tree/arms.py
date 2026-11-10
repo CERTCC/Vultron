@@ -51,6 +51,10 @@ from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
 from vultron.core.behaviors.case.nodes.proposal_announcement import (
     CheckCaseAlreadyAnnouncedNode,
 )
+from vultron.core.behaviors.case.nodes.proposal_case_inputs import (
+    ResolveReportCaseInputsNode,
+    StoreCaseInputClaimsRecordsNode,
+)
 from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
     CreateCaseFromProposalNode,
     LoadExistingCaseNode,
@@ -74,6 +78,8 @@ from vultron.core.behaviors.case.nodes.proposal_reporter import (
     AddReporterParticipantNode,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_claims import ClaimsReading
+from vultron.core.services.report_case_inputs import StatedReportFields
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
@@ -104,8 +110,40 @@ def create_case_from_proposal_act(
     proposer_case_roles: Sequence[CVDRole],
     offer_id: str | None,
     offer_actor_id: str | None,
+    claims_readings: Sequence[ClaimsReading] = (),
+    stated_report_fields: StatedReportFields | None = None,
+    activity_id: str | None = None,
 ) -> ActTransaction:
-    """Build ``CreateCaseFromProposalAct``, the accept arm, as one act (ADR-0146)."""
+    """Build ``CreateCaseFromProposalAct``, the accept arm, as one act (ADR-0146).
+
+    *claims_readings* and *stated_report_fields* are what the carried Offer's
+    report states and what its CSAF documents claim; only the new-case arm
+    reads them, so a proposal that resolves to an existing case changes
+    nothing from the document (CSAF-02-001, CSAF-02-002, EP-04-029).
+    """
+    # The new case starts from its report's inputs, filled from the CSAF
+    # document the carried Offer's report holds (CSAF-03); what became of
+    # each claimed value is recorded with the case (CSAF-04-004).
+    new_case = py_trees.composites.Sequence(
+        name="CreateCaseFromReportSequence",
+        memory=False,
+        children=[
+            ResolveReportCaseInputsNode(
+                report_id=report_id,
+                proposal_id=proposal_id,
+                readings=claims_readings,
+                stated=stated_report_fields or StatedReportFields(),
+            ),
+            CreateCaseFromProposalNode(
+                report_id=report_id, owner_id=proposer_uri
+            ),
+            StoreCaseInputClaimsRecordsNode(
+                report_id=report_id,
+                activity_id=activity_id or proposal_id,
+                readings=claims_readings,
+            ),
+        ],
+    )
     # Sub-Selector: reuse existing case (duplicate) OR create new (normal path)
     case_resolution = py_trees.composites.Selector(
         name="ResolveCaseIdSelector",
@@ -116,9 +154,7 @@ def create_case_from_proposal_act(
                 owner_id=proposer_uri,
                 proposal_id=proposal_id,
             ),
-            CreateCaseFromProposalNode(
-                report_id=report_id, owner_id=proposer_uri
-            ),
+            new_case,
         ],
     )
 

@@ -6,6 +6,7 @@
   "type": "Accept",
   "id": "urn:uuid:b8eeb483-9925-4114-8c88-db3125f739b8",
   "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
+  "inReplyTo": "urn:uuid:62b182f0-4c16-4bc7-bb12-3d0a9c1140e0",
   "content": "We're accepting your offer to transfer ownership of case VendorCo Case #20260601 to us.",
   "actor": "https://vultron.example/organizations/coordinator",
   "object": {

@@ -19,6 +19,7 @@ from typing import ClassVar
 from pydantic import Field
 
 from vultron.primitives import NonEmptyString
+from vultron.wire.as2.vocab.activities.base import RepliesToObject
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
@@ -87,7 +88,7 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
     )
 
 
-class _AcceptCaseParticipantRoleActivity(as_Accept):
+class _AcceptCaseParticipantRoleActivity(RepliesToObject, as_Accept):
     """Target actor accepts the canonical role-delegation offer (ADR-0039).
 
     - object_: the ``_OfferCaseParticipantRoleActivity`` being accepted
@@ -99,7 +100,7 @@ class _AcceptCaseParticipantRoleActivity(as_Accept):
     )
 
 
-class _RejectCaseParticipantRoleActivity(as_Reject):
+class _RejectCaseParticipantRoleActivity(RepliesToObject, as_Reject):
     """Target actor rejects the canonical role-delegation offer (ADR-0039).
 
     - object_: the ``_OfferCaseParticipantRoleActivity`` being rejected

@@ -117,9 +117,19 @@ def test_a_numbered_activity_still_names_its_cases() -> None:
 def test_the_ledger_requests_take_no_number() -> None:
     read = read_ledger_position_activity(_CASE, _TAIL, actor=_ACTOR)
     reject = stamp_ledger_position(
-        reject_log_entry_activity(_entry(), actor=_ACTOR), _TAIL
+        reject_log_entry_activity(
+            _entry(),
+            actor=_ACTOR,
+            in_reply_to="https://example.org/activities/prompting-announce",
+        ),
+        _TAIL,
     )
-    genesis = genesis_replay_reject_activity(_CASE, _EMPTY, actor=_ACTOR)
+    genesis = genesis_replay_reject_activity(
+        _CASE,
+        _EMPTY,
+        actor=_ACTOR,
+        in_reply_to="https://example.org/activities/prompting-announce",
+    )
 
     for request in (read, reject, genesis):
         assert is_ledger_request(request)

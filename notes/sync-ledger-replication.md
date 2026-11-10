@@ -10,10 +10,12 @@ description: >
   independence (SYNC-19), divergence recovery,
   the sender's ledger position on every case activity, replay rate limiting, the
   resend of unanswered Invites on a position statement (SYNC-20), the sender
-  sequence that orders one participant's activities (SYNC-21, ADR-0178), and SYNC
-  test patterns.
+  sequence that orders one participant's activities (SYNC-21, ADR-0178), what a
+  `Reject(CaseLedgerEntry)` names in `inReplyTo` (RF-08-004), and SYNC test
+  patterns.
 related_specs:
   - specs/sync-ledger-replication.yaml
+  - specs/response-format.yaml
   - specs/case-ledger-processing.yaml
   - specs/case-proposal.yaml
   - specs/case-management.yaml
@@ -444,6 +446,11 @@ same entry forever (ADR-0142).
   (ASK-07-006); its `inReplyTo` names the `Announce(CaseLedgerEntry)` the
   CASE_MANAGER stored when it sent it, so `announced_ledger_entry()` reads the
   entry, and with it the case and index, from there (SYNC-16-003).
+- **A `Reject(CaseLedgerEntry)` names the Announce that prompted it.** Its
+  `object` is an entry or nothing, so `inReplyTo` is required and set by the
+  sender: the `Announce(CaseLedgerEntry)` on a mismatch or a genesis wait, the
+  `Announce(VulnerabilityCase)` after a copy ahead of the chain (RF-08-004).
+  `inReplyTo` does not key the derived id, so a resent body names the first copy.
 - **One response per failure class.** `CreateProcessingFaultReceivedUseCase`
   maps each class with an effect to a `FaultResponse` (tree builder and verdict
   reader) in `responses`; a new class adds an entry, never a branch in
