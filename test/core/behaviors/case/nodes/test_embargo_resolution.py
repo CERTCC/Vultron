@@ -622,22 +622,19 @@ def test_the_revision_ends_the_actor_default_after_the_act_instant(
 
 @pytest.mark.spec("CS-13-002")
 @pytest.mark.parametrize(
-    "paths",
+    ("owner_policy", "sender_proposal"),
     [
-        pytest.param({}, id="default-embargo"),
+        pytest.param(None, None, id="default-embargo"),
         pytest.param(
-            {
-                "owner_policy": ACTOR_DEFAULT,
-                "sender_proposal": SENDER_PROPOSAL,
-            },
-            id="creation-time-revision",
+            ACTOR_DEFAULT, SENDER_PROPOSAL, id="creation-time-revision"
         ),
     ],
 )
 def test_a_run_with_no_act_instant_creates_no_embargo(
     bt_scenario: BTTestScenario,
     case_obj: VulnerabilityCase,
-    paths: dict[str, timedelta],
+    owner_policy: timedelta | None,
+    sender_proposal: timedelta | None,
 ) -> None:
     """A run with no act's instant fails and writes nothing (ADR-0176).
 
@@ -646,7 +643,12 @@ def test_a_run_with_no_act_instant_creates_no_embargo(
     ``CreateEmbargoEventNode`` reads none and ``ResolveCreationTimeRevisionNode``
     is the one that refuses.  Neither falls back to the clock (ARCH-10-001).
     """
-    status, _, _ = _run(bt_scenario, outside_an_act=True, **paths)
+    status, _, _ = _run(
+        bt_scenario,
+        owner_policy=owner_policy,
+        sender_proposal=sender_proposal,
+        outside_an_act=True,
+    )
 
     assert status == Status.FAILURE
     assert _em_state(bt_scenario) == EM.NONE
