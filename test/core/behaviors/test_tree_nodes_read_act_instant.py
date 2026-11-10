@@ -25,7 +25,6 @@ from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
-import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -33,6 +32,7 @@ from test.core.use_cases.received.conftest import make_embargo_case_with_actor
 from test.support.act_runner import run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import activate
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -44,6 +44,9 @@ from vultron.core.behaviors.case.case_clock_decisions import (
 )
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     create_clock_decision_gate,
+)
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    ClearRefusedAssertionNode,
 )
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
@@ -69,6 +72,11 @@ from vultron.core.models import _helpers
 from vultron.core.models._helpers import clock as clock_module
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.pending_assertion import (
+    PendingAssertionStore,
+    get_pending_assertion_store,
+    reset_pending_assertion_stores,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.actor.ownership import (
@@ -86,6 +94,8 @@ _CASE = "https://example.org/cases/act-instant-slice-2"
 _OWNER = "https://example.org/actors/owner"
 _OTHER = "https://example.org/actors/other"
 _OFFER = f"{_CASE}/offers/o1"
+# A fixed end time: the act's instant is pinned, so no wall clock is needed.
+_END_TIME = datetime(2026, 6, 1, 12, tzinfo=UTC)
 
 
 @pytest.fixture
@@ -236,7 +246,7 @@ def test_the_end_time_decision_judges_at_the_acts_instant(
 ) -> None:
     """The same instant gives the same verdict: an embargo ends at its end
     time, not a moment before (ADR-0122)."""
-    end = datetime.now(tz=UTC).replace(microsecond=0) - timedelta(hours=1)
+    end = _END_TIME
     dl = _manager_store(end_time=end)
 
     run_end_time_check(dl, _CASE, _OWNER, now=end + offset)
@@ -245,17 +255,39 @@ def test_the_end_time_decision_judges_at_the_acts_instant(
     assert (em is EM.EXITED) is ended
 
 
-@pytest.mark.spec("CS-13-002")
-def test_a_clock_decision_outside_an_act_is_an_internal_error() -> None:
-    """With no instant in the run, a deciding node raises; it never reads
-    the clock instead (ARCH-10-001)."""
-    dl = _manager_store(end_time=datetime.now(tz=UTC) + timedelta(days=30))
-    gate = create_clock_decision_gate(_CASE, case_clock_decisions(_CASE))
-    tree = py_trees.composites.Sequence(
-        name="NoAct", memory=False, children=[gate]
+@pytest.fixture
+def owner_pending_store() -> Iterator[PendingAssertionStore]:
+    """The owner's pending-assertion store, reset around the test."""
+    reset_pending_assertion_stores()
+    yield get_pending_assertion_store(_OWNER)
+    reset_pending_assertion_stores()
+
+
+@pytest.mark.spec("CS-13-002", "CLP-06-006")
+@pytest.mark.parametrize("overdue", [False, True])
+def test_clearing_a_refused_assertion_judges_its_timeout_at_the_acts_instant(
+    owner_pending_store: PendingAssertionStore, overdue: bool
+) -> None:
+    """The clear marks what is overdue at the act's instant, not the clock's,
+    so a still-pending entry is cleared and an overdue one is left timed
+    out."""
+    refused = f"{_CASE}/activities/refused"
+    owner_pending_store.add(_CASE, "add_note_to_case", refused)
+    emitted = datetime.now(tz=UTC)
+    at = emitted + timedelta(
+        seconds=owner_pending_store.timeout_seconds + 1 if overdue else 0
     )
+    node = ClearRefusedAssertionNode(
+        case_id=_CASE,
+        refused_activity_id=refused,
+        reason="refused",
+        sender_id=_OTHER,
+    )
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_OWNER)
 
-    result = BTBridge(datalayer=dl).execute_with_setup(tree, actor_id=_OWNER)
+    result = run_tree(BTBridge(datalayer=dl), node, actor_id=_OWNER, at=at)
 
-    assert result.internal_error
-    assert "act instant" in result.feedback_message
+    assert result.status == Status.SUCCESS
+    assert [e.object_id for e in node.cleared] == (
+        [] if overdue else [refused]
+    )

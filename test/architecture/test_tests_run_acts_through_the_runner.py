@@ -16,8 +16,8 @@ In production every tree run belongs to an act, which carries the act's
 instant (ADR-0176).  A test that calls ``.execute()`` on a use case or
 ``BTBridge.execute_with_setup`` directly skips the act, so a node that reads
 the instant finds none.  Tests go through ``test/support/act_runner.py``
-(``run_in_act``, ``run_tree``, ``run_dispatch``) instead, and this test fails on a direct call
-anywhere else under ``test/``.
+(``run_in_act``, ``run_tree``, ``run_dispatch``) instead, and this test fails
+on a direct call anywhere else under ``test/``.
 
 A direct call is a call of ``.execute()`` with no arguments, of
 ``.execute_with_setup(...)``, or of ``.dispatch(event, dl, ...)``, on
@@ -51,7 +51,6 @@ DIRECT_RUN_EXEMPTIONS: frozenset[str] = frozenset(
     {
         "test/core/behaviors/test_act_instant.py",
         "test/core/behaviors/test_bridge.py",
-        "test/core/behaviors/test_tree_nodes_read_act_instant.py",
         # Unit tests of the dispatcher's routing, on a mock store.
         "test/test_behavior_dispatcher.py",
     }

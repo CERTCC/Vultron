@@ -183,7 +183,7 @@ class ReinviteLateAccepterNode(ReinviteStaleAccepterNode):
     The late Accept's routing arm (CLP-10-026): the case cannot answer the
     accepted embargo, so the CASE_MANAGER asks the accepter about the terms
     it holds — its Active Embargo, or with none its earliest-expiring open
-    proposal whose embargo has not ended at *now*
+    proposal whose embargo has not ended at the act's instant
     (:func:`~vultron.core.behaviors.embargo.nodes.late_accept.late_accept_terms`,
     EP-08-002).  Which terms are read when the node runs, after the Invite
     expiry was recorded.  The Accept is never recorded as consent

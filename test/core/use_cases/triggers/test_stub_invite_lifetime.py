@@ -263,7 +263,6 @@ def test_stub_invite_is_a_stale_expiry_ask_closed_by_accept_and_reject() -> (
 
 def _expire_then_terminate(
     dl: Any,
-    monkeypatch: pytest.MonkeyPatch,
     invite: dict[str, Any],
     owner_id: str,
     case_id: str,
@@ -276,7 +275,7 @@ def _expire_then_terminate(
 @pytest.mark.spec("CM-11-040")
 @pytest.mark.spec("CM-11-039")
 def test_expiry_writes_nothing_and_a_late_accept_still_joins(
-    actor_store, monkeypatch: pytest.MonkeyPatch
+    actor_store,
 ) -> None:
     """Expiry only stops the wait: the record is untouched and a late Accept joins."""
     owner, dl = actor_store("Vendor Owner")
@@ -290,7 +289,7 @@ def test_expiry_writes_nothing_and_a_late_accept_still_joins(
     assert before.joined is False
 
     _expire_then_terminate(
-        dl, monkeypatch, invite, owner.id_, case.id_, timedelta(seconds=1)
+        dl, invite, owner.id_, case.id_, timedelta(seconds=1)
     )
 
     after = _participant_of(dl, case.id_, invitee.id_)
@@ -341,7 +340,6 @@ def test_a_late_reject_closes_the_record_as_a_live_one_would(
 )
 def test_the_deadline_itself_is_expired(
     actor_store,
-    monkeypatch: pytest.MonkeyPatch,
     offset: timedelta,
     reissued: bool,
 ) -> None:
@@ -358,9 +356,7 @@ def test_the_deadline_itself_is_expired(
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
     invite = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
 
-    _expire_then_terminate(
-        dl, monkeypatch, invite, owner.id_, case.id_, offset
-    )
+    _expire_then_terminate(dl, invite, owner.id_, case.id_, offset)
 
     assert (len(_invites_to(dl, invitee.id_)) == 2) is reissued
 
@@ -508,7 +504,7 @@ def test_manager_refuses_a_reinvite_of_a_closed_participant(
 
 @pytest.mark.spec("CM-11-016")
 def test_an_expired_unanswered_stub_is_not_reissued_on_an_embargo_change(
-    actor_store, monkeypatch: pytest.MonkeyPatch
+    actor_store,
 ) -> None:
     """Only an outstanding stub (unanswered, not expired) is re-issued."""
     owner, dl = actor_store("Vendor Owner")

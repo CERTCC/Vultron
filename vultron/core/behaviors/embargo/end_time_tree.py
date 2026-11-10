@@ -31,7 +31,7 @@ no change once an entry is ``TERMINATED``::
 
     EndEmbargoAtEndTimeBT (Selector)
     ├─ EmbargoAlreadyEndedNode          # EM EXITED: already done
-    └─ TerminateEmbargoBT               # END_TIME_REACHED, claimed at *now*
+    └─ TerminateEmbargoBT               # END_TIME_REACHED, at the act's instant
 
     EmbargoEndTimeDecision (Selector; a clock decision, gated by its stage)
     ├─ EndTimeNotPassed (Inverter(EmbargoEndTimePassedNode))
