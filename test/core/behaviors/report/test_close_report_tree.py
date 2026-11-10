@@ -21,6 +21,8 @@ STOCHASTIC bundle produces the correct fuzzer class.
 import py_trees
 
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.nodes import AlwaysFail
 from vultron.core.behaviors.report.close_report_tree import (
     create_close_report_tree,
@@ -67,9 +69,9 @@ def test_custom_factory_used():
     def custom_factory(name):
         sentinel["called"] = True
 
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name="CustomOtherClose")
 
@@ -98,9 +100,9 @@ def test_pre_close_action_custom_factory_accepted():
     """A custom pre_close_action_factory in a bundle is accepted without error."""
 
     def custom_factory(name):
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name="CustomPreClose")
 

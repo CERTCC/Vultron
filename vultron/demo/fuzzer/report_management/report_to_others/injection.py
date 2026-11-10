@@ -15,8 +15,9 @@
 
 from __future__ import annotations
 
-from py_trees.common import Access, Status
+from py_trees.common import Access
 
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlwaysSucceed,
@@ -31,7 +32,7 @@ class MoreVendors(UsuallyFail):
     """Check whether there are more vendors in the identified queue.
 
     Semantic function:
-        Condition — return SUCCESS iff the ``identified_vendors``
+        Condition — answer *yes* iff the ``identified_vendors``
         blackboard list is non-empty.  When the key is absent or empty
         (i.e., ``IdentifyVendors`` has not run yet or produced nothing),
         falls back to probabilistic behaviour (``UsuallyFail``, 25%).
@@ -58,21 +59,21 @@ class MoreVendors(UsuallyFail):
         )
         self._bb.register_key("identified_vendors", Access.READ)
 
-    def update(self) -> Status:
+    def answer(self) -> CallOutAnswer:
         try:
             vendors = self._bb.identified_vendors
         except KeyError:
-            return super().update()
+            return super().answer()
         if vendors:
-            return Status.SUCCESS
-        return super().update()
+            return self.yes()
+        return super().answer()
 
 
 class MoreCoordinators(AlmostAlwaysFail):
     """Check whether there are more coordinators in the identified queue.
 
     Semantic function:
-        Condition — return SUCCESS iff the ``identified_coordinators``
+        Condition — answer *yes* iff the ``identified_coordinators``
         blackboard list is non-empty.  When the key is absent or empty
         falls back to probabilistic behaviour (``AlmostAlwaysFail``,
         10%).  Mirrors ``MoreVendors`` for the coordinator sub-list.
@@ -97,14 +98,14 @@ class MoreCoordinators(AlmostAlwaysFail):
         )
         self._bb.register_key("identified_coordinators", Access.READ)
 
-    def update(self) -> Status:
+    def answer(self) -> CallOutAnswer:
         try:
             coordinators = self._bb.identified_coordinators
         except KeyError:
-            return super().update()
+            return super().answer()
         if coordinators:
-            return Status.SUCCESS
-        return super().update()
+            return self.yes()
+        return super().answer()
 
 
 class MoreOthers(AlmostAlwaysFail):
@@ -163,15 +164,15 @@ class InjectParticipant(ActuatorCallOutPoint, AlwaysSucceed):
             self._bb.register_key(self.source_key, Access.WRITE)
             self._bb.register_key("potential_participants", Access.WRITE)
 
-    def update(self) -> Status:
+    def answer(self) -> CallOutAnswer:
         if not self.source_key:
-            return Status.SUCCESS
+            return self.yes()
         try:
             source = getattr(self._bb, self.source_key)
         except KeyError:
-            return Status.SUCCESS
+            return self.yes()
         if not source:
-            return Status.SUCCESS
+            return self.yes()
         participant = source.pop(0)
         setattr(self._bb, self.source_key, source)
         try:
@@ -180,7 +181,7 @@ class InjectParticipant(ActuatorCallOutPoint, AlwaysSucceed):
             participants = []
         participants.append(participant)
         self._bb.potential_participants = participants
-        return Status.SUCCESS
+        return self.yes()
 
 
 class InjectVendor(InjectParticipant):

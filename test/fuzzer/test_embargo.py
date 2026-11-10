@@ -30,6 +30,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import WeightedBehavior
 from vultron.demo.fuzzer.embargo import (
     AvoidEmbargoCounterProposal,
@@ -87,7 +88,9 @@ def _run_trials(node_cls: type[WeightedBehavior], n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
     node.setup()
-    successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
+    successes = sum(
+        1 for _ in range(n) if tick_call_out(node) == Status.SUCCESS
+    )
     return successes / n
 
 
@@ -198,7 +201,7 @@ class TestUpdateReturnsValidStatus:
     ) -> None:
         node = cls()
         node.setup()
-        result = node.update()
+        result = tick_call_out(node)
         assert result in (
             Status.SUCCESS,
             Status.FAILURE,
@@ -210,7 +213,7 @@ class TestUpdateReturnsValidStatus:
     ) -> None:
         node = cls()
         node.setup()
-        results = {node.update() for _ in range(50)}
+        results = {tick_call_out(node) for _ in range(50)}
         assert Status.RUNNING not in results, (
             f"{cls.__name__}.update() returned RUNNING unexpectedly"
         )
@@ -220,22 +223,22 @@ class TestDeterministicExtremes:
     def test_on_embargo_exit_always_succeeds(self) -> None:
         node = OnEmbargoExit()
         node.setup()
-        assert all(node.update() == Status.SUCCESS for _ in range(100))
+        assert all(tick_call_out(node) == Status.SUCCESS for _ in range(100))
 
     def test_select_embargo_offer_terms_always_succeeds(self) -> None:
         node = SelectEmbargoOfferTerms()
         node.setup()
-        assert all(node.update() == Status.SUCCESS for _ in range(100))
+        assert all(tick_call_out(node) == Status.SUCCESS for _ in range(100))
 
     def test_on_embargo_accept_always_succeeds(self) -> None:
         node = OnEmbargoAccept()
         node.setup()
-        assert all(node.update() == Status.SUCCESS for _ in range(100))
+        assert all(tick_call_out(node) == Status.SUCCESS for _ in range(100))
 
     def test_on_embargo_reject_always_succeeds(self) -> None:
         node = OnEmbargoReject()
         node.setup()
-        assert all(node.update() == Status.SUCCESS for _ in range(100))
+        assert all(tick_call_out(node) == Status.SUCCESS for _ in range(100))
 
 
 class TestEmpiricalDistributions:
@@ -265,9 +268,9 @@ class TestEmpiricalDistributions:
         random.seed(42)
         node = EvaluateEmbargoProposal()
         node.setup()
-        seq_a = [node.update() for _ in range(20)]
+        seq_a = [tick_call_out(node) for _ in range(20)]
         random.seed(42)
-        seq_b = [node.update() for _ in range(20)]
+        seq_b = [tick_call_out(node) for _ in range(20)]
         assert seq_a == seq_b
 
 

@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     AlwaysSucceed,
@@ -43,7 +46,7 @@ class EvaluateEmbargoProposal(EvaluatorCallOutPoint, UsuallySucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates incoming proposal from caller's DataLayer)
-      Output keys: evaluate_embargo_proposal_verdict: str  (SUCCESS only)
+      Output keys: evaluate_embargo_proposal_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -54,9 +57,9 @@ class EvaluateEmbargoProposal(EvaluatorCallOutPoint, UsuallySucceed):
     accept/reject for out-of-range proposals typically needs human review.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "evaluate_embargo_proposal_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"evaluate_embargo_proposal_verdict": str}
+    )
 
 
 class OnEmbargoAccept(ActuatorCallOutPoint, AlwaysSucceed):
@@ -144,7 +147,7 @@ class CurrentEmbargoAcceptable(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates active embargo terms from caller's DataLayer)
-      Output keys: current_embargo_acceptable_verdict: str  (SUCCESS only)
+      Output keys: current_embargo_acceptable_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -155,6 +158,6 @@ class CurrentEmbargoAcceptable(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     negotiation contexts may still require human judgment.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "current_embargo_acceptable_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"current_embargo_acceptable_verdict": str}
+    )

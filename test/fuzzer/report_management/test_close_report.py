@@ -25,6 +25,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import WeightedBehavior
 from vultron.demo.fuzzer.report_management.close_report import (
     OtherCloseCriteriaMet,
@@ -53,7 +54,9 @@ def _run_trials(node_cls: type[WeightedBehavior], n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
     node.setup()
-    successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
+    successes = sum(
+        1 for _ in range(n) if tick_call_out(node) == Status.SUCCESS
+    )
     return successes / n
 
 
@@ -147,7 +150,7 @@ class TestUpdateReturnsValidStatus:
     ) -> None:
         node = cls()
         node.setup()
-        result = node.update()
+        result = tick_call_out(node)
         assert result in (Status.SUCCESS, Status.FAILURE)
 
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
@@ -156,7 +159,7 @@ class TestUpdateReturnsValidStatus:
     ) -> None:
         node = cls()
         node.setup()
-        results = {node.update() for _ in range(50)}
+        results = {tick_call_out(node) for _ in range(50)}
         assert Status.RUNNING not in results
 
 
@@ -164,7 +167,7 @@ class TestDeterministicExtremes:
     def test_pre_close_action_always_succeeds(self) -> None:
         node = PreCloseAction()
         node.setup()
-        assert all(node.update() == Status.SUCCESS for _ in range(100))
+        assert all(tick_call_out(node) == Status.SUCCESS for _ in range(100))
 
 
 class TestEmpiricalDistributions:

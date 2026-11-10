@@ -35,6 +35,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     ProbablySucceed,
@@ -83,7 +86,7 @@ class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates report context from caller's DataLayer)
-      Output keys: report_credibility_verdict: str  (SUCCESS only)
+      Output keys: report_credibility_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -95,9 +98,9 @@ class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     requires human analyst review.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "report_credibility_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"report_credibility_verdict": str}
+    )
 
 
 class EvaluateReportValidity(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
@@ -111,7 +114,7 @@ class EvaluateReportValidity(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates report context from caller's DataLayer)
-      Output keys: report_validity_verdict: str  (SUCCESS only)
+      Output keys: report_validity_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -122,7 +125,9 @@ class EvaluateReportValidity(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     judgment often requires human review.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"report_validity_verdict": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"report_validity_verdict": str}
+    )
 
 
 class EnoughValidationInfo(UsuallySucceed):
@@ -155,7 +160,7 @@ class GatherValidationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries external source / reporter directly)
-      Output keys: validation_info_gathered: str  (SUCCESS only)
+      Output keys: validation_info_gathered: str  (yes only)
 
     Input category: System integration / Human analyst outreach.
 
@@ -167,4 +172,6 @@ class GatherValidationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
     involvement.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"validation_info_gathered": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"validation_info_gathered": str}
+    )

@@ -34,6 +34,8 @@ from test.support.act_runner import run_tree
 from test.support.embargo_register import register
 from test.support.participant_status import advance_participant_rm
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
@@ -57,9 +59,9 @@ _PERF_ACTOR_ID = "https://example.org/vendor"
 def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
     """Deterministic factory for performance tests: always returns SUCCESS."""
 
-    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
-        def update(self):
-            return py_trees.common.Status.SUCCESS
+    class _AlwaysSucceed(CallOutBackend):
+        def answer(self) -> CallOutAnswer:
+            return CallOutAnswer.yes()
 
     return _AlwaysSucceed(name)
 

@@ -31,6 +31,8 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
     DEPLOY_MITIGATION_DETERMINISTIC,
     DeployMitigationCallOutBundle,
@@ -269,9 +271,9 @@ def test_deterministic_singleton_is_instance_of_bundle():
 
 def _marker_factory(label: str):
     def factory(name: str) -> py_trees.behaviour.Behaviour:
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self) -> Status:
-                return Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name=label)
 
@@ -298,9 +300,9 @@ def test_each_factory_is_wired(field, label, arm_idx, child_idx):
     def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
         sentinel["called"] = True
 
-        class _Marker(py_trees.behaviour.Behaviour):
-            def update(self) -> Status:
-                return Status.SUCCESS
+        class _Marker(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Marker(name=label)
 

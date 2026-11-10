@@ -35,6 +35,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -88,7 +91,7 @@ class PrioritizeDeployment(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates case context from caller's DataLayer)
-      Output keys: deployment_priority_verdict: str  (SUCCESS only)
+      Output keys: deployment_priority_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -99,9 +102,9 @@ class PrioritizeDeployment(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     final approval for high-impact changes typically requires human sign-off.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "deployment_priority_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"deployment_priority_verdict": str}
+    )
 
 
 class MitigationDeployed(RetrieverCallOutPoint, UsuallyFail):
@@ -165,7 +168,7 @@ class DeployMitigation(EvaluatorCallOutPoint, UsuallySucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates mitigation context from caller's DataLayer)
-      Output keys: deploy_mitigation_verdict: str  (SUCCESS only)
+      Output keys: deploy_mitigation_verdict: str  (yes only)
 
     Input category: System integration / Human decision.
 
@@ -177,7 +180,9 @@ class DeployMitigation(EvaluatorCallOutPoint, UsuallySucceed):
         mitigations typically require human coordination.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"deploy_mitigation_verdict": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"deploy_mitigation_verdict": str}
+    )
 
 
 class MonitoringRequirement(EvaluatorCallOutPoint, OftenSucceed):
@@ -192,7 +197,7 @@ class MonitoringRequirement(EvaluatorCallOutPoint, OftenSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates case and policy context from caller's DataLayer)
-      Output keys: monitoring_requirement_verdict: str  (SUCCESS only)
+      Output keys: monitoring_requirement_verdict: str  (yes only)
 
     Input category: Environmental check / Policy.
 
@@ -203,9 +208,9 @@ class MonitoringRequirement(EvaluatorCallOutPoint, OftenSucceed):
     policy engines can evaluate this condition without human input.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "monitoring_requirement_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"monitoring_requirement_verdict": str}
+    )
 
 
 class MonitorDeployment(ActuatorCallOutPoint, AlwaysSucceed):
@@ -246,7 +251,7 @@ class DeployFix(EvaluatorCallOutPoint, AlmostAlwaysFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates deployment context from caller's DataLayer)
-      Output keys: deploy_fix_verdict: str  (SUCCESS only)
+      Output keys: deploy_fix_verdict: str  (yes only)
 
     Input category: System integration / Human decision.
 
@@ -258,4 +263,6 @@ class DeployFix(EvaluatorCallOutPoint, AlmostAlwaysFail):
     require human approval and change-management controls.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"deploy_fix_verdict": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"deploy_fix_verdict": str}
+    )

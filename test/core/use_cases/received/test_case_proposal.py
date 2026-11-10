@@ -24,10 +24,10 @@ Spec: specs/case-proposal.yaml CP-05 through CP-07.
 import logging
 from types import SimpleNamespace
 
-import py_trees
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.call_out import error as call_out_error, no as call_out_no
 from test.support.ledger import commit_case_manager_closure
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -42,6 +42,7 @@ from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.received_activity_record import (
+    HOLDING_STAGES,
     ReceivedActivityRecord,
 )
 from vultron.core.models.report import VulnerabilityReport
@@ -52,6 +53,7 @@ from vultron.core.use_cases.received.case_proposal import (
     CreateCaseProposalReceivedUseCase,
     RejectCaseProposalReceivedUseCase,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
@@ -795,8 +797,15 @@ class TestRejectCaseProposalReceivedUseCase:
 def _declining_bundle() -> CaseProposalCallOutBundle:
     """An admission policy that refuses every proposal (CP-05-002)."""
     return CaseProposalCallOutBundle(
-        evaluate_proposal_factory=lambda name: py_trees.behaviours.Failure(  # type: ignore[arg-type]
-            name=name
+        evaluate_proposal_factory=call_out_no,  # type: ignore[arg-type]
+    )
+
+
+def _unreachable_policy_bundle() -> CaseProposalCallOutBundle:
+    """An admission backend whose policy service cannot be reached."""
+    return CaseProposalCallOutBundle(
+        evaluate_proposal_factory=call_out_error(  # type: ignore[arg-type]
+            "admission policy service unreachable"
         ),
     )
 
@@ -909,6 +918,43 @@ class TestCaseProposalDisposition:
         assert result.reason and "author" in result.reason
         assert len(list(dl.list_objects("VulnerabilityCase"))) == 1
         assert dl.outbox_list() == []
+
+    @pytest.mark.spec("BT-18-034")
+    def test_error_answer_leaves_the_proposal_unjudged_and_held(
+        self, make_payload
+    ):
+        """An *error* answer is not a decision (ADR-0183, AC-3 of #6076).
+
+        The run raises instead of returning a verdict, so the inbox keeps the
+        message in holding.  It writes no refusal, no decline record, no case
+        and no ledger entry, and queues nothing; the next delivery decides it
+        afresh.
+        """
+        dl = self._case_actor_dl()
+        proposal = _make_proposal()
+
+        with pytest.raises(VultronBTInternalError) as excinfo:
+            _run_create_proposal(
+                dl,
+                proposal,
+                make_payload,
+                call_out=_unreachable_policy_bundle(),
+            )
+
+        assert "EvaluateCaseProposal" in str(excinfo.value)
+        assert list(dl.list_objects("CaseProposalDeclineRecord")) == []
+        assert list(dl.list_objects("VulnerabilityCase")) == []
+        assert list(dl.list_objects("CaseLedgerEntry")) == []
+        assert dl.outbox_list() == []
+        # Held, not settled: intake's record stays in a holding stage.
+        (record,) = list(dl.list_objects("ReceivedActivityRecord"))
+        assert isinstance(record, ReceivedActivityRecord)
+        assert record.stage in HOLDING_STAGES
+
+        # The re-run, once the policy service answers, judges it afresh.
+        again = _run_create_proposal(dl, proposal, make_payload)
+        assert again.disposition == HandlerDisposition.APPLIED
+        assert len(list(dl.list_objects("VulnerabilityCase"))) == 1
 
     @pytest.mark.spec("HP-01-003")
     def test_decline_without_emit_port_is_refused(self, make_payload):

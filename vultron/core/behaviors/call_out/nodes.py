@@ -14,8 +14,8 @@
 """Deterministic constant call-out point backend nodes (BT-23-001, BT-23-002).
 
 This module provides the two **deterministic** call-out point backends used by
-the ``<DOMAIN>_DETERMINISTIC`` bundles: :class:`AlwaysSucceed` (always returns
-``SUCCESS``) and :class:`AlwaysFail` (always returns ``FAILURE``).
+the ``<DOMAIN>_DETERMINISTIC`` bundles: :class:`AlwaysSucceed` (always answers
+*yes*) and :class:`AlwaysFail` (always answers *no*).
 
 These are core-owned, production-usable backends: the DETERMINISTIC bundle is
 the happy-path default a real actor uses when a call-out point has no wired-in
@@ -26,8 +26,9 @@ per BT-16-001).
 
 Interface contract
 ------------------
-Both classes are ``py_trees.behaviour.Behaviour`` subclasses constructed with a
-single ``name: str`` argument, so any
+Both classes are :class:`~vultron.core.behaviors.call_out.backend.CallOutBackend`
+subclasses constructed with a single ``name: str`` argument: ``AlwaysSucceed``
+answers *yes* and ``AlwaysFail`` answers *no* (ADR-0183).  Any
 :class:`~vultron.core.behaviors.call_out.protocol.CallOutBackendFactory` may
 produce them interchangeably with the demo layer's ``WeightedBehavior`` nodes.
 
@@ -53,12 +54,22 @@ References
 
 from __future__ import annotations
 
-import py_trees
-from py_trees.common import Status
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
+
+#: The reason every :class:`AlwaysFail` refusal carries.
+DETERMINISTIC_REFUSAL_REASON = (
+    "DETERMINISTIC default: this call-out point declines (BT-23-002)"
+)
+
+#: The reason every :class:`RequireCaseOwnerApprovalNode` refusal carries.
+CASE_OWNER_APPROVAL_REQUIRED_REASON = (
+    "Case Owner approval is required and has not been obtained (RSH-07-001)"
+)
 
 
-class AlwaysSucceed(py_trees.behaviour.Behaviour):
-    """Deterministic call-out backend that always returns ``SUCCESS``.
+class AlwaysSucceed(CallOutBackend):
+    """Deterministic call-out backend that always answers *yes*.
 
     The ceiling default for any call-out point whose stochastic success
     probability is ``>= 0.5`` (BT-23-002). Core-owned and production-usable;
@@ -68,16 +79,13 @@ class AlwaysSucceed(py_trees.behaviour.Behaviour):
     #: Read-only rate interface parity with the simulation ``AlwaysSucceed``.
     success_rate: float = 1.0
 
-    def __init__(self, name: str = "") -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    def update(self) -> Status:
-        """Always return ``Status.SUCCESS``."""
-        return Status.SUCCESS
+    def answer(self) -> CallOutAnswer:
+        """Always answer *yes*, with no outputs."""
+        return CallOutAnswer.yes()
 
 
-class AlwaysFail(py_trees.behaviour.Behaviour):
-    """Deterministic call-out backend that always returns ``FAILURE``.
+class AlwaysFail(CallOutBackend):
+    """Deterministic call-out backend that always answers *no*.
 
     The floor default for any call-out point whose stochastic success
     probability is ``< 0.5`` (BT-23-002). Core-owned and production-usable;
@@ -87,26 +95,23 @@ class AlwaysFail(py_trees.behaviour.Behaviour):
     #: Read-only rate interface parity with the simulation ``AlwaysFail``.
     success_rate: float = 0.0
 
-    def __init__(self, name: str = "") -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    def update(self) -> Status:
-        """Always return ``Status.FAILURE``."""
-        return Status.FAILURE
+    def answer(self) -> CallOutAnswer:
+        """Always answer *no*, with :data:`DETERMINISTIC_REFUSAL_REASON`."""
+        return CallOutAnswer.no(DETERMINISTIC_REFUSAL_REASON)
 
 
-class RequireCaseOwnerApprovalNode(py_trees.behaviour.Behaviour):
+class RequireCaseOwnerApprovalNode(CallOutBackend):
     """Conservative approval gate: blocking stub pending full round-trip.
 
     This is the DETERMINISTIC default for security-significant authorization
-    gates (RSH-07-001, ADR-0076). Always returns ``FAILURE`` to block any
+    gates (RSH-07-001, ADR-0076). Always answers *no* to block any
     downstream state adoption until the Case Owner explicitly approves.
 
     .. note::
         This is a **blocking stub**. ADR-0076 specifies that the full
         implementation should perform an Offer/Accept/Reject round-trip with
         the Case Owner (send ``Offer`` carrying the pending action, wait for
-        ``Accept`` or ``Reject``, return ``SUCCESS``/``FAILURE`` accordingly).
+        ``Accept`` or ``Reject``, answer *yes* or *no* accordingly).
         That round-trip is tracked in a follow-on issue. Until then, this node
         permanently blocks non-owner state adoption — the correct conservative
         posture for a security-significant gate.
@@ -119,12 +124,15 @@ class RequireCaseOwnerApprovalNode(py_trees.behaviour.Behaviour):
     #: Read-only rate interface parity with the simulation backends.
     success_rate: float = 0.0
 
-    def __init__(self, name: str = "") -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    def update(self) -> Status:
-        """Return ``Status.FAILURE``: approval required but not yet obtained."""
-        return Status.FAILURE
+    def answer(self) -> CallOutAnswer:
+        """Answer *no*: approval is required but not yet obtained."""
+        return CallOutAnswer.no(CASE_OWNER_APPROVAL_REQUIRED_REASON)
 
 
-__all__ = ["AlwaysSucceed", "AlwaysFail", "RequireCaseOwnerApprovalNode"]
+__all__ = [
+    "AlwaysSucceed",
+    "AlwaysFail",
+    "CASE_OWNER_APPROVAL_REQUIRED_REASON",
+    "DETERMINISTIC_REFUSAL_REASON",
+    "RequireCaseOwnerApprovalNode",
+]

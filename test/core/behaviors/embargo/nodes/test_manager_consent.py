@@ -22,13 +22,14 @@ container with no stake.
 
 from typing import cast
 
-import py_trees
 import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import propose
 from test.support.ledger import committed_semantic_types, fail_commits
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
 )
@@ -56,9 +57,9 @@ OWNER = "https://example.org/actors/mc-owner"
 PROPOSAL_ID = f"{CASE_ID}/proposals/the-proposal"
 
 
-class _Fail(py_trees.behaviour.Behaviour):
-    def update(self) -> Status:
-        return Status.FAILURE
+class _Fail(CallOutBackend):
+    def answer(self) -> CallOutAnswer:
+        return CallOutAnswer.no("test backend declines")
 
 
 def _declining_bundle() -> EmbargoCallOutBundle:

@@ -22,6 +22,8 @@ leaf has been replaced by the draft-review-submit pipeline (ADR-0030 / BT-20-004
 import py_trees
 from py_trees.common import Access, Status
 
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.report.publication_intent import (
     INTENT_DECISION_KEY,
     PublicationIntentDecision,
@@ -34,43 +36,43 @@ from vultron.demo.fuzzer.bundles.publication import PublicationCallOutBundle
 CASE_ID = "https://example.org/cases/test-001"
 
 
-class _RecordingPrepare(py_trees.behaviour.Behaviour):
+class _RecordingPrepare(CallOutBackend):
     """Composer stand-in that records that it ran and always succeeds."""
 
     def __init__(self, name, ran):
         super().__init__(name=name)
         self._ran = ran
 
-    def update(self):
+    def answer(self) -> CallOutAnswer:
         self._ran.add(self.name)
-        return Status.SUCCESS
+        return CallOutAnswer.yes()
 
 
-class _RecordingSubmit(py_trees.behaviour.Behaviour):
+class _RecordingSubmit(CallOutBackend):
     """Actuator stand-in that records that it ran and always succeeds."""
 
     def __init__(self, name, ran):
         super().__init__(name=name)
         self._ran = ran
 
-    def update(self):
+    def answer(self) -> CallOutAnswer:
         self._ran.add(self.name)
-        return Status.SUCCESS
+        return CallOutAnswer.yes()
 
 
 def _intent_factory(decision):
     """Return an Evaluator factory that writes a fixed intent record."""
 
-    class _FixedIntents(py_trees.behaviour.Behaviour):
+    class _FixedIntents(CallOutBackend):
         def setup(self, **kwargs):
             self.blackboard = self.attach_blackboard_client(name=self.name)
             self.blackboard.register_key(
                 key=INTENT_DECISION_KEY, access=Access.WRITE
             )
 
-        def update(self):
+        def answer(self) -> CallOutAnswer:
             setattr(self.blackboard, INTENT_DECISION_KEY, decision)
-            return Status.SUCCESS
+            return CallOutAnswer.yes()
 
     return lambda name: _FixedIntents(name=name)
 
@@ -86,9 +88,9 @@ def _tick_to_completion(tree):
 
 
 def _always_succeed_factory(name):
-    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
-        def update(self):
-            return Status.SUCCESS
+    class _AlwaysSucceed(CallOutBackend):
+        def answer(self) -> CallOutAnswer:
+            return CallOutAnswer.yes()
 
     return _AlwaysSucceed(name=name)
 
@@ -173,9 +175,9 @@ def test_prepare_failure_fails_intended_arm():
     """A genuine Prepare failure in an intended arm fails the whole tree."""
     ran: set[str] = set()
 
-    class _FailingPrepare(py_trees.behaviour.Behaviour):
-        def update(self):
-            return Status.FAILURE
+    class _FailingPrepare(CallOutBackend):
+        def answer(self) -> CallOutAnswer:
+            return CallOutAnswer.no("test backend declines")
 
     bundle = PublicationCallOutBundle(
         prioritize_publication_intents_factory=_intent_factory(  # type: ignore[arg-type]

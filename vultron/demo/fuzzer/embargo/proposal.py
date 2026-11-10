@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import (
     AlmostCertainlyFail,
     AlwaysSucceed,
@@ -44,7 +47,7 @@ class StopProposingEmbargo(EvaluatorCallOutPoint, UsuallyFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates negotiation context from caller's DataLayer)
-      Output keys: stop_proposing_embargo_verdict: str  (SUCCESS only)
+      Output keys: stop_proposing_embargo_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -55,9 +58,9 @@ class StopProposingEmbargo(EvaluatorCallOutPoint, UsuallyFail):
     prospects; requires human decision.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "stop_proposing_embargo_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"stop_proposing_embargo_verdict": str}
+    )
 
 
 class SelectEmbargoOfferTerms(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -70,7 +73,7 @@ class SelectEmbargoOfferTerms(EvaluatorCallOutPoint, AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — selects terms based on case context from DataLayer)
-      Output keys: selected_embargo_terms_verdict: str  (SUCCESS only)
+      Output keys: selected_embargo_terms_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -81,9 +84,9 @@ class SelectEmbargoOfferTerms(EvaluatorCallOutPoint, AlwaysSucceed):
     need human review.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "selected_embargo_terms_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"selected_embargo_terms_verdict": str}
+    )
 
 
 class WantToProposeEmbargo(EvaluatorCallOutPoint, RandomSucceedFail):
@@ -97,7 +100,7 @@ class WantToProposeEmbargo(EvaluatorCallOutPoint, RandomSucceedFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates case and role context from caller's DataLayer)
-      Output keys: want_to_propose_embargo_verdict: str  (SUCCESS only)
+      Output keys: want_to_propose_embargo_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -109,9 +112,9 @@ class WantToProposeEmbargo(EvaluatorCallOutPoint, RandomSucceedFail):
     override.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "want_to_propose_embargo_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"want_to_propose_embargo_verdict": str}
+    )
 
 
 class WillingToCounterEmbargoProposal(EvaluatorCallOutPoint, UsuallyFail):
@@ -126,7 +129,7 @@ class WillingToCounterEmbargoProposal(EvaluatorCallOutPoint, UsuallyFail):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates proposal context from caller's DataLayer)
-      Output keys: willing_to_counter_verdict: str  (SUCCESS only)
+      Output keys: willing_to_counter_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -137,9 +140,9 @@ class WillingToCounterEmbargoProposal(EvaluatorCallOutPoint, UsuallyFail):
     revising; best left to human discretion.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "willing_to_counter_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"willing_to_counter_verdict": str}
+    )
 
 
 class AvoidEmbargoCounterProposal(UsuallySucceed):
@@ -175,7 +178,7 @@ class ReasonToProposeEmbargoWhenDeployed(
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates case context from caller's DataLayer)
-      Output keys: reason_to_propose_when_deployed_verdict: str  (SUCCESS only)
+      Output keys: reason_to_propose_when_deployed_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -186,6 +189,6 @@ class ReasonToProposeEmbargoWhenDeployed(
     required.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "reason_to_propose_when_deployed_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"reason_to_propose_when_deployed_verdict": str}
+    )

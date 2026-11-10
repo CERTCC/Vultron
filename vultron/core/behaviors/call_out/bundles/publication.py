@@ -38,11 +38,15 @@ Ceiling/floor mapping (BT-23-002):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import ClassVar, Final
 
 import py_trees
-from py_trees.common import Access, Status
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutAnswer,
+    CallOutContract,
+)
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
@@ -56,13 +60,20 @@ def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
     return AlwaysSucceed(name)
 
 
-class _DeterministicPrioritizePublicationIntents(AlwaysSucceed):
-    """DETERMINISTIC PrioritizePublicationIntents: always succeeds and writes the default intent record.
+#: The ``PrioritizePublicationIntents`` capability declaration (ADR-0183).
+PUBLICATION_INTENT_CONTRACT: Final[CallOutContract] = CallOutContract(
+    outputs={INTENT_DECISION_KEY: PublicationIntentDecision}
+)
 
-    Writes :class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`
-    (``publish_fix=True``, ``publish_report=True``, ``publish_exploit=False``) to
-    :data:`~vultron.core.behaviors.report.publication_intent.INTENT_DECISION_KEY`
-    on SUCCESS so that the ``ShouldPublish*`` gate nodes can read it.
+
+class _DeterministicPrioritizePublicationIntents(CallOutBackend):
+    """DETERMINISTIC PrioritizePublicationIntents: *yes* with the default intents.
+
+    Gives :class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`
+    (``publish_fix=True``, ``publish_report=True``, ``publish_exploit=False``)
+    for :data:`~vultron.core.behaviors.report.publication_intent.INTENT_DECISION_KEY`
+    on *yes*, which the seam writes so that the ``ShouldPublish*`` gate nodes
+    can read it.
 
     This is the core-layer DETERMINISTIC backend for the
     ``prioritize_publication_intents_factory`` call-out point (BT-23-002). It
@@ -72,28 +83,19 @@ class _DeterministicPrioritizePublicationIntents(AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Output keys: ``publication_intent_decision``: :class:`PublicationIntentDecision`
+        (yes only)
+      Refusal keys: ``call_out_refusal_reason``: ``str`` (no only)
     """
 
-    #: BT-18-001: declared output keys written on SUCCESS (mirrors PrioritizePublicationIntents).
-    output_keys: ClassVar[dict[str, type]] = {
-        INTENT_DECISION_KEY: PublicationIntentDecision
-    }
+    #: Read-only rate interface parity with the simulation backends.
+    success_rate: float = 1.0
 
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self._intent_key = INTENT_DECISION_KEY
-        self._intent_bb = self.attach_blackboard_client(
-            name=f"{self.__class__.__name__}_writer"
+    contract: ClassVar[CallOutContract] = PUBLICATION_INTENT_CONTRACT
+
+    def answer(self) -> CallOutAnswer:
+        return CallOutAnswer.yes(
+            {INTENT_DECISION_KEY: PublicationIntentDecision()}
         )
-        self._intent_bb.register_key(self._intent_key, Access.WRITE)
-
-    def update(self) -> Status:
-        status = super().update()
-        if status == Status.SUCCESS and hasattr(self, "_intent_bb"):
-            setattr(
-                self._intent_bb, self._intent_key, PublicationIntentDecision()
-            )
-        return status
 
 
 def _deterministic_prioritize_intents(
@@ -142,13 +144,14 @@ PUBLICATION_DETERMINISTIC = PublicationCallOutBundle()
 """Deterministic bundle: happy-path default for production use (BT-23-001, BT-23-002).
 
 ``prioritize_publication_intents_factory`` uses
-:class:`_DeterministicPrioritizePublicationIntents` which returns SUCCESS and
-writes the standard CVD default intent record
+:class:`_DeterministicPrioritizePublicationIntents`, which answers *yes* with
+the standard CVD default intent record
 (:class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`)
 to the blackboard. All other factories use :class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed`.
 """
 
 __all__ = [
+    "PUBLICATION_INTENT_CONTRACT",
     "PublicationCallOutBundle",
     "PUBLICATION_DETERMINISTIC",
 ]

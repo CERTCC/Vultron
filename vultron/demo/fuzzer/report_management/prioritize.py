@@ -35,6 +35,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     AlwaysSucceed,
@@ -84,7 +87,7 @@ class EnoughPrioritizationInfo(EvaluatorCallOutPoint, UsuallySucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates available context from caller's DataLayer)
-      Output keys: enough_prioritization_info_verdict: str  (SUCCESS only)
+      Output keys: enough_prioritization_info_verdict: str  (yes only)
 
     Input category: Human decision / Environmental check.
 
@@ -96,9 +99,9 @@ class EnoughPrioritizationInfo(EvaluatorCallOutPoint, UsuallySucceed):
     involves human analyst review.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "enough_prioritization_info_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"enough_prioritization_info_verdict": str}
+    )
 
 
 class GatherPrioritizationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
@@ -112,7 +115,7 @@ class GatherPrioritizationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries external sources directly)
-      Output keys: prioritization_info_gathered: str  (SUCCESS only)
+      Output keys: prioritization_info_gathered: str  (yes only)
 
     Input category: System integration / Human analyst research.
 
@@ -124,9 +127,9 @@ class GatherPrioritizationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
     involvement.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "prioritization_info_gathered": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"prioritization_info_gathered": str}
+    )
 
 
 class OnAccept(ActuatorCallOutPoint, AlwaysSucceed):
@@ -162,7 +165,7 @@ class EvaluateCasePriority(EvaluatorCallOutPoint, AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates case context from construction time)
-      Output keys: evaluate_case_priority_verdict: str  (SUCCESS only)
+      Output keys: evaluate_case_priority_verdict: str  (yes only)
 
     Input category: Human decision / Policy engine.
 
@@ -173,9 +176,9 @@ class EvaluateCasePriority(EvaluatorCallOutPoint, AlwaysSucceed):
     and policy-based engage/defer decisions are fully automatable.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "evaluate_case_priority_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"evaluate_case_priority_verdict": str}
+    )
 
 
 class OnDefer(ActuatorCallOutPoint, AlwaysSucceed):

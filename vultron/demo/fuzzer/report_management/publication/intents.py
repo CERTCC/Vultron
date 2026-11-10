@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.core.behaviors.report.publication_intent import (
     PublicationIntentDecision,
 )
@@ -95,7 +98,7 @@ class PrioritizePublicationIntents(EvaluatorCallOutPoint, AlwaysSucceed):
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates case context from caller's DataLayer)
       Output keys: publication_intent_decision: PublicationIntentDecision
-        (SUCCESS only; default instance written by fuzzer backend)
+        (yes only; default instance written by fuzzer backend)
 
     Input category: Human decision.
 
@@ -106,9 +109,9 @@ class PrioritizePublicationIntents(EvaluatorCallOutPoint, AlwaysSucceed):
     editorial or legal exceptions require human judgment.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "publication_intent_decision": PublicationIntentDecision
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"publication_intent_decision": PublicationIntentDecision}
+    )
 
 
 class Publish(ActuatorCallOutPoint, AlmostAlwaysSucceed):
@@ -186,7 +189,7 @@ class PrepareExploit(ComposerCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: prepared_exploit_artifact: str  (SUCCESS only)
+      Output keys: prepared_exploit_artifact: str  (yes only)
 
     Input category: Human decision.
 
@@ -197,7 +200,9 @@ class PrepareExploit(ComposerCallOutPoint, AlmostAlwaysSucceed):
     automatable in the general case.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"prepared_exploit_artifact": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"prepared_exploit_artifact": str}
+    )
 
 
 class ReprioritizeExploit(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -212,7 +217,7 @@ class ReprioritizeExploit(EvaluatorCallOutPoint, AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates exploit publication context from caller's DataLayer)
-      Output keys: reprioritize_exploit_verdict: str  (SUCCESS only)
+      Output keys: reprioritize_exploit_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -223,9 +228,9 @@ class ReprioritizeExploit(EvaluatorCallOutPoint, AlwaysSucceed):
     human override may be needed for unusual cases.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "reprioritize_exploit_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"reprioritize_exploit_verdict": str}
+    )
 
 
 class NoPublishFix(AlmostAlwaysFail):
@@ -259,7 +264,7 @@ class PrepareFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: prepared_fix_artifact: str  (SUCCESS only)
+      Output keys: prepared_fix_artifact: str  (yes only)
 
     Input category: System integration.
 
@@ -270,7 +275,9 @@ class PrepareFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
     require human authoring and review.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"prepared_fix_artifact": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"prepared_fix_artifact": str}
+    )
 
 
 class ReprioritizeFix(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -284,7 +291,7 @@ class ReprioritizeFix(EvaluatorCallOutPoint, AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates fix publication context from caller's DataLayer)
-      Output keys: reprioritize_fix_verdict: str  (SUCCESS only)
+      Output keys: reprioritize_fix_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -295,7 +302,9 @@ class ReprioritizeFix(EvaluatorCallOutPoint, AlwaysSucceed):
     human override may be needed.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"reprioritize_fix_verdict": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"reprioritize_fix_verdict": str}
+    )
 
 
 class NoPublishReport(AlmostAlwaysFail):
@@ -329,7 +338,7 @@ class PrepareReport(ComposerCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: prepared_report_artifact: str  (SUCCESS only)
+      Output keys: prepared_report_artifact: str  (yes only)
 
     Input category: Human decision.
 
@@ -340,7 +349,9 @@ class PrepareReport(ComposerCallOutPoint, AlmostAlwaysSucceed):
     typically involves human stakeholders.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"prepared_report_artifact": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"prepared_report_artifact": str}
+    )
 
 
 class ReprioritizeReport(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -354,7 +365,7 @@ class ReprioritizeReport(EvaluatorCallOutPoint, AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates report publication context from caller's DataLayer)
-      Output keys: reprioritize_report_verdict: str  (SUCCESS only)
+      Output keys: reprioritize_report_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -365,6 +376,6 @@ class ReprioritizeReport(EvaluatorCallOutPoint, AlwaysSucceed):
     editorial decisions require human oversight.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {
-        "reprioritize_report_verdict": str
-    }
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"reprioritize_report_verdict": str}
+    )

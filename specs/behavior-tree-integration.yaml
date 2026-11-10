@@ -1508,16 +1508,23 @@ groups:
     verification_debt: '#2574'
     statement: >-
       Every call-out point node MUST describe its blackboard contract in its class
-      docstring. The contract is the set of input keys it reads before dispatch and the
-      set of output keys, with types, it writes on SUCCESS.
-    rationale: The blackboard contract is the integration seam between the tree and the backend. Without an explicit contract,
-      swapping from a fuzzer backend to a real implementation is a guess — the real backend may omit writing a key that a
-      downstream node expects, causing silent failures. The docstring earns its place alongside the typed-port declaration
-      because a reader deciding whether a capability fits their system should not have to reconstruct intent from port
-      metadata; the declaration is what a test enforces, and the prose is what makes the seam legible.
+      docstring. The contract is the set of input keys it reads before dispatch, the
+      set of output keys, with types, written when it answers yes, and the set of
+      refusal keys written when it answers no.
+    rationale: >-
+      The blackboard contract is the integration seam between the tree and the backend.
+      Without an explicit contract, swapping from a fuzzer backend to a real
+      implementation is a guess — the real backend may omit writing a key that a
+      downstream node expects, causing silent failures. The docstring earns its place
+      alongside the typed-port declaration because a reader deciding whether a
+      capability fits their system should not have to reconstruct intent from port
+      metadata; the declaration is what a test enforces, and the prose is what makes the
+      seam legible. A backend answers yes, no or error (ADR-0183), and only yes and no
+      write the blackboard, so the contract names the keys of those two.
     adr:
     - ADR-0025
     - ADR-0097
+    - ADR-0183
   - id: BT-18-016
     priority: MUST
     kind: project
@@ -1541,14 +1548,18 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      A call-out point backend, fuzzer or real, MUST write all declared output keys when
-      it returns SUCCESS.
-    rationale: 'Downstream BT nodes rely on declared output keys being present after a call-out point succeeds. A fuzzer that
-      returns SUCCESS without writing synthetic output to those keys produces a contract violation: a downstream node reads
-      a missing key and fails, but the failure is attributed to the downstream node rather than the backend. Both fuzzer and
-      real backends must be contract-conformant to make backend swaps transparent.'
+      A call-out point backend, fuzzer or real, MUST give a value for every declared
+      output key when it answers yes.
+    rationale: >-
+      Downstream BT nodes rely on declared output keys being present after a call-out
+      point succeeds. A fuzzer that answers yes without synthetic output for those keys
+      produces a contract violation: a downstream node reads a missing key and fails,
+      but the failure is attributed to the downstream node rather than the backend. Both
+      fuzzer and real backends must be contract-conformant to make backend swaps
+      transparent. The seam refuses a yes that omits one (BT-18-036).
     adr:
     - ADR-0025
+    - ADR-0183
     relationships:
     - rel_type: uses_definition
       spec_id: BT-18-012
@@ -1562,13 +1573,14 @@ groups:
     verification_debt: '#2574'
     statement: >-
       The fuzzer backend for a data-producing call-out point (Evaluator, Retriever, or
-      Composer shape) MUST write synthetic, type-conformant data to the declared output
-      keys. The data does not need to be semantically meaningful.
+      Composer shape) MUST give synthetic, type-conformant data for the declared output
+      keys when it answers yes. The data does not need to be semantically meaningful.
     rationale: If the fuzzer backend omits output writes that a real backend would perform, the demo/simulation layer cannot
       serve as a faithful stand-in during development. Maintaining the same output contract ensures that demo scenarios exercise
       the same downstream code paths as production runs.
     adr:
     - ADR-0025
+    - ADR-0183
   - id: BT-18-004
     priority: MUST
     kind: project
@@ -1633,13 +1645,17 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: A node that queries an external system synchronously and returns only a binary (SUCCESS/FAILURE) result MUST
-      be classified as a Retriever, not a Sentinel — and per BT-18-013 Sentinel is not a call-out capability shape at all,
-      so Retriever is the only available classification. The defining criterion for Retriever shape is the synchronous on-demand
-      query pattern, not the richness of the returned data; a boolean is the simplest possible structured fact a Retriever
-      may return. A Sentinel, by contrast, monitors a condition continuously or is triggered by an external event and calls
-      a trigger endpoint when the condition becomes true — the flow direction is Sentinel → trigger endpoint → protocol, not
-      protocol → query → external system.
+    statement: >-
+      A node that queries an external system synchronously and answers only yes or no,
+      with no output, MUST be classified as a Retriever, not a Sentinel — and per
+      BT-18-013 Sentinel is not a call-out capability shape at all, so Retriever is the
+      only available classification. The defining criterion for Retriever shape is the
+      synchronous on-demand query pattern, not the richness of the returned data; a
+      boolean is the simplest possible structured fact a Retriever may return. A
+      Sentinel, by contrast, monitors a condition continuously or is triggered by an
+      external event and calls a trigger endpoint when the condition becomes true — the
+      flow direction is Sentinel → trigger endpoint → protocol, not protocol → query →
+      external system.
     rationale: >-
       Nodes such as MitigationDeployed, MitigationAvailable and HaveExploit return only
       SUCCESS or FAILURE, so they look like Sentinels. But the tree calls them when it
@@ -1663,14 +1679,19 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: A binary-result Retriever MUST declare an empty output-port set; the structured fact is expressed as the BT
-      return value (SUCCESS/FAILURE), not as a blackboard write. As with every capability contract, the authoritative
-      declaration is the typed-port declaration required by BT-18-012 and the node docstring describes it (BT-18-001).
+    statement: >-
+      A binary-result Retriever MUST declare an empty output-port set; the structured
+      fact is the verdict, yes or no, which the seam turns into SUCCESS or FAILURE, not
+      a blackboard write. As with every capability contract, the authoritative
+      declaration is the typed-port declaration required by BT-18-012 and the node
+      docstring describes it (BT-18-001).
     rationale: BT-18-001 through BT-18-003 require every call-out point to declare its complete blackboard contract. A
       binary-result Retriever has an empty output-key set; that empty set MUST still be explicitly declared so that the
       absence of output keys is documented as intentional rather than an oversight, and backend swaps remain transparent. An
       empty declaration is also what makes the BT-23-013 check decidable, because a capability that declares no output ports
       is not data-producing, so a bare constant-status default is a conforming default for it.
+    adr:
+    - ADR-0183
     relationships:
     - rel_type: refines
       spec_id: BT-18-012
@@ -1686,10 +1707,10 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      An Evaluator call-out point that needs to block downstream BT execution, for any
-      reason, MUST return Status.FAILURE from its update() method. Reasons include an
-      editorial rejection, a legal hold, a compliance failure, or any other non-approval
-      decision.
+      An Evaluator call-out point that decides to block downstream BT execution MUST
+      answer no, with the reason for the decision. Reasons include an editorial
+      rejection, a legal hold, a compliance failure, or any other non-approval decision.
+      The seam then fails the node.
     rationale: >-
       A Sequence stops and returns FAILURE when a child returns FAILURE. That is how
       py_trees blocks a path. A field value such as `approved=False` does not stop a
@@ -1700,19 +1721,23 @@ groups:
     tracking_issue: '#1783'
     adr:
     - ADR-0030
+    - ADR-0183
   - id: BT-18-011
     priority: MUST
     kind: project
     statement: >-
-      A call-out point backend MUST answer synchronously: its update() returns
-      Status.SUCCESS or Status.FAILURE, never Status.RUNNING.
+      A call-out point backend MUST answer synchronously: within one tick it answers
+      yes, no or error, and it never returns Status.RUNNING.
     rationale: >-
       The execution model of Vultron cannot pause a tree. If the root returns RUNNING,
       the bridge ticks it again until max_iterations, and then fails without the name of
       the node. A node asks and stops, and it does not pause. This is the general case
       of the codebase-wide invariant that no Vultron BT node returns RUNNING (ADR-0080).
+      The three verdicts are the whole answer (ADR-0183), so "not yet" is never one of
+      them.
     adr:
     - ADR-0080
+    - ADR-0183
     verification: >-
       `test_every_core_bundle_factory_is_guarded` and
       `test_running_backend_surfaces_as_internal_error` in
@@ -2091,6 +2116,141 @@ groups:
     - rel_type: refines
       spec_id: BT-18-028
       note: Places the Composer that BT-18-028 defines by its output.
+  - id: BT-18-031
+    priority: MUST
+    kind: project
+    statement: >-
+      A call-out backend MUST give one answer per call: a verdict of exactly one of
+      yes, no or error, and the data its capability declares for that verdict.
+    rationale: >-
+      A binary answer gives a refusal no channel for its reason and makes "I could not
+      tell" look like "no" (ADR-0183). A fixed verdict with typed data keeps the tree
+      branching on SUCCESS and FAILURE only, and a new kind of data extends a
+      declaration, never the verdict vocabulary. The pattern is the one a use-case
+      result already follows one layer up (ADR-0095, ADR-0110).
+    adr:
+    - ADR-0183
+    verification: >-
+      `test_verdict_vocabulary_is_exactly_yes_no_error` and
+      `test_answer_carries_only_its_own_verdicts_data` in
+      `test/core/behaviors/call_out/test_guard.py`.
+  - id: BT-18-035
+    priority: MUST
+    kind: project
+    statement: >-
+      A capability declaration MUST name the output ports written on yes and the
+      refusal ports written on no, a reason at minimum.
+    rationale: >-
+      The seam checks an answer against the declaration, so the declaration must name
+      the data of both verdicts that write the blackboard. A refusal always has a
+      reason, so the reason port is never optional.
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-031
+    verification: >-
+      `test_declaration_names_a_reason_port_at_minimum` in
+      `test/core/behaviors/call_out/test_guard.py`.
+  - id: BT-18-032
+    priority: MUST
+    kind: project
+    statement: >-
+      The call-out seam MUST turn an answer into tree behaviour. On yes it writes the
+      declared outputs and the node succeeds. On no it writes the refusal payload to the
+      declared refusal ports and the node fails. On error it raises an error that names
+      the node and is not a VultronError.
+    rationale: >-
+      When each tree reads the answer itself, a tree that ignores error turns an outage
+      back into a permanent decision (ADR-0183). The seam is the one place that already
+      guards every call-out (BT-18-018), so it is the one place that interprets the
+      answer. The diagnostics of an error go into the raised error and the logs, never
+      onto the blackboard.
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: extends
+      spec_id: BT-18-018
+    - rel_type: uses_definition
+      spec_id: BT-18-031
+    verification: >-
+      `test_yes_writes_the_declared_outputs_and_succeeds`,
+      `test_no_writes_the_refusal_payload_and_fails`,
+      `test_error_raises_naming_the_node_and_writes_nothing`,
+      `test_error_answer_surfaces_as_internal_error` in
+      `test/core/behaviors/call_out/test_guard.py`.
+  - id: BT-18-036
+    priority: MUST
+    kind: project
+    statement: >-
+      The call-out seam MUST reject an answer with any verdict but yes, no or error, or
+      with data that its declaration does not name.
+    rationale: >-
+      A backend comes from outside the repository (BT-23-004). An answer that the seam
+      does not check could carry a key that no reader expects, or omit one that a
+      reader needs (BT-18-002), and the failure would appear at a later node.
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: extends
+      spec_id: BT-18-032
+    verification: >-
+      `test_seam_rejects_data_its_declaration_does_not_name` and
+      `test_seam_rejects_a_value_that_is_not_an_answer` in
+      `test/core/behaviors/call_out/test_guard.py`.
+  - id: BT-18-033
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A tree MUST NOT read a call-out answer.
+    rationale: >-
+      Only the seam turns an answer into tree behaviour (BT-18-032). A tree that holds a
+      bare backend would read its verdict without the error path, so an error would
+      become a FAILURE that the tree records as a decision.
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-032
+    verification: >-
+      `test_seam_refuses_a_backend_that_is_not_a_call_out_backend` in
+      `test/core/behaviors/call_out/test_guard.py`.
+  - id: BT-18-037
+    priority: MUST
+    kind: project
+    statement: >-
+      A call-out backend ticked anywhere but directly under the seam MUST raise an
+      error that is not a VultronError.
+    rationale: >-
+      The raise is how BT-18-033 is kept at run time: a bare backend in a tree fails
+      the run as an internal error, so its verdict never reaches the tree without the
+      error path.
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-033
+    verification: >-
+      `test_backend_ticked_outside_the_seam_raises` in
+      `test/core/behaviors/call_out/test_guard.py`.
+  - id: BT-18-034
+    priority: MUST
+    kind: project
+    statement: >-
+      An error answer inside a received tree MUST leave the message unjudged. The run
+      writes no refusal and no ledger entry, and the message stays in holding for a
+      re-run.
+    rationale: >-
+      The message is not judged because the backend could not decide. The re-run from
+      holding asks again, and its answer is the decision (ADR-0183, ADR-0154).
+    adr:
+    - ADR-0183
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-032
+    verification: >-
+      `test_error_answer_leaves_the_proposal_unjudged_and_held` in
+      `test/core/use_cases/received/test_case_proposal.py`.
 - id: BT-19
   title: Routing-Gated State Mutation in Lifecycle BT Sequences
   specs:
@@ -2785,10 +2945,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      For a capability that declares output ports, the DETERMINISTIC backend MUST write
-      a type-conformant value to each declared port when it returns SUCCESS. Where
+      For a capability that declares output ports, the DETERMINISTIC backend MUST give
+      a type-conformant value for each declared port when it answers yes. Where
       BT-23-002 or BT-23-007 also applies, this rule overrides their choice of
-      AlwaysSucceed by class but not the SUCCESS/FAILURE direction they set.
+      AlwaysSucceed by class but not the yes or no direction they set.
     rationale: >-
       BT-23-002 and BT-23-007 select the deterministic backend so that deterministic
       demo scenarios move the protocol forward. For a capability that makes data, a
@@ -2804,6 +2964,7 @@ groups:
       that have no named fuzzer node.
     adr:
     - ADR-0097
+    - ADR-0183
     verification: >
       A ratchet enumerates every domain bundle field, resolves its DETERMINISTIC
       default, and fails if the capability declares output ports that the default

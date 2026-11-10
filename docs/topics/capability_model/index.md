@@ -113,6 +113,31 @@ Most capabilities are not nested.
 
 ---
 
+## Every answer is yes, no or error
+
+Whatever its shape, a capability gives one answer each time the BT asks: a verdict of *yes*, *no* or *error*, and the data its capability declares for that verdict ([ADR-0183](../../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
+
+- *Yes* carries the capability's declared outputs.
+  The BT writes them to its shared state and goes on.
+- *No* is a decision against the request.
+  It carries a refusal payload: a human-readable reason at minimum, and any structured refusal fields the capability declares.
+  The BT writes the payload to the declared refusal keys and takes its "declined" path.
+- *Error* means the capability could not decide or act.
+  It carries diagnostics for the logs only.
+  The BT does not judge the message: the message stays in holding, and the next delivery asks again.
+
+One place in the reference implementation, the call-out seam, turns the answer into BT behavior.
+No BT reads the answer itself, so a BT still branches only on success and failure.
+
+**When to answer error instead of no.**
+Answer *no* only for a decision you made about this request, because the BT treats it as permanent.
+An unreachable service, a rejected credential, a timeout, or a side effect you cannot confirm is *error*.
+A capability that answers *no* for an outage turns the outage into a permanent refusal, such as a case proposal declined for good because the policy service was down.
+
+The [Wiring a Capability](../../howto/wire_capability.md#a-backend-answers-yes-no-or-error) guide shows the answer in code.
+
+---
+
 ## The four shapes
 
 There are exactly four capability shapes (BT-18-013).
@@ -124,9 +149,9 @@ The normative contracts are in [Annex G Capability Shapes in the protocol specif
 **You return:** a structured recommendation, typically a decision plus optional reasoning.
 **The BT uses it to:** gate what happens next.
 
-If you return "needs revision," the BT routes to the revision branch.
-If you return FAILURE, the pipeline stops.
-FAILURE is the only way to stop it: an Evaluator that returns SUCCESS with a "rejected" value in its output does not block the next step (BT-18-007).
+If you answer *yes* with "needs revision," the BT routes to the revision branch.
+If you answer *no*, with your reason, the pipeline stops.
+*No* is the only way to stop it: an Evaluator that answers *yes* with a "rejected" value in its output does not block the next step (BT-18-007).
 The BT does not care whether the judgment came from a human reviewer, a rules engine, or a large language model (LLM); it needs a structured answer it can act on.
 
 Evaluators carry human-level judgment.
@@ -160,7 +185,7 @@ Examples are drafting a security advisory, writing a vulnerability report body, 
 ### Actuator
 
 **You receive:** a trigger, a signal that something should happen.
-**You return:** confirmation of success or failure, with no content artifact.
+**You return:** *yes* when the side effect is confirmed, *no* when you decided not to act, and *error* when you could not confirm it; never a content artifact.
 **The BT uses it to:** confirm that a side effect was executed.
 
 Actuators fire side effects in external systems.
@@ -222,7 +247,8 @@ A Sentinel never appears here, because it is a call-in pattern that watches a co
 - **EvaluateCaseProposal** (Evaluator) — should this service open and manage a case for this proposal?
 
 This is the admission decision a case actor service makes on an inbound `Create(CaseProposal)`, and the only place admission policy lives.
-Returning FAILURE sends `Reject(CaseProposal)`; the default admits.
+Answering *no* sends `Reject(CaseProposal)`; the default admits.
+An unreachable policy service answers *error*, which leaves the proposal in holding rather than declining it.
 
 Build this one if you run a case actor service for others.
 The [Propose case](../behavior_logic/use-cases/propose-case.md#where-judgment-enters) page carries the full reasoning — what the policy decides, why the decision sits ahead of every write, and the two ways a refusal gate can be defeated.
@@ -292,7 +318,7 @@ This domain has one extra level because the ID assignment workflow has distinct 
 
 - **PrioritizePublicationIntents** (Evaluator) — order and prioritize publication targets
 - **PrepareReport** / **PrepareFix** / **DraftAdvisoryArtifact** / **ReviseAdvisoryDraft** (Composers) — produce publication artifacts
-- **ReviewAdvisoryDraft** (Evaluator) — review an advisory draft; return `needs_revision` to route to revision, or FAILURE to block submission entirely
+- **ReviewAdvisoryDraft** (Evaluator) — review an advisory draft; answer *yes* with `needs_revision` to route to revision, or *no* to block submission entirely
 - **Publish** / **SubmitAdvisoryArtifact** (Actuators) — submit the advisory to a publication platform
 
 ### Leaving a Case
@@ -385,7 +411,7 @@ A named capability declares its blackboard contract as typed input and output po
 Moving the existing declarations into the core layer is in progress under [#3421](https://github.com/CERTCC/Vultron/issues/3421).
 
 **How a capability implementation is invoked.**
-A backend answers synchronously, within the tick that asks, and never returns RUNNING (BT-18-011, [ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md)).
+A backend answers synchronously, within the tick that asks, with *yes*, *no* or *error*, and never returns RUNNING (BT-18-011, [ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md), [ADR-0183](../../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
 A decision that takes days is not a call-out point: it is a request to another actor, or a Sentinel.
 
 **What a deployment that supplies nothing gets.**
