@@ -45,6 +45,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.received import delivered_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -525,16 +526,18 @@ def _accept_invite(invitee_dl: SqliteDataLayer, invite_id: str) -> None:
     """The invitee accepts *invite_id* through the trigger use case."""
     if invitee_dl.read(_INVITEE_ID) is None:
         invitee_dl.create(as_Actor(id_=_INVITEE_ID, name="invitee"))
-    accepted = SvcAcceptCaseInviteUseCase(
-        invitee_dl,
-        AcceptCaseInviteTriggerRequest(
-            actor_id=_INVITEE_ID, invite_id=invite_id
-        ),
-        trigger_activity=TriggerActivityAdapter(invitee_dl),
-        sync_port=SyncActivityAdapter(invitee_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    accepted = run_in_act(
+        SvcAcceptCaseInviteUseCase(
+            invitee_dl,
+            AcceptCaseInviteTriggerRequest(
+                actor_id=_INVITEE_ID, invite_id=invite_id
+            ),
+            trigger_activity=TriggerActivityAdapter(invitee_dl),
+            sync_port=SyncActivityAdapter(invitee_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
     assert accepted.activity is not None
 
 

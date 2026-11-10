@@ -164,15 +164,15 @@ The `Accept` and `Reject` of each Invite record the consent of each participant 
 For both `EA` and `EC`, the activation supersedes the embargo in force, if there is one, in the same register step.
 Any other open proposal stays open as a revision.
 
-The Case Owner's own consent to the activated terms is recorded with the activation, as `AGREED`.
-A Case Owner that had declined those terms may still activate them.
-Activation is the Case Owner changing its answer, so its consent moves straight to `AGREED` (MSM-07-028).
+The Case Owner's own consent to the activated terms is recorded with the activation, as `AGREED`, when it had given no answer to them, or its invitation timed out (MSM-07-028).
+A Case Owner that declined those terms cannot activate them.
+It first accepts the invitation with `Accept(Invite(EmbargoEvent))`, and then activates the terms, so that each answer is recorded as it was given (MSM-07-037).
 
 When the new terms end no later than the terms they replace, every participant that agreed to the old terms is carried over to the new terms.
 When the new terms end later, a participant that has not agreed to them is no longer bound (MSM-07-020).
 
 The CASE_MANAGER refuses an activation once the case is public, an exploit is public, or attacks are observed.
-It also refuses an activation whose `EmbargoEvent` is not an open proposal of the case.
+It also refuses an activation whose `EmbargoEvent` is not an open proposal of the case, or whose terms the Case Owner declined.
 
 {% include-markdown "./_occasions/sections/reject-embargo-proposal.md" heading-offset=1 %}
 
@@ -257,7 +257,7 @@ The sender closes its pending request when the notice arrives.
 | `Invite(EmbargoEvent)` (`EP`, `EV`) | the embargo has ended (EM `EXITED`), which admits no proposal. The notice is a `Reject` of the Invite, the same shape as a decline, and the proposer reads it as one (EP-09-017). |
 | `Accept(Invite(EmbargoEvent))` | the `EmbargoEvent` is neither the embargo in force nor an open proposal: the register does not hold it, or the proposal was already decided, replaced or ended (CM-18-003, MSM-07-012). |
 | `Reject(Invite(EmbargoEvent))` | the `EmbargoEvent` is neither the embargo in force nor an open proposal, or the sender agreed to the embargo in force, since withdrawal is `Leave(EmbargoEvent)` (MSM-07-014). |
-| `Add(EmbargoEvent)[target=VulnerabilityCase]` (`EA`, `EC`) | the `EmbargoEvent` is not an open proposal of the case, or the case is public, an exploit is public, or attacks are observed (MSM-07-029, EMB-02-002). |
+| `Add(EmbargoEvent)[target=VulnerabilityCase]` (`EA`, `EC`) | the `EmbargoEvent` is not an open proposal of the case, or the case is public, an exploit is public, or attacks are observed (MSM-07-029, EMB-02-002), or the Case Owner declined the terms. The notice tells the Case Owner to accept the invitation first (MSM-07-037). |
 | `Reject(EmbargoEvent)[target=VulnerabilityCase]` (`ER`, `EJ`) | the `EmbargoEvent` is not an open proposal of the case, or the termination the rejection would cause is refused (MSM-07-033, MSM-07-032). |
 | `Remove(EmbargoEvent)` (`ET`) | it claims `END_TIME_REACHED` before the embargo's end time, or a Case Owner's `Remove` names a `THREAT_SIGNAL` cause (EMB-13-005). |
 | `Leave(EmbargoEvent)` | no embargo is in force, the `EmbargoEvent` is not the embargo in force, the sender's consent to it is not `AGREED`, or the sender is the Case Owner (MSM-07-036). |

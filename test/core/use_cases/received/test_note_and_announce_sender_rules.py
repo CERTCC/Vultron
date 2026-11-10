@@ -36,6 +36,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_copy import copy_from
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
@@ -215,9 +216,11 @@ class _World:
             actor=sender_id,
             to=[self.receiver_id],
         )
-        result = AddNoteToCaseReceivedUseCase(
-            self.dl, self._event(activity), **self._ports()
-        ).execute()
+        result = run_in_act(
+            AddNoteToCaseReceivedUseCase(
+                self.dl, self._event(activity), **self._ports()
+            )
+        )
         return result, note.id_
 
 
@@ -447,9 +450,9 @@ class _Replica:
                 update={"receiving_actor_id": self.receiver_id}
             ),
         )
-        return AnnounceVulnerabilityCaseReceivedUseCase(
-            self.dl, event
-        ).execute()
+        return run_in_act(
+            AnnounceVulnerabilityCaseReceivedUseCase(self.dl, event)
+        )
 
 
 @pytest.mark.spec("PCR-03-001")

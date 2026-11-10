@@ -42,6 +42,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.ledger import (
     commit_case_manager_closure,
     committed_semantic_types,
@@ -237,14 +238,15 @@ def _run_tree_result(
         call_out=call_out,
         sender_rule=_SENDER_RULE,
     )
-    result = BTBridge(
-        datalayer=dl,
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=(
-            TriggerActivityAdapter(dl) if with_trigger_port else None
+    result = run_tree(
+        BTBridge(
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=(
+                TriggerActivityAdapter(dl) if with_trigger_port else None
+            ),
+            sync_port=SyncActivityAdapter(dl),
         ),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute_with_setup(
         tree=tree,
         actor_id=_CASE_ACTOR_URI,
         activity=event,
@@ -862,21 +864,18 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                 call_out=_declining_bundle(ticks),
                 sender_rule=_SENDER_RULE,
             )
-            status = (
+            status = run_tree(
                 BTBridge(
                     datalayer=_dl,
                     wire_render_port=As2WireRenderAdapter(),
                     trigger_activity=TriggerActivityAdapter(_dl),
                     sync_port=SyncActivityAdapter(_dl),
-                )
-                .execute_with_setup(
-                    tree=tree,
-                    actor_id=_CASE_ACTOR_URI,
-                    activity=event,
-                    owner_profile=activity.actor,
-                )
-                .status
-            )
+                ),
+                tree=tree,
+                actor_id=_CASE_ACTOR_URI,
+                activity=event,
+                owner_profile=activity.actor,
+            ).status
 
             assert ticks == ["EvaluateCaseProposal"], (
                 "the admission policy MUST be consulted: this proposal has "

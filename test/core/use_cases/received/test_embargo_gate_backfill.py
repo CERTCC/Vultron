@@ -24,6 +24,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import (
     activate,
     propose,
@@ -124,13 +125,15 @@ class _GateScenario:
             actor=actor_id,
             to=[MANAGER_ID],
         )
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            self.dl,
-            self._make_payload(accept, receiving_actor_id=MANAGER_ID),
-            sync_port=SyncActivityAdapter(self.dl),
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                self.dl,
+                self._make_payload(accept, receiving_actor_id=MANAGER_ID),
+                sync_port=SyncActivityAdapter(self.dl),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
     def receive_remove(self) -> None:
         """The CASE_MANAGER receives the embargo's termination (EM -> EXITED)."""
@@ -140,12 +143,14 @@ class _GateScenario:
             actor=MANAGER_ID,
             reason=TerminationReason.EARLY,
         )
-        RemoveEmbargoEventFromCaseReceivedUseCase(
-            self.dl,
-            self._make_payload(remove, receiving_actor_id=MANAGER_ID),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                self.dl,
+                self._make_payload(remove, receiving_actor_id=MANAGER_ID),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
     def receive_revision_accepted_by(self, actor_id: str) -> None:
         """Activate a shorter revision that *actor_id* had already accepted.
@@ -188,29 +193,33 @@ class _GateScenario:
             target=CASE_ID,
             actor=MANAGER_ID,
         )
-        ActivateEmbargoOnCaseReceivedUseCase(
-            self.dl,
-            self._make_payload(activation, receiving_actor_id=MANAGER_ID),
-            sync_port=SyncActivityAdapter(self.dl),
-            # Each carried-over signatory's row is its own CASE_MANAGER
-            # entry, built through the factory (ADR-0124).
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        run_in_act(
+            ActivateEmbargoOnCaseReceivedUseCase(
+                self.dl,
+                self._make_payload(activation, receiving_actor_id=MANAGER_ID),
+                sync_port=SyncActivityAdapter(self.dl),
+                # Each carried-over signatory's row is its own CASE_MANAGER
+                # entry, built through the factory (ADR-0124).
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+            )
+        )
 
     def trigger_terminate(self) -> None:
         """The CASE_MANAGER terminates the embargo through its trigger."""
         self.dl.create(VultronOrganization(id_=MANAGER_ID, name="Coordinator"))
-        SvcTerminateEmbargoUseCase(
-            self.dl,
-            TerminateEmbargoTriggerRequest(
-                actor_id=MANAGER_ID, case_id=CASE_ID
-            ),
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcTerminateEmbargoUseCase(
+                self.dl,
+                TerminateEmbargoTriggerRequest(
+                    actor_id=MANAGER_ID, case_id=CASE_ID
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
     def cascade_terminate(self) -> None:
         """Run the shared terminate tree as a CS.P/X/A or threat cascade does.
@@ -219,12 +228,13 @@ class _GateScenario:
         from the blackboard's trigger factory.
         """
         sync_port = SyncActivityAdapter(self.dl)
-        result = BTBridge(
-            datalayer=self.dl,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=sync_port,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute_with_setup(
+        result = run_tree(
+            BTBridge(
+                datalayer=self.dl,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=sync_port,
+                wire_render_port=As2WireRenderAdapter(),
+            ),
             tree=terminate_embargo_bt(
                 case_id=CASE_ID,
                 termination=EmbargoTermination.early(),

@@ -24,6 +24,7 @@ from typing import Any
 import pytest
 
 from test.conftest import TEST_ACTOR_ID
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
@@ -111,7 +112,7 @@ def test_incomplete_announce_is_refused_in_one_tree(
     )
     event = event.model_copy(update={"activity": activity})
 
-    result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+    result = run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
     assert result.disposition == HandlerDisposition.REFUSED
     if activity is None:
@@ -127,7 +128,7 @@ def test_incomplete_announce_is_refused_in_one_tree(
 @pytest.mark.spec("CLP-10-005")
 @pytest.mark.spec("PCR-03-004")
 def test_untrusted_sender_is_refused_by_the_tree_guard(dl, event, tree_runs):
-    result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+    result = run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
     assert result.disposition == HandlerDisposition.REFUSED
     assert result.reason is not None
@@ -144,7 +145,7 @@ def test_untrusted_sender_is_refused_by_the_tree_guard(dl, event, tree_runs):
 def test_admitted_announce_runs_one_tree(dl, event, tree_runs):
     _anchor(dl)
 
-    result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+    result = run_in_act(AnnounceVulnerabilityCaseReceivedUseCase(dl, event))
 
     assert result.disposition == HandlerDisposition.APPLIED
     assert len(tree_runs) == 1

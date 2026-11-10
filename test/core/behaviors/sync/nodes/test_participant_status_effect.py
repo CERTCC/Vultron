@@ -31,6 +31,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
     EmitImpossibleStateFaultNode,
@@ -144,7 +145,8 @@ def test_apply_participant_status_roundtrip_preserves_vf_state(
     )
     event = _make_event(entry, actor_id=case_actor.id_)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=ApplyParticipantStatusFromLedgerNode(
             name="ApplyParticipantStatusFromLedger"
         ),
@@ -178,7 +180,8 @@ def test_apply_participant_status_idempotent(
     event = _make_event(entry, actor_id=case_actor.id_)
 
     for _ in range(2):
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ApplyParticipantStatusFromLedgerNode(
                 name="ApplyParticipantStatusFromLedger"
             ),
@@ -205,7 +208,8 @@ def test_apply_participant_status_skips_missing_participant(
     )
     event = _make_event(entry, actor_id=case_actor.id_)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=ApplyParticipantStatusFromLedgerNode(
             name="ApplyParticipantStatusFromLedger"
         ),
@@ -244,7 +248,8 @@ class TestApplyParticipantStatusCompositeStateViolation:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ApplyParticipantStatusFromLedgerNode(
                 name="ApplyParticipantStatusFromLedger"
             ),
@@ -271,7 +276,8 @@ class TestApplyParticipantStatusCompositeStateViolation:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ApplyParticipantStatusFromLedgerNode(
                 name="ApplyParticipantStatusFromLedger"
             ),
@@ -301,7 +307,8 @@ class TestApplyParticipantStatusCompositeStateViolation:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=ApplyParticipantStatusFromLedgerNode(
                 name="ApplyParticipantStatusFromLedger"
             ),
@@ -337,7 +344,8 @@ class TestApplyParticipantStatusCompositeStateViolation:
             rm_state="ACCEPTED",
             vf_state="VF",
         )
-        result1 = bridge.execute_with_setup(
+        result1 = run_tree(
+            bridge,
             tree=ApplyParticipantStatusFromLedgerNode(name="Apply1"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=_make_event(entry1, actor_id=case_actor.id_),
@@ -351,7 +359,8 @@ class TestApplyParticipantStatusCompositeStateViolation:
             rm_state="VALID",
             vf_state="VF",
         )
-        result2 = bridge.execute_with_setup(
+        result2 = run_tree(
+            bridge,
             tree=ApplyParticipantStatusFromLedgerNode(name="Apply2"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=_make_event(entry2, actor_id=case_actor.id_),
@@ -415,7 +424,8 @@ class TestEmitImpossibleStateFaultNode:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = trigger_bridge.execute_with_setup(
+        result = run_tree(
+            trigger_bridge,
             tree=EmitImpossibleStateFaultNode(name="EmitImpossibleStateFault"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -444,7 +454,8 @@ class TestEmitImpossibleStateFaultNode:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=EmitImpossibleStateFaultNode(name="EmitImpossibleStateFault"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -473,7 +484,8 @@ def test_replicated_status_carries_no_time_rather_than_the_replica_clock(
     )
     assert "published" not in entry.payload_snapshot["object"]
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=ApplyParticipantStatusFromLedgerNode(
             name="ApplyParticipantStatusFromLedger"
         ),

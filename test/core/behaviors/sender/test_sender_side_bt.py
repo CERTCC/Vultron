@@ -20,6 +20,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BlackboardKeyProbe
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -145,7 +146,7 @@ class TestSenderSideBT:
             case_id=case.id_,
             activity_builder=_builder,
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+        result = run_tree(bridge, tree=tree, actor_id=actor.id_)
         assert result.status == Status.SUCCESS
         assert addressed_to == [CASE_ACTOR_ID]
 
@@ -169,7 +170,7 @@ class TestSenderSideBT:
             case_id=case.id_,
             activity_builder=lambda _: [ACTIVITY_ID],
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+        result = run_tree(bridge, tree=tree, actor_id=actor.id_)
         assert result.status == Status.FAILURE
         reason = BTBridge.get_failure_reason(tree)
         assert "CASE_MANAGER" in reason
@@ -194,7 +195,7 @@ class TestSenderSideStaleKeyRegression:
             case_id=case1.id_,
             activity_builder=lambda _: [ACTIVITY_ID],
         )
-        result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
+        result1 = run_tree(bridge, tree=tree1, actor_id=actor.id_)
         assert result1.status == Status.SUCCESS
         assert "/case_manager_id" not in storage
 
@@ -206,7 +207,7 @@ class TestSenderSideStaleKeyRegression:
             case_id=case2.id_,
             activity_builder=lambda _: [ACTIVITY_ID],
         )
-        result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
+        result2 = run_tree(bridge, tree=tree2, actor_id=actor.id_)
         assert result2.status == Status.FAILURE
         assert "/case_manager_id" not in storage
 
@@ -236,7 +237,7 @@ class TestSenderSideStaleKeyRegression:
         )
         storage["/case_manager_id"] = "https://example.org/actors/stale"
         try:
-            bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+            run_tree(bridge, tree=tree, actor_id=actor.id_)
         finally:
             storage.pop("/case_manager_id", None)
 
@@ -253,7 +254,7 @@ class TestSenderSideStaleKeyRegression:
             case_id=case1.id_,
             activity_builder=lambda _: [ACTIVITY_ID],
         )
-        result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
+        result1 = run_tree(bridge, tree=tree1, actor_id=actor.id_)
         assert result1.status == Status.SUCCESS
         assert storage.get("/activity_ids") is not None
 
@@ -267,7 +268,7 @@ class TestSenderSideStaleKeyRegression:
             case_id=case1.id_,
             activity_builder=_failing_builder,
         )
-        result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
+        result2 = run_tree(bridge, tree=tree2, actor_id=actor.id_)
         assert result2.status == Status.FAILURE
 
         assert storage.get("/activity_ids") is None

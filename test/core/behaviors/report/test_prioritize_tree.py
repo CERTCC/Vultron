@@ -24,6 +24,7 @@ participant-specific nature of the RM state machine.
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -572,12 +573,13 @@ def test_engage_case_tree_success(
         actor_id=actor_id,
         sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
-    result = BTBridge(
-        datalayer=case_manager_datalayer,
-        trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(case_manager_datalayer),
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=case_manager_datalayer,
+            trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(case_manager_datalayer),
+        ),
         tree=tree,
         actor_id=case_manager_actor_id,
         activity=request,
@@ -603,9 +605,7 @@ def test_engage_case_tree_fails_no_participant(
         actor_id=actor_id,
         sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=request
-    )
+    result = run_tree(bridge, tree=tree, actor_id=actor_id, activity=request)
 
     assert result.status == Status.FAILURE
 
@@ -626,9 +626,7 @@ def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
         actor_id=actor_id,
         sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=request
-    )
+    result = run_tree(bridge, tree=tree, actor_id=actor_id, activity=request)
 
     assert result.status == Status.FAILURE
 
@@ -657,12 +655,13 @@ def test_defer_case_tree_success(
     tree = create_defer_case_tree(
         case_id=case.id_, actor_id=actor_id, sender_rule=DEFER_RULE
     )
-    result = BTBridge(
-        datalayer=case_manager_datalayer,
-        trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(case_manager_datalayer),
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=case_manager_datalayer,
+            trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(case_manager_datalayer),
+        ),
         tree=tree,
         actor_id=case_manager_actor_id,
         activity=request,
@@ -688,9 +687,7 @@ def test_defer_case_tree_fails_no_participant(
         actor_id=actor_id,
         sender_rule=DEFER_RULE,
     )
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=request
-    )
+    result = run_tree(bridge, tree=tree, actor_id=actor_id, activity=request)
 
     assert result.status == Status.FAILURE
 
@@ -711,9 +708,7 @@ def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
         actor_id=actor_id,
         sender_rule=DEFER_RULE,
     )
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=request
-    )
+    result = run_tree(bridge, tree=tree, actor_id=actor_id, activity=request)
 
     assert result.status == Status.FAILURE
 
@@ -785,12 +780,13 @@ def test_engage_only_affects_target_actor(
         actor_id=actor_a,
         sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
-    result = BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ),
         tree=tree,
         actor_id=case_manager_actor_id,
         activity=request,
@@ -830,7 +826,7 @@ def test_engage_case_tree_idempotent(
             actor_id=actor_id,
             sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
         )
-        return (
+        return run_tree(
             BTBridge(
                 datalayer=case_manager_datalayer,
                 trigger_activity=TriggerActivityAdapter(
@@ -838,15 +834,12 @@ def test_engage_case_tree_idempotent(
                 ),
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(case_manager_datalayer),
-            )
-            .execute_with_setup(
-                tree=tree,
-                actor_id=case_manager_actor_id,
-                activity=request,
-                case_id=case.id_,
-            )
-            .status
-        )
+            ),
+            tree=tree,
+            actor_id=case_manager_actor_id,
+            activity=request,
+            case_id=case.id_,
+        ).status
 
     assert _run() == Status.SUCCESS
     assert _run() == Status.SUCCESS
@@ -881,7 +874,7 @@ def test_defer_case_tree_idempotent(
         tree = create_defer_case_tree(
             case_id=case.id_, actor_id=actor_id, sender_rule=DEFER_RULE
         )
-        return (
+        return run_tree(
             BTBridge(
                 datalayer=case_manager_datalayer,
                 trigger_activity=TriggerActivityAdapter(
@@ -889,15 +882,12 @@ def test_defer_case_tree_idempotent(
                 ),
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(case_manager_datalayer),
-            )
-            .execute_with_setup(
-                tree=tree,
-                actor_id=case_manager_actor_id,
-                activity=request,
-                case_id=case.id_,
-            )
-            .status
-        )
+            ),
+            tree=tree,
+            actor_id=case_manager_actor_id,
+            activity=request,
+            case_id=case.id_,
+        ).status
 
     assert _run() == Status.SUCCESS
     assert _run() == Status.SUCCESS
@@ -944,12 +934,13 @@ def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
         actor_id=actor_id,
         sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
-    result = BTBridge(
-        datalayer=case_manager_datalayer,
-        trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(case_manager_datalayer),
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=case_manager_datalayer,
+            trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(case_manager_datalayer),
+        ),
         tree=tree,
         actor_id=case_manager_actor_id,
         activity=request,
@@ -1052,8 +1043,8 @@ def test_prioritize_subtree_engages_by_default(
         actor_id=actor_id,
         trigger_activity=trigger_activity,
     )
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor_id, case_id=case_with_manager.id_
+    result = run_tree(
+        bridge, tree=tree, actor_id=actor_id, case_id=case_with_manager.id_
     )
 
     assert result.status == Status.SUCCESS
@@ -1165,8 +1156,8 @@ def test_prioritize_subtree_defers_when_engage_path_fails(
         trigger_activity=trigger_activity,
         call_out=bundle,
     )
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor_id, case_id=case_with_manager.id_
+    result = run_tree(
+        bridge, tree=tree, actor_id=actor_id, case_id=case_with_manager.id_
     )
 
     assert result.status == Status.SUCCESS

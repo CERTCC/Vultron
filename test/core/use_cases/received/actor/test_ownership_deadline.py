@@ -43,6 +43,7 @@ from test.core.use_cases.received.actor.test_ownership import (
     _semantic_types,
     _undo,
 )
+from test.support.act_runner import run_tree
 from test.support.ledger import commit_case_manager_closure
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -397,11 +398,12 @@ def test_a_replica_never_evaluates_the_offers_deadline(make_payload):
         sender_rule=AcceptCaseOwnershipTransferReceivedUseCase.sender_entitlement,
     )
 
-    BTBridge(
-        datalayer=replica,
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(replica),
-    ).execute_with_setup(
+    run_tree(
+        BTBridge(
+            datalayer=replica,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(replica),
+        ),
         tree=tree,
         actor_id=_COORDINATOR_ID,
         activity=make_payload(

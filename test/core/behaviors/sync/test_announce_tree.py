@@ -10,6 +10,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import (
     activate,
     propose,
@@ -242,7 +243,8 @@ def test_announce_archives_the_received_activity(
     entry = _make_entry(0, case_obj.genesis_hash)
     event = _make_event(entry, actor_id=case_actor.id_)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
@@ -296,7 +298,8 @@ def test_case_manager_role_takes_authority_arm_without_service_object(
     entry = _make_entry(0)
     event = _make_event(entry, actor_id=OWNER_ACTOR_ID)
 
-    result = owner_bridge.execute_with_setup(
+    result = run_tree(
+        owner_bridge,
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
@@ -318,7 +321,8 @@ def test_participant_persists_valid_entry(
     entry = _make_entry(0, case_obj.genesis_hash)
     event = _make_event(entry, actor_id=case_actor.id_)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
@@ -345,7 +349,8 @@ def test_case_actor_round_trip_logs_delivery_without_repersisting(
     # announcement — they are about not re-persisting a known entry and about
     # rejecting an unauthorised author — so the receiver is the participant,
     # matching every other tree in this file.
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
@@ -397,7 +402,8 @@ def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_obj):
         entry, actor_id="https://example.org/actors/attacker-service"
     )
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
@@ -417,7 +423,8 @@ def test_case_actor_legit_sender_accepted(bridge, datalayer, case_obj):
     entry = _make_entry(0, case_obj.genesis_hash)
     event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
@@ -442,7 +449,8 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
     event = _make_event(bad_entry, actor_id=case_actor.id_)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
@@ -481,7 +489,8 @@ def test_replica_refuses_entry_whose_hash_does_not_match_content(
     sync_port = MagicMock(spec=SyncActivityPort)
 
     with caplog.at_level("ERROR"):
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -508,7 +517,8 @@ def test_replica_does_not_buffer_forward_gap_entry_with_bad_hash(
     entry = _tampered(_make_entry(2))
     event = _make_event(entry, actor_id=case_actor.id_)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
@@ -568,7 +578,8 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         entry = _make_remove_embargo_entry(0, case.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -615,7 +626,8 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
 
         apply_node.update = tracking_update  # type: ignore[method-assign]
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=tree,
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -639,7 +651,8 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         entry = _make_remove_embargo_entry(0, case.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -777,7 +790,8 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         )
 
         for entry in (invite, row_entry):
-            result = bridge.execute_with_setup(
+            result = run_tree(
+                bridge,
                 tree=create_announce_log_entry_tree(
                     sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
                 ),
@@ -809,7 +823,8 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         )
 
         def _announce(announced: CaseLedgerEntry) -> None:
-            result = bridge.execute_with_setup(
+            result = run_tree(
+                bridge,
                 tree=create_announce_log_entry_tree(
                     sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
                 ),
@@ -889,7 +904,8 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         entry = _make_add_note_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -916,7 +932,8 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         datalayer.save(entry)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -939,7 +956,8 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         )  # semantic_type="test_event"
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -976,7 +994,8 @@ class TestAnnounceLogEntryAppliesNoteRemoval:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1013,7 +1032,8 @@ class TestAnnounceLogEntryAppliesReportAddition:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1077,7 +1097,8 @@ class TestAnnounceLogEntryAppliesParticipantStatus:
         entry = _make_participant_status_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1103,7 +1124,8 @@ class TestAnnounceLogEntryAppliesParticipantStatus:
         )  # semantic_type="test_event"
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1230,7 +1252,8 @@ class TestAnnounceLogEntryAppliesStubPath:
     are the entries for their effects (ADR-0114)."""
 
     def _announce(self, bridge, case_actor, entry):
-        return bridge.execute_with_setup(
+        return run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1510,7 +1533,8 @@ class TestEffectsFailureBlocksPersist:
         assert apply_node is not None
         apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=tree,
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1538,7 +1562,8 @@ class TestEffectsFailureBlocksPersist:
         assert apply_node is not None
         apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=tree,
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1564,7 +1589,8 @@ class TestEffectsFailureBlocksPersist:
         assert apply_node is not None
         apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=tree,
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1590,7 +1616,8 @@ class TestEffectsFailureBlocksPersist:
         assert apply_node is not None
         apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=tree,
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
@@ -1661,7 +1688,8 @@ class TestAnnounceLogEntryCloseCaseChangesNoRmState:
         entry = _make_close_case_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1767,7 +1795,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1793,7 +1822,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1816,7 +1846,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         )  # semantic_type="test_event"
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1839,7 +1870,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         entry = _make_ownership_transfer_entry(0, None, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -1856,7 +1888,8 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
 
 
 def _run_announce(bridge, case_actor, entry: CaseLedgerEntry):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
@@ -2026,7 +2059,8 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -2149,7 +2183,8 @@ class TestAnnounceTreeEmitImpossibleStateFault:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = trigger_bridge.execute_with_setup(
+        result = run_tree(
+            trigger_bridge,
             tree=create_announce_log_entry_tree(
                 sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
             ),
@@ -2207,12 +2242,14 @@ class TestAnnounceTreeEmitImpossibleStateFault:
             update={"receiving_actor_id": PARTICIPANT_ACTOR_ID}
         )
 
-        AnnounceLedgerEntryReceivedUseCase(
-            datalayer,
-            event,
-            sync_port=MagicMock(spec=SyncActivityPort),
-            trigger_activity=TriggerActivityAdapter(datalayer),
-        ).execute()
+        run_in_act(
+            AnnounceLedgerEntryReceivedUseCase(
+                datalayer,
+                event,
+                sync_port=MagicMock(spec=SyncActivityPort),
+                trigger_activity=TriggerActivityAdapter(datalayer),
+            )
+        )
 
         (fault_id,) = datalayer.outbox_list()
         body = read_sealed_body_dict(datalayer, fault_id)
@@ -2251,7 +2288,8 @@ def _deliver_early_entry(
     """
     py_trees.blackboard.Blackboard.storage.clear()
     event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
-    BTBridge(datalayer=datalayer).execute_with_setup(
+    run_tree(
+        BTBridge(datalayer=datalayer),
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
@@ -2369,9 +2407,11 @@ def test_seeding_the_case_clears_the_genesis_reject_record(
         ),
     )
     py_trees.blackboard.Blackboard.storage.clear()
-    seeded = AnnounceVulnerabilityCaseReceivedUseCase(
-        datalayer, seed, sync_port=SyncActivityAdapter(datalayer)
-    ).execute()
+    seeded = run_in_act(
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            datalayer, seed, sync_port=SyncActivityAdapter(datalayer)
+        )
+    )
     assert seeded.disposition == HandlerDisposition.APPLIED
     assert datalayer.read(CASE_ID) is not None
 
@@ -2400,12 +2440,14 @@ def test_an_unheld_early_entry_inside_the_interval_names_the_withheld_reject(
     monkeypatch.setattr(_receive, "hold_received_announce", lambda *a: False)
 
     py_trees.blackboard.Blackboard.storage.clear()
-    result = AnnounceLedgerEntryReceivedUseCase(
-        datalayer,
-        _make_event(second, actor_id=CASE_ACTOR_ACTOR_ID),
-        sync_port=SyncActivityAdapter(datalayer),
-        trigger_activity=TriggerActivityAdapter(datalayer),
-    ).execute()
+    result = run_in_act(
+        AnnounceLedgerEntryReceivedUseCase(
+            datalayer,
+            _make_event(second, actor_id=CASE_ACTOR_ACTOR_ID),
+            sync_port=SyncActivityAdapter(datalayer),
+            trigger_activity=TriggerActivityAdapter(datalayer),
+        )
+    )
 
     assert result.disposition == HandlerDisposition.REFUSED
     assert result.reason is not None and "SYNC-15-016" in result.reason

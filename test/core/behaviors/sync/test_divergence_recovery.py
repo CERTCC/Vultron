@@ -31,6 +31,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
@@ -183,12 +184,15 @@ def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
         to=[_CASE_ACTOR_ID],
     )
 
-    CreateProcessingFaultReceivedUseCase(
-        dl,
-        cast(
-            CreateProcessingFaultReceivedEvent, received_event(activity, at=dl)
-        ),
-    ).execute()
+    run_in_act(
+        CreateProcessingFaultReceivedUseCase(
+            dl,
+            cast(
+                CreateProcessingFaultReceivedEvent,
+                received_event(activity, at=dl),
+            ),
+        )
+    )
 
     assert list(dl.list_objects("CaseLedgerEntry")) == []
 
@@ -212,12 +216,15 @@ def test_case_diverged_fault_from_a_non_participant_is_refused() -> None:
         to=[_CASE_ACTOR_ID],
     )
 
-    result = CreateProcessingFaultReceivedUseCase(
-        dl,
-        cast(
-            CreateProcessingFaultReceivedEvent, received_event(activity, at=dl)
-        ),
-    ).execute()
+    result = run_in_act(
+        CreateProcessingFaultReceivedUseCase(
+            dl,
+            cast(
+                CreateProcessingFaultReceivedEvent,
+                received_event(activity, at=dl),
+            ),
+        )
+    )
 
     assert result.disposition == HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
@@ -330,14 +337,16 @@ def _announce(
         context=_CASE_ID,
         **({"id_": announce_id} if announce_id else {}),
     )
-    return AnnounceVulnerabilityCaseReceivedUseCase(
-        dl,
-        cast(
-            AnnounceVulnerabilityCaseReceivedEvent,
-            received_event(activity, receiving_actor_id=receiver, at=dl),
-        ),
-        sync_port=SyncActivityAdapter(dl) if with_sync_port else None,
-    ).execute()
+    return run_in_act(
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            dl,
+            cast(
+                AnnounceVulnerabilityCaseReceivedEvent,
+                received_event(activity, receiving_actor_id=receiver, at=dl),
+            ),
+            sync_port=SyncActivityAdapter(dl) if with_sync_port else None,
+        )
+    )
 
 
 def _case_name(dl: SqliteDataLayer) -> str | None:
@@ -381,13 +390,15 @@ def test_a_copy_behind_the_replica_chain_is_skipped() -> None:
         stale, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
     )
 
-    result = AnnounceVulnerabilityCaseReceivedUseCase(
-        dl,
-        cast(
-            AnnounceVulnerabilityCaseReceivedEvent,
-            received_event(activity, at=dl),
-        ),
-    ).execute()
+    result = run_in_act(
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            dl,
+            cast(
+                AnnounceVulnerabilityCaseReceivedEvent,
+                received_event(activity, at=dl),
+            ),
+        )
+    )
 
     assert result.disposition == HandlerDisposition.SKIPPED
     assert cast(Any, dl.read(_CASE_ID)).name == "replica at entry 0"

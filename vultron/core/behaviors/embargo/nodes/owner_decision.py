@@ -23,7 +23,8 @@ no node branches on the sender to know what a message means.
 
 - :class:`IsOpenEmbargoProposalNode`, :class:`OwnerMayActivateEmbargoNode`
   — read-only guards ahead of the commit: the decision names an open
-  proposal, and nothing refuses its activation (CLP-10-009).
+  proposal, and nothing refuses its activation, neither P/X/A nor the
+  owner's own decline (CLP-10-009, MSM-07-037).
 - :class:`RejectEmbargoProposalLifecycleNode` — the ``STRICT`` register
   write, as the CASE_MANAGER (EP-09-008).  The activation commits first and
   copies (``activation_commit.py``, ADR-0124).
@@ -41,11 +42,16 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.embargo_apply import RegisterStep, RegisterStepKind
+from vultron.core.models.embargo_consent_move import (
+    assert_owner_has_not_declined,
+)
 from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
+    owner_case_file,
 )
+from vultron.errors import INTERNAL_FAULTS, VultronError
 
 
 class IsOpenEmbargoProposalNode(DataLayerConditionWithPorts):
@@ -85,12 +91,16 @@ class OwnerMayActivateEmbargoNode(DataLayerConditionWithPorts):
     """Guard: nothing refuses the owner's activation of this proposal.
 
     FAILURE when CS is public, exploited or attacked (EMB-02-002: no embargo
-    is activated then).  An owner whose row for the proposal is ``DECLINED``
-    is not refused: activating is the owner changing its answer, and its row
-    moves straight to ``AGREED`` (MSM-07-028).  Read-only and ahead of the
+    is activated then), or when the case owner's row for the proposal reads
+    ``DECLINED`` (MSM-07-037): the owner accepts the invitation first, so
+    one activity never both decides the case and changes the owner's own
+    answer (ADR-0180).  The reason it reports tells the owner so, and the
+    factory's refusal notice carries it (CLP-05-001).  An owner whose row
+    reads ``UNINVITED``, ``INVITED`` or ``TIMED_OUT`` is admitted, and the
+    activation agrees for it (MSM-07-028).  Read-only and ahead of the
     commit, so a refused activation is never ledgered: a replica copies
-    the entry's step and does not re-check P/X/A (CLP-10-009, SYNC-12-001,
-    CM-23-016).
+    the entry's step and does not re-check either condition (CLP-10-009,
+    SYNC-12-001, CM-23-016).
     """
 
     def __init__(
@@ -113,7 +123,18 @@ class OwnerMayActivateEmbargoNode(DataLayerConditionWithPorts):
                 f" embargo '{self._embargo_id}' is not activated (EMB-02-002)"
             )
         else:
-            return Status.SUCCESS
+            try:
+                assert_owner_has_not_declined(
+                    owner_case_file(self.datalayer, case), self._embargo_id
+                )
+            except INTERNAL_FAULTS:
+                raise  # never a refusal, so never answered (ADR-0095)
+            except VultronError as exc:
+                # The decline, or a missing owner row (ADR-0122), refuses
+                # the activation as ActivationAppliesNode does.
+                self.feedback_message = str(exc)
+            else:
+                return Status.SUCCESS
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 

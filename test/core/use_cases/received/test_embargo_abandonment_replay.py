@@ -26,6 +26,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -66,11 +67,9 @@ def _abandon_as_manager(net: _Network) -> Status:
         "wire_render_port": As2WireRenderAdapter(),
     }
     tree = reject_proposed_embargo_bt(case_id=net.case_id, result_out={})
-    return (
-        BTBridge(datalayer=dl, **ports)
-        .execute_with_setup(tree, actor_id=MANAGER)
-        .status
-    )
+    return run_tree(
+        BTBridge(datalayer=dl, **ports), tree, actor_id=MANAGER
+    ).status
 
 
 # Integration tier, with the rest of the LedgerNetwork replay group

@@ -22,6 +22,7 @@ writes the stub from the delivery's own body (CLP-10-018).
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -95,13 +96,15 @@ def _move_event(make_payload, verb: str):
 
 def _run_move(verb: str, dl: SqliteDataLayer, event):
     use_case, _ = _MOVES[verb]
-    return use_case(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        use_case(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 def _only_the_archive(

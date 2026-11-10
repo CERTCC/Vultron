@@ -43,6 +43,7 @@ import pytest
 from py_trees.common import Status
 
 import vultron.core.use_cases.triggers as triggers_pkg
+from test.support.act_runner import run_in_act
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.use_case_result import ActivityResult
@@ -106,7 +107,7 @@ def test_a_trigger_cannot_execute_as_a_foreign_authority(dl):
     ticked: list[str] = []
 
     with pytest.raises(VultronBTInternalError, match="VultronUnhostedActor"):
-        _ExecuteAs(dl, _FOREIGN, ticked, clock=SystemClock()).execute()
+        run_in_act(_ExecuteAs(dl, _FOREIGN, ticked, clock=SystemClock()))
 
     assert ticked == []
     assert dl.outbox_list() == []
@@ -118,7 +119,7 @@ def test_a_trigger_executes_as_a_hosted_actor(dl, actor_id):
     """The guard is about authority, not identity: co-hosted actors run."""
     ticked: list[str] = []
 
-    result = _ExecuteAs(dl, actor_id, ticked, clock=SystemClock()).execute()
+    result = run_in_act(_ExecuteAs(dl, actor_id, ticked, clock=SystemClock()))
 
     assert isinstance(result, ActivityResult)
     assert result.emitting_actor_id == actor_id

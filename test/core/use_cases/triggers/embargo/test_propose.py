@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -43,14 +44,16 @@ def test_propose_embargo_invalid_state_does_not_persist_embargo(
     )
 
     with pytest.raises(VultronInvalidStateTransitionError):
-        SvcProposeEmbargoUseCase(
-            finder_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(finder_dl),
-            sync_port=SyncActivityAdapter(finder_dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcProposeEmbargoUseCase(
+                finder_dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(finder_dl),
+                sync_port=SyncActivityAdapter(finder_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
     after = len(list(finder_dl.list_objects("EmbargoEvent")))
     assert after == before
@@ -73,14 +76,16 @@ def test_propose_embargo_updates_case_state_via_bt_path(
         end_time=datetime.now(tz=UTC) + timedelta(days=7),
     )
 
-    result = SvcProposeEmbargoUseCase(
-        finder_dl,
-        request,
-        trigger_activity=TriggerActivityAdapter(finder_dl),
-        sync_port=SyncActivityAdapter(finder_dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcProposeEmbargoUseCase(
+            finder_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+            sync_port=SyncActivityAdapter(finder_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     assert result.activity is not None
     updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))

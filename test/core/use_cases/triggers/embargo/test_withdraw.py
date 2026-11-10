@@ -10,6 +10,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -59,14 +60,16 @@ _WITHDRAW = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
 
 
 def _withdraw(dl: SqliteDataLayer, actor_id: str, case_id: str):
-    return SvcWithdrawEmbargoUseCase(
-        dl,
-        WithdrawEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcWithdrawEmbargoUseCase(
+            dl,
+            WithdrawEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
 
 def _set_row(
@@ -283,14 +286,16 @@ def test_an_actor_with_no_participant_record_cannot_withdraw(
 
 
 def _reject_no_name(dl: SqliteDataLayer, actor_id: str, case_id: str):
-    return SvcRejectEmbargoUseCase(
-        dl,
-        RejectEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    return run_in_act(
+        SvcRejectEmbargoUseCase(
+            dl,
+            RejectEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
 
 @pytest.mark.spec("EP-09-013")

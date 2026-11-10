@@ -18,6 +18,7 @@
 import py_trees
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.status.nodes.append import (
     AppendStatusAndSaveParticipantNode,
     LoadParticipantNode,
@@ -34,16 +35,14 @@ from .conftest import ACTOR_ID, PARTICIPANT_ID, STATUS_ID
 class TestLoadParticipantNode:
     def test_loads_participant_to_blackboard(self, populated_bridge):
         node = LoadParticipantNode(participant_id=PARTICIPANT_ID)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_missing_participant_fails(self, bridge):
         node = LoadParticipantNode(
             participant_id="https://example.org/cases/missing/p"
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
 
@@ -57,16 +56,14 @@ class TestResolveAndPersistStatusObjectNode:
         node = ResolveAndPersistStatusObjectNode(
             status_id=STATUS_ID, status_obj_fallback=None
         )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     def test_missing_without_fallback_fails(self, bridge):
         node = ResolveAndPersistStatusObjectNode(
             status_id="https://example.org/missing", status_obj_fallback=None
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     def test_uses_fallback_when_missing_from_dl(self, bridge):
@@ -79,7 +76,7 @@ class TestResolveAndPersistStatusObjectNode:
         node = ResolveAndPersistStatusObjectNode(
             status_id=STATUS_ID, status_obj_fallback=fallback
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
 
@@ -103,9 +100,7 @@ class TestAppendStatusAndSaveParticipantNode:
         seq = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[load, resolve, append]
         )
-        result = populated_bridge.execute_with_setup(
-            tree=seq, actor_id=ACTOR_ID
-        )
+        result = run_tree(populated_bridge, tree=seq, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
         p = populated_dl.read(PARTICIPANT_ID)
@@ -116,5 +111,5 @@ class TestAppendStatusAndSaveParticipantNode:
         append = AppendStatusAndSaveParticipantNode(
             status_id=STATUS_ID, participant_id=PARTICIPANT_ID
         )
-        result = bridge.execute_with_setup(tree=append, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=append, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE

@@ -36,6 +36,11 @@ defect that found it, each with the file the suite reads through it:
   and ``test_site_build_shared_action.py`` its build-site step order, but the
   only other job a change under ``.github/actions/`` triggers is
   ``actions-lint.yml``, which runs actionlint rather than pytest.
+- The demo UI's committed artifacts and recordings. The drift tests under
+  ``test/metadata/demo_scenarios/`` compare ``ui/src/data/`` with a fresh
+  export, and ``test/demo_unit/test_recordings.py`` validates
+  ``ui/src/recordings/`` and ``ui/src/synthetic-ledgers/``, but a pull request
+  that edited only them ran neither (#4728).
 
 Markdown guarded by a pytest ratchet is the same gap, tracked by #5708.
 """
@@ -100,4 +105,21 @@ def test_python_app_workflow_runs_on_a_composite_action_change(
         f"The {event} paths must include '.github/actions/**', or an action "
         "can change without the test/ci assertions that read it running:\n"
         + "\n".join(f"  {pattern}" for pattern in paths)
+    )
+
+
+@pytest.mark.parametrize("event", ["push", "pull_request"])
+@pytest.mark.parametrize(
+    "pattern",
+    ["ui/src/data/**", "ui/src/recordings/**", "ui/src/synthetic-ledgers/**"],
+)
+def test_python_app_workflow_runs_on_a_demo_ui_artifact_change(
+    event: str, pattern: str
+) -> None:
+    """A committed UI artifact or recording reaches the tests that read it."""
+    paths = _triggers()[event]["paths"]
+    assert pattern in paths, (
+        f"The {event} paths must include {pattern!r}, or the committed file can "
+        "change without the Python tests that read it running:\n"
+        + "\n".join(f"  {p}" for p in paths)
     )

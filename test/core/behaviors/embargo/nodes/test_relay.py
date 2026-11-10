@@ -32,6 +32,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose, terminate
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -363,7 +364,8 @@ class TestCollectEmbargoInviteRecipientsNode:
         """The routing guard fails closed so the EM write never runs."""
         _seed_case(bt_scenario, participants={OTHER_A: None})
         bare = BTBridge(datalayer=bt_scenario.dl)
-        result = bare.execute_with_setup(
+        result = run_tree(
+            bare,
             tree=CollectEmbargoInviteRecipientsNode(
                 case_id=CASE_ID, proposer_id=PROPOSER
             ),

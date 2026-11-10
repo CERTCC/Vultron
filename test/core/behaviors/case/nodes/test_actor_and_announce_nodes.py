@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -169,7 +170,7 @@ class TestAcceptCaseOwnershipTransferNode:
         tree = AcceptCaseOwnershipTransferNode(
             case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.SUCCESS
         refreshed = cast(Any, dl.read(CASE_ID))
         assert refreshed is not None
@@ -192,7 +193,7 @@ class TestAcceptCaseOwnershipTransferNode:
         tree = AcceptCaseOwnershipTransferNode(
             case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.SUCCESS
 
     def test_fails_when_case_not_found(self, bridge, dl) -> None:
@@ -202,7 +203,7 @@ class TestAcceptCaseOwnershipTransferNode:
             new_owner_id=NEW_OWNER_ID,
             cause_id=CAUSE_ID,
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.FAILURE
 
     @pytest.mark.spec("CM-21-001")
@@ -236,7 +237,7 @@ class TestAcceptCaseOwnershipTransferNode:
             case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
 
-        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
 
         assert result.status == Status.FAILURE
         assert result.internal_error is True
@@ -275,7 +276,7 @@ class TestAcceptCaseOwnershipTransferNode:
             case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
 
-        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
 
         assert result.status == Status.SUCCESS, result.feedback_message
         stored = cast(Any, dl.read(participant.id_))
@@ -326,7 +327,7 @@ class TestAcceptCaseOwnershipTransferNode:
             case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
 
-        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
 
         assert result.status == Status.SUCCESS, result.feedback_message
         stored_old_owner = cast(Any, dl.read(old_owner.id_))
@@ -351,7 +352,7 @@ class TestAcceptCaseOwnershipTransferNode:
         tree = AcceptRecordedOwnershipOfferNode(
             case_id=CASE_ID, offer_id="https://example.org/activities/none"
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.FAILURE
         refreshed = cast(Any, dl.read(CASE_ID))
         assert _as_id(refreshed.attributed_to) == ACTOR_ID
@@ -378,7 +379,7 @@ class TestAcceptCaseOwnershipTransferNode:
         tree = AcceptCaseOwnershipTransferNode(
             case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.SUCCESS
         refreshed_participant = cast(Any, dl.read(participant.id_))
         assert refreshed_participant is not None
@@ -417,7 +418,7 @@ class TestAcceptCaseOwnershipTransferNode:
         tree = AcceptCaseOwnershipTransferNode(
             case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.SUCCESS
         refreshed_old = cast(Any, dl.read(old_owner_participant.id_))
         assert refreshed_old is not None
@@ -456,7 +457,7 @@ class TestAcceptCaseOwnershipTransferNode:
         tree = AcceptCaseOwnershipTransferNode(
             case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        result = run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.SUCCESS
         all_participants = [
             cast(Any, dl.read(old_owner_participant.id_)),
@@ -506,7 +507,7 @@ class TestAcceptCaseOwnershipTransferNode:
             tree = AcceptCaseOwnershipTransferNode(
                 case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
             )
-            bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+            run_tree(bridge, tree=tree, actor_id=NEW_OWNER_ID)
 
         # Because save_many was never called, no write reached the DataLayer.
         # Both participants must be exactly as they were before the attempt.
@@ -557,7 +558,8 @@ class TestTransferRecordsEachChange:
         """No entry can be built, so the transfer writes nothing (ARCH-15-001)."""
         old, new = _owned_case(dl)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=AcceptCaseOwnershipTransferNode(
                 case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
             ),
@@ -590,7 +592,8 @@ class TestTransferRecordsEachChange:
             ".commit_emitted_activity",
             side_effect=RuntimeError("ledger commit failed"),
         ):
-            result = bridge.execute_with_setup(
+            result = run_tree(
+                bridge,
                 tree=AcceptCaseOwnershipTransferNode(
                     case_id=CASE_ID,
                     new_owner_id=NEW_OWNER_ID,
@@ -626,7 +629,8 @@ class TestTransferRecordsEachChange:
         )
         bridge = BTBridge(datalayer=dl, trigger_activity=port)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=AcceptCaseOwnershipTransferNode(
                 case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
             ),
@@ -692,8 +696,8 @@ class TestSeedAnnouncedCaseNode:
         tree = SeedAnnouncedCaseNode(
             case_id=CASE_ID2, case_obj=case, request=announce_event
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=announce_event
+        result = run_tree(
+            bridge, tree=tree, actor_id=ACTOR_ID, activity=announce_event
         )
         assert result.status == Status.SUCCESS
         assert dl.read(CASE_ID2) is not None
@@ -711,8 +715,8 @@ class TestSeedAnnouncedCaseNode:
             case_obj=copy,
             request=announce_event,
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=announce_event
+        result = run_tree(
+            bridge, tree=tree, actor_id=ACTOR_ID, activity=announce_event
         )
         assert result.status == Status.SUCCESS
         assert cast(as_VulnerabilityCase, dl.read(CASE_ID2)).name == (
@@ -738,8 +742,8 @@ class TestSeedAnnouncedCaseNode:
         )
 
         with caplog.at_level(logging.DEBUG):
-            bridge.execute_with_setup(
-                tree=tree, actor_id=ACTOR_ID, activity=announce_event
+            run_tree(
+                bridge, tree=tree, actor_id=ACTOR_ID, activity=announce_event
             )
 
         replace_records = [
@@ -783,8 +787,8 @@ class TestSeedAnnouncedCaseNode:
             case_obj=case_with_inline,
             request=announce_event,
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=announce_event
+        result = run_tree(
+            bridge, tree=tree, actor_id=ACTOR_ID, activity=announce_event
         )
         assert result.status == Status.SUCCESS
 
@@ -805,9 +809,7 @@ class TestSeedAnnouncedCaseNode:
         tree = SeedAnnouncedCaseNode(
             case_id=CASE_ID2, case_obj=copy, request=event
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
         assert result.status == Status.SUCCESS
 
     @pytest.mark.spec("SYNC-19-001")
@@ -946,9 +948,7 @@ class TestSeedAnnouncedCaseNode:
             case_id=CASE_ID2, case_obj=copy, request=event
         )
 
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
 
         assert result.status == Status.FAILURE
         assert not isinstance(dl.read(CASE_ID2), as_VulnerabilityCase)
@@ -973,9 +973,7 @@ class TestSeedAnnouncedCaseNode:
         tree = SeedAnnouncedCaseNode(
             case_id=CASE_ID2, case_obj=case, request=event
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
         assert result.status == Status.SUCCESS
         assert isinstance(dl.read(embargo.id_), EmbargoEvent)
         assert dl.read(CASE_ID2) is not None
@@ -995,9 +993,7 @@ class TestSeedAnnouncedCaseNode:
         tree = SeedAnnouncedCaseNode(
             case_id=CASE_ID2, case_obj=case, request=event
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
         assert result.status == Status.FAILURE
         assert dl.read(CASE_ID2) is None
 
@@ -1033,9 +1029,7 @@ class TestSeedAnnouncedCaseNode:
         tree = SeedAnnouncedCaseNode(
             case_id=CASE_ID2, case_obj=reannounced, request=event
         )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
+        result = run_tree(bridge, tree=tree, actor_id=ACTOR_ID, activity=event)
         assert result.status == Status.FAILURE
         stored = dl.read(CASE_ID2)
         assert stored is not None
@@ -1129,12 +1123,16 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
             attributed_to=NEW_OWNER_ID,
             roles=["vendor"],
         )
-        result = BTBridge(
-            datalayer=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(
+            BTBridge(
+                datalayer=dl,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ),
+            tree=node,
+            actor_id=ACTOR_ID,
+        )
         assert result.status == Status.SUCCESS
 
         outbox = dl.outbox_list()
@@ -1217,7 +1215,7 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
             invitee_id=INVITEE_ID,
             case_id=AC3_CASE_ID,
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
         mock_factory.invite_actor_to_case.assert_called_once()
@@ -1312,7 +1310,7 @@ class TestEmitOwnershipTransferNodes:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=_OT_OWNER_ID)
+        result = run_tree(bridge, tree=node, actor_id=_OT_OWNER_ID)
 
         assert result.status == Status.SUCCESS, (
             f"EmitProposeCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
@@ -1383,9 +1381,7 @@ class TestEmitOwnershipTransferNodes:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         )
-        result = bridge.execute_with_setup(
-            tree=node, actor_id=_OT_TRANSFEREE_ID
-        )
+        result = run_tree(bridge, tree=node, actor_id=_OT_TRANSFEREE_ID)
 
         assert result.status == Status.SUCCESS, (
             f"EmitAcceptCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"

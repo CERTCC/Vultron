@@ -10,6 +10,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case_id_scope import with_case_id
 from vultron.core.behaviors.sync.nodes import (
@@ -62,7 +63,8 @@ class TestPositiveLedgerEntryConditionNodes:
         )
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=node_cls(name=node_cls.__name__),
             actor_id=OWNER_ACTOR_ID,
             activity=event,
@@ -81,7 +83,8 @@ class TestPositiveLedgerEntryConditionNodes:
         entry = entry.model_copy(update={"semantic_type": other_event})
         event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=node_cls(name=node_cls.__name__),
             actor_id=OWNER_ACTOR_ID,
             activity=event,
@@ -99,7 +102,8 @@ def test_a_create_note_entry_attaches_no_note(bridge, case_actor):
     entry = _make_entry(0).model_copy(update={"semantic_type": "create_note"})
     event = _make_event(entry, actor_id=case_actor.id_)
 
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=IsAddNoteEventNode(name="IsAddNoteEventNode"),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
@@ -123,7 +127,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
     @pytest.mark.spec("SYNC-10-005")
     def test_empty_ledger_is_fresh(self, bridge):
         """SYNC-10-005: empty prefix is trivially fresh."""
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=with_case_id(
                 CheckLedgerFreshnessNode(name="CheckFreshness"), CASE_ID
             ),
@@ -138,7 +143,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
         e1 = _make_entry(1, e0.entry_hash)
         datalayer.save(e1)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=with_case_id(
                 CheckLedgerFreshnessNode(name="CheckFreshness"), CASE_ID
             ),
@@ -163,7 +169,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
         )
         datalayer.save(e2)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=with_case_id(
                 CheckLedgerFreshnessNode(name="CheckFreshness"), CASE_ID
             ),
@@ -187,7 +194,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
         )
         datalayer.save(bad_e1)
 
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=with_case_id(
                 CheckLedgerFreshnessNode(name="CheckFreshness"), CASE_ID
             ),
@@ -218,7 +226,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
             logging.WARNING,
             logger="vultron.core.behaviors.sync.nodes.conditions",
         ):
-            bridge.execute_with_setup(
+            run_tree(
+                bridge,
                 tree=with_case_id(
                     CheckLedgerFreshnessNode(name="CheckFreshness"), CASE_ID
                 ),
@@ -240,7 +249,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
             logging.WARNING,
             logger="vultron.core.behaviors.sync.nodes.conditions",
         ):
-            bridge.execute_with_setup(
+            run_tree(
+                bridge,
                 tree=with_case_id(
                     CheckLedgerFreshnessNode(name="CheckFreshness"), CASE_ID
                 ),
@@ -258,7 +268,8 @@ class TestCheckLedgerFreshnessNodeWithBlackboard:
 
     @pytest.mark.spec("SYNC-10-001")
     def test_blackboard_case_id_fresh(self, bridge):
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=CheckLedgerFreshnessNode(name="CheckFreshness"),
             actor_id=OWNER_ACTOR_ID,
             case_id=CASE_ID,
@@ -268,7 +279,8 @@ class TestCheckLedgerFreshnessNodeWithBlackboard:
     @pytest.mark.spec("SYNC-10-002")
     def test_missing_blackboard_case_id_fails(self, bridge):
         """No case_id on the /case_id port → FAILURE."""
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=CheckLedgerFreshnessNode(name="CheckFreshness"),
             actor_id=OWNER_ACTOR_ID,
             # case_id intentionally omitted

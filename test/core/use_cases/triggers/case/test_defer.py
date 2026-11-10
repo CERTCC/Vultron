@@ -2,6 +2,7 @@
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -138,12 +139,14 @@ class TestDeferCaseRMTransitionViaBT:
             case_id=self.case.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcDeferCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcDeferCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
@@ -188,14 +191,16 @@ class TestDeferCaseRMTransitionViaBT:
         before = set(self.dl.outbox_list())
 
         with pytest.raises(VultronValidationError):
-            SvcDeferCaseUseCase(
-                self.dl,
-                DeferCaseTriggerRequest(
-                    actor_id=self.vendor.id_, case_id=self.case.id_
-                ),
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcDeferCaseUseCase(
+                    self.dl,
+                    DeferCaseTriggerRequest(
+                        actor_id=self.vendor.id_, case_id=self.case.id_
+                    ),
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
         assert set(self.dl.outbox_list()) == before
         after = self.dl.read(self.vendor_participant.id_)
@@ -211,14 +216,16 @@ class TestDeferCaseRMTransitionViaBT:
         before = set(self.dl.outbox_list())
 
         with pytest.raises(VultronValidationError):
-            SvcDeferCaseUseCase(
-                self.dl,
-                DeferCaseTriggerRequest(
-                    actor_id=self.vendor.id_, case_id=case_solo.id_
-                ),
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcDeferCaseUseCase(
+                    self.dl,
+                    DeferCaseTriggerRequest(
+                        actor_id=self.vendor.id_, case_id=case_solo.id_
+                    ),
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
         assert set(self.dl.outbox_list()) == before
 
@@ -228,12 +235,14 @@ class TestDeferCaseRMTransitionViaBT:
             case_id=self.case.id_,
         )
         with pytest.raises(VultronNotFoundError):
-            SvcDeferCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcDeferCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_defer_case_not_found_raises_error(self):
         request = DeferCaseTriggerRequest(
@@ -241,12 +250,14 @@ class TestDeferCaseRMTransitionViaBT:
             case_id="urn:uuid:no-such-case",
         )
         with pytest.raises(VultronNotFoundError):
-            SvcDeferCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcDeferCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_defer_case_rm_not_updated_when_no_participant(self):
         # Build a case with a valid vendor participant (so RM transition
@@ -281,9 +292,11 @@ class TestDeferCaseRMTransitionViaBT:
             case_id=case_solo.id_,
         )
         with pytest.raises(VultronValidationError):
-            SvcDeferCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcDeferCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )

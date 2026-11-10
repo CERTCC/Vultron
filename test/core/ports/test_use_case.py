@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from vultron.core.models.events.unknown import UnknownReceivedEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.use_case import UseCase
@@ -62,7 +63,7 @@ class TestUnknownUseCase:
 
         use_case = UnknownUseCase(mock_dl, unknown_event)
         with caplog.at_level(logging.WARNING):
-            use_case.execute()
+            run_in_act(use_case)
         assert any(
             r.levelno == logging.WARNING and "unknown use case" in r.message
             for r in caplog.records
@@ -75,7 +76,7 @@ class TestUnknownUseCase:
     ):
         """An activity with no recognized semantics was not processed (#2255)."""
         use_case = UnknownUseCase(mock_dl, unknown_event)
-        result = use_case.execute()
+        result = run_in_act(use_case)
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "unrecognized" in result.reason
 

@@ -23,6 +23,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_store_owner_as_case_manager,
 )
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import assert_held_only_as_received
@@ -119,9 +120,11 @@ class TestEmbargoProposalLifecycle:
             at=dl,
         )
 
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         assert_held_only_as_received(dl, proposal.id_)
@@ -175,13 +178,15 @@ class TestEmbargoProposalLifecycle:
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
 
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         # Accept(Invite) is the sender's consent, the owner's included; the
@@ -251,13 +256,15 @@ class TestEmbargoProposalLifecycle:
         event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
 
         with caplog.at_level(logging.WARNING):
-            AcceptInviteToEmbargoOnCaseReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-                trigger_activity=TriggerActivityAdapter(dl),
-            ).execute()
+            run_in_act(
+                AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                    dl,
+                    event,
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                    trigger_activity=TriggerActivityAdapter(dl),
+                )
+            )
 
         assert not any(
             "state-sync override" in r.message for r in caplog.records
@@ -330,13 +337,15 @@ class TestEmbargoProposalLifecycle:
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
 
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         updated_participant = dl.get(id_=participant.id_)
@@ -388,12 +397,14 @@ class TestEmbargoProposalLifecycle:
             activation, receiving_actor_id=coordinator_id, at=dl
         )
 
-        result = ActivateEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            ActivateEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
 
         stored = cast(VulnerabilityCase, dl.read(case.id_))
@@ -438,9 +449,9 @@ class TestEmbargoProposalLifecycle:
         # Unreachable in production: the inbox adapter always sets
         # receiving_actor_id, and a real DataLayer always knows its own actor.
         with pytest.raises(VultronValidationError, match="receiving actor"):
-            RejectInviteToEmbargoOnCaseReceivedUseCase(
-                MagicMock(), event
-            ).execute()
+            run_in_act(
+                RejectInviteToEmbargoOnCaseReceivedUseCase(MagicMock(), event)
+            )
 
     def test_evaluate_embargo_raises_invalid_state_transition_when_em_state_invalid(
         self,
@@ -516,12 +527,14 @@ class TestEmbargoProposalLifecycle:
             proposal_id=proposal.id_,
         )
         with pytest.raises(VultronInvalidStateTransitionError):
-            SvcAcceptEmbargoUseCase(
-                dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcAcceptEmbargoUseCase(
+                    dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    clock=SystemClock(),
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -643,7 +656,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
         )
 
         event = make_payload(proposal, receiving_actor_id=self.COORD_ID, at=dl)
-        result = InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(InviteToEmbargoOnCaseReceivedUseCase(dl, event))
         assert result.disposition is HandlerDisposition.REFUSED
         assert "EMB-01-002" in (result.reason or "")
 
@@ -679,9 +692,11 @@ class TestInviteToEmbargoReceivedPxaGuard:
 
         trigger_activity = TriggerActivityAdapter(dl)
         event = make_payload(proposal, receiving_actor_id=self.COORD_ID, at=dl)
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, trigger_activity=trigger_activity
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, trigger_activity=trigger_activity
+            )
+        )
         assert result.disposition is HandlerDisposition.REFUSED
         assert "EMB-01-002" in (result.reason or "")
 
@@ -725,9 +740,11 @@ class TestInviteToEmbargoReceivedPxaGuard:
         )
 
         event = make_payload(proposal, receiving_actor_id=self.COORD_ID, at=dl)
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert f"names {count} 'to' recipients" in (result.reason or "")
@@ -797,13 +814,15 @@ class TestInviteToEmbargoReceivedPxaGuard:
         event = make_payload(
             proposal, receiving_actor_id=coordinator_id, at=dl
         )
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         # Intake archived the Invite under the receiver's key, and nothing
@@ -847,9 +866,9 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             proposal, context=case.id_, actor=self.COORD_ID
         )
         event = make_payload(accept, receiving_actor_id=self.COORD_ID, at=dl)
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event
-        ).execute()
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event)
+        )
         assert result.disposition is HandlerDisposition.REFUSED
         assert "EMB-02-004" in (result.reason or "")
 
@@ -888,9 +907,11 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
         trigger_activity = TriggerActivityAdapter(dl)
         event = make_payload(accept, receiving_actor_id=self.COORD_ID, at=dl)
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, trigger_activity=trigger_activity
-        ).execute()
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, trigger_activity=trigger_activity
+            )
+        )
         assert result.disposition is HandlerDisposition.REFUSED
         assert "EMB-02-004" in (result.reason or "")
 
@@ -940,13 +961,15 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             proposal, context=case.id_, actor=coordinator_id
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
-        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
         assert result.disposition is HandlerDisposition.APPLIED
 
         # The Accept records the sender's consent and decides nothing
@@ -1002,9 +1025,11 @@ class TestPxaRejectionAttribution:
         event = make_payload(
             proposal, receiving_actor_id=self.RECEIVER_ID, at=dl
         )
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         reject = _sole_queued_reject(dl)
         assert ref_id(reject.actor) == self.RECEIVER_ID
@@ -1034,9 +1059,11 @@ class TestPxaRejectionAttribution:
         event = make_payload(
             proposal, receiving_actor_id=self.RECEIVER_ID, at=dl
         )
-        result = InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        result = run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         reason = result.reason or ""
@@ -1080,9 +1107,11 @@ class TestPxaRejectionAttribution:
         event = make_payload(
             accept, receiving_actor_id=self.RECEIVER_ID, at=dl
         )
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        run_in_act(
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            )
+        )
 
         reject = _sole_queued_reject(dl)
         assert ref_id(reject.actor) == self.RECEIVER_ID
@@ -1174,13 +1203,15 @@ class _AnsweredInvite:
         event = self._make_payload(
             activity, receiving_actor_id=self.COORDINATOR_ID
         )
-        self._use_case(
-            self.dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(self.dl),
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
+        run_in_act(
+            self._use_case(
+                self.dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(self.dl),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            )
+        )
 
     def case_and_sender(self) -> tuple[Any, Any]:
         stored_case = self.dl.read(self._case_id)
@@ -1332,12 +1363,14 @@ def test_a_closed_invitees_embargo_answer_is_refused(
         at=dl,
     )
 
-    result = use_case(
-        dl,
-        event,
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+    result = run_in_act(
+        use_case(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
     assert "CM-23-018" in (result.reason or "")
@@ -1379,12 +1412,14 @@ def test_an_open_invitees_embargo_answer_is_not_refused(
         at=dl,
     )
 
-    result = use_case(
-        dl,
-        event,
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    result = run_in_act(
+        use_case(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason

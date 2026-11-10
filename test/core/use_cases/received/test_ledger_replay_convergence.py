@@ -38,6 +38,7 @@ import pytest
 from py_trees.common import Status
 from pydantic import BaseModel
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.owner_decision import (
@@ -693,17 +694,19 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     )
     net.stores[BYSTANDER].create(as_Service(id_=BYSTANDER, name="Vendor B"))
 
-    result = SvcAddNoteToCaseUseCase(
-        net.stores[BYSTANDER],
-        AddNoteToCaseTriggerRequest(
-            actor_id=BYSTANDER,
-            case_id=net.case_id,
-            note_name="Question",
-            note_content="Is there a workaround?",
-        ),
-        trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcAddNoteToCaseUseCase(
+            net.stores[BYSTANDER],
+            AddNoteToCaseTriggerRequest(
+                actor_id=BYSTANDER,
+                case_id=net.case_id,
+                note_name="Question",
+                note_content="Is there a workaround?",
+            ),
+            trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
+            clock=SystemClock(),
+        )
+    )
     assert result.activity is not None and result.note is not None
     add_id: str = result.activity["id"]
     note_id: str = result.note["id"]
@@ -800,14 +803,16 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
     dl.create(obj)
 
     def _add() -> Any:
-        return SvcAddObjectToCaseUseCase(
-            dl,
-            AddObjectToCaseTriggerRequest(
-                actor_id=sender, case_id=net.case_id, object_id=obj.id_
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcAddObjectToCaseUseCase(
+                dl,
+                AddObjectToCaseTriggerRequest(
+                    actor_id=sender, case_id=net.case_id, object_id=obj.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
 
     first = _add()
     assert first.activity is not None

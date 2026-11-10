@@ -10,7 +10,8 @@ protocol run rather than a simulation.
 
 Unlike the Multi-Vendor mode, Log Replay does not simulate anything: it
 reconstructs each state transition from the logged snapshots and **validates it
-against the protocol** (`data/json/protocol_states.json`, via
+against the protocol**
+([src/data/protocol_states.json](src/data/protocol_states.json), via
 [src/protocol.ts](src/protocol.ts)), flagging any illegal transition it finds in
 the data.
 
@@ -67,7 +68,7 @@ DemoSelector
 - **[caseLedgerParser.ts](src/utils/caseLedgerParser.ts)** — `parseCaseLedger()`
   reads one `CaseLedgerEntry` per line; `normalizeLedger()` dedups by `entryHash`
   and sorts by `logIndex`; `actorUrlToLaneId()` maps actor URLs to lanes
-  (`finder`, `vendor-N`, `coordinator`, `caseactor`).
+  (`reporter`, `vendor-N`, `coordinator`, `casemanager`).
 - **[caseLedgerMapper.ts](src/utils/caseLedgerMapper.ts)** —
   `buildTimelineFromCaseLedger()` pre-scans the ledger to fix lane order, then
   walks entries once while maintaining a **shadow protocol state**. The log
@@ -91,7 +92,7 @@ machine state; a type the registry does not list is logged as unhandled.
 | Semantic type | Visualization |
 |---|---|
 | `create_case` | Seeds the case roster + initial `CaseStatus` (no node) |
-| `add_report_to_case` / `submit_report` | Report node in the Finder's lane |
+| `add_report_to_case` / `submit_report` | Report node in the Reporter's lane |
 | `validate_report` | Report validated (RM `RECEIVED → VALID`) |
 | `add_participant_status` | Per-participant RM/VFD state snapshot |
 | `add_case_status_to_case` | Case-level EM/PXA snapshot |

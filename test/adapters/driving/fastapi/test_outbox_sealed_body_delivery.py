@@ -31,6 +31,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from test.support.act_runner import run_tree
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -218,11 +219,12 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
     for obj in (manager, embargo, case):
         dl.create(obj)
 
-    result = BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute_with_setup(
+    result = run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ),
         tree=EmitInviteActorToCaseNode(case_id=case_id, invitee_id=_INVITEE),
         actor_id=_ACTOR,
     )

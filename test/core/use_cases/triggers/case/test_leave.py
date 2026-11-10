@@ -6,6 +6,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
@@ -168,12 +169,14 @@ class TestLeaveCaseTriggersOutboxActivity:
             case_id=self.case.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcLeaveCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcLeaveCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
@@ -184,12 +187,14 @@ class TestLeaveCaseTriggersOutboxActivity:
             case_id=self.case.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcLeaveCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcLeaveCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, "No new outbox item was queued"
@@ -221,12 +226,14 @@ class TestLeaveCaseTriggersOutboxActivity:
             case_id=self.case.id_,
         )
         with pytest.raises(VultronNotFoundError):
-            SvcLeaveCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcLeaveCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_leave_case_not_found_raises_error(self):
         request = LeaveCaseTriggerRequest(
@@ -234,12 +241,14 @@ class TestLeaveCaseTriggersOutboxActivity:
             case_id="urn:uuid:no-such-case",
         )
         with pytest.raises(VultronNotFoundError):
-            SvcLeaveCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcLeaveCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_leave_case_no_case_manager_raises_validation_error(self):
         """VultronValidationError raised when case has no CASE_MANAGER."""
@@ -273,12 +282,14 @@ class TestLeaveCaseTriggersOutboxActivity:
             case_id=case_solo.id_,
         )
         with pytest.raises(VultronValidationError):
-            SvcLeaveCaseUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcLeaveCaseUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -357,13 +368,17 @@ class TestLeaveCaseTrigger:
         case: as_VulnerabilityCase,
         call_out: CloseReportCallOutBundle = CLOSE_REPORT_DETERMINISTIC,
     ):
-        return SvcLeaveCaseUseCase(
-            self.dl,
-            LeaveCaseTriggerRequest(actor_id=self.actor.id_, case_id=case.id_),
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            call_out=call_out,
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcLeaveCaseUseCase(
+                self.dl,
+                LeaveCaseTriggerRequest(
+                    actor_id=self.actor.id_, case_id=case.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                call_out=call_out,
+                clock=SystemClock(),
+            )
+        )
 
     @pytest.mark.spec("TRIG-13-001")
     @pytest.mark.parametrize(

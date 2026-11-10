@@ -28,6 +28,7 @@ from py_trees.behaviours import Failure
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
     TEST_SENDER_POSITION,
@@ -585,9 +586,9 @@ def test_a_sender_guard_refusal_records_nothing():
         received_event(activity, at=dl),
     ).model_copy(update={"receiving_actor_id": receiver})
 
-    result = AddParticipantStatusToParticipantReceivedUseCase(
-        dl, event
-    ).execute()
+    result = run_in_act(
+        AddParticipantStatusToParticipantReceivedUseCase(dl, event)
+    )
 
     assert result.disposition == HandlerDisposition.REFUSED
     assert not _archived(dl, activity.id_), "a door refusal recorded it"

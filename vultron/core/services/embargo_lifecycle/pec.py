@@ -30,6 +30,8 @@ import logging
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_apply import EmbargoCaseFile
+from vultron.core.models.embargo_consent_move import owner_declined
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle.activation_arm import (
     _ActivationArmMixin,
@@ -63,6 +65,21 @@ def find_actor_participant(
     return participant_id, participant
 
 
+def owner_case_file(
+    persistence: CasePersistence, case: VulnerabilityCase
+) -> EmbargoCaseFile:
+    """*case* with only its owner's participant record, when *persistence* holds it.
+
+    Enough for a check of the owner's own rows, such as
+    :func:`~vultron.core.models.embargo_consent_move.assert_owner_has_not_declined`,
+    without reading the whole roster.
+    """
+    owner_id = case.attributed_to
+    resolved = find_actor_participant(persistence, case, owner_id)
+    participants = {owner_id: resolved[1]} if resolved is not None else {}
+    return EmbargoCaseFile(case=case, participants=participants)
+
+
 def owner_declined_embargo(
     persistence: CasePersistence,
     case: VulnerabilityCase,
@@ -71,20 +88,14 @@ def owner_declined_embargo(
     """True when the case owner's consent row for *embargo_id* is ``DECLINED``.
 
     The creation-time owner seed reads it: seeding is not an answer the owner
-    gave, so it never overrides a decline (CM-14-003, CM-18-003).  The
-    owner's own activation does change a decline (MSM-07-028).  An owner with
+    gave, so it never overrides a decline (CM-14-003, CM-18-003).  Nor does
+    the owner's activation: the CASE_MANAGER refuses it from a decline
+    (MSM-07-037), and only the owner's own Accept changes one.  An owner with
     no participant record in *persistence* has no declined row; nor has an
     owner whose case does not hold the embargo yet, since it holds no row for
     it.
     """
-    owner_id = case.attributed_to
-    if case.embargo_register_entry(embargo_id) is None:
-        return False
-    resolved = find_actor_participant(persistence, case, owner_id)
-    return (
-        resolved is not None
-        and resolved[1].consent_for(embargo_id) == EmbargoConsentState.DECLINED
-    )
+    return owner_declined(owner_case_file(persistence, case), embargo_id)
 
 
 def participant_consent_row(

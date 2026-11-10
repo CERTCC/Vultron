@@ -17,6 +17,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import (
     activate,
@@ -195,24 +196,28 @@ class _World:
                 update={"receiving_actor_id": self.manager.id_}
             ),
         )
-        return AddParticipantStatusToParticipantReceivedUseCase(
-            self.dl, event, **self.ports()
-        ).execute()
+        return run_in_act(
+            AddParticipantStatusToParticipantReceivedUseCase(
+                self.dl, event, **self.ports()
+            )
+        )
 
     def sentinel_request(
         self, reason=TerminationReason.END_TIME_REACHED, cause=None
     ):
-        return SvcTerminateEmbargoUseCase(
-            self.dl,
-            TerminateEmbargoTriggerRequest(
-                actor_id=self.manager.id_,
-                case_id=self.case_id,
-                reason=reason,
-                cause=cause,
-            ),
-            **self.ports(),
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcTerminateEmbargoUseCase(
+                self.dl,
+                TerminateEmbargoTriggerRequest(
+                    actor_id=self.manager.id_,
+                    case_id=self.case_id,
+                    reason=reason,
+                    cause=cause,
+                ),
+                **self.ports(),
+                clock=SystemClock(),
+            )
+        )
 
     def teardown_entries(self):
         return [
@@ -458,15 +463,17 @@ def test_accepting_a_revision_after_the_end_time_does_not_extend_it() -> None:
 
     # The register refuses to activate the cancelled revision.
     with pytest.raises(VultronInvalidStateTransitionError, match="CANCELLED"):
-        SvcAcceptEmbargoUseCase(
-            world.dl,
-            AcceptEmbargoTriggerRequest(
-                actor_id=world.manager.id_,
-                case_id=world.case_id,
-            ),
-            **world.ports(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcAcceptEmbargoUseCase(
+                world.dl,
+                AcceptEmbargoTriggerRequest(
+                    actor_id=world.manager.id_,
+                    case_id=world.case_id,
+                ),
+                **world.ports(),
+                clock=SystemClock(),
+            )
+        )
 
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
     assert world.case().active_embargo_id is None
@@ -554,7 +561,8 @@ def test_a_threat_termination_records_its_signals_and_runs_the_cascade() -> (
     world = _World(end_time=days_from_now_utc(10))
     sync_port = SyncActivityAdapter(world.dl)
 
-    result = BTBridge(datalayer=world.dl, **world.ports()).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=world.dl, **world.ports()),
         tree=terminate_embargo_bt(
             case_id=world.case_id,
             result_out={},
@@ -583,7 +591,8 @@ def test_a_threat_status_records_the_signals_it_carries() -> None:
         context=world.case_id, pxa=PxaDimension(state=CS_pxa.PXa)
     )
 
-    result = BTBridge(datalayer=world.dl, **world.ports()).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=world.dl, **world.ports()),
         tree=ThreatTerminationBranchNode(
             status_obj=status,
             case_id=world.case_id,
@@ -610,16 +619,18 @@ def test_revising_after_the_end_time_is_refused_and_extends_nothing() -> None:
     world = _World(end_time=now_utc() - timedelta(minutes=5))
 
     with pytest.raises(VultronInvalidStateTransitionError, match="EXITED"):
-        SvcProposeEmbargoRevisionUseCase(
-            world.dl,
-            ProposeEmbargoRevisionTriggerRequest(
-                actor_id=world.manager.id_,
-                case_id=world.case_id,
-                end_time=days_from_now_utc(20),
-            ),
-            **world.ports(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcProposeEmbargoRevisionUseCase(
+                world.dl,
+                ProposeEmbargoRevisionTriggerRequest(
+                    actor_id=world.manager.id_,
+                    case_id=world.case_id,
+                    end_time=days_from_now_utc(20),
+                ),
+                **world.ports(),
+                clock=SystemClock(),
+            )
+        )
 
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
     assert [
@@ -641,14 +652,16 @@ def test_withdrawing_after_the_end_time_commits_no_leave() -> None:
     agree_to_active_embargo(world.dl, world.case(), world.manager.id_)
 
     with pytest.raises(VultronValidationError, match="No embargo is in force"):
-        SvcWithdrawEmbargoUseCase(
-            world.dl,
-            WithdrawEmbargoTriggerRequest(
-                actor_id=world.manager.id_, case_id=world.case_id
-            ),
-            **world.ports(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcWithdrawEmbargoUseCase(
+                world.dl,
+                WithdrawEmbargoTriggerRequest(
+                    actor_id=world.manager.id_, case_id=world.case_id
+                ),
+                **world.ports(),
+                clock=SystemClock(),
+            )
+        )
 
     _assert_full_cascade(world, EmbargoTermination.end_time_reached())
     assert [
@@ -681,16 +694,18 @@ def test_a_refused_end_time_commit_lets_the_trigger_run(
     world = _World(end_time=now_utc() - timedelta(minutes=5))
     _refuse_the_end_time_commit(monkeypatch)
 
-    result = SvcAddParticipantStatusUseCase(
-        world.dl,
-        AddParticipantStatusTriggerRequest(
-            actor_id=world.manager.id_,
-            case_id=world.case_id,
-            rm_state=RM.RECEIVED,
-        ),
-        **world.ports(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcAddParticipantStatusUseCase(
+            world.dl,
+            AddParticipantStatusTriggerRequest(
+                actor_id=world.manager.id_,
+                case_id=world.case_id,
+                rm_state=RM.RECEIVED,
+            ),
+            **world.ports(),
+            clock=SystemClock(),
+        )
+    )
 
     assert result.activity_id is not None
     assert world.case().em_state is EM.REVISE

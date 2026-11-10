@@ -34,6 +34,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     propose,
     write_consent_rows,
@@ -158,13 +159,15 @@ class TestInviteToEmbargoRecordsIndex:
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),
         )
 
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
@@ -210,20 +213,24 @@ class TestInviteToEmbargoRecordsIndex:
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),
         )
 
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-        InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
+        run_in_act(
+            InviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
@@ -258,14 +265,16 @@ class TestProposeTriggerRecordsIndex:
             case_id=case.id_,
             end_time=end_time,
         )
-        result = SvcProposeEmbargoUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcProposeEmbargoUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert result.activity is not None
         updated_case = dl.read(case.id_)
@@ -290,17 +299,19 @@ class TestProposeTriggerRecordsIndex:
         dl.create(as_Service(id_=actor_id, name="Finder"))
         case, _cm = _make_case_with_case_manager(dl, actor_id)
 
-        SvcProposeEmbargoUseCase(
-            dl,
-            ProposeEmbargoTriggerRequest(
-                actor_id=actor_id,
-                case_id=case.id_,
-                end_time=datetime.now(UTC) + timedelta(days=90),
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcProposeEmbargoUseCase(
+                dl,
+                ProposeEmbargoTriggerRequest(
+                    actor_id=actor_id,
+                    case_id=case.id_,
+                    end_time=datetime.now(UTC) + timedelta(days=90),
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=SystemClock(),
+            )
+        )
 
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
@@ -355,14 +366,16 @@ class TestAcceptRejectFromCoreState:
             case_id=case.id_,
             proposal_id=proposal.id_,
         )
-        result = SvcAcceptEmbargoUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAcceptEmbargoUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert result.activity is not None
         updated_case = dl.read(case.id_)
@@ -409,14 +422,16 @@ class TestAcceptRejectFromCoreState:
             actor_id=actor_id,
             case_id=case.id_,
         )
-        result = SvcAcceptEmbargoUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcAcceptEmbargoUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert result.activity is not None
         updated_case = dl.read(case.id_)
@@ -447,14 +462,16 @@ class TestAcceptRejectFromCoreState:
             case_id=case.id_,
             proposal_id=proposal.id_,
         )
-        result = SvcRejectEmbargoUseCase(
-            dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcRejectEmbargoUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert result.activity is not None
         updated_case = dl.read(case.id_)
@@ -481,14 +498,16 @@ class TestAcceptRejectFromCoreState:
             case_id=case.id_,
         )
         with pytest.raises(VultronNotFoundError):
-            SvcAcceptEmbargoUseCase(
-                dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcAcceptEmbargoUseCase(
+                    dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_reject_raises_notfound_when_index_empty(self):
         """SvcRejectEmbargoUseCase raises VultronNotFoundError when no pending proposal in index."""
@@ -509,14 +528,16 @@ class TestAcceptRejectFromCoreState:
             case_id=case.id_,
         )
         with pytest.raises(VultronNotFoundError):
-            SvcRejectEmbargoUseCase(
-                dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcRejectEmbargoUseCase(
+                    dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                    clock=SystemClock(),
+                )
+            )
 
 
 class TestReceivedRejectPrunesOpenProposals:
@@ -610,12 +631,14 @@ class TestReceivedRejectPrunesOpenProposals:
             ),
         )
 
-        result = RejectEmbargoProposalOnCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RejectEmbargoProposalOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
         replica_case = cast(VulnerabilityCase, dl.read(case.id_))
@@ -631,13 +654,15 @@ class TestReceivedRejectPrunesOpenProposals:
         )
         self._seat_owner(dl, case)
 
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            received_reject_by(self._OWNER),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                received_reject_by(self._OWNER),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
         replica_case = cast(VulnerabilityCase, dl.read(case.id_))
@@ -659,13 +684,15 @@ class TestReceivedRejectPrunesOpenProposals:
         seed_case_participant(dl, stored, participant)
         dl.save(stored)
 
-        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            received_reject_by(participant),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                received_reject_by(participant),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
         replica_case = cast(VulnerabilityCase, dl.read(case.id_))
@@ -761,13 +788,15 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
             return original_read(obj_id, **kwargs)
 
         with patch.object(dl, "read", side_effect=spy_read):
-            result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-                trigger_activity=TriggerActivityAdapter(dl),
-            ).execute()
+            result = run_in_act(
+                RejectInviteToEmbargoOnCaseReceivedUseCase(
+                    dl,
+                    event,
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                    trigger_activity=TriggerActivityAdapter(dl),
+                )
+            )
         assert result.disposition is HandlerDisposition.APPLIED
 
         # The use case takes the case and embargo from the event, never from

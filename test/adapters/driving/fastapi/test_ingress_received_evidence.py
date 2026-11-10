@@ -29,6 +29,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.received import archive_received, intake_received
 from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -581,7 +582,8 @@ def test_a_replayed_deferral_is_archived_as_its_first_delivery(
     assert replayed is not None
     event = prepare_for_dispatch(replayed)
 
-    result = BTBridge(datalayer=dl).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=dl),
         tree=IntakeReceivedActivityNode(),
         actor_id="https://test.example/api/v2/actors/test-actor",
         activity=event,

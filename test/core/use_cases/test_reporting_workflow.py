@@ -18,6 +18,7 @@ Test the reporting workflow
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.received_activity_record import (
@@ -106,7 +107,7 @@ def _call_use_case(
     assert event.semantic_type in MessageSemantics
 
     try:
-        result = use_case_class(dl, event).execute()
+        result = run_in_act(use_case_class(dl, event))
     except Exception as e:  # noqa: BLE001  # ruff-baseline #3989
         pytest.fail(f"Use case raised an exception: {e}")
     # A handler reports what it did with the message (HP-01-003, #2255).

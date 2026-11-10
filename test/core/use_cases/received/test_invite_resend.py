@@ -40,6 +40,7 @@ from test.core.use_cases.received.test_joiner_revision_relay import (
     JOINER,
     _join,
 )
+from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import activate, reject
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -163,13 +164,15 @@ def _state_position(
     read = read_ledger_entry_activity(
         _tail(dl, case_id), actor=sender, to=[MANAGER]
     )
-    return ReadLedgerEntryReceivedUseCase(
-        dl,
-        make_payload(read, receiving_actor_id=MANAGER, at=dl),
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        ReadLedgerEntryReceivedUseCase(
+            dl,
+            make_payload(read, receiving_actor_id=MANAGER, at=dl),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
 
 def _invite_id(dl: SqliteDataLayer, semantic_type: str, peer: str) -> str:
@@ -199,13 +202,15 @@ def _accept_embargo_invite(
     accept = em_accept_embargo_activity(
         proposal=invite, context=case_id, actor=JOINER, to=[MANAGER]
     )
-    return AcceptInviteToEmbargoOnCaseReceivedUseCase(
-        dl,
-        make_payload(accept, receiving_actor_id=MANAGER, at=dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            make_payload(accept, receiving_actor_id=MANAGER, at=dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
 
 
 def _joined(case_id: str, make_payload) -> tuple[SqliteDataLayer, str]:
@@ -475,13 +480,15 @@ def test_a_replied_full_case_invite_is_not_resent_and_a_reply_still_counts(
         actor=JOINER,
         to=[MANAGER],
     )
-    accepted = AcceptInviteActorToFullCaseReceivedUseCase(
-        dl,
-        make_payload(reply, receiving_actor_id=MANAGER, at=dl),
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-    ).execute()
+    accepted = run_in_act(
+        AcceptInviteActorToFullCaseReceivedUseCase(
+            dl,
+            make_payload(reply, receiving_actor_id=MANAGER, at=dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+    )
     assert accepted.disposition is HandlerDisposition.APPLIED, accepted.reason
     _drain(dl)
     # Let both cooldowns pass, so only the reply keeps the full-case Invite
@@ -804,7 +811,8 @@ def test_an_owed_invite_with_no_sync_port_is_a_wiring_error(make_payload):
         _tail(dl, case_id), actor=JOINER, to=[MANAGER]
     )
 
-    result = BTBridge(datalayer=dl).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=dl),
         tree=invite_resend.ResendOwedInvitesNode(
             case_id=case_id, sender_id=JOINER
         ),

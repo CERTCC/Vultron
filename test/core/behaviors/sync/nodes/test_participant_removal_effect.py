@@ -24,6 +24,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
     REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
     REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE,
@@ -91,7 +92,8 @@ def replica_record(datalayer) -> CaseParticipant:
 
 
 def _apply(bridge, case_actor, entry):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=ApplyRemoveCaseParticipantFromLedgerNode(name="ApplyRemoval"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(entry, actor_id=case_actor.id_),
@@ -203,7 +205,8 @@ def test_skips_a_participant_the_replica_does_not_hold(
 def test_condition_matches_only_the_removal_event(
     bridge, case_actor, semantic_type: str, expected: Status
 ) -> None:
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=IsRemoveCaseParticipantEventNode(name="IsRemoval"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(
@@ -220,7 +223,8 @@ def test_condition_matches_only_the_removal_event(
 
 
 def _reinstate(bridge, case_actor, entry):
-    return bridge.execute_with_setup(
+    return run_tree(
+        bridge,
         tree=ApplyReinstateCaseParticipantFromLedgerNode(
             name="ApplyReinstate"
         ),
@@ -302,7 +306,8 @@ def test_reinstatement_skips_a_snapshot_with_no_participant(
 def test_condition_matches_only_the_reinstatement_event(
     bridge, case_actor, semantic_type: str, expected: Status
 ) -> None:
-    result = bridge.execute_with_setup(
+    result = run_tree(
+        bridge,
         tree=IsReinstateCaseParticipantEventNode(name="IsReinstatement"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(

@@ -25,6 +25,7 @@ from typing import Any
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.received import received_record
 from test.support.signing import resigned
 from vultron.adapters.driven.clock import SystemClock
@@ -108,16 +109,18 @@ def test_the_accept_trigger_embeds_the_invite_as_received():
     # The trigger runs as the actor whose store this is (ADR-0073).
     dl.save(as_Service(id_=BYSTANDER, name="Vendor B"))
 
-    result = SvcAcceptEmbargoUseCase(
-        dl,
-        AcceptEmbargoTriggerRequest(
-            actor_id=BYSTANDER, case_id=net.case_id, proposal_id=body["id"]
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-        clock=SystemClock(),
-    ).execute()
+    result = run_in_act(
+        SvcAcceptEmbargoUseCase(
+            dl,
+            AcceptEmbargoTriggerRequest(
+                actor_id=BYSTANDER, case_id=net.case_id, proposal_id=body["id"]
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=SystemClock(),
+        )
+    )
 
     assert result.activity is not None
     sealed = read_sealed_body_dict(dl, result.activity["id"])

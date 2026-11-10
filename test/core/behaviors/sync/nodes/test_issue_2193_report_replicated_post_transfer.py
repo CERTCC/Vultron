@@ -34,6 +34,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
@@ -182,7 +183,8 @@ def test_report_replicated_to_post_transfer_participant(
         transfer_entry, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
     )
 
-    transfer_result = bridge.execute_with_setup(
+    transfer_result = run_tree(
+        bridge,
         tree=tree(),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=transfer_event,
@@ -204,7 +206,8 @@ def test_report_replicated_to_post_transfer_participant(
         report_entry, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
     )
 
-    report_result = bridge.execute_with_setup(
+    report_result = run_tree(
+        bridge,
         tree=tree(),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=report_event,

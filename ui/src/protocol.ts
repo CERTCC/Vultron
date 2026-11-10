@@ -20,13 +20,13 @@ import protocolStates from './data/protocol_states.json'
 
 export type MachineName = 'rm' | 'em' | 'vfd' | 'pxa'
 
-interface RawTransition {
+export interface RawTransition {
   trigger: string
   source: string
   dest: string
 }
 
-interface RawMachine {
+export interface RawMachine {
   initial: string
   states: string[]
   transitions: RawTransition[]
@@ -34,7 +34,7 @@ interface RawMachine {
 
 // The JSON carries a leading `_README` key alongside the four machines. Narrow
 // to just the machines we care about; the cast is safe because the drift test
-// (test/test_demo_states_export.py) guards the artifact's shape.
+// (test/metadata/demo_scenarios/test_export_states.py) guards the artifact's shape.
 const MACHINES: Record<MachineName, RawMachine> = {
   rm: protocolStates.rm as RawMachine,
   em: protocolStates.em as RawMachine,
@@ -165,7 +165,7 @@ export function requireNextState(
   if (dest === null) {
     throw new Error(
       `Illegal ${machine} transition: no "${trigger}" from "${current}". ` +
-        `Check protocolActions mapping vs. data/json/protocol_states.json.`
+        `Check the action filters vs. ui/src/data/protocol_states.json.`
     )
   }
   return dest

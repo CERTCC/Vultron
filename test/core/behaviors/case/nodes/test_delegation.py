@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.ledger import (
     committed_semantic_types,
 )
@@ -128,8 +129,8 @@ class TestAnswerNodeInputs:
 
     def test_failure_when_no_factory(self, dl, node_cls, semantic_type):
         bridge_no_factory = BTBridge(datalayer=dl)
-        result = bridge_no_factory.execute_with_setup(
-            tree=_answer_node(node_cls), actor_id=ACTOR_ID
+        result = run_tree(
+            bridge_no_factory, tree=_answer_node(node_cls), actor_id=ACTOR_ID
         )
 
         assert result.status == Status.FAILURE
@@ -139,8 +140,10 @@ class TestAnswerNodeInputs:
     def test_failure_when_an_id_is_empty(
         self, bridge, dl, node_cls, semantic_type, field
     ):
-        result = bridge.execute_with_setup(
-            tree=_answer_node(node_cls, **{field: ""}), actor_id=ACTOR_ID
+        result = run_tree(
+            bridge,
+            tree=_answer_node(node_cls, **{field: ""}),
+            actor_id=ACTOR_ID,
         )
 
         assert result.status == Status.FAILURE
@@ -154,8 +157,8 @@ class TestAnswerNodeInputs:
         bridge_bad_factory = BTBridge(
             datalayer=dl, trigger_activity=mock_factory
         )
-        result = bridge_bad_factory.execute_with_setup(
-            tree=_answer_node(node_cls), actor_id=ACTOR_ID
+        result = run_tree(
+            bridge_bad_factory, tree=_answer_node(node_cls), actor_id=ACTOR_ID
         )
 
         assert result.status == Status.FAILURE
@@ -165,7 +168,8 @@ class TestAnswerNodeInputs:
         self, bridge, dl, node_cls, semantic_type
     ):
         """An Accept that fails here lets the Selector answer with the Reject."""
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=_answer_node(
                 node_cls, case_id="https://example.org/cases/not-held"
             ),
@@ -203,8 +207,8 @@ class TestAnswerGoesToTheCaseManager:
             datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
         )
 
-        result = bridge.execute_with_setup(
-            tree=_answer_node(node_cls), actor_id=ACTOR_ID
+        result = run_tree(
+            bridge, tree=_answer_node(node_cls), actor_id=ACTOR_ID
         )
 
         assert result.status == Status.SUCCESS, result
@@ -218,8 +222,8 @@ class TestAnswerGoesToTheCaseManager:
         """No CASE_MANAGER resolves: nothing is sent, so the Selector fails."""
         _seed_participant(dl, ACTOR_ID, [CVDRole.REPORTER])
 
-        result = bridge.execute_with_setup(
-            tree=_answer_node(node_cls), actor_id=ACTOR_ID
+        result = run_tree(
+            bridge, tree=_answer_node(node_cls), actor_id=ACTOR_ID
         )
 
         assert result.status == Status.FAILURE
@@ -233,13 +237,9 @@ class TestAnswerGoesToTheCaseManager:
             datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
         )
 
-        bridge.execute_with_setup(
-            tree=_answer_node(node_cls), actor_id=ACTOR_ID
-        )
+        run_tree(bridge, tree=_answer_node(node_cls), actor_id=ACTOR_ID)
         first = dl.outbox_list()
-        bridge.execute_with_setup(
-            tree=_answer_node(node_cls), actor_id=ACTOR_ID
-        )
+        run_tree(bridge, tree=_answer_node(node_cls), actor_id=ACTOR_ID)
 
         assert len(first) == 1
         assert dl.outbox_list() == first
@@ -263,9 +263,7 @@ def test_an_ordinary_participant_answers_with_no_ledger_entry(
         sync_port=SyncActivityAdapter(dl),
     )
 
-    result = bridge.execute_with_setup(
-        tree=_answer_node(node_cls), actor_id=ACTOR_ID
-    )
+    result = run_tree(bridge, tree=_answer_node(node_cls), actor_id=ACTOR_ID)
 
     assert result.status == Status.SUCCESS, result
     assert len(dl.outbox_list()) == 1
@@ -277,7 +275,8 @@ class TestIsRoleOfferTargetNode:
 
     @pytest.mark.spec("CM-33-004")
     def test_succeeds_for_the_target(self, bridge):
-        result = bridge.execute_with_setup(
+        result = run_tree(
+            bridge,
             tree=IsRoleOfferTargetNode(target_actor_id=ACTOR_ID),
             actor_id=ACTOR_ID,
         )
@@ -288,7 +287,7 @@ class TestIsRoleOfferTargetNode:
     def test_fails_for_any_other_actor(self, bridge):
         node = IsRoleOfferTargetNode(target_actor_id=VENDOR_ID)
 
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.FAILURE
         assert "is not the target" in node.feedback_message
@@ -310,9 +309,7 @@ class TestForwardRoleOfferToTargetNode:
     @pytest.mark.spec("CM-33-008")
     @pytest.mark.spec("CM-24-005")
     def test_forward_names_the_recorded_offer_and_its_owner(self, bridge, dl):
-        result = bridge.execute_with_setup(
-            tree=_forward_node(), actor_id=ACTOR_ID
-        )
+        result = run_tree(bridge, tree=_forward_node(), actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS, result
         (forward_id,) = dl.outbox_list()
@@ -325,16 +322,16 @@ class TestForwardRoleOfferToTargetNode:
 
     @pytest.mark.spec("OX-06-002")
     def test_a_retry_queues_the_same_forward_once(self, bridge, dl):
-        bridge.execute_with_setup(tree=_forward_node(), actor_id=ACTOR_ID)
+        run_tree(bridge, tree=_forward_node(), actor_id=ACTOR_ID)
         first = dl.outbox_list()
-        bridge.execute_with_setup(tree=_forward_node(), actor_id=ACTOR_ID)
+        run_tree(bridge, tree=_forward_node(), actor_id=ACTOR_ID)
 
         assert len(first) == 1
         assert dl.outbox_list() == first
 
     def test_failure_when_no_factory(self, dl):
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=_forward_node(), actor_id=ACTOR_ID
+        result = run_tree(
+            BTBridge(datalayer=dl), tree=_forward_node(), actor_id=ACTOR_ID
         )
 
         assert result.status == Status.FAILURE
@@ -348,9 +345,11 @@ class TestForwardRoleOfferToTargetNode:
             "factory error"
         )
 
-        result = BTBridge(
-            datalayer=dl, trigger_activity=mock_factory
-        ).execute_with_setup(tree=_forward_node(), actor_id=ACTOR_ID)
+        result = run_tree(
+            BTBridge(datalayer=dl, trigger_activity=mock_factory),
+            tree=_forward_node(),
+            actor_id=ACTOR_ID,
+        )
 
         assert result.status == Status.FAILURE
         assert result.internal_error
@@ -368,7 +367,7 @@ class TestGrantCaseParticipantRoleNode:
             role=CVDRole.CASE_MANAGER,
             target_actor_id=ACTOR_ID,
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
         granted = dl.read(participant_id)
@@ -383,7 +382,7 @@ class TestGrantCaseParticipantRoleNode:
             role=CVDRole.CASE_MANAGER,
             target_actor_id=ACTOR_ID,
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
         assert ACTOR_ID not in dl.read(CASE_ID).actor_participant_index

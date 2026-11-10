@@ -25,6 +25,7 @@ from datetime import datetime
 
 import py_trees
 
+from test.support.act_runner import run_tree
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -61,12 +62,13 @@ def run_end_time_check(
     """Run the embargo end-time check for *case_id* as *actor_id*, as the
     clock-decision stage runs it: behind its CASE_MANAGER gate, with the
     real trigger, sync and render ports (CLP-10-025)."""
-    return BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute_with_setup(
+    return run_tree(
+        BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ),
         tree=create_clock_decision_gate(
             case_id,
             [

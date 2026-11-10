@@ -16,7 +16,8 @@ description: >
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, why a status fixture may not encode a state the CS
   invariants forbid and where the guard for that reaches,
-  py_trees test patterns, CoreObject subclass isolation,
+  py_trees test patterns, running each use case and tree as one act through
+  the test act runner, CoreObject subclass isolation,
   assertion-quality traps (vacuous asserts, "falls back to" tests, bare
   MagicMock), driving a guard through its production entry point rather than by
   direct call, the three future-date idioms a sweep must tell apart before
@@ -439,6 +440,19 @@ per-directory copy: the gap between copies is where order-dependent failures liv
 pending-assertion and actor stores); a new registry gets its reset there too,
 with an ordered pair in
 `test/test_process_global_isolation.py`.
+
+### Run Each Use Case and Tree Through the Test Act Runner
+
+Call `run_in_act(uc)` for a use case and `run_tree(bridge, tree, ...)` for a tree,
+from `test/support/act_runner.py`, never a bare `.execute()` or
+`execute_with_setup`. Production runs every tree inside an act that carries the
+act's instant (ADR-0176), so a node that reads the instant fails in a test that
+skips the act. A trigger opens its own act from its clock: pin its instant with
+`FixedClock(at)` at construction, not with `at=`. A nested run inherits the
+instant in force, and a different `at=` is refused. The runner checks for that
+instant under the tree lock, because `/at` lives on the process-global blackboard
+and another thread's act would otherwise read as this one's.
+`test/architecture/test_tests_run_acts_through_the_runner.py` refuses a direct call.
 
 ### `SUBFAILED` in `unittest.TestCase` Subtests Does Not Fail pytest
 

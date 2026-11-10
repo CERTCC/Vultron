@@ -9,8 +9,8 @@
  *     isLegalTransition(machine, currentState, trigger)  // machine legality (JSON)
  *       && <demo overlay conditions>                     // non-machine policy
  *
- * The overlays that intentionally stay hand-written (they have no machine slot
- * per protocolActions.ts) are: embargo-before-participation (late-joiner
+ * The overlays that intentionally stay hand-written (no single machine
+ * transition decides them) are: embargo-before-participation (late-joiner
  * consent), `isPublic` early-termination, pending-note reply gating, invite
  * availability, `phase` routing, and label/action-id selection between EM
  * negotiation phases. Where the demo surfaces a transition in only *some* of
@@ -34,7 +34,7 @@ import { isLegalTransition, canStartEmbargo, embargoViable } from '../protocol'
  * Build the "Submit Report to Vendor N" (invite) action, or null if unavailable.
  *
  * Inviting another vendor is a DEMO-overlay action — the Vultron protocol has no
- * invite/report-forwarding transition (see protocolActions.ts, `kind:'demo'`), so
+ * invite/report-forwarding transition, so
  * this is a policy choice, not a machine gate. Policy: any active participant may
  * invite another vendor **as long as the case is not yet closed**, independent of
  * the case-level `phase`. This is grounded in the protocol's separation of Report
@@ -366,7 +366,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   }
 
   // ---- Notes: reply to a pending Finder question (no machine slot) ----
-  if (state.hasPendingFinderNote && !vendor.hasRepliedToCurrentNote) {
+  if (state.hasPendingReporterNote && !vendor.hasRepliedToCurrentNote) {
     actions.push({
       id: 'vendor-reply-note',
       label: 'Reply to Question',
@@ -378,7 +378,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // ---- VFD: fix development, independent of publicity ----
   // `fix_is_ready` legal from Vfd, `fix_is_deployed` from VFd (artifact). Overlay:
   // `canProgressVFD` couples VFD to RM.ACCEPTED (Fix Ready requires the vendor to
-  // have accepted; not a single machine transition — see protocolActions/§9). NB:
+  // have accepted; not a single machine transition — see ui/AGENTS.md §9). NB:
   // NOT gated on publicity — a vendor may (and per the shrinkwrap model, typically
   // does) advance/deploy a fix after the vuln is public.
   const canProgressVFD = vendor.rmState === 'ACCEPTED'

@@ -21,6 +21,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -200,13 +201,15 @@ def test_a_proposers_reject_of_its_own_proposal_is_refused_uncommitted(
         proposal, context=case_id, actor=PROPOSER, to=[MANAGER]
     )
     dl.create(reject)
-    result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-        dl,
-        make_payload(reject, receiving_actor_id=MANAGER, at=dl),
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    result = run_in_act(
+        RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            make_payload(reject, receiving_actor_id=MANAGER, at=dl),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
     assert (

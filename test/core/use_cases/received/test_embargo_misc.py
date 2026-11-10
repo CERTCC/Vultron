@@ -18,6 +18,7 @@ from typing import cast
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -78,7 +79,9 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         )
         event = make_payload(activity, at=dl)
 
-        result = AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(
+            AnnounceEmbargoEventToCaseReceivedUseCase(dl, event)
+        )
         assert result.disposition is HandlerDisposition.SKIPPED
 
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -124,7 +127,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         event = make_payload(activity, at=dl)
 
         with caplog.at_level(logging.INFO):
-            AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+            run_in_act(AnnounceEmbargoEventToCaseReceivedUseCase(dl, event))
 
         assert isinstance(
             dl.read(ReceivedActivityRecord.build_id(activity.id_)),
@@ -173,7 +176,9 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             at=dl,
         )
 
-        result = AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+        result = run_in_act(
+            AnnounceEmbargoEventToCaseReceivedUseCase(dl, event)
+        )
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "CASE_MANAGER" in (result.reason or "")
@@ -269,13 +274,15 @@ class TestResetEmbargoConsentWithInlineParticipants:
         )
 
         # Must not raise TypeError
-        RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            RemoveEmbargoEventFromCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+            )
+        )
 
         updated = cast(VulnerabilityCase, dl.read(case_id))
         assert updated is not None

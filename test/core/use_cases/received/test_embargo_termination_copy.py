@@ -29,6 +29,7 @@ from typing import Any, cast
 import py_trees
 import pytest
 
+from test.support.act_runner import run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.ledger import committed_semantic_types, fail_commits
@@ -117,7 +118,8 @@ def _cascade(
 ) -> py_trees.common.Status:
     """The CASE_MANAGER's cascade termination: no use case builds the
     ``Remove``."""
-    result = _bridge(net).execute_with_setup(
+    result = run_tree(
+        _bridge(net),
         terminate_embargo_bt(
             case_id=net.case_id,
             result_out={},
@@ -144,7 +146,8 @@ def _trigger(net: LedgerNetwork) -> py_trees.common.Status:
             to=to,
         )
 
-    result = _bridge(net).execute_with_setup(
+    result = run_tree(
+        _bridge(net),
         terminate_embargo_bt(
             case_id=net.case_id,
             result_out={},

@@ -41,6 +41,7 @@ from unittest.mock import patch
 import py_trees
 import pytest
 
+from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register, terminate
 from test.support.ledger import fail_commits
@@ -274,14 +275,18 @@ class TestEmitCreateVulnerabilityCaseNode:
             )
             client.accept_activity_id = accept_id
 
-        result = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=(
-                TriggerActivityAdapter(dl) if with_factory else None
+        result = run_tree(
+            BTBridge(
+                datalayer=dl,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=(
+                    TriggerActivityAdapter(dl) if with_factory else None
+                ),
+                sync_port=SyncActivityAdapter(dl),
             ),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI)
+            tree=tree,
+            actor_id=_CASE_ACTOR_URI,
+        )
         return result.status
 
     def _dl(self) -> SqliteDataLayer:
@@ -702,13 +707,15 @@ class TestCreateCaseProposalReceivedBTCreateWiring:
             CreateCaseProposalReceivedUseCase,
         )
 
-        return CreateCaseProposalReceivedUseCase(
-            dl,
-            self._make_event(make_payload),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        return run_in_act(
+            CreateCaseProposalReceivedUseCase(
+                dl,
+                self._make_event(make_payload),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
     def test_full_success_queues_the_create(self, make_payload):
         """The committed act leaves the Create in the durable outbox."""
@@ -862,14 +869,16 @@ def _run_full_bt(
     event = _make_full_event(
         make_payload, actor=actor, proposer_case_roles=proposer_case_roles
     )
-    return CreateCaseProposalReceivedUseCase(
-        dl,
-        event,
-        actor_config=actor_config,
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+    return run_in_act(
+        CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            actor_config=actor_config,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
 
 
 def _owner_roles(dl: SqliteDataLayer) -> list:
@@ -1271,17 +1280,19 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         assert stored.active_embargo == prior
         assert stored.current_status.em.state == EM.REVISE
 
+    @pytest.mark.spec("MSM-07-037")
     @pytest.mark.parametrize(
         ("decliner", "expected"),
-        [(_VENDOR_URI, "SUCCESS"), (_CASE_ACTOR_URI, "SUCCESS")],
+        [(_VENDOR_URI, "FAILURE"), (_CASE_ACTOR_URI, "SUCCESS")],
     )
-    def test_no_decline_blocks_the_owners_activation(
+    def test_only_the_owners_decline_blocks_its_activation(
         self, make_payload, decliner, expected
     ):
-        """Neither the owner's decline nor the case actor's blocks activation.
+        """The owner's own decline blocks its activation; the case actor's not.
 
-        An owner that declined and then activates has changed its answer
-        (MSM-07-028, maintainer ruling 2026-10-14).
+        An owner that declined accepts the invitation first, then activates
+        (MSM-07-037, ADR-0180).  Another participant's decline is that
+        participant's answer and refuses nothing.
         """
         from test.core.behaviors.bt_harness import BTTestScenario
         from vultron.core.behaviors.embargo.nodes import (
@@ -1748,14 +1759,16 @@ class TestADR0041EmbargoInit:
             event = make_payload(activity, at=dl).model_copy(
                 update={"receiving_actor_id": _CASE_ACTOR_URI}
             )
-            CreateCaseProposalReceivedUseCase(
-                dl,
-                event,
-                actor_config=config,
-                wire_render_port=As2WireRenderAdapter(),
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+            run_in_act(
+                CreateCaseProposalReceivedUseCase(
+                    dl,
+                    event,
+                    actor_config=config,
+                    wire_render_port=As2WireRenderAdapter(),
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
             expected[report_id] = policy or timedelta(days=5)
 
         slack = timedelta(minutes=1)
@@ -1938,10 +1951,14 @@ class TestCM14005ReporterSignatory:
 
         from vultron.core.behaviors.bridge import BTBridge
 
-        result = BTBridge(
-            datalayer=dl,
-            sync_port=SyncActivityAdapter(dl),
-        ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI)
+        result = run_tree(
+            BTBridge(
+                datalayer=dl,
+                sync_port=SyncActivityAdapter(dl),
+            ),
+            tree=tree,
+            actor_id=_CASE_ACTOR_URI,
+        )
         assert result.status == py_trees.common.Status.SUCCESS, (
             "SeedReporterSignatoryNode must return SUCCESS when no active"
             " embargo (AC-3, best-effort)"
@@ -2230,13 +2247,15 @@ class TestADR0041InlineParticipantsPayload:
         _seed_report(dl)
         event = _make_full_event(make_payload)
 
-        CreateCaseProposalReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CreateCaseProposalReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         payload = _queued_create(dl)
 
@@ -2268,13 +2287,15 @@ class TestADR0041InlineParticipantsPayload:
         _seed_report(dl)
         event = _make_full_event(make_payload)
 
-        CreateCaseProposalReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CreateCaseProposalReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         payload = _queued_create(dl)
         obj_field = payload.get("object") or payload.get("object_")
@@ -2661,13 +2682,15 @@ class TestADR0041GenesisCommitFailure:
         _seed_report(dl)
         attempted = fail_commits(monkeypatch, proposal_ledger, allowed=1)
 
-        result = CreateCaseProposalReceivedUseCase(
-            dl,
-            _make_full_event(make_payload),
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            CreateCaseProposalReceivedUseCase(
+                dl,
+                _make_full_event(make_payload),
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition is not HandlerDisposition.APPLIED
         assert "creation entries stop there" in (result.reason or "")
@@ -3355,10 +3378,14 @@ def test_store_proposal_report_keeps_the_reporter(caplog):
         inline_report=cast(Any, proposal.object_),
     )
     py_trees.blackboard.Blackboard.storage.clear()
-    result = BTBridge(
-        datalayer=dl,
-        sync_port=SyncActivityAdapter(dl),
-    ).execute_with_setup(tree=node, actor_id=_CASE_ACTOR_URI)
+    result = run_tree(
+        BTBridge(
+            datalayer=dl,
+            sync_port=SyncActivityAdapter(dl),
+        ),
+        tree=node,
+        actor_id=_CASE_ACTOR_URI,
+    )
     assert result.status == py_trees.common.Status.SUCCESS
 
     stored = dl.read(_REPORT_URI_2482)
@@ -3393,10 +3420,14 @@ def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
         proposal_dict=proposal.model_dump(serialize_as_any=True),
     )
     py_trees.blackboard.Blackboard.storage.clear()
-    result = BTBridge(
-        datalayer=dl,
-        sync_port=SyncActivityAdapter(dl),
-    ).execute_with_setup(tree=node, actor_id=_CASE_ACTOR_URI)
+    result = run_tree(
+        BTBridge(
+            datalayer=dl,
+            sync_port=SyncActivityAdapter(dl),
+        ),
+        tree=node,
+        actor_id=_CASE_ACTOR_URI,
+    )
     assert result.status == py_trees.common.Status.SUCCESS
     assert isinstance(dl.read(_REPORT_URI_2482), VulnerabilityReport)
 
@@ -3630,13 +3661,15 @@ class TestEP04SenderProposalAtCaseCreation:
         event, terms = self._event_with_terms(
             make_payload, sender_days=sender_days, **terms_kwargs
         )
-        CreateCaseProposalReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        run_in_act(
+            CreateCaseProposalReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
         return terms
 
     def _run(
@@ -3962,13 +3995,15 @@ class TestEP04SenderProposalAtCaseCreation:
         )
 
         def _execute(delivered: Any) -> HandlerResult:
-            return CreateCaseProposalReceivedUseCase(
-                dl,
-                delivered,
-                wire_render_port=As2WireRenderAdapter(),
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+            return run_in_act(
+                CreateCaseProposalReceivedUseCase(
+                    dl,
+                    delivered,
+                    wire_render_port=As2WireRenderAdapter(),
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=SyncActivityAdapter(dl),
+                )
+            )
 
         monkeypatch.setattr(
             embargo_revision_relay, "invitation_recipients", lambda *a, **k: []
@@ -4102,13 +4137,15 @@ class TestEP04SenderProposalAtCaseCreation:
         event, _ = self._event_with_terms(
             make_payload, sender_days=self._SENDER_END_DAYS, terms=terms
         )
-        result = CreateCaseProposalReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        result = run_in_act(
+            CreateCaseProposalReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
         assert result.disposition == HandlerDisposition.APPLIED, result
         assert "Accept(CaseProposal)" in _outbox_labels(dl)
@@ -4278,13 +4315,15 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
     _seed_report(dl)
     event = _make_full_event(make_payload)
-    CreateCaseProposalReceivedUseCase(
-        dl,
-        event,
-        wire_render_port=As2WireRenderAdapter(),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-    ).execute()
+    run_in_act(
+        CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        )
+    )
 
     labels = _outbox_labels(dl)
     announces = [lbl for lbl in labels if lbl.startswith("Announce(")]
@@ -4334,13 +4373,15 @@ def test_a_genesis_commit_failure_queues_neither_accept_nor_create(
     event = _make_full_event(make_payload)
 
     def _execute():
-        return CreateCaseProposalReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        return run_in_act(
+            CreateCaseProposalReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+            )
+        )
 
     with pytest.MonkeyPatch.context() as patch_ctx:
         fail_commits(patch_ctx, proposal_ledger)

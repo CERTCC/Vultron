@@ -18,6 +18,7 @@ from typing import cast
 import pytest
 
 from test.conftest import TEST_ACTOR_ID
+from test.support.act_runner import run_in_act
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import MessageSemantics
@@ -59,7 +60,7 @@ class TestUnresolvableObjectUseCase:
         )
         event = _make_unresolvable_event()
 
-        result = UnresolvableObjectUseCase(dl, event).execute()
+        result = run_in_act(UnresolvableObjectUseCase(dl, event))
 
         # HP-01-003: the activity could not be processed; the dead-letter
         # record is bookkeeping, not an application of the activity (#2255).
@@ -85,7 +86,7 @@ class TestUnresolvableObjectUseCase:
         )
         event = _make_unresolvable_event()
 
-        UnresolvableObjectUseCase(dl, event).execute()
+        run_in_act(UnresolvableObjectUseCase(dl, event))
 
         stored = dl.by_type("DeadLetterRecord")
         record_data = next(iter(stored.values()))
@@ -99,7 +100,7 @@ class TestUnresolvableObjectUseCase:
         )
         event = _make_unresolvable_event()
 
-        UnresolvableObjectUseCase(dl, event).execute()
+        run_in_act(UnresolvableObjectUseCase(dl, event))
 
         stored = dl.by_type("DeadLetterRecord")
         record_data = next(iter(stored.values()))
@@ -113,7 +114,7 @@ class TestUnresolvableObjectUseCase:
         )
         event = _make_unresolvable_event()
 
-        UnresolvableObjectUseCase(dl, event).execute()
+        run_in_act(UnresolvableObjectUseCase(dl, event))
 
         stored = dl.by_type("DeadLetterRecord")
         record_data = next(iter(stored.values()))
@@ -127,7 +128,7 @@ class TestUnresolvableObjectUseCase:
         )
         event = _make_unresolvable_event()
 
-        UnresolvableObjectUseCase(dl, event).execute()
+        run_in_act(UnresolvableObjectUseCase(dl, event))
 
         stored = dl.by_type("DeadLetterRecord")
         record_data = next(iter(stored.values()))
@@ -147,7 +148,7 @@ class TestUnresolvableObjectUseCase:
         )
         event = _make_unresolvable_event()
 
-        UnresolvableObjectUseCase(dl, event).execute()
+        run_in_act(UnresolvableObjectUseCase(dl, event))
 
         record_data = next(iter(dl.by_type("DeadLetterRecord").values()))
         summary = record_data["activity_summary"]
@@ -163,8 +164,8 @@ class TestUnresolvableObjectUseCase:
         )
         event = _make_unresolvable_event()
 
-        UnresolvableObjectUseCase(dl, event).execute()
-        UnresolvableObjectUseCase(dl, event).execute()
+        run_in_act(UnresolvableObjectUseCase(dl, event))
+        run_in_act(UnresolvableObjectUseCase(dl, event))
 
         stored = dl.by_type("DeadLetterRecord")
         # Two separate records are stored (idempotency would require dedup logic
@@ -183,7 +184,7 @@ class TestUnresolvableObjectUseCase:
         event = _make_unresolvable_event()
 
         with caplog.at_level(logging.WARNING):
-            UnresolvableObjectUseCase(dl, event).execute()
+            run_in_act(UnresolvableObjectUseCase(dl, event))
 
         assert any(
             record.levelno == logging.WARNING

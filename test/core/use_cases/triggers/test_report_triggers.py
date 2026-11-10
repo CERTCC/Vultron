@@ -30,6 +30,7 @@ from typing import cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -251,12 +252,14 @@ class TestSvcValidateReportUseCase:
             offer_id=self.offer.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcValidateReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert set(self.dl.outbox_list()) - before
         link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
@@ -285,12 +288,14 @@ class TestSvcValidateReportUseCase:
         before = cast(
             CaseParticipant, self.dl.read(vendor_participant_id)
         ).participant_statuses
-        SvcValidateReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         updated = self.dl.read(vendor_participant_id)
         assert updated is not None
@@ -309,12 +314,14 @@ class TestSvcValidateReportUseCase:
             offer_id=self.offer.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcValidateReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
@@ -327,12 +334,14 @@ class TestSvcValidateReportUseCase:
             offer_id=self.offer.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcValidateReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, "No new outbox item was queued"
@@ -368,12 +377,14 @@ class TestSvcValidateReportUseCase:
             offer_id=self.offer.id_,
         )
         with pytest.raises(VultronNotFoundError):
-            SvcValidateReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcValidateReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_validate_report_raises_when_offer_not_found(self):
         """VultronNotFoundError raised when offer_id is unknown."""
@@ -382,12 +393,14 @@ class TestSvcValidateReportUseCase:
             offer_id="urn:uuid:no-such-offer",
         )
         with pytest.raises(VultronNotFoundError):
-            SvcValidateReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcValidateReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_validate_report_raises_when_offer_record_missing(self):
         """VultronNotFoundError raised when no VultronOfferRecord exists for offer_id.
@@ -401,12 +414,14 @@ class TestSvcValidateReportUseCase:
             offer_id="urn:uuid:offer-with-no-record",
         )
         with pytest.raises(VultronNotFoundError):
-            SvcValidateReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcValidateReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_validate_report_requires_trigger_activity_port(self):
         """RuntimeError raised when trigger_activity port is not supplied."""
@@ -415,12 +430,14 @@ class TestSvcValidateReportUseCase:
             offer_id=self.offer.id_,
         )
         with pytest.raises(RuntimeError):
-            SvcValidateReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=None,
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcValidateReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=None,
+                    clock=SystemClock(),
+                )
+            )
 
     @pytest.mark.spec("TRIG-07-001")
     def test_validate_report_returns_activity_dict(self):
@@ -429,12 +446,14 @@ class TestSvcValidateReportUseCase:
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcValidateReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcValidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert result.activity is not None
         assert activity_of(result).get("type") == "Accept"
@@ -446,9 +465,11 @@ class TestSvcValidateReportUseCase:
             offer_id=self.offer.id_,
         )
         ta = TriggerActivityAdapter(self.dl)
-        SvcValidateReportUseCase(
-            self.dl, request, trigger_activity=ta, clock=SystemClock()
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                self.dl, request, trigger_activity=ta, clock=SystemClock()
+            )
+        )
 
         vendor_participant_id = self.case.actor_participant_index[
             self.vendor.id_
@@ -459,9 +480,11 @@ class TestSvcValidateReportUseCase:
 
         # Second call: CheckRMStateValid short-circuits before TransitionRMtoValid;
         # participant_statuses list must not grow.
-        SvcValidateReportUseCase(
-            self.dl, request, trigger_activity=ta, clock=SystemClock()
-        ).execute()
+        run_in_act(
+            SvcValidateReportUseCase(
+                self.dl, request, trigger_activity=ta, clock=SystemClock()
+            )
+        )
 
         p2 = self.dl.read(vendor_participant_id)
         assert isinstance(p2, CaseParticipant)
@@ -537,12 +560,14 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcInvalidateReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcInvalidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert result.activity is not None
         assert activity_of(result).get("type") == "TentativeReject"
@@ -556,12 +581,14 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
             offer_id=self.offer.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcInvalidateReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcInvalidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
@@ -571,12 +598,14 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
             actor_id="urn:uuid:no-such-actor", offer_id=self.offer.id_
         )
         with pytest.raises(VultronNotFoundError):
-            SvcInvalidateReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcInvalidateReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_invalidate_report_raises_when_offer_not_found(self):
         """Ported from the retired ``TriggerService`` suite (#3833)."""
@@ -584,12 +613,14 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
             actor_id=self.vendor.id_, offer_id="urn:uuid:no-such-offer"
         )
         with pytest.raises(VultronNotFoundError):
-            SvcInvalidateReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcInvalidateReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
 
 class TestSvcRejectReportUseCase(_ReportTriggerBase):
@@ -619,12 +650,14 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcRejectReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert result.activity is not None
         assert activity_of(result).get("type") == "Reject"
@@ -639,12 +672,14 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             offer_id=self.offer.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcRejectReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
@@ -655,12 +690,14 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcRejectReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert activity_of(result).get("type") == "Reject"
         link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
@@ -680,12 +717,14 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
         )
         before = set(self.dl.outbox_list())
         with pytest.raises(VultronInvalidStateTransitionError, match="VALID"):
-            SvcRejectReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcRejectReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
         assert set(self.dl.outbox_list()) == before
 
     def test_reject_report_raises_when_actor_not_found(self):
@@ -697,12 +736,14 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             note="Reason.",
         )
         with pytest.raises(VultronNotFoundError):
-            SvcRejectReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcRejectReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_reject_report_raises_when_offer_not_found(self):
         """Ported from the retired ``TriggerService`` suite (#3833)."""
@@ -712,12 +753,14 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             note="Reason.",
         )
         with pytest.raises(VultronNotFoundError):
-            SvcRejectReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcRejectReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
 
 class TestSvcRejectReportOnACase(_ReportTriggerBase):
@@ -739,12 +782,14 @@ class TestSvcRejectReportOnACase(_ReportTriggerBase):
             VultronInvalidStateTransitionError,
             match=r"Leave\(VulnerabilityCase\)",
         ):
-            SvcRejectReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcRejectReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
         assert set(self.dl.outbox_list()) == before
         link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
         assert isinstance(link, VultronReportCaseLink)
@@ -789,12 +834,14 @@ class TestReportTriggersRefuseAnActorNotSentTheOffer(_ReportTriggerBase):
         before = set(self.dl.outbox_list())
 
         with pytest.raises(VultronValidationError, match=verb) as excinfo:
-            use_case(
-                self.dl,
-                request_cls(actor_id=joiner.id_, offer_id=self.offer.id_),
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                use_case(
+                    self.dl,
+                    request_cls(actor_id=joiner.id_, offer_id=self.offer.id_),
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
         assert "full-case Invite" in str(excinfo.value)
         assert set(self.dl.outbox_list()) == before
@@ -834,12 +881,14 @@ class TestSvcSubmitReportUseCase:
             report_content="Vulnerability details",
             recipient_id=self.vendor.id_,
         )
-        result = SvcSubmitReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcSubmitReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         # Confirm the report object ID is readable from the DataLayer
         offer_dict = result.offer or {}
@@ -861,12 +910,14 @@ class TestSvcSubmitReportUseCase:
             report_content="Vulnerability details",
             recipient_id=self.vendor.id_,
         )
-        result = SvcSubmitReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcSubmitReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         offer_dict = result.offer or {}
         report_id = (offer_dict.get("object") or {}).get("id")
@@ -887,12 +938,14 @@ class TestSvcSubmitReportUseCase:
             report_content="Vulnerability details",
             recipient_id=self.vendor.id_,
         )
-        result = SvcSubmitReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        result = run_in_act(
+            SvcSubmitReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
         assert result.offer is not None
         assert result.offer.get("type") == "Offer"
@@ -909,12 +962,14 @@ class TestSvcSubmitReportUseCase:
             recipient_id=self.vendor.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcSubmitReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcSubmitReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
@@ -927,12 +982,14 @@ class TestSvcSubmitReportUseCase:
             recipient_id=self.vendor.id_,
         )
         before = set(self.dl.outbox_list())
-        SvcSubmitReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        run_in_act(
+            SvcSubmitReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
         after = set(self.dl.outbox_list())
         new_ids = after - before
         assert new_ids, "No new outbox item was queued"
@@ -966,12 +1023,14 @@ class TestSvcSubmitReportUseCase:
             recipient_id=self.vendor.id_,
         )
         with pytest.raises(VultronNotFoundError):
-            SvcSubmitReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcSubmitReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=SystemClock(),
+                )
+            )
 
     def test_submit_report_requires_trigger_activity_port(self):
         """RuntimeError raised when trigger_activity port is not supplied."""
@@ -982,12 +1041,14 @@ class TestSvcSubmitReportUseCase:
             recipient_id=self.vendor.id_,
         )
         with pytest.raises(RuntimeError):
-            SvcSubmitReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=None,
-                clock=SystemClock(),
-            ).execute()
+            run_in_act(
+                SvcSubmitReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=None,
+                    clock=SystemClock(),
+                )
+            )
 
     def test_submit_report_idempotent_on_duplicate_report(self):
         """Second execute() with same actor/name still succeeds without error."""
@@ -998,12 +1059,16 @@ class TestSvcSubmitReportUseCase:
             recipient_id=self.vendor.id_,
         )
         ta = TriggerActivityAdapter(self.dl)
-        r1 = SvcSubmitReportUseCase(
-            self.dl, request, trigger_activity=ta, clock=SystemClock()
-        ).execute()
-        r2 = SvcSubmitReportUseCase(
-            self.dl, request, trigger_activity=ta, clock=SystemClock()
-        ).execute()
+        r1 = run_in_act(
+            SvcSubmitReportUseCase(
+                self.dl, request, trigger_activity=ta, clock=SystemClock()
+            )
+        )
+        r2 = run_in_act(
+            SvcSubmitReportUseCase(
+                self.dl, request, trigger_activity=ta, clock=SystemClock()
+            )
+        )
         # Both calls return a valid offer
         assert r1.offer is not None
         assert r2.offer is not None
@@ -1045,12 +1110,14 @@ class TestSubmitReportProposedEmbargo:
             recipient_id=self.vendor.id_,
             **extra,
         )
-        return SvcSubmitReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcSubmitReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
     @pytest.mark.spec("EP-04-014")
     @pytest.mark.spec("EP-04-004")

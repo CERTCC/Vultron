@@ -20,6 +20,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.act_runner import run_in_act
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -165,9 +166,9 @@ class TestCaseParticipantUseCases:
             at=dl,
         )
 
-        result = RemoveCaseParticipantFromCaseReceivedUseCase(
-            dl, event
-        ).execute()
+        result = run_in_act(
+            RemoveCaseParticipantFromCaseReceivedUseCase(dl, event)
+        )
 
         assert result.disposition == HandlerDisposition.REFUSED
         # The path stage, a door, refused the unknown case before intake.
@@ -209,7 +210,7 @@ class TestCaseParticipantUseCases:
         ).model_copy(update={"object_": None, "object_id": None})
         assert event.participant_id is None
 
-        result = use_case(dl, event).execute()
+        result = run_in_act(use_case(dl, event))
 
         assert result.disposition == HandlerDisposition.REFUSED
         # The refusal came before the real tree could be built, at a door of
@@ -288,10 +289,12 @@ def _move(use_case, dl: SqliteDataLayer, event):
     )
     from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 
-    return use_case(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+    return run_in_act(
+        use_case(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        )
+    )

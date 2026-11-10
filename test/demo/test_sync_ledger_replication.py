@@ -22,6 +22,7 @@ from typing import cast
 import anyio
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.received import delivered, peer_position, received_event
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -355,11 +356,13 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
             ),
         )
 
-        RejectLedgerEntryReceivedUseCase(
-            case_actor_dl,
-            reject_for_case_actor,
-            sync_port=SyncActivityAdapter(case_actor_dl),
-        ).execute()
+        run_in_act(
+            RejectLedgerEntryReceivedUseCase(
+                case_actor_dl,
+                reject_for_case_actor,
+                sync_port=SyncActivityAdapter(case_actor_dl),
+            )
+        )
 
         # `outbox_handler(actor_id, dl, emitter=None)` — the shared-DataLayer
         # third positional is gone (ADR-0073), and passing a store where the

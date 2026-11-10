@@ -21,6 +21,7 @@ from collections.abc import Iterator
 
 import pytest
 
+from test.support.act_runner import run_in_act
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -84,16 +85,18 @@ class _Fixture:
         offer_id: str | None = None,
         note: str | None = None,
     ):
-        return SvcAckReportUseCase(
-            self.dl,
-            AckReportTriggerRequest(
-                actor_id=actor_id or self.vendor.id_,
-                offer_id=offer_id or self.offer.id_,
-                note=note,
-            ),
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            clock=SystemClock(),
-        ).execute()
+        return run_in_act(
+            SvcAckReportUseCase(
+                self.dl,
+                AckReportTriggerRequest(
+                    actor_id=actor_id or self.vendor.id_,
+                    offer_id=offer_id or self.offer.id_,
+                    note=note,
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=SystemClock(),
+            )
+        )
 
     def add_case(self) -> None:
         case = as_VulnerabilityCase(name="Case", attributed_to=CASE_ACTOR_ID)
