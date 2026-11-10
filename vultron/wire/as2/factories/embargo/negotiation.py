@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 
 from pydantic import ValidationError
 
-from vultron.core.models._helpers import as_utc, now_utc
+from vultron.core.models._helpers import as_utc
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     RsvpDeadlineClamp,
@@ -53,17 +53,18 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 logger = logging.getLogger(__name__)
 
 
-def _published_instant(published: object) -> datetime | None:
+def _published_instant(published: object) -> datetime:
     """Read a caller-supplied ``published`` as an aware instant.
 
     This is the one input to the RSVP-deadline check not read from a
     validated object, so it is normalised at this edge (ADR-0032, CS-13-001)
     whether it arrived as an ISO 8601 string or a naive ``datetime``;
-    ``resolve_rsvp_deadline`` expects aware inputs (#3784).  Anything else
-    yields ``None``, which the deadline check measures from now.
+    ``resolve_rsvp_deadline`` expects aware inputs (#3784).  The caller
+    supplies it: the factory reads no clock to stand in for it (ADR-0176).
 
     Raises:
-        VultronActivityConstructionError: If a string is not ISO 8601.
+        VultronActivityConstructionError: If *published* is absent, is not a
+            ``datetime``, or is a string that is not ISO 8601.
     """
     if isinstance(published, str):
         try:
@@ -73,7 +74,13 @@ def _published_instant(published: object) -> datetime | None:
                 f"em_propose_embargo_activity: published {published!r}"
                 " is not an ISO 8601 datetime"
             ) from exc
-    return as_utc(published) if isinstance(published, datetime) else None
+    if not isinstance(published, datetime):
+        raise VultronActivityConstructionError(
+            "em_propose_embargo_activity: an rsvp_deadline needs the"
+            " published instant it is measured from (EP-07-002); pass the"
+            " act's instant as published"
+        )
+    return as_utc(published)
 
 
 def em_propose_embargo_activity(
@@ -94,9 +101,10 @@ def em_propose_embargo_activity(
         rsvp_deadline: Optional RSVP-by deadline set on the activity-level
             ``end_time`` (CM-27-001, ADR-0065). MUST be timezone-aware, no
             earlier than the applicable minimum — ``min_rsvp_window`` after
-            ``published`` (or now), or the embargo's ``end_time`` if that is
+            ``published``, or the embargo's ``end_time`` if that is
             sooner (EP-07-002) — and no later than the embargo's
-            ``end_time`` (EP-07-006).
+            ``end_time`` (EP-07-006).  With a deadline, ``published`` MUST
+            be given in *kwargs*: the factory reads no clock (ADR-0176).
         min_rsvp_window: Configured minimum RSVP window; defaults to 72 hours
             (EP-07-002). Pass ``ActorConfig.min_rsvp_window`` from the caller
             to apply the configured floor.
@@ -110,8 +118,8 @@ def em_propose_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, or
             if *rsvp_deadline* is naive, below the applicable minimum, or
-            after the embargo's end, or if *embargo* is not an
-            ``as_EmbargoEvent``.
+            after the embargo's end, or is given without ``published``, or
+            if *embargo* is not an ``as_EmbargoEvent``.
     """
     # The wire class takes the terms by URI for a received Invite (ADR-0123);
     # this codebase always sends them inline (VAM-01-016).
@@ -124,13 +132,12 @@ def em_propose_embargo_activity(
                 "em_propose_embargo_activity: rsvp_deadline must be"
                 " timezone-aware (naive datetime rejected per EP-07-002)"
             )
-        # Fix ``published`` before measuring from it, so the window the
-        # sender checks is the one the receiver measures (EP-07-002).
+        # Measure from the caller's ``published``, the one the Invite
+        # carries, so the window the sender checks is the one the receiver
+        # measures (EP-07-002).
         deadline = resolve_rsvp_deadline(
             requested=rsvp_deadline,
-            published=_published_instant(
-                kwargs.setdefault("published", now_utc())
-            ),
+            published=_published_instant(kwargs.get("published")),
             embargo_end=embargo.end_time,
             min_window=min_rsvp_window,
         )

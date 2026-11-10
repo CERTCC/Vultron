@@ -34,7 +34,6 @@ from pydantic import ConfigDict
 
 from vultron.config.actor import ActorConfig
 from vultron.core.models._helpers import (
-    now_utc,
     parse_published,
     timestamp_serializer,
 )
@@ -81,13 +80,16 @@ class InviteRsvpStamp(ValidatedAssignmentMixin):
 def stamp_invite_rsvp_deadline(
     dl: CasePersistence,
     embargo_id: str,
+    published: datetime,
     actor_config: ActorConfig | None = None,
 ) -> InviteRsvpStamp:
-    """Compute the RSVP deadline for an Invite to *embargo_id* sent now.
+    """Compute the RSVP deadline for an Invite to *embargo_id*.
 
     Args:
         dl: The sender's store; the invited embargo is read from it.
         embargo_id: The embargo the Invite proposes.
+        published: The sending act's instant (ADR-0176), which becomes the
+            Invite's ``published``.
         actor_config: The sender's configuration; ``None`` applies the
             ``ActorConfig`` defaults.
 
@@ -98,29 +100,32 @@ def stamp_invite_rsvp_deadline(
     embargo = dl.read(embargo_id)
     if not isinstance(embargo, EmbargoEvent):
         raise VultronNotFoundError("EmbargoEvent", embargo_id)
-    return stamp_rsvp_deadline(embargo.end_time, actor_config)
+    return stamp_rsvp_deadline(embargo.end_time, published, actor_config)
 
 
 def stamp_rsvp_deadline(
     embargo_end: datetime | None,
+    published: datetime,
     actor_config: ActorConfig | None = None,
 ) -> InviteRsvpStamp:
-    """Compute the RSVP deadline for an Invite sent now (CM-28-012).
+    """Compute the RSVP deadline for an Invite sent at *published*.
 
-    The one place the window rule lives: ``published`` plus the configured
-    ``default_rsvp_window``, floored at ``min_rsvp_window`` and capped at
-    *embargo_end* when there is one (EP-07-002, EP-07-006).  An embargo Invite
-    passes its embargo's end; a stub Invite passes the active embargo's end,
-    or ``None`` when no embargo is active (CM-11-014).
+    The one place the window rule lives (CM-28-012): ``published`` plus the
+    configured ``default_rsvp_window``, floored at ``min_rsvp_window`` and
+    capped at *embargo_end* when there is one (EP-07-002, EP-07-006).  An
+    embargo Invite passes its embargo's end; a stub Invite passes the active
+    embargo's end, or ``None`` when no embargo is active (CM-11-014).
 
     Args:
         embargo_end: The ``end_time`` of the embargo that caps the deadline,
             or ``None`` for no cap.
+        published: The sending act's instant (ADR-0176), which becomes the
+            Invite's ``published``; every Invite one act sends shares it,
+            and so shares its deadline.
         actor_config: The sender's configuration; ``None`` applies the
             ``ActorConfig`` defaults.
     """
     config = actor_config if actor_config is not None else ActorConfig()
-    published = now_utc()
     deadline = resolve_rsvp_deadline(
         requested=None,
         published=published,

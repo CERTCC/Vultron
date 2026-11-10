@@ -142,12 +142,3 @@ def test_non_utc_offsets_compare_by_instant() -> None:
     ):
         assert value is not None
         assert value.utcoffset() is not None
-
-
-def test_absent_published_measures_from_now() -> None:
-    before = datetime.now(tz=UTC).replace(microsecond=0)
-    deadline = resolve_rsvp_deadline(
-        requested=None, published=None, embargo_end=None
-    )
-    after = datetime.now(tz=UTC)
-    assert before + 7 * DAYS <= deadline.effective <= after + 7 * DAYS

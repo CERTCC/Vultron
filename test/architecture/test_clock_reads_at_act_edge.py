@@ -299,31 +299,6 @@ KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
     ),
 )
 
-# The parse edge, and the RSVP reads beside it.
-# owner: #5652
-KNOWN_PARSE_EDGE_CLOCK_READS: tuple[ClockRead, ...] = (
-    (
-        "vultron/core/behaviors/embargo/rsvp_stamp.py",
-        "stamp_rsvp_deadline",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/rsvp_deadline.py",
-        "resolve_rsvp_deadline",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/extractor/_builders/semantic_kwargs.py",
-        "_effective_rsvp_deadline",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/factories/embargo/negotiation.py",
-        "em_propose_embargo_activity",
-        "now_utc",
-    ),
-)
-
 # Reads below an act's edge that no slice names yet: the epic routes each one.
 # owner: #5676
 KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
@@ -347,7 +322,6 @@ KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
 _ALL_LISTS: dict[str, tuple[ClockRead, ...]] = {
     "CLOCK_EDGE_EXEMPTIONS": CLOCK_EDGE_EXEMPTIONS,
     "KNOWN_CORE_MODEL_CLOCK_READS": KNOWN_CORE_MODEL_CLOCK_READS,
-    "KNOWN_PARSE_EDGE_CLOCK_READS": KNOWN_PARSE_EDGE_CLOCK_READS,
     "KNOWN_UNSLICED_CLOCK_READS": KNOWN_UNSLICED_CLOCK_READS,
 }
 
