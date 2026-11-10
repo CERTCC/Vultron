@@ -40,6 +40,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.report_claims import (
     CandidatePartiesSignal,
     CaseSplitDifference,
@@ -84,6 +85,10 @@ class StatedReportFields(BaseModel):
     summary: NonEmptyString | None = None
     proposed_embargo_end: datetime | None = None
 
+    _serialize_proposed_embargo_end = timestamp_serializer(
+        "proposed_embargo_end"
+    )
+
 
 class ReportCaseInputs(BaseModel):
     """The case inputs a report states, filled from its document.
@@ -109,6 +114,10 @@ class ReportCaseInputs(BaseModel):
     attacks_observed: bool = False
     outcomes: dict[NonEmptyString, ClaimOutcome] = Field(default_factory=dict)
     filled_from_document: bool = False
+
+    _serialize_proposed_embargo_end = timestamp_serializer(
+        "proposed_embargo_end"
+    )
 
     @classmethod
     def from_stated(cls, stated: StatedReportFields) -> "ReportCaseInputs":
@@ -173,6 +182,10 @@ class _VulState(BaseModel):
     exploit_public: bool
     attacks_observed: bool
     future_disclosure_date: datetime | None
+
+    _serialize_future_disclosure_date = timestamp_serializer(
+        "future_disclosure_date"
+    )
 
 
 def _vul_state(
