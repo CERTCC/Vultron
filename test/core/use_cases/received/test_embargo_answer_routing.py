@@ -991,7 +991,7 @@ def test_a_failed_reinvite_takes_the_queued_notice_back_with_it(monkeypatch):
     original = EmitRefusalNoticeNode.update
 
     def _queued_then(self: EmitRefusalNoticeNode) -> Status:
-        status = original(self)
+        status: Status = original(self)
         sent.append(status.name)
         return status
 
