@@ -150,7 +150,14 @@ class AssignCveIdCallOutBundle(CallOutBundle):
     id_assigned_factory: CallOutBackendFactory = field(
         default=_always_fail  # type: ignore[assignment]
     )
-    """IdAssigned: p=0.25 → AlwaysFail (deterministic: ID not yet assigned)."""
+    """IdAssigned: p=0.25 → AlwaysFail (deterministic: ID not yet assigned).
+
+    Store-held answer (BT-18-039): **cannot**.  The case file has no field
+    for an assigned identifier, and a ``VulnerabilityRecord`` in the actor's
+    store names no case, so no read-first guard precedes this Retriever.  The
+    ``ids`` a ``ReportClaimsRecord`` lists are what a sender's attached
+    document claims, not an assignment, so they do not answer it either.
+    """
 
     # -- InScope Evaluator ---------------------------------------------------
     in_scope_factory: CallOutBackendFactory = field(

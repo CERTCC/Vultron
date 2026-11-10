@@ -40,22 +40,25 @@ class IdAssigned(RetrieverCallOutPoint, UsuallyFail):
     Semantic function:
         Environmental condition — verify that a vulnerability identifier (such
         as a CVE ID) has already been assigned to this vulnerability.  In
-        production this is a simple lookup against the case record.  The fuzzer
-        models the common case where the workflow has not yet assigned an ID
-        (i.e., the condition fails most of the time), so that subsequent
-        ID-assignment steps are exercised.
+        production this is a lookup against an external ID registry, such as
+        the CVE database.  The fuzzer models the common case where the
+        workflow has not yet assigned an ID (i.e., the condition fails most of
+        the time), so that subsequent ID-assignment steps are exercised.
+
+    Store-held answer (BT-18-039): **cannot** — the case file has no field
+    for an assigned identifier, so no read-first guard precedes it (see
+    ``AssignCveIdCallOutBundle.id_assigned_factory``).
 
     Blackboard contract (BT-18-001):
-      Input keys:  (none — queries case record or external ID registry)
+      Input keys:  (none — queries an external ID registry)
       Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 
     Success probability: 0.25 (``UsuallyFail``).
 
-    Automation potential: **High** — the ID assignment status is a structured
-    field on the case record; fully automatable via a read from the case
-    DataLayer with no human involvement required.
+    Automation potential: **High** — a registry lookup is fully automatable
+    with no human involvement required.
     """
 
 

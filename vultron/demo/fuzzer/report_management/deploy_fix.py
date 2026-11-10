@@ -114,12 +114,16 @@ class MitigationDeployed(RetrieverCallOutPoint, UsuallyFail):
         Condition — check whether an interim mitigation (workaround, network
         control, configuration change) is currently active for the
         vulnerability.  In production this is typically a status query against
-        the case record or a configuration-management database.  Fails most
-        of the time to reflect that mitigations are not yet deployed in the
-        typical workflow step.
+        a configuration-management database.  Fails most of the time to
+        reflect that mitigations are not yet deployed in the typical workflow
+        step.
+
+    Store-held answer (BT-18-039): **cannot** — mitigation has no case state
+    bit, so no read-first guard precedes it (see
+    ``DeployMitigationCallOutBundle.mitigation_deployed_factory``).
 
     Blackboard contract (BT-18-001):
-      Input keys:  (none — queries case record or CMDB for mitigation status)
+      Input keys:  (none — queries a CMDB for mitigation status)
       Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
@@ -141,8 +145,12 @@ class MitigationAvailable(RetrieverCallOutPoint, OftenSucceed):
         ready to be applied.  Succeeds more often than not to reflect that
         mitigations are typically available when this node is reached.
 
+    Store-held answer (BT-18-039): **cannot** — the case file records no
+    mitigation, so no read-first guard precedes it (see
+    ``DeployMitigationCallOutBundle.mitigation_available_factory``).
+
     Blackboard contract (BT-18-001):
-      Input keys:  (none — queries case record or mitigation catalogue)
+      Input keys:  (none — queries a mitigation catalogue)
       Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
@@ -150,7 +158,7 @@ class MitigationAvailable(RetrieverCallOutPoint, OftenSucceed):
     Success probability: 0.70 (``OftenSucceed``).
 
     Automation potential: **Medium** — known workarounds and mitigations can
-    be catalogued in the case record and queried automatically; evaluating
+    be catalogued and queried automatically; evaluating
     applicability to a specific environment may require human judgment.
     """
 

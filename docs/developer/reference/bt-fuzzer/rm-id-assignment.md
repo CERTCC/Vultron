@@ -20,16 +20,16 @@ The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/repo
 - **Source file**: `report_management/fuzzer/assign_vul_id.py`
 - **Parent tree**: `AssignVulID`
 - **Semantic function**: Condition — check whether the vulnerability already has an identifier, such as a CVE ID
-- **Input dependency**: Query to internal case metadata or to an external vulnerability registry, such as a CVE database lookup
+- **Input dependency**: Query to an external vulnerability registry, such as a CVE database lookup
 - **Notes**: Fails most of the time in simulation because ID assignment is the main workflow.
-  In production, this node is a simple metadata check
-- **Automation potential**: **High** — a simple query against case metadata or a vulnerability registry.
+  In production, this node is a registry lookup
+- **Automation potential**: **High** — a simple query against a vulnerability registry.
   Full automation is possible.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssigned`
-- **Call-out point shape**: Retriever — synchronous on-demand query to case metadata or an external vulnerability registry, such as a CVE database.
-  The node returns SUCCESS if the vulnerability already has an identifier.
-  It writes the existing ID to `contract.outputs = {"assigned_vul_id": str}`, so the parent tree has a guaranteed key on any successful path.
+- **Call-out point shape**: Retriever — synchronous on-demand query to an external vulnerability registry, such as a CVE database.
+  The node returns SUCCESS if the vulnerability already has an identifier, and it declares no output ports.
   A boolean is the simplest structured fact (ADR-0024, BT-18-006).
+- **Store-held answer**: The case file has no field for an assigned identifier, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — early-exit Retriever guard at the top of the `AssignVulID` Fallback Selector.
   The guard returns SUCCESS if an ID is already assigned, and so the tree skips the assignment work
 

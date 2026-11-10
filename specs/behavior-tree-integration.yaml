@@ -2133,6 +2133,30 @@ groups:
     - rel_type: refines
       spec_id: BT-18-028
       note: Places the Composer that BT-18-028 defines by its output.
+  - id: BT-18-039
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Where the case file or the actor's own store can hold the fact a Retriever
+      call-out point fetches, a read-first guard MUST precede the call-out point and
+      MUST skip it when the fact is present.
+    rationale: >-
+      Asking for a fact the actor already holds spends call-out budget (BT-18-015)
+      on a known answer, and the answer can contradict the case. The guard reads the
+      case file or the actor's own records, never case bookkeeping (CLP-07-022).
+      Each Retriever call-out point says in its docstring whether its fact can be
+      held there. A cache of external data belongs to the capability
+      implementation instead (BT-18-029).
+    verification: >-
+      `test_known_peer_is_not_resolved_again` and
+      `test_unknown_peer_is_resolved_before_it_is_recorded` in
+      `test/core/use_cases/triggers/test_record_named_peer.py` assert that the
+      actor-resolution backend is not called when the actor's store holds the peer,
+      and is called when it does not.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-028
+      note: Places the Retriever that BT-18-028 defines by its output.
   - id: BT-18-031
     priority: MUST
     kind: project

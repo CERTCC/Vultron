@@ -85,14 +85,15 @@ This tree models how a participant deploys a developed fix or mitigation to affe
 - **Source file**: `report_management/fuzzer/deploy_fix.py`
 - **Parent tree**: `Deployment`
 - **Semantic function**: Condition — check whether a mitigation has already been deployed to affected systems
-- **Input dependency**: Query to asset/patch management system, deployment pipeline status, or case metadata flag
+- **Input dependency**: Query to asset/patch management system or deployment pipeline status
 - **Notes**: Fails most of the time in simulation because the simulation models mitigation deployment as the active goal
-- **Automation potential**: **High** — query to the patch management system or a case-state flag.
+- **Automation potential**: **High** — query to the patch management system.
   Full automation is possible.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationDeployed`
-- **Call-out point shape**: Retriever — synchronous on-demand query to an asset/patch management system or a case-state flag.
+- **Call-out point shape**: Retriever — synchronous on-demand query to an asset/patch management system.
   The node returns SUCCESS if a mitigation is deployed, and FAILURE otherwise.
   A boolean is the simplest structured fact (ADR-0024).
+- **Store-held answer**: Mitigation has no case state bit, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `vultron.core.behaviors.report.deploy_mitigation_tree.create_deploy_mitigation_tree` (`mitigation_deployed_factory` in `DeployMitigationCallOutBundle`) — short-circuit first arm of the `DeployMitigationBT` Fallback
 
 ### `MitigationAvailable`
@@ -102,7 +103,7 @@ This tree models how a participant deploys a developed fix or mitigation to affe
 - **Source file**: `report_management/fuzzer/deploy_fix.py`
 - **Parent tree**: `Deployment`
 - **Semantic function**: Condition — check whether a mitigation (workaround or partial fix) is available for deployment now
-- **Input dependency**: Patch/advisory feed, internal mitigation catalog, or case status field
+- **Input dependency**: Patch/advisory feed or internal mitigation catalog
 - **Notes**: After the fix development cycle advances, a mitigation is available more often than not
 - **Automation potential**: **High** — patch or advisory feed query.
   Full automation is possible after the feed integration is in place.
@@ -110,6 +111,7 @@ This tree models how a participant deploys a developed fix or mitigation to affe
 - **Call-out point shape**: Retriever — synchronous on-demand query to a patch/advisory feed or an internal mitigation catalog.
   The node returns SUCCESS if a mitigation is available now, and FAILURE otherwise.
   A boolean is the simplest structured fact (ADR-0024).
+- **Store-held answer**: The case file records no mitigation, so no read-first guard precedes this Retriever (BT-18-039).
 - **Factory-fn placement**: `vultron.core.behaviors.report.deploy_mitigation_tree.create_deploy_mitigation_tree` (`mitigation_available_factory` in `DeployMitigationCallOutBundle`) — availability gate in the `_DeployMitigationIfAvailable` arm
 
 ### `DeployMitigation`
