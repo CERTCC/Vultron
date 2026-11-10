@@ -127,6 +127,9 @@ def test_claims_node_keeps_a_record_it_already_holds(caplog):
     bridge.execute_with_setup(_claims_node(), actor_id=actor, at=_AT)
     first = dl.list_objects("ReportClaimsRecord")
     assert len(first) == 1
+    # caplog keeps every record since the test began, and whether the first
+    # run's INFO lines reach it depends on the level other tests left set.
+    caplog.clear()
 
     with caplog.at_level("INFO"):
         result = bridge.execute_with_setup(

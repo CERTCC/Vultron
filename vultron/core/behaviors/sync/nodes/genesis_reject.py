@@ -73,6 +73,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
         sync_port: SyncActivityPort,
         actor_id: str,
         sender_id: str,
+        announce_id: str,
     ) -> None:
         if self.datalayer is None:
             raise VultronWiringError(
@@ -114,6 +115,7 @@ class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
                 tail_hash=self.tail_hash,
                 actor_id=actor_id,
                 to=[sender_id],
+                in_reply_to=announce_id,
                 asked_at=asked_at,
             )
             record_genesis_reject(self.datalayer, entry.case_id, asked_at)
