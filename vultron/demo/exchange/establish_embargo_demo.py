@@ -104,7 +104,7 @@ def demo_propose_embargo_accept(
     # nests with them.
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = make_embargo_event(
-            case, case_minted_at(client, case, vendor.id_), days=90
+            case, at=case_minted_at(client, case, vendor.id_), days=90
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -188,7 +188,7 @@ def demo_propose_embargo_reject(
     # verifies its effect and must stay in sequence after it, so it nests too.
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = make_embargo_event(
-            case, case_minted_at(client, case, vendor.id_), days=45
+            case, at=case_minted_at(client, case, vendor.id_), days=45
         )
         proposal = em_propose_embargo_activity(
             embargo,

@@ -61,8 +61,8 @@ def test_the_event_is_dated_from_the_callers_instant() -> None:
     case = _case()
 
     with recorded_clock_reads() as clock_reads:
-        first = make_embargo_event(case, _MINTED, days=45, seq=1)
-        again = make_embargo_event(case, _MINTED, days=45, seq=1)
+        first = make_embargo_event(case, at=_MINTED, days=45, seq=1)
+        again = make_embargo_event(case, at=_MINTED, days=45, seq=1)
 
     assert clock_reads == []
     assert first.model_dump() == again.model_dump()
@@ -75,7 +75,7 @@ def test_the_event_is_dated_from_the_callers_instant() -> None:
 def test_a_later_instant_moves_the_event_with_it() -> None:
     later = _MINTED + timedelta(days=1)
 
-    event = make_embargo_event(_case(), later, days=45)
+    event = make_embargo_event(_case(), at=later, days=45)
 
     assert event.end_time == datetime(2026, 4, 16, tzinfo=UTC)
 
@@ -101,11 +101,11 @@ def test_the_case_is_minted_at_its_holders_stored_published_time(
     [
         ({}, "no published time"),
         ({"published": ""}, "no published time"),
-        ({"published": "2026-02-01T09:00:00"}, "naive published time"),
+        ({"published": "not-a-timestamp"}, "no published time"),
     ],
-    ids=["absent", "empty", "naive"],
+    ids=["absent", "empty", "malformed"],
 )
-def test_a_stored_copy_without_an_aware_published_time_is_refused(
+def test_a_stored_copy_without_a_parseable_published_time_is_refused(
     monkeypatch: pytest.MonkeyPatch, stored: dict[str, Any], match: str
 ) -> None:
     client, _ = _client_holding(monkeypatch, stored)

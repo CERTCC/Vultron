@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 import isodate  # type: ignore[import-untyped]
 
 from vultron.adapters.utils import parse_id
+from vultron.core.models._helpers import parse_published
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -89,26 +90,25 @@ def case_minted_at(
             its CASE_MANAGER.
 
     Raises:
-        ValueError: The stored copy carries no timezone-aware ``published``.
+        ValueError: The stored copy carries no parseable ``published``.
     """
     stored = client.get(client.dl_path(case.id_, actor_id=holder_id))
+    # Parsed from the raw stored key, not via ``as_VulnerabilityCase``: the
+    # wire model's clock default would fill an absent ``published`` and hide
+    # exactly the gap this refuses.
     raw = stored.get("published")
-    if not isinstance(raw, str) or not raw:
+    minted = parse_published(raw)
+    if minted is None:
         raise ValueError(
             f"'{holder_id}''s copy of case '{case.id_}' carries no published"
-            " time to date its embargo proposal from"
-        )
-    minted = datetime.fromisoformat(raw)
-    if minted.utcoffset() is None:
-        raise ValueError(
-            f"'{holder_id}''s copy of case '{case.id_}' carries a naive"
-            f" published time {raw!r} (CS-13-001)"
+            f" time to date its embargo proposal from (got {raw!r})"
         )
     return minted
 
 
 def make_embargo_event(
     case: as_VulnerabilityCase,
+    *,
     at: datetime,
     days: int = 90,
     seq: int | None = None,
@@ -135,7 +135,6 @@ def make_embargo_event(
 
     Returns:
         A new :class:`as_EmbargoEvent` with start/end times set.
-
     """
     now = at.replace(second=0, microsecond=0)
     end_at = (now + timedelta(days=days)).replace(
