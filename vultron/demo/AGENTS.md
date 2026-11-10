@@ -113,11 +113,20 @@ sub-issues were this one defect in different scenarios.
    `walk()`ing what `recording_checks()` recorded (`utils/check_tree.py`, #6127).
    Stubbing one out with `contextlib.nullcontext` makes the assertion propagate and
    the test pass while proving nothing — how the missing `engage-case` gate escaped.
-9. **Nest the step that reads a value inside the block that produces it.** A
-   `None`/`""` pre-init is allowed only when every later read is guarded — the
-   one part a check enforces (#3038, `test_demo_step_no_unbound_ratchet.py`).
-   Name each nested statement with its own `demo_check`/`demo_step` *unless the
-   callee opens one*: an outer block around a self-checking helper never fails.
+9. **Two milestones in a row assert two different things**, and each label
+   describes only its own block. Pass each label as its own named argument, not
+   as a sequence a loop walks over one body; read every participant the label
+   names; and hold the pair with a test comparing the two halves' reads *each
+   way* — a half whose reads are a subset of the other's adds nothing even
+   though the lists differ (#5602, the over-claim of #2241).
+   [demo-scenario-authoring](../../notes/demo-scenario-authoring.md) § "Two
+   Milestones in a Row".
+10. **Nest the step that reads a value inside the block that produces it.** A
+    `None`/`""` pre-init is allowed only when every later read is guarded — the
+    one part a check enforces (#3038, `test_demo_step_no_unbound_ratchet.py`).
+    Name each nested statement with its own `demo_check`/`demo_step` *unless
+    the callee opens one*: an outer block around a self-checking helper never
+    fails.
 
 Full reasoning: EDF-06, DEMOMA-22, ADR-0058, and
 [`event-driven-control-flow`](../../notes/event-driven-control-flow.md) § "Temporal

@@ -20,7 +20,7 @@ the caller's, so the labels are what these tests pin.
 """
 
 import contextlib
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from unittest.mock import patch
 
 import pytest
@@ -43,6 +43,7 @@ from vultron.demo.helpers.notes import (
     WORKAROUND_ANSWER_NAME,
     NotePost,
 )
+from vultron.demo.helpers.story import StoryState
 from vultron.demo.helpers.vendor_story import (
     continuations as vendor_continuations,
 )
@@ -141,8 +142,71 @@ class TestRequiredParticipantsArePresent:
         assert kwargs["reporter_actor_id"] == state.actor_id(REPORTER)
 
 
-class TestTheFixReadyReachedTheReporter:
-    """One copy of the check every scenario of the family makes twice."""
+def _cast_name_of(state: StoryState, client: object) -> str:
+    """The cast name whose container *client* reads, or ``"unknown"``.
+
+    Named rather than compared by identity so a failing assertion prints the
+    part a read was pointed at (``vendor2``) and not a client repr.
+    """
+    for member in state.cast:
+        if state.client(member) is client:
+            return member
+    return "unknown"
+
+
+@contextlib.contextmanager
+def _recorded_reads(state: StoryState) -> Iterator[list[tuple[str, ...]]]:
+    """Record what the continuations read, by helper and by subject.
+
+    Each entry names the helper, the cast member whose container was read and
+    the actor the read was about, which is the whole of what a fix-ready
+    milestone asserts.  Two milestones that produce the same list assert the
+    same thing, whatever their labels say.
+    """
+    reads: list[tuple[str, ...]] = []
+
+    def _named(
+        helper: str, client_key: str, actor_key: str
+    ) -> Callable[..., None]:
+        def record(**kwargs: object) -> None:
+            reads.append(
+                (
+                    helper,
+                    _cast_name_of(state, kwargs[client_key]),
+                    str(kwargs[actor_key]),
+                )
+            )
+
+        return record
+
+    with (
+        patch.object(
+            vendor_continuations,
+            "wait_for_participant_vf_state",
+            side_effect=_named("vf_wait", "client", "actor_id"),
+        ),
+        patch.object(
+            vendor_continuations,
+            "verify_fix_ready",
+            side_effect=_named(
+                "verify_fix_ready", "receiver_client", "receiver_actor_id"
+            ),
+        ),
+        patch.object(
+            vendor_continuations,
+            "verify_stops_at_fix_ready",
+            side_effect=_named(
+                "verify_stops_at_fix_ready",
+                "receiver_client",
+                "receiver_actor_id",
+            ),
+        ),
+    ):
+        yield reads
+
+
+class TestTheFixReadyMilestones:
+    """The pair of milestones every scenario of this family tells."""
 
     @pytest.mark.spec("DEMOCI-01-003", "DEMOCI-01-010")
     def test_a_failed_milestone_is_recorded_and_the_rest_still_run(self):
@@ -162,62 +226,147 @@ class TestTheFixReadyReachedTheReporter:
                 vendor_continuations,
                 "verify_fix_ready",
                 side_effect=AssertionError("the fix never landed"),
-            ) as milestone,
+            ) as reached,
+            patch.object(
+                vendor_continuations,
+                "verify_stops_at_fix_ready",
+                side_effect=AssertionError("it deployed after all"),
+            ) as stopped,
             _recording_checks() as labels,
         ):
-            family.the_fix_ready_reached_the_reporter(
-                state, milestones=("M4", "M5")
-            )
+            family.the_fix_ready_milestones(state, reached="M4", stopped="M5")
 
         assert labels == ["M4", "M5"], "the second milestone was skipped"
-        assert milestone.call_count == 2
+        assert reached.call_count == 1
+        assert stopped.call_count == 1
         assert [failure.split(":")[0] for failure in demo_failures()] == [
             "CHECK FAILED",
             "CHECK FAILED",
         ]
 
-    @pytest.mark.spec("DEMOMA-17-002")
-    def test_each_milestone_label_repeats_the_same_check(self):
-        """A consolidation must not change what a scenario passes on.
+    @pytest.mark.spec("DEMOMA-06-002")
+    def test_the_two_milestones_do_not_assert_the_same_thing(self):
+        """The ratchet for #5602: neither half may become a copy of the other.
 
-        The second milestone asserts exactly what the first does — ``rv``'s
-        M4 and M5, ``rvcv-extension``'s M5 and M6 — so the repetition is kept
-        as it was and #5607 tracks making the pair say two different things.
+        Every vendor-first scenario reported two fix-ready milestones in a row
+        whose bodies were identical, so the second one proved nothing the
+        first had not.  Collapsing them back — by pointing both labels at the
+        same reads — makes the two recorded lists equal and fails here.
         """
-        state = family_state()
-
-        with (
-            patch.object(
-                vendor_continuations, "wait_for_participant_vf_state"
-            ) as vf_wait,
-            patch.object(
-                vendor_continuations, "verify_fix_ready"
-            ) as milestone,
-            _recording_checks() as labels,
+        vendors = (family.VENDOR, family.VENDOR2)
+        per_half: dict[str, list[tuple[str, ...]]] = {}
+        for half, teller in (
+            ("reached", family.the_fix_ready_reached_the_reporter),
+            ("stopped", family.the_vendors_stopped_at_vfd),
         ):
+            state = family_state(family.VENDOR2)
+            with (
+                _recorded_reads(state) as reads,
+                _recording_checks() as labels,
+            ):
+                teller(state, check=half, vendors=vendors)
+            assert labels == [half]
+            per_half[half] = reads
+
+        reached = set(per_half["reached"])
+        stopped = set(per_half["stopped"])
+        assert reached, "the fix-ready half read nothing"
+        assert stopped, "the VFd-ceiling half read nothing"
+        # Difference each way, not inequality: a half whose reads are a subset
+        # of the other's asserts nothing the other does not, which is the
+        # defect even though the two lists are not equal.
+        assert stopped - reached, (
+            "the VFd-ceiling milestone asserts nothing the fix-ready one does"
+            f" not; both read {sorted(stopped)} (#5602)"
+        )
+        assert reached - stopped, (
+            "the fix-ready milestone asserts nothing the VFd-ceiling one does"
+            f" not; both read {sorted(reached)} (#5602)"
+        )
+
+    @pytest.mark.spec("DEMOMA-09-003", "DEMOMA-09-009")
+    def test_the_fix_ready_half_reads_every_vendor_its_label_names(self):
+        """A label naming both vendors reads both (#5602, AC-1).
+
+        Each Vendor's fix path is its own (DEMOMA-09-009), so each gets its
+        own poll on its own replica and on the Reporter's, and its own
+        ``verify_fix_ready``.  Reading Vendor1 twice under a "both vendors"
+        label is the over-claim #2241 was filed for.
+        """
+        state = family_state(family.VENDOR2)
+
+        with _recorded_reads(state) as reads:
             family.the_fix_ready_reached_the_reporter(
-                state, milestones=("M4", "M5")
+                state,
+                check="M4",
+                vendors=(family.VENDOR, family.VENDOR2),
             )
 
-        assert labels == ["M4", "M5"]
-        assert milestone.call_count == 2
-        # Vendor1's own VF state, read on its replica and on the Reporter's,
-        # once per milestone.
-        assert [c.kwargs["client"] for c in vf_wait.call_args_list] == [
-            state.client(family.VENDOR),
-            state.client(REPORTER),
-            state.client(family.VENDOR),
-            state.client(REPORTER),
-        ]
-        assert all(
-            c.kwargs["actor_id"] == state.actor_id(family.VENDOR)
-            and c.kwargs["expected_states"] == {CS_vf.VF}
-            for c in vf_wait.call_args_list
-        )
-        kwargs = milestone.call_args.kwargs
-        assert kwargs["receiver_client"] is state.client(family.VENDOR)
-        assert kwargs["reporter_client"] is state.client(REPORTER)
-        assert kwargs["receiver_actor_id"] == state.actor_id(family.VENDOR)
+        assert reads == [
+            ("vf_wait", family.VENDOR, state.actor_id(family.VENDOR)),
+            ("vf_wait", REPORTER, state.actor_id(family.VENDOR)),
+            (
+                "verify_fix_ready",
+                family.VENDOR,
+                state.actor_id(family.VENDOR),
+            ),
+            ("vf_wait", family.VENDOR2, state.actor_id(family.VENDOR2)),
+            ("vf_wait", REPORTER, state.actor_id(family.VENDOR2)),
+            (
+                "verify_fix_ready",
+                family.VENDOR2,
+                state.actor_id(family.VENDOR2),
+            ),
+        ], reads
+
+    @pytest.mark.spec("CSB-15-002")
+    def test_the_ceiling_half_reads_every_vendors_missing_deployment(self):
+        """ "Stops at VFd" is a claim about the d→D transition (#5602, AC-2).
+
+        The half carrying that label reads each named Vendor's absent
+        fix-deployed transition rather than repeating the VF read, and it
+        polls for nothing: there is no waiting for a transition the DEPLOYER
+        gate forbids.
+        """
+        state = family_state(family.VENDOR2)
+
+        with _recorded_reads(state) as reads:
+            family.the_vendors_stopped_at_vfd(
+                state,
+                check="M5",
+                vendors=(family.VENDOR, family.VENDOR2),
+            )
+
+        assert reads == [
+            (
+                "verify_stops_at_fix_ready",
+                family.VENDOR,
+                state.actor_id(family.VENDOR),
+            ),
+            (
+                "verify_stops_at_fix_ready",
+                family.VENDOR2,
+                state.actor_id(family.VENDOR2),
+            ),
+        ], reads
+
+    @pytest.mark.spec("DEMOMA-06-002")
+    def test_one_vendor_is_the_default_both_halves_read(self):
+        """``rv`` has one Vendor, so neither half is told a cast."""
+        state = family_state()
+
+        with _recorded_reads(state) as reads:
+            family.the_fix_ready_milestones(state, reached="M4", stopped="M5")
+
+        assert {read[2] for read in reads} == {
+            state.actor_id(family.VENDOR)
+        }, reads
+        assert [read[0] for read in reads] == [
+            "vf_wait",
+            "vf_wait",
+            "verify_fix_ready",
+            "verify_stops_at_fix_ready",
+        ], reads
 
 
 class TestBothVendorsReportTheFixReady:
@@ -244,20 +393,22 @@ class TestBothVendorsReportTheFixReady:
             ),
             patch.object(
                 vendor_continuations,
-                "the_fix_ready_reached_the_reporter",
-                side_effect=lambda _s, milestones: order.append(
-                    f"milestones:{list(milestones)}"
+                "the_fix_ready_milestones",
+                side_effect=lambda _s, reached, stopped, vendors: order.append(
+                    f"milestones:{reached},{stopped}:{list(vendors)}"
                 ),
             ),
         ):
             family.both_vendors_report_the_fix_ready(
-                state, milestones=("M4", "M5")
+                state, reached="M4", stopped="M5"
             )
 
         assert order == [
             f"notified:{family.VENDOR}:{family.VENDOR_LABEL}",
             f"notified:{family.VENDOR2}:{family.VENDOR2_LABEL}",
-            "milestones:['M4', 'M5']",
+            # Both milestones are told both vendors: the labels name both, so
+            # reading Vendor1 alone under them is the #5602 over-claim.
+            f"milestones:M4,M5:{[family.VENDOR, family.VENDOR2]}",
         ], order
 
 

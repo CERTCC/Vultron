@@ -984,9 +984,9 @@ class TestBothVendorsFixTheVul:
     def test_the_two_milestones_are_this_scenarios_m4_and_m5(self):
         """The shared step is told which milestones the labels belong to.
 
-        The pair deliberately asserts the same thing twice, under two
-        numbers, because consolidating the family's openings must not change
-        what a scenario passes or fails on (DEMOMA-17-002, #5607).
+        The two labels are separate arguments, each saying what its own half
+        asserts: M4 that the fix reached the replicas, M5 that neither Vendor
+        deployed after it (#5602).
         """
         state = _three_party_state()
 
@@ -995,10 +995,17 @@ class TestBothVendorsFixTheVul:
 
         fixed.assert_called_once()
         assert fixed.call_args.args == (state,)
-        first, second = fixed.call_args.kwargs["milestones"]
-        assert first.startswith("M4: ")
-        assert second.startswith("M5: ")
-        assert "VFd" in second, second
+        kwargs = fixed.call_args.kwargs
+        assert set(kwargs) == {"reached", "stopped"}, kwargs
+        assert kwargs["reached"].startswith("M4: ")
+        assert "fix ready" in kwargs["reached"], kwargs["reached"]
+        assert kwargs["stopped"].startswith("M5: ")
+        assert "both vendors stopped at VFd" in kwargs["stopped"], kwargs[
+            "stopped"
+        ]
+        assert "no fix-deployed transition" in kwargs["stopped"], kwargs[
+            "stopped"
+        ]
 
 
 # ---------------------------------------------------------------------------

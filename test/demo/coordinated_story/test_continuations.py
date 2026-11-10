@@ -46,6 +46,11 @@ from vultron.demo.helpers.coordinated_story import (
     vendor_rejects_invite,
     vendor_reports_the_fix_ready,
 )
+from vultron.demo.utils.check_tree import (
+    CheckKind,
+    recording_checks,
+    walk,
+)
 
 #: Clear the process-global failure accumulator around every test.
 pytestmark = pytest.mark.usefixtures("fresh_demo_failures")
@@ -130,6 +135,73 @@ class TestCoordinatedMilestones:
             "wait_for_participant_rm_state must precede notify_fix_ready"
             " (ADR-0058)"
         )
+
+    @pytest.mark.spec("CSB-15-002")
+    def test_m4_and_m5_do_not_assert_the_same_thing(self):
+        """The ratchet for #5602, on the coordinator-first copy of the pair.
+
+        M4 and M5 used to run one body twice, so M5 proved nothing M4 had not
+        while its label claimed the Vendor stopped at VFd.  M5 now reads the
+        fix-deployed transition the Vendor never makes.  The recorded call
+        sequence is pinned, so making either half a copy of the other — one
+        body under both labels, or M5 calling ``verify_fix_ready`` again —
+        fails here.
+
+        Read through the real ``demo_check``, not a ``nullcontext`` stub: the
+        stub lets an assertion propagate, so the test would pass while proving
+        nothing (``vultron/demo/AGENTS.md`` rule 8, #6127).
+        """
+        state = story_state(*CAST, case=mock_case())
+        called: list[str] = []
+
+        def _named(helper: str):
+            def record(**_kwargs: object) -> None:
+                called.append(helper)
+
+            return record
+
+        with (
+            patch.object(
+                coordinated_continuations, "wait_for_participant_rm_state"
+            ),
+            patch.object(ActorSession, "notify_fix_ready"),
+            patch.object(
+                coordinated_continuations,
+                "wait_for_participant_vf_state",
+                side_effect=_named("vf_wait"),
+            ),
+            patch.object(
+                coordinated_continuations,
+                "verify_fix_ready",
+                side_effect=_named("verify_fix_ready"),
+            ),
+            patch.object(
+                coordinated_continuations,
+                "verify_stops_at_fix_ready",
+                side_effect=_named("verify_stops_at_fix_ready"),
+            ),
+            recording_checks() as recorder,
+        ):
+            vendor_reports_the_fix_ready(state)
+
+        labels = [
+            node.label
+            for node in walk(recorder.tree())
+            if node.kind is CheckKind.CHECK and node.label.startswith("M")
+        ]
+        assert len(labels) == 2, labels
+        assert labels[0].startswith("M4: "), labels
+        assert labels[1].startswith("M5: "), labels
+        assert "stopped at VFd" in labels[1], labels[1]
+        # The trigger's own VF wait, then M4's body, then M5's: the two
+        # milestones no longer overlap at all, so neither can be read off the
+        # other.
+        assert called == [
+            "vf_wait",
+            "vf_wait",
+            "verify_fix_ready",
+            "verify_stops_at_fix_ready",
+        ], called
 
     def test_everyone_publishes_calls_verify_publicly_disclosed(self):
         """M6 runs when every participant has reported publication."""

@@ -38,6 +38,7 @@ from vultron.demo.helpers.invite_chain import answer_case_invite
 from vultron.demo.helpers.milestones import (
     verify_fix_ready,
     verify_publicly_disclosed,
+    verify_stops_at_fix_ready,
 )
 from vultron.demo.helpers.notes import NotePost, add_note_thread
 from vultron.demo.helpers.polling import (
@@ -250,24 +251,32 @@ def report_fix_ready(state: StoryState, name: str, label: str) -> None:
         state,
         name,
         label,
-        then=lambda: _coordinator_sees_fix_ready_twice(state, name, label),
+        then=lambda: _coordinator_sees_the_fix_and_the_stop(
+            state, name, label
+        ),
     )
 
 
-def _coordinator_sees_fix_ready_twice(
+def _coordinator_sees_the_fix_and_the_stop(
     state: StoryState, name: str, label: str
 ) -> None:
-    """The M4 and M5 milestones, which read the same thing under two names."""
+    """The M4 and M5 milestones: the f→F that happened, then the d→D not.
+
+    The pair used to read the same thing under both labels, so M5 asserted
+    exactly what M4 did while its label claimed more (#5602).  M5 now reads
+    the fix-deployed transition *name* never makes, which is what "stops at
+    VFd" says (CSB-15-002).
+    """
     _coordinator_sees_fix_ready(
         state,
         name,
         f"M4: Coordinator replica shows {label} CS includes F (fix ready)",
     )
-    _coordinator_sees_fix_ready(
+    _coordinator_sees_the_stop_at_vfd(
         state,
         name,
-        f"M5: Coordinator replica shows {label} CS includes F (fix ready)"
-        f" — {label} stops at VFd",
+        f"M5: Coordinator replica shows {label} stopped at VFd — no"
+        " fix-deployed transition",
     )
 
 
@@ -287,6 +296,26 @@ def _coordinator_sees_fix_ready(
             expected_states={CS_vf.VF},
         )
         verify_fix_ready(
+            receiver_client=state.client(COORDINATOR),
+            reporter_client=state.client(name),
+            case_id=state.case.id_,
+            receiver_actor_id=state.actor_id(name),
+        )
+
+
+def _coordinator_sees_the_stop_at_vfd(
+    state: StoryState, name: str, check: str
+) -> None:
+    """Assert the Coordinator's and *name*'s replicas record no deployment.
+
+    The other half of :func:`_coordinator_sees_fix_ready`.  No wait precedes
+    it: there is no waiting for a transition the role gate forbids, and the
+    read it makes is single-shot by design
+    (:func:`~vultron.demo.helpers.milestones.verify_stops_at_fix_ready`).
+    Owns its own ``demo_check``, as its sibling does (DEMOCI-01-011).
+    """
+    with demo_check(check):
+        verify_stops_at_fix_ready(
             receiver_client=state.client(COORDINATOR),
             reporter_client=state.client(name),
             case_id=state.case.id_,

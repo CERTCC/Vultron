@@ -709,10 +709,10 @@ class TestTheVendorReportsTheFixReady:
     def test_the_reporter_replica_is_polled_before_the_milestones(self):
         """The milestones nest inside a gate on the Reporter's replica.
 
-        Both milestone labels are this scenario's; the check they make is the
-        family's one copy (``the_fix_ready_reached_the_reporter``), told twice
-        under two numbers as the hand-written form told it (DEMOMA-17-002,
-        #5607).
+        Both milestone labels are this scenario's; the pair itself is the
+        family's (``the_fix_ready_milestones``) and says two things — M4 that
+        the fix reached both replicas, M5 that the Vendor stopped there
+        (#5602).
         """
         state = _two_party_state()
         order: list[str] = []
@@ -737,7 +737,7 @@ class TestTheVendorReportsTheFixReady:
             ) as reporter_vf,
             patch.object(
                 demo,
-                "the_fix_ready_reached_the_reporter",
+                "the_fix_ready_milestones",
                 side_effect=lambda *a, **kw: order.append("milestones"),
             ) as milestones,
             _no_banners(),
@@ -749,10 +749,15 @@ class TestTheVendorReportsTheFixReady:
         assert kwargs["client"] is state.client(REPORTER)
         assert kwargs["actor_id"] == state.actor_id(VENDOR)
         assert kwargs["expected_states"] == {CS_vf.VF}
-        assert milestones.call_args.kwargs["milestones"] == (
-            "M4: both replicas show CS includes F (fix ready)",
-            "M5: both replicas show CS includes F (fix ready) — vendor"
-            " stops at VFd",
+        kwargs = milestones.call_args.kwargs
+        assert set(kwargs) == {"reached", "stopped"}, kwargs
+        assert (
+            kwargs["reached"]
+            == "M4: both replicas show CS includes F (fix ready)"
+        )
+        assert kwargs["stopped"] == (
+            "M5: both replicas show the vendor stopped at VFd — no"
+            " fix-deployed transition"
         )
 
     def test_a_replica_that_never_catches_up_skips_the_milestones(self):
@@ -776,7 +781,7 @@ class TestTheVendorReportsTheFixReady:
                 "wait_for_participant_vf_state",
                 side_effect=AssertionError("Timed out waiting for vfd_state"),
             ),
-            patch.object(demo, "the_fix_ready_reached_the_reporter") as later,
+            patch.object(demo, "the_fix_ready_milestones") as later,
         ):
             demo.the_vendor_reports_the_fix_ready(state)
 

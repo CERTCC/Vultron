@@ -11,23 +11,29 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for the precondition guards in verify_fix_ready and
-verify_fix_deployed (DEMOMA-15-001).
+"""Unit tests for the precondition guards in the fix-lifecycle helpers.
 
-verify_fix_ready requires CVDRole.VENDOR.
-verify_fix_deployed requires CVDRole.DEPLOYER (VENDOR-only actors do not pass).
+verify_fix_ready requires CVDRole.VENDOR (DEMOMA-15-001).
+verify_fix_deployed requires CVDRole.DEPLOYER (VENDOR-only actors do not pass,
+DEMOMA-15-002).
+verify_stops_at_fix_ready requires CVDRole.VENDOR and not CVDRole.DEPLOYER
+(DEMOMA-15-004), and asserts the absence of a fix-deployed state on both
+replicas (DEMOMA-15-005).
 
 These tests exercise the guard in isolation using mocked _fetch_participant
 calls, without spinning up a FastAPI server.
 """
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from vultron.core.states.cs import CS_d
 from vultron.demo.helpers.milestones import (
     verify_fix_deployed,
     verify_fix_ready,
+    verify_stops_at_fix_ready,
 )
 from vultron.enums.roles import CVDRole
 
@@ -364,3 +370,149 @@ class TestVerifyFixReadyDeployerGuard:
 
         msg = str(exc_info.value)
         assert "CVDRole.VENDOR" in msg
+
+
+# ---------------------------------------------------------------------------
+# Tests for verify_stops_at_fix_ready (DEMOMA-15-004)
+# ---------------------------------------------------------------------------
+
+
+class TestVerifyStopsAtFixReadyGuard:
+    """DEMOMA-15-004: the ceiling claim needs VENDOR and not DEPLOYER.
+
+    The helper asserts a participant stops at VFd, which is true of a
+    VENDOR without DEPLOYER (CSB-15-002) and not of one that has a deploy
+    path: for a DEPLOYER the same read says only "it has not deployed yet",
+    which a later deployment falsifies.
+    """
+
+    @pytest.mark.spec("DEMOMA-15-004")
+    def test_non_vendor_raises_assertionerror(self):
+        """A Coordinator makes no fix-path claim at all."""
+        participant = _make_participant_mock([CVDRole.COORDINATOR])
+
+        with patch(
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
+            return_value=participant,
+        ):
+            with pytest.raises(AssertionError) as exc_info:
+                verify_stops_at_fix_ready(
+                    MagicMock(),
+                    MagicMock(),
+                    _CASE_ID,
+                    _COORDINATOR_ACTOR_ID,
+                )
+
+        msg = str(exc_info.value)
+        assert _COORDINATOR_ACTOR_ID in msg
+        assert "CVDRole.VENDOR" in msg
+
+    @pytest.mark.spec("DEMOMA-15-004")
+    def test_vendor_that_is_also_a_deployer_raises_assertionerror(self):
+        """A DEPLOYER has a deploy path, so it does not stop at VFd."""
+        participant = _make_participant_mock(
+            [CVDRole.VENDOR, CVDRole.DEPLOYER]
+        )
+
+        with patch(
+            "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
+            return_value=participant,
+        ):
+            with pytest.raises(AssertionError) as exc_info:
+                verify_stops_at_fix_ready(
+                    MagicMock(),
+                    MagicMock(),
+                    _CASE_ID,
+                    _DEPLOYER_ACTOR_ID,
+                )
+
+        msg = str(exc_info.value)
+        assert _DEPLOYER_ACTOR_ID in msg
+        assert "CVDRole.DEPLOYER" in msg
+
+    @pytest.mark.spec("DEMOMA-15-005")
+    def test_vendor_only_actor_is_read_on_both_replicas(self):
+        """Both replicas are read for the absent fix-deployed transition."""
+        participant = _make_participant_mock([CVDRole.VENDOR])
+        receiver, reporter = MagicMock(), MagicMock()
+
+        with (
+            patch(
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
+                return_value=participant,
+            ),
+            patch(
+                "vultron.demo.helpers.milestones.lifecycle._check_participant_not_fix_deployed"
+            ) as d_check,
+        ):
+            verify_stops_at_fix_ready(
+                receiver,
+                reporter,
+                _CASE_ID,
+                _VENDOR_ACTOR_ID,
+            )
+
+        assert [call.args[0] for call in d_check.call_args_list] == [
+            receiver,
+            reporter,
+        ]
+
+    @pytest.mark.spec("DEMOMA-15-005")
+    def test_a_vendor_with_no_d_dimension_passes(self):
+        """The claim is the absence of ``D``, not a ``d`` reading (#5602).
+
+        A participant holding no DEPLOYER role carries no ``d`` dimension, so
+        its D state reads as absent. Asserting ``d`` instead would fail on
+        every vendor the milestone is actually about.
+        """
+        participant = _make_participant_mock([CVDRole.VENDOR])
+        object.__setattr__(
+            participant, "participant_status", SimpleNamespace(d=None)
+        )
+
+        with (
+            patch(
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
+                return_value=participant,
+            ),
+            patch(
+                "vultron.demo.helpers.verification.states._fetch_participant",
+                return_value=participant,
+            ),
+        ):
+            verify_stops_at_fix_ready(
+                MagicMock(),
+                MagicMock(),
+                _CASE_ID,
+                _VENDOR_ACTOR_ID,
+            )
+
+    @pytest.mark.spec("DEMOMA-15-005")
+    def test_a_vendor_that_did_deploy_fails(self):
+        """A recorded ``D`` is what the milestone exists to refuse."""
+        participant = _make_participant_mock([CVDRole.VENDOR])
+        object.__setattr__(
+            participant,
+            "participant_status",
+            SimpleNamespace(d=SimpleNamespace(state=CS_d.D)),
+        )
+
+        with (
+            patch(
+                "vultron.demo.helpers.milestones.lifecycle._fetch_participant",
+                return_value=participant,
+            ),
+            patch(
+                "vultron.demo.helpers.verification.states._fetch_participant",
+                return_value=participant,
+            ),
+        ):
+            with pytest.raises(AssertionError) as exc_info:
+                verify_stops_at_fix_ready(
+                    MagicMock(),
+                    MagicMock(),
+                    _CASE_ID,
+                    _VENDOR_ACTOR_ID,
+                )
+
+        assert "fix-deployed" in str(exc_info.value)

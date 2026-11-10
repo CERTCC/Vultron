@@ -3146,6 +3146,50 @@ groups:
     rationale: >-
       Runtime enforcement surfaces caller errors immediately with a clear diagnostic
       rather than a confusing downstream VFD state-check failure.
+  - id: DEMOMA-15-004
+    priority: MUST
+    kind: project
+    statement: >-
+      `verify_stops_at_fix_ready` MUST accept only actor IDs holding
+      `CVDRole.VENDOR` and not `CVDRole.DEPLOYER` in the case's participant
+      index, raising `AssertionError` with the actor ID and its actual roles
+      otherwise.
+    rationale: >-
+      A milestone labelled "stops at VFd" claims a ceiling, not a moment: only a
+      VENDOR without DEPLOYER is barred from d→D (CSB-15-002). Passed a DEPLOYER,
+      the same read says "it has not deployed yet", which a later deployment
+      falsifies while the label still claims the ceiling. The role guard, not a
+      polling wait, is therefore what makes this negative assertion sound, which
+      is why the helper polls for nothing.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-15-003
+    - rel_type: uses_definition
+      spec_id: CSB-15-002
+    verification: test/demo/test_milestones_vendor_guard.py::TestVerifyStopsAtFixReadyGuard
+    tags:
+    - demo
+  - id: DEMOMA-15-005
+    priority: MUST
+    kind: project
+    statement: >-
+      `verify_stops_at_fix_ready` MUST assert, on the receiver's replica and on
+      the reporter's, that the participant's latest status records no
+      fix-deployed (`D`) state.
+    rationale: >-
+      The claim is the absence of `D`, not `d_state == d`: a participant holding
+      no DEPLOYER role carries no `d` dimension at all, so its D state reads as
+      absent and pinning the expected set to `d` would fail on the very shape the
+      claim is about. Reading both replicas is what DEMOMA-06-003 asks of every
+      milestone.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-06-002
+    - rel_type: uses_definition
+      spec_id: CSB-15-002
+    verification: test/demo/test_milestones_vendor_guard.py::TestVerifyStopsAtFixReadyGuard
+    tags:
+    - demo
 - id: DEMOMA-16
   title: Per-Scenario Required Semantic Types for the Invariant Harness
   description: >-

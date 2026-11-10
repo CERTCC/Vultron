@@ -746,10 +746,9 @@ class TestBothVendorsFixTheVul:
     ):
         """This scenario numbers neither milestone; the labels say so.
 
-        The shared step asserts the same thing twice, once per label
-        (``the_fix_ready_reached_the_reporter``, #5607); a consolidation must
-        not change what a scenario passes or fails on (DEMOMA-17-002), so the
-        pair is kept as this scenario carried it.
+        The pair says two things: the fix reached the replicas, and neither
+        Vendor went on to deploy.  Both labels name both vendors, which is
+        what the shared step reads (#5602).
         """
         state = _four_party_state()
 
@@ -759,10 +758,15 @@ class TestBothVendorsFixTheVul:
             demo.both_vendors_fix_the_vul(state)
 
         assert fix_ready.call_args.args == (state,)
-        milestones = fix_ready.call_args.kwargs["milestones"]
-        assert len(milestones) == 2, milestones
-        assert all("fix ready" in label for label in milestones)
-        assert "vendors stop at VFd" in milestones[1]
+        kwargs = fix_ready.call_args.kwargs
+        assert set(kwargs) == {"reached", "stopped"}, kwargs
+        assert "fix ready" in kwargs["reached"], kwargs["reached"]
+        assert "both vendors stopped at VFd" in kwargs["stopped"], kwargs[
+            "stopped"
+        ]
+        assert "no fix-deployed transition" in kwargs["stopped"], kwargs[
+            "stopped"
+        ]
 
 
 # ---------------------------------------------------------------------------
