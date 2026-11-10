@@ -20,148 +20,57 @@ handled by ``SubmitReportReceivedUseCase`` in the receiver's own store.
 
 import json
 import logging
-from datetime import UTC, datetime
-from typing import Any
 
 import pytest
 from pydantic import JsonValue
 
-from test.support.act_runner import run_in_act
-from test.support.received import received_event
+from test.core.use_cases.received._csaf_receipt import (
+    CSAF_ID,
+    FINDER,
+    OTHER_ID,
+    RECEIVED_AT,
+    REPORT_ID,
+    Receipt,
+    csaf,
+    document,
+    schema_invalid,
+)
 from test.wire.csaf._documents import (
     minimal_csaf_document,
-    section,
     vulnerability_report_document,
 )
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
-from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.models.actor import VultronService
 from vultron.core.models.attached_document import (
     AttachedDocument,
     AttachedImage,
 )
-from vultron.core.models.events.report import SubmitReportReceivedEvent
-from vultron.core.models.report import (
-    ReportAttachment,
-    VulnerabilityReport,
-)
 from vultron.core.models.report_claims import (
     ClaimOutcome,
-    ReportClaimsRecord,
     SchemaVerdict,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
-    HandlerResult,
 )
-from vultron.core.use_cases.received.report import SubmitReportReceivedUseCase
-from vultron.wire.as2.factories.report import rm_submit_report_activity
 
 pytestmark = pytest.mark.usefixtures("case_actor_service_url")
-
-_VENDOR = "https://vendor.example.org/actors/vendor"
-_FINDER = "https://finder.example.org/actors/finder"
-_REPORT_ID = "https://finder.example.org/reports/widget"
-_CSAF_ID = f"{_REPORT_ID}/csaf"
-_OTHER_ID = f"{_REPORT_ID}/notes"
-_RECEIVED_AT = datetime(2026, 11, 1, 12, tzinfo=UTC)
-
-
-def _document(content: str, document_id: str = _CSAF_ID) -> AttachedDocument:
-    return AttachedDocument(
-        id_=document_id, media_type="application/json", content=content
-    )
-
-
-def _csaf(data: dict[str, JsonValue]) -> AttachedDocument:
-    return _document(json.dumps(data))
-
-
-class _Receipt:
-    """One delivery of a report Offer to the Vendor, and what it left behind."""
-
-    def __init__(
-        self, *attachments: ReportAttachment, report_id: str = _REPORT_ID
-    ) -> None:
-        self.report_id = report_id
-        report = VulnerabilityReport(
-            id_=report_id,
-            name="Widget overflow",
-            content="The widget overflows its buffer.",
-            attachment=list(attachments) or None,
-        )
-        offer = rm_submit_report_activity(report, to=_VENDOR, actor=_FINDER)
-        event = received_event(offer, receiving_actor_id=_VENDOR)
-        assert isinstance(event, SubmitReportReceivedEvent)
-        self.event = event
-        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR)
-        self.dl.save(VultronService(id_=_VENDOR))
-
-    def handle(self) -> HandlerResult:
-        # The inbox runs each delivery inside an act (ADR-0176).
-        return run_in_act(
-            SubmitReportReceivedUseCase(
-                self.dl,
-                self.event,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-            ),
-            at=_RECEIVED_AT,
-        )
-
-    def records(self) -> list[ReportClaimsRecord]:
-        found = self.dl.list_objects("ReportClaimsRecord")
-        assert all(isinstance(r, ReportClaimsRecord) for r in found)
-        return [
-            r
-            for r in found
-            if isinstance(r, ReportClaimsRecord)
-            and r.report_id == self.report_id
-        ]
-
-    def record(self) -> ReportClaimsRecord:
-        [only] = self.records()
-        return only
-
-    def stored_report(self) -> VulnerabilityReport:
-        report = self.dl.read(self.report_id)
-        assert isinstance(report, VulnerabilityReport)
-        return report
-
-    def sent_bodies(self) -> list[dict[str, Any]]:
-        bodies = [
-            read_sealed_body_dict(self.dl, activity_id)
-            for activity_id in self.dl.outbox_list()
-        ]
-        assert all(body is not None for body in bodies)
-        return [body for body in bodies if body is not None]
-
-
-def _schema_invalid() -> dict[str, JsonValue]:
-    data = vulnerability_report_document()
-    section(data, "document", "tracking")["status"] = "unknown-status"
-    return data
 
 
 @pytest.mark.spec("CSAF-01-003")
 def test_only_the_csaf_attachment_is_recognized_as_csaf() -> None:
-    receipt = _Receipt(
-        _document(json.dumps({"title": "not CSAF"}), _OTHER_ID),
-        _csaf(vulnerability_report_document()),
+    receipt = Receipt(
+        document(json.dumps({"title": "not CSAF"}), OTHER_ID),
+        csaf(vulnerability_report_document()),
     )
 
     receipt.handle()
 
     record = receipt.record()
-    assert record.reading.document_id == _CSAF_ID
+    assert record.reading.document_id == CSAF_ID
     assert record.reading.document_format == "CSAF 2.1"
-    assert record.report_id == _REPORT_ID
+    assert record.report_id == REPORT_ID
 
 
 def test_a_report_without_csaf_stores_no_claims_record() -> None:
-    receipt = _Receipt()
+    receipt = Receipt()
 
     receipt.handle()
 
@@ -173,14 +82,14 @@ def test_a_report_without_csaf_stores_no_claims_record() -> None:
     ("data", "verdict"),
     [
         (vulnerability_report_document(), SchemaVerdict.SCHEMA_VALID),
-        (_schema_invalid(), SchemaVerdict.SCHEMA_INVALID),
+        (schema_invalid(), SchemaVerdict.SCHEMA_INVALID),
     ],
     ids=["schema-valid", "schema-invalid"],
 )
 def test_receipt_stores_the_schema_verdict_and_its_errors(
     data: dict[str, JsonValue], verdict: SchemaVerdict
 ) -> None:
-    receipt = _Receipt(_csaf(data))
+    receipt = Receipt(csaf(data))
 
     receipt.handle()
 
@@ -200,10 +109,10 @@ def test_the_stored_verdict_is_only_ever_schema_valid_or_schema_invalid() -> (
 ):
     stored = set()
     for index, data in enumerate(
-        (vulnerability_report_document(), _schema_invalid())
+        (vulnerability_report_document(), schema_invalid())
     ):
         # One store per actor, so each receipt is of a report of its own.
-        receipt = _Receipt(_csaf(data), report_id=f"{_REPORT_ID}-{index}")
+        receipt = Receipt(csaf(data), report_id=f"{REPORT_ID}-{index}")
         receipt.handle()
         raw = receipt.record().model_dump(mode="json")
         stored.add(raw["reading"]["schema_verdict"])
@@ -215,16 +124,16 @@ def test_the_stored_verdict_is_only_ever_schema_valid_or_schema_invalid() -> (
 @pytest.mark.parametrize(
     "attachment",
     [
-        _csaf(_schema_invalid()),
-        _document('{"$schema": "https://docs.oasis-open.org/csaf/csaf/v2.1/'),
-        _csaf({**minimal_csaf_document(), "document": "not an object"}),
+        csaf(schema_invalid()),
+        document('{"$schema": "https://docs.oasis-open.org/csaf/csaf/v2.1/'),
+        csaf({**minimal_csaf_document(), "document": "not an object"}),
     ],
     ids=["schema-invalid", "not-json", "unreadable-document"],
 )
 def test_a_broken_csaf_attachment_never_refuses_the_report(
     attachment: AttachedDocument,
 ) -> None:
-    receipt = _Receipt(attachment)
+    receipt = Receipt(attachment)
 
     result = receipt.handle()
 
@@ -239,7 +148,7 @@ def test_a_schema_invalid_document_is_read_field_by_field_and_logs_each_skip(
 ) -> None:
     data = vulnerability_report_document()
     data["vulnerabilities"][0]["disclosure_date"] = "next Tuesday"
-    receipt = _Receipt(_csaf(data))
+    receipt = Receipt(csaf(data))
 
     with caplog.at_level(logging.INFO):
         result = receipt.handle()
@@ -259,12 +168,12 @@ def test_a_schema_invalid_document_is_read_field_by_field_and_logs_each_skip(
     assert len(skip_logs) == 1
     message = skip_logs[0].getMessage()
     assert receipt.event.activity_id in message
-    assert _FINDER in message
+    assert FINDER in message
 
 
 @pytest.mark.spec("CSAF-02-005")
 def test_an_omitted_field_with_a_schema_default_has_no_stored_value() -> None:
-    receipt = _Receipt(_csaf(vulnerability_report_document()))
+    receipt = Receipt(csaf(vulnerability_report_document()))
 
     receipt.handle()
 
@@ -277,14 +186,14 @@ def test_an_omitted_field_with_a_schema_default_has_no_stored_value() -> None:
 
 @pytest.mark.spec("CSAF-04-004")
 def test_the_report_keeps_a_record_of_what_its_csaf_claimed() -> None:
-    attachment = _csaf(vulnerability_report_document())
-    receipt = _Receipt(attachment)
+    attachment = csaf(vulnerability_report_document())
+    receipt = Receipt(attachment)
 
     receipt.handle()
 
     record = receipt.record()
     assert record.activity_id == receipt.event.activity_id
-    assert record.received_at == _RECEIVED_AT
+    assert record.received_at == RECEIVED_AT
     paths = record.reading.claims.value_paths()
     assert "name" in paths
     assert "vulnerabilities[0].disclosure_date" in paths
@@ -306,7 +215,7 @@ def test_the_report_keeps_a_record_of_what_its_csaf_claimed() -> None:
 
 
 def test_a_resent_offer_keeps_the_record_it_already_wrote() -> None:
-    receipt = _Receipt(_csaf(vulnerability_report_document()))
+    receipt = Receipt(csaf(vulnerability_report_document()))
     receipt.handle()
     first = receipt.record()
 
@@ -317,7 +226,7 @@ def test_a_resent_offer_keeps_the_record_it_already_wrote() -> None:
 
 @pytest.mark.spec("CSAF-04-005")
 def test_the_claims_record_is_never_sent() -> None:
-    receipt = _Receipt(_csaf(_schema_invalid()))
+    receipt = Receipt(csaf(schema_invalid()))
 
     receipt.handle()
 
@@ -334,11 +243,11 @@ def test_the_claims_record_is_never_sent() -> None:
 def test_a_resent_offer_whose_document_has_no_id_keeps_one_record() -> None:
     """The parser mints a fresh id for an id-less Document at every parse."""
     content = json.dumps(vulnerability_report_document())
-    first = _Receipt(
+    first = Receipt(
         AttachedDocument(media_type="application/json", content=content)
     )
     first.handle()
-    again = _Receipt(
+    again = Receipt(
         AttachedDocument(media_type="application/json", content=content)
     )
     assert (
@@ -355,7 +264,7 @@ def test_a_resent_offer_whose_document_has_no_id_keeps_one_record() -> None:
 def test_two_documents_sharing_an_id_each_get_a_record() -> None:
     other = vulnerability_report_document()
     other["document"]["title"] = "A second advisory"
-    receipt = _Receipt(_csaf(vulnerability_report_document()), _csaf(other))
+    receipt = Receipt(csaf(vulnerability_report_document()), csaf(other))
 
     receipt.handle()
 
@@ -365,14 +274,14 @@ def test_two_documents_sharing_an_id_each_get_a_record() -> None:
 
 def test_an_image_beside_the_csaf_document_is_kept_and_not_read() -> None:
     image = AttachedImage(
-        id_=_OTHER_ID, url="https://finder.example.org/shot.png"
+        id_=OTHER_ID, url="https://finder.example.org/shot.png"
     )
-    receipt = _Receipt(image, _csaf(vulnerability_report_document()))
+    receipt = Receipt(image, csaf(vulnerability_report_document()))
 
     result = receipt.handle()
 
     assert result.disposition is HandlerDisposition.APPLIED
-    assert [r.reading.document_id for r in receipt.records()] == [_CSAF_ID]
+    assert [r.reading.document_id for r in receipt.records()] == [CSAF_ID]
     stored = receipt.stored_report().attachment
     assert stored is not None and type(stored[0]) is AttachedImage
 
@@ -381,7 +290,7 @@ def test_an_image_beside_the_csaf_document_is_kept_and_not_read() -> None:
 @pytest.mark.parametrize(
     "other",
     [
-        {"type": "Note", "id": _OTHER_ID, "content": "Steps to reproduce."},
+        {"type": "Note", "id": OTHER_ID, "content": "Steps to reproduce."},
         {"type": "Link", "href": "https://finder.example.org/advisory"},
         "https://finder.example.org/advisory",
     ],
@@ -390,12 +299,12 @@ def test_an_image_beside_the_csaf_document_is_kept_and_not_read() -> None:
 def test_an_attachment_that_is_no_file_never_refuses_the_report(
     other: dict[str, str] | str,
 ) -> None:
-    receipt = _Receipt(other, _csaf(vulnerability_report_document()))
+    receipt = Receipt(other, csaf(vulnerability_report_document()))
 
     result = receipt.handle()
 
     assert result.disposition is HandlerDisposition.APPLIED
-    assert [r.reading.document_id for r in receipt.records()] == [_CSAF_ID]
+    assert [r.reading.document_id for r in receipt.records()] == [CSAF_ID]
     stored = receipt.stored_report().attachment
     assert stored is not None and len(stored) == 2
     assert type(stored[1]) is AttachedDocument

@@ -61,6 +61,7 @@ def test_check_hash_matches_node_succeeds_when_hash_matches(
 
 
 @pytest.mark.spec("SYNC-03-001")
+@pytest.mark.spec("RF-08-004")
 def test_send_reject_log_entry_node_sends_reject(bridge, case_actor):
     entry = _make_entry(1, "deadbeef" * 8)
     event = _make_event(entry, actor_id=case_actor.id_)
@@ -77,6 +78,33 @@ def test_send_reject_log_entry_node_sends_reject(bridge, case_actor):
 
     assert result.status == Status.FAILURE
     sync_port.send_reject_log_entry.assert_called_once()
+    # The Reject answers the Announce that carried the entry (RF-08-004).
+    sent = sync_port.send_reject_log_entry.call_args.kwargs
+    assert sent["in_reply_to"] == event.activity_id
+
+
+@pytest.mark.spec("RF-08-004")
+def test_send_reject_log_entry_node_refuses_an_announce_with_no_id(
+    bridge, case_actor
+):
+    """With no Announce id there is nothing for ``inReplyTo`` to name."""
+    entry = _make_entry(1, "deadbeef" * 8)
+    event = _make_event(entry, actor_id=case_actor.id_).model_copy(
+        update={"activity_id": ""}
+    )
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = bridge.execute_with_setup(
+        tree=SendRejectLogEntryNode(name="SendRejectLogEntry"),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+        tail_hash=_ZERO_HASH,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    assert "inReplyTo (RF-08-004)" in (result.feedback_message or "")
+    sync_port.send_reject_log_entry.assert_not_called()
 
 
 @pytest.mark.spec("SYNC-03-001")

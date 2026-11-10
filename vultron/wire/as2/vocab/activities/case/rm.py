@@ -14,8 +14,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """RM case activities: engage, defer and close a case, and declining a close."""
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
+from vultron.wire.as2.vocab.activities.base import RepliesToObject
 from vultron.wire.as2.vocab.activities.case.named_case import NamedCase
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Ignore,
@@ -70,7 +71,7 @@ class _RmCloseCaseActivity(as_Leave):
     )
 
 
-class _RmRejectCloseCaseActivity(as_Reject):
+class _RmRejectCloseCaseActivity(RepliesToObject, as_Reject):
     """The Case Actor declines an owner's Leave(VulnerabilityCase) close.
 
     Emitted per CM-23-011: when the Case Owner sends Leave(VulnerabilityCase)
@@ -87,9 +88,3 @@ class _RmRejectCloseCaseActivity(as_Reject):
     object_: _RmCloseCaseActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-
-    @model_validator(mode="after")
-    def set_in_reply_to_from_leave(self):
-        if self.in_reply_to is None:
-            object.__setattr__(self, "in_reply_to", self.object_.id_)
-        return self

@@ -223,7 +223,11 @@ def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
 def _genesis_request(case_id: str, sender: str) -> dict[str, Any]:
     """The objectless genesis-replay Reject *sender* sends the CASE_MANAGER."""
     return genesis_replay_reject_activity(
-        case_id, TEST_SENDER_POSITION, actor=sender, to=[MANAGER]
+        case_id,
+        TEST_SENDER_POSITION,
+        actor=sender,
+        to=[MANAGER],
+        in_reply_to="https://example.org/activities/prompting-announce",
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
 

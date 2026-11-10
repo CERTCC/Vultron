@@ -378,6 +378,7 @@ def _reject_event(
         ledger_position=peer_position(last_accepted_hash),
         actor=peer_id,
         **activity_kwargs,
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     return cast(RejectLogEntryReceivedEvent, received_event(activity))
 

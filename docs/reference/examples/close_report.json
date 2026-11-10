@@ -6,6 +6,7 @@
   "type": "Reject",
   "id": "urn:uuid:1a976e03-b7a9-4c2a-a044-5e9569f4d867",
   "name": "https://vultron.example/organizations/vendorco Reject https://vultron.example/users/finndervul Offer FDR-8675309",
+  "inReplyTo": "urn:uuid:9b449431-1c12-4239-bbe4-268fa648540c",
   "content": "We're closing this report.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {

@@ -29,6 +29,7 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
    An unbroken hash chain is the implied positive acknowledgment (MSM-05-002).
 4. A participant whose hashes do not match sends `Reject(CaseLedgerEntry)` whose `ledgerPosition` is its ledger tail, the last entry it accepted.
    From that position, the CASE_MANAGER can replay the gap (SYNC-03-001, SYNC-03-002).
+   Its `inReplyTo` names the `Announce(CaseLedgerEntry)` that carried the entry (RF-08-004).
 5. A participant that wants to check its ledger is current states its position: `Read(CaseLedgerEntry)` naming the last entry it applied.
    The CASE_MANAGER records that position and replays every entry after it (SYNC-17-001, SYNC-17-004).
 
@@ -239,6 +240,7 @@ It refuses a copy that names a different entry at an index the participant holds
 Any other copy replaces the case, position included (SYNC-16-022).
 
 After a replacement whose position is ahead of its chain, the participant sends `Reject(CaseLedgerEntry)` naming its own tail.
+Its `inReplyTo` names the `Announce(VulnerabilityCase)` that carried the copy (RF-08-004).
 It stores each entry the copy already reflects as a no-op, and does not move its case's position back (SYNC-16-023, SYNC-16-024).
 
 The activity and its rendered example are documented under [Announce vulnerability case](case_management.md#announce-vulnerability-case).

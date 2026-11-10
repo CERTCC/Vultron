@@ -215,7 +215,11 @@ def test_each_activity_to_the_case_manager_is_numbered_one_up() -> None:
     assert read_body is not None
     replica_entry = ledger_entries(dl, net.case_id)[-1]
     SyncActivityAdapter(dl).send_reject_log_entry(
-        replica_entry, replica_entry.entry_hash, OWNER, [MANAGER]
+        replica_entry,
+        replica_entry.entry_hash,
+        OWNER,
+        [MANAGER],
+        in_reply_to="https://example.org/activities/prompting-announce",
     )
     [reject] = net.queued(OWNER, to=MANAGER, type_="Reject")
     reject_body = read_sealed_body_dict(dl, reject.id_)

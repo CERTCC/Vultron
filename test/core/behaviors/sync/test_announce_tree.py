@@ -2279,22 +2279,25 @@ def _set_clock(monkeypatch: pytest.MonkeyPatch, at: datetime) -> None:
 
 def _deliver_early_entry(
     datalayer: SqliteDataLayer, entry: CaseLedgerEntry
-) -> None:
+) -> str:
     """Deliver *entry* for the missing case through a fresh bridge and tree.
 
     A fresh bridge on the same store stands in for a restart: whatever the
-    limit remembers must be in the store (SYNC-15-021).
+    limit remembers must be in the store (SYNC-15-021).  Returns the id of
+    the delivered ``Announce``.
     """
     py_trees.blackboard.Blackboard.storage.clear()
+    event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
     run_tree(
         BTBridge(datalayer=datalayer),
         tree=create_announce_log_entry_tree(
             sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
         ),
         actor_id=PARTICIPANT_ACTOR_ID,
-        activity=_make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID),
+        activity=event,
         sync_port=SyncActivityAdapter(datalayer),
     )
+    return event.activity_id
 
 
 def _queued_rejects(datalayer: SqliteDataLayer) -> list[str]:
@@ -2334,6 +2337,21 @@ def test_early_entries_within_the_interval_send_one_genesis_reject(
 
     assert len(held_ledger_announces(datalayer, CASE_ID)) == 3
     assert len(_queued_rejects(datalayer)) == 1
+
+
+@pytest.mark.spec("RF-08-004")
+def test_a_genesis_reject_names_the_announce_that_prompted_it(
+    datalayer, monkeypatch
+):
+    """The genesis Reject answers the early entry's ``Announce``."""
+    (entry,) = _early_entries(1)
+    _set_clock(monkeypatch, _GENESIS_WAIT_START)
+    announce_id = _deliver_early_entry(datalayer, entry)
+
+    (reject_id,) = _queued_rejects(datalayer)
+    body = read_sealed_body_dict(datalayer, reject_id)
+    assert body is not None
+    assert body["inReplyTo"] == announce_id
 
 
 @pytest.mark.spec("SYNC-15-001")

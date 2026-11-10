@@ -73,12 +73,12 @@ The accepting service does the steps below, and the order is not interchangeable
 
 | Step | What it establishes |
 |---|---|
-| Resolve or create the case | A redelivered proposal (same proposal identifier) reuses its case rather than creating a second (CP-05-006, CP-05-013); a new proposal identifier is a new request, and the case is reused only for the proposer that owns it (CP-05-008, CP-05-017, CP-05-020) |
+| Resolve or create the case | A redelivered proposal (same proposal identifier) reuses its case rather than creating a second (CP-05-006, CP-05-013); a new proposal identifier is a new request, and the case is reused only for the proposer that owns it (CP-05-008, CP-05-017, CP-05-020). A new case starts with its report's name and summary (CSAF-03-006). Where the report is silent, a Common Security Advisory Framework (CSAF) Vulnerability Report on the carried `Offer` fills them, can mark the vulnerability public, its exploit public or attacks observed, and can propose an embargo end (CSAF-02-001, CSAF-03) |
 | Store the inline report | Everything downstream derives from it — the reporter Participant, its ledger entry, the consent seed |
 | Add itself as Participant | COORDINATOR and CASE_MANAGER, so the authority is in the roster |
 | Add the proposing actor | CASE_OWNER at `RM.RECEIVED`, plus the roles its proposal states in `proposerCaseRoles` (CP-09-007) — never the accepting service's own configuration |
 | Add the reporter | At `RM.ACCEPTED` — the reporter has already accepted, by reporting |
-| Initialize the default embargo | A case begins embargoed rather than open (EP-04-001) |
+| Initialize the default embargo | A case begins embargoed rather than open (EP-04-001), unless it starts already public, exploited or attacked, when it begins with no embargo (EP-04-020) |
 | Seed the owner's consent | An `AGREED` consent row for the default embargo, without an invitation round-trip |
 | Seed the reporter's consent | An `AGREED` consent row — submitting a report is implicit consent ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md)) |
 | Emit `Accept(CaseProposal)` | The proposer learns its request succeeded |

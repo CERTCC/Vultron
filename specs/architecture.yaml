@@ -192,8 +192,9 @@ groups:
       `SyncActivityPort` MUST be defined as a `typing.Protocol` in
       `vultron/core/ports/sync_activity.py` with fire-and-forget methods, one
       per sync activity it builds: `send_reject_log_entry(entry, tail_hash,
-      actor_id, to)`, `send_genesis_replay_reject(case_id, copy_tail_hash,
-      actor_id, to)`, `send_read_ledger_entry(case_id, ledger_position,
+      actor_id, to, *, in_reply_to)`, `send_genesis_replay_reject(case_id,
+      copy_tail_hash, actor_id, to, *, in_reply_to)`,
+      `send_read_ledger_entry(case_id, ledger_position,
       actor_id, to)` and
       `send_announce_log_entry(entry, actor_id, to)`. `send_announce_log_entry`
       reports whether a row was queued (`bool`; `False` when an identical row was
