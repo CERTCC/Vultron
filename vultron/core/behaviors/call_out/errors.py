@@ -11,15 +11,19 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The two errors the call-out seam raises (ADR-0183, BT-18-018).
+"""The errors the call-out seam raises (ADR-0183, BT-18-018, BT-18-027).
 
-Both are plain :class:`RuntimeError` subclasses and **not**
+All are plain :class:`RuntimeError` subclasses and **not**
 :class:`~vultron.errors.VultronError`, so ``BTBridge`` reports either as
 ``internal_error=True`` rather than as a protocol ``FAILURE``: the message is
-not judged and stays in holding.
+not judged and stays in holding.  :class:`CallOutBudgetExceededError` is a
+:class:`CallOutBackendError`: a backend that answers too late has, like one
+that answers *error*, given no answer the tree may use.
 """
 
 from __future__ import annotations
+
+from datetime import timedelta
 
 
 class CallOutContractError(RuntimeError):
@@ -55,4 +59,33 @@ class CallOutBackendError(RuntimeError):
         self.diagnostics = diagnostics
 
 
-__all__ = ["CallOutBackendError", "CallOutContractError"]
+class CallOutBudgetExceededError(CallOutBackendError):
+    """A call-out backend took longer than its time budget (BT-18-027).
+
+    Names the node, the configured budget and the time the backend took.  The
+    seam detects the overrun only after the backend returns: it does not
+    interrupt the backend, and it discards the late answer, whatever its
+    verdict, so a slow answer never becomes a decision.  As a
+    :class:`CallOutBackendError` it is an internal error and the message
+    stays in holding to be tried again (ADR-0183).
+    """
+
+    def __init__(
+        self, node_name: str, budget: timedelta, elapsed: timedelta
+    ) -> None:
+        super().__init__(
+            node_name,
+            f"took {elapsed.total_seconds():.3f}s, over its call-out time"
+            f" budget of {budget.total_seconds():.3f}s; its answer is"
+            " discarded (BT-18-027)",
+        )
+        self.args = (f"Call-out backend {node_name!r} {self.diagnostics}",)
+        self.budget = budget
+        self.elapsed = elapsed
+
+
+__all__ = [
+    "CallOutBackendError",
+    "CallOutBudgetExceededError",
+    "CallOutContractError",
+]

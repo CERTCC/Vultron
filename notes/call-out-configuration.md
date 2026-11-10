@@ -7,8 +7,9 @@ description: >
   tree builders: the three-mode model and its ceiling/floor default rule, domain
   bundles and singletons, the security-significant gate verdicts, STOCHASTIC
   bundles for production-only domains, why a data-producing capability's
-  default must write its declared outputs, and the yes/no/error answer the seam
-  turns into tree behaviour (ADR-0183).
+  default must write its declared outputs, the yes/no/error answer the seam
+  turns into tree behaviour (ADR-0183), and the time budget it holds a
+  backend to (BT-18-027).
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
@@ -281,3 +282,12 @@ ticked anywhere but under the seam raises, so no tree can read an answer
 refusal overwrites; a capability whose reason a tree or record reads names its
 own `refusal_reason_key` (`answer.py`). Tests inject backends from
 `test/support/call_out.py`, never a raw `py_trees.behaviours.Success`.
+
+**A late answer is an error answer.** `TimeBoundedCallOut`, the seam every bundle
+hands out, times each backend on the `StopwatchPort` and, past
+`ActorConfig.call_out_time_budget`, discards the answer and raises
+`CallOutBudgetExceededError`, a `CallOutBackendError` (BT-18-027). Reason: an
+answer that arrives too late is, like *error*, not one the tree may use, so the
+message stays in holding. The seam detects the overrun only after the backend
+returns and never interrupts it. A test that needs an exact overrun injects a fake
+stopwatch the backend advances (`test_time_budget.py`).

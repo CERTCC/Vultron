@@ -37,27 +37,44 @@ Both errors are plain ``RuntimeError`` subclasses, **not**
 ``FAILURE``.  A call-out backend is injected from *outside* the repository
 (BT-23-004), so only a runtime guard at the seam can police it.
 
+:class:`TimeBoundedCallOut` is the seam with a time budget (BT-18-015).  It
+measures, on a stopwatch, how long its backend took to answer, and raises
+:class:`CallOutBudgetExceededError`, naming the node and the budget, when the
+backend took longer (BT-18-027).  A py_trees tick is synchronous and the
+backend runs on the ticking thread, so the seam **detects** an overrun after
+the backend returns; it does **not** interrupt the backend.  The late answer
+is discarded, so an overrun never becomes a decision, but the worker is held
+for as long as the backend takes, every time; a backend that never returns
+is not caught here (BT-18-025 forbids the blocking I/O that would cause it).
+What the seam bounds is what the tree acts on, not how long a worker waits.
+The budget is the local actor's ``ActorConfig.call_out_time_budget``
+(BT-18-026), read when a tree builds the node.
+
 The seam is applied uniformly at the bundle boundary via
 :func:`guard_call_out_factory`, so every node a call-out bundle hands out is
-guarded, with no change in the tree-builder call sites.  See
-:class:`~vultron.core.behaviors.call_out.bundles.base.CallOutBundle`.
+a :class:`TimeBoundedCallOut`, with no change in the tree-builder call sites.
+See :class:`~vultron.core.behaviors.call_out.bundles.base.CallOutBundle`.
 
 References
 ----------
 - ADR-0080: ``docs/adr/0080-protocol-asks-not-suspended-behaviors.md``
 - ADR-0183: ``docs/adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md``
+- ADR-0176: ``docs/adr/0176-an-act-reads-the-clock-once-at-its-edge.md``
+  (elapsed time is a stopwatch, not the clock)
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-18-002, BT-18-007,
-  BT-18-011, BT-18-018
+  BT-18-011, BT-18-015, BT-18-018, BT-18-026, BT-18-027
 - ``notes/call-out-configuration.md`` — "A Backend Answers Yes, No or Error"
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
+from datetime import timedelta
 
 import py_trees
 from py_trees.common import Access, Status
 
+from vultron.config.app import load_actor_config
 from vultron.core.behaviors.call_out.answer import (
     CallOutAnswer,
     CallOutVerdict,
@@ -65,10 +82,13 @@ from vultron.core.behaviors.call_out.answer import (
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.errors import (
     CallOutBackendError,
+    CallOutBudgetExceededError,
     CallOutContractError,
 )
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.stopwatch import SystemStopwatch
+from vultron.core.ports.clock import StopwatchPort
 
 #: Sentinel attribute marking a factory returned by :func:`guard_call_out_factory`,
 #: so re-wrapping an already-guarded factory (e.g. one bundle's factory passed
@@ -222,26 +242,108 @@ class SynchronousCallOut(py_trees.decorators.Decorator):
         raise CallOutBackendError(name, answer.diagnostics)
 
 
+class TimeBoundedCallOut(SynchronousCallOut):
+    """The call-out seam with a time budget (BT-18-015, BT-18-027).
+
+    Reads *stopwatch* just before it ticks its backend and again when the
+    backend has returned.  When the backend took longer than *budget*, it
+    discards the answer, whatever its verdict, and raises
+    :class:`CallOutBudgetExceededError` naming the node and the budget;
+    otherwise it interprets the answer as :class:`SynchronousCallOut` does.
+
+    It **detects** an overrun after the fact and does **not** interrupt the
+    backend: the backend runs on the ticking thread, and a py_trees tick is
+    synchronous.  So a slow backend still holds the worker for as long as it
+    takes, on every call; the seam only guarantees that the tree never acts on
+    a late answer, and that the operator sees which node was slow.
+
+    A stopwatch reading is not a time of day: it feeds this limit and nothing
+    else (ADR-0176).
+    """
+
+    def __init__(
+        self,
+        child: py_trees.behaviour.Behaviour,
+        *,
+        budget: timedelta,
+        stopwatch: StopwatchPort,
+    ) -> None:
+        if budget.total_seconds() <= 0:
+            raise CallOutContractError(
+                f"Call-out backend {child.name!r} was given a time budget of "
+                f"{budget}; a budget must be positive (BT-18-015)."
+            )
+        super().__init__(child)
+        self.budget = budget
+        self._stopwatch = stopwatch
+        self._started: float | None = None
+
+    def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
+        """Start the stopwatch, then tick as :class:`SynchronousCallOut`."""
+        self._started = self._stopwatch.seconds()
+        try:
+            yield from super().tick()
+        finally:
+            self._started = None
+
+    def update(self) -> Status:
+        """Raise on an overrun; otherwise interpret the answer (ADR-0183)."""
+        if self._started is None:
+            raise CallOutContractError(
+                f"Call-out seam {self.name!r} was updated outside its own "
+                "tick, so it cannot time its backend (BT-18-015)."
+            )
+        elapsed = timedelta(seconds=self._stopwatch.seconds() - self._started)
+        if elapsed > self.budget:
+            # Discard the late answer so no later tick can read it.
+            self._backend.take_answer()
+            error = CallOutBudgetExceededError(
+                self._backend.name, self.budget, elapsed
+            )
+            node_logger(self).warning("%s", error)
+            raise error
+        return super().update()
+
+
+def time_bounded_call_out(
+    node: py_trees.behaviour.Behaviour,
+) -> TimeBoundedCallOut:
+    """Put *node* behind the time-bounded seam, with the configured budget.
+
+    The budget is the local actor's ``ActorConfig.call_out_time_budget``,
+    read now, when the tree is built (BT-18-026); the stopwatch is the
+    system stopwatch.  Idempotent: a :class:`TimeBoundedCallOut` is returned
+    unchanged, and a plain :class:`SynchronousCallOut` has its backend moved
+    behind a time-bounded seam, so no factory product escapes the budget.
+    """
+    if isinstance(node, TimeBoundedCallOut):
+        return node
+    if isinstance(node, SynchronousCallOut):
+        node = node.decorated
+    return TimeBoundedCallOut(
+        node,
+        budget=load_actor_config().call_out_time_budget,
+        stopwatch=SystemStopwatch(),
+    )
+
+
 def guard_call_out_factory(
     factory: CallOutBackendFactory,
 ) -> CallOutBackendFactory:
     """Wrap *factory* so the node it produces sits behind the seam.
 
     Returns a new :class:`CallOutBackendFactory` whose product is the original
-    node wrapped in :class:`SynchronousCallOut`.  A product that is not a
+    node wrapped in :class:`TimeBoundedCallOut` by
+    :func:`time_bounded_call_out`.  A product that is not a
     :class:`CallOutBackend` raises :class:`CallOutContractError` when the tree
     is built.  Idempotent: an already-guarded factory is returned unchanged,
-    and a node that is already a :class:`SynchronousCallOut` is not
-    double-wrapped.
+    and a node that is already a seam is not double-wrapped.
     """
     if getattr(factory, _GUARDED_ATTR, False):
         return factory
 
     def guarded(name: str) -> py_trees.behaviour.Behaviour:
-        node = factory(name)
-        if isinstance(node, SynchronousCallOut):
-            return node
-        return SynchronousCallOut(node)
+        return time_bounded_call_out(factory(name))
 
     setattr(guarded, _GUARDED_ATTR, True)
     return guarded
@@ -250,7 +352,7 @@ def guard_call_out_factory(
 def unwrap_call_out(
     node: py_trees.behaviour.Behaviour,
 ) -> py_trees.behaviour.Behaviour:
-    """Return the backend behind a :class:`SynchronousCallOut`, else *node*.
+    """Return the backend behind a seam, else *node*.
 
     Convenience for callers (and tests) that need the underlying backend node
     rather than the transparent seam.
@@ -262,8 +364,11 @@ def unwrap_call_out(
 
 __all__ = [
     "CallOutBackendError",
+    "CallOutBudgetExceededError",
     "CallOutContractError",
     "SynchronousCallOut",
+    "TimeBoundedCallOut",
     "guard_call_out_factory",
+    "time_bounded_call_out",
     "unwrap_call_out",
 ]

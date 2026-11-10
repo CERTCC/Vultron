@@ -28,7 +28,9 @@ are **core concerns**, kept out of the simulation layer so that
 - :class:`~vultron.core.behaviors.call_out.backend.CallOutBackend` — the base
   class every backend subclasses.
 - :class:`~vultron.core.behaviors.call_out.guard.SynchronousCallOut` — the
-  seam that turns an answer into tree behaviour.
+  seam that turns an answer into tree behaviour, and
+  :class:`~vultron.core.behaviors.call_out.guard.TimeBoundedCallOut`, the seam
+  with the configured time budget that every bundle hands out (BT-18-015).
 - :class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed` /
   :class:`~vultron.core.behaviors.call_out.nodes.AlwaysFail` — deterministic,
   production-usable constant backends (BT-23-002).
@@ -52,9 +54,12 @@ from vultron.core.behaviors.call_out.answer import (
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.guard import (
     CallOutBackendError,
+    CallOutBudgetExceededError,
     CallOutContractError,
     SynchronousCallOut,
+    TimeBoundedCallOut,
     guard_call_out_factory,
+    time_bounded_call_out,
     unwrap_call_out,
 )
 from vultron.core.behaviors.call_out.nodes import (
@@ -70,6 +75,7 @@ __all__ = [
     "CallOutAnswer",
     "CallOutBackend",
     "CallOutBackendError",
+    "CallOutBudgetExceededError",
     "CallOutContract",
     "CallOutVerdict",
     "CallOutBackendFactory",
@@ -78,6 +84,8 @@ __all__ = [
     "RequireCaseOwnerApprovalNode",
     "CallOutContractError",
     "SynchronousCallOut",
+    "TimeBoundedCallOut",
     "guard_call_out_factory",
+    "time_bounded_call_out",
     "unwrap_call_out",
 ]

@@ -512,8 +512,9 @@ override on the composite that owns the subtree; one on a leaf has no effect.
 
 ## Call-Out Bundle Factories Hand Out Guard-Wrapped Nodes (BT-18-011)
 
-Every `CallOutBundle` factory returns its node wrapped in `SynchronousCallOut`
-(applied in `CallOutBundle.__post_init__`). The wrapper is name- and
+Every `CallOutBundle` factory returns its node wrapped in `TimeBoundedCallOut`,
+the `SynchronousCallOut` that also holds it to the call-out time budget
+(BT-18-015; applied in `CallOutBundle.__post_init__`). The wrapper is name- and
 status-transparent, but a test asserting on the backend's concrete type or
 attributes must use `unwrap_call_out(node)`. Code that runs a factory product
 outside a tree must still run it as one, through
