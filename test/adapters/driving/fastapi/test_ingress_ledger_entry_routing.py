@@ -40,6 +40,7 @@ from vultron.adapters.driving.fastapi.inbox_queue_drain import (
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import find_matching_semantics
 from vultron.wire.as2.factories import announce_log_entry_activity
@@ -143,7 +144,7 @@ def test_replayed_ledger_entry_announce_routes_and_keeps_fields(
     assert activity is not None
     ingress.rehydrate(activity)
     # The inbox defers it, as DeferCheckNode does for an unknown case.
-    assert staging.hold_for_replay(activity.id_)
+    assert staging.hold_for_replay(activity.id_, received_at=now_utc())
 
     # The entry itself is not an independent record, nor is the Announce...
     assert dl.read(_ENTRY_ID) is None

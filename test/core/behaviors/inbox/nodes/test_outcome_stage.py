@@ -23,6 +23,7 @@ store is driven in
 ``test/adapters/driving/fastapi/test_received_outcome_stage.py``.
 """
 
+from datetime import datetime
 from typing import Any
 
 import py_trees
@@ -105,6 +106,7 @@ class _RecordingOutcomePort:
         sender_id: str,
         reason: str,
         received_body: str | None,
+        received_at: datetime,
     ) -> None:
         if self._raises:
             raise RuntimeError("store write failed (stub)")

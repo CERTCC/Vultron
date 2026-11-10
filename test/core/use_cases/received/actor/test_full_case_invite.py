@@ -30,6 +30,7 @@ from test.core.use_cases.received.actor.test_case_joining_replies import (  # no
 )
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.actor import (
     InviteActorToFullCaseReceivedEvent,
@@ -624,6 +625,7 @@ def test_a_queue_recorded_sender_does_not_admit_a_full_case_invite(
         queued_id,
         f'{{"id": "{queued_id}", "type": "Announce"}}',
         awaiting_case_id=joining_case.case.id_,
+        received_at=now_utc(),
     )
 
     result = _receive_as_invitee(

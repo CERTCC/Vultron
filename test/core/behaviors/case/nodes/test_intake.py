@@ -48,6 +48,7 @@ from vultron.core.behaviors.helpers import (
     ACTIVITY_UNAVAILABLE,
     DATALAYER_UNAVAILABLE,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import RmDimension
@@ -403,6 +404,7 @@ def _stub(dl: SqliteDataLayer) -> None:
         sender_id=SENDER,
         reason="refused earlier",
         received_body=_note_event(_rich_note()).received_evidence,
+        received_at=now_utc(),
     )
 
 

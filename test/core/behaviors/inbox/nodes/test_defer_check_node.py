@@ -26,6 +26,8 @@ Two regressions are covered:
    ``context`` is the Accept(CaseProposal) URI (CP-05-003), not the case URI.
 """
 
+from datetime import datetime
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -55,11 +57,11 @@ class _StubQueuePort:
     def is_case_known(self, case_id: str) -> bool:
         return self._case_known
 
-    def check_and_expire(self, case_id: str) -> bool:
+    def check_and_expire(self, case_id: str, *, at: datetime) -> bool:
         return False
 
     def queue(
-        self, activity_id: str, case_id: str, case_actor_id=None
+        self, activity_id: str, case_id: str, case_actor_id=None, *, at
     ) -> None:
         self.queued.append((activity_id, case_id, case_actor_id))
 

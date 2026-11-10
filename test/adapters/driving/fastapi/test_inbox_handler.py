@@ -19,6 +19,7 @@ from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.services.received_holding import records_awaiting_case
@@ -390,6 +391,7 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
             case_id=case_id,
             queue_dl=queue_dl,
             timeout_seconds=60,  # 1 minute; queue is 10 minutes old
+            at=now_utc(),
         )
 
     assert expired is True
@@ -971,9 +973,7 @@ def test_pending_case_queue_expiry_sends_nothing():
     )
 
     expired = _expire_pending_case_activities(
-        case_id=case_id,
-        queue_dl=queue_dl,
-        timeout_seconds=60,
+        case_id=case_id, queue_dl=queue_dl, timeout_seconds=60, at=now_utc()
     )
 
     assert expired is True
@@ -1046,9 +1046,7 @@ def test_pending_case_queue_expiry_changes_no_local_state():
     )
 
     expired = _expire_pending_case_activities(
-        case_id=case_id,
-        queue_dl=queue_dl,
-        timeout_seconds=60,
+        case_id=case_id, queue_dl=queue_dl, timeout_seconds=60, at=now_utc()
     )
 
     assert expired is True
@@ -1177,9 +1175,7 @@ def test_expired_queue_keeps_a_stub_invite_trust_anchor():
     ] == [activity_id], "precondition: one activity waits on the case"
 
     expired = _expire_pending_case_activities(
-        case_id=case_id,
-        queue_dl=queue_dl,
-        timeout_seconds=60,
+        case_id=case_id, queue_dl=queue_dl, timeout_seconds=60, at=now_utc()
     )
 
     assert expired is True
@@ -1214,8 +1210,6 @@ def test_a_queue_holding_no_activity_does_not_expire():
     )
 
     assert not _expire_pending_case_activities(
-        case_id=case_id,
-        queue_dl=queue_dl,
-        timeout_seconds=60,
+        case_id=case_id, queue_dl=queue_dl, timeout_seconds=60, at=now_utc()
     )
     assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is not None

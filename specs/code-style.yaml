@@ -481,7 +481,9 @@ groups:
     statement: >-
       Application code MUST read the current time only at an act's entry point,
       through the act clock port (`ClockPort` in `vultron.core.ports.clock`),
-      once per act and after the act takes the tree lock, except for an
+      once per act: for a trigger or a sweep after the act takes the tree lock,
+      and for a received message once on its arrival at the inbox, before it
+      queues for the tree lock (CS-13-010). Two other reads are permitted: an
       adapter's own bookkeeping times, read through `BookkeepingClockPort`, and
       stopwatch reads at named sites.
     rationale: >-
@@ -490,6 +492,31 @@ groups:
       run's clock (ADR-0176). One read per act, through one injected port, gives
       the act's decisions and stamps one instant. The system clock behind the
       port reads through `now_utc()`, so each time keeps its CS-13-001 form.
+  - id: CS-13-010
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0176
+    verification: >-
+      `test/adapters/driving/fastapi/test_arrival_postmark.py` pins the inbox
+      route's act clock and asserts that a delivery's `/at` and its record's
+      `received_at` are the arrival stamp, read once and before the tree lock,
+      that a held message replayed later runs at that stamp, and that a
+      deadline is judged at arrival, not at processing.
+    statement: >-
+      Every act that processes a received message, its replays, retries and
+      restart re-runs included, MUST take as its instant the message's arrival
+      stamp, the `received_at` the receiver records for the message.
+    rationale: >-
+      The receiver's backlog is not the sender's to bear: a message that arrived
+      before a deadline is on time however long it waited for the tree lock
+      (ADR-0176). The stamp is the receiver's own reading, which the sender
+      cannot set as it can set `published`. One stamp, carried on the held
+      record, keeps a replay's verdict the one the message would have had on
+      arrival.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-13-002
   - id: CS-13-004
     priority: MUST
     kind: project

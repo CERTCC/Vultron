@@ -145,13 +145,15 @@ class _StubQueuePort:
         case_id: str,
         case_actor_id: str | None = None,
         activity: object | None = None,
+        *,
+        at: datetime,
     ) -> None:
         self.queued.append((activity_id, case_id, case_actor_id))
 
-    def check_and_expire(self, case_id: str) -> bool:
+    def check_and_expire(self, case_id: str, *, at: datetime) -> bool:
         return self._queue_expired
 
-    def replay(self, case_id: str) -> None:
+    def replay(self, case_id: str, *, at: datetime) -> None:
         self.replayed.append(case_id)
 
 
@@ -665,7 +667,7 @@ class TestProcessPayloadHandlerDisposition:
 class _FailingReplayQueuePort(_StubQueuePort):
     """Queue port whose ``replay()`` raises, as a DataLayer fault would."""
 
-    def replay(self, case_id: str) -> None:
+    def replay(self, case_id: str, *, at: datetime) -> None:
         raise RuntimeError("replay storage fault (stub)")
 
 

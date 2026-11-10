@@ -43,6 +43,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.inbox import InboxOutcome, InboxOutcomeStatus
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
 )
@@ -536,7 +537,9 @@ def test_the_queue_port_queues_nothing_when_the_hold_fails(
     )
 
     with pytest.raises(VultronWiringError):
-        queue.queue("https://example.org/activities/unstaged", case_id)
+        queue.queue(
+            "https://example.org/activities/unstaged", case_id, at=now_utc()
+        )
 
     assert dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
 

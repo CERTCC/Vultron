@@ -4330,7 +4330,7 @@ groups:
     statement: >-
       The CASE_MANAGER SHOULD refuse a payload assertion whose
       `payloadSnapshot.published` timestamp is more than a configurable staleness window
-      in the past relative to the CASE_MANAGER's clock.
+      in the past relative to the CASE_MANAGER's clock at receipt.
     rationale: A payload with a timestamp far in the past suggests the participant
       is replaying old activities, potentially to reconstruct or manipulate ledger
       history. Rejecting stale payloads limits the window in which a replayed or delayed

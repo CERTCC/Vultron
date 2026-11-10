@@ -37,7 +37,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.behaviors.case.nodes.case_copy import (
     StateSeededLedgerPositionNode,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -506,6 +506,7 @@ class TestAnnounceFirstContactTrustGap:
             queued_id,
             f'{{"id": "{queued_id}", "type": "Announce"}}',
             awaiting_case_id=_CASE_ID,
+            received_at=now_utc(),
         )
 
         result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()

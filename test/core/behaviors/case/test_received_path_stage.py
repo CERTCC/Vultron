@@ -22,6 +22,7 @@ sender guard's addressee arms read that answer instead of asking again.
 """
 
 from collections.abc import Collection
+from datetime import datetime
 
 import py_trees
 import pytest
@@ -674,7 +675,7 @@ class _UnknownCaseQueue:
     def is_case_known(self, case_id: str) -> bool:
         return False
 
-    def check_and_expire(self, case_id: str) -> bool:
+    def check_and_expire(self, case_id: str, *, at: datetime) -> bool:
         return False
 
     def queue(
@@ -682,6 +683,8 @@ class _UnknownCaseQueue:
         activity_id: str,
         case_id: str,
         case_actor_id: str | None = None,
+        *,
+        at: datetime,
     ) -> None:
         self.queued.append((activity_id, case_id, case_actor_id))
 

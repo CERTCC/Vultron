@@ -14,6 +14,7 @@
 
 import json
 import logging
+from datetime import datetime
 from typing import Any
 
 import py_trees
@@ -129,7 +130,11 @@ class _Port:
         return self._fetch
 
     def await_fetches(
-        self, activity_id: str, references: list[ObjectReference]
+        self,
+        activity_id: str,
+        references: list[ObjectReference],
+        *,
+        at: datetime,
     ) -> None:
         self.awaited.append((activity_id, references))
 
