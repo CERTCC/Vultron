@@ -30,6 +30,7 @@ from vultron.core.models.base import NonEmptyString, UriString
 from vultron.core.use_cases.triggers.request_bodies._base import (
     CaseTriggerRequest,
     _parse_optional_roles,
+    refuse_authority_roles,
 )
 from vultron.enums.roles import CVDRole, parse_role
 
@@ -147,9 +148,10 @@ class OfferCaseParticipantRoleRequest(CaseTriggerRequest):
 
     Emits ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``, whose
     ``target`` is ``target_actor_id``, from the requesting actor.  ``role`` is
-    required: it has no default, since the CASE_MANAGER refuses an Offer of
-    ``CASE_OWNER`` or ``CASE_MANAGER`` and reads no missing role as a default
-    (CM-33-014).
+    required: it has no default, since the CASE_MANAGER reads no missing role
+    as a default (CM-33-014).  ``CASE_OWNER`` and ``CASE_MANAGER`` are refused
+    here, since the CASE_MANAGER refuses an Offer of either (CM-33-003,
+    CM-20-009).
     """
 
     target_actor_id: UriString
@@ -159,7 +161,9 @@ class OfferCaseParticipantRoleRequest(CaseTriggerRequest):
     @classmethod
     def _parse_role(cls, value: object) -> object:
         if isinstance(value, str) and not isinstance(value, CVDRole):
-            return parse_role(value)
+            value = parse_role(value)
+        if isinstance(value, CVDRole):
+            refuse_authority_roles([value])
         return value
 
 

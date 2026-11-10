@@ -108,11 +108,13 @@ def create_accept_actor_recommendation_received_tree(
     Tree structure::
 
         AcceptActorRecommendationBT (Sequence, memory=False)
-        ├── AcceptedInviteeAdmittedIfCaseManager — CM-16-019, CM-31-013 and
-        │   │                                      CM-16-006 guards
+        ├── AcceptedInviteeAdmittedIfCaseManager — CM-16-019, CM-31-013,
+        │   │                                      CM-16-006 and CM-20-008
+        │   │                                      guards
         │   ├── RequireRecordedOfferAnswerNode
         │   ├── AcceptedInviteeIsNotRemovedNode
-        │   └── SuggestedActorIsInvitableNode
+        │   ├── SuggestedActorIsInvitableNode
+        │   └── AcceptedRolesAreGrantableNode
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── AcceptActorRecommendationIfCaseManager (Selector)  — BT-17-001 gate
             ├── SkipIfNotCaseManager
@@ -142,7 +144,9 @@ def create_accept_actor_recommendation_received_tree(
     the same way: a removed participant is sent no stub Invite (CM-31-013).
     So is one naming an actor that has since joined or is at ``RM.CLOSED``:
     it is sent no further stub Invite, so no second Invite entry reaches the
-    ledger for it (CM-11-015, CM-16-006).
+    ledger for it (CM-11-015, CM-16-006).  So is one whose recorded Offer
+    names ``CASE_MANAGER`` or ``CASE_OWNER`` for the invitee: the roles are
+    never stripped, so no Invite goes out (CM-20-006, CM-20-008).
 
     Args:
         answer_id: ID of the received ``Accept``; namespaces the recorded

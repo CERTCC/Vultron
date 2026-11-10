@@ -281,15 +281,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5640](https://github.com/CERTCC/Vultron/issues/5640)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "CM-20-006",
-))
-```
-
 ### Tracked by [#6043](https://github.com/CERTCC/Vultron/issues/6043)
 
 ```python exec="true" idprefix=""

@@ -172,7 +172,7 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             "create_sender_sequence_stage",
         ),
         # The three ``case_manager_admits_*`` composites in
-        # ``suggest_actor/conditions.py`` left this set in #5044: each of
+        # ``suggest_actor/admission.py`` left this set in #5044: each of
         # their trees declares the CASE_MANAGER path alone, so the guards run
         # bare and the path stage is the gate (HP-01-038).
         (f"{_E}/trigger_tree/_arms.py", "_by_role"),

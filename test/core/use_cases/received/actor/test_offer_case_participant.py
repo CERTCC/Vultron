@@ -1343,31 +1343,36 @@ class TestRolesFromStoredOffer:
             f"expected ['{CVDRole.VENDOR.value}'], got {invite_roles!r}"
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "CM-20-006: the CASE_MANAGER invites with the recorded roles"
-            " unfiltered, CASE_MANAGER and CASE_OWNER included."
-            " Tracked by #5640."
-        ),
-    )
     @pytest.mark.spec("CM-20-006")
-    def test_an_approved_coordinator_is_invited_without_authority_roles(self):
-        """A suggested Coordinator gets neither CASE_MANAGER nor CASE_OWNER.
+    @pytest.mark.spec("CM-20-008")
+    @pytest.mark.parametrize(
+        "authority_role",
+        [
+            pytest.param("case_manager", id="case-manager"),
+            pytest.param("case_owner", id="case-owner"),
+        ],
+    )
+    def test_an_accept_of_an_offer_naming_an_authority_role_is_refused(
+        self, authority_role: str
+    ):
+        """An approved suggestion never yields an authority role (CM-20-006).
 
-        Even when the recorded suggestion names those roles, the Invite the
-        CASE_MANAGER emits on the owner's approval carries neither.
+        The recorded Offer names ``CASE_MANAGER`` or ``CASE_OWNER`` for the
+        invitee, so the CASE_MANAGER refuses the Case Owner's Accept before
+        its commit (CM-20-008).  It sends no Invite, seats no participant,
+        commits no entry, and answers the owner with the refusal notice
+        (CLP-05-005).  The roles are never stripped: that would invite the
+        actor with roles the owner did not approve.
         """
+        from test.support.refusal_notice import assert_refusal_notice
         from vultron.enums.roles import CVDRole
 
         dl, event = self._seed_and_store_offer(
-            roles=[
-                CVDRole.COORDINATOR,
-                CVDRole.CASE_MANAGER,
-                CVDRole.CASE_OWNER,
-            ]
+            roles=[CVDRole.COORDINATOR, CVDRole(authority_role)]
         )
-        AcceptOfferCaseParticipantReceivedUseCase(
+        ledger_before = len(dl.list_objects("CaseLedgerEntry"))
+        outbox_before = len(dl.outbox_list())
+        result = AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
             trigger_activity=TriggerActivityAdapter(dl),
@@ -1375,18 +1380,25 @@ class TestRolesFromStoredOffer:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        invites = [
-            obj
-            for obj in (dl.read(a) for a in dl.outbox_list())
-            if obj is not None and str(getattr(obj, "type_", "")) == "Invite"
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-20-008" in (result.reason or ""), result.reason
+        types = [
+            str(getattr(dl.read(a), "type_", "")) for a in dl.outbox_list()
         ]
-        roles = {
-            r
-            for invite in invites
-            for r in (getattr(invite, "roles", None) or [])
-        }
-        assert CVDRole.CASE_MANAGER.value not in roles, roles
-        assert CVDRole.CASE_OWNER.value not in roles, roles
+        assert "Invite" not in types, types
+        case = dl.read_case(AC1_CASE_ID)
+        assert case is not None
+        assert AC1_INVITEE_ID not in case.actor_participant_index
+        assert len(dl.list_objects("CaseLedgerEntry")) == ledger_before
+        assert_refusal_notice(
+            dl,
+            manager=AC1_CASE_ACTOR_ID,
+            refused_id=event.activity_id,
+            asserter=AC1_CASE_OWNER_ID,
+            reason="CM-20-008",
+            case_id=AC1_CASE_ID,
+        )
+        assert len(dl.outbox_list()) == outbox_before + 1, dl.outbox_list()
 
     @pytest.mark.spec("CM-16-018")
     def test_participant_case_roles_vendor_after_full_round_trip(self):
