@@ -3,6 +3,7 @@
  */
 
 import type { RejectedLedgerLine } from './utils/caseLedgerParser'
+import type { LaneKind } from './utils/replayLanes'
 
 export interface ParticipantState {
   id: string
@@ -18,6 +19,9 @@ export interface ParticipantState {
   visible: boolean
   laneIndex: number
   hasRepliedToCurrentNote?: boolean  // Track if participant replied to current note
+  laneKind?: LaneKind  // Log Replay only: what the lane does, from its ledger roles
+                       // (utils/replayLanes.ts); the casemanager lane has no RM/VFD.
+  palette?: string     // Log Replay only: the `nodeColorsFor` key of the lane's colors
 }
 
 export interface TimelineEvent {
@@ -50,6 +54,12 @@ export interface TimelineEvent {
                             // observed" tripwire. Renderers may style it distinctly.
   inferredNote?: string     // human-readable explanation of the inferred path, shown
                             // in the hover tooltip. Set only when `inferred` is true.
+  unrecognized?: boolean    // set by the replay mapper on the node it draws for an
+                            // entry whose semanticType the semantic registry does not
+                            // list (a log from another protocol version). Shown as such,
+                            // never dropped. Renderers style it distinctly.
+  unrecognizedNote?: string // why the node is unrecognized, for the hover tooltip.
+                            // Set only when `unrecognized` is true.
 }
 
 export interface DemoState {
@@ -80,7 +90,8 @@ export interface DemoState {
 /**
  * A snapshot of all machine states at one Log Replay step, so the side panels can
  * show state as-of the current playback position rather than the terminal state.
- * `rm`/`vfd` are keyed by participant lane id; `emState`/`pxaState` are case-level.
+ * `rm`/`vfd` are keyed by participant lane id (the actor id in Log Replay);
+ * `emState`/`pxaState` are case-level.
  */
 export interface StepSnapshot {
   rm: Record<string, string>

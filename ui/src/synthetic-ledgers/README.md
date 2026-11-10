@@ -47,6 +47,12 @@ manually from `ui/src/synthetic-ledgers/`.
 > `handleCreateCase` with `create_case`) precisely so hand-authored and older
 > uploaded logs still replay. The violation/inferred logic they exercise is
 > vocabulary-independent.
+>
+> **Lanes.** Log Replay keys a lane on the actor id and labels it by the
+> `caseRoles` of the participant records in the ledger, never by its host. Each
+> fixture's offer therefore lists its participants inline (`caseParticipants`,
+> with `caseRoles` `reporter`, `vendor` + `case_owner`, `case_manager`), as a
+> current `create_case` does, so the lanes read Reporter, Vendor, Case Manager.
 
 ## Companion fixture: `inferred-multistep-case-ledger.jsonl`
 
@@ -58,7 +64,7 @@ logged and the mapper *inferred* the legal path between them. That inference
 could in principle mask an illegal 1-step jump that happens to be bridgeable by a
 longer legal detour, so the mapper marks such nodes "inferred, not observed."
 
-This fixture: after the offer seeds vendor-1 at `RM=RECEIVED, VFD=vfd`, a single
+This fixture: after the offer seeds the Vendor at `RM=RECEIVED, VFD=vfd`, a single
 status snapshot (`vfState: VF`, `dState: D`) jumps straight to `ACCEPTED VFD` — a
 double multi-hop (RM `RECEIVED →validate→ VALID →accept→ ACCEPTED`; VFD
 `vfd →vendor_becomes_aware→ Vfd →fix_is_ready→ VFd →fix_is_deployed→ VFD`). Both
@@ -76,7 +82,7 @@ annotation and the tooltip explains each inferred path.
 
 | logIndex | semanticType | derived trigger | shadow source | legal? |
 |---|---|---|---|---|
-| 0 | offer_case_manager_role | seeds (vendor RM=RECEIVED/VFD=vfd, finder RM=ACCEPTED, EM=ACTIVE) | — | seed |
+| 0 | offer_case_manager_role | seeds (Vendor RM=RECEIVED/VFD=vfd, Reporter RM=ACCEPTED, EM=ACTIVE) | — | seed |
 | 1 | validate_report | rm `validate` | RECEIVED → VALID | ✅ legal |
 | 2 | validate_report | rm `validate` | VALID | ❌ **VIOLATION** (no `validate` from VALID) |
 | 3 | add_participant_status | rm `accept` + vfd `fix_is_ready` | VALID→ACCEPTED, vfd→VFd | ✅ legal (multi-advance; the VFD path is inferred) |

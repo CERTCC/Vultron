@@ -1,0 +1,95 @@
+# Log Replay golden: rccv-extension (ui/src/recordings/rccv-extension/case-actor.jsonl)
+# Written by ui/src/utils/replayGolden.test.ts. After an intended change,
+# regenerate with `npm test -- -u` in ui/ and review the diff.
+
+## Lanes, top to bottom: label, roles, actor id
+Reporter       REPORTER              http://actor0:7999/api/v2/actors/actor0
+Vendor         VENDOR                http://actor1:7999/api/v2/actors/actor1
+Coordinator    COORDINATOR           http://actor2:7999/api/v2/actors/actor2
+Coordinator 2  COORDINATOR           http://actor3:7999/api/v2/actors/actor3
+Case Manager   CASE_MANAGER          http://case-actor:7999/api/v2/actors/case-actor
+
+## States: each lane's distinct states in step order, then the case
+Reporter       RM ACCEPTED → CLOSED
+Vendor         RM RECEIVED → VALID → ACCEPTED → CLOSED; VFD vfd → Vfd → VFd
+Coordinator    RM RECEIVED → VALID → ACCEPTED → CLOSED
+Coordinator 2  RM RECEIVED → VALID → CLOSED
+Case Manager   RM N/A, VFD N/A
+Case           EM ACTIVE → EXITED; PXA pxa → Pxa
+
+## Events: step, decision lane, label [flags], then details and the lanes it reaches
+01  Case Manager   Case Manager created the case
+      Create(VulnerabilityCase) · EM: ACTIVE · PXA: pxa
+      → Reporter, Coordinator
+02  Reporter       Reporter submitted the report
+      Offer(VulnerabilityReport) · Report: "Remote Code Execution in Network Stack"
+      → Coordinator, Case Manager
+03  Coordinator    Coordinator validated the report
+      Accept(Offer(VulnerabilityReport)) · RM: RECEIVED → VALID
+      → Reporter, Case Manager
+04  Coordinator    Case Manager updated Coordinator's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: VALID → ACCEPTED (accept)
+      → Reporter, Case Manager
+05  Coordinator    Coordinator suggested Coordinator 2 for the case
+      Offer(Actor)[target=VulnerabilityCase]
+      → Reporter, Case Manager
+06  Case Manager   Case Manager invited Coordinator 2 to the case
+      Invite(Actor)[target=VulnerabilityCaseStub]
+      → Reporter, Coordinator
+07  Coordinator 2  Coordinator 2 accepted the case invitation
+      Accept(Invite(Actor)[target=VulnerabilityCaseStub]) · RM → RECEIVED
+      → Reporter, Coordinator, Case Manager
+08  Coordinator 2  Case Manager updated Coordinator 2's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: RECEIVED → VALID (validate)
+      → Reporter, Coordinator, Case Manager
+09  Coordinator 2  Coordinator 2 suggested Vendor for the case
+      Offer(Actor)[target=VulnerabilityCase]
+      → Reporter, Coordinator, Case Manager
+10  Case Manager   Case Manager invited Vendor to the case
+      Invite(Actor)[target=VulnerabilityCaseStub]
+      → Reporter, Coordinator, Coordinator 2
+11  Vendor         Vendor accepted the case invitation
+      Accept(Invite(Actor)[target=VulnerabilityCaseStub]) · RM → RECEIVED · VFD → vfd
+      → Reporter, Coordinator, Coordinator 2, Case Manager
+12  Vendor         Case Manager updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · VFD: vfd → Vfd (vendor_becomes_aware)
+      → Reporter, Coordinator, Coordinator 2, Case Manager
+13  Vendor         Case Manager updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: RECEIVED → VALID (validate)
+      → Reporter, Coordinator, Coordinator 2, Case Manager
+14  Vendor         Case Manager updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · RM: VALID → ACCEPTED (accept)
+      → Reporter, Coordinator, Coordinator 2, Case Manager
+15  Reporter       Reporter added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "Question from Reporter" · Is there a workaround available while the patch is being developed?
+      → Vendor, Coordinator, Coordinator 2, Case Manager
+16  Coordinator    Coordinator added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "C1 Response" · Yes, disabling the affected module is an effective interim workaround.
+      → Reporter, Vendor, Coordinator 2, Case Manager
+17  Coordinator 2  Coordinator 2 added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "C2 Update" · We have confirmed that C2 and Vendor are engaged. Target disclosure in 30 days.
+      → Reporter, Vendor, Coordinator, Case Manager
+18  Vendor         Vendor added a note to the case
+      Add(Note)[target=VulnerabilityCase] · Note: "Vendor Status Update" · Vendor can confirm the issue affects our component. We will align our fix timeline with…
+      → Reporter, Coordinator, Coordinator 2, Case Manager
+19  Vendor         Vendor updated Vendor's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · VFD: Vfd → VFd (fix_is_ready)
+      → Reporter, Coordinator, Coordinator 2, Case Manager
+20  Coordinator    Coordinator updated Coordinator's participant status
+      Add(ParticipantStatus)[target=CaseParticipant] · PXA: pxa → Pxa (public_becomes_aware)
+      → Reporter, Vendor, Coordinator 2, Case Manager
+21  Case Manager   Case Manager removed an embargo from the case
+      Remove(EmbargoEvent) · EM: ACTIVE → EXITED (terminate)
+      → Reporter, Vendor, Coordinator, Coordinator 2
+22  Vendor         Vendor closed the case
+      Leave(VulnerabilityCase) · RM: ACCEPTED → CLOSED (Leave) · EM: EXITED
+      → Reporter, Coordinator, Coordinator 2, Case Manager
+23  Coordinator 2  Coordinator 2 closed the case
+      Leave(VulnerabilityCase) · RM: VALID → CLOSED (Leave) · EM: EXITED
+      → Reporter, Coordinator, Case Manager
+24  Reporter       Reporter closed the case
+      Leave(VulnerabilityCase) · RM: ACCEPTED → CLOSED (Leave) · EM: EXITED
+      → Coordinator, Case Manager
+25  Coordinator    Coordinator closed the case
+      Leave(VulnerabilityCase) · RM: ACCEPTED → CLOSED (Leave) · EM: EXITED
+      → Case Manager

@@ -57,24 +57,28 @@ describe('laneVfdState', () => {
   const state = buildTimelineFromCaseLedger(normalizeLedger(rv.entries))
   const snapshots = state.stepSnapshots ?? []
   const last = snapshots[snapshots.length - 1]
+  // The lanes are keyed on actor ids (utils/replayLanes.ts).
+  const VENDOR = 'http://actor1:7999/api/v2/actors/actor1'
+  const REPORTER = 'http://actor0:7999/api/v2/actors/actor0'
+  const CASE_MANAGER = 'http://case-actor:7999/api/v2/actors/case-actor'
 
   it('shows a Vendor its VFD state at the current step', () => {
-    expect(laneVfdState(state, 'vendor-1', last)).toBe('VFd')
+    expect(laneVfdState(state, VENDOR, last)).toBe('VFd')
   })
 
   it('reads a lane not yet seeded at this step as the initial state', () => {
-    expect(laneVfdState(state, 'vendor-1', { rm: {}, vfd: {}, emState: 'NONE', pxaState: 'pxa' })).toBe('vfd')
+    expect(laneVfdState(state, VENDOR, { rm: {}, vfd: {}, emState: 'NONE', pxaState: 'pxa' })).toBe('vfd')
   })
 
   it('gives no VFD row to a lane the ledger never gives a VFD state', () => {
-    expect(laneVfdState(state, 'reporter', last)).toBeUndefined()
+    expect(laneVfdState(state, REPORTER, last)).toBeUndefined()
   })
 
   it('gives no VFD row to the CASE_MANAGER, even with a VFD token at the step', () => {
     // The mapper never records one for the CASE_MANAGER; the 'N/A' rule must
     // hold on its own if a step ever does.
-    const withToken = { ...last, vfd: { ...last.vfd, casemanager: 'vfd' } }
+    const withToken = { ...last, vfd: { ...last.vfd, [CASE_MANAGER]: 'vfd' } }
     const seeded = { ...state, stepSnapshots: [...snapshots, withToken] }
-    expect(laneVfdState(seeded, 'casemanager', withToken)).toBeUndefined()
+    expect(laneVfdState(seeded, CASE_MANAGER, withToken)).toBeUndefined()
   })
 })
