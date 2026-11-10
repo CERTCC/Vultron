@@ -26,6 +26,9 @@ from typing import Any, cast
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    assert_only_refusal_notice,
+    queued_bodies,
+    refusal_notices_since,
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
@@ -118,12 +121,13 @@ def _receive(
     receiver: str = _MANAGER,
 ):
     activity = factory(embargo, target=_CASE_ID, actor=_OWNER, to=[receiver])
+    # Both trees emit: the refusal notice (CLP-05-001), and after the
+    # commit a termination or a re-issued stub Invite.
     ports: dict[str, Any] = {
         "sync_port": SyncActivityAdapter(dl),
         "wire_render_port": As2WireRenderAdapter(),
+        "trigger_activity": TriggerActivityAdapter(dl),
     }
-    if use_case is RejectEmbargoProposalOnCaseReceivedUseCase:
-        ports["trigger_activity"] = TriggerActivityAdapter(dl)
     event = make_payload(activity, receiving_actor_id=receiver, at=dl)
     return use_case(dl, event, **ports).execute()
 
@@ -301,7 +305,7 @@ def test_an_accepted_revision_with_pxa_set_is_refused_without_et(
     assert case.em_state == EM.REVISE
     case.current_status.pxa.state = pxa
     dl.save(case)
-    outbox_before = set(dl.outbox_list())
+    outbox_before = list(dl.outbox_list())
 
     result = _receive(
         dl,
@@ -313,8 +317,9 @@ def test_an_accepted_revision_with_pxa_set_is_refused_without_et(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "EMB-02-002" in (result.reason or "")
-    # Nothing is sent: no ET, and no announcement of an activation.
-    assert set(dl.outbox_list()) == outbox_before
+    # Only the refusal notice is sent: no ET, and no announcement of an
+    # activation (CLP-05-001).
+    assert len(refusal_notices_since(dl, outbox_before, _OWNER)) == 1
     after = _case(dl)
     assert after.em_state == EM.REVISE
     assert after.active_embargo_id == prior_id
@@ -323,14 +328,22 @@ def test_an_accepted_revision_with_pxa_set_is_refused_without_et(
     assert _ledger(dl) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "MSM-07-037: an activation from an owner that declined the embargo"
-        " is refused. Tracked by #6043."
-    ),
-)
+def _seed_owner_row(
+    dl: SqliteDataLayer, embargo_id: str, triggers: list[PEC_Trigger]
+) -> None:
+    """Move the owner's row for *embargo_id* by *triggers*, in order."""
+    owner = _owner(dl)
+    entry_status = _case(dl).embargo_register_status(embargo_id)
+    for trigger in triggers:
+        owner.apply_pec_transition(
+            embargo_id, trigger, entry_status=entry_status
+        )
+    dl.save(owner)
+
+
 @pytest.mark.spec("MSM-07-037")
+@pytest.mark.spec("CLP-05-001")
+@pytest.mark.spec("CLP-10-009")
 def test_an_activation_the_owner_declined_is_refused_uncommitted(
     make_payload,
 ):
@@ -338,17 +351,13 @@ def test_an_activation_the_owner_declined_is_refused_uncommitted(
 
     The activation would otherwise be both the case's decision and a change
     of the owner's own answer, so it is refused before the commit: nothing is
-    ledgered, the embargo stays proposed and the owner's row stays DECLINED
-    (MSM-07-037, ADR-0180).
+    ledgered, the embargo stays proposed, the owner's row stays DECLINED, and
+    the one thing sent is the refusal notice, whose reason tells the owner to
+    accept the invitation first (MSM-07-037, ADR-0180).
     """
     dl, _case_obj, embargo = _store()
-    owner = _owner(dl)
-    owner.apply_pec_transition(
-        embargo.id_,
-        PEC_Trigger.DECLINE,
-        entry_status=_case(dl).embargo_register_status(embargo.id_),
-    )
-    dl.save(owner)
+    _seed_owner_row(dl, embargo.id_, [PEC_Trigger.DECLINE])
+    register_before = _case(dl).embargo_register
 
     result = _receive(
         dl,
@@ -359,10 +368,56 @@ def test_an_activation_the_owner_declined_is_refused_uncommitted(
     )
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    assert "MSM-07-037" in (result.reason or "")
     assert _case(dl).em_state == EM.PROPOSED
     assert _case(dl).proposed_embargo_ids == [embargo.id_]
+    assert _case(dl).embargo_register == register_before
     assert _owner(dl).consent_for(embargo.id_) == EmbargoConsentState.DECLINED
     assert _ledger(dl) == []
+    (queued,) = queued_bodies(dl)
+    refused = queued["object"]
+    assert isinstance(refused, dict)
+    notice = assert_only_refusal_notice(dl, refused["id"], _OWNER)
+    assert "Accept the invitation to the embargo first" in str(
+        notice["summary"]
+    )
+
+
+@pytest.mark.spec("MSM-07-028")
+@pytest.mark.parametrize(
+    "triggers",
+    [
+        [],
+        [PEC_Trigger.INVITE],
+        [PEC_Trigger.INVITE, PEC_Trigger.TIME_OUT],
+        [PEC_Trigger.AGREE],
+    ],
+    ids=["uninvited", "invited", "timed-out", "agreed"],
+)
+def test_an_activation_from_an_owner_that_gave_no_decline_is_admitted(
+    make_payload, triggers
+):
+    """A row with no decline is admitted, and the owner's row ends AGREED.
+
+    ``UNINVITED``, ``INVITED`` and ``TIMED_OUT`` hold no answer the owner
+    gave, so the activation agrees for it; an ``AGREED`` row stays as it is
+    (MSM-07-028).
+    """
+    dl, _case_obj, embargo = _store()
+    _seed_owner_row(dl, embargo.id_, triggers)
+
+    result = _receive(
+        dl,
+        make_payload,
+        seeded_activation,
+        ActivateEmbargoOnCaseReceivedUseCase,
+        embargo,
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _case(dl).active_embargo_id == embargo.id_
+    assert _owner(dl).consent_for(embargo.id_) == EmbargoConsentState.AGREED
+    assert _ledger(dl) == ["activate_embargo_on_case"]
 
 
 @pytest.mark.spec("BT-17-001")

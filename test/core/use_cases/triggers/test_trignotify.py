@@ -26,7 +26,11 @@ from typing import Any
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -446,6 +450,9 @@ class TestEmbargoTriggerToField:
         propose(self.case, embargo.id_)
         self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
+        # Every register entry has a row on every participant (ADR-0122); the
+        # trigger reads the owner's to choose its activity (MSM-07-037).
+        write_consent_rows(self.dl, self.case)
 
         request = AcceptEmbargoTriggerRequest(
             actor_id=self.vendor.id_,

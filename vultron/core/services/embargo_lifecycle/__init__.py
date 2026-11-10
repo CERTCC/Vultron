@@ -73,6 +73,7 @@ from vultron.core.services.embargo_lifecycle.activation_decision import (
 )
 from vultron.core.services.embargo_lifecycle.pec import (
     embargo_withdrawal_refusal,
+    owner_case_file,
     owner_declined_embargo,
     participant_consent_row,
     reject_is_withdrawal_refusal,
@@ -88,6 +89,7 @@ __all__ = [
     "ActivationDecision",
     "EmbargoLifecycle",
     "embargo_withdrawal_refusal",
+    "owner_case_file",
     "owner_declined_embargo",
     "participant_consent_row",
     "reject_is_withdrawal_refusal",

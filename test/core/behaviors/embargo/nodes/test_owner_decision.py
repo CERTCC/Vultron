@@ -194,12 +194,12 @@ class TestOwnerMayActivateEmbargoNode:
             EmbargoConsentState.UNINVITED,
             EmbargoConsentState.INVITED,
             EmbargoConsentState.AGREED,
-            EmbargoConsentState.DECLINED,
             EmbargoConsentState.TIMED_OUT,
         ],
-        ids=["uninvited", "invited", "agreed", "declined", "timed-out"],
+        ids=["uninvited", "invited", "agreed", "timed-out"],
     )
-    def test_passes_with_pxa_clear_whatever_the_owner_answered(
+    @pytest.mark.spec("MSM-07-028")
+    def test_passes_with_pxa_clear_and_no_decline(
         self,
         dl: SqliteDataLayer,
         owner_consent: EmbargoConsentState,
@@ -214,6 +214,81 @@ class TestOwnerMayActivateEmbargoNode:
         )
 
         assert _tick(node) is Status.SUCCESS
+
+    @pytest.mark.spec("MSM-07-037")
+    def test_fails_when_the_owner_declined_the_proposal(
+        self, dl: SqliteDataLayer
+    ):
+        """The reason tells the owner to accept the invitation first."""
+        case, _, revision_id, _ = _case_with_owner(
+            dl,
+            "may-declined",
+            em_state=EM.ACTIVE,
+            owner_consent=EmbargoConsentState.DECLINED,
+        )
+        setup_blackboard(dl, actor_id=MANAGER)
+
+        node = OwnerMayActivateEmbargoNode(
+            case_id=case.id_, embargo_id=revision_id
+        )
+
+        assert _tick(node) is Status.FAILURE
+        assert "MSM-07-037" in (node.feedback_message or "")
+        assert "Accept the invitation" in (node.feedback_message or "")
+
+    def test_fails_when_the_owner_holds_no_row_for_the_proposal(
+        self, dl: SqliteDataLayer
+    ):
+        """A missing row is a broken invariant (ADR-0122): refused, not raised.
+
+        It is refused as ``ActivationAppliesNode`` refuses it, so the
+        refusal stage still answers the sender.
+        """
+        case, _, revision_id, owner_pid = _case_with_owner(
+            dl, "may-norow", em_state=EM.ACTIVE
+        )
+        owner = cast(as_CaseParticipant, dl.read(owner_pid))
+        owner.embargo_consents = [
+            row
+            for row in owner.embargo_consents
+            if row.embargo_id != revision_id
+        ]
+        dl.save(owner)
+        setup_blackboard(dl, actor_id=MANAGER)
+
+        node = OwnerMayActivateEmbargoNode(
+            case_id=case.id_, embargo_id=revision_id
+        )
+
+        assert _tick(node) is Status.FAILURE
+        assert "not found" in (node.feedback_message or "")
+
+    def test_an_internal_fault_is_raised_not_refused(
+        self, dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A wiring fault is a bug, not a refusal, so it is never answered
+        with a refusal notice (ADR-0095)."""
+        from vultron.core.behaviors.embargo.nodes import owner_decision
+        from vultron.errors import VultronWiringError
+
+        case, _, revision_id, _ = _case_with_owner(
+            dl, "may-fault", em_state=EM.ACTIVE
+        )
+        setup_blackboard(dl, actor_id=MANAGER)
+
+        def _miswired(*_args: object) -> None:
+            raise VultronWiringError("miswired")
+
+        monkeypatch.setattr(
+            owner_decision, "assert_owner_has_not_declined", _miswired
+        )
+        node = OwnerMayActivateEmbargoNode(
+            case_id=case.id_, embargo_id=revision_id
+        )
+
+        with pytest.raises(VultronWiringError):
+            _tick(node)
+        assert node.status is not Status.FAILURE
 
     @pytest.mark.spec("EMB-02-002")
     def test_fails_when_pxa_is_set(self, dl: SqliteDataLayer):

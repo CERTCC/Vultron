@@ -536,7 +536,13 @@ The owner's decision and each participant's consent are different messages
 - **Triggers pick the activity by ownership.** The case owner's
   `accept-embargo`/`reject-embargo` send
   `Add`/`Reject(EmbargoEvent)[target=VulnerabilityCase]`; a non-owner's send `Accept`/`Reject(Invite(EmbargoEvent))`,
-  which move only its own row.
+  which move only its own row. An owner whose row reads `DECLINED` gets
+  `Accept(Invite(EmbargoEvent))` from `accept-embargo`, because its `Add`
+  would be refused (MSM-07-037). Its next `accept-embargo` sends the `Add`
+  once the owner's store holds the Accept: at once for an owner that is the
+  CASE_MANAGER, and after its replica copies the Accept entry for any other
+  owner. A call before that sends the Accept again, a repeat that changes
+  nothing (CM-13-005).
 - **A repeated answer changes nothing.** A repeat of the same answer from the
   same participant (Accept after Accept, Reject after Reject, under any activity
   id) changes nothing. It logs no invalid-transition warning, and the
