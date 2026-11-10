@@ -40,7 +40,7 @@ from test.core.use_cases.received._ledger_network import (
     OWNER,
     LedgerNetwork,
 )
-from test.support.act_clock import ACT_AT
+from test.support.act_clock import ACT_AT, clock_at
 from test.support.emitter import RecordingEmitter
 from test.support.ledger import ledger_entries
 from test.support.received import delivered_body
@@ -126,78 +126,93 @@ def _interrupt_after_the_commit(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def test_an_interrupted_run_is_finished_on_restart_with_nothing_twice(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
-    net = LedgerNetwork(CASE_ID)
-    dl = net.stores[MANAGER]
-    emitter = RecordingEmitter()
-    dispatcher = make_dispatcher()
-    body = _add_note_body(net)
-    before = effects(dl)
+    # The delivery arrives at ACT_AT and the restart re-runs it at that
+    # stamp (ADR-0176); the clock is held there too, so what the network
+    # and the acts stamp agrees with the instant CLP-14-007/008 judge.
+    with clock_at(ACT_AT):
+        net = LedgerNetwork(CASE_ID)
+        dl = net.stores[MANAGER]
+        emitter = RecordingEmitter()
+        dispatcher = make_dispatcher()
+        body = _add_note_body(net)
+        before = effects(dl)
 
-    with monkeypatch.context() as mp:
-        stopped = _interrupt_after_the_commit(mp)
-        with pytest.raises(_ProcessStop):
-            asyncio.run(
-                run_inbox_pipeline(
-                    body, dl, MANAGER, dispatcher, emitter, arrived_at=ACT_AT
+        with monkeypatch.context() as mp:
+            stopped = _interrupt_after_the_commit(mp)
+            with pytest.raises(_ProcessStop):
+                asyncio.run(
+                    run_inbox_pipeline(
+                        body,
+                        dl,
+                        MANAGER,
+                        dispatcher,
+                        emitter,
+                        arrived_at=ACT_AT,
+                    )
+                )
+        assert stopped, "the run was not interrupted mid-tree"
+
+        # The act rolled back, so nothing is committed; the ledger position
+        # answer ran ahead of the act and stands (a re-seed of the sender, whose
+        # stated position this ledger does not hold).  The record stays in
+        # holding with its body.
+        interrupted = effects(dl)
+        assert interrupted.ledger == before.ledger
+        assert [_kind(row) for row in interrupted.outbox] == [
+            ("Announce", "VulnerabilityCase")
+        ]
+        left = _record(net, body["id"])
+        assert (left.stage, left.replay_owed) == (ReceivedStage.HELD, False)
+        assert [r.activity_id for r in records_left_in_holding(dl)] == [
+            body["id"]
+        ]
+
+        with caplog.at_level(logging.INFO):
+            rerun = asyncio.run(
+                inbox_startup_replay.rerun_left_in_holding(
+                    dl, MANAGER, dispatcher, emitter
                 )
             )
-    assert stopped, "the run was not interrupted mid-tree"
 
-    # The act rolled back, so nothing is committed; the ledger position
-    # answer ran ahead of the act and stands (a re-seed of the sender, whose
-    # stated position this ledger does not hold).  The record stays in
-    # holding with its body.
-    interrupted = effects(dl)
-    assert interrupted.ledger == before.ledger
-    assert [_kind(row) for row in interrupted.outbox] == [
-        ("Announce", "VulnerabilityCase")
-    ]
-    left = _record(net, body["id"])
-    assert (left.stage, left.replay_owed) == (ReceivedStage.HELD, False)
-    assert [r.activity_id for r in records_left_in_holding(dl)] == [body["id"]]
-
-    with caplog.at_level(logging.INFO):
-        rerun = asyncio.run(
-            inbox_startup_replay.rerun_left_in_holding(
-                dl, MANAGER, dispatcher, emitter
-            )
+        assert rerun == 1
+        # The restart's intake read the record as a re-run (ADR-0154).
+        assert any(
+            body["id"] in r.getMessage() and "left by a run" in r.getMessage()
+            for r in caplog.records
         )
-
-    assert rerun == 1
-    # The restart's intake read the record as a re-run (ADR-0154).
-    assert any(
-        body["id"] in r.getMessage() and "left by a run" in r.getMessage()
-        for r in caplog.records
-    )
-    assert _record(net, body["id"]).stage is ReceivedStage.ARCHIVED
-    recorded = [
-        e for e in ledger_entries(dl, CASE_ID) if e.log_object_id == body["id"]
-    ]
-    assert len(recorded) == 1, "the act is committed exactly once"
-    assert records_left_in_holding(dl) == []
-    assert dl.get_inbox_attempt_count(body["id"]) == 0, (
-        "a finished re-run still counts against the retry budget"
-    )
-    finished = effects(dl)
-    # What the interrupted run queued stands, unchanged and not queued again:
-    # the restart read the record as a re-run and did not answer the ledger
-    # position a second time (SYNC-18-009).  What it added is the act's own
-    # fan-out of its one entry.
-    assert finished.outbox[: len(interrupted.outbox)] == interrupted.outbox
-    added = finished.outbox[len(interrupted.outbox) :]
-    assert added, "the restart sent nothing"
-    assert {_kind(row) for row in added} == {("Announce", "CaseLedgerEntry")}
-    sent = [json.dumps(b, sort_keys=True) for b, _ in emitter.sent]
-    assert len(sent) == len(set(sent)), "a message was sent twice"
-    assert (
-        asyncio.run(
-            inbox_startup_replay.rerun_left_in_holding(
-                dl, MANAGER, dispatcher, emitter
-            )
+        assert _record(net, body["id"]).stage is ReceivedStage.ARCHIVED
+        recorded = [
+            e
+            for e in ledger_entries(dl, CASE_ID)
+            if e.log_object_id == body["id"]
+        ]
+        assert len(recorded) == 1, "the act is committed exactly once"
+        assert records_left_in_holding(dl) == []
+        assert dl.get_inbox_attempt_count(body["id"]) == 0, (
+            "a finished re-run still counts against the retry budget"
         )
-        == 0
-    )
-    assert effects(dl) == finished
+        finished = effects(dl)
+        # What the interrupted run queued stands, unchanged and not queued again:
+        # the restart read the record as a re-run and did not answer the ledger
+        # position a second time (SYNC-18-009).  What it added is the act's own
+        # fan-out of its one entry.
+        assert finished.outbox[: len(interrupted.outbox)] == interrupted.outbox
+        added = finished.outbox[len(interrupted.outbox) :]
+        assert added, "the restart sent nothing"
+        assert {_kind(row) for row in added} == {
+            ("Announce", "CaseLedgerEntry")
+        }
+        sent = [json.dumps(b, sort_keys=True) for b, _ in emitter.sent]
+        assert len(sent) == len(set(sent)), "a message was sent twice"
+        assert (
+            asyncio.run(
+                inbox_startup_replay.rerun_left_in_holding(
+                    dl, MANAGER, dispatcher, emitter
+                )
+            )
+            == 0
+        )
+        assert effects(dl) == finished
 
 
 @pytest.mark.spec("IE-06-014")
