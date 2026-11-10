@@ -58,6 +58,7 @@ from vultron.core.models.report_claims import (
     SkippedClaim,
     SubmittedCsafDocument,
     VulnerabilityClaims,
+    csaf_document_text,
 )
 from vultron.wire.csaf.models import CommonSecurityAdvisoryFramework
 
@@ -154,8 +155,13 @@ def read_submitted_csaf_document(
     has said it is, so *data* is checked against the CSAF 2.1 schema as it
     stands: a wrong ``$schema`` or ``csaf_version`` is a schema error like any
     other.  Judging the reading is the trigger's (CSAF-04-009).
+
+    Raises:
+        VultronValidationError: *data* is not sendable JSON text
+            (:func:`~vultron.core.models.report_claims.csaf_document_text`);
+            it is raised before *data* is parsed as CSAF.
     """
-    content = json.dumps(data, ensure_ascii=False)
+    content = csaf_document_text(data)
     attachment = AttachedDocument(
         media_type="application/json", content=content
     )

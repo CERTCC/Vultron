@@ -41,6 +41,7 @@ from vultron.adapters.driving.fastapi.routers import (
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_claims import MAX_CSAF_CONTENT_CHARS
 
 _FLUSH = "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler"
 _RECIPIENT = "https://example.org/actors/vendor"
@@ -244,6 +245,39 @@ def test_a_json_object_that_is_not_csaf_is_refused(client, actor, dl):
     assert dl.list_objects("VulnerabilityReport") == []
 
 
+@pytest.mark.spec("CSAF-04-009")
+def test_a_document_larger_than_a_receiver_reads_is_refused(client, actor, dl):
+    data = _report_document()
+    data["padding"] = "x" * MAX_CSAF_CONTENT_CHARS
+
+    resp = _submit(client, actor, report_name="Widget", csaf_document=data)
+
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert str(MAX_CSAF_CONTENT_CHARS) in resp.text
+    assert dl.list_objects("VulnerabilityReport") == []
+
+
+def test_a_document_with_text_that_is_not_unicode_is_422(client, actor, dl):
+    data = _report_document()
+    section(data, "document")["title"] = "\ud800"
+    body = {
+        "report_content": _TEXT,
+        "recipient_id": _RECIPIENT,
+        "report_name": "Widget",
+        "csaf_document": data,
+    }
+
+    resp = client.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        content=json.dumps(body).encode("ascii"),
+        headers={"content-type": "application/json"},
+    )
+
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert "not valid Unicode" in resp.text
+    assert dl.list_objects("VulnerabilityReport") == []
+
+
 def test_a_csaf_document_that_is_not_an_object_is_422(client, actor):
     resp = _submit(
         client, actor, report_name="Widget", csaf_document=["not", "CSAF"]
@@ -343,3 +377,29 @@ def test_a_past_disclosure_date_proposes_no_embargo_end(client, actor):
 
     assert _offered_report(resp)["name"] == _TITLE
     assert "proposedEmbargo" not in resp.json()["offer"]
+
+
+@pytest.mark.spec("CSAF-04-010")
+def test_a_document_whose_title_reads_as_nothing_is_refused(client, actor, dl):
+    # The schema allows a title of only whitespace, which names nothing.
+    data = _report_document()
+    section(data, "document")["title"] = "   "
+
+    _, faults = _refusal(_submit(client, actor, csaf_document=data))
+
+    assert faults == [
+        "report_name is required: the CSAF document's document.title reads"
+        " as no name (CSAF-04-010)"
+    ]
+    assert dl.list_objects("VulnerabilityReport") == []
+
+
+def test_a_stated_name_rescues_a_document_with_a_blank_title(client, actor):
+    data = _report_document()
+    section(data, "document")["title"] = "   "
+
+    report = _offered_report(
+        _submit(client, actor, report_name="Widget", csaf_document=data)
+    )
+
+    assert report["name"] == "Widget"

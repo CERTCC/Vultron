@@ -25,11 +25,13 @@ from vultron.core.models.report_claims import (
     SchemaError,
     SchemaVerdict,
     SubmittedCsafDocument,
+    csaf_document_text,
 )
 from vultron.core.services.submitted_csaf import (
     CSAF_DOCUMENT_FIELD,
     submitted_csaf_violations,
 )
+from vultron.errors import VultronValidationError
 
 _REPORT = "csaf_vulnerability_report"
 
@@ -91,13 +93,12 @@ def test_any_other_category_is_a_fault(category, named) -> None:
     assert named in violation.message
 
 
-def test_content_a_receiver_would_not_read_is_a_fault() -> None:
+def test_content_a_receiver_would_not_read_is_refused() -> None:
     content = '{"document": {}}'
     padded = content + " " * (MAX_CSAF_CONTENT_CHARS - len(content) + 1)
 
-    (violation,) = submitted_csaf_violations(_submission(content=padded))
-
-    assert str(MAX_CSAF_CONTENT_CHARS) in violation.message
+    with pytest.raises(ValidationError, match=str(MAX_CSAF_CONTENT_CHARS)):
+        _submission(content=padded)
 
 
 def test_content_at_the_limit_is_no_fault() -> None:
@@ -105,6 +106,23 @@ def test_content_at_the_limit_is_no_fault() -> None:
     padded = content + " " * (MAX_CSAF_CONTENT_CHARS - len(content))
 
     assert submitted_csaf_violations(_submission(content=padded)) == []
+
+
+@pytest.mark.parametrize(
+    ("document", "match"),
+    [
+        ({"title": "\ud800"}, "not valid Unicode"),
+        ({"pad": "x" * MAX_CSAF_CONTENT_CHARS}, "more than"),
+    ],
+    ids=["lone-surrogate", "too-long"],
+)
+def test_unsendable_document_text_is_refused(document, match) -> None:
+    with pytest.raises(VultronValidationError, match=match):
+        csaf_document_text(document)
+
+
+def test_document_text_is_the_json_of_the_document() -> None:
+    assert csaf_document_text({"title": "Ünïcode"}) == '{"title": "Ünïcode"}'
 
 
 def test_every_fault_is_reported_together() -> None:

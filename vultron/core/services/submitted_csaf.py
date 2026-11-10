@@ -22,10 +22,7 @@ is lenient and never refuses a report over its attachment (CSAF-02-006); this
 check is the sending side's alone.
 """
 
-from vultron.core.models.report_claims import (
-    MAX_CSAF_CONTENT_CHARS,
-    SubmittedCsafDocument,
-)
+from vultron.core.models.report_claims import SubmittedCsafDocument
 from vultron.core.services.report_case_inputs import CSAF_VULNERABILITY_REPORT
 from vultron.errors import Violation
 
@@ -39,28 +36,19 @@ def submitted_csaf_violations(
     """Every fault that keeps *submission* off a report; empty when none.
 
     A fault is each CSAF 2.1 schema error, at its path in the document
-    (CSAF-02-007), a ``document.category`` other than
+    (CSAF-02-007), and a ``document.category`` other than
     ``csaf_vulnerability_report``, the one profile a receiver fills a case
-    from (CSAF-02-001, CSAF-04-009), and content longer than a receiver
-    reads.  Every one is reported, not only the first (EH-07-001).
+    from (CSAF-02-001, CSAF-04-009).  Every one is reported, not only the
+    first (EH-07-001).  Content longer than a receiver reads never gets
+    here: :class:`SubmittedCsafDocument` refuses it.
     """
-    violations: list[Violation] = []
-    content = submission.attachment.content or ""
-    if len(content) > MAX_CSAF_CONTENT_CHARS:
-        violations.append(
-            Violation(
-                f"the document holds {len(content)} characters, more than"
-                f" the {MAX_CSAF_CONTENT_CHARS} a receiver reads as CSAF",
-                dimensions=(CSAF_DOCUMENT_FIELD,),
-            )
-        )
-    violations.extend(
+    violations = [
         Violation(
             f"{error.path}: {error.message} (CSAF 2.1 schema, CSAF-02-007)",
             dimensions=(CSAF_DOCUMENT_FIELD,),
         )
         for error in submission.reading.schema_errors
-    )
+    ]
     category = submission.reading.claims.document_category
     if category != CSAF_VULNERABILITY_REPORT:
         stated = (

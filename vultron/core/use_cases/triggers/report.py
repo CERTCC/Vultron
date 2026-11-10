@@ -66,6 +66,7 @@ from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
 from vultron.errors import (
+    Violation,
     VultronAlreadyExistsError,
     VultronNotFoundError,
     VultronValidationError,
@@ -352,7 +353,8 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
 
         Raises:
             VultronValidationError: the CSAF document has a fault that keeps
-                it off the report (CSAF-04-009), each one named.
+                it off the report (CSAF-04-009), each one named, or the report
+                would have no name (CSAF-04-010).
         """
         stated = StatedReportFields(
             name=request.report_name,
@@ -379,6 +381,23 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
             proposed_embargo_end=stated.proposed_embargo_end
             or filled.proposed_embargo_end,
         )
+        if fields.name is None:
+            # A title of only whitespace passes the schema but reads as no
+            # title, so the document named nothing and neither did the
+            # request.
+            raise VultronValidationError(
+                f"submit-report refuses a nameless report from actor"
+                f" '{self._actor_id}': the request gives no report_name and"
+                " the CSAF document no readable document.title"
+                " (CSAF-04-010)",
+                violations=[
+                    Violation(
+                        "report_name is required: the CSAF document's"
+                        " document.title reads as no name (CSAF-04-010)",
+                        dimensions=("report_name",),
+                    )
+                ],
+            )
         filled_names = [
             name
             for name in ("name", "summary", "proposed_embargo_end")

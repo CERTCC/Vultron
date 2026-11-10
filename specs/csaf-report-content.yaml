@@ -630,7 +630,10 @@ groups:
       and `::test_a_document_of_another_category_is_refused` post a schema-invalid
       document and one of another category, check that the 422 body names each fault
       and that nothing is stored or queued;
-      `::test_every_fault_is_named_not_only_the_first` checks that a document with several faults has each one named.
+      `::test_every_fault_is_named_not_only_the_first` checks that a document with
+      several faults has each one named, and
+      `::test_a_document_larger_than_a_receiver_reads_is_refused` that one over the
+      size a receiver reads is refused.
       `test/core/services/test_submitted_csaf.py` checks each kind of fault.
   - id: CSAF-04-010
     priority: MUST
@@ -646,7 +649,9 @@ groups:
       `test/adapters/driving/fastapi/routers/test_trigger_submit_report_csaf.py::test_a_missing_name_summary_and_embargo_end_come_from_the_document`
       posts a CSAF document with no report name, summary or proposed embargo end and
       reads them on the sent Offer;
-      `::test_a_stated_name_summary_and_embargo_end_are_kept` checks that stated values win, and
+      `::test_a_stated_name_summary_and_embargo_end_are_kept` checks that stated
+      values win, `::test_a_document_whose_title_reads_as_nothing_is_refused` that a
+      report left with no name is refused, and
       `::test_a_document_that_sets_exploitation_proposes_no_embargo_end` that a
       document setting P, X or A proposes no embargo end.
 - id: CSAF-05

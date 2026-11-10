@@ -12,7 +12,8 @@ description: >
   How this codebase carries, checks and reads a CSAF 2.1 document attached to a
   VulnerabilityReport: the module layout, the two-stage parse with generated
   models, the receiver-local record and signals, how the CASE_MANAGER fills a new
-  case from the CSAF report its proposal carries, the pinned local copy of the
+  case from the CSAF report its proposal carries, how the submit-report trigger
+  checks and reads the document it sends, the pinned local copy of the
   schemas and the job that watches the draft. The protocol rules are CSAF-01 to
   CSAF-03 and ADR-0184; this note is the build plan for CSAF-02 to CSAF-05.
 related_specs:
@@ -122,12 +123,13 @@ and archive it.
 
 ## Sending (CSAF-04-009, CSAF-04-010)
 
-- **The edge reads, core judges.** The submit-report route reads the body's
-  `csaf_document` with `read_submitted_csaf_document`, and the core request
-  carries the resulting `SubmittedCsafDocument`, so core never imports wire
-  (ARCH-01-001). The use case refuses through `submitted_csaf_violations`
-  before it stores anything; `run_trigger` turns the `VultronValidationError`
-  into a 422 with one `details` entry per fault.
+- **The edge reads, core judges.** The route turns the body's JSON object into
+  a core `SubmittedCsafDocument`, and the use case refuses its faults before any
+  write, because core may not import wire (ARCH-01-001, ADR-0032).
+- **Make the attached text once.** `csaf_document_text` is the only source of
+  the JSON text, and it refuses text no UTF-8 body can carry or no receiver
+  reads before the schema check runs, so an oversized document is never
+  parsed and a refusal never echoes unencodable input (CSAF-04-009).
 - **The sender skips recognition.** The sender says the object is CSAF 2.1,
   so the trigger schema-checks it as it stands; a wrong `$schema` or
   `csaf_version` is a schema error, never a silent pass.
