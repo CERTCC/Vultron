@@ -31,6 +31,7 @@ from vultron.demo.utils import (
     logfmt,
     not_received_error,
     read_received_activity,
+    read_received_record,
     received_activity_in,
 )
 
@@ -348,3 +349,55 @@ def wait_for_reporter_introduction(
         ),
         id_fn=lambda _raw_id, link: str(link["case_id"]),
     )
+
+
+def wait_for_verified_proofs(
+    client: DataLayerClient,
+    receiver_id: str,
+    activity_id: str,
+    timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
+    poll_interval: float = 0.5,
+) -> list[dict]:
+    """Poll the receiver's store until it archives *activity_id* as verified.
+
+    The receiver's inbox verifies every proof a delivery needs before it
+    parses it, and keeps what it verified, each proof's author, key id and
+    the key as fetched, on the record it archives (SIG-03-004).  So this
+    waits on the receiver's own record of that act (EDF-06-002): the
+    archived ``ReceivedActivityRecord`` naming at least one verified proof.
+
+    Args:
+        client: DataLayerClient connected to the receiver's container.
+        receiver_id: Actor id whose store to read (ADR-0073).
+        activity_id: The sender's id for the received activity.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between poll attempts.
+
+    Returns:
+        The record's ``verified_proofs``, as served.
+
+    Raises:
+        AssertionError: If no archived record names a verified proof by the
+            deadline.
+    """
+    found: list[dict] = []
+
+    def _verified() -> bool:
+        record = read_received_record(client, activity_id, receiver_id)
+        if record is None or record.get("stage") != "archived":
+            return False
+        proofs = record.get("verified_proofs")
+        if not isinstance(proofs, list) or not proofs:
+            return False
+        found[:] = [proof for proof in proofs if isinstance(proof, dict)]
+        return bool(found)
+
+    _poll_until(
+        _verified,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for {receiver_id!r} at {client.base_url} to"
+        f" archive {activity_id!r} with the proofs it verified (SIG-03-004)",
+        swallow_exceptions=True,
+    )
+    return found

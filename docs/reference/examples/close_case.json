@@ -1,7 +1,8 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Leave",
   "id": "urn:uuid:a1aa73db-a618-4394-98b9-95f7ea83de39",
@@ -11,5 +12,18 @@
   "object": {
     "type": "VulnerabilityCase",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z4jgU2AJ2Wa2JzPwTg8mdArj8y8qehHmEvCLs7nbiTyHkF89FGD3tFxNYN55JuaW8VwLKE2vKDXmCcWK1BsJVipcz"
   }
 }

@@ -167,6 +167,7 @@ def post_actor_inbox(
         canonical_actor_id,
         dispatcher,
         emitter,
+        verified_proofs=delivery.proofs,
     )
 
 

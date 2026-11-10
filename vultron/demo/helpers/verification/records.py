@@ -18,6 +18,7 @@ import logging
 import httpx2 as httpx
 
 from vultron.adapters.utils import parse_id
+from vultron.demo.helpers.polling.received import wait_for_verified_proofs
 from vultron.demo.helpers.verification.participants import (
     _fetch_participant,
     _require_case_participant_id,
@@ -107,6 +108,98 @@ def verify_activity_in_inbox(
         actor_obj_id,
     )
     return True
+
+
+def _published_key(
+    sender_client: DataLayerClient, sender_id: str, key_id: str
+) -> str:
+    """The ``publicKeyMultibase`` *sender_id*'s own profile lists for *key_id*.
+
+    Read from the sender's own container, from the profile route a receiver
+    fetches (SIG-02-001, SIG-02-002).
+
+    Raises:
+        AssertionError: The profile lists no key *key_id*.
+    """
+    sender_obj_id = parse_id(sender_id)["object_id"]
+    profile = sender_client.get(f"/actors/{sender_obj_id}/profile")
+    methods = (
+        profile.get("assertionMethod") if isinstance(profile, dict) else []
+    )
+    for method in methods if isinstance(methods, list) else [methods]:
+        if isinstance(method, dict) and method.get("id") == key_id:
+            value = method.get("publicKeyMultibase")
+            if isinstance(value, str) and value:
+                return value
+    raise AssertionError(
+        f"{sender_id!r}'s profile at {sender_client.base_url} lists no key"
+        f" {key_id!r}"
+    )
+
+
+def verify_receiver_verified_sender_key(
+    receiver_client: DataLayerClient,
+    receiver_id: str,
+    activity_id: str,
+    sender_client: DataLayerClient,
+    sender_id: str,
+) -> dict:
+    """Check the receiver verified *activity_id* by the key the sender publishes.
+
+    Reads the receiver's own record of the delivery: its inbox keeps, on
+    the record it archives, each proof it verified with the key it fetched
+    from the author's profile (SIG-03-004).  The proof by *sender_id* must
+    name the sender's key, and the key the receiver recorded must be the
+    one the sender's own container publishes on its profile (SIG-02-001).
+    Nothing here verifies a proof itself: what is checked is what the
+    receiver wrote on verifying.
+
+    Args:
+        receiver_client: Client connected to the receiver's container.
+        receiver_id: The receiving actor's id.
+        activity_id: The sender's id for the delivered activity.
+        sender_client: Client connected to the sender's container.
+        sender_id: The sending actor's id, the activity's ``actor``.
+
+    Returns:
+        The receiver's record of the sender's verified proof.
+
+    Raises:
+        AssertionError: The receiver recorded no proof by *sender_id*, or
+            recorded another key than the one the sender publishes.
+    """
+    proofs = wait_for_verified_proofs(
+        receiver_client, receiver_id, activity_id
+    )
+    by_sender = [
+        proof for proof in proofs if proof.get("author_id") == sender_id
+    ]
+    if not by_sender:
+        raise AssertionError(
+            f"{receiver_id!r} recorded no proof by {sender_id!r} on"
+            f" {activity_id!r}: {proofs!r}"
+        )
+    proof = by_sender[0]
+    key_id = proof.get("verification_method")
+    if not isinstance(key_id, str) or not key_id.startswith(f"{sender_id}#"):
+        raise AssertionError(
+            f"{receiver_id!r} verified {activity_id!r} by {key_id!r}, which"
+            f" is not a key of {sender_id!r}"
+        )
+    published = _published_key(sender_client, sender_id, key_id)
+    if proof.get("public_key_multibase") != published:
+        raise AssertionError(
+            f"{receiver_id!r} verified {activity_id!r} by a key other than"
+            f" the one {sender_id!r} publishes for {key_id!r}"
+        )
+    logger.info(
+        "✓ %s verified %s by %s, the key %s's profile publishes",
+        parse_id(receiver_id)["object_id"],
+        activity_id,
+        key_id,
+        parse_id(sender_id)["object_id"],
+    )
+    return proof
 
 
 def verify_receiver_case_state(

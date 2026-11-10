@@ -430,7 +430,7 @@ def test_every_held_record_runs_before_any_queued_item(monkeypatch):
     """A startup re-run replays no queue, so the queue waits for them all."""
     calls: list[str] = []
 
-    def _process(run, payload) -> None:
+    def _process(run, payload, verified_proofs=()) -> None:
         calls.append(f"process {payload['id']}")
 
     def _drain(self) -> None:

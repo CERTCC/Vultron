@@ -1,7 +1,8 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Accept",
   "id": "urn:uuid:b87bd5e5-e4c3-46dc-ab5b-bb0cea856ce9",
@@ -30,5 +31,18 @@
       "updated": "2026-06-01T19:12:00.000000+00:00",
       "content": "We propose to embargo VendorCo Case #20260601 for 120 days."
     }
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "zimZzfLXKvKjaa3dyZBUX2EQo3CHhjhQx8iftQnup8xg1Vm2WzCMByNfaVoDAp5sPWc69M12EWnWq9T1yVjz215d"
   }
 }

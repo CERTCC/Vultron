@@ -33,6 +33,7 @@ This module owns that replay:
 import logging
 from typing import Any, cast
 
+from vultron.adapters.driving.fastapi.verified_proofs import VerifiedProofs
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.outbox_dead_letter import RetryStore
 from vultron.config.actor import ActorConfig
@@ -358,6 +359,19 @@ def _retry_or_dead_letter(
     return False
 
 
+def _keep_verified_on_hold(
+    verified_proofs: VerifiedProofs | None, dl: DataLayer, item_id: str
+) -> None:
+    """Keep *item_id*'s verified proofs on its record if it is held again.
+
+    A replay that defers again, or a retry, holds the item afresh, on a
+    record that does not yet carry the proofs the inbox verified on it
+    (SIG-03-004).
+    """
+    if verified_proofs is not None:
+        verified_proofs.keep_on_hold(dl, item_id)
+
+
 def drain_inbox_queue(
     actor_dl: DataLayer,
     actor_id: str,
@@ -370,6 +384,7 @@ def drain_inbox_queue(
     received_outcome: ReceivedOutcomePort | None = None,
     *,
     clock: ClockPort,
+    verified_proofs: VerifiedProofs | None = None,
 ) -> None:
     """Replay every item queued in *actor_dl*'s inbox, with bounded retry.
 
@@ -411,6 +426,11 @@ def drain_inbox_queue(
         clock: The act clock.  Each replay is an act of its own and reads it
             once, at the replay, so a held activity is judged when its effect
             lands, not when it arrived (ADR-0176).
+        verified_proofs: The inbox run's verified proofs, shared with
+            *received_outcome*.  Each item's held record names the proofs
+            the inbox verified on it, so its archive keeps them, and an item
+            held again keeps them on its new record (SIG-03-004).  ``None``
+            carries none.
     """
     attempt = ReplayAttempt()
     ingress = StoredActivityIngressAdapter(
@@ -432,6 +452,8 @@ def drain_inbox_queue(
             if item_id is None:
                 break
             attempt.begin()
+            if verified_proofs is not None:
+                verified_proofs.note_held(actor_dl, item_id)
             outcome = process_payload(
                 item_id,
                 ingress,
@@ -461,6 +483,7 @@ def drain_inbox_queue(
                     staging,
                 ):
                     replay_dispatch.send_held_fault()
+                _keep_verified_on_hold(verified_proofs, actor_dl, item_id)
                 continue
 
             if attempt.failure is not None:
@@ -475,3 +498,4 @@ def drain_inbox_queue(
             # Settled: a count an earlier attempt or run stored has no
             # further use.
             retry.clear_inbox_attempt_count(item_id)
+            _keep_verified_on_hold(verified_proofs, actor_dl, item_id)

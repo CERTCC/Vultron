@@ -92,6 +92,28 @@ def _received_activity_records(
     )
 
 
+def read_received_record(
+    client: DataLayerClient, activity_id: str, actor_id: str | None = None
+) -> dict | None:
+    """The receiver's ``ReceivedActivityRecord`` for *activity_id*, as served.
+
+    The whole record, not only the activity it holds: its ``stage`` and the
+    ``verified_proofs`` the inbox recorded on receipt (SIG-03-004).  Looked
+    up by the key the receiver derives from the sender's id
+    (:meth:`ReceivedActivityRecord.build_id`, DL-06-006); ``None`` when the
+    receiver holds no record of it.
+
+    Args:
+        client: DataLayerClient for the receiving actor's container.
+        activity_id: The sender's id for the activity.
+        actor_id: Whose store to read.  Defaults to *client*'s own actor.
+    """
+    record = _received_activity_records(client, actor_id).get(
+        ReceivedActivityRecord.build_id(activity_id)
+    )
+    return record if isinstance(record, dict) else None
+
+
 def read_received_activity(
     client: DataLayerClient, activity_id: str, actor_id: str | None = None
 ) -> dict | None:
@@ -117,10 +139,8 @@ def read_received_activity(
     Raises:
         AssertionError: when the record found wraps no activity.
     """
-    record = _received_activity_records(client, actor_id).get(
-        ReceivedActivityRecord.build_id(activity_id)
-    )
-    if not isinstance(record, dict):
+    record = read_received_record(client, activity_id, actor_id)
+    if record is None:
         return None
     # A receipt stub is what the actor kept of a message it refused: it holds
     # no activity, so the actor received none that a reader can have

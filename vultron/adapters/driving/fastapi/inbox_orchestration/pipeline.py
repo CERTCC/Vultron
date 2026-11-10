@@ -22,7 +22,7 @@ same way (IO-03-001, IO-03-003, IE-06-004).
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 from vultron.adapters.driven.clock import SystemClock
@@ -45,11 +45,16 @@ from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     log_if_rejected,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.adapters.driving.fastapi.verified_proofs import (
+    VerifiedProofs,
+    payload_activity_id,
+)
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
 from vultron.config import get_config
 from vultron.core.behaviors.inbox import process_payload
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
@@ -103,9 +108,12 @@ class _InboxRun:
         self.dereference = FastAPIDereferencePort(
             actor_dl, actor_id, self.staging
         )
+        # The proofs the inbox verified on each delivery, carried to the
+        # record that archives it (SIG-03-004).
+        self.verified = VerifiedProofs()
         # The final outcome stage's one write: a refused delivery's body is
         # given up for a receipt stub (CLP-10-018, ADR-0154).
-        self.outcome = FastAPIReceivedOutcomePort(actor_dl)
+        self.outcome = FastAPIReceivedOutcomePort(actor_dl, self.verified)
         # The receiving actor's RSVP windows govern inbound embargo invites
         # (EP-07-001, EP-07-002); None applies the protocol defaults.
         self.actor_config = inbox_port_factories._resolve_actor_config()
@@ -127,6 +135,7 @@ class _InboxRun:
             self.dereference,
             self.outcome,
             clock=self.clock,
+            verified_proofs=self.verified,
         )
 
 
@@ -211,6 +220,8 @@ async def run_inbox_pipeline(
     dispatcher: ActivityDispatcher | None,
     emitter: ActivityEmitter | None,
     fetcher: ObjectFetcher | None = None,
+    *,
+    verified_proofs: Sequence[VerifiedProof] = (),
 ) -> None:
     """Adapter-layer background task: construct adapters and run pipeline.
 
@@ -241,6 +252,8 @@ async def run_inbox_pipeline(
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
         fetcher: The object fetcher; ``None`` uses the HTTP one.
+        verified_proofs: The proofs the route's verification stage checked
+            on *payload*; its archived record keeps them (SIG-03-004).
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
 
@@ -250,7 +263,7 @@ async def run_inbox_pipeline(
         Runs on a worker thread (see :func:`_run_serialised`), so it must not
         touch asyncio.
         """
-        _process_one(run, payload)
+        _process_one(run, payload, verified_proofs)
 
         # Replay what this delivery, or an earlier one, queued: activities
         # pushed back by the post-bootstrap replay, and held ledger
@@ -261,8 +274,19 @@ async def run_inbox_pipeline(
     await _resolve_fetches(run, emitter, fetcher)
 
 
-def _process_one(run: _InboxRun, payload: dict[str, Any]) -> None:
-    """Run *payload* through :func:`process_payload` once, and log it."""
+def _process_one(
+    run: _InboxRun,
+    payload: dict[str, Any],
+    verified_proofs: Sequence[VerifiedProof] = (),
+) -> None:
+    """Run *payload* through :func:`process_payload` once, and log it.
+
+    *verified_proofs* are the ones the inbox verified on *payload*: the
+    archive writes them, and a delivery left in holding keeps them on its
+    record for the replay that archives it (SIG-03-004).
+    """
+    activity_id = payload_activity_id(payload)
+    run.verified.note(activity_id, verified_proofs)
     outcome = process_payload(
         payload,
         run.ingress,
@@ -279,6 +303,8 @@ def _process_one(run: _InboxRun, payload: dict[str, Any]) -> None:
         outcome.context_id,
     )
     log_if_rejected(outcome, run.actor_id, replayed=False)
+    if activity_id is not None:
+        run.verified.keep_on_hold(run.actor_dl, activity_id)
 
 
 async def run_delivery_without_replay(
@@ -287,6 +313,8 @@ async def run_delivery_without_replay(
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
     emitter: ActivityEmitter | None,
+    *,
+    verified_proofs: Sequence[VerifiedProof] = (),
 ) -> None:
     """Run one delivery as :func:`run_inbox_pipeline` does, with no replay.
 
@@ -294,11 +322,15 @@ async def run_delivery_without_replay(
     the inbox queue drain nor the open fetches follow.  For the startup
     re-run of the records left in holding, which must all run before the
     queue replay (IE-06-014); the queue replay that follows them drains the
-    queue and makes the fetches.
+    queue and makes the fetches.  *verified_proofs* are the ones the held
+    record carries, so its archive keeps them (SIG-03-004).
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
     await _run_serialised(
-        actor_dl, actor_id, emitter, lambda: _process_one(run, payload)
+        actor_dl,
+        actor_id,
+        emitter,
+        lambda: _process_one(run, payload, verified_proofs),
     )
 
 

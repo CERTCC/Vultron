@@ -43,12 +43,14 @@ answers the delivery instead.
 """
 
 import logging
+from collections.abc import Sequence
 
 from vultron.core.models.received_activity_record import (
     HOLDING_STAGES,
     ReceivedActivityRecord,
     ReceivedStage,
 )
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.received_activity import (
     held_received_record,
@@ -209,8 +211,45 @@ def hold_unjudged_for_replay(dl: CasePersistence, activity_id: str) -> None:
             replay_owed=True,
             received_at=record.received_at,
             replay_rows_json=record.replay_rows_json,
+            verified_proofs=record.verified_proofs,
         )
     )
+
+
+def keep_verified_proofs(
+    dl: CasePersistence,
+    activity_id: str,
+    verified_proofs: Sequence[VerifiedProof],
+) -> bool:
+    """Keep *verified_proofs* on *activity_id*'s record while it is in holding.
+
+    A delivery that does not reach its outcome in its own run (deferred,
+    or left with no verdict) is archived later, by a replay or a re-run
+    that no longer has the inbox's verification at hand.  So the proofs the
+    inbox verified on it travel with the body it holds, and the archive
+    keeps them (SIG-03-004).  Only a ``HELD`` or ``HANDLED`` record that
+    carries none yet is written: an archived record already has them, and a
+    receipt stub keeps none.  Returns whether a record was written.
+    """
+    if not verified_proofs:
+        return False
+    record = held_received_record(dl, activity_id)
+    if (
+        record is None
+        or record.stage not in HOLDING_STAGES
+        or record.verified_proofs
+    ):
+        return False
+    dl.save(
+        record.model_copy(update={"verified_proofs": list(verified_proofs)})
+    )
+    logger.debug(
+        "Received activity %s in holding keeps the %d proof(s) the inbox"
+        " verified on it (SIG-03-004)",
+        activity_id,
+        len(verified_proofs),
+    )
+    return True
 
 
 def release_from_holding(
@@ -308,6 +347,7 @@ __all__ = [
     "held_for_replay",
     "hold_for_replay",
     "hold_unjudged_for_replay",
+    "keep_verified_proofs",
     "owes_replay",
     "records_awaiting_case",
     "records_left_in_holding",

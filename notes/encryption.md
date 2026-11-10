@@ -187,7 +187,15 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   on purpose is a refusal test, or a strict `xfail` naming the Task that signs
   it.
 - **Demo and harness code never signs as an actor.** Only an actor's own
-  outbox signs (SIG-05-004). An exchange demo's hand-built activity goes
+  outbox signs (SIG-05-004). The one other signer is the docs example
+  renderer (`json2md`, `obj_to_file` in `vocab/examples/_base.py`), which
+  signs a documentation example, a body no server sends, only as that
+  example's own `actor`, with `created` fixed to `EXAMPLE_TIMESTAMP`, through
+  `signing.sign_docs_example`; Ed25519 is deterministic, so a regeneration
+  writes the same bytes. `test/architecture/test_seeded_signer_callers.py`
+  lists every `vultron/` module that makes a proof or computes a seeded key,
+  so a third caller fails there until it is reviewed. An exchange demo's
+  hand-built activity goes
   through the sender's outbox on the same server (`post_to_inbox_and_wait`
   posts it to `/actors/{sender}/outbox/`), which signs it as its owner; a
   scenario step goes through a trigger. A docs walkthrough does the same:
@@ -195,6 +203,17 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   posts the report to the finder's outbox, so the vendor can fetch the
   finder's key. Tests sign only through
   `test/support/signing.py`, never from `vultron/`.
+- **The archived record names the key each proof verified against**
+  (SIG-03-004). `ProofVerificationPort.verify` returns one `VerifiedProof`
+  (author, `verification_method`, `public_key_multibase` as fetched) per
+  proof, the `Announce`'s first, then its snapshot's. The route hands them to
+  the background run, whose `VerifiedProofs`
+  (`adapters/driving/fastapi/verified_proofs.py`) carries them to
+  `archive_applied`, which writes them in the archive's own save. A delivery
+  left in holding keeps them on its held record (`keep_verified_proofs`), and
+  the drain or startup re-run that archives it reads them back; a receipt
+  stub keeps none. It is the audit trail key rotation (#1184) needs, and what
+  `reporter_submits_report`'s demo check reads across containers.
 - **Resolve a key with `resolve_verification_key`**
   (`vultron/core/services/verification_key.py`), never by hand. It takes the
   proof's `verificationMethod`, the document's author and an

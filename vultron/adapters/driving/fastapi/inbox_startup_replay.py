@@ -167,6 +167,7 @@ async def rerun_left_in_holding(
                 actor_id,
                 dispatcher,
                 emitter,
+                verified_proofs=record.verified_proofs,
             )
         except Exception:
             # One record's failure must not keep the others, or the queue,

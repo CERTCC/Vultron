@@ -30,6 +30,7 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
+from vultron.adapters.driving.fastapi.verified_proofs import VerifiedProofs
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
@@ -166,17 +167,28 @@ class FastAPIReceivedOutcomePort:
     .write_receipt_stub`, CLP-10-018).  A deferred delivery keeps what its
     record holds, so the port is never called for one.
 
+    The archive keeps the proofs the inbox verified on the delivery, in
+    the same save (SIG-03-004), read from *verified_proofs*, the inbox
+    run's record of them.
+
     Args:
         actor_dl: The receiving actor's DataLayer — the store that holds its
             received records (DL-06-006).
+        verified_proofs: The inbox run's verified proofs, by activity id;
+            ``None`` archives none.
     """
 
-    def __init__(self, actor_dl: DataLayer) -> None:
+    def __init__(
+        self,
+        actor_dl: DataLayer,
+        verified_proofs: VerifiedProofs | None = None,
+    ) -> None:
         self._dl = cast(CasePersistence, actor_dl)
+        self._verified = verified_proofs or VerifiedProofs()
 
     def apply(self, activity_id: str) -> None:
         """Archive the record holding *activity_id*'s applied body."""
-        archive_applied(self._dl, activity_id)
+        archive_applied(self._dl, activity_id, self._verified.of(activity_id))
 
     def refuse(
         self,
