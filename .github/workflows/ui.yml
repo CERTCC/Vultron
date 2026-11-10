@@ -17,6 +17,11 @@ on:
       # this runs it on the pull request that changes their source; the
       # regenerated files themselves are under ui/** (#4728).
       - vultron/core/states/**
+      # The ledger-line models and the enums and primitive they use, behind
+      # ui/src/data/ledgerTypes.ts (#4729).
+      - vultron/core/models/**
+      - vultron/enums/**
+      - vultron/primitives.py
       - vultron/semantic_registry/**
       - vultron/demo/scenario/**
       - vultron/metadata/demo_scenarios/**
@@ -27,6 +32,9 @@ on:
       - .github/workflows/ui.yml
       # The generators of the UI's committed artifacts; see the push filter.
       - vultron/core/states/**
+      - vultron/core/models/**
+      - vultron/enums/**
+      - vultron/primitives.py
       - vultron/semantic_registry/**
       - vultron/demo/scenario/**
       - vultron/metadata/demo_scenarios/**

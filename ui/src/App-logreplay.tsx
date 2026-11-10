@@ -9,6 +9,7 @@ import {
   parseCaseLedger,
   normalizeLedger,
   type CaseLedgerEntry,
+  type RejectedLedgerLine,
 } from './utils/caseLedgerParser'
 import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // Committed recordings the "Load …" buttons import at build time via `?raw`.
@@ -182,6 +183,9 @@ const SCENARIO_GROUPS: ScenarioGroup[] = ['Core', 'Coordinator', 'Diagnostic']
 function AppLogReplay() {
   const [demoState, setDemoState] = useState<DemoState | null>(null)
   const [accumulatedEntries, setAccumulatedEntries] = useState<CaseLedgerEntry[]>([])
+  // Lines the loaded files held that failed the shape check (parseCaseLedger).
+  // They are not replayed; the replay header and the event log list each one.
+  const [accumulatedRejected, setAccumulatedRejected] = useState<RejectedLedgerLine[]>([])
   const [uploadCount, setUploadCount] = useState(0)
   // Human-readable name of the pre-given scenario currently loaded (shown in the
   // Case Timeline header). Null when the case came from a manual file upload.
@@ -199,9 +203,9 @@ function AppLogReplay() {
   const playIntervalRef = useRef<number | null>(null)
 
   // Build (or rebuild) the replay state from a full set of ledger entries.
-  const rebuildFromEntries = useCallback((allEntries: CaseLedgerEntry[]) => {
+  const rebuildFromEntries = useCallback((allEntries: CaseLedgerEntry[], rejected: RejectedLedgerLine[]) => {
     const normalized = normalizeLedger(allEntries)
-    const state = buildTimelineFromCaseLedger(normalized)
+    const state = buildTimelineFromCaseLedger(normalized, rejected)
     setDemoState(state)
     setCurrentEventIndex(0)
   }, [])
@@ -215,28 +219,33 @@ function AppLogReplay() {
 
     try {
       const newEntries: CaseLedgerEntry[] = []
+      const newRejected: RejectedLedgerLine[] = []
 
       // Read all uploaded files
       for (let i = 0; i < files.length; i++) {
         const content = await files[i].text()
-        newEntries.push(...parseCaseLedger(content))
+        const parsed = parseCaseLedger(content, files[i].name)
+        newEntries.push(...parsed.entries)
+        newRejected.push(...parsed.rejected)
       }
 
       // Either accumulate or replace
       const allEntries = shouldAccumulate ? [...accumulatedEntries, ...newEntries] : newEntries
+      const allRejected = shouldAccumulate ? [...accumulatedRejected, ...newRejected] : newRejected
       setAccumulatedEntries(allEntries)
+      setAccumulatedRejected(allRejected)
       setUploadCount(prev => prev + 1)
       // Manual uploads aren't one of the named catalog scenarios.
       setLoadedScenarioName(null)
 
-      rebuildFromEntries(allEntries)
+      rebuildFromEntries(allEntries, allRejected)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load log files')
       console.error('Error processing log files:', err)
     } finally {
       setLoading(false)
     }
-  }, [accumulatedEntries, rebuildFromEntries])
+  }, [accumulatedEntries, accumulatedRejected, rebuildFromEntries])
 
   // Load a committed ledger from its raw text (no file picker needed). Shared by
   // the happy-path sample and the synthetic violation fixture.
@@ -245,13 +254,19 @@ function AppLogReplay() {
     setError(null)
 
     try {
-      const allEntries = parseCaseLedger(raw)
-      if (allEntries.length === 0) {
-        throw new Error(`${label} was empty — try file upload instead.`)
+      const { entries, rejected } = parseCaseLedger(raw, label)
+      if (entries.length === 0) {
+        throw new Error(
+          rejected.length > 0
+            ? `${label} has no well-formed ledger lines: ${rejected.length} rejected, ` +
+                `first at line ${rejected[0].lineNumber}: ${rejected[0].problems[0]}`
+            : `${label} was empty — try file upload instead.`
+        )
       }
-      setAccumulatedEntries(allEntries)
+      setAccumulatedEntries(entries)
+      setAccumulatedRejected(rejected)
       setUploadCount(prev => prev + 1)
-      rebuildFromEntries(allEntries)
+      rebuildFromEntries(entries, rejected)
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to load ${label}`)
       console.error(`Error loading ${label}:`, err)
@@ -283,6 +298,7 @@ function AppLogReplay() {
     setIsPlaying(false)
     setDemoState(null)
     setAccumulatedEntries([])
+    setAccumulatedRejected([])
     setUploadCount(0)
     setCurrentEventIndex(0)
     setError(null)
@@ -666,10 +682,16 @@ function AppLogReplay() {
     if (demoState.participants.get(id)?.rmState === 'N/A') return 'N/A'
     return currentSnapshot?.rm[id] ?? initialState('rm')
   }
+  // A lane has a VFD row only if the ledger gives it a VFD state at some step:
+  // statuses carry `vfState` for a VENDOR alone (ADR-0075), so a Reporter's or
+  // Coordinator's lane has none. Before its first VFD step a lane reads as the
+  // machine's initial state, as RM does.
   const vfdStateOf = (id: string) => {
-    if (demoState.participants.get(id)?.vfdState === 'N/A') return 'N/A'
+    if (demoState.participants.get(id)?.vfd === 'N/A') return undefined
+    if (!snapshots?.some((snapshot) => snapshot.vfd[id] !== undefined)) return undefined
     return currentSnapshot?.vfd[id] ?? initialState('vfd')
   }
+  const rejectedLines = demoState.rejectedLines ?? []
   const emStateNow = currentSnapshot?.emState ?? initialState('em')
   const pxaStateNow = currentSnapshot?.pxaState ?? initialState('pxa')
 
@@ -729,6 +751,24 @@ function AppLogReplay() {
             }}>
               ✓ {accumulatedEntries.length} entries from {uploadCount} upload(s)
             </span>
+            {rejectedLines.length > 0 && (
+              <span
+                role="alert"
+                title={rejectedLines
+                  .map((line) => `${line.source} line ${line.lineNumber}: ${line.problems.join('; ')}`)
+                  .join('\n')}
+                style={{
+                  color: '#ffcdd2',
+                  fontSize: '0.875rem',
+                  fontWeight: 'bold',
+                  background: 'rgba(211, 47, 47, 0.3)',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '4px',
+                }}
+              >
+                ⚠️ {rejectedLines.length} malformed line(s) not replayed: see the Event Log
+              </span>
+            )}
             <input
               type="file"
               accept=".jsonl"
@@ -881,18 +921,14 @@ function AppLogReplay() {
               // final end-state. PXA is case-level, shown on the CASE_MANAGER; EM is
               // case-level, shown on all.
               //
-              // VFD is DATA-DRIVEN (2026-07): show it for any lane the JSONL carries
-              // a VFD state for — i.e. every real participant, which `vfdStateOf`
-              // reports as anything other than the 'N/A' recorder sentinel. We do
-              // NOT gate on role: conceptually only a VENDOR develops a fix, but the
-              // generator stamps a vfdState on the reporter and coordinator too, so
-              // surfacing it makes an out-of-place VFD (e.g. on a pure coordinator)
-              // VISIBLE as a signal that something is off in the generated ledger,
-              // rather than silently hiding it. Only the casemanager recorder ('N/A')
-              // has no VFD row.
+              // VFD is DATA-DRIVEN: show it for any lane the ledger carries a VFD
+              // state for (`vfdStateOf`). We do NOT gate on role, so a VFD on a lane
+              // that should have none (e.g. a pure coordinator) stays VISIBLE as a
+              // sign that something is off in the ledger, rather than being hidden.
+              // The casemanager recorder ('N/A') has no VFD row.
               rmState={rmStateOf(participant.id)}
               emState={emStateNow}
-              vfdState={vfdStateOf(participant.id) !== 'N/A' ? vfdStateOf(participant.id) : undefined}
+              vfd={vfdStateOf(participant.id)}
               pxaState={participant.id === 'casemanager' ? pxaStateNow : undefined}
               actions={[]} // No actions in replay mode
               onActionClick={() => {}}

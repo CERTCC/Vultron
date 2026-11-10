@@ -33,8 +33,7 @@ npm run lint   # eslint
 npm test       # vitest, one run (not watch); `npm run test:watch` to watch
 ```
 
-Nothing Python is needed at runtime: the demo imports the committed
-`src/data/protocol_states.json` and `src/data/semantic_registry.json` directly.
+Nothing Python is needed at runtime: the demo imports `src/data/` directly (§9).
 
 ## 2. Visual grammar: decision / consequence nodes
 
@@ -59,7 +58,7 @@ RM/EM/VFD/PXA state. The four machines:
 - **PXA** (Public / eXploit / Attacks, **case-level**).
 
 **Scope:** RM and VFD are stored per participant
-(`ParticipantState.rmState` / `.vfdState`); EM and PXA are single case-level
+(`ParticipantState.rmState` / `.vfd`); EM and PXA are single case-level
 values on `DemoState`. Do not model EM or PXA per-participant.
 
 ## 4. Key data types (`src/types.ts`)
@@ -68,18 +67,18 @@ values on `DemoState`. Do not model EM or PXA per-participant.
   `causedBy?`, `consequences[]`.
 - `DemoState` — the demo: `participants` map, case-level `emState` / `pxaState`,
   `timelineEvents[]`, `eventLog[]`.
-- `ParticipantState` — per participant: `role`, `rmState`, `vfdState`, `laneIndex`,
+- `ParticipantState` — per participant: `role`, `rmState`, `vfd`, `laneIndex`,
   consent/publication/closure flags.
 
 ## 5. Log Replay pipeline (`src/utils/`)
 
 `caseLedgerParser.ts` → `caseLedgerMapper.ts` → `App-logreplay.tsx`.
 
-- **`caseLedgerParser.ts`** — `parseCaseLedger()` yields one `CaseLedgerEntry`
-  per line; `normalizeLedger()` **dedups by `entryHash` and sorts by `logIndex`**
-  (NOT `receivedAt` — entries can share a wall-clock second). `actorUrlToLaneId()`
-  maps actor URLs to lanes (`case-actor` URLs to `casemanager` first, then
-  `reporter`, `coordinator`, `vendor-N`).
+- **`caseLedgerParser.ts`** — `parseCaseLedger()` checks each line against the
+  generated types (§9, `ledgerShape.ts`) into `entries` and `rejected` lines (shown,
+  never dropped); `vfdLadderToken()` reads VFD from `vfState`/`dState`;
+  `normalizeLedger()` **dedups by `entryHash`, sorts by `logIndex`** (NOT
+  `receivedAt`); `actorUrlToLaneId()` maps actor URLs to lanes (`case-actor` first).
 - **`caseLedgerMapper.ts`** — `buildTimelineFromCaseLedger()` pre-scans to fix
   lane order, then walks entries in `logIndex` order holding a **shadow protocol
   state**. The log records **state SNAPSHOTS, not transitions**, so the mapper
@@ -137,8 +136,6 @@ diff whose path was guessed). A clean single legal step gets none.
 ## 8. Working norms
 
 - Identify which of the two modes a request targets before editing.
-- Preserve the decision / consequence + `causedBy` + same-X grammar (§2).
-- Keep RM/VFD per-participant and EM/PXA case-level (§3).
 - When replay "looks wrong," decide whether it is a mapper bug (§5) or a
   missing-field-in-the-logs problem before changing code.
 
@@ -161,6 +158,10 @@ template. `src/semanticRegistry.ts` is the only file that reads it. Do not add a
 closed list of semantic types or a phrase table to `ui/`: the Python demo
 report renders the same templates (DRPT-03-005). A Wire Activity a string names
 is its occasion's registry `wire` form (Annex C); `src/wireNotation.test.ts` checks.
+
+So do the ledger line types: `src/data/ledgerTypes.ts` (`export-demo-ledger-types`,
+drift-tested) holds the models as interfaces and `LEDGER_SHAPES` field lists.
+Never hand-write a ledger field in `ui/`.
 
 The scenario tree works the same way. `src/data/scenario_tree.json`, generated
 by `uv run export-demo-tree`
@@ -191,7 +192,7 @@ export a scraped copy.
 - `src/actions/*.ts`, `src/state/actionFilters.ts` and `src/state/stateUpdaters.ts`
   — Multi-Vendor handlers, filters and state updaters (imported only by
   `App-multivendor.tsx` and the handlers).
-- `src/utils/caseLedger*.ts` — the Log Replay parser and mapper.
+- `src/utils/caseLedger*.ts`, `ledgerShape.ts` — Log Replay parser, mapper, check.
 - `src/semanticRegistry.ts` — the ledger vocabulary (§9), read by the Log
   Replay mapper.
 - **Shared (a change here affects both modes):** `protocol.ts`, `constants.ts`,
