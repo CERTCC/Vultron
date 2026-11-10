@@ -327,7 +327,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
   By default, approval is not automatic.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CaseOwnerApprovesEmbargoResponse`
 - **Call-out point shape**: Evaluator — records an adjudication decision (approve/deny).
-  It has no blackboard output_keys, because it is only a pass/fail gate (BT-18-006).
+  It declares no output keys in its contract, because it is only a pass/fail gate (BT-18-006).
 - **Factory-fn placement**: `vultron.core.behaviors.embargo.response_decision_tree.create_embargo_response_decision_tree` (`case_owner_approves_embargo_response_factory` param) — second child of the `AuthorizeSelector`.
   The tree reaches it when `SenderIsCaseOwnerNode` returns FAILURE (EMB-15-002).
 

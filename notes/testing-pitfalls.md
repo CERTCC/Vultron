@@ -492,15 +492,15 @@ ratchets that walk it still pass because subclasses inherit `extra="forbid"`.
 
 When a tree builder's default `CallOutBackendFactory` is probabilistic
 (`AlmostAlwaysSucceed`, `WeightedBehavior`), SUCCESS-asserting integration tests
-MUST pass an explicit deterministic factory (one returning an
-always-`SUCCESS` behaviour). Structure tests and FAILURE-path tests are
-unaffected.
+MUST pass an explicit deterministic factory (one whose backend always answers
+*yes*, such as `yes` in `test/support/call_out.py`). Structure tests and
+FAILURE-path tests are unaffected.
 
 ### BT Contract Tests: Inherit the Production Node Class
 
 A deterministic wrapper for a probabilistic call-out node MUST subclass the
 **production node** plus `AlwaysSucceed`, not the abstract mixin plus
-`AlwaysSucceed`; otherwise it redeclares `output_keys` and cannot catch a
+`AlwaysSucceed`; otherwise it redeclares `contract` and cannot catch a
 regression in the real node:
 
 ```python

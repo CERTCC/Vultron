@@ -181,6 +181,12 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
     the refusal stage logs that at WARNING and the delivery is still refused
     for the guard's reason.
 
+    A diversion that refuses the delivery as part of its own answer, beside
+    an act of the CASE_MANAGER's that a refusal effect may not make
+    (CLP-10-048), passes *reason_from*: the diversion's condition, whose
+    ``feedback_message`` is then the reason (CLP-10-026; the re-invite of
+    EMB-17-003 beside MSM-07-012's refusal).
+
     Subclasses :class:`_EmitSingleActivityBase`; only ``_call_factory`` and
     ``_on_success`` are overridden (BTND-07-005, BTND-07-009).
     """
@@ -194,9 +200,16 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {"activity": "/activity"}
 
-    def __init__(self, case_id: str | None, name: str | None = None) -> None:
+    def __init__(
+        self,
+        case_id: str | None,
+        name: str | None = None,
+        *,
+        reason_from: py_trees.behaviour.Behaviour | None = None,
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
+        self._reason_from = reason_from
         self._event: object | None = None
         self._asserter: str | None = None
         self._refused_id: str | None = None
@@ -213,12 +226,7 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
                 f"{self.name}: no received activity on the blackboard to"
                 " refuse (ARCH-15-001)"
             )
-        reason = enclosing_refusal_reason(self)
-        if reason is None:
-            raise VultronWiringError(
-                f"{self.name}: not a refusal effect of a precondition-guard"
-                " stage, so there is no refusal reason to send (CLP-10-022)"
-            )
+        reason = self._refusal_reason()
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         assert self.datalayer is not None
@@ -238,6 +246,29 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
             asserter=event.actor_id,
             reason=reason,
         )
+
+    def _refusal_reason(self) -> str:
+        """The reason the notice carries in ``summary`` (CLP-05-001).
+
+        Raises:
+            VultronWiringError: There is no reason to send: the node is not
+                a refusal effect of a precondition-guard stage and names no
+                *reason_from*, or that node has no ``feedback_message``.
+        """
+        if self._reason_from is None:
+            reason = enclosing_refusal_reason(self)
+            if reason is None:
+                raise VultronWiringError(
+                    f"{self.name}: not a refusal effect of a precondition-guard"
+                    " stage, so there is no refusal reason to send (CLP-10-022)"
+                )
+            return reason
+        if not self._reason_from.feedback_message:
+            raise VultronWiringError(
+                f"{self.name}: '{self._reason_from.name}' gave no reason for"
+                " the refusal notice to send (CLP-05-001)"
+            )
+        return self._reason_from.feedback_message
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(

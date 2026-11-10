@@ -18,7 +18,7 @@ DETERMINISTIC singleton :data:`DEPLOY_MITIGATION_DETERMINISTIC`.  The matching
 STOCHASTIC singleton lives in the simulation layer
 (:data:`vultron.demo.fuzzer.bundles.deploy_mitigation.DEPLOY_MITIGATION_STOCHASTIC`).
 
-:class:`DeployMitigationCallOutBundle` inherits the three shared monitoring
+:class:`DeployMitigationCallOutBundle` inherits the four shared deployment
 fields from
 :class:`~vultron.core.behaviors.call_out.bundles.deploy_monitoring.DeploymentMonitoringBundle`
 and adds three mitigation-specific fields.
@@ -28,6 +28,7 @@ Ceiling/floor mapping (BT-23-002):
 - ``prioritize_deployment_factory``  — PrioritizeDeployment  (p=0.90) → AlwaysSucceed  (inherited)
 - ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed  (inherited)
 - ``monitor_deployment_factory``     — MonitorDeployment     (p=1.00) → AlwaysSucceed  (inherited)
+- ``no_new_deployment_info_factory`` — NoNewDeploymentInfo   (p=0.75) → AlwaysSucceed  (inherited)
 - ``mitigation_deployed_factory``    — MitigationDeployed    (p=0.25) → AlwaysFail
 - ``mitigation_available_factory``   — MitigationAvailable   (p=0.70) → AlwaysSucceed
 - ``deploy_mitigation_factory``      — DeployMitigation      (p=0.75) → AlwaysSucceed
@@ -58,7 +59,7 @@ def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
 class DeployMitigationCallOutBundle(DeploymentMonitoringBundle):
     """Call-out backend bundle for the mitigation deployment domain (BT-20-005).
 
-    Inherits the three shared monitoring fields from
+    Inherits the four shared deployment fields from
     :class:`~vultron.core.behaviors.call_out.bundles.deploy_monitoring.DeploymentMonitoringBundle`
     and adds three mitigation-specific fields.
 

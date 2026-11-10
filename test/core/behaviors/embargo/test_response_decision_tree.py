@@ -31,8 +31,11 @@ import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.call_out import no as call_out_no
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
@@ -60,9 +63,9 @@ DECIDING_ACTOR_ID = "https://example.org/actors/local-deciding-actor"
 def _stub(name: str = "stub") -> py_trees.behaviour.Behaviour:
     """Return a no-op stub behaviour."""
 
-    class _Stub(py_trees.behaviour.Behaviour):
-        def update(self) -> py_trees.common.Status:
-            return py_trees.common.Status.SUCCESS
+    class _Stub(CallOutBackend):
+        def answer(self) -> CallOutAnswer:
+            return CallOutAnswer.yes()
 
     return _Stub(name=name)
 
@@ -231,9 +234,9 @@ class TestAuthorizeSeam:
         def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
             called["flag"] = True
 
-            class _Custom(py_trees.behaviour.Behaviour):
-                def update(self):
-                    return py_trees.common.Status.SUCCESS
+            class _Custom(CallOutBackend):
+                def answer(self) -> CallOutAnswer:
+                    return CallOutAnswer.yes()
 
             return _Custom(name="CustomApproval")
 
@@ -269,9 +272,9 @@ class TestEvaluateEmbargoProposalCallOut:
         def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
             called["flag"] = True
 
-            class _Custom(py_trees.behaviour.Behaviour):
-                def update(self):
-                    return py_trees.common.Status.SUCCESS
+            class _Custom(CallOutBackend):
+                def answer(self) -> CallOutAnswer:
+                    return CallOutAnswer.yes()
 
             return _Custom(name="CustomEvaluate")
 
@@ -350,9 +353,9 @@ class TestCounterArm:
         def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
             called["flag"] = True
 
-            class _Custom(py_trees.behaviour.Behaviour):
-                def update(self):
-                    return py_trees.common.Status.FAILURE
+            class _Custom(CallOutBackend):
+                def answer(self) -> CallOutAnswer:
+                    return CallOutAnswer.no("test backend declines")
 
             return _Custom(name="CustomCounter")
 
@@ -438,11 +441,8 @@ def _tracking_stub(name: str) -> tuple[py_trees.behaviour.Behaviour, dict]:
 
 
 def _failing_stub(name: str) -> py_trees.behaviour.Behaviour:
-    class _Fail(py_trees.behaviour.Behaviour):
-        def update(self) -> py_trees.common.Status:
-            return py_trees.common.Status.FAILURE
-
-    return _Fail(name=name)
+    """A delegate subtree (not a call-out backend) that fails."""
+    return py_trees.behaviours.Failure(name=name)
 
 
 class TestBTBridgeIntegration:
@@ -482,10 +482,10 @@ class TestBTBridgeIntegration:
         def tracking_approves_factory(
             name: str,
         ) -> py_trees.behaviour.Behaviour:
-            class _Track(py_trees.behaviour.Behaviour):
-                def update(self) -> py_trees.common.Status:
+            class _Track(CallOutBackend):
+                def answer(self) -> CallOutAnswer:
                     called["flag"] = True
-                    return py_trees.common.Status.SUCCESS
+                    return CallOutAnswer.yes()
 
             return _Track(name=name)
 
@@ -521,10 +521,10 @@ class TestBTBridgeIntegration:
         def tracking_approves_factory(
             name: str,
         ) -> py_trees.behaviour.Behaviour:
-            class _Track(py_trees.behaviour.Behaviour):
-                def update(self) -> py_trees.common.Status:
+            class _Track(CallOutBackend):
+                def answer(self) -> CallOutAnswer:
                     called["flag"] = True
-                    return py_trees.common.Status.SUCCESS
+                    return CallOutAnswer.yes()
 
             return _Track(name=name)
 
@@ -554,10 +554,10 @@ class TestBTBridgeIntegration:
         deny_factory_called: dict = {"flag": False}
 
         def deny_factory(name: str) -> py_trees.behaviour.Behaviour:
-            class _Deny(py_trees.behaviour.Behaviour):
-                def update(self) -> py_trees.common.Status:
+            class _Deny(CallOutBackend):
+                def answer(self) -> CallOutAnswer:
                     deny_factory_called["flag"] = True
-                    return py_trees.common.Status.FAILURE
+                    return CallOutAnswer.no("test backend declines")
 
             return _Deny(name=name)
 
@@ -631,7 +631,7 @@ class TestBTBridgeIntegration:
         # EvaluateProposal or accept_bt).
         # WillingToCounter returns SUCCESS so counter arm is then taken.
         accept_fail_bundle = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=_failing_stub,  # type: ignore[arg-type]
+            case_owner_approves_embargo_response_factory=call_out_no,  # type: ignore[arg-type]
             willing_to_counter_factory=_stub,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
@@ -675,8 +675,8 @@ class TestBTBridgeIntegration:
         Counter arm fails because WillingToCounter → FAILURE.
         """
         deny_all = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=_failing_stub,  # type: ignore[arg-type]
-            willing_to_counter_factory=_failing_stub,  # type: ignore[arg-type]
+            case_owner_approves_embargo_response_factory=call_out_no,  # type: ignore[arg-type]
+            willing_to_counter_factory=call_out_no,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
@@ -743,7 +743,7 @@ class TestBTBridgeIntegration:
         EvaluateEmbargoProposal is never reached, so no factory override needed.
         """
         deny_accept = EmbargoCallOutBundle(
-            case_owner_approves_embargo_response_factory=_failing_stub,  # type: ignore[arg-type]
+            case_owner_approves_embargo_response_factory=call_out_no,  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)

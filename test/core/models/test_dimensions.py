@@ -17,6 +17,7 @@ from vultron.core.models.dimensions import (
     dimension_state,
     is_dimension_model,
 )
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM, RM_Trigger
@@ -273,6 +274,8 @@ class TestDimensionStateRead:
             (CS_pxa, False),
             (str, False),
             (PxaDimension | None, False),
+            # A `state` field, but it travels as an object (#4729).
+            (EmbargoConsent, False),
         ],
     )
     def test_is_dimension_model(self, annotation, expected):

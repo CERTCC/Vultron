@@ -270,8 +270,10 @@ class EmbargoRegisterMixin:
         The two embargoes an ``Accept`` or a ``Reject`` of an embargo Invite
         may name: the embargo in force and the open proposals (MSM-07-003,
         MSM-07-004).  A row for any other entry is final and accepts no
-        trigger (CM-18-003).  The one answerability test, read by the answer
-        guard and by the late-Accept route alike (EMB-17-012).
+        trigger (CM-18-003).  The register half of an embargo's
+        availability, which adds its end time to decide an ``Accept``
+        (``vultron.core.services.embargo_availability``, MSM-07-012); the
+        whole test for a ``Reject``.
         """
         return (
             embargo_id == self.active_embargo_id

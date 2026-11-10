@@ -785,6 +785,28 @@ def test_recordings_refresh_task_names_the_tree_index() -> None:
         )
 
 
+def test_recordings_refresh_task_names_the_replay_golden_files() -> None:
+    """A refreshed recording changes its Log Replay golden file (#4729).
+
+    The UI job fails on a recording its golden file does not match, so the
+    refresh Task says how to rewrite the golden files.
+    """
+    workflow = yaml.safe_load(
+        (WORKFLOWS_DIR / "demo-recordings.yml").read_text()
+    )
+    task_step = next(
+        s
+        for s in workflow["jobs"]["recordings"]["steps"]
+        if s.get("name") == "File or update the refresh Task"
+    )
+    run_script: str = task_step.get("run", "")
+    for needle in ("npm test -- -u", "ui/src/utils/replay-golden/"):
+        assert needle in run_script, (
+            f"The refresh Task body must contain {needle!r} so a refresh PR "
+            "rewrites the Log Replay golden files with the recordings."
+        )
+
+
 def test_issue_type_helper_resolves_the_type_by_name() -> None:
     """CISEC-05-017: the type is resolved by name and applied by mutation.
 

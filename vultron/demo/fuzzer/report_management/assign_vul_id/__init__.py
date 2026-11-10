@@ -38,34 +38,20 @@ from vultron.demo.fuzzer.report_management.assign_vul_id.assignment import (
     RequestId,
 )
 from vultron.demo.fuzzer.report_management.assign_vul_id.eligibility import (
+    EvaluateCveEligibility,
     InScope,
     IsMostAppropriateCNA,
-    IsNotDeliberatelyEducational,
-    IsNotDependencyUpdate,
-    IsNotEOLStatusAlone,
-    IsNotMaliciousCode,
-    IsPubliclyAvailableProduct,
-    IsRealVulnerability,
-    MeetsEvidenceBar,
-    NoDuplicateCVE,
     ProductInCNAScope,
 )
 
 __all__ = [
     "AssignId",
+    "EvaluateCveEligibility",
     "IdAssignable",
     "IdAssigned",
     "InScope",
     "IsIDAssignmentAuthority",
     "IsMostAppropriateCNA",
-    "IsNotDeliberatelyEducational",
-    "IsNotDependencyUpdate",
-    "IsNotEOLStatusAlone",
-    "IsNotMaliciousCode",
-    "IsPubliclyAvailableProduct",
-    "IsRealVulnerability",
-    "MeetsEvidenceBar",
-    "NoDuplicateCVE",
     "ProductInCNAScope",
     "RequestId",
 ]

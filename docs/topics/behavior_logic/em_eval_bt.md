@@ -53,3 +53,17 @@ In both states, acceptance causes an EM state transition to $q^{em} \in A$, and 
 (B) But the proposed terms can be unacceptable.
 In that case, the Participant might be willing to make a counterproposal.
 The [propose](em_propose_bt.md) behavior covers the counterproposal.
+
+## How the CASE_MANAGER answers an acceptance
+
+An acceptance that a Participant sends reaches the CASE_MANAGER as `Accept(Invite(EmbargoEvent))`.
+The CASE_MANAGER answers it by whether the accepted embargo is still available, not by whether the acceptance arrived before its deadline (MSM-07-012, EMB-17-001).
+An available embargo is the case's Active Embargo or one of its open proposals, whose end time has not passed.
+
+- **Available:** the CASE_MANAGER records the acceptance, and the Participant's consent row for that embargo becomes `AGREED` (EMB-17-002).
+- **Held, but no longer available:** the case replaced, rejected, canceled or terminated the embargo, or its end time has passed.
+  The CASE_MANAGER refuses the acceptance with the refusal notice and records nothing.
+  When the case holds current terms, it also invites the Participant to them (EMB-17-003).
+- **Never held:** the CASE_MANAGER answers with a processing fault and no refusal notice, because the Participant's view of the case is wrong (MSM-07-039).
+
+The [embargo lifecycle](use-cases/embargo-lifecycle.md) describes each answer in full.

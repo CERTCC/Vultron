@@ -104,12 +104,37 @@ Every call-out point fits a three-level hierarchy:
 Think of the shape as a job description, the capability as the open role, and your implementation as the service hired into that role.
 
 Some capabilities are sub-steps of a larger workflow.
-For example, the proposed `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
+For example, `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
 Most capabilities are not nested.
 
 !!! note "Design decisions"
     The taxonomy is defined in [ADR-0024](../../adr/0024-coordination-agent-taxonomy.md), and [ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md) reduces it to four shapes.
     The factory-injection pattern is defined in [ADR-0025](../../adr/0025-call-out-point-abstraction-layer.md).
+
+---
+
+## Every answer is yes, no or error
+
+Whatever its shape, a capability gives one answer each time the BT asks: a verdict of *yes*, *no* or *error*, and the data its capability declares for that verdict ([ADR-0183](../../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
+
+- *Yes* carries the capability's declared outputs.
+  The BT writes them to its shared state and goes on.
+- *No* is a decision against the request.
+  It carries a refusal payload: a human-readable reason at minimum, and any structured refusal fields the capability declares.
+  The BT writes the payload to the declared refusal keys and takes its "declined" path.
+- *Error* means the capability could not decide or act.
+  It carries diagnostics for the logs only.
+  The BT does not judge the message: the message stays in holding, and the next delivery asks again.
+
+One place in the reference implementation, the call-out seam, turns the answer into BT behavior.
+No BT reads the answer itself, so a BT still branches only on success and failure.
+
+**When to answer error instead of no.**
+Answer *no* only for a decision you made about this request, because the BT treats it as permanent.
+An unreachable service, a rejected credential, a timeout, or a side effect you cannot confirm is *error*.
+A capability that answers *no* for an outage turns the outage into a permanent refusal, such as a case proposal declined for good because the policy service was down.
+
+The [Wiring a Capability](../../howto/wire_capability.md#a-backend-answers-yes-no-or-error) guide shows the answer in code.
 
 ---
 
@@ -124,9 +149,9 @@ The normative contracts are in [Annex G Capability Shapes in the protocol specif
 **You return:** a structured recommendation, typically a decision plus optional reasoning.
 **The BT uses it to:** gate what happens next.
 
-If you return "needs revision," the BT routes to the revision branch.
-If you return FAILURE, the pipeline stops.
-FAILURE is the only way to stop it: an Evaluator that returns SUCCESS with a "rejected" value in its output does not block the next step (BT-18-007).
+If you answer *yes* with "needs revision," the BT routes to the revision branch.
+If you answer *no*, with your reason, the pipeline stops.
+*No* is the only way to stop it: an Evaluator that answers *yes* with a "rejected" value in its output does not block the next step (BT-18-007).
 The BT does not care whether the judgment came from a human reviewer, a rules engine, or a large language model (LLM); it needs a structured answer it can act on.
 
 Evaluators carry human-level judgment.
@@ -160,7 +185,7 @@ Examples are drafting a security advisory, writing a vulnerability report body, 
 ### Actuator
 
 **You receive:** a trigger, a signal that something should happen.
-**You return:** confirmation of success or failure, with no content artifact.
+**You return:** *yes* when the side effect is confirmed, *no* when you decided not to act, and *error* when you could not confirm it; never a content artifact.
 **The BT uses it to:** confirm that a side effect was executed.
 
 Actuators fire side effects in external systems.
@@ -193,8 +218,8 @@ A Sentinel is a long-running monitor, so building one needs different infrastruc
 The following is the current catalog of known integration points, organized by domain.
 Use this list to identify which capability you are building toward.
 
-Entries marked with a shape are call-out points: Vultron asks, and your capability answers.
-Entries marked (Sentinel) are not capabilities: they are call-in patterns that watch a condition and call a trigger on their own initiative (see [The Sentinel call-in pattern](#the-sentinel-call-in-pattern)).
+Every entry is a call-out point: Vultron asks, and your capability answers.
+A Sentinel never appears here, because it is a call-in pattern that watches a condition and calls a trigger on its own initiative (see [The Sentinel call-in pattern](#the-sentinel-call-in-pattern)).
 
 ### Report Validation
 
@@ -203,7 +228,7 @@ Entries marked (Sentinel) are not capabilities: they are call-in patterns that w
 - **EvaluateReportCredibility** (Evaluator) — is this report from a credible source?
 - **EvaluateReportValidity** (Evaluator) — does this report describe a real, in-scope vulnerability?
 - **GatherValidationInfo** (Retriever) — collect background information needed to evaluate a report
-- **NewValidationInfoSentinel** (Sentinel) — fires when new validation-relevant information becomes available
+- **NoNewValidationInfo** (Retriever) — has no new validation-relevant information arrived since the last evaluation?
 
 ### Report Prioritization
 
@@ -212,7 +237,7 @@ Entries marked (Sentinel) are not capabilities: they are call-in patterns that w
 - **EvaluateCasePriority** (Evaluator) — assign a priority score to a case; the natural home for an SSVC integration
 - **EnoughPrioritizationInfo** (Evaluator) — is there sufficient information to make a prioritization decision?
 - **GatherPrioritizationInfo** (Retriever) — collect data needed for prioritization
-- **NewPrioritizationInfoSentinel** (Sentinel) — fires when new prioritization-relevant information arrives
+- **NoNewPrioritizationInfo** (Retriever) — has no new prioritization-relevant information arrived since the last evaluation?
 - **OnAccept** / **OnDefer** (Actuators) — notification hooks when a report is accepted or deferred
 
 ### Case Admission
@@ -222,7 +247,8 @@ Entries marked (Sentinel) are not capabilities: they are call-in patterns that w
 - **EvaluateCaseProposal** (Evaluator) — should this service open and manage a case for this proposal?
 
 This is the admission decision a case actor service makes on an inbound `Create(CaseProposal)`, and the only place admission policy lives.
-Returning FAILURE sends `Reject(CaseProposal)`; the default admits.
+Answering *no* sends `Reject(CaseProposal)`; the default admits.
+An unreachable policy service answers *error*, which leaves the proposal in holding rather than declining it.
 
 Build this one if you run a case actor service for others.
 The [Propose case](../behavior_logic/use-cases/propose-case.md#where-judgment-enters) page carries the full reasoning — what the policy decides, why the decision sits ahead of every write, and the two ways a refusal gate can be defeated.
@@ -252,9 +278,9 @@ This domain has one extra level because the ID assignment workflow has distinct 
   - **IdAssigned** (Retriever) — does a CVE ID already exist for this vulnerability?
   - **InScope** (Evaluator) — is this vulnerability in scope for ID assignment?
   - **ProductInCNAScope** / **IsMostAppropriateCNA** (Evaluators) — CNA scoping checks
-  - **EvaluateCveEligibility** (Evaluator, proposed) — does this vulnerability meet the CNA criteria for CVE assignment?
-    This is a single judgment call that consolidates multiple CNA Operational Rules criteria.
-    See [#2518](https://github.com/CERTCC/Vultron/issues/2518).
+  - **EvaluateCveEligibility** (Evaluator) — does this vulnerability meet the CNA criteria for CVE assignment?
+    This is a single judgment call that applies the CNA Operational Rules eligibility criteria as one unit.
+    The publication condition stays a separate protocol check just before it.
   - **AssignId** (Composer) — generate and record the CVE ID
   - **RequestId** (Retriever) — request an ID from an external CNA if we are not the appropriate authority
 
@@ -269,7 +295,7 @@ This domain has one extra level because the ID assignment workflow has distinct 
 *See also: [Deployment behavior](../behavior_logic/deployment_bt.md)*
 
 - **DeployFix** / **PrioritizeDeployment** / **MonitoringRequirement** (Evaluators) — deployment decisions and monitoring judgment calls
-- **NewDeploymentInfoSentinel** (Sentinel) — fires when deployment status changes
+- **NoNewDeploymentInfo** (Retriever) — has no new deployment information arrived, so a deferred deployer can stay deferred?
 
 ### Mitigation Deployment
 
@@ -292,7 +318,7 @@ This domain has one extra level because the ID assignment workflow has distinct 
 
 - **PrioritizePublicationIntents** (Evaluator) — order and prioritize publication targets
 - **PrepareReport** / **PrepareFix** / **DraftAdvisoryArtifact** / **ReviseAdvisoryDraft** (Composers) — produce publication artifacts
-- **ReviewAdvisoryDraft** (Evaluator) — review an advisory draft; return `needs_revision` to route to revision, or FAILURE to block submission entirely
+- **ReviewAdvisoryDraft** (Evaluator) — review an advisory draft; answer *yes* with `needs_revision` to route to revision, or *no* to block submission entirely
 - **Publish** / **SubmitAdvisoryArtifact** (Actuators) — submit the advisory to a publication platform
 
 ### Leaving a Case
@@ -385,7 +411,7 @@ A named capability declares its blackboard contract as typed input and output po
 Moving the existing declarations into the core layer is in progress under [#3421](https://github.com/CERTCC/Vultron/issues/3421).
 
 **How a capability implementation is invoked.**
-A backend answers synchronously, within the tick that asks, and never returns RUNNING (BT-18-011, [ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md)).
+A backend answers synchronously, within the tick that asks, with *yes*, *no* or *error*, and never returns RUNNING (BT-18-011, [ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md), [ADR-0183](../../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
 A decision that takes days is not a call-out point: it is a request to another actor, or a Sentinel.
 
 **What a deployment that supplies nothing gets.**
@@ -398,7 +424,6 @@ So when a page says a call-out point "defaults to accept", that describes the st
 **What the shape classes are called in code.**
 The shape base classes are being renamed to `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability` ([ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), [#3421](https://github.com/CERTCC/Vultron/issues/3421)).
 Until that lands, the code uses names such as `EvaluatorCallOutPoint`.
-The fuzzer's leftover Sentinel call-out classes are being removed under [#3424](https://github.com/CERTCC/Vultron/issues/3424).
 
 ### Still open
 

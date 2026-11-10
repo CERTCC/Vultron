@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import (
     AlwaysSucceed,
     OftenSucceed,
@@ -70,7 +73,7 @@ class IdAssignable(EvaluatorCallOutPoint, ProbablySucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates vulnerability attributes from caller's DataLayer)
-      Output keys: id_assignable_verdict: str  (SUCCESS only)
+      Output keys: id_assignable_verdict: str  (yes only)
 
     Input category: Environmental check.
 
@@ -82,7 +85,9 @@ class IdAssignable(EvaluatorCallOutPoint, ProbablySucceed):
     require human review.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"id_assignable_verdict": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"id_assignable_verdict": str}
+    )
 
 
 class IsIDAssignmentAuthority(OftenSucceed):
@@ -117,7 +122,7 @@ class RequestId(RetrieverCallOutPoint, UsuallySucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — submits request to external ID authority)
-      Output keys: assigned_id: str  (SUCCESS only)
+      Output keys: assigned_id: str  (yes only)
 
     Input category: System integration.
 
@@ -128,7 +133,9 @@ class RequestId(RetrieverCallOutPoint, UsuallySucceed):
     request without human intervention in most cases.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"assigned_id": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"assigned_id": str}
+    )
 
 
 class AssignId(ComposerCallOutPoint, AlwaysSucceed):
@@ -143,7 +150,7 @@ class AssignId(ComposerCallOutPoint, AlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: assigned_vul_id: str  (SUCCESS only)
+      Output keys: assigned_vul_id: str  (yes only)
 
     Input category: System integration.
 
@@ -154,4 +161,6 @@ class AssignId(ComposerCallOutPoint, AlwaysSucceed):
     required once the allocation decision is made.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"assigned_vul_id": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"assigned_vul_id": str}
+    )

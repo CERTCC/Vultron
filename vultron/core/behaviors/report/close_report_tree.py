@@ -14,9 +14,13 @@
 """Close Readiness Monitoring seam tree.
 
 This module provides :func:`create_close_report_tree`, which exposes the
-``OtherCloseCriteriaMet`` call-out point as an injection seam for a future
-Close Readiness Monitoring Sentinel (see epic #1147 / #1143 Sentinel agent
-type).
+``OtherCloseCriteriaMet`` call-out point as an injection seam for an Evaluator
+capability that judges whether close conditions are met (epic #1147).
+
+A Close Readiness Monitoring Sentinel (#1143) is not that capability.  A
+Sentinel is a call-in pattern, not a capability shape: it watches case state on
+its own initiative and acts through a trigger or a protocol message, so it is
+never injected into a call-out factory (ADR-0097, BT-18-013).
 
 **Design note — no autonomous close path**
 
@@ -34,10 +38,10 @@ There is no autonomous close path because:
   an auto-close signal would close every case on public disclosure.
 
 This tree is therefore a **seam-only stub**, not called by any use case.
-Its intended future use is: a Sentinel backend injected via
-``other_close_criteria_factory`` that observes case state, detects that
-objective close conditions are met, and posts an observational note to the
-Case Owner.  The Case Owner then issues the ``Leave`` voluntarily.
+A deployment that wants close-readiness advice does not need it: a Sentinel
+that observes case state, detects that objective close conditions are met and
+posts an observational note to the Case Owner acts on its own, outside any
+tree.  The Case Owner then issues the ``Leave`` voluntarily.
 
 ``PreCloseAction`` (the pre-close Actuator) is wired in
 :func:`~vultron.core.behaviors.case.leave_case_trigger_tree.create_leave_case_trigger_tree`,
@@ -46,7 +50,8 @@ after its embargo guard and before the Leave is sent (TRIG-13-002).
 Nodes hosted here
 -----------------
 - ``OtherCloseCriteriaMet`` — Evaluator seam; DETERMINISTIC default =
-  ``AlwaysFail`` (correct: seam fires only when a real Sentinel is injected)
+  ``AlwaysFail`` (correct: the seam answers yes only when a real Evaluator
+  capability is injected)
 
 References
 ----------
@@ -80,11 +85,11 @@ def create_close_report_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Build the Close Readiness Monitoring seam tree.
 
-    Exposes the ``OtherCloseCriteriaMet`` Evaluator call-out point as the
-    injection seam for a future Close Readiness Monitoring Sentinel.  The
-    DETERMINISTIC default (``AlwaysFail``) is correct: this tree should not
-    fire unless a real Sentinel backend is injected — case closure is always
-    Case Owner-triggered, through the ``leave-case`` trigger (TRIG-13-001).
+    Exposes the ``OtherCloseCriteriaMet`` Evaluator call-out point as an
+    injection seam for an Evaluator capability.  The DETERMINISTIC default
+    (``AlwaysFail``) is correct: this tree should not answer yes unless a real
+    Evaluator backend is injected — case closure is always Case
+    Owner-triggered, through the ``leave-case`` trigger (TRIG-13-001).
 
     The ``pre_close_action_factory`` bundle field is not wired here;
     ``PreCloseAction`` is wired in the ``leave-case`` trigger tree

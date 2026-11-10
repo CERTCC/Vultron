@@ -46,9 +46,14 @@ class CallOutBackendFactory(Protocol):
     """Protocol for swappable call-out point backend factories (BT-23-004).
 
     A factory must accept a single ``name: str`` argument (the BT node's
-    display name) and return a ``py_trees.behaviour.Behaviour`` that honours
-    the call-out point's declared blackboard contract (BT-18-001 through
-    BT-18-004).
+    display name) and return a
+    :class:`~vultron.core.behaviors.call_out.backend.CallOutBackend` that
+    answers *yes*, *no* or *error* against its declared
+    :class:`~vultron.core.behaviors.call_out.answer.CallOutContract`
+    (BT-18-001 through BT-18-004, ADR-0183).  The return type stays
+    ``py_trees.behaviour.Behaviour`` because a bundle hands the tree the
+    seam that wraps the backend; the seam refuses a product that is not a
+    ``CallOutBackend``.
 
     Any callable satisfying this signature is a valid backend — plain lambda
     functions, module-level functions, and classes with ``__call__`` all

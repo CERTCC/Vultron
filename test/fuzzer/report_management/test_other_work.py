@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.call_out import tick_call_out
 from vultron.demo.fuzzer.base import WeightedBehavior
 from vultron.demo.fuzzer.report_management.other_work import OtherWork
 
@@ -85,9 +86,9 @@ class TestSuccessRate:
 
     def test_always_succeeds(self) -> None:
         node = OtherWork()
-        assert all(node.update() == Status.SUCCESS for _ in range(100))
+        assert all(tick_call_out(node) == Status.SUCCESS for _ in range(100))
 
     def test_update_never_returns_running(self) -> None:
         node = OtherWork()
-        results = {node.update() for _ in range(50)}
+        results = {tick_call_out(node) for _ in range(50)}
         assert Status.RUNNING not in results

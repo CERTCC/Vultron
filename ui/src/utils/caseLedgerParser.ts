@@ -14,9 +14,22 @@
  * uploading every folder is safe.
  *
  * Each line is a `CaseLedgerEntry` carrying an explicit `semanticType` verb plus an
- * ActivityStreams 2.0 `payloadSnapshot`. The mapper (`caseLedgerMapper.ts`) reads
- * these and validates them against the protocol source of truth (`../protocol`).
+ * ActivityStreams 2.0 `payloadSnapshot`. Its fields, and those of the statuses in
+ * the snapshot, are not declared here: they come from `../data/ledgerTypes.ts`,
+ * generated from the Python models (`uv run export-demo-ledger-types`), and every
+ * line is checked against those definitions on load (`./ledgerShape`). The mapper
+ * (`caseLedgerMapper.ts`) reads the entries and validates them against the
+ * protocol source of truth (`../protocol`).
  */
+
+import {
+  D_STATE_VALUES,
+  type CaseLedgerEntry as CaseLedgerEntryRecord,
+  type CaseParticipant,
+  type CaseStatus,
+  type ParticipantStatus,
+} from '../data/ledgerTypes'
+import { ledgerLineProblems } from './ledgerShape'
 
 /**
  * A ledger entry's semantic type: the semantic registry's label for its payload.
@@ -36,57 +49,72 @@
  */
 export type LedgerSemanticType = string
 
-/** A case-level status snapshot (`CaseStatus`): the global EM/PXA pair. */
-export interface CaseStatusSnapshot {
-  emState?: string
-  pxaState?: string
-  /**
-   * Human label like "ACTIVE Pxa". UNRELIABLE for EM — at logIndex 0 the offer's
-   * CaseStatus name reads "NONE pxa" while its structured `emState` is "ACTIVE".
-   * Always prefer the structured `emState`/`pxaState` fields over this string.
-   */
-  name?: string
-}
+/**
+ * A case-level status (`CaseStatus`): the global EM/PXA pair.
+ *
+ * Partial: a payload object is read before its `type` is known, so every field
+ * may be absent. An object that does carry `type: 'CaseStatus'` has been checked
+ * against the generated definition by `parseCaseLedger`.
+ *
+ * Its `name` (like "ACTIVE Pxa") is UNRELIABLE for EM — at logIndex 0 the offer's
+ * CaseStatus name reads "NONE pxa" while its structured `emState` is "ACTIVE".
+ * Always prefer the structured `emState`/`pxaState` fields over the name.
+ */
+export type CaseStatusSnapshot = Partial<CaseStatus>
 
-/** A per-participant status snapshot (`ParticipantStatus`): RM + VFD + consent. */
-export interface ParticipantStatusSnapshot {
-  rmState?: string
-  vfdState?: string
-  emConsentState?: string
-  attributedTo?: string | null
-  /** Label like "ACCEPTED VFD ACTIVE Pxa" (RM VFD [EM] [PXA] tokens, in that order). */
-  name?: string
+/**
+ * A per-participant status (`ParticipantStatus`): RM, plus `vfState` for a
+ * VENDOR and `dState` for a DEPLOYER (ADR-0075). Partial, as `CaseStatusSnapshot`.
+ * Its `name` is a label like "ACCEPTED VF ACTIVE Pxa".
+ */
+export type ParticipantStatusSnapshot = Partial<ParticipantStatus>
+
+/**
+ * A participant record (`CaseParticipant`): its actor (`attributedTo`), the CVD
+ * roles it plays (`caseRoles`, which label its replay lane, `./replayLanes`) and
+ * its statuses. Partial, as `CaseStatusSnapshot`.
+ */
+export type CaseParticipantSnapshot = Partial<CaseParticipant>
+
+/**
+ * The combined VFD ladder token (`vfd`, `Vfd`, `VFd`, `VFD`) of a status, the
+ * token the `vfd` machine of `src/data/protocol_states.json` names.
+ *
+ * The ladder is the export's projection of the `vf` and `d` sub-machines, so
+ * the token is `vfState` then `dState`, with `d` when the participant has no D
+ * dimension (it is not a DEPLOYER, so it deploys nothing). A status with no
+ * `vfState` is not a VENDOR's and has no VFD token: `undefined`.
+ */
+export function vfdLadderToken(
+  status: Pick<ParticipantStatusSnapshot, 'vfState' | 'dState'> | undefined
+): string | undefined {
+  if (!status?.vfState) return undefined
+  return `${status.vfState}${status.dState ?? D_STATE_VALUES[0]}`
 }
 
 /**
  * The subset of an AS2 object the mapper reads. Covers ParticipantStatus,
- * VulnerabilityCase (offer/close), Note, Offer, and EmbargoEvent shapes.
+ * CaseStatus, CaseParticipant, VulnerabilityCase (offer/close), Note, Offer, and
+ * EmbargoEvent shapes. The status fields are the generated ones; the rest belong to models
+ * the UI does not export.
  */
-export interface As2Object {
+export interface As2Object
+  extends Omit<ParticipantStatusSnapshot, 'type' | 'id' | 'name' | 'content' | 'inReplyTo' | 'attributedTo'>,
+    Pick<CaseStatusSnapshot, 'emState' | 'pxaState'>,
+    Pick<CaseParticipantSnapshot, 'caseRoles'> {
   id?: string
   type?: string
-  name?: string
-  content?: string
+  name?: string | null
+  content?: string | null
   inReplyTo?: string | null
   attributedTo?: string | null
-
-  // ParticipantStatus fields (first-class — authoritative over `name`):
-  rmState?: string
-  vfdState?: string
-  emConsentState?: string
-  /** Case-level snapshot embedded on some participant-status entries. */
-  caseStatus?: CaseStatusSnapshot | null
-
-  // CaseStatus fields — when the object IS a CaseStatus (add_case_status_to_case),
-  // the case-level EM/PXA sit directly on the object rather than under caseStatus.
-  emState?: string
-  pxaState?: string
 
   // VulnerabilityCase fields (offer / close entries):
   caseStatuses?: CaseStatusSnapshot[]
   /** Maps actor URL → participant URN; the case roster lives in its keys. */
   actorParticipantIndex?: Record<string, string>
-  caseParticipants?: string[]
+  /** The case's participant records, inline or by id. */
+  caseParticipants?: Array<CaseParticipantSnapshot | string>
   /** Nested per-participant statuses on the offer's target CaseParticipant. */
   participantStatuses?: ParticipantStatusSnapshot[]
 }
@@ -101,101 +129,64 @@ export interface As2Activity {
   context?: string
 }
 
-/** One line of the case ledger. */
-export interface CaseLedgerEntry {
-  id: string
-  type: 'CaseLedgerEntry'
-  published: string
-  updated: string
-  caseId: string
-  logIndex: number
-  logObjectId: string
+/**
+ * One line of the case ledger: the generated `CaseLedgerEntry`, with its
+ * `payloadSnapshot` read as an AS2 activity. The snapshot is the body as
+ * received (CLP-02-003), which no single exported model describes.
+ */
+export type CaseLedgerEntry = Omit<CaseLedgerEntryRecord, 'payloadSnapshot' | 'semanticType'> & {
   semanticType: LedgerSemanticType
   payloadSnapshot: As2Activity
-  prevLogHash: string
-  entryHash: string
-  receivedAt: string
+}
+
+/** A ledger line `parseCaseLedger` set aside, and why. */
+export interface RejectedLedgerLine {
+  /** Where the line came from: a file name, or a recording's label. */
+  source: string
+  /** 1-based line number within `source`. */
+  lineNumber: number
+  /** Every problem found, as `path: problem` (see `ledgerLineProblems`). */
+  problems: string[]
+  /** The line as read, trimmed. */
+  text: string
+}
+
+/** What `parseCaseLedger` read: the well-formed entries and the rejected lines. */
+export interface ParsedLedger {
+  entries: CaseLedgerEntry[]
+  rejected: RejectedLedgerLine[]
 }
 
 /**
- * A demo lane id. `unknown` is returned for unrecognized actor URLs. Vendors are
- * `vendor-1`, `vendor-2`, … — the demo supports N vendors (a `vendor-${n}`
- * template literal type keeps the union open while still excluding arbitrary
- * strings from the caller's perspective).
+ * Parse case-ledger JSONL content. Each non-empty line is checked against the
+ * generated `CaseLedgerEntry` definition (`ledgerLineProblems`). A line that is
+ * not JSON, or whose shape is wrong, is not replayed: replaying a line of the
+ * wrong shape would draw a timeline from fields that are not there. It is
+ * returned in `rejected` with every problem found, and the replay view shows
+ * each one; a rejected line is never dropped without a trace.
  */
-export type LaneId = 'reporter' | `vendor-${number}` | 'coordinator' | 'casemanager' | 'unknown'
-
-/**
- * Map an actor URL to a demo lane id.
- *
- * Every scenario runs on one fixed cast of role-neutral containers
- * (DEMOCI-11-020): `actor0:` plays the first Reporter, `actor1:` the first
- * Vendor, `actor2:` the first Coordinator, and `actor3:`/`actor4:` are
- * character actors — `actor3:` is Vendor2 in the vendor scenarios and
- * Coordinator2 in `rccv-*` and `rcvcv`, `actor4:` is the VendorDeployer in
- * `rcvcv`. Both character slots keep the vendor-N machinery (`vendor-2`,
- * `vendor-3`): lane identity is keyed on the host, and these are the hosts
- * that run a second participant's steps, so `actor3:` renders as "Vendor 2"
- * even where it plays a Coordinator. The CASE_MANAGER has its own host,
- * `//case-actor:…/actors/case-actor`.
- *
- * The pre-cast hosts stay recognized for a log recorded before the rename.
- * The committed logs in this tree carry two of them, `//finder:` and
- * `//vendor:`; the rest (`//reporter:`, `//coordinator:`, `//vendorN:`,
- * `//actor5:`, `//actor6:`) are there for a log a user uploads. Those logs
- * also run the CASE_MANAGER as a sub-actor with a `case-actor-…` path segment on
- * whichever host owns the case (`//vendor:…/case-actor-<caseId>` in
- * rv/rvv/rvcv-*; `//coordinator:…/case-actor-<caseId>` in rcv/rccv-*).
- *
- * Order matters: the `case-actor` test MUST run FIRST — the recorder sub-actor's
- * URL is itself a `//vendor:` or `//coordinator:` URL, and it must resolve to the
- * casemanager lane, not to the host's participant lane. Lane identity is keyed on
- * the HOST, never on the participant's CVD role: a participant's role
- * (VENDOR / CASE_OWNER / COORDINATOR) is carried per-status in `cvdRole` and — in
- * the handoff scenarios — can migrate between participants, so it can't define a
- * stable lane. The `coordinator:` host is therefore its own lane distinct from the
- * casemanager recorder, even when the recorder is co-hosted with it.
- */
-export function actorUrlToLaneId(url?: string | null): LaneId {
-  if (!url) return 'unknown'
-  if (url.includes('case-actor')) return 'casemanager'
-  // Recorded demos name the reporter host `reporter:`; the committed sample
-  // logs still carry its earlier name, `finder:`.
-  // The fixed cast: slot 0 reports, slot 1 is the first Vendor, slot 2 the
-  // first Coordinator, slots 3 and 4 are character actors.
-  if (url.includes('//actor0:')) return 'reporter'
-  if (url.includes('//actor1:')) return 'vendor-1'
-  if (url.includes('//actor2:')) return 'coordinator'
-  if (url.includes('//actor3:')) return 'vendor-2'
-  if (url.includes('//actor4:')) return 'vendor-3'
-  // Pre-cast hosts, kept for the committed sample and synthetic logs.
-  if (url.includes('//reporter:') || url.includes('//finder:')) return 'reporter'
-  if (url.includes('//coordinator:')) return 'coordinator'
-  if (url.includes('//actor5:')) return 'vendor-2'
-  if (url.includes('//actor6:')) return 'vendor-3'
-  // `//vendorN:` (N ≥ 2) → vendor-N; the bare `//vendor:` host → vendor-1.
-  const numberedVendor = url.match(/\/\/vendor(\d+):/)
-  if (numberedVendor) return `vendor-${parseInt(numberedVendor[1], 10)}`
-  if (url.includes('//vendor:')) return 'vendor-1'
-  return 'unknown'
-}
-
-/**
- * Parse case-ledger JSONL content into entries. One entry per non-empty line;
- * unparseable lines are warned and skipped (a corrupt line shouldn't sink the run).
- */
-export function parseCaseLedger(content: string): CaseLedgerEntry[] {
+export function parseCaseLedger(content: string, source = 'ledger'): ParsedLedger {
   const entries: CaseLedgerEntry[] = []
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
+  const rejected: RejectedLedgerLine[] = []
+  content.split('\n').forEach((line, index) => {
+    const text = line.trim()
+    if (!text) return
+    let value: unknown
     try {
-      entries.push(JSON.parse(trimmed) as CaseLedgerEntry)
+      value = JSON.parse(text)
     } catch (error) {
-      console.warn('Skipping unparseable case-ledger line:', error, trimmed)
+      const reason = error instanceof Error ? error.message : String(error)
+      rejected.push({ source, lineNumber: index + 1, problems: [`not JSON: ${reason}`], text })
+      return
     }
-  }
-  return entries
+    const problems = ledgerLineProblems(value)
+    if (problems.length > 0) {
+      rejected.push({ source, lineNumber: index + 1, problems, text })
+      return
+    }
+    entries.push(value as CaseLedgerEntry)
+  })
+  return { entries, rejected }
 }
 
 /**

@@ -13,11 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's EMB-17-003 re-invite of a late accepter.
+"""The CASE_MANAGER's EMB-17-003 re-invite of a refused accepter.
 
-A late ``Accept`` names an embargo the case can no longer answer, so the
-manager asks the accepter about the case's terms instead: its Active Embargo,
-or else its earliest-expiring open proposal (EMB-17-003).  The
+An ``Accept`` names an embargo the case holds but that is no longer
+available, so the manager refuses it (MSM-07-012) and asks the accepter
+about the case's terms instead: its Active Embargo, or else its
+earliest-expiring open proposal, either one before its end time
+(EMB-17-003).  The
 re-invite is a relay (:class:`~vultron.core.behaviors.embargo.nodes.relay.RelayEmbargoInviteToEachNode`),
 narrowed to one fixed recipient: ``attributedTo`` names the current embargo's
 proposer, and it is committed as ``invite_to_embargo_on_case`` (ADR-0152).
@@ -27,9 +29,6 @@ from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.late_accept import (
-    late_accept_terms,
-)
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
 )
@@ -42,6 +41,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.participants.recipients import invitation_recipients
+from vultron.core.services.embargo_availability import available_terms
 from vultron.core.services.embargo_lifecycle.pec import (
     find_actor_participant,
 )
@@ -59,7 +59,7 @@ if TYPE_CHECKING:
 class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     """Commit and send the CASE_MANAGER's EMB-17-003 re-invite of one accepter.
 
-    A late ``Accept`` named an embargo the case can no longer answer, so the
+    An ``Accept`` named an embargo that is no longer available, so the
     manager asks the accepter about the case's terms instead (EMB-17-003).
     The re-invite is a relay (ADR-0152): the frame is the relay's — stamp
     a fresh deadline (ASK-03-004, CM-28-012), build, queue,
@@ -74,7 +74,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     nothing and EM does not move (EP-09-007, RSH-08-004).  The recipient and
     embargo are fixed at construction; the collect node and the recipients
     key are not used.  *answers* is the received activity the re-invite
-    answers (the late ``Accept``, or the ``Add(CaseParticipant)`` that
+    answers (the refused ``Accept``, or the ``Add(CaseParticipant)`` that
     reinstated the invitee): given, the Invite's id is derived from it, so a
     redelivery after a send whose commit failed rebuilds the same Invite
     (OX-06-002).
@@ -177,25 +177,27 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         return super().update()
 
 
-class ReinviteLateAccepterNode(ReinviteStaleAccepterNode):
-    """Re-invite a late accepter to the case's terms (EMB-17-003).
+class ReinviteRefusedAccepterNode(ReinviteStaleAccepterNode):
+    """Re-invite a refused accepter to the case's terms (EMB-17-003).
 
-    The late Accept's routing arm (CLP-10-026): the case cannot answer the
-    accepted embargo, so the CASE_MANAGER asks the accepter about the terms
-    it holds — its Active Embargo, or with none its earliest-expiring open
-    proposal whose embargo has not ended at the act's instant
-    (:func:`~vultron.core.behaviors.embargo.nodes.late_accept.late_accept_terms`,
+    Part of the answer to an ``Accept`` of an embargo that is no longer
+    available, beside the refusal notice (CLP-10-026, MSM-07-012): the
+    CASE_MANAGER asks the accepter about the terms the case holds — its
+    Active Embargo, or else its earliest-expiring open proposal, either one
+    before its end time at the act's instant
+    (:func:`~vultron.core.services.embargo_availability.available_terms`,
     EP-08-002).  Which terms are read when the node runs, after the Invite
     expiry was recorded.  The Accept is never recorded as consent
-    (EMB-17-005, EMB-17-006).
+    (EMB-17-005).
 
     Nothing is sent, and the node succeeds, when the accepter's row for those
     terms takes no ``INVITE`` — it is already ``INVITED`` or ``AGREED``, so
     it has been asked, or has answered, and asking again would undo nothing
     (CM-18-003; the EP-09-011 guard) — logged at INFO; or when this actor
     was composed without the trigger-activity port that builds the Invite,
-    logged at WARNING.  The route sends a late Accept here only when the
-    case holds terms, so finding none is a routing bug: the node fails
+    logged at WARNING.  The tree runs it only once
+    :class:`~vultron.core.behaviors.embargo.nodes.accept_availability.CaseHoldsAvailableTermsNode`
+    found terms, so finding none is a routing bug: the node fails
     (ARCH-15).
     """
 
@@ -220,19 +222,20 @@ class ReinviteLateAccepterNode(ReinviteStaleAccepterNode):
 
     def _invite_owed(self, case: VulnerabilityCase) -> bool:
         assert self.datalayer is not None
-        embargo_id = late_accept_terms(
+        embargo_id = available_terms(
             self.datalayer, case, self._require_act_instant()
         )
         if embargo_id is None:
             raise BtNodePreconditionError(
-                f"late Accept for case '{self._case_id}' routed to the"
+                f"refused Accept for case '{self._case_id}' routed to the"
                 f" re-invite, but the case holds no terms to invite"
                 f" '{self._invitee_id}' to (EMB-17-003)"
             )
         if self.trigger_activity_factory is None:
             self.feedback_message = (
-                f"late Accept for a stale embargo on case '{self._case_id}'"
-                " — trigger_activity unavailable, re-invite not emitted"
+                f"refused Accept of an unavailable embargo on case"
+                f" '{self._case_id}' — trigger_activity unavailable,"
+                " re-invite not emitted"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return False
@@ -343,6 +346,6 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
 
 __all__ = [
     "InviteReinstatedParticipantToEmbargoNode",
-    "ReinviteLateAccepterNode",
+    "ReinviteRefusedAccepterNode",
     "ReinviteStaleAccepterNode",
 ]

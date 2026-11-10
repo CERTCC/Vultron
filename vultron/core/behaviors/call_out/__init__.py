@@ -20,6 +20,15 @@ are **core concerns**, kept out of the simulation layer so that
 
 - :class:`~vultron.core.behaviors.call_out.protocol.CallOutBackendFactory` —
   the swappable-backend Protocol (BT-23-004).
+- :class:`~vultron.core.behaviors.call_out.answer.CallOutAnswer`,
+  :class:`~vultron.core.behaviors.call_out.answer.CallOutVerdict` and
+  :class:`~vultron.core.behaviors.call_out.answer.CallOutContract` — the
+  *yes* / *no* / *error* answer every backend gives and the declaration it is
+  checked against (ADR-0183).
+- :class:`~vultron.core.behaviors.call_out.backend.CallOutBackend` — the base
+  class every backend subclasses.
+- :class:`~vultron.core.behaviors.call_out.guard.SynchronousCallOut` — the
+  seam that turns an answer into tree behaviour.
 - :class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed` /
   :class:`~vultron.core.behaviors.call_out.nodes.AlwaysFail` — deterministic,
   production-usable constant backends (BT-23-002).
@@ -33,7 +42,16 @@ simulation artifacts and are injected explicitly via ``call_out=`` by demo /
 test code.
 """
 
+from vultron.core.behaviors.call_out.answer import (
+    BINARY_CONTRACT,
+    REFUSAL_REASON_KEY,
+    CallOutAnswer,
+    CallOutContract,
+    CallOutVerdict,
+)
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.guard import (
+    CallOutBackendError,
     CallOutContractError,
     SynchronousCallOut,
     guard_call_out_factory,
@@ -47,6 +65,13 @@ from vultron.core.behaviors.call_out.nodes import (
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 __all__ = [
+    "BINARY_CONTRACT",
+    "REFUSAL_REASON_KEY",
+    "CallOutAnswer",
+    "CallOutBackend",
+    "CallOutBackendError",
+    "CallOutContract",
+    "CallOutVerdict",
     "CallOutBackendFactory",
     "AlwaysSucceed",
     "AlwaysFail",

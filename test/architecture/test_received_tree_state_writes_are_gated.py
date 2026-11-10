@@ -143,15 +143,15 @@ _MANAGER_ONLY_DECLARATION = (
 )
 # permanent: RSH-08-003 (replay and bootstrap writes; see each reason)
 REPLICA_STATE_WRITES: dict[_Write, str] = {
-    # The late-Accept re-invite (EMB-17-003): its diversion's effects used to
-    # sit in a CASE_MANAGER gate of their own, which ADR-0153 retires in
+    # The refused accepter's re-invite (EMB-17-003): its diversion's effects
+    # used to sit in a CASE_MANAGER gate of their own, which ADR-0153 retires in
     # favour of the tree's path declaration.  Pinned per node rather than by
     # skipping the tree, so a second ungated writer in the same tree still
     # fails (#5535).
     (
         f"{_E}/answer_trees.py",
         "accept_invite_to_embargo_tree",
-        "ReinviteLateAccepterNode",
+        "ReinviteRefusedAccepterNode",
     ): _MANAGER_ONLY_DECLARATION,
     (
         f"{_E}/announce_received_tree.py",

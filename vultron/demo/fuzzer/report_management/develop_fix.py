@@ -34,6 +34,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from vultron.core.behaviors.call_out.answer import (
+    CallOutContract,
+)
 from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
 from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
@@ -51,7 +54,7 @@ class CreateFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: fix_artifact: str  (SUCCESS only)
+      Output keys: fix_artifact: str  (yes only)
 
     Input category: System integration.
 
@@ -64,4 +67,6 @@ class CreateFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
     vulnerabilities.
     """
 
-    output_keys: ClassVar[dict[str, type]] = {"fix_artifact": str}
+    contract: ClassVar[CallOutContract] = CallOutContract(
+        outputs={"fix_artifact": str}
+    )

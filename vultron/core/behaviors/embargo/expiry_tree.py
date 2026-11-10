@@ -35,61 +35,29 @@ A failed commit leaves the invitee unchanged: the row is written only once
 its entry has committed (CLP-07-013, ADR-0124).
 
 A store that is not the CASE_MANAGER runs nothing and leaves ``result_out``
-unset; the Accept tree's late-Accept arms and its expiry guard read
-``IS_EXPIRED_KEY`` as False, and the Accept's own effects are gated on the
-CASE_MANAGER too (BT-17-001, HP-01-005).
+unset, and the Accept's own effects are gated on the CASE_MANAGER too
+(BT-17-001, HP-01-005).
 A replica copies the row from the ``Update`` entry (CM-23-016).
 
-A late Accept is then answered by its compatibility with the case's embargo
-(EMB-17-001).  One the case can still answer — its Active Embargo or an open
-proposal — is honoured: it is recorded as an on-time Accept is, its own entry
-carrying the row it states (EMB-17-002, ADR-0152).  The other two are
-diversions of the Accept tree
-(:func:`late_accept_diversions`, CLP-10-026), which declares the CASE_MANAGER
-path alone, so they run only there (HP-01-038); the re-invite
-changes the case and follows commit → effect, and the other changes
-nothing::
-
-    ReinviteLateAccepter (DiversionStage)
-    ├─ LateAcceptReinvite: Inverter(InviteNotExpired), LateAcceptRouteIs(REINVITE)
-    └─ ReinviteLateAccepterNode  # stamp → build → outbox → commit → PEC INVITE
-    LateAcceptBindsNothing (DiversionStage)
-    ├─ LateAcceptUnbound: …, LateAcceptRouteIs(UNBOUND)
-    └─ LateAcceptChangesNothingNode   # nothing recorded, nothing sent
-
-The re-invite is a relayed Invite, attributed to the embargo's proposer, and
-replicas replay it through the relay slot
-(:class:`~vultron.core.behaviors.embargo.nodes.relay_effect.ApplyEmbargoInviteFromLedgerNode`).
+A late Accept is then answered as an on-time one is, by whether the embargo
+it names is still available (EMB-17-001, MSM-07-012;
+:mod:`~vultron.core.behaviors.embargo.accept_availability_tree`): the
+deadline decides only that the invitation closed, never the answer.
 """
 
-from collections.abc import Mapping
-from types import MappingProxyType
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
 from vultron.core.behaviors.embargo.nodes.expiry import (
     IS_EXPIRED_KEY,
     NEEDS_APPLY_KEY,
     EvaluateInviteExpiryNode,
     InviteExpiryNeedsApplyNode,
-    InviteNotExpiredNode,
 )
 from vultron.core.behaviors.embargo.nodes.expiry_commit import (
     CommitAndApplyInviteExpiryNode,
 )
-from vultron.core.behaviors.embargo.nodes.late_accept import (
-    LateAcceptChangesNothingNode,
-    LateAcceptRoute,
-    LateAcceptRouteIsNode,
-)
-from vultron.core.behaviors.embargo.nodes.reinvite import (
-    ReinviteLateAccepterNode,
-)
-
-if TYPE_CHECKING:
-    from vultron.config.actor import ActorConfig
 
 # Keep the old alias so existing imports of CONSENT_CHANGED_KEY from this
 # module still work.
@@ -106,7 +74,7 @@ def create_commit_and_record_expiry_tree(
     """Commit one expired invitation's ``TIMED_OUT`` row, then apply it.
 
     The commit → effect half of the CM-28-009 expiry, shared by the lazy
-    late-Accept evaluation (:func:`invite_expiry_decision`), the
+    Accept-time evaluation (:func:`invite_expiry_decision`), the
     owner-close settle step (CM-23-014) and the overdue-invitation sweep
     (CM-28-015), which both reach it through
     :class:`~vultron.core.behaviors.embargo.nodes.invitation_expiry.ExpireInvitationsNode`.
@@ -204,169 +172,10 @@ def invite_expiry_decision(
     )
 
 
-#: The name of the late-Accept diversion that takes each route.  An honoured
-#: late Accept is no diversion: it is recorded as an on-time Accept is
-#: (EMB-17-002, ADR-0152).
-LATE_ACCEPT_DIVERSIONS: Mapping[LateAcceptRoute, str] = MappingProxyType(
-    {
-        LateAcceptRoute.REINVITE: "ReinviteLateAccepter",
-        LateAcceptRoute.UNBOUND: "LateAcceptBindsNothing",
-    }
-)
-
-
-def _late_accept_condition(
-    *,
-    case_id: str,
-    embargo_id: str,
-    accepting_actor_id: str,
-    route: LateAcceptRoute,
-    result_out: dict[str, Any],
-) -> py_trees.behaviour.Behaviour:
-    """The Invite expired, and its late Accept takes the *route* arm."""
-    children: list[py_trees.behaviour.Behaviour] = [
-        py_trees.decorators.Inverter(
-            name="InviteExpired",
-            child=InviteNotExpiredNode(
-                result_out=result_out,
-                invitee_id=accepting_actor_id,
-                case_id=case_id,
-            ),
-        ),
-        LateAcceptRouteIsNode(
-            case_id=case_id,
-            embargo_id=embargo_id,
-            accepting_actor_id=accepting_actor_id,
-            route=route,
-        ),
-    ]
-    return py_trees.composites.Sequence(
-        name=f"LateAccept{route.value.title()}",
-        memory=False,
-        children=children,
-    )
-
-
-def late_accept_diversions(
-    *,
-    case_id: str,
-    embargo_id: str,
-    accepting_actor_id: str,
-    answers: str | None,
-    result_out: dict[str, Any],
-    actor_config: "ActorConfig | None" = None,
-) -> list[Diversion]:
-    """The CASE_MANAGER's two diverted answers to a late embargo Accept (EMB-17).
-
-    The Invite Accept tree passes them among its precondition guards, after
-    its repeat guard and P/X/A refusal and before the guard that lets only an
-    honoured late Accept be recorded.  That tree declares the CASE_MANAGER
-    path alone, which is what keeps these diversions there and lets each
-    commit its own entry (CLP-10-026, HP-01-038); the condition of each is
-    the Invite expiry's finding
-    (*result_out*, written by :func:`invite_expiry_decision`) and the arm
-    :class:`~vultron.core.behaviors.embargo.nodes.late_accept.LateAcceptRouteIsNode`
-    reads from the case; the conditions are exclusive, so one answer runs
-    at most, and the late Accept itself is not committed.  A late Accept of
-    the Active Embargo or of an open proposal takes neither: it is honoured
-    by being recorded as an on-time Accept is (EMB-17-002, ADR-0152).
-
-    - **Re-invite** (EMB-17-003): invite the accepter to the case's terms —
-      the Active Embargo, or else its earliest-expiring open proposal whose
-      embargo has not ended — with a relayed Invite attributed to its
-      proposer; the node stamps a fresh deadline, queues the Invite, commits
-      it once queued and applies PEC ``INVITE`` (ADR-0119, CM-28-013,
-      ADR-0152).
-    - **Bind nothing** (EMB-17-004): the case holds no terms for the Accept
-      to bind, so it changes nothing: no entry, nothing sent, no consent row
-      moved (ADR-0152).
-
-    Args:
-        case_id: The case the Invite was for.
-        embargo_id: The embargo the late Accept names.
-        accepting_actor_id: The late accepter.
-        answers: The late Accept's id; the re-invite's id derives from it.
-        result_out: The Invite expiry decision's findings.
-        actor_config: The CASE_MANAGER's configuration (RSVP window).
-    """
-
-    def condition(route: LateAcceptRoute) -> py_trees.behaviour.Behaviour:
-        return _late_accept_condition(
-            case_id=case_id,
-            embargo_id=embargo_id,
-            accepting_actor_id=accepting_actor_id,
-            route=route,
-            result_out=result_out,
-        )
-
-    reinvite = Diversion(
-        name=LATE_ACCEPT_DIVERSIONS[LateAcceptRoute.REINVITE],
-        condition=condition(LateAcceptRoute.REINVITE),
-        effects=(
-            ReinviteLateAccepterNode(
-                case_id=case_id,
-                invitee_id=accepting_actor_id,
-                actor_config=actor_config,
-                answers=answers,
-            ),
-        ),
-    )
-    acknowledge = Diversion(
-        name=LATE_ACCEPT_DIVERSIONS[LateAcceptRoute.UNBOUND],
-        condition=condition(LateAcceptRoute.UNBOUND),
-        effects=(
-            LateAcceptChangesNothingNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
-            ),
-        ),
-    )
-    return [reinvite, acknowledge]
-
-
-def on_time_or_honoured_accept(
-    *,
-    case_id: str,
-    embargo_id: str,
-    accepting_actor_id: str,
-    result_out: dict[str, Any],
-) -> py_trees.behaviour.Behaviour:
-    """Guard: the Accept is on time, or a late Accept the case honours.
-
-    The backstop after :func:`late_accept_diversions`: an Accept the Invite
-    expiry found late is recorded as an answer only when the case can still
-    answer the accepted embargo — its Active Embargo or an open proposal
-    (EMB-17-002, MSM-07-003) — exactly as an on-time Accept is,
-    its entry carrying the row it states (ADR-0152).  Any other late Accept
-    was answered by a diversion, and is never recorded (EMB-17-005).
-    """
-    return py_trees.composites.Selector(
-        name="OnTimeOrHonouredAccept",
-        memory=False,
-        children=[
-            InviteNotExpiredNode(
-                result_out=result_out,
-                invitee_id=accepting_actor_id,
-                case_id=case_id,
-            ),
-            LateAcceptRouteIsNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
-                route=LateAcceptRoute.HONOUR,
-            ),
-        ],
-    )
-
-
 __all__ = [
     "CONSENT_CHANGED_KEY",
     "IS_EXPIRED_KEY",
-    "LATE_ACCEPT_DIVERSIONS",
     "NEEDS_APPLY_KEY",
     "create_commit_and_record_expiry_tree",
     "invite_expiry_decision",
-    "late_accept_diversions",
-    "on_time_or_honoured_accept",
 ]

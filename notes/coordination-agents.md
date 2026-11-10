@@ -69,7 +69,8 @@ external system is a **Retriever**, never a Sentinel (BT-18-013).
 ## Core-Owned Typed-Port Contracts (#3421)
 
 Target state set by ADR-0097 and BT-18-012; today the mixins are still in
-`vultron/demo/fuzzer/call_out_point.py` and declare `output_keys`.
+`vultron/demo/fuzzer/call_out_point.py`, and each fuzzer node declares a
+`CallOutContract` (ADR-0183) rather than typed ports.
 
 - Each named capability gets a **core-owned declaration** carrying py_trees typed
   ports (`INPUT_PORTS` / `OUTPUT_PORTS`, ADR-0044). The shape base class cannot

@@ -29,6 +29,8 @@ import logging
 import py_trees
 
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.backend import CallOutBackend
 
 logger = logging.getLogger(__name__)
 
@@ -141,12 +143,12 @@ def test_assign_vul_id_stochastic_bundle_end_to_end():
 
 
 # ---------------------------------------------------------------------------
-# Assign CVE-ID domain (full 16-node tree, issue #1817)
+# Assign CVE-ID domain (13-node tree, issues #1817, #2518)
 # ---------------------------------------------------------------------------
 
 
 def test_assign_cve_id_stochastic_bundle_end_to_end():
-    """STOCHASTIC bundle wires all 14 call-out points to fuzzer nodes."""
+    """STOCHASTIC bundle wires the call-out points to fuzzer nodes."""
     from vultron.core.behaviors.report.assign_cve_id_tree import (
         create_assign_cve_id_tree,
     )
@@ -218,9 +220,9 @@ def test_three_mode_comparison():
 
     # CUSTOM mode — per-field override
     def _custom_deploy_fix(name):
-        class _Custom(py_trees.behaviour.Behaviour):
-            def update(self):
-                return py_trees.common.Status.SUCCESS
+        class _Custom(CallOutBackend):
+            def answer(self) -> CallOutAnswer:
+                return CallOutAnswer.yes()
 
         return _Custom(name="CustomDeployFix")
 
