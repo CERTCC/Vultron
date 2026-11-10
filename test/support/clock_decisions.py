@@ -21,10 +21,12 @@ leaves those nodes out: they are the CASE_MANAGER's decisions, not effects
 of the received activity.
 """
 
+from contextlib import nullcontext
 from datetime import datetime
 
 import py_trees
 
+from test.support.act_clock import clock_at
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -60,7 +62,20 @@ def run_end_time_check(
 ) -> BTExecutionResult:
     """Run the embargo end-time check for *case_id* as *actor_id*, as the
     clock-decision stage runs it: behind its CASE_MANAGER gate, with the
-    real trigger, sync and render ports (CLP-10-025)."""
+    real trigger, sync and render ports (CLP-10-025).
+
+    A pinned *now* pins the clock with it, so what the check commits is
+    stamped at the instant its timestamp checks judge (ADR-0176)."""
+    with clock_at(now) if now is not None else nullcontext():
+        return _run_end_time_check(dl, case_id, actor_id, now)
+
+
+def _run_end_time_check(
+    dl: CaseOutboxPersistence,
+    case_id: str,
+    actor_id: str,
+    now: datetime | None,
+) -> BTExecutionResult:
     return run_tree(
         BTBridge(
             datalayer=dl,

@@ -32,9 +32,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.embargo import copy_commit
-from vultron.core.behaviors.embargo.copy_commit import (
-    commit_and_apply_embargo_entries,
-)
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_participant import CaseParticipant
@@ -54,7 +51,13 @@ from vultron.errors import (
     VultronValidationError,
 )
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    LedgerNetwork,
+    commit_entries_in_act,
+)
 
 _S = EmbargoConsentState
 _CAUSE = "https://example.org/activities/the-act"
@@ -85,9 +88,7 @@ class TestCaseManagerCommitsThenApplies:
         ]
         before = committed_semantic_types(net.stores[MANAGER], net.case_id)
 
-        commit_and_apply_embargo_entries(
-            net.stores[MANAGER], net.case_id, entries
-        )
+        commit_entries_in_act(net.stores[MANAGER], net.case_id, entries)
 
         after = committed_semantic_types(net.stores[MANAGER], net.case_id)
         assert (
@@ -115,7 +116,7 @@ class TestCaseManagerCommitsThenApplies:
         ]
 
         with pytest.raises(VultronEntryRefusedError):
-            commit_and_apply_embargo_entries(dl, net.case_id, entries)
+            commit_entries_in_act(dl, net.case_id, entries)
 
         assert committed_semantic_types(dl, net.case_id) == before
         assert _rows(net.record(MANAGER, BYSTANDER)) == held
@@ -152,7 +153,7 @@ class TestCaseManagerCommitsThenApplies:
         ]
 
         with pytest.raises(RuntimeError):
-            commit_and_apply_embargo_entries(dl, net.case_id, entries)
+            commit_entries_in_act(dl, net.case_id, entries)
 
         assert len(failed) == 2, (
             "the first commit ran before the second failed"
@@ -181,7 +182,7 @@ class TestCaseManagerCommitsThenApplies:
         monkeypatch.setattr(copy_commit, "save_case_file", _fail)
 
         with pytest.raises(OSError, match="disk full"):
-            commit_and_apply_embargo_entries(
+            commit_entries_in_act(
                 dl,
                 net.case_id,
                 [
@@ -200,7 +201,7 @@ class TestCaseManagerCommitsThenApplies:
         """Both entries commit and are announced; a replica that copies them
         holds every row the CASE_MANAGER holds."""
         net = _net("cc-whole")
-        commit_and_apply_embargo_entries(
+        commit_entries_in_act(
             net.stores[MANAGER],
             net.case_id,
             [
@@ -238,7 +239,7 @@ class TestCaseManagerCommitsThenApplies:
         fail_commits(monkeypatch, commit_tree)
 
         with pytest.raises(RuntimeError):
-            commit_and_apply_embargo_entries(
+            commit_entries_in_act(
                 dl,
                 net.case_id,
                 [
@@ -257,7 +258,7 @@ class TestReplicaCopies:
     @pytest.mark.spec("CM-23-016")
     def test_the_replica_holds_the_case_managers_rows(self):
         net = _net("cc-copy")
-        commit_and_apply_embargo_entries(
+        commit_entries_in_act(
             net.stores[MANAGER],
             net.case_id,
             [
@@ -289,7 +290,7 @@ class TestReplicaCopies:
         replica = net.stores[BYSTANDER]
         net.drop_consent_row(BYSTANDER, BYSTANDER)
         diverged = net.record(BYSTANDER, BYSTANDER)
-        commit_and_apply_embargo_entries(
+        commit_entries_in_act(
             net.stores[MANAGER],
             net.case_id,
             [
@@ -469,7 +470,7 @@ class TestReplicaCopies:
         replica = net.stores[BYSTANDER]
         net.drop_consent_row(BYSTANDER, BYSTANDER)
         diverged = net.record(BYSTANDER, BYSTANDER)
-        commit_and_apply_embargo_entries(
+        commit_entries_in_act(
             net.stores[MANAGER],
             net.case_id,
             [
@@ -502,7 +503,7 @@ class TestReplicaCopies:
         net = _net("cc-gap-retry")
         replica = net.stores[BYSTANDER]
         net.drop_consent_row(BYSTANDER, BYSTANDER)
-        commit_and_apply_embargo_entries(
+        commit_entries_in_act(
             net.stores[MANAGER],
             net.case_id,
             [
@@ -554,7 +555,7 @@ class TestReplicaCopies:
         applied = net.record(BYSTANDER, BYSTANDER)
         applied.copy_consent_row(change.row)
         replica.save(applied)
-        commit_and_apply_embargo_entries(
+        commit_entries_in_act(
             net.stores[MANAGER],
             net.case_id,
             [net.planned_consent_entry(change, _CAUSE)],

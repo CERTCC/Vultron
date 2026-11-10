@@ -29,6 +29,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.use_cases.received.conftest import make_embargo_case_with_actor
+from test.support.act_clock import clock_at
 from test.support.act_runner import run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import activate
@@ -245,9 +246,13 @@ def test_the_end_time_decision_judges_at_the_acts_instant(
     offset: timedelta, ended: bool
 ) -> None:
     """The same instant gives the same verdict: an embargo ends at its end
-    time, not a moment before (ADR-0122)."""
+    time, not a moment before (ADR-0122).
+
+    The case is created before its embargo's end, as it is in production, so
+    the ending entry the check commits postdates it (CLP-14-013)."""
     end = _END_TIME
-    dl = _manager_store(end_time=end)
+    with clock_at(end - timedelta(days=30)):
+        dl = _manager_store(end_time=end)
 
     run_end_time_check(dl, _CASE, _OWNER, now=end + offset)
 

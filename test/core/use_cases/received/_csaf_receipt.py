@@ -23,6 +23,7 @@ from typing import Any
 
 from pydantic import JsonValue
 
+from test.support.act_clock import clock_at
 from test.support.act_runner import run_in_act
 from test.support.received import received_event
 from test.wire.csaf._documents import section, vulnerability_report_document
@@ -114,16 +115,18 @@ class Receipt:
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
         self.dl.save(VultronService(id_=receiver_id, name=receiver_name))
 
-    def handle(self) -> HandlerResult:
-        # The inbox runs each delivery inside an act (ADR-0176).
-        return run_in_act(
-            SubmitReportReceivedUseCase(
-                self.dl,
-                self.event,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-            ),
-            at=RECEIVED_AT,
-        )
+    def handle(self, at: datetime = RECEIVED_AT) -> HandlerResult:
+        """Handle the Offer inside an act at *at*, as the inbox does
+        (ADR-0176)."""
+        with clock_at(at):
+            return run_in_act(
+                SubmitReportReceivedUseCase(
+                    self.dl,
+                    self.event,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                ),
+                at=at,
+            )
 
     def records(self) -> list[ReportClaimsRecord]:
         found = self.dl.list_objects("ReportClaimsRecord")
@@ -194,16 +197,17 @@ class CaseManager:
             activity, at=self.dl, receiving_actor_id=self.actor_id
         )
         assert isinstance(event, CreateCaseProposalReceivedEvent)
-        return run_in_act(
-            CreateCaseProposalReceivedUseCase(
-                self.dl,
-                event,
-                sync_port=SyncActivityAdapter(self.dl),
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ),
-            at=at,
-        )
+        with clock_at(at):
+            return run_in_act(
+                CreateCaseProposalReceivedUseCase(
+                    self.dl,
+                    event,
+                    sync_port=SyncActivityAdapter(self.dl),
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                ),
+                at=at,
+            )
 
     def cases(self) -> list[VulnerabilityCase]:
         return [

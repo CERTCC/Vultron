@@ -128,46 +128,6 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
     ),
 )
 
-# Sync rate-limit checks and the replication-state key take the act's instant.
-# owner: #5651
-KNOWN_SYNC_CLOCK_READS: tuple[ClockRead, ...] = (
-    (
-        "vultron/core/behaviors/sync/nodes/genesis_reject.py",
-        "SendGenesisRejectOnMissingCaseNode._reject",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/sync/nodes/invite_resend.py",
-        "_embargo_invite_owed",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/sync/nodes/invite_resend.py",
-        "_record_resend",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/sync/nodes/replay_guard.py",
-        "cooldown_elapsed",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/sync/nodes/replay_guard.py",
-        "record_replay",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/sync/nodes/replay_guard.py",
-        "update_replication_state",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/sync/nodes/reseed.py",
-        "record_reseed",
-        "now_utc",
-    ),
-)
-
 # Core models and time helpers take the act's instant; a caller of a helper
 # whose signature changes is listed with the helper.
 # owner: #5758
@@ -378,16 +338,6 @@ KNOWN_PARSE_EDGE_CLOCK_READS: tuple[ClockRead, ...] = (
 # owner: #5676
 KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
     (
-        "vultron/core/behaviors/sync/nodes/canonical_entry.py",
-        "_validate_entry_timestamps",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/sync/nodes/sender_sequence.py",
-        "HoldPastGapNode.update",
-        "now_utc",
-    ),
-    (
         "vultron/core/use_cases/received/embargo/reject.py",
         "RejectInviteToEmbargoOnCaseReceivedUseCase.execute",
         "now_utc",
@@ -406,7 +356,6 @@ KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
 
 _ALL_LISTS: dict[str, tuple[ClockRead, ...]] = {
     "CLOCK_EDGE_EXEMPTIONS": CLOCK_EDGE_EXEMPTIONS,
-    "KNOWN_SYNC_CLOCK_READS": KNOWN_SYNC_CLOCK_READS,
     "KNOWN_CORE_MODEL_CLOCK_READS": KNOWN_CORE_MODEL_CLOCK_READS,
     "KNOWN_PARSE_EDGE_CLOCK_READS": KNOWN_PARSE_EDGE_CLOCK_READS,
     "KNOWN_UNSLICED_CLOCK_READS": KNOWN_UNSLICED_CLOCK_READS,

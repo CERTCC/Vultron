@@ -266,6 +266,7 @@ def test_clp_14_006_entry_not_before_case_creation():
                 published=(case_created - timedelta(hours=1)).isoformat()
             ),
             case_published=case_created,
+            at=datetime.now(UTC),
         )
 
 
@@ -296,6 +297,7 @@ def test_clp_14_007_future_timestamp_payload_rejected():
             semantic_type="test",
             payload_snapshot=_minimal_payload(published=far_future),
             case_published=T0,
+            at=datetime.now(UTC),
         )
 
 
@@ -310,6 +312,7 @@ def test_clp_14_008_stale_timestamp_payload_rejected():
             semantic_type="test",
             payload_snapshot=_minimal_payload(published=far_past.isoformat()),
             case_published=case_created,
+            at=datetime.now(UTC),
         )
 
 
@@ -403,6 +406,7 @@ def test_clp_15_003_regression_is_reported_not_refused(caplog):
             case_published=T0,
             prev_actor_published=T2,
             staleness_window=None,
+            at=datetime.now(UTC),
         )
 
     assert [r for r in caplog.records if "CLP-15-003" in r.getMessage()]
@@ -425,6 +429,7 @@ def test_clp_15_003_monotonicity_is_scoped_to_one_actor():
         case_published=T0,
         prev_actor_published=None,
         staleness_window=None,
+        at=datetime.now(UTC),
     )
 
 
@@ -445,6 +450,7 @@ def test_clp_15_004_participant_timestamp_reflects_event_time():
             semantic_type="test",
             payload_snapshot=_minimal_payload(published=far_future),
             case_published=T0,
+            at=datetime.now(UTC),
         )
 
 

@@ -19,6 +19,7 @@ trigger-side tests for the same requirements are in
 ``test_case_joining_trigger.py``.
 """
 
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -40,6 +41,7 @@ from test.core.use_cases.triggers.test_case_joining_trigger import (
     _participant_of,
     _send_stub_invite,
 )
+from test.support.act_clock import clock_at
 from test.support.act_runner import FixedClock, run_in_act, run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import (
@@ -145,17 +147,23 @@ def _plain_case(dl: Any, manager_id: str) -> VulnerabilityCase:
 def _terminate(
     dl: Any, owner_id: str, case_id: str, at: datetime | None = None
 ) -> None:
-    """End the embargo as *owner_id*, in an act at *at* (the wall clock)."""
-    run_in_act(
-        SvcTerminateEmbargoUseCase(
-            dl,
-            TerminateEmbargoTriggerRequest(actor_id=owner_id, case_id=case_id),
-            trigger_activity=TriggerActivityAdapter(dl),
-            sync_port=SyncActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            clock=FixedClock(at) if at is not None else SystemClock(),
+    """End the embargo as *owner_id*, in an act at *at* (the wall clock).
+
+    A pinned *at* pins the clock with it, so the termination entry is
+    stamped at the instant its timestamp checks judge (ADR-0176)."""
+    with clock_at(at) if at is not None else nullcontext():
+        run_in_act(
+            SvcTerminateEmbargoUseCase(
+                dl,
+                TerminateEmbargoTriggerRequest(
+                    actor_id=owner_id, case_id=case_id
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                clock=FixedClock(at) if at is not None else SystemClock(),
+            )
         )
-    )
 
 
 @pytest.mark.spec("CM-11-014")
