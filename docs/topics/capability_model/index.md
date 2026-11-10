@@ -193,8 +193,8 @@ A Sentinel is a long-running monitor, so building one needs different infrastruc
 The following is the current catalog of known integration points, organized by domain.
 Use this list to identify which capability you are building toward.
 
-Entries marked with a shape are call-out points: Vultron asks, and your capability answers.
-Entries marked (Sentinel) are not capabilities: they are call-in patterns that watch a condition and call a trigger on their own initiative (see [The Sentinel call-in pattern](#the-sentinel-call-in-pattern)).
+Every entry is a call-out point: Vultron asks, and your capability answers.
+A Sentinel never appears here, because it is a call-in pattern that watches a condition and calls a trigger on its own initiative (see [The Sentinel call-in pattern](#the-sentinel-call-in-pattern)).
 
 ### Report Validation
 
@@ -203,7 +203,7 @@ Entries marked (Sentinel) are not capabilities: they are call-in patterns that w
 - **EvaluateReportCredibility** (Evaluator) — is this report from a credible source?
 - **EvaluateReportValidity** (Evaluator) — does this report describe a real, in-scope vulnerability?
 - **GatherValidationInfo** (Retriever) — collect background information needed to evaluate a report
-- **NewValidationInfoSentinel** (Sentinel) — fires when new validation-relevant information becomes available
+- **NoNewValidationInfo** (Retriever) — has no new validation-relevant information arrived since the last evaluation?
 
 ### Report Prioritization
 
@@ -212,7 +212,7 @@ Entries marked (Sentinel) are not capabilities: they are call-in patterns that w
 - **EvaluateCasePriority** (Evaluator) — assign a priority score to a case; the natural home for an SSVC integration
 - **EnoughPrioritizationInfo** (Evaluator) — is there sufficient information to make a prioritization decision?
 - **GatherPrioritizationInfo** (Retriever) — collect data needed for prioritization
-- **NewPrioritizationInfoSentinel** (Sentinel) — fires when new prioritization-relevant information arrives
+- **NoNewPrioritizationInfo** (Retriever) — has no new prioritization-relevant information arrived since the last evaluation?
 - **OnAccept** / **OnDefer** (Actuators) — notification hooks when a report is accepted or deferred
 
 ### Case Admission
@@ -269,7 +269,7 @@ This domain has one extra level because the ID assignment workflow has distinct 
 *See also: [Deployment behavior](../behavior_logic/deployment_bt.md)*
 
 - **DeployFix** / **PrioritizeDeployment** / **MonitoringRequirement** (Evaluators) — deployment decisions and monitoring judgment calls
-- **NewDeploymentInfoSentinel** (Sentinel) — fires when deployment status changes
+- **NoNewDeploymentInfo** (Retriever) — has no new deployment information arrived, so a deferred deployer can stay deferred?
 
 ### Mitigation Deployment
 
@@ -397,7 +397,6 @@ So when a page says a call-out point "defaults to accept", that describes the st
 **What the shape classes are called in code.**
 The shape base classes are being renamed to `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability` ([ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), [#3421](https://github.com/CERTCC/Vultron/issues/3421)).
 Until that lands, the code uses names such as `EvaluatorCallOutPoint`.
-The fuzzer's leftover Sentinel call-out classes are being removed under [#3424](https://github.com/CERTCC/Vultron/issues/3424).
 
 ### Still open
 

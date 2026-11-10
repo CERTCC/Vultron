@@ -53,34 +53,13 @@ This tree models how a participant deploys a developed fix or mitigation to affe
 - **Automation potential**: **High** — metadata timestamp or deployment-event subscription check.
   Full automation is possible.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.NoNewDeploymentInfo`
-- **Call-out point shape**: ProtocolInternal — reads a change-detection flag written by the upstream `NewDeploymentInfoSentinel` (see the next entry).
-  The external seam is at that upstream writer, not at this behavior tree (BT) condition check.
-- **Factory-fn placement**: `CheckNoNewDeploymentInfoNode` in `vultron.core.behaviors.report.nodes.deploy_fix` — ProtocolInternal condition check in the `_ShouldStayInRmDeferred` arm of the `DeployFixBT` Fallback.
-  `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree` builds this Fallback, and `create_deploy_mitigation_tree` uses it again.
-  It reads the blackboard key `new_deployment_info` (`NEW_DEPLOYMENT_INFO_KEY`) and defaults to SUCCESS when the key is absent.
-  Not a factory param: there is no injection seam at this node.
-
-### `NewDeploymentInfoSentinel` *(upstream Sentinel stub)*
-
-- **Node name**: `NewDeploymentInfoSentinel`
-- **btz type**: *(not a BT node — upstream agent seam)*
-- **Source file**: *(to be determined)*
-- **Parent tree**: *(runs independently, outside the BT tick loop)*
-- **Semantic function**: Sentinel — monitors deployment-relevant data sources for new deployment-related events.
-  Examples are a patch management system, a CI/CD pipeline, or an asset inventory.
-  The Sentinel writes a change-detection flag that `NoNewDeploymentInfo` reads.
-- **Input dependency**: Patch management system event stream, CI/CD pipeline notifications, or asset-inventory change feed.
-  A metadata timestamp comparison or an event subscription on deployment-relevant case fields.
-- **Notes**: This is the real seam implied by `NoNewDeploymentInfo`.
-  The writer registers with an external event source and writes a flag to the BT blackboard or local DataLayer.
-  `NoNewDeploymentInfo` reads that flag each tick.
-- **Automation potential**: **High** — event subscription on the patch management system or CI/CD pipeline.
-  Full automation is possible.
-- **New-arch cross-ref**: `vultron.demo.fuzzer.call_out_point.NewDeploymentInfoSentinel`
-- **Call-out point shape**: Sentinel — pending reclassification.
-  Sentinel is no longer a call-out shape (ADR-0097, BT-18-013), and #3424 tracks the reclassification of this entry.
-- **Factory-fn placement**: Not placed in the BT tree.
-  It writes the `new_deployment_info` blackboard key that `CheckNoNewDeploymentInfoNode` reads
+- **Call-out point shape**: Retriever (binary) — the tree asks the deployment data sources on its own tick whether anything new has arrived, such as a patch management system, a CI/CD pipeline, or an asset inventory.
+  The answer is the `SUCCESS` or `FAILURE` result itself, with no output keys (BT-18-006, BT-18-010).
+  It is not ProtocolInternal, because its input comes from outside the protocol (BT-18-017).
+  It is not a Sentinel: a Sentinel acts on its own initiative through a trigger and never answers a question the tree asks (BT-18-013).
+- **Factory-fn placement**: `no_new_deployment_info_factory` on `DeploymentMonitoringBundle`, so both `DeployFixCallOutBundle` and `DeployMitigationCallOutBundle` carry it.
+  `create_stay_deferred_arm` in `vultron.core.behaviors.report.deploy_fix_tree` places it second in the `_ShouldStayInRmDeferred` arm, which both `create_deploy_fix_tree` and `create_deploy_mitigation_tree` use.
+  DETERMINISTIC default: `AlwaysSucceed` (p=0.75, BT-23-002), so a deferred deployer stays deferred.
 
 ### `PrioritizeDeployment`
 

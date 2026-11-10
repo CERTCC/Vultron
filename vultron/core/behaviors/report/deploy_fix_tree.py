@@ -22,7 +22,7 @@ fix-deployment workflow as a ``DeployFixBT`` Fallback:
     ├─ CSinStateFixDeployed                 # short-circuit: fix already deployed
     ├─ _ShouldStayInRmDeferred (Sequence)
     │  ├─ RMinStateDeferred
-    │  └─ CheckNoNewDeploymentInfoNode
+    │  └─ <NoNewDeploymentInfo call-out>    # Retriever, injected
     ├─ _DeployFixIfReady (Sequence)
     │  ├─ CheckDeployerRoleNode
     │  ├─ CheckRMStateAccepted
@@ -40,7 +40,11 @@ a flat Sequence with no guard nodes (Concern #1813).
 
 Call-out injection seams (ADR-0025 / BT-18-004)
 -----------------------------------------------
-Four factories on :class:`DeployFixCallOutBundle`:
+Five factories on :class:`DeployFixCallOutBundle`:
+
+- **NoNewDeploymentInfo** — ``no_new_deployment_info_factory`` (binary
+  Retriever, p=0.75 → AlwaysSucceed); shared with the mitigation tree through
+  :func:`create_stay_deferred_arm`
 
 - **PrioritizeDeployment** — ``prioritize_deployment_factory`` (Evaluator,
   p=0.90 → AlwaysSucceed)
@@ -76,7 +80,6 @@ from vultron.core.behaviors.report.nodes.conditions import (
 )
 from vultron.core.behaviors.report.nodes.deploy_fix import (
     CheckCSFixNotYetDeployed,
-    CheckNoNewDeploymentInfoNode,
     CSinStateFixDeployed,
     EmitCDActivity,
     RMinStateDeferred,
@@ -87,8 +90,42 @@ if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.deploy_fix import (
         DeployFixCallOutBundle,
     )
+    from vultron.core.behaviors.call_out.bundles.deploy_monitoring import (
+        DeploymentMonitoringBundle,
+    )
 
 logger = logging.getLogger(__name__)
+
+
+def create_stay_deferred_arm(
+    case_id: str,
+    actor_id: str,
+    bundle: "DeploymentMonitoringBundle",
+) -> py_trees.behaviour.Behaviour:
+    """Build the ``_ShouldStayInRmDeferred`` arm shared by both deployment trees.
+
+    The arm succeeds when the actor's RM state is DEFERRED and the
+    ``NoNewDeploymentInfo`` Retriever reports that no new deployment
+    information has arrived.  That question is a call-out the tree asks on its
+    own tick (BT-18-006), so it comes from the bundle's
+    ``no_new_deployment_info_factory``, not from a blackboard flag (BT-18-013).
+
+    Args:
+        case_id: ID of VulnerabilityCase being processed.
+        actor_id: ID of the actor running the tree.
+        bundle: The deployment bundle that supplies the Retriever backend.
+
+    Returns:
+        The ``_ShouldStayInRmDeferred`` Sequence.
+    """
+    return py_trees.composites.Sequence(
+        name="_ShouldStayInRmDeferred",
+        memory=False,
+        children=[
+            RMinStateDeferred(case_id=case_id, actor_id=actor_id),
+            bundle.no_new_deployment_info_factory("NoNewDeploymentInfo"),
+        ],
+    )
 
 
 def create_deploy_fix_tree(
@@ -111,6 +148,7 @@ def create_deploy_fix_tree(
 
     Call-out injection seams (ADR-0025 / BT-18-004):
 
+    - ``NoNewDeploymentInfo`` — ``no_new_deployment_info_factory``
     - ``PrioritizeDeployment`` — ``prioritize_deployment_factory``
     - ``DeployFix`` — ``deploy_fix_factory``
     - ``MonitoringRequirement`` — ``monitoring_requirement_factory``
@@ -131,14 +169,7 @@ def create_deploy_fix_tree(
 
     result_out: dict = {}
 
-    should_stay_deferred = py_trees.composites.Sequence(
-        name="_ShouldStayInRmDeferred",
-        memory=False,
-        children=[
-            RMinStateDeferred(case_id=case_id, actor_id=actor_id),
-            CheckNoNewDeploymentInfoNode(),
-        ],
-    )
+    should_stay_deferred = create_stay_deferred_arm(case_id, actor_id, bundle)
 
     deploy_fix_if_ready = py_trees.composites.Sequence(
         name="_DeployFixIfReady",

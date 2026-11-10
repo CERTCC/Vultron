@@ -22,7 +22,7 @@ full mitigation-deployment workflow as a ``DeployMitigationBT`` Fallback:
     ├─ <MitigationDeployed call-out>        # Retriever, injected
     ├─ _ShouldStayInRmDeferred (Sequence)
     │  ├─ RMinStateDeferred
-    │  └─ CheckNoNewDeploymentInfoNode
+    │  └─ <NoNewDeploymentInfo call-out>    # Retriever, injected
     ├─ _DeployMitigationIfAvailable (Sequence)
     │  ├─ CheckDeployerRoleNode
     │  ├─ CheckRMStateAccepted
@@ -40,7 +40,11 @@ injection seams only.
 
 Call-out injection seams (ADR-0025 / BT-18-004)
 -----------------------------------------------
-Six factories on :class:`DeployMitigationCallOutBundle`:
+Seven factories on :class:`DeployMitigationCallOutBundle`:
+
+- **NoNewDeploymentInfo** — ``no_new_deployment_info_factory`` (binary
+  Retriever, p=0.75 → AlwaysSucceed), in the stay-deferred arm shared with
+  the fix tree
 
 - **MitigationDeployed** — ``mitigation_deployed_factory`` (Retriever,
   p=0.25 → AlwaysFail)
@@ -71,12 +75,11 @@ import py_trees
 from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
     DEPLOY_MITIGATION_DETERMINISTIC,
 )
+from vultron.core.behaviors.report.deploy_fix_tree import (
+    create_stay_deferred_arm,
+)
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
-)
-from vultron.core.behaviors.report.nodes.deploy_fix import (
-    CheckNoNewDeploymentInfoNode,
-    RMinStateDeferred,
 )
 
 if TYPE_CHECKING:
@@ -105,6 +108,7 @@ def create_deploy_mitigation_tree(
     Call-out injection seams (ADR-0025 / BT-18-004):
 
     - ``MitigationDeployed`` — ``mitigation_deployed_factory``
+    - ``NoNewDeploymentInfo`` — ``no_new_deployment_info_factory``
     - ``MitigationAvailable`` — ``mitigation_available_factory``
     - ``PrioritizeDeployment`` — ``prioritize_deployment_factory``
     - ``DeployMitigation`` — ``deploy_mitigation_factory``
@@ -126,14 +130,7 @@ def create_deploy_mitigation_tree(
         call_out if call_out is not None else DEPLOY_MITIGATION_DETERMINISTIC
     )
 
-    should_stay_deferred = py_trees.composites.Sequence(
-        name="_ShouldStayInRmDeferred",
-        memory=False,
-        children=[
-            RMinStateDeferred(case_id=case_id, actor_id=actor_id),
-            CheckNoNewDeploymentInfoNode(),
-        ],
-    )
+    should_stay_deferred = create_stay_deferred_arm(case_id, actor_id, bundle)
 
     deploy_mitigation_if_available = py_trees.composites.Sequence(
         name="_DeployMitigationIfAvailable",

@@ -1,0 +1,181 @@
+#!/usr/bin/env python
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Sentinel is not a call-out capability shape (BT-18-013, ADR-0097).
+
+There are four call-out shapes: Evaluator, Retriever, Composer and Actuator. A
+Sentinel is a call-in pattern: it watches a condition and calls a trigger on
+its own initiative, so it has no call-out point node, no blackboard contract,
+no domain bundle field and no backend factory.
+
+This check imports every module of the call-out taxonomy — the shape mixins
+and fuzzer nodes in ``vultron/demo/fuzzer/`` and the bundles and backends in
+``vultron/core/behaviors/call_out/`` — and fails when:
+
+- a class there is a Sentinel shape base, or subclasses one; or
+- a call-out bundle exposes a Sentinel factory field.
+"""
+
+import dataclasses
+import importlib
+import pkgutil
+from types import ModuleType
+
+import pytest
+
+import vultron.core.behaviors.call_out as core_call_out
+import vultron.demo.fuzzer as demo_fuzzer
+from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
+from vultron.demo.fuzzer import call_out_point
+
+_TAXONOMY_PACKAGES = (core_call_out, demo_fuzzer)
+
+#: The four call-out shape mixins (BT-18-013).
+_SHAPE_BASES: tuple[type, ...] = (
+    call_out_point.EvaluatorCallOutPoint,
+    call_out_point.RetrieverCallOutPoint,
+    call_out_point.ComposerCallOutPoint,
+    call_out_point.ActuatorCallOutPoint,
+)
+
+
+def _is_sentinel_name(name: str) -> bool:
+    return "sentinel" in name.lower()
+
+
+def _taxonomy_modules() -> list[ModuleType]:
+    """Import and return every module in the call-out taxonomy packages."""
+    modules: list[ModuleType] = []
+    for package in _TAXONOMY_PACKAGES:
+        modules.append(package)
+        for info in pkgutil.walk_packages(
+            package.__path__, prefix=f"{package.__name__}."
+        ):
+            modules.append(importlib.import_module(info.name))
+    return modules
+
+
+def _taxonomy_classes() -> set[type]:
+    """Every class defined in a call-out taxonomy module."""
+    modules = _taxonomy_modules()
+    names = {m.__name__ for m in modules}
+    return {
+        obj
+        for module in modules
+        for obj in vars(module).values()
+        if isinstance(obj, type) and obj.__module__ in names
+    }
+
+
+def _all_subclasses(cls: type) -> set[type]:
+    found: set[type] = set()
+    pending: list[type] = list(cls.__subclasses__())
+    while pending:
+        sub = pending.pop()
+        if sub not in found:
+            found.add(sub)
+            pending.extend(sub.__subclasses__())
+    return found
+
+
+def sentinel_shape_violations(classes: set[type]) -> list[str]:
+    """Name each class that is, or descends from, a Sentinel shape base."""
+    violations: list[str] = []
+    for cls in classes:
+        sentinel_bases = [
+            base.__qualname__
+            for base in cls.__mro__
+            if _is_sentinel_name(base.__name__)
+        ]
+        if sentinel_bases:
+            violations.append(
+                f"{cls.__module__}.{cls.__qualname__} "
+                f"(Sentinel in MRO: {', '.join(sentinel_bases)})"
+            )
+    return sorted(violations)
+
+
+def sentinel_bundle_field_violations(bundles: set[type]) -> list[str]:
+    """Name each bundle field that offers a Sentinel factory."""
+    return sorted(
+        f"{bundle.__qualname__}.{field.name}"
+        for bundle in bundles
+        if dataclasses.is_dataclass(bundle)
+        for field in dataclasses.fields(bundle)
+        if _is_sentinel_name(field.name)
+    )
+
+
+def _taxonomy_bundles() -> set[type]:
+    _taxonomy_modules()
+    return {
+        b
+        for b in _all_subclasses(CallOutBundle)
+        if dataclasses.is_dataclass(b)
+    }
+
+
+@pytest.mark.spec("BT-18-013")
+def test_no_sentinel_shape_base_or_subclass_in_call_out_taxonomy() -> None:
+    classes = _taxonomy_classes()
+    shaped = {c for c in classes if issubclass(c, _SHAPE_BASES)}
+    assert len(shaped) > len(_SHAPE_BASES), (
+        "found no capability subclasses — the scan is not reaching the "
+        "fuzzer nodes"
+    )
+    assert sentinel_shape_violations(classes) == []
+
+
+@pytest.mark.spec("BT-18-013")
+def test_shape_subclasses_are_never_sentinels() -> None:
+    """Covers subclasses defined outside the scanned packages too."""
+    _taxonomy_modules()
+    subclasses = {s for base in _SHAPE_BASES for s in _all_subclasses(base)}
+    assert subclasses
+    assert sentinel_shape_violations(subclasses) == []
+
+
+@pytest.mark.spec("BT-18-013")
+def test_no_bundle_exposes_a_sentinel_factory_field() -> None:
+    bundles = _taxonomy_bundles()
+    assert len(bundles) > 1, "found no call-out bundles to check"
+    assert sentinel_bundle_field_violations(bundles) == []
+
+
+def test_shape_check_catches_a_sentinel_base_and_its_subclass() -> None:
+    class SentinelCallOutPoint:
+        pass
+
+    class WatchesSomething(SentinelCallOutPoint):
+        pass
+
+    class Unrelated:
+        pass
+
+    violations = sentinel_shape_violations(
+        {SentinelCallOutPoint, WatchesSomething, Unrelated}
+    )
+    assert len(violations) == 2
+    assert any("WatchesSomething" in v for v in violations)
+
+
+def test_bundle_check_catches_a_sentinel_factory_field() -> None:
+    @dataclasses.dataclass(frozen=True)
+    class _Bundle:
+        evaluate_factory: object = None
+        new_info_sentinel_factory: object = None
+
+    assert sentinel_bundle_field_violations({_Bundle}) == [
+        "test_bundle_check_catches_a_sentinel_factory_field.<locals>."
+        "_Bundle.new_info_sentinel_factory"
+    ]

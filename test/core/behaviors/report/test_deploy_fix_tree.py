@@ -17,10 +17,12 @@ Covers all acceptance criteria from issue #1825:
 
 - AC-1: DeployFixBT Fallback with four arms (early-exit, stay-deferred,
   deploy-if-ready, monitor-if-desired)
-- AC-2: DeployFixCallOutBundle reduced to 4 fields (deploy_mitigation removed)
+- AC-2: DeployFixCallOutBundle has 5 fields (deploy_mitigation removed; the
+  NoNewDeploymentInfo Retriever added by #3424)
 - AC-3: CheckDeployerRoleNode reused; CheckRMStateAccepted reused;
   CheckCSFixNotYetDeployed new guard node
-- AC-4: CheckNoNewDeploymentInfoNode reads blackboard flag; defaults SUCCESS
+- #3424: the stay-deferred arm asks the NoNewDeploymentInfo binary Retriever
+  call-out (BT-18-006), which replaced a blackboard flag nothing wrote
 - AC-5: TransitionCStoFixDeployed + EmitCDActivity
 - AC-7: Bundle injection, tree structure, guard presence, factory seams,
   early-exit short-circuit
@@ -48,9 +50,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
 )
 from vultron.core.behaviors.report.nodes.deploy_fix import (
-    NEW_DEPLOYMENT_INFO_KEY,
     CheckCSFixNotYetDeployed,
-    CheckNoNewDeploymentInfoNode,
     CSinStateFixDeployed,
     EmitCDActivity,
     RMinStateDeferred,
@@ -216,13 +216,13 @@ def test_tree_has_four_arms():
 
 
 def test_should_stay_deferred_arm_composition():
-    """_ShouldStayInRmDeferred = RMinStateDeferred + CheckNoNewDeploymentInfo."""
+    """_ShouldStayInRmDeferred = RMinStateDeferred + NoNewDeploymentInfo call-out."""
     tree = create_deploy_fix_tree(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID)
     arm = tree.children[1]
     assert isinstance(arm, py_trees.composites.Sequence)
     assert len(arm.children) == 2
     assert isinstance(arm.children[0], RMinStateDeferred)
-    assert isinstance(arm.children[1], CheckNoNewDeploymentInfoNode)
+    assert arm.children[1].name == "NoNewDeploymentInfo"
 
 
 def test_deploy_if_ready_arm_composition():
@@ -251,12 +251,12 @@ def test_monitor_arm_composition():
 
 
 # ---------------------------------------------------------------------------
-# AC-2 / AC-7: DeployFixCallOutBundle has exactly 4 fields
+# AC-2 / AC-7: DeployFixCallOutBundle has exactly 5 fields
 # ---------------------------------------------------------------------------
 
 
-def test_bundle_has_four_fields():
-    """DeployFixCallOutBundle reduced to 4 fields (deploy_mitigation removed)."""
+def test_bundle_has_five_fields():
+    """DeployFixCallOutBundle: 5 fields (deploy_mitigation removed)."""
     import dataclasses
 
     field_names = {f.name for f in dataclasses.fields(DeployFixCallOutBundle)}
@@ -265,6 +265,7 @@ def test_bundle_has_four_fields():
         "deploy_fix_factory",
         "monitoring_requirement_factory",
         "monitor_deployment_factory",
+        "no_new_deployment_info_factory",
     }
     assert "deploy_mitigation_factory" not in field_names
 
@@ -272,8 +273,11 @@ def test_bundle_has_four_fields():
 def test_default_call_out_children_are_deterministic():
     """DETERMINISTIC: ceiling/floor of each node's stochastic p (BT-23-002)."""
     tree = create_deploy_fix_tree(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID)
+    stay_arm = tree.children[1]
     deploy_arm = tree.children[2]
     monitor_arm = tree.children[3]
+    # NoNewDeploymentInfo p=0.75 → AlwaysSucceed
+    assert isinstance(unwrap_call_out(stay_arm.children[1]), AlwaysSucceed)
     # PrioritizeDeployment p=0.90 → AlwaysSucceed
     assert isinstance(unwrap_call_out(deploy_arm.children[3]), AlwaysSucceed)
     # DeployFix p=0.10 → AlwaysFail
@@ -315,6 +319,7 @@ def _marker_factory(label: str):
 
 # (field, label, arm_index, child_index within arm)
 _CALL_OUT_SEAMS = [
+    ("no_new_deployment_info_factory", "NN", 1, 1),
     ("prioritize_deployment_factory", "PD", 2, 3),
     ("deploy_fix_factory", "DF", 2, 4),
     ("monitoring_requirement_factory", "MR", 3, 0),
@@ -324,7 +329,7 @@ _CALL_OUT_SEAMS = [
 
 @pytest.mark.parametrize("field,label,arm_idx,child_idx", _CALL_OUT_SEAMS)
 def test_each_factory_is_wired(field, label, arm_idx, child_idx):
-    """Each of the 4 factory fields is individually wired into the tree."""
+    """Each of the 5 factory fields is individually wired into the tree."""
     sentinel = {"called": False}
 
     def custom_factory(name: str) -> py_trees.behaviour.Behaviour:
@@ -350,12 +355,13 @@ def test_all_factories_replaceable():
         monitoring_requirement_factory=_marker_factory("MR"),  # type: ignore[arg-type]
         deploy_fix_factory=_marker_factory("DF"),  # type: ignore[arg-type]
         monitor_deployment_factory=_marker_factory("MD"),  # type: ignore[arg-type]
+        no_new_deployment_info_factory=_marker_factory("NN"),  # type: ignore[arg-type]
     )
     tree = create_deploy_fix_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
     )
     tree_str = py_trees.display.ascii_tree(tree)
-    for label in ("PD", "MR", "DF", "MD"):
+    for label in ("NN", "PD", "MR", "DF", "MD"):
         assert label in tree_str
 
 
@@ -366,6 +372,7 @@ def test_stochastic_bundle_children_are_fuzzer_nodes():
         DeployFix,
         MonitorDeployment,
         MonitoringRequirement,
+        NoNewDeploymentInfo,
         PrioritizeDeployment,
     )
 
@@ -374,8 +381,12 @@ def test_stochastic_bundle_children_are_fuzzer_nodes():
         actor_id=DEPLOYER_ACTOR_ID,
         call_out=DEPLOY_FIX_STOCHASTIC,
     )
+    stay_arm = tree.children[1]
     deploy_arm = tree.children[2]
     monitor_arm = tree.children[3]
+    assert isinstance(
+        unwrap_call_out(stay_arm.children[1]), NoNewDeploymentInfo
+    )
     assert isinstance(
         unwrap_call_out(deploy_arm.children[3]), PrioritizeDeployment
     )
@@ -542,40 +553,30 @@ class TestRMinStateDeferred:
 
 
 # ---------------------------------------------------------------------------
-# AC-4: CheckNoNewDeploymentInfoNode blackboard flag
+# #3424: NoNewDeploymentInfo is a binary Retriever call-out (BT-18-006)
 # ---------------------------------------------------------------------------
 
 
-class TestCheckNoNewDeploymentInfoNode:
-    def test_success_when_flag_absent(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        """Defaults SUCCESS when the blackboard key is absent (AC-4)."""
-        result = bt_scenario.run(
-            CheckNoNewDeploymentInfoNode(), actor_id=DEPLOYER_ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
+def test_new_deployment_info_ends_stay_deferred(
+    bt_scenario: BTTestScenario,
+    case_with_deployer: VulnerabilityCase,
+) -> None:
+    """A Retriever answering "new info arrived" fails the stay-deferred arm.
 
-    def test_success_when_flag_falsy(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        result = bt_scenario.run(
-            CheckNoNewDeploymentInfoNode(),
-            actor_id=DEPLOYER_ACTOR_ID,
-            **{NEW_DEPLOYMENT_INFO_KEY: False},
-        )
-        assert result.status == Status.SUCCESS
-
-    def test_failure_when_flag_truthy(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        """FAILURE when the sentinel wrote a truthy new-info flag."""
-        result = bt_scenario.run(
-            CheckNoNewDeploymentInfoNode(),
-            actor_id=DEPLOYER_ACTOR_ID,
-            **{NEW_DEPLOYMENT_INFO_KEY: True},
-        )
-        assert result.status == Status.FAILURE
+    The answer is the Retriever's return value, not a blackboard flag, so a
+    deferred deployer re-evaluates as soon as the injected backend says so.
+    """
+    _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.DEFERRED)
+    bundle = DeployFixCallOutBundle(
+        no_new_deployment_info_factory=AlwaysFail,  # type: ignore[arg-type]
+    )
+    tree = create_deploy_fix_tree(
+        case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
+    )
+    bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
+    stay_arm = tree.children[1]
+    assert stay_arm.children[0].status == Status.SUCCESS
+    assert stay_arm.status == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------

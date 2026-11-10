@@ -80,7 +80,7 @@ The shape comes from the seam structure, not from the automation potential (BT-1
   It applies only to terminal placeholders and structural composites, never to a node because that node is highly automatable (BT-18-005).
 
 Sentinel is not a call-out shape: it is a call-in pattern with no call-out node to classify (ADR-0097).
-A few entries still read `Sentinel`; #3424 tracks reclassifying them.
+No entry in these catalogs is a Sentinel.
 
 ---
 
