@@ -42,6 +42,7 @@ from vultron.adapters.driven.http_retry import (
     TerminalAttemptError,
     retry_with_backoff,
 )
+from vultron.adapters.driving.fastapi.responses import AS2_CONTENT_TYPE
 from vultron.core.ports.emitter import (  # noqa: F401 — port reference
     ActivityEmitter,
 )
@@ -213,7 +214,7 @@ class HttpDeliveryAdapter:
                 response = await client.post(
                     inbox_url,
                     content=json_body,
-                    headers={"Content-Type": "application/json"},
+                    headers={"Content-Type": AS2_CONTENT_TYPE},
                     timeout=self._timeout,
                 )
                 response.raise_for_status()

@@ -60,15 +60,6 @@ def _media_type(content_type: str) -> tuple[str, str | None]:
 
 
 @pytest.mark.spec("HTTP-01-004")
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "HTTP-01-004: the delivery adapter posts with Content-Type "
-        "application/json, not an ActivityStreams media type. "
-        "Tracked by #3660."
-    ),
-)
 def test_delivery_posts_an_activitystreams_media_type() -> None:
     """A delivery POST names one of the two ActivityStreams media types.
 
