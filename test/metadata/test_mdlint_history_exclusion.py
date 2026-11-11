@@ -86,6 +86,12 @@ def test_markdownlint_config_ignores_plan_history() -> None:
 
 _MARKDOWNLINT = shutil.which("markdownlint-cli2")
 
+# The summary line reads "Linting: 0 files" before markdownlint-cli2 0.21 and
+# "Linting: 0 file(s)" from 0.21 on; both mean nothing was linted.
+_LINTED_NONE = re.compile(r"^Linting: 0 file(?:s|\(s\))$", re.MULTILINE)
+# Every run that starts prints this banner before it finds any file.
+_BANNER = "markdownlint-cli2 v"
+
 
 @pytest.mark.spec("HM-01-005")
 @pytest.mark.skipif(
@@ -114,7 +120,12 @@ def test_markdownlint_reaches_no_history_entry() -> None:
             timeout=120,
         )
         output = result.stdout + result.stderr
-        assert "Linting: 0 files" in output, (
+        if _BANNER not in output:
+            # The tool never started (e.g. its node runtime cannot load), so it
+            # gave no verdict on the exclusion; a failure here would blame the
+            # repo for the host.
+            pytest.skip(f"markdownlint-cli2 did not run:\n{output}")
+        assert _LINTED_NONE.search(output), (
             f"markdownlint-cli2 reached plan/history/ for {target!r}; "
             f"history entries must stay out of every run (HM-01-005).\n{output}"
         )
