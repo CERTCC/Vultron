@@ -91,7 +91,10 @@ def _run(
         ),
         tree=tree,
         actor_id=actor_id,
-        at=_NOW,
+        # The run's instant is read when it runs, not at import: a case made
+        # minutes after collection must not postdate the act's ledger entry
+        # (CLP-14-013's clock-skew tolerance).
+        at=datetime.now(tz=UTC),
     )
     return node.status
 
