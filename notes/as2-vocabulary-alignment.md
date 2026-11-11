@@ -19,7 +19,7 @@ tracks:
   - "#6247"   # ledger and status histories as ordered collections
   - "#6254"   # Refuse(Reject)
   - "#6248"   # instrument, generator, tag
-  - "#6249"   # CaseReference as a Link
+  - "#6239"   # CaseReference holds a Link (#6249 closed as its duplicate)
   - "#6250"   # Update forms; dead CREATE_REPORT / REMOVE_NOTE paths
   - "#6251"   # approvals as Offer of the act
   - "#6252"   # TentativeAccept and Undo withdrawal
@@ -80,7 +80,7 @@ Issue: #6242.
 the splitter's choice:
 
 - An item that leaves the origin is `Move(x, origin=<parent>, target=<child>)`, e.g.
-  vul2's record goes to the child.
+  vul2's `VulnerabilityItem` goes to the child.
 - An item kept in both is `Add(x, origin=<parent>, target=<child>)`, e.g. the
   original report that describes both vuls.
 - A participant is carried as its **actor**: `CaseParticipant` is per (case, actor),
@@ -94,6 +94,9 @@ the splitter's choice:
   After the child's ownership is transferred, the parent's Owner can no longer move
   anything into it. Any other pair of cases uses `Add` (and `Remove`) as separate
   acts. Putting an actor into a second case is `Add`.
+
+`VulnerabilityItem` is ADR-0187's name for the former `VulnerabilityRecord` (PR #6262,
+issue #5132); this note uses the new name throughout.
 
 **AS2 basis.** VOC Move: "the actor has moved object from origin to target". VOC
 Add notes: "The origin can be used to identify the context from which the object
@@ -413,9 +416,9 @@ decides on them.
   (SSVC on RM `Join`/`Ignore` first).
 - `generator`: the protocol MAY carry it; the reference implementation SHOULD build
   it as a configurable on/off feature naming the implementation (and optionally its
-  version). Default off is assumed, because a version in every message tells every
-  participant which known vulnerabilities a deployment has — confirm in planning.
-- `tag`: an object refers *by reference* to a `VulnerabilityRecord`, a weakness class
+  version). It defaults to off (confirmed by the user), because a version in every
+  message tells every participant which known vulnerabilities a deployment has.
+- `tag`: an object refers *by reference* to a `VulnerabilityItem`, a weakness class
   (a Link to the CWE entry), or a participant (`Mention`, e.g. "V2, please look at this
   note"). A tag never changes recipients or entitlement (CM-10-004).
 
@@ -428,32 +431,41 @@ reference"; a `Mention` in `tag` is "a mention without an associated notificatio
 **Today.** All three are declared on `as_Object` / the activity base and never set.
 Call-outs have no wire form (`notes/call-out-configuration.md`).
 
-**Touches.** #5132 (the case's own vulnerability-record list is the inclusion side;
-`tag` is the reference side — plan them together); the JSON-LD term rule.
+**Touches.** #5132 / ADR-0187 (the case's own `VulnerabilityItem` list is the
+inclusion side; `tag` is the reference side — plan them together); the JSON-LD term
+rule.
 
 ---
 
-## CaseReference Is a Link
+## CaseReference Holds a Link
 
-Issue: #6249.
+Issue: #6239.
 
-**Decision.** `CaseReference` becomes a subtype of `as:Link`: `url` → `href`, `name`
-stays, the CVE reference tags (`patch`, `vendor-advisory`, …) → `rel` values. The
-subtype keeps the domain name and the vocabulary check. Unregistered relation types
-are URIs (e.g. under `https://certcc.github.io/Vultron/ns/rel/`).
+**Decision.** `CaseReference` stays an `as:Object`, with its own id and the CM-34
+lifecycle (offered, admitted or declined, ledgered). Its `url` holds an `as:Link`:
 
-**AS2 basis.** VOC `rel`: "The value MUST conform to both the [HTML5] and [RFC5988]
-'link relation' definitions"; not functional. RFC 8288: extension relation types are
-URIs. CORE §4.2: Link properties are hints about the referenced resource.
+- `href` is the referenced resource; `name` and `mediaType` describe it;
+- the CVE reference tags (`patch`, `vendor-advisory`, …) become the Link's `rel`
+  values. Unregistered relation types are URIs, e.g. under
+  `https://certcc.github.io/Vultron/ns/rel/`. The Vultron `tags` field goes away.
+- The vocabulary check moves from `tags` to `rel`.
 
-**Today.** `vultron/core/models/case_reference.py` (`tags`, validated against
-`CASE_REFERENCE_TAG_VOCABULARY`). #5132 covers a case-level reference list.
+This replaces an earlier choice to make `CaseReference` a Link subtype: `as:Link` is
+disjoint with `as:Object` in the AS2 ontology, and a Link is a hint about another
+resource, not a resource with its own id and lifecycle.
 
-**Touches.** CM-05-004, CM-05-010, #5132, and a future FIRST VRDX-SIG vxref Idea
-(`FIRSTdotorg/vrdx-sig-vxref-wip`), which may supply the `rel` vocabulary.
+**AS2 basis.** VOC `url`: "links to representations of the object", range
+`xsd:anyURI | Link`. VOC `rel`: "The value MUST conform to both the [HTML5] and
+[RFC5988] 'link relation' definitions"; not functional. RFC 8288: extension relation
+types are URIs. CORE §4.2: Link properties are hints about the referenced resource.
 
-**Open for planning.** If a reference needs its own id, author or lifecycle, it must
-stay an Object: a Link is not a resource.
+**Today.** `vultron/core/models/case_reference.py` (`url`, `name`, `tags` validated
+against `CASE_REFERENCE_TAG_VOCABULARY`). ADR-0187 and CM-34-003 (PR #6262) give a
+case a reference list and the offer lifecycle.
+
+**Touches.** CM-05-004, CM-05-010, CM-34-003, ADR-0187, CSAF-03-009, and a future
+FIRST VRDX-SIG vxref Idea (`FIRSTdotorg/vrdx-sig-vxref-wip`), which may supply the
+`rel` vocabulary.
 
 ---
 
@@ -467,10 +479,20 @@ Issue: #6250.
 
 - `Update(Note)` by its author;
 - `Update(VulnerabilityReport)` by its Reporter;
-- `Update(VulnerabilityRecord)`, e.g. a CVE id assigned;
 - `Update(CaseParticipant)` by that participant, for its own details.
 
 `Remove(Note, origin=<case>)` takes a note out of a case.
+
+A `VulnerabilityItem` is case content, not one participant's own object, so a
+participant changes it by offering the `Update` to the CASE_MANAGER
+(`Offer(Update(VulnerabilityItem))[target=case]`, CM-34-002, ADR-0187), the
+pattern of § "Approvals Are Offers of the Act".
+
+**`Update` is partial.** ADR-0187 decides that an `Update` replaces the fields it
+carries and leaves the rest. Every `Update` in this note follows that meaning,
+including the merge freeze and the embargo end. AS2 itself leaves `Update`'s scope
+open (ActivityPub makes client-to-server `Update` partial and server-to-server a full
+replacement), so the meaning is Vultron's rule, not AS2's.
 
 **Today.** `Update` is sent only by the CASE_MANAGER (case owner, participant records,
 consent rows) and nothing receives it. `REMOVE_NOTE_FROM_CASE` has a received use case
@@ -499,7 +521,11 @@ and stays, plus the `inReplyTo` above.
 Folder A"); `Question` is intransitive, with `oneOf`/`anyOf`, answers as separate
 objects with `inReplyTo`, the outcome in `result`, and `closed`.
 
-**Touches.** RSH-07-004, `RequireCaseOwnerApprovalNode`, ADR-0148.
+Item and reference offers (CM-34-001 to CM-34-004, ADR-0187) already follow this
+pattern.
+
+**Touches.** RSH-07-004, `RequireCaseOwnerApprovalNode`, #2885 (the same gap from the
+ask side), ADR-0148, CM-34.
 
 **Open for planning (separate Idea).** A `Question` poll "what is the latest end date
 you would accept?", after which the CASE_MANAGER proposes the earliest answer
@@ -559,6 +585,28 @@ are Concerns #6259, #6260 and #6261.
 - **`preview` beyond the stub** (#6257). A report previewed to a prospective
   recipient, a reserved vul record, a draft advisory, what non-signatories may see
   of a gated object.
+
+## Sources
+
+Where the cited specifications live, so a planner can check a quotation:
+
+- **AS2 Vocabulary** (`VOC`): <https://www.w3.org/TR/activitystreams-vocabulary/>.
+  **AS2 Core** (`CORE`): <https://www.w3.org/TR/activitystreams-core/>.
+- **AS2 source, errata and issues**: <https://github.com/w3c/activitystreams>
+  (`ERRATA.md`, `activitystreams2.owl`, `ns/activitystreams.jsonld`; issue numbers
+  such as #534, #609, #619 are in that repository). The JSON-LD context is served at
+  <https://www.w3.org/ns/activitystreams>.
+- **Primer**: <https://www.w3.org/wiki/Activity_Streams/Primer>.
+- **ActivityPub** (cited only for Update, Delete, Add, Remove, Undo):
+  <https://www.w3.org/TR/activitypub/>.
+- **FEP-8a8e** (event status): <https://codeberg.org/fediverse/fep>, file
+  `fep/8a8e/fep-8a8e.md`. **schema.org `eventStatus`**:
+  <https://schema.org/eventStatus>.
+- **RFC 8288** (link relations, extension relation URIs):
+  <https://www.rfc-editor.org/rfc/rfc8288>.
+- **CSAF 2.1**: <https://github.com/oasis-tcs/csaf>. **CVE record schema** (reference
+  tags): <https://github.com/CVEProject/cve-schema>. **FIRST VRDX-SIG vxref**:
+  <https://github.com/FIRSTdotorg/vrdx-sig-vxref-wip>.
 
 ## Closed With No Change
 
