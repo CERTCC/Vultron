@@ -75,7 +75,8 @@ Every named capability is declared once, in core, under
 - Derive any per-capability list from `capability_declarations()`, never a hand-kept
   list: a DETERMINISTIC default that must write a capability's outputs (#3422) reads
   its `OUTPUT_PORTS`, and the docs catalog (#3425) is ratcheted against the same
-  roster. Reason: a second list drifts, which is what ADR-0097 decision 1 removed.
+  roster. Reason: a second list drifts, which is what
+  ADR-0097#core-declared-typed-port-contract removed.
 - A new capability (#3426) adds a declaration there, then a fuzzer node that
   subclasses it; the roster tests then require the docstring contract to match the
   ports and the node to write every output on *yes*

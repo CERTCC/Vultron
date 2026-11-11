@@ -15,7 +15,7 @@
 
 The shape base classes moved to
 :mod:`vultron.core.behaviors.call_out.capability` and took the capability
-vocabulary (ADR-0097 decision 6):
+vocabulary (ADR-0097#shape-base-classes-move-to-core-and-are-renamed):
 
 - ``EvaluatorCallOutPoint`` is
   :class:`~vultron.core.behaviors.call_out.capability.EvaluatorCapability`;

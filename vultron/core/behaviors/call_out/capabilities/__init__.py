@@ -22,7 +22,8 @@ and subclasses it, so the contract is stated once, here.
 
 :func:`capability_declarations` enumerates them, so a check or a default
 that must cover every capability derives its roster from the declarations
-rather than from a hand-kept list (ADR-0097 decision 1).
+rather than from a hand-kept list
+(ADR-0097#core-declared-typed-port-contract).
 
 The modules are imported only by :func:`capability_declarations`, never by
 this package's import, so a bundle importing one declaration does not pull

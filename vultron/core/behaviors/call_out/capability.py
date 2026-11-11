@@ -15,7 +15,9 @@
 
 A **capability** is a named call-out point: one question a tree asks a
 service the actor runs.  It is declared once, in core, as a subclass of one
-of the four shape base classes here (ADR-0097 decisions 1 and 6):
+of the four shape base classes here
+(ADR-0097#core-declared-typed-port-contract,
+ADR-0097#shape-base-classes-move-to-core-and-are-renamed):
 
 - :class:`EvaluatorCapability` records a decision;
 - :class:`RetrieverCapability` returns facts from an outside source;

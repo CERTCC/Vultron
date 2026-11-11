@@ -16,7 +16,8 @@
 Covers:
 
 - The four shape bases live in core under the capability names, and there is
-  no fifth (ADR-0097 decisions 5 and 6).
+  no fifth (ADR-0097#sentinel-demoted-to-call-in-pattern,
+  ADR-0097#shape-base-classes-move-to-core-and-are-renamed).
 - A declaration's ``contract`` is derived from its ports, never set by hand,
   and a class that binds to a declaration cannot declare ports again
   (BT-18-012, BT-18-021).
