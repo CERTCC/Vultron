@@ -10,12 +10,13 @@ tracks:
   - "#1893"
   - "#1943"
   - "#2450"
-  - "#3426"
+  - "#5415"
   - "#6078"
+  - "#6152"
 description: >
   Design for the capability layer's unbuilt work: the participant-suggestion
-  port (#3426) and the Sentinel call-in
-  pattern (#2450). Also states the
+  port's static demo adapter (#6152) and its Sentinel caller (#5415), and the
+  Sentinel call-in pattern (#2450). Also states the
   call-out time budget rule, routes a design question to a capability, an
   ask, or a call-in monitor, and says why Sentinel is not a fifth shape; the call-in and
   call-out surfaces themselves are defined in call-out-configuration.md.
@@ -62,7 +63,7 @@ because no answer exists at the moment of asking (ADR-0080). If the answer must
 come from a peer, see `notes/protocol-asks.md`. A synchronous boolean query of an
 external system is a **Retriever**, never a Sentinel (BT-18-013).
 
-## Capability Declarations Are the Roster (#3426)
+## Capability Declarations Are the Roster
 
 Every named capability is declared once, in core, under
 `vultron/core/behaviors/call_out/capabilities/`, as a subclass of a shape base in
@@ -81,7 +82,7 @@ Every named capability is declared once, in core, under
   `docs/topics/capability_model/index.md` that names the module in a
   `render_capability_table` block; `test/metadata/docs/test_capability_catalog.py`
   fails until it does, because the page's headings and prose are hand-written.
-- A new capability (#3426) adds a declaration there, then a fuzzer node that
+- A new capability adds a declaration there, then a fuzzer node that
   subclasses it; the roster tests then require the docstring contract to match the
   ports and the node to write every output on *yes*
   (`test/core/behaviors/call_out/test_capability_declarations.py`).
@@ -208,7 +209,12 @@ store; otherwise one actor's private triage would replicate to every
 participant. An actor that wants others to see its reasoning sends it, for
 example as a Note.
 
-## Participant Suggestion: One Port, Two Callers (#3426)
+## Participant Suggestion: One Port, Two Callers
+
+The port is `vultron/core/ports/participant_suggestion.py`; the service every
+caller goes through is `suggest_case_participants` in
+`vultron/core/services/participant_suggestion.py`; the context and suggestion
+models are in `vultron/core/models/participant_suggestion.py`.
 
 - **"Who else should be in this case?" is one driven port, not a call-out
   capability.** A thin Retriever call-out wraps it for a tree, and a Sentinel
