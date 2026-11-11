@@ -258,7 +258,8 @@ def test_an_actuator_declares_no_outputs() -> None:
 
 def test_a_binary_evaluator_and_retriever_declare_nothing() -> None:
     for shape_base in (EvaluatorCapability, RetrieverCapability):
-        cls: type[Capability] = type("_Binary", (shape_base,), {})
+        cls = type("_Binary", (shape_base,), {})
+        assert issubclass(cls, Capability)
         assert cls.contract.outputs == {}
 
 
