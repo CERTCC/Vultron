@@ -404,3 +404,15 @@ def test_a_floor_binding_refuses_a_capability_with_refusal_ports():
 
     with pytest.raises(TypeError, match="declares refusal ports"):
         always_fail_as(_RefusesCapability)
+
+
+def test_an_actuator_floor_binding_answers_no_once_bound():
+    from vultron.core.behaviors.call_out.capabilities.report_management.publication.intents import (
+        PublishCapability,
+    )
+    from vultron.core.behaviors.call_out.nodes import always_fail_as
+
+    bound = always_fail_as(PublishCapability)
+    assert issubclass(bound, AlwaysFail)
+    # tick_call_out binds the one target an Actuator acts on (BT-18-041).
+    assert tick_call_out(bound("n")) == Status.FAILURE

@@ -173,7 +173,10 @@ def _bound(
 ) -> type[CallOutBackend]:
     """The class that answers as *constant* and binds to *declaration*.
 
-    Cached, so every field bound to one capability builds one class.
+    Cached, so every field bound to one capability builds one class.  The
+    class is built at run time and is not an attribute of this module, so
+    its ``__qualname__`` names it for logs and tree displays only; it is
+    not importable or picklable by reference.
     """
     if not (
         isinstance(declaration, type)

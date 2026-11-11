@@ -30,8 +30,9 @@ so a field whose STOCHASTIC node answers a capability names it here.
   *yes*, writes every declared output port (BT-18-003).
 
 A field no singleton binds answers no declaration, so its backends are
-binary and BT-23-013 does not reach it; the last test pins that they declare
-no outputs.
+binary and BT-23-013 does not reach it.  Those fields are a pinned exemption
+set, :data:`BINARY_FIELDS_WITH_NO_CAPABILITY`, kept equal to what the
+bindings derive, and every backend they build declares no outputs.
 """
 
 from __future__ import annotations
@@ -226,6 +227,12 @@ def test_deterministic_default_writes_every_declared_output(
             f"{_id(key)} answered yes without "
             f"{_missing_outputs(declaration, written)} (BT-23-013)"
         )
+    else:
+        # Only a floor default answers no; a ceiling that declines would
+        # skip the output check above (BT-23-002, BT-23-006).
+        assert default.success_rate == 0.0, (  # type: ignore[attr-defined]
+            f"{_id(key)} answered no from a ceiling default"
+        )
 
 
 @pytest.mark.spec("BT-18-003")
@@ -258,11 +265,33 @@ def test_stochastic_node_writes_every_declared_output(
         )
 
 
+# Pinned exemption set, not a ratchet: the bundle fields that answer no
+# declared capability.  Each is a pass/fail gate whose verdict is the whole
+# answer, so BT-23-013 does not reach it.  A new field missing from both
+# sides' bindings fails the equality below instead of passing as binary
+# (ARCH-18-001, ARCH-18-005).
+# permanent: BT-23-013 (binds only a capability that declares output ports)
+BINARY_FIELDS_WITH_NO_CAPABILITY: frozenset[FieldKey] = frozenset(
+    {
+        ("ActorResolutionCallOutBundle", "resolve_actor_factory"),
+        ("StatusAuthorizationCallOutBundle", "status_adoption_gate_factory"),
+    }
+)
+
+
+@pytest.mark.spec("BT-23-013")
+def test_the_fields_with_no_capability_are_exactly_the_pinned_set() -> None:
+    unbound = {k for k in _FIELD_DECLARATIONS if _answers(k) is None}
+    assert unbound == BINARY_FIELDS_WITH_NO_CAPABILITY, (
+        "a field binds no capability on either side; bind its default and "
+        "its simulation node to its declaration, or record here why it is "
+        "binary"
+    )
+
+
 @pytest.mark.spec("BT-23-013")
 @pytest.mark.parametrize(
-    "key",
-    sorted(k for k in _FIELD_DECLARATIONS if _answers(k) is None),
-    ids=_id,
+    "key", sorted(BINARY_FIELDS_WITH_NO_CAPABILITY), ids=_id
 )
 def test_a_field_with_no_capability_is_binary(key: FieldKey) -> None:
     """A field no singleton binds declares no outputs anywhere it is built.
