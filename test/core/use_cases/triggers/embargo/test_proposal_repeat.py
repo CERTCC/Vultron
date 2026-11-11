@@ -25,6 +25,7 @@ from typing import cast
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -42,7 +43,6 @@ from vultron.core.behaviors.embargo.nodes.relay_guards import (
 from vultron.core.behaviors.embargo.trigger_tree.proposal import (
     propose_embargo_trigger_bt,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import EM
@@ -124,7 +124,7 @@ def test_a_manager_proposal_of_pending_terms_is_refused_whole(
     actor, dl = finder_actor_and_dl
     case = _build_unbound_case_with_case_manager(dl, actor.id_)
     _add_participant(dl, case.id_, OTHER)
-    end_time = days_from_now_utc(30)
+    end_time = days_from_now(30)
     _propose(dl, actor.id_, case.id_, end_time)
     before = _snapshot(dl, case.id_)
 
@@ -160,7 +160,7 @@ def test_a_manager_revision_of_pending_revision_terms_is_refused_whole(
     actor, dl = finder_actor_and_dl
     case = _build_active_embargo_case_with_case_manager(dl, actor.id_)
     _add_participant(dl, case.id_, OTHER)
-    revision_end = days_from_now_utc(90)
+    revision_end = days_from_now(90)
     _revise(dl, actor.id_, case.id_, revision_end)
     before = _snapshot(dl, case.id_)
 
@@ -178,7 +178,7 @@ def test_a_manager_counter_proposal_of_the_in_force_terms_is_committed(
     actor, dl = finder_actor_and_dl
     case = _build_active_embargo_case_with_case_manager(dl, actor.id_)
     _add_participant(dl, case.id_, OTHER)
-    _revise(dl, actor.id_, case.id_, days_from_now_utc(90))
+    _revise(dl, actor.id_, case.id_, days_from_now(90))
     registered_before = len(_case(dl, case.id_).embargo_register)
 
     result = _revise(dl, actor.id_, case.id_, _active_end_time(dl, case.id_))
@@ -193,7 +193,7 @@ def test_a_manager_counter_proposal_of_the_in_force_terms_is_committed(
 def test_the_trigger_and_received_paths_share_one_terms_comparison() -> None:
     """Both paths compose ``EmbargoTermsNotHeldNode`` (AC-3, CS-22-001)."""
     case_id = "https://example.org/cases/c"
-    embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    embargo = EmbargoEvent(context=case_id, end_time=days_from_now(30))
     result_out: dict[str, object] = {}
     trigger = propose_embargo_trigger_bt(
         case_id=case_id,

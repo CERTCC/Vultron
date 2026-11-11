@@ -20,7 +20,7 @@ Fixtures (dl) come from conftest.
 """
 
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
-from vultron.core.models._helpers import days_from_now_utc
+from test.support.future_dates import days_from_now
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
@@ -179,9 +179,7 @@ class TestCoerceToSemanticClass:
         )
 
         case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
-        embargo = as_EmbargoEvent(
-            context=case.id_, end_time=days_from_now_utc(45)
-        )
+        embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,

@@ -29,6 +29,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -38,7 +39,6 @@ from vultron.core.behaviors.embargo.nodes import (
     CanAnswerEmbargoInviteNode,
     SendEmbargoInviteAnswerNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.enums.roles import CVDRole
@@ -63,7 +63,7 @@ def _store(
     """The invitee's store, holding the Invite the CASE_MANAGER relayed."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
     embargo = as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
     )
     if with_embargo:
         dl.create(embargo)

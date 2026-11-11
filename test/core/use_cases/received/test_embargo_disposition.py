@@ -29,6 +29,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -36,7 +37,6 @@ from test.support.owner_decision import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.embargo_register import TerminationReason
@@ -174,7 +174,7 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/nope/embargo_events/e1",
             context="https://example.org/cases/nope",
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         activity = factory(
             embargo,
@@ -229,7 +229,7 @@ class TestFailedTeardownIsRefused:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_tdf/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         activate(case, embargo.id_)
         seed_case_manager_participant(dl, case, _COORD)

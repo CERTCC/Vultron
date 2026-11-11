@@ -14,9 +14,10 @@
 
 A **clock read** is a reference to anything that returns the current time:
 
-- the core clock helpers — ``now_utc``, ``now_utc_after``, ``from_now_utc``,
-  ``days_from_now_utc`` and ``require_future_aware`` — by name or attribute,
-  called or not, so ``Field(default_factory=now_utc)`` counts;
+- the core clock helpers that read the clock — ``now_utc`` and
+  ``require_future_aware`` — by name or attribute, called or not, so
+  ``Field(default_factory=now_utc)`` counts (the ordered-stamp and deadline
+  helpers take the act's instant and read no clock, ADR-0176);
 - ``now``, ``utcnow`` or ``today`` on ``datetime`` or ``date``;
 - ``time``, ``time_ns``, ``monotonic``, ``monotonic_ns``, ``perf_counter`` or
   ``perf_counter_ns`` from the ``time`` module.
@@ -63,9 +64,6 @@ _NOT_SCANNED = (_SCAN_ROOT / "metadata",)
 _HELPERS = frozenset(
     {
         "now_utc",
-        "now_utc_after",
-        "from_now_utc",
-        "days_from_now_utc",
         "require_future_aware",
     }
 )

@@ -245,12 +245,10 @@ class TestSubmitReportProposedEmbargo:
     """``proposed_embargo_id`` names the Reporter's stored terms (EP-04-004)."""
 
     def _terms(self, dl, report):
-        from vultron.core.models._helpers import days_from_now_utc
+        from test.support.future_dates import days_from_now
         from vultron.core.models.embargo_event import EmbargoEvent
 
-        terms = EmbargoEvent(
-            context=report.id_, end_time=days_from_now_utc(10)
-        )
+        terms = EmbargoEvent(context=report.id_, end_time=days_from_now(10))
         dl.create(terms)
         return terms
 
@@ -301,14 +299,14 @@ class TestSubmitReportProposedEmbargo:
 
     def test_terms_about_another_subject_are_refused(self, adapter, dl):
         """The factory's EP-04-009 rule holds through the adapter."""
-        from vultron.core.models._helpers import days_from_now_utc
+        from test.support.future_dates import days_from_now
         from vultron.core.models.embargo_event import EmbargoEvent
         from vultron.errors import VultronActivityConstructionError
 
         report = _make_report(dl)
         foreign = EmbargoEvent(
             context="https://example.org/reports/someone-elses",
-            end_time=days_from_now_utc(10),
+            end_time=days_from_now(10),
         )
         dl.create(foreign)
 

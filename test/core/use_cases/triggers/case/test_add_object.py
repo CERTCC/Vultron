@@ -32,6 +32,7 @@ from test.support.case_manager import (
     make_case_with_case_manager,
 )
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.future_dates import days_from_now
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -41,7 +42,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.pending_assertion import (
@@ -277,7 +278,7 @@ class TestSvcAddObjectToCaseUseCase:
             ),
             pytest.param(
                 lambda case_id: as_EmbargoEvent(
-                    context=case_id, end_time=days_from_now_utc(45)
+                    context=case_id, end_time=days_from_now(45)
                 ),
                 id="own-flow-embargo",
             ),

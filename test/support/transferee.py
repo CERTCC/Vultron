@@ -26,7 +26,7 @@ CM-21-022, CM-10-004).  Tests that offer a case seat the transferee with
 from enum import Enum
 
 from test.support.embargo_register import activate
-from vultron.core.models._helpers import days_from_now_utc
+from test.support.future_dates import days_from_now
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -80,7 +80,7 @@ def _activate_embargo_without(
     embargo = EmbargoEvent(
         id_=f"{case.id_}/transferee-test-embargo",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.save(embargo)
     activate(case, embargo)

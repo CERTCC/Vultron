@@ -30,6 +30,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import (
     decided_proposal_id,
     owner_decision_body,
@@ -49,7 +50,7 @@ from vultron.core.behaviors.embargo.nodes.answer_record import (
 from vultron.core.behaviors.embargo.nodes.teardown import (
     TerminationIsTimelyNode,
 )
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import (
     OtherCause,
     TerminationCause,
@@ -424,7 +425,7 @@ def _bystander_proposes(net: LedgerNetwork, tag: str) -> dict[str, Any]:
     terms = as_EmbargoEvent(
         id_=f"{net.case_id}/embargo_events/{tag}",
         context=net.case_id,
-        end_time=days_from_now_utc(90),
+        end_time=days_from_now(90),
     )
     proposal = em_propose_embargo_activity(
         terms,

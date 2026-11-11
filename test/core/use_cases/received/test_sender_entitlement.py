@@ -64,6 +64,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -76,7 +77,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.sender_entitlement import SenderEntitlementKind
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
@@ -1041,7 +1041,7 @@ def _embargo_case(
         id_=f"{case.id_}/embargo_events/e1",
         content="Embargo",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     seed_case_owner_participant(cm_store, case, _OWNER_ID)
     seed_case_participant(cm_store, case, _BYSTANDER_ID, [CVDRole.VENDOR])
@@ -1149,7 +1149,7 @@ def test_embargo_invite_at_a_participant_from_a_peer_is_refused(
     embargo = as_EmbargoEvent(
         id_=f"{case.id_}/embargo_events/e1",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     replica.create(embargo)
     invite = em_propose_embargo_activity(
@@ -1527,7 +1527,7 @@ def test_embargo_announce_at_a_participant_from_a_peer_is_refused(
     embargo = as_EmbargoEvent(
         id_=f"{case.id_}/embargo_events/e1",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     replica.create(embargo)
     event = make_payload(

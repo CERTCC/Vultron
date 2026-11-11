@@ -33,7 +33,7 @@ import pytest
 
 import vultron.wire.as2.vocab.activities as _act_pkg
 import vultron.wire.as2.vocab.objects as _obj_pkg
-from vultron.core.models._helpers import days_from_now_utc
+from test.support.future_dates import days_from_now
 from vultron.wire.as2.enums import as_AllObjectTypes
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
@@ -106,7 +106,7 @@ def test_embargo_event_serializes_vultron_context():
 
     assert as_EmbargoEvent is EmbargoEvent
     obj = as_EmbargoEvent(
-        context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+        context="urn:uuid:case-123", end_time=days_from_now(45)
     )
     data = json.loads(obj.model_dump_json(exclude_none=True, by_alias=True))
     assert data["type"] == "EmbargoEvent"
@@ -147,7 +147,7 @@ def test_embargo_event_roundtrip_preserves_context():
     (Core ``context`` stores the case URI, not a @context namespace URI.)
     """
     obj = as_EmbargoEvent(
-        context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+        context="urn:uuid:case-123", end_time=days_from_now(45)
     )
     data = obj.model_dump(mode="json", by_alias=True, exclude_none=True)
     restored = as_EmbargoEvent.model_validate(data)

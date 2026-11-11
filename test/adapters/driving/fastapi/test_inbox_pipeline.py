@@ -5,13 +5,13 @@ import pytest
 from pytest import MonkeyPatch
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.future_dates import days_from_now
 from test.support.inbox_replay import hold_activity
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_pipeline import (
     MAX_REQUEUE_ATTEMPTS,
     InboxPipeline,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import ReceivedActivityRecord
@@ -172,7 +172,7 @@ def test_routing_safety_net_embargo_domain(test_pipeline, monkeypatch):
     embargo = as_EmbargoEvent(
         id_="https://example.org/embargoes/e-ibp-1",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     activity = em_propose_embargo_activity(
         embargo, context=case.id_, actor=SENDER_ID, to=[RECEIVER_ID]

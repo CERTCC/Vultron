@@ -34,6 +34,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -44,7 +45,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -93,13 +93,13 @@ def _store(
     embargo = as_EmbargoEvent(
         id_=f"{_CASE_ID}/embargo_events/proposal",
         context=_CASE_ID,
-        end_time=days_from_now_utc(30),
+        end_time=days_from_now(30),
     )
     if active:
         prior = as_EmbargoEvent(
             id_=f"{_CASE_ID}/embargo_events/prior",
             context=_CASE_ID,
-            end_time=days_from_now_utc(60),
+            end_time=days_from_now(60),
         )
         dl.create(prior)
         activate(case, prior.id_)

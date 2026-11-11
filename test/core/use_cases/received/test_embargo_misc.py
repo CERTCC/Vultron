@@ -20,12 +20,12 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
@@ -62,7 +62,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_aem1/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         activate(case, embargo.id_)
         # Only the CASE_MANAGER announces canonical embargo state (ADR-0115).
@@ -112,7 +112,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_aem2/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         seed_case_manager_participant(
             dl, case, "https://example.org/users/vendor"
@@ -160,7 +160,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_aem3/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         seed_case_manager_participant(
             dl, case, "https://example.org/users/vendor"
@@ -230,7 +230,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
             context=case_id,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
 

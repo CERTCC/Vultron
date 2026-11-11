@@ -34,9 +34,8 @@ from pydantic import BaseModel, ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
-from test.support.future_dates import FAR_FUTURE
+from test.support.future_dates import FAR_FUTURE, days_from_now
 from test.support.signing import signed_body
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
@@ -957,7 +956,7 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     )
 
     case_id = "https://example.org/cases/inline-embargo"
-    embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    embargo = EmbargoEvent(context=case_id, end_time=days_from_now(30))
     case = VulnerabilityCase(
         id_=case_id,
         name="CVE-2025-010",
@@ -1012,7 +1011,7 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     from vultron.core.states.em import EM
 
     case_id = "https://example.org/cases/enriched-stub"
-    embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    embargo = EmbargoEvent(context=case_id, end_time=days_from_now(30))
     case = VulnerabilityCase(
         id_=case_id,
         name="CVE-2025-011",
@@ -1077,8 +1076,8 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     )
 
     case_id = "https://example.org/cases/revise-stub"
-    in_force = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
-    revision = EmbargoEvent(context=case_id, end_time=days_from_now_utc(60))
+    in_force = EmbargoEvent(context=case_id, end_time=days_from_now(30))
+    revision = EmbargoEvent(context=case_id, end_time=days_from_now(60))
     case = VulnerabilityCase(
         id_=case_id,
         name="CVE-2025-013",
@@ -1175,7 +1174,7 @@ def _embargo_active_case(
     """
     em_state = EM.REVISE if revising else EM.ACTIVE
     revisions = (
-        [EmbargoEvent(context=case_id, end_time=days_from_now_utc(90))]
+        [EmbargoEvent(context=case_id, end_time=days_from_now(90))]
         if revising
         else []
     )

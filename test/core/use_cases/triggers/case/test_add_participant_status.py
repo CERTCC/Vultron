@@ -531,7 +531,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         until the CASE_MANAGER ends it (CSB-12-005, CSB-13-005, CSB-14-006,
         EMB-03-003)."""
         from test.support.embargo_register import activate, propose
-        from vultron.core.models._helpers import days_from_now_utc
+        from test.support.future_dates import days_from_now
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.em import EM
@@ -549,14 +549,14 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
 
         embargo = as_EmbargoEvent(
-            context=self.case.id_, end_time=days_from_now_utc(30)
+            context=self.case.id_, end_time=days_from_now(30)
         )
         self.dl.create(embargo)
         case = cast(VulnerabilityCase, self.dl.read(self.case.id_))
         activate(case, embargo.id_)
         if revising:
             revision = as_EmbargoEvent(
-                context=self.case.id_, end_time=days_from_now_utc(60)
+                context=self.case.id_, end_time=days_from_now(60)
             )
             self.dl.create(revision)
             propose(case, revision.id_)

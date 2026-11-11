@@ -22,6 +22,7 @@ from typing import Any, cast
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import register, reject
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.act_transaction import ActTransaction
@@ -40,7 +41,6 @@ from vultron.core.behaviors.embargo.nodes.relay import (
     EMBARGO_INVITE_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
@@ -109,7 +109,7 @@ def seed(
     if not open_proposal:
         reject(case, EMBARGO_ID)
     embargo = as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
+        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(60)
     )
     report = VulnerabilityReport(id_=REPORT_ID, attributed_to=report_author)
     for record in records:
@@ -138,7 +138,7 @@ def candidate(
     """The revision ``ResolveCreationTimeRevisionNode`` publishes."""
     return CreationTimeRevisionCandidate(
         embargo=as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
+            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(60)
         ),
         losing_source=losing_source,
     )

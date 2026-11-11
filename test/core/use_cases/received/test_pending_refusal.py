@@ -28,10 +28,11 @@ import pytest
 
 from test.support.act_clock import recorded_clock_reads
 from test.support.act_runner import run_in_act
+from test.support.future_dates import days_from_now
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.embargo import (
@@ -110,7 +111,7 @@ def _proposer_with_pending_proposal(
     for participant in (manager, *finders):
         dl.create(participant)
 
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(30))
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(30))
     proposal = em_propose_embargo_activity(
         embargo=embargo, context=case.id_, actor=_PROPOSER, to=[_MANAGER]
     )

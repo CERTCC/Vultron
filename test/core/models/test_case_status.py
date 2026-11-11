@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
 from test.support.blank_strings import BLANKS
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models._helpers import (
@@ -50,7 +51,7 @@ def test_authored_case_status_updated_equals_published():
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=CASE_OWNER_ID)
     seeded = case.current_status
     seeded.updated = seeded.published - timedelta(days=1)
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     appended = case.current_status
     assert appended is not seeded
     assert built.updated is None

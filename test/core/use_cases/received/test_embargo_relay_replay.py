@@ -26,6 +26,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import owner_decision_body
 from test.support.received import (
     assert_held_only_as_received,
@@ -44,7 +45,6 @@ from vultron.adapters.outbox_sealed_body import (
     read_sealed_body_dict,
 )
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -93,7 +93,7 @@ def _propose(net: _Network, suffix: str, days: int) -> str:
         id_=f"{net.case_id}/embargo_events/{suffix}",
         content=f"Terms {suffix}",
         context=net.case_id,
-        end_time=days_from_now_utc(days),
+        end_time=days_from_now(days),
     )
     proposal = em_propose_embargo_activity(
         revision,
@@ -588,7 +588,7 @@ def _pxa_invite_body(
         id_=f"{net.case_id}/embargo_events/{suffix}",
         content=f"Terms {suffix}",
         context=net.case_id,
-        end_time=days_from_now_utc(90),
+        end_time=days_from_now(90),
     )
     proposal = em_propose_embargo_activity(
         terms,
@@ -767,7 +767,7 @@ def _manager_revises(net: _Network, *, days: int = 90) -> str:
             ProposeEmbargoRevisionTriggerRequest(
                 actor_id=MANAGER,
                 case_id=net.case_id,
-                end_time=days_from_now_utc(days),
+                end_time=days_from_now(days),
             ),
             **_manager_ports(net),
             clock=SystemClock(),
@@ -900,7 +900,7 @@ def test_a_replica_follows_the_managing_owners_first_proposal_by_trigger():
             ProposeEmbargoTriggerRequest(
                 actor_id=MANAGER,
                 case_id=net.case_id,
-                end_time=days_from_now_utc(90),
+                end_time=days_from_now(90),
             ),
             **_manager_ports(net),
             clock=SystemClock(),

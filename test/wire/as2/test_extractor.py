@@ -8,8 +8,9 @@ from typing import Any, cast
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.future_dates import days_from_now
 from test.support.received import extract_stamped, stamped
-from vultron.core.models._helpers import _as_id, days_from_now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.dimensions import (
     VfDimension,
 )
@@ -259,7 +260,7 @@ def test_extract_intent_embargo_pass_through_fields():
         context="https://example.org/cases/1",
         published=now,
         updated=now,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     # InviteToEmbargoOnCase pattern: Invite + EVENT + context=VULNERABILITY_CASE
     activity = as_Invite(
@@ -293,7 +294,7 @@ def test_extract_intent_embargo_keeps_its_descriptive_fields():
         context="https://example.org/cases/1",
         content="Terms",
         summary="Thirty days",
-        end_time=days_from_now_utc(30),
+        end_time=days_from_now(30),
     )
     activity = as_Invite(
         actor="https://example.org/alice",

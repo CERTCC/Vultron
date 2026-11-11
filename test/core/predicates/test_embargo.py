@@ -17,6 +17,7 @@
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate, propose
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_register import rejection_changes
@@ -79,7 +80,7 @@ def _case(
     case = VulnerabilityCase(
         id_=_CASE, attributed_to="https://example.org/users/owner"
     )
-    case.append_case_status(pxa=pxa)
+    case.append_case_status(ACT_AT, pxa=pxa)
     if active:
         activate(case, _ACTIVE)
     propose(case, _REVISION)

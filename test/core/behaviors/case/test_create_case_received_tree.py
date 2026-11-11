@@ -509,7 +509,7 @@ def test_bootstrap_addressees_withhold_an_inert_finder():
     from the shared active selection (CM-10-007): a FINDER with no AGREED row
     for the embargo is left out.
     """
-    from vultron.core.models._helpers import days_from_now_utc
+    from test.support.future_dates import days_from_now
     from vultron.core.models.embargo_event import EmbargoEvent
     from vultron.core.states.participant_embargo_consent import (
         EmbargoConsentState,
@@ -518,7 +518,7 @@ def test_bootstrap_addressees_withhold_an_inert_finder():
     embargo = EmbargoEvent(
         id_=f"{_CASE_ID}/embargo",
         context=_CASE_ID,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     agreed = [
         EmbargoConsent(

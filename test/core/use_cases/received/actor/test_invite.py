@@ -30,6 +30,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.broken_ledger_entry import tampered
 from test.support.embargo_register import activate
+from test.support.future_dates import days_from_now
 from test.support.ledger_records import with_ledger_records
 from test.support.received import case_stub, settle_as_the_inbox
 from vultron.adapters.driven.clock import SystemClock
@@ -39,7 +40,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import _as_id, days_from_now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.services.received_activity import sealed_body_of
@@ -1074,7 +1075,7 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseIA2/embargo_events/e1",
             content="Active embargo",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         activate(case, embargo.id_)
         seed_store_owner_as_case_manager(dl, case)
@@ -2073,7 +2074,7 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
         embargo = EmbargoEvent(
             id_=f"{case_id}/embargoes/1",
             context=case_id,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
         case = VulnerabilityCase(id_=case_id, attributed_to=case_actor_id)
