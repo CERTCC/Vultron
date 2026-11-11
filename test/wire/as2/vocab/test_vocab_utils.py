@@ -115,6 +115,7 @@ class TestRenderedTimestamps(unittest.TestCase):
             rendered.removeprefix("```json").removesuffix("```")
         )
 
+        assert report.published is not None and report.updated is not None
         self.assertEqual(
             payload["published"], format_timestamp(report.published)
         )
@@ -145,6 +146,7 @@ class TestRenderedTimestamps(unittest.TestCase):
             with open(filename) as f:
                 payload = json.load(f)
 
+        assert report.published is not None and report.updated is not None
         self.assertEqual(
             payload["published"], format_timestamp(report.published)
         )
