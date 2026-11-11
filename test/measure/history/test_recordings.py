@@ -73,6 +73,9 @@ class Narrative:
 _NARRATIVES: dict[str, Narrative] = {
     # reporter → vendor; the vendor reports its fix ready.
     "rv": Narrative(owner=_actor("actor1"), vendors=(_actor("actor1"),)),
+    # reporter → vendor with a CSAF report; the case's first embargo is the
+    # report's disclosure date, the vendor's longer default stays pending.
+    "rv-csaf": Narrative(owner=_actor("actor1"), vendors=(_actor("actor1"),)),
     # reporter → vendor, which invites a second vendor.
     "rvv": Narrative(
         owner=_actor("actor1"),

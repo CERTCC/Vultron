@@ -29,7 +29,7 @@ from __future__ import annotations
 import contextlib
 from collections.abc import Iterator
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -340,8 +340,9 @@ class TestTheCaseStartsFromTheCsafReport:
         self, *, case: MagicMock, proposal: object
     ) -> Iterator[tuple[dict[str, CheckOutcome], dict[str, Any]]]:
         state = _state()
-        state.report.id_ = "urn:test:report"
-        state.offer.proposed_embargo = proposal
+        # story_state() opens the case on stand-in report and Offer mocks.
+        cast(MagicMock, state.report).id_ = "urn:test:report"
+        cast(MagicMock, state.offer).proposed_embargo = proposal
         state.case_actor_client.actor_id = "urn:test:case-actor"
         with (
             patch.object(demo, "required_participants_are_present") as m1,
