@@ -4,7 +4,7 @@ date: 2026-11-10
 created: 2026-11-10
 updated: 2026-11-11
 revision: 2
-status_override: "Revision 2 (2026-11-11) was approved by Allen D. Householder in the #5132 planning session, before this record first merged: offers carry the act (#6251) and the reference-as-Link question moved to #6249."
+status_override: "Revision 2 (2026-11-11) was approved by Allen D. Householder in the #5132 planning session, before this record first merged: offers carry the act (#6251) and the reference-as-Link question moved to #6249. Two clarifications within that scope were approved by Allen D. Householder on 2026-11-11: a reference stays an Object whose url holds a Link (#6249), and an admitted change is recorded as the resulting object, not as the offered act."
 lint_suppress: [phantom_symbol_ref, phantom_path_ref]
 deciders: Allen D. Householder
 consulted: Claude Opus 5.5
@@ -64,7 +64,8 @@ The decision has five parts.
    The CVE JSON schema applies only to a CVE record carried as an item's content, never to a CVE ID alone.
 4. **A participant offers; the CASE_MANAGER admits or declines.**
    A participant offers the act it proposes: adding a new item or a new reference to the case, or updating an item.
-   An admitted offer's recorded change is then exactly the offered act.
+   The change the CASE_MANAGER applies on admission is exactly what the offered act states.
+   It is recorded as the resulting object: the new item or reference in full, or the whole revised item, never as the offered act itself.
    The CASE_MANAGER records the offer, then admits it, applying and recording the change, or declines it, and answers the sender either way.
    A deployment may admit offers automatically.
    The CASE_MANAGER itself fills items and references when it creates a case from a report.
@@ -73,7 +74,7 @@ The decision has five parts.
    A full revision is an update that supplies every field.
 
 Removing an item or a reference, relationships between items beyond "same vulnerability", and content documents carried by an item are not decided here.
-Whether a reference becomes a kind of link is decided separately, and a link has no identity of its own, so that decision must settle how a reference is offered and listed.
+A reference keeps its current shape here; it stays an object of its own, and its URL will become a link with a relation type (#6249).
 
 ### Consequences
 
@@ -113,7 +114,7 @@ The VXref 0.3 prototype of the FIRST VRDX SIG defines further relationships betw
 Its source is <https://github.com/FIRSTdotorg/vrdx-sig-vxref-wip>, schema `vxref/schema/vxref_schema_03.json`.
 
 The review of the wire protocol against ActivityStreams 2.0 (Epic #6238, `notes/as2-vocabulary-alignment.md`) shapes three parts of this decision.
-A proposed act travels as an offer of that act (#6251), identity decides between an update and a new object (#6250), and a reference may become a link (#6249).
+A proposed act travels as an offer of that act (#6251), identity decides between an update and a new object (#6250), and a reference stays an object whose URL is a link with a relation type (#6249, § "CaseReference Holds a Link").
 There, `tag` lets another object refer to an item by reference, while the case's item list holds items by inclusion (#6248).
 
 Source: #5132.

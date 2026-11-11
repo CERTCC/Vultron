@@ -12031,8 +12031,9 @@ groups:
     rationale: >-
       A participant's statement about what the case is about is a claim until the
       CASE_MANAGER admits it, as with the other things participants assert. Offering
-      the act itself means an admitted offer's ledgered change is exactly the offered
-      `Add` (ADR-0187).
+      the act itself means the change the CASE_MANAGER applies on admission is exactly
+      what the offered `Add` states, recorded as its own entry carrying the new item in
+      full (CLP-07-021, ADR-0187).
     verification: >-
       A test marked `CM-34-001` runs the propose-item trigger and asserts one queued
       `Offer(Add(VulnerabilityItem))` addressed to the CASE_MANAGER with the case as the
