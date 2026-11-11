@@ -37,6 +37,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -89,8 +90,10 @@ _MARKDOWNLINT = shutil.which("markdownlint-cli2")
 # The summary line reads "Linting: 0 files" before markdownlint-cli2 0.21 and
 # "Linting: 0 file(s)" from 0.21 on; both mean nothing was linted.
 _LINTED_NONE = re.compile(r"^Linting: 0 file(?:s|\(s\))$", re.MULTILINE)
-# Every run that starts prints this banner before it finds any file.
+# A run that starts prints its banner (unless `noBanner` is set) and its
+# summary line; a tool that never started prints neither.
 _BANNER = "markdownlint-cli2 v"
+_SUMMARY = "Linting:"
 
 
 @pytest.mark.spec("HM-01-005")
@@ -120,10 +123,11 @@ def test_markdownlint_reaches_no_history_entry() -> None:
             timeout=120,
         )
         output = result.stdout + result.stderr
-        if _BANNER not in output:
+        if _BANNER not in output and _SUMMARY not in output:
             # The tool never started (e.g. its node runtime cannot load), so it
             # gave no verdict on the exclusion; a failure here would blame the
-            # repo for the host.
+            # repo for the host. A run without its banner (`noBanner`) still
+            # prints its summary, so it reaches the assertion.
             pytest.skip(f"markdownlint-cli2 did not run:\n{output}")
         assert _LINTED_NONE.search(output), (
             f"markdownlint-cli2 reached plan/history/ for {target!r}; "
@@ -148,14 +152,32 @@ def test_linted_none_reads_every_summary_form(
     assert bool(_LINTED_NONE.search(output)) is linted_none
 
 
+def _fake_markdownlint(tmp_path: Path, stdout: str) -> str:
+    """Write a stand-in markdownlint-cli2 that prints *stdout* and exits 1."""
+    fake = tmp_path / "markdownlint-cli2"
+    fake.write_text(f"#!/bin/sh\nprintf '%s\\n' '{stdout}'\nexit 1\n")
+    fake.chmod(0o755)
+    return str(fake)
+
+
 def test_probe_skips_when_the_tool_does_not_start(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A tool that exits without its banner gave no verdict, so the probe skips."""
-    false_bin = shutil.which("false")
-    assert false_bin is not None
+    """A tool that prints neither banner nor summary gave no verdict: skip."""
     monkeypatch.setattr(
-        "test.metadata.test_mdlint_history_exclusion._MARKDOWNLINT", false_bin
+        sys.modules[__name__],
+        "_MARKDOWNLINT",
+        _fake_markdownlint(tmp_path, ""),
     )
     with pytest.raises(pytest.skip.Exception, match="did not run"):
+        test_markdownlint_reaches_no_history_entry()
+
+
+def test_probe_judges_a_run_without_its_banner(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A run with `noBanner` set still reports its summary, so it is judged."""
+    fake = _fake_markdownlint(tmp_path, "Linting: 3 file(s)")
+    monkeypatch.setattr(sys.modules[__name__], "_MARKDOWNLINT", fake)
+    with pytest.raises(AssertionError, match="reached plan/history/"):
         test_markdownlint_reaches_no_history_entry()
