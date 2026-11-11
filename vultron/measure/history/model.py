@@ -37,6 +37,7 @@ from pydantic import (
     model_validator,
 )
 
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.embargo_register import TerminationReason
@@ -188,6 +189,11 @@ class CaseEvent(BaseModel):
     replaces_embargo_id: NonEmptyString | None = None
     exit_reason: TerminationReason | None = None
     exit_cause: dict[str, JsonValue] | None = None
+
+    #: Every time serializes in the one fixed form (CS-13-007, ADR-0167).
+    _serialize_times = timestamp_serializer(
+        "committed_at", "claimed_at", "deadline"
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
