@@ -77,6 +77,12 @@ _VENDOR_CAST_ONE = "vultron.demo.helpers.vendor_story.cast.open_vendor_cast"
 SCENARIOS: list[tuple[str, str, str, str]] = [
     ("vultron.demo.scenario.rv_demo", "run_rv_demo", "rv", _VENDOR_CAST_ONE),
     (
+        "vultron.demo.scenario.rv_csaf_demo",
+        "run_rv_csaf_demo",
+        "rv-csaf",
+        _VENDOR_CAST_ONE,
+    ),
+    (
         "vultron.demo.scenario.rvv_demo",
         "run_rvv_demo",
         "rvv",

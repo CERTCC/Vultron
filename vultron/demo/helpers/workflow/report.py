@@ -17,6 +17,8 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 
+from pydantic import JsonValue
+
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession, WireTriggerResult
@@ -93,8 +95,10 @@ def reporter_submits_report(
     receiver: as_Actor,
     reporter_client: DataLayerClient,
     proposed_embargo_end_time: datetime | None = None,
-    report_name: str = _DEMO_REPORT_NAME,
+    report_name: str | None = _DEMO_REPORT_NAME,
     report_content: str = _DEMO_REPORT_CONTENT,
+    *,
+    csaf_document: dict[str, JsonValue] | None = None,
 ) -> tuple[as_VulnerabilityReport, as_Offer]:
     """Reporter creates a vulnerability report and submits it to the receiver.
 
@@ -148,8 +152,15 @@ def reporter_submits_report(
         proposed_embargo_end_time: The Reporter's proposed embargo end for this
             report, timezone-aware and in the future; ``None`` proposes
             nothing.
-        report_name: ``name`` of the submitted report.
+        report_name: ``name`` of the submitted report; ``None`` states
+            none, which only a submission with *csaf_document* may do: the
+            trigger then names the report from the document (CSAF-04-010).
         report_content: ``content`` of the submitted report.
+        csaf_document: A CSAF 2.1 vulnerability report to attach, as a JSON
+            object; the trigger checks it against the schema and fills the
+            report's name, summary and proposed embargo end from it where the
+            call states none (CSAF-04-009, CSAF-04-010).  ``None`` attaches
+            nothing.
 
     Returns:
         Tuple of ``(report, offer)``.
@@ -167,6 +178,7 @@ def reporter_submits_report(
             report_content=report_content,
             recipient_id=receiver.id_,
             proposed_embargo_end_time=proposed_embargo_end_time,
+            csaf_document=csaf_document,
         )
     offer_dict = (result.offer or {}) if result is not None else {}
     report, offer = parse_submit_report_offer(offer_dict)

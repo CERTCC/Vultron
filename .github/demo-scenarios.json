@@ -40,6 +40,11 @@
     "full_suite_only": false
   },
   {
+    "demo": "rv-csaf",
+    "test_file": "test/ci/invariants/test_rv_csaf_invariants.py",
+    "full_suite_only": true
+  },
+  {
     "demo": "rvcv-extension",
     "test_file": "test/ci/invariants/test_rvcv_extension_invariants.py",
     "full_suite_only": true

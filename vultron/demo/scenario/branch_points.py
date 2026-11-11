@@ -202,6 +202,11 @@ BRANCH_POINTS: Mapping[str, BranchPoint] = build_branch_point_table(
                     label="Report it to a Coordinator",
                     trigger="submit-report",
                 ),
+                Choice(
+                    id="vendor-csaf",
+                    label="Send the Vendor a CSAF vulnerability report",
+                    trigger="submit-report",
+                ),
             ),
         ),
         BranchPoint(

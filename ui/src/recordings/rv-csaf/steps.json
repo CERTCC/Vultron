@@ -1,0 +1,9 @@
+{
+  "steps": [
+    {
+      "branchPoint": "reporter-whom-to-tell",
+      "choice": "vendor-csaf",
+      "ledgerTail": 0
+    }
+  ]
+}

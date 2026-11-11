@@ -157,6 +157,7 @@ nav:
     - Demo Scenarios:
       - 'topics/scenarios/index.md'
       - rv: 'topics/scenarios/rv.md'
+      - rv-csaf: 'topics/scenarios/rv-csaf.md'
       - RVV: 'topics/scenarios/rvv.md'
       - RCV: 'topics/scenarios/rcv.md'
       - RCV-reject: 'topics/scenarios/rcv-reject.md'

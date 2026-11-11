@@ -46,6 +46,7 @@ protocol phase recorded in the replicated ledger.
 | rcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
 | rcvv-embargo      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ | ✓ |
 | rv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |   |
+| rv-csaf           | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   | ✓ | ✓ |   | ✓ |
 | rvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
 | rvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |   |
 | rvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
@@ -95,6 +96,7 @@ canonical order, everywhere".
 | rcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
 | rcvv-embargo | ✓ (member) | Same embargo semantic types as `rcv-embargo`, reached by other paths: a second revision cycle, a late vendor that signs the revised embargo, and a teardown that CS.P causes instead of a deliberate termination |
 | rv | ✓ (member) | 2-actor baseline; covers all universal semantic types (DEMOMA-16-001) with no invitation phases |
+| rv-csaf | covered by rcv-embargo | Same embargo-revision types; what it adds, a case filled from a CSAF report, is no ledger semantic type |
 | rvcv-extension | covered by rcvcv | Same offer+invite+accept coverage; no additional phases |
 | rvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
 | rvv | covered by rvcv-handoff | Same invite+accept coverage; no additional phases |

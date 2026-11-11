@@ -29,6 +29,7 @@ in each row is derived from the scenario name by convention rather than stored
 | RCVCV | `test/ci/invariants/test_rcvcv_invariants.py` | ✓ |
 | RCVV embargo | `test/ci/invariants/test_rcvv_embargo_invariants.py` | ✓ |
 | rv | `test/ci/invariants/test_rv_invariants.py` | ✓ |
+| rv-csaf | `test/ci/invariants/test_rv_csaf_invariants.py` |  |
 | RVCV-extension | `test/ci/invariants/test_rvcv_extension_invariants.py` |  |
 | RVCV-handoff | `test/ci/invariants/test_rvcv_handoff_invariants.py` | ✓ |
 | RVV | `test/ci/invariants/test_rvv_invariants.py` |  |
