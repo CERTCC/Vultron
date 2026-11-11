@@ -367,7 +367,7 @@ def _left(dl, name: str, **fields: Any) -> ReceivedActivityRecord:
     record = ReceivedActivityRecord(
         activity_id=f"{CASE_ID}/activities/{name}",
         received_body=json.dumps({"id": name, "type": "Add"}),
-        **fields,
+        **{"received_at": ACT_AT, **fields},
     )
     dl.create(record)
     return record
