@@ -17,7 +17,7 @@ Layout (notes/case-event-history.md § "Reuse the One JSONL Walker"):
   desiderata, from the indifference walk over the smallest model holding each
   (ADR-0182).  It reads only the state tables, never a ledger.
 
-Later layers are sibling subpackages that read
+A later layer that reads a ledger is a sibling subpackage that reads it
 through :mod:`vultron.measure.ledger`.
 """
 

@@ -219,7 +219,7 @@ class _Deriver:
             return
         self._acts(context)
         records = snapshot_records(context.payload)
-        if records.nameless_participants:
+        for _ in range(records.nameless_participants):
             self._unreadable(
                 context.log_index, "a participant record names no actor"
             )
@@ -270,9 +270,7 @@ class _Deriver:
         )
 
     def _unreadable(self, log_index: int, reason: str) -> None:
-        logger.warning(
-            "Ledger entry %d yields no event: %s", log_index, reason
-        )
+        logger.warning("Ledger entry %d: unreadable: %s", log_index, reason)
         self.unreadable.append(
             UnreadableEntry(log_index=log_index, reason=reason)
         )

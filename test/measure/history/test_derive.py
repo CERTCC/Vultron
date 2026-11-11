@@ -1079,6 +1079,23 @@ def test_an_unreadable_record_is_reported_and_the_rest_derived(record, reason):
     assert any(e.log_index == later for e in history.events)
 
 
+def test_each_nameless_participant_record_is_reported():
+    ledger = _vendor_ledger()
+    nameless = {"type": "CaseParticipant", "participantStatuses": []}
+    odd = ledger.add(
+        "add_case_participant_to_case",
+        "Add",
+        CM,
+        {"type": "Collection", "items": [nameless, dict(nameless)]},
+    )
+    reported = [
+        u.log_index
+        for u in ledger.history().unreadable_entries
+        if "names no actor" in u.reason
+    ]
+    assert reported == [odd, odd]
+
+
 def test_an_embargo_reply_naming_no_embargo_is_reported():
     ledger = _vendor_ledger()
     odd = ledger.add(
@@ -1115,14 +1132,15 @@ def test_a_refusal_with_no_embargo_in_force_records_no_consent():
     assert history.unreadable_entries == []
 
 
-def test_a_stub_case_status_in_an_invite_target_is_not_the_cases():
-    """An Invite's target is a case stub; its status is no public state."""
+@pytest.mark.parametrize("place", ["target", "origin"])
+def test_a_stub_case_status_in_an_invite_target_is_not_the_cases(place):
+    """A record under an Invite's target or origin is no public state."""
     ledger = _vendor_ledger()
     ledger.add(
         "add_case_status_to_case", "Add", CM, case_status("cs-P", "Pxa")
     )
     invite = ledger.stub_invite(INVITEE)
-    invite["target"]["caseStatus"] = case_status("stub-cs", "pxa")
+    invite.setdefault(place, {})["caseStatus"] = case_status("stub-cs", "pxa")
     ledger.add("accept_invite_actor_to_case", "Accept", INVITEE, invite)
     history = ledger.history()
     assert history.excluded == []
