@@ -59,14 +59,13 @@ def test_the_default_window_is_seven_days_from_published(dl) -> None:
 
 
 @pytest.mark.spec("CS-13-002")
-def test_the_invite_is_published_at_the_act_instant(dl) -> None:
-    """The stamp takes the act's instant as ``published``; no clock is read."""
+def test_the_window_is_measured_from_the_passed_instant(dl) -> None:
+    """The deadline counts from the act's instant passed in; no clock is read."""
     # Ten days ago, so a clock read in its place would show.
     at = AT - timedelta(days=10)
 
     stamp = stamp_invite_rsvp_deadline(dl, _embargo(dl, 45), at)
 
-    assert stamp.rsvp_deadline == at + timedelta(days=7)
     assert stamp.rsvp_deadline == at + timedelta(days=7)
 
 

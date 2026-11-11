@@ -198,8 +198,9 @@ class _CasesMixin:
         DataLayer.
         """
         # Rebuilt from what this actor knows, with no time: the owner stated
-        # the Leave's ``published``, and this actor does not hold it
-        # (AKM-02-006), so every rebuild is the same (OX-06-002).
+        # the Leave's ``published``, and this actor does not hold it, so the
+        # rejecter's instant is not stamped on it (AKM-02-006).  Embedding the
+        # received Leave instead of a rebuild is #6259.
         leave = rm_close_case_activity(
             case=case_id, actor=close_sender, at=at
         ).model_copy(update={"published": None, "updated": None})
