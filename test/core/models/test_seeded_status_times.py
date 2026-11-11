@@ -24,6 +24,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.act_clock import ACT_AT, recorded_clock_reads
+from test.support.objects import make
 from vultron.core.models._helpers import INBOUND_CONTEXT_KEY
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -38,8 +39,11 @@ _CASE = "https://example.org/cases/seeded"
 @pytest.mark.spec("CS-13-002")
 def test_a_cases_first_status_takes_the_cases_published() -> None:
     with recorded_clock_reads() as reads:
-        case = VulnerabilityCase(
-            attributed_to=_OWNER, published=ACT_AT, updated=ACT_AT
+        case = make(
+            VulnerabilityCase,
+            attributed_to=_OWNER,
+            published=ACT_AT,
+            updated=ACT_AT,
         )
     assert case.current_status.published == ACT_AT
     assert reads == []
@@ -63,7 +67,8 @@ def test_a_case_with_no_time_reports_both_missing_times() -> None:
 @pytest.mark.parametrize("cls", [CaseParticipant, ReporterParticipant])
 def test_a_participants_first_status_takes_its_published(cls) -> None:
     with recorded_clock_reads() as reads:
-        participant = cls(
+        participant = make(
+            cls,
             attributed_to=_OWNER,
             context=_CASE,
             published=ACT_AT,

@@ -35,7 +35,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from test.demo._helpers import make_client, make_testclient_call
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import CASE_PUBLISHED, INBOUND_CASE_OWNERSHIP
 from test.support.objects import make, with_times
 from vultron.demo.helpers.seeding import (
     reset_containers,
@@ -154,9 +154,10 @@ def _reads(
 def _case(with_case_actor: bool = True) -> dict[str, Any]:
     index = {_CA_ID: _PARTICIPANT_ID} if with_case_actor else {}
     return {
-        "attributedTo": CASE_OWNER_ID,
+        **INBOUND_CASE_OWNERSHIP,
         "id": _CASE_ID,
         "type": "VulnerabilityCase",
+        "published": CASE_PUBLISHED.isoformat(),
         "actorParticipantIndex": index,
     }
 

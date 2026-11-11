@@ -56,7 +56,7 @@ def discover_actors(
     actors = client.get("/actors/")
 
     for actor_json in actors:
-        actor = as_Actor(**actor_json)
+        actor = from_server(as_Actor, actor_json)
         if actor.name and actor.name.startswith("Finn"):
             reporter = actor
             _log_discovered_actor("reporter", reporter)

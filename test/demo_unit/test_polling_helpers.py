@@ -32,7 +32,7 @@ import uvicorn
 from fastapi import FastAPI, Path as FastAPIPath
 
 from test.support.act_clock import ACT_AT
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from test.support.embargo_register import register
 from test.support.objects import authored_at, make
 from test.support.received import archive_received
@@ -170,7 +170,7 @@ def test_wait_for_case_participants_succeeds_when_actors_present():
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {
-        "attributedTo": CASE_OWNER_ID,
+        **INBOUND_CASE_OWNERSHIP,
         "type": "VulnerabilityCase",
         "published": _AT,
         "updated": _AT,
@@ -195,7 +195,7 @@ def test_wait_for_case_participants_subset_check():
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {
-        "attributedTo": CASE_OWNER_ID,
+        **INBOUND_CASE_OWNERSHIP,
         "type": "VulnerabilityCase",
         "published": _AT,
         "updated": _AT,
@@ -219,7 +219,7 @@ def test_wait_for_case_participants_raises_on_timeout():
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {
-        "attributedTo": CASE_OWNER_ID,
+        **INBOUND_CASE_OWNERSHIP,
         "type": "VulnerabilityCase",
         "published": _AT,
         "updated": _AT,
@@ -819,7 +819,7 @@ class TestCaseActorParticipantIdIn:
         client = MagicMock()
         client.dl_path.return_value = "/actors/x/datalayer/urn:uuid:case-cap"
         client.get.return_value = {
-            "attributedTo": CASE_OWNER_ID,
+            **INBOUND_CASE_OWNERSHIP,
             "id": "urn:uuid:case-cap",
             "type": "VulnerabilityCase",
             "published": _AT,
