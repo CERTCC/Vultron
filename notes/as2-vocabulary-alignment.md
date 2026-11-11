@@ -19,10 +19,12 @@ tracks:
   - "#6247"   # ledger and status histories as ordered collections
   - "#6254"   # Refuse(Reject)
   - "#6248"   # instrument, generator, tag
-  - "#6239"   # CaseReference holds a Link (#6249 closed as its duplicate)
+  - "#6249"   # CaseReference holds a Link
   - "#6250"   # Update forms; dead REMOVE_NOTE path
   - "#6251"   # approvals as Offer of the act
   - "#6252"   # TentativeAccept and Undo withdrawal
+  - "#5132"   # vulnerability items and references on a case (PR #6262)
+  - "#5130"   # epic: Vultron cases and CSAF 2.1 documents translate
   - "#5089"   # fetchable ledger (deferred)
   - "#5090"   # epic: peers can fetch every object, actor and collection
   - "#6255"   # CASE_MANAGER relocation (deferred)
@@ -106,8 +108,9 @@ the splitter's choice:
   anything into it. Any other pair of cases uses `Add` (and `Remove`) as separate
   acts. Putting an actor into a second case is `Add`.
 
-`VulnerabilityItem` is ADR-0187's name for the former `VulnerabilityRecord` (PR #6262,
-issue #5132); this note uses the new name throughout.
+PR #6262 (issue #5132) proposes ADR-0187 and the CM-34 requirements, which rename
+`VulnerabilityRecord` to `VulnerabilityItem`; this note uses the proposed name
+throughout.
 
 **AS2 basis.** VOC Move: "the actor has moved object from origin to target". VOC
 Add notes: "The origin can be used to identify the context from which the object
@@ -452,18 +455,19 @@ reference"; a `Mention` in `tag` is "a mention without an associated notificatio
 **Today.** All three are declared on `as_Object` / the activity base and never set.
 Call-outs have no wire form (`notes/call-out-configuration.md`).
 
-**Touches.** #5132 / ADR-0187 (the case's own `VulnerabilityItem` list is the
-inclusion side; `tag` is the reference side — plan them together); the JSON-LD term
-rule.
+**Touches.** #5132 / ADR-0187 as proposed in PR #6262 (the case's own
+`VulnerabilityItem` list is the inclusion side; `tag` is the reference side — plan
+them together); the JSON-LD term rule.
 
 ---
 
 ## CaseReference Holds a Link
 
-Issue: #6239.
+Issue: #6249.
 
-**Decision.** `CaseReference` stays an `as:Object`, with its own id and the CM-34
-lifecycle (offered, admitted or declined, ledgered). Its `url` holds an `as:Link`:
+**Decision.** `CaseReference` stays an `as:Object`, with its own id and the
+lifecycle proposed in PR #6262 (ADR-0187, CM-34): offered, admitted or declined,
+ledgered. Its `url` holds an `as:Link`:
 
 - `href` is the referenced resource; `name` and `mediaType` describe it;
 - the CVE reference tags (`patch`, `vendor-advisory`, …) become the Link's `rel`
@@ -481,10 +485,11 @@ resource, not a resource with its own id and lifecycle.
 types are URIs. CORE §4.2: Link properties are hints about the referenced resource.
 
 **Today.** `vultron/core/models/case_reference.py` (`url`, `name`, `tags` validated
-against `CASE_REFERENCE_TAG_VOCABULARY`). ADR-0187 and CM-34-003 (PR #6262) give a
-case a reference list and the offer lifecycle.
+against `CASE_REFERENCE_TAG_VOCABULARY`). PR #6262 proposes ADR-0187 and CM-34-003,
+which give a case a reference list and the offer lifecycle.
 
-**Touches.** CM-05-004, CM-05-010, CM-34-003, ADR-0187, CSAF-03-009, and a future
+**Touches.** CM-05-004, CM-05-010, CM-34-003 and ADR-0187 (proposed in PR #6262),
+CSAF-03-009, and a future
 FIRST VRDX-SIG vxref Idea (`FIRSTdotorg/vrdx-sig-vxref-wip`), which may supply the
 `rel` vocabulary.
 
@@ -506,14 +511,14 @@ Issue: #6250.
 
 A `VulnerabilityItem` is case content, not one participant's own object, so a
 participant changes it by offering the `Update` to the CASE_MANAGER
-(`Offer(Update(VulnerabilityItem))[target=case]`, CM-34-002, ADR-0187), the
-pattern of § "Approvals Are Offers of the Act".
+(`Offer(Update(VulnerabilityItem))[target=case]`, CM-34-002 and ADR-0187 as
+proposed in PR #6262), the pattern of § "Approvals Are Offers of the Act".
 
-**`Update` is partial.** ADR-0187 decides that an `Update` replaces the fields it
-carries and leaves the rest. Every `Update` in this note follows that meaning,
-including the merge freeze and the embargo end. AS2 itself leaves `Update`'s scope
-open (ActivityPub makes client-to-server `Update` partial and server-to-server a full
-replacement), so the meaning is Vultron's rule, not AS2's.
+**`Update` is partial.** ADR-0187, proposed in PR #6262, makes an `Update` replace
+the fields it carries and leave the rest. Every `Update` in this note follows that
+meaning, including the merge freeze and the embargo end. AS2 itself leaves
+`Update`'s scope open (ActivityPub makes client-to-server `Update` partial and
+server-to-server a full replacement), so the meaning is Vultron's rule, not AS2's.
 
 **Today.** `Update` is sent only by the CASE_MANAGER (case owner, participant records,
 consent rows) and nothing receives it. `REMOVE_NOTE_FROM_CASE` has a received use case
@@ -542,11 +547,11 @@ and stays, plus the `inReplyTo` above.
 Folder A"); `Question` is intransitive, with `oneOf`/`anyOf`, answers as separate
 objects with `inReplyTo`, the outcome in `result`, and `closed`.
 
-Item and reference offers (CM-34-001 to CM-34-004, ADR-0187) already follow this
-pattern.
+Item and reference offers, as PR #6262 proposes them (CM-34-001 to CM-34-004,
+ADR-0187), follow this pattern.
 
 **Touches.** RSH-07-004, `RequireCaseOwnerApprovalNode`, #2885 (the same gap from the
-ask side), ADR-0148, CM-34.
+ask side), ADR-0148, CM-34 (proposed in PR #6262).
 
 **Open for planning (separate Idea).** A `Question` poll "what is the latest end date
 you would accept?", after which the CASE_MANAGER proposes the earliest answer
