@@ -129,3 +129,33 @@ def test_markdownlint_reaches_no_history_entry() -> None:
             f"markdownlint-cli2 reached plan/history/ for {target!r}; "
             f"history entries must stay out of every run (HM-01-005).\n{output}"
         )
+
+
+@pytest.mark.parametrize(
+    ("summary", "linted_none"),
+    [
+        ("Linting: 0 files", True),
+        ("Linting: 0 file(s)", True),
+        ("Linting: 1 file(s)", False),
+        ("Linting: 10 files", False),
+    ],
+)
+def test_linted_none_reads_every_summary_form(
+    summary: str, linted_none: bool
+) -> None:
+    """The probe reads both markdownlint-cli2 summary forms, and only zero."""
+    output = f"markdownlint-cli2 v0.21.0\n{summary}\nSummary: 0 error(s)\n"
+    assert bool(_LINTED_NONE.search(output)) is linted_none
+
+
+def test_probe_skips_when_the_tool_does_not_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tool that exits without its banner gave no verdict, so the probe skips."""
+    false_bin = shutil.which("false")
+    assert false_bin is not None
+    monkeypatch.setattr(
+        "test.metadata.test_mdlint_history_exclusion._MARKDOWNLINT", false_bin
+    )
+    with pytest.raises(pytest.skip.Exception, match="did not run"):
+        test_markdownlint_reaches_no_history_entry()
