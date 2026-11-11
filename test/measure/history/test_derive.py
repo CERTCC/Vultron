@@ -134,7 +134,9 @@ def test_the_history_follows_log_order_not_claimed_times():
         (EventKind.REPORT_VALID, first),
         (EventKind.REPORT_ACCEPTED, second),
     ]
-    assert events[0].claimed_at > events[1].claimed_at
+    first_claim, second_claim = events[0].claimed_at, events[1].claimed_at
+    assert first_claim is not None and second_claim is not None
+    assert first_claim > second_claim
 
 
 # ---------------------------------------------------------------------------
