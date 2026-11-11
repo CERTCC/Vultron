@@ -41,6 +41,7 @@ entry hash — is reported as unusable and the rest are read (CEH-02-008).
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping, Sequence
 from enum import StrEnum
 from pathlib import Path
@@ -112,7 +113,8 @@ class CaseLedger(BaseModel):
             copy, which is gapless by selection.  A tail no copy holds cannot
             be seen here; see ``end_confirmed``.
         conflicting_log_indices: Indices at which the copies disagree: two
-            entry hashes at one index, or one entry hash at two indices.  A
+            entry hashes at one index, one entry hash at two indices, or
+            two rows with one index and hash but different data.  A
             conforming ledger has none (CLP-07-013); a history built over one
             is not trustworthy, so it is reported, not resolved, and no copy
             is complete while any exists.
@@ -155,8 +157,9 @@ class LedgerCopy(BaseModel):
     Fields:
         path: The file.
         rows: The file's placed rows for the case.
-        damaged: Whether the file holds any row that could not be used.  An
-            unparseable row names no case, so it may be this case's entry.
+        damaged: Whether the file holds an unusable row that names no case.
+            Such a row (unparseable, or with no usable case id) may be this
+            case's entry; a bad row naming another case cannot be.
         unusable_rows: The file's rows that name this case but could not be
             placed.
     """
@@ -221,6 +224,24 @@ def _distinct(rows: Iterable[PlacedRow]) -> list[PlacedRow]:
     for placed in rows:
         by_key.setdefault(_key(placed), placed)
     return [by_key[key] for key in sorted(by_key)]
+
+
+def _differing_data_indices(copies: Iterable[LedgerCopy]) -> list[int]:
+    """Indices where two rows share an (index, hash) but not their data.
+
+    The reader never recomputes a hash, so such rows disagree about the
+    entry.  Keeping either would resolve the disagreement silently, by file
+    order.
+    """
+    data_at: dict[tuple[int, str], set[str]] = {}
+    for copy in copies:
+        for placed in copy.rows:
+            data_at.setdefault(_key(placed), set()).add(
+                json.dumps(placed.data, sort_keys=True, default=str)
+            )
+    return sorted(
+        {index for (index, _), seen in data_at.items() if len(seen) > 1}
+    )
 
 
 def _conflicting_indices(keys: Iterable[tuple[int, str]]) -> list[int]:
@@ -310,9 +331,16 @@ def select_case_ledger(
         )
     distinct = {path: _distinct(copy.rows) for path, copy in by_path.items()}
     all_keys = {_key(p) for rows in distinct.values() for p in rows}
-    conflicts = _conflicting_indices(all_keys)
+    conflicts = sorted(
+        set(_conflicting_indices(all_keys))
+        | set(_differing_data_indices(by_path.values()))
+    )
     unusable = sorted(
-        {row for copy in by_path.values() for row in copy.unusable_rows},
+        {
+            (str(row.path), row.line, row.reason): row
+            for copy in by_path.values()
+            for row in copy.unusable_rows
+        }.values(),
         key=lambda r: (str(r.path), r.line),
     )
     paths = list(by_path)
@@ -359,6 +387,7 @@ def case_ledgers_from_files(files: Iterable[LedgerFile]) -> LedgerRead:
             continue
         seen_paths.add(resolved)
         file_unusable = list(ledger_file.unusable_rows)
+        nameless = bool(ledger_file.unusable_rows)
         by_case: dict[str, list[PlacedRow]] = {}
         unusable_by_case: dict[str, list[UnusableRow]] = {}
         for row in ledger_file.rows:
@@ -366,7 +395,9 @@ def case_ledgers_from_files(files: Iterable[LedgerFile]) -> LedgerRead:
             if isinstance(placed, UnusableRow):
                 file_unusable.append(placed)
                 named_case = case_id_of(row.data)
-                if named_case is not None:
+                if named_case is None:
+                    nameless = True
+                else:
                     unusable_by_case.setdefault(named_case, []).append(placed)
                 continue
             by_case.setdefault(placed.case_id, []).append(placed)
@@ -376,7 +407,7 @@ def case_ledgers_from_files(files: Iterable[LedgerFile]) -> LedgerRead:
                 LedgerCopy(
                     path=ledger_file.path,
                     rows=by_case.get(case_id, []),
-                    damaged=bool(file_unusable),
+                    damaged=nameless,
                     unusable_rows=unusable_by_case.get(case_id, []),
                 )
             )

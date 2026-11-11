@@ -21,10 +21,15 @@ import pytest
 
 from vultron.demo.recordings.layout import recording_path
 from vultron.measure.ledger import (
+    LedgerCopy,
+    LedgerRow,
     LedgerSource,
+    PlacedRow,
+    UnusableRow,
     case_ledgers_from_files,
     read_case_ledgers,
     read_ledger_file,
+    select_case_ledger,
 )
 
 _CASE = "urn:uuid:case-1"
@@ -230,6 +235,70 @@ def test_one_hash_at_two_indices_is_a_conflict_in_any_order(tmp_path, reverse):
     assert case.conflicting_log_indices == [1, 2]
     assert case.missing_log_indices == []
     assert _indices(case.rows) == [0, 1, 2]
+
+
+def test_a_bad_row_naming_another_case_leaves_a_complete_copy(tmp_path):
+    other_bad = _entry(0, case_id=_OTHER_CASE, logIndex=None)
+    path = _write(tmp_path / "a.jsonl", [_entry(0), _entry(1), other_bad])
+
+    read = read_case_ledgers([path])
+
+    assert read.cases[_CASE].source is LedgerSource.COMPLETE_COPY
+    assert read.cases[_OTHER_CASE].merged
+    assert [r.line for r in read.cases[_OTHER_CASE].unusable_rows] == [3]
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_one_entry_with_two_payloads_is_a_conflict_in_any_order(
+    tmp_path, reverse
+):
+    first = _write(tmp_path / "a.jsonl", [_entry(0), _entry(1)])
+    altered = _entry(1, payloadSnapshot={"rmState": "CLOSED"})
+    second = _write(tmp_path / "b.jsonl", [_entry(0), altered])
+    paths = [second, first] if reverse else [first, second]
+
+    case = read_case_ledgers(paths).cases[_CASE]
+
+    assert case.merged
+    assert case.conflicting_log_indices == [1]
+    assert not case.end_confirmed
+
+
+def _placed(path: Path, line: int, index: int) -> PlacedRow:
+    row = LedgerRow(path=path, line=line, data=_entry(index))
+    return PlacedRow(
+        row=row, case_id=_CASE, log_index=index, entry_hash=f"{_CASE}#{index}"
+    )
+
+
+def test_select_merges_a_path_listed_twice_into_one_copy(tmp_path):
+    path = tmp_path / "a.jsonl"
+    bad = UnusableRow(path=path, line=9, reason="no usable log index")
+    copies = [
+        LedgerCopy(path=path, rows=[_placed(path, 1, 0)]),
+        LedgerCopy(path=path, rows=[_placed(path, 2, 1)], unusable_rows=[bad]),
+    ]
+
+    case = select_case_ledger(_CASE, copies)
+
+    assert case.copies == [path]
+    assert _indices(case.rows) == [0, 1]
+    assert case.unusable_rows == [bad]
+    assert case.merged
+
+
+def test_select_reads_a_path_listed_twice_as_one_complete_copy(tmp_path):
+    path = tmp_path / "a.jsonl"
+    copies = [
+        LedgerCopy(path=path, rows=[_placed(path, 1, 0)]),
+        LedgerCopy(path=path, rows=[_placed(path, 2, 1)]),
+    ]
+
+    case = select_case_ledger(_CASE, copies)
+
+    assert case.source is LedgerSource.COMPLETE_COPY
+    assert case.complete_copy_path == path
+    assert _indices(case.rows) == [0, 1]
 
 
 def test_a_single_copy_repeating_one_hash_is_not_complete(tmp_path):

@@ -43,7 +43,7 @@ _NAME_BEARING_TYPES = frozenset(
 
 
 def _collect_actor_names_from_obj(
-    obj: Any,
+    obj: object,
     out: dict[str, str],
 ) -> None:
     """Recursively scan ``obj`` for actor dicts carrying ``id`` + ``name``.

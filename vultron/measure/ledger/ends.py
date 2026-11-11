@@ -28,7 +28,7 @@ only by evidence in the entries:
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 
 from vultron.core.predicates.case_closure import closure_boundary_indices
 from vultron.enums.roles import CVDRole
@@ -80,7 +80,7 @@ def case_manager_ids(entries: Iterable[Mapping[str, object]]) -> set[str]:
     return found
 
 
-def ends_in_case_closure(entries: list[Mapping[str, object]]) -> bool:
+def ends_in_case_closure(entries: Sequence[Mapping[str, object]]) -> bool:
     """Whether the entry with the highest log index closes the case.
 
     True when that entry is the CASE_MANAGER's own ``RM.CLOSED`` status for
