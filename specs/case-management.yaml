@@ -916,9 +916,8 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A `VulnerabilityCase` MAY have zero or more associated `CaseReference` objects,
-      each an object with its own `id` whose `url` holds an `as:Link` to the referenced
-      resource.
+      A `VulnerabilityCase` MAY have zero or more `CaseReference` objects, each with its
+      own `id` and an `as:Link` to the referenced resource in its `url`.
     rationale: >-
       Advisories, patches and other public material can exist for a case or not. Their
       number depends on how many parties publish. Zero or more items let the case record
@@ -1034,20 +1033,18 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      The `url` Link of a `CaseReference` MAY carry one or more `rel` values, each a CVE
-      JSON schema reference tag (e.g., "patch", "vendor-advisory", "exploit") written as
-      an RFC 8288 link relation type: the bare name for a type IANA registers
-      ("related"), and otherwise a URI under `https://certcc.github.io/Vultron/ns/rel/`.
+      A `CaseReference`'s `url` Link MAY carry `rel` values, each a CVE reference tag
+      (e.g., "patch", "exploit") written as an RFC 8288 relation type.
     rationale: >-
       Relation types let consumers filter or categorise references without parsing the
-      URL or name. AS2 puts a link's relation types in the Link's `rel`, which takes
-      values in the RFC 8288 form, where an unregistered type is a URI; a CVE tag on its
-      own is not one. AS2's `tag` takes objects and links, not strings, so it cannot
-      carry them.
+      URL or name. AS2 puts a link's relation types in the Link's `rel`, in the RFC 8288
+      form: a type IANA registers keeps its bare name ("related"), and any other is a
+      URI, here under `https://certcc.github.io/Vultron/ns/rel/`. AS2's `tag` takes
+      objects and links, not strings, so it cannot carry them.
     verification: >-
-      Tests marked `CM-05-012` assert each CVE tag maps to its
-      relation type, each of those is accepted as a `rel` value, and a bare unregistered
-      tag or an unknown value is refused.
+      Tests marked `CM-05-012` assert each CVE tag maps to its relation type, each of
+      those is accepted as a `rel` value, and a bare unregistered tag or an unknown
+      value is refused.
     stories:
     - story_2022_069
   - id: CM-05-018
@@ -12089,9 +12086,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant that proposes a new case reference MUST send the CASE_MANAGER an
-      `Offer` whose `object` is an `Add` of the `CaseReference`, the object with its own
-      `id` and its `url` Link, with the case as the `Add`'s `target`.
+      A participant proposing a new case reference MUST send the CASE_MANAGER an
+      `Offer` of an `Add` that carries the `CaseReference` object and targets the case.
     rationale: >-
       A reference is a claim about the case like an item, so it takes the same path
       (ADR-0187). The `Add` carries the `CaseReference` object, not its bare `as:Link`:
