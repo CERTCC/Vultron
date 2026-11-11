@@ -22,7 +22,8 @@ CaseActor outbox. Composed by ``create_case_proposal_received_tree``
 """
 
 import logging
-from typing import Any
+from collections.abc import Sequence
+from typing import Any, TypeVar
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
@@ -37,8 +38,10 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.helpers.emit import _EmitSingleActivityBase
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import (
     VultronError,
@@ -48,6 +51,9 @@ from vultron.errors import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: An object the case lists that the CASE_MANAGER wrote with it.
+_Owned = TypeVar("_Owned", VulnerabilityItem, CaseReference)
 
 
 class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
@@ -177,8 +183,9 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
     writes ``create_case_activity_id``: ``CommitNativeLedgerEntriesNode``
     commits this activity as the case's genesis entry, so the case's
     creation is one activity, delivered and ledgered (CLP-07-011).  The
-    activity carries the full inline case (participants, active embargo and
-    reports materialised, ADR-0041 AC-5), ``context`` = the case URI and
+    activity carries the full inline case (participants, active embargo,
+    reports, vulnerability items and case references materialised, ADR-0041
+    AC-5), ``context`` = the case URI and
     ``in_reply_to`` = the ``Accept`` URI (CP-05-003, ADR-0045).  Its id is
     derived from the proposal (``create_case_activity_id``), so a redelivered
     proposal names the activity its first delivery queued (CP-05-005, #4146).
@@ -291,7 +298,48 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             self._inline_report(raw_case.id_, ref)
             for ref in raw_case.vulnerability_reports
         ]
+        # Carry the items and references the creation filled inline too
+        # (CSAF-03-008, CSAF-03-009): this Create is their entry, since the
+        # case's creation is the act that states them (CLP-07-013), so a
+        # replica learns them from it.
+        updates["vulnerability_items"] = self._inline_owned(
+            raw_case.id_, raw_case.vulnerability_items, VulnerabilityItem
+        )
+        updates["case_references"] = self._inline_owned(
+            raw_case.id_, raw_case.case_references, CaseReference
+        )
         return raw_case.model_copy(update=updates)
+
+    def _inline_owned(
+        self,
+        case_id: str,
+        refs: Sequence[str | _Owned],
+        cls: type[_Owned],
+    ) -> list[str | _Owned]:
+        """Each of *refs* as the full *cls* object this store holds.
+
+        The CASE_MANAGER wrote each one with the case, so one this store
+        cannot read is a fault: the Create would hand the owner an id it
+        cannot resolve.
+
+        Raises:
+            VultronValidationError: a reference names no *cls* in the store.
+        """
+        assert self.datalayer is not None
+        carried: list[str | _Owned] = []
+        for ref in refs:
+            if not isinstance(ref, str):
+                carried.append(ref)
+                continue
+            obj = self.datalayer.read(ref)
+            if not isinstance(obj, cls):
+                raise VultronValidationError(
+                    f"case '{case_id}' names {cls.__name__} '{ref}', which"
+                    " this store cannot read, so the Create(VulnerabilityCase)"
+                    " cannot carry it inline (CLP-07-013)"
+                )
+            carried.append(obj)
+        return carried
 
     def _inline_report(
         self, case_id: str, report_ref: str | VulnerabilityReport

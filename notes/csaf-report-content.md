@@ -113,6 +113,14 @@ and archive it.
   P, X or A gets no embargo (EP-04-020), so it takes no embargo end, not even a
   stated one, and its future disclosure dates stay display only, neither applied
   nor overridden.
+- **Items and references are claims until the case exists.**
+  `ReportCaseInputs` carries the vulnerabilities that name themselves (a `cve` or
+  an `ids` entry) and the document-level references as claims, and
+  `CreateCaseFromProposalNode` builds and stores the objects, so the shared
+  mapping mints no id on the Reporter's side (CSAF-03-008, CSAF-03-009). The
+  case lists them by id; its `Create` carries them inline, because that `Create`
+  is the act that states them and the owner's replica reads them from it
+  (CLP-07-013).
 - **A CSAF embargo end is a sender proposal.** With no `proposedEmbargo` on the
   Offer, the node seeds `sender_proposed_embargo` with an `EmbargoEvent` whose id
   derives from the proposal (`csaf_proposed_embargo_id`), so it competes with the
@@ -244,12 +252,3 @@ tasks reuse them rather than add a second path.
   `suggest-actor-to-case`. Comparing a vendor name with the receiving actor's own
   `name` needs no directory, so that is how "a vendor other than the receiver"
   is decided.
-
-## Retiring the planned-test probes
-
-Each probe in `test/architecture/test_csaf_report_content_planned.py` XPASSes
-once a test elsewhere under `test/` carries its spec ID in a
-`@pytest.mark.spec` marker. The issue that writes that behavioral test is the
-one whose build turns the probe red, so delete the probe in the same change. A
-probe never keys on a module or field name, so no task can flip a probe that
-another task owns.

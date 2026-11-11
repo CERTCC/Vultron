@@ -18,14 +18,20 @@ import pytest
 
 from vultron.core.models.report_claims import (
     CaseSplitDifference,
+    ClaimedNote,
+    ClaimedReference,
+    ClaimedVulnerabilityId,
     ClaimOutcome,
     ReportClaims,
     VulnerabilityClaims,
 )
+from vultron.core.models.vulnerability_item import NoteCategory
 from vultron.core.services.report_case_inputs import (
     StatedReportFields,
     case_inputs_from_claims,
+    case_reference_from_claim,
     claims_signals,
+    vulnerability_item_from_claims,
 )
 
 _NOW = datetime(2026, 11, 1, 12, tzinfo=UTC)
@@ -166,6 +172,97 @@ def test_another_category_fills_nothing() -> None:
     assert inputs.summary is None
     assert inputs.embargo_eligible
     assert inputs.outcomes == {}
+
+
+@pytest.mark.spec("CSAF-02-002")
+def test_another_category_makes_no_items_or_references() -> None:
+    claims = ReportClaims(
+        document_category="csaf_security_advisory",
+        references=[ClaimedReference(url="https://example.org/a")],
+        vulnerabilities=[VulnerabilityClaims(cve="CVE-2026-0001")],
+    )
+    inputs = case_inputs_from_claims(claims, reference_time=_NOW)
+    assert (inputs.item_vulnerabilities, inputs.references) == ([], [])
+    assert inputs.outcomes == {}
+
+
+@pytest.mark.spec("CSAF-03-008", "CSAF-03-009")
+def test_named_vulnerabilities_and_document_references_are_kept() -> None:
+    named = VulnerabilityClaims(
+        ids=[ClaimedVulnerabilityId(system_name="GHSA", text="GHSA-x")]
+    )
+    unnamed = VulnerabilityClaims(title="No identifier")
+    reference = ClaimedReference(url="https://example.org/a")
+    claims = ReportClaims(
+        document_category="csaf_vulnerability_report",
+        references=[reference],
+        vulnerabilities=[unnamed, named],
+    )
+    inputs = case_inputs_from_claims(claims, reference_time=_NOW)
+    assert inputs.item_vulnerabilities == [named]
+    assert inputs.references == [reference]
+    assert inputs.outcomes == {
+        "references[0]": ClaimOutcome.APPLIED,
+        "vulnerabilities[1].ids[0]": ClaimOutcome.APPLIED,
+    }
+
+
+@pytest.mark.spec("CSAF-03-008", "CM-05-008")
+def test_a_vulnerability_item_copies_the_identity_fields() -> None:
+    vul = VulnerabilityClaims(
+        cve="CVE-2026-0001",
+        ids=[ClaimedVulnerabilityId(system_name="VU#", text="VU#1")],
+        title="Overflow",
+        notes=[
+            ClaimedNote(
+                category=NoteCategory.SUMMARY,
+                text="It overflows.",
+                audience="all",
+            )
+        ],
+        references=[
+            ClaimedReference(url="https://example.org/b", summary="Bulletin")
+        ],
+    )
+    item = vulnerability_item_from_claims(vul)
+    assert (item.cve, item.title) == ("CVE-2026-0001", "Overflow")
+    assert [(i.system_name, i.text) for i in item.ids] == [("VU#", "VU#1")]
+    [note] = item.notes
+    assert (note.category, note.text, note.title, note.audience) == (
+        NoteCategory.SUMMARY,
+        "It overflows.",
+        None,
+        "all",
+    )
+    [ref] = item.references
+    assert not isinstance(ref, str)
+    assert (ref.url.href, ref.name) == ("https://example.org/b", "Bulletin")
+
+
+@pytest.mark.spec("CSAF-03-008")
+def test_a_vulnerability_with_no_identifier_makes_no_item() -> None:
+    with pytest.raises(ValueError, match="no cve and no ids"):
+        vulnerability_item_from_claims(VulnerabilityClaims(title="Unnamed"))
+
+
+@pytest.mark.spec("CSAF-03-009")
+def test_a_case_reference_takes_the_url_and_summary() -> None:
+    ref = case_reference_from_claim(
+        ClaimedReference(
+            url="https://example.org/c", summary="Write-up", category="self"
+        )
+    )
+    assert (ref.url.href, ref.url.rel, ref.name) == (
+        "https://example.org/c",
+        [],
+        "Write-up",
+    )
+    assert (
+        case_reference_from_claim(
+            ClaimedReference(url="https://example.org/d")
+        ).name
+        is None
+    )
 
 
 def test_a_naive_reference_time_is_refused() -> None:

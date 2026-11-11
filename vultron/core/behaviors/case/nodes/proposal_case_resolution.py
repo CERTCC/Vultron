@@ -50,7 +50,11 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import PxaDimension
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.report_case_inputs import ReportCaseInputs
+from vultron.core.services.report_case_inputs import (
+    ReportCaseInputs,
+    case_reference_from_claim,
+    vulnerability_item_from_claims,
+)
 from vultron.core.states.cs.dimensions import (
     AttackObservation,
     ExploitPublication,
@@ -238,15 +242,29 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
             return f
         assert self.datalayer is not None and self.actor_id is not None
 
+        inputs: ReportCaseInputs = self.get_input(REPORT_CASE_INPUTS_KEY)
         case = self._new_case(
-            self.get_input(REPORT_CASE_INPUTS_KEY),
+            inputs,
             # The new case is stamped at the act's instant (ADR-0176).
             published=self._require_act_instant(),
         )
         if self._report_id is not None:
             case.vulnerability_reports.append(self._report_id)
+        items = [
+            vulnerability_item_from_claims(vul)
+            for vul in inputs.item_vulnerabilities
+        ]
+        references = [
+            case_reference_from_claim(ref) for ref in inputs.references
+        ]
+        # Each item and reference is an object of its own that the case
+        # lists by id, as it lists its reports (CM-05-021).
+        case.vulnerability_items.extend(item.id_ for item in items)
+        case.case_references.extend(ref.id_ for ref in references)
 
         try:
+            for owned in (*items, *references):
+                self.datalayer.create(owned)
             self.datalayer.create(case)
         except ValueError as exc:
             self.feedback_message = f"Case creation failed: {exc}"
@@ -255,10 +273,14 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
 
         self._set_output("case_id", case.id_)
         logger.info(
-            "%s: Created VulnerabilityCase '%s' from proposal, owned by '%s'",
+            "%s: Created VulnerabilityCase '%s' from proposal, owned by '%s',"
+            " with %d vulnerability item(s) and %d case reference(s)"
+            " (CSAF-03-008, CSAF-03-009)",
             self.name,
             case.id_,
             self._owner_id,
+            len(items),
+            len(references),
         )
         return Status.SUCCESS
 
@@ -270,7 +292,9 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         ``report_case_inputs`` (``ResolveReportCaseInputsNode``) gives the
         report's name and summary, else its CSAF document's (CSAF-03-006,
         CSAF-03-007), and the P/X/A the document states (CSAF-03-003 to
-        CSAF-03-005).  They are the case's first status, not a transition:
+        CSAF-03-005).  The document's vulnerability items and case
+        references (CSAF-03-008, CSAF-03-009) are listed by
+        :meth:`update`, which stores them.  They are the case's first status, not a transition:
         no status precedes it.  An exploit made public makes the public
         aware (the pX to PX invariant), so X starts with P.
         """
