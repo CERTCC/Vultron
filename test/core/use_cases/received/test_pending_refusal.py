@@ -117,7 +117,9 @@ def _proposer_with_pending_proposal(
     )
     dl.create(embargo)
     dl.create(proposal)
-    record_pending_assertion(_PROPOSER, case.id_, _INVITE, proposal.id_)
+    record_pending_assertion(
+        _PROPOSER, case.id_, _INVITE, proposal.id_, at=now_utc()
+    )
     return dl, case, proposal
 
 
@@ -282,6 +284,7 @@ def test_the_managers_reject_judges_the_pending_accept_at_the_acts_instant(
         _ACCEPT,
         f"{case.id_}/activities/pending-accept",
         subject_id=proposal.id_,
+        at=now_utc(),
     )
     emitted = now_utc()
     accept = store.pending_for_subject(

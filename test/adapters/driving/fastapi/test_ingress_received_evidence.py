@@ -29,6 +29,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.received import archive_received, intake_received
 from test.support.signing import resigned, signed_body
@@ -185,6 +186,8 @@ def _announce_entry_body() -> dict[str, Any]:
         entry_hash="hash-1",
         prev_log_hash="hash-0",
         log_index=1,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     return signed_body(
         announce_log_entry_activity(

@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
@@ -397,6 +398,8 @@ def _make_wire_case_ledger_entry():
         case_id=_CASE_ID_2401,
         log_object_id=_LOG_OBJ_ID_2401,
         semantic_type="RS",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
 

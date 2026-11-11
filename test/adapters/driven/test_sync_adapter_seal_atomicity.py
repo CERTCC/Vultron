@@ -20,6 +20,7 @@ id behind, or the outbox would hold an id with nothing to deliver.
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driven import sync_activity_adapter
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -42,6 +43,7 @@ def _entry() -> CaseLedgerEntry:
             semantic_type="add_note",
             payload_snapshot={"log_index": 1},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 

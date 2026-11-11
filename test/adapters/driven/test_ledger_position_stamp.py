@@ -16,6 +16,7 @@ from collections.abc import Iterator
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
@@ -64,6 +65,8 @@ def _entry(log_index: int, prev: str, entry_hash: str) -> CaseLedgerEntry:
         payload_snapshot={},
         prev_log_hash=prev,
         entry_hash=entry_hash,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
 

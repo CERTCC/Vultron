@@ -35,6 +35,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.adapters.outbox_sealed_body import (
     SealedOutboundBody,
@@ -318,6 +319,7 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
         semantic_type="log_entry_committed",
         payload_snapshot={"state": "replicated"},
         prev_log_hash=_ZERO_HASH,
+        received_at=ACT_AT,
     )
     entry = _to_persistable_entry(chain_entry)
     activity = announce_log_entry_activity(

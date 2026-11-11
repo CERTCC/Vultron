@@ -54,6 +54,7 @@ from test.ci.invariants.common import (
     check_causal_edges,
     check_clp14_timestamp_invariants,
 )
+from test.support.act_clock import ACT_AT
 from vultron.config.app import AppConfig
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
@@ -126,10 +127,16 @@ def test_clp_14_001_log_index_causal_order_by_construction():
     """CaseLedger.append() assigns sequential log_index, enforcing causal order."""
     lg = _make_ledger()
     e1 = lg.append(
-        object_id=OBJ_ID, semantic_type="test", payload_snapshot={"x": 1}
+        object_id=OBJ_ID,
+        semantic_type="test",
+        payload_snapshot={"x": 1},
+        at=ACT_AT,
     )
     e2 = lg.append(
-        object_id=OBJ_ID, semantic_type="test", payload_snapshot={"x": 2}
+        object_id=OBJ_ID,
+        semantic_type="test",
+        payload_snapshot={"x": 2},
+        at=ACT_AT,
     )
     assert e1.log_index < e2.log_index
 
@@ -143,6 +150,7 @@ def test_clp_14_002_published_non_null_enforced_by_model():
             log_object_id=OBJ_ID,
             semantic_type="test",
             published=None,  # type: ignore[arg-type]
+            received_at=ACT_AT,
         )
 
 
@@ -188,7 +196,10 @@ def test_clp_14_004_same_case_id_enforced_by_ledger():
     """CaseLedger entries always carry the ledger's own case_id."""
     lg = _make_ledger()
     e = lg.append(
-        object_id=OBJ_ID, semantic_type="test", payload_snapshot={"x": 1}
+        object_id=OBJ_ID,
+        semantic_type="test",
+        payload_snapshot={"x": 1},
+        at=ACT_AT,
     )
     assert e.case_id == CASE_ID
 
@@ -225,6 +236,7 @@ def test_clp_14_012_an_entry_joins_only_the_ledger_its_case_id_names():
             semantic_type="test",
             payload_snapshot={"x": 1},
             prev_log_hash=other.genesis_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -240,10 +252,16 @@ def test_clp_14_005_log_index_unique_by_construction():
     """CaseLedger.append() assigns unique log_index values."""
     lg = _make_ledger()
     e1 = lg.append(
-        object_id=OBJ_ID, semantic_type="test", payload_snapshot={"x": 1}
+        object_id=OBJ_ID,
+        semantic_type="test",
+        payload_snapshot={"x": 1},
+        at=ACT_AT,
     )
     e2 = lg.append(
-        object_id=OBJ_ID + "2", semantic_type="test", payload_snapshot={"x": 2}
+        object_id=OBJ_ID + "2",
+        semantic_type="test",
+        payload_snapshot={"x": 2},
+        at=ACT_AT,
     )
     assert e1.log_index != e2.log_index
 
@@ -462,10 +480,12 @@ def test_clp_15_005_caseactor_records_observation_order():
         object_id=OBJ_ID + "/first",
         semantic_type="first",
         payload_snapshot={"x": 1},
+        at=ACT_AT,
     )
     e2 = lg.append(
         object_id=OBJ_ID + "/second",
         semantic_type="second",
         payload_snapshot={"x": 2},
+        at=ACT_AT,
     )
     assert e1.log_index < e2.log_index

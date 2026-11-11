@@ -16,6 +16,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import activate
@@ -291,6 +292,7 @@ def _replay(dl, case_id: str, snapshot: dict) -> Status:
             semantic_type="remove_embargo_event_from_case",
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
     node = ApplyEmbargoTeardownNode()

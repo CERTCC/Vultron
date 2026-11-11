@@ -37,6 +37,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     OWNER_ACTOR_ID,
     PARTICIPANT_ACTOR_ID,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.config.app import config_override
@@ -105,6 +106,7 @@ def _persist_prior_entry(
             semantic_type="note_added",
             payload_snapshot=_note_snapshot(actor_id, published),
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
     )
     datalayer.save(entry)
@@ -487,6 +489,7 @@ def test_create_log_entry_node_reuses_a_recorded_entry_past_the_staleness_window
                 semantic_type="note_added",
                 payload_snapshot=snapshot,
                 prev_log_hash=_ZERO_HASH,
+                received_at=ACT_AT,
             )
         )
     )

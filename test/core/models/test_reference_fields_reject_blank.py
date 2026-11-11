@@ -28,6 +28,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
 from test.support.blank_strings import BLANKS
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.activity import (
@@ -135,28 +136,43 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
     ),
     (
         "VultronReplicationState.case_id",
-        lambda v: VultronReplicationState(case_id=v, peer_id=ACTOR),
+        lambda v: VultronReplicationState(
+            case_id=v, peer_id=ACTOR, updated_at=ACT_AT
+        ),
     ),
     (
         "VultronReplicationState.peer_id",
-        lambda v: VultronReplicationState(case_id=CASE, peer_id=v),
+        lambda v: VultronReplicationState(
+            case_id=CASE, peer_id=v, updated_at=ACT_AT
+        ),
     ),
     (
         "CaseLedgerEntry.case_id",
         lambda v: CaseLedgerEntry(
-            case_id=v, log_object_id=URI, semantic_type="note_added"
+            case_id=v,
+            log_object_id=URI,
+            semantic_type="note_added",
+            received_at=ACT_AT,
+            published=ACT_AT,
         ),
     ),
     (
         "CaseLedgerEntry.log_object_id",
         lambda v: CaseLedgerEntry(
-            case_id=CASE, log_object_id=v, semantic_type="note_added"
+            case_id=CASE,
+            log_object_id=v,
+            semantic_type="note_added",
+            received_at=ACT_AT,
+            published=ACT_AT,
         ),
     ),
     (
         "HashChainLedgerRecord.object_id",
         lambda v: HashChainLedgerRecord(
-            case_id=CASE, object_id=v, semantic_type="note_added"
+            case_id=CASE,
+            object_id=v,
+            semantic_type="note_added",
+            received_at=ACT_AT,
         ),
     ),
     (
@@ -211,13 +227,13 @@ DATACLASS_CASES: list[tuple[str, Callable[[Any], Any]]] = [
     (
         "PendingAssertion.case_id",
         lambda v: PendingAssertion(
-            case_id=v, semantic_type="e", object_id=URI
+            case_id=v, semantic_type="e", object_id=URI, emitted_at=ACT_AT
         ),
     ),
     (
         "PendingAssertion.object_id",
         lambda v: PendingAssertion(
-            case_id=CASE, semantic_type="e", object_id=v
+            case_id=CASE, semantic_type="e", object_id=v, emitted_at=ACT_AT
         ),
     ),
 ]

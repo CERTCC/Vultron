@@ -28,6 +28,7 @@ from test.core.use_cases.received.actor.test_case_joining_replies import (  # no
     joining_case,
     route_received,
 )
+from test.support.act_clock import ACT_AT
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import now_utc
@@ -575,6 +576,7 @@ def invitee_without_replica(joining_case):  # noqa: F811
             case_id=joining_case.case.id_,
             case_actor_id=joining_case.case_actor_id,
             invite_anchored=True,
+            queued_at=ACT_AT,
         )
     )
     return dl
@@ -615,6 +617,7 @@ def test_a_queue_recorded_sender_does_not_admit_a_full_case_invite(
         VultronPendingCaseInbox(
             case_id=joining_case.case.id_,
             case_actor_id=_IMPOSTOR_ID,
+            queued_at=ACT_AT,
         )
     )
     # The queue's record only opens the expiry window; the one activity

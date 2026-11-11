@@ -26,6 +26,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic.alias_generators import to_camel
 
+from test.support.act_clock import ACT_AT
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_proposal_admission import (
@@ -59,6 +60,8 @@ def _entry_data() -> dict[str, Any]:
         "logIndex": 0,
         "logObjectId": "https://example.org/activities/act-1",
         "semanticType": "invite_actor_to_case",
+        "published": ACT_AT,
+        "receivedAt": ACT_AT,
     }
 
 
@@ -68,7 +71,11 @@ _FORMER: list[tuple[type[BaseModel], dict[str, Any], str]] = [
     (CaseLedgerEntry, _entry_data(), "event_type"),
     (
         ReceivedActivityRecord,
-        {"activity_id": f"{_URI}/a-1", "received_body": "{}"},
+        {
+            "activity_id": f"{_URI}/a-1",
+            "received_body": "{}",
+            "received_at": ACT_AT,
+        },
         "activity",
     ),
     # ``DeferredInboxActivity`` was retired into ``ReceivedActivityRecord``
@@ -76,18 +83,26 @@ _FORMER: list[tuple[type[BaseModel], dict[str, Any], str]] = [
     # names of the record that absorbed it, ``rows_json`` among them.
     (
         ReceivedActivityRecord,
-        {"activity_id": f"{_URI}/a-1", "received_body": "{}"},
+        {
+            "activity_id": f"{_URI}/a-1",
+            "received_body": "{}",
+            "received_at": ACT_AT,
+        },
         "rows_json",
     ),
     (
         ReceivedActivityRecord,
-        {"activity_id": f"{_URI}/a-1", "received_body": "{}"},
+        {
+            "activity_id": f"{_URI}/a-1",
+            "received_body": "{}",
+            "received_at": ACT_AT,
+        },
         "activity_row_json",
     ),
     # The per-message wait replaced the per-case list (ADR-0154).
     (
         VultronPendingCaseInbox,
-        {"case_id": f"{_URI}/case"},
+        {"case_id": f"{_URI}/case", "queued_at": ACT_AT},
         "activity_ids",
     ),
     (
@@ -113,7 +128,11 @@ _FORMER: list[tuple[type[BaseModel], dict[str, Any], str]] = [
     *(
         (
             VultronReplicationState,
-            {"case_id": f"{_URI}/case", "peer_id": f"{_URI}/peer"},
+            {
+                "case_id": f"{_URI}/case",
+                "peer_id": f"{_URI}/peer",
+                "updated_at": ACT_AT,
+            },
             name,
         )
         for name in (

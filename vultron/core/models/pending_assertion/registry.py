@@ -67,6 +67,8 @@ def record_pending_assertion(
     semantic_type: str,
     activity_id: str,
     subject_id: str | None = None,
+    *,
+    at: datetime,
 ) -> None:
     """Record an assertion *actor_id* just sent to the CASE_MANAGER.
 
@@ -76,10 +78,11 @@ def record_pending_assertion(
     through ``SvcBTTriggerBase._record_asserted_activity``) and the received
     P/X/A cascade's teardown ask
     (``SendTerminateEmbargoActivityNode``).  The matching
-    ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-003).
+    ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-003).  *at* is the
+    sending act's instant, stamped on the entry (ADR-0176).
     """
     get_pending_assertion_store(actor_id).add(
-        case_id, semantic_type, activity_id, subject_id=subject_id
+        case_id, semantic_type, activity_id, subject_id=subject_id, at=at
     )
     logger.info(
         "Actor '%s' asserted '%s' on case '%s' to the CASE_MANAGER;"

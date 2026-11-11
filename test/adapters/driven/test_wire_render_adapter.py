@@ -28,6 +28,7 @@ from datetime import UTC, timedelta
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 from vultron.core.models.actor import VultronPerson, VultronService
@@ -140,6 +141,8 @@ def test_render_case_ledger_entry(adapter):
         case_id="urn:uuid:case",
         log_object_id="urn:uuid:obj",
         semantic_type="V",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     result = adapter.render(obj)
     _assert_wire_dict(result, "CaseLedgerEntry")
@@ -156,6 +159,8 @@ def test_render_returns_camel_case_keys(adapter):
         case_id="urn:uuid:case",
         log_object_id="urn:uuid:obj",
         semantic_type="V",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     result = adapter.render(obj)
     # Wire alias for 'case_id' is 'caseId' / 'context' depending on wire model;

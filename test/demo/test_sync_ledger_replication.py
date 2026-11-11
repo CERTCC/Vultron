@@ -22,6 +22,7 @@ from typing import cast
 import anyio
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import in_act, run_in_act
 from test.support.received import delivered, peer_position, received_event
 from test.support.signing import signed_body
@@ -138,6 +139,7 @@ def _make_log_entry(
         semantic_type=semantic_type,
         payload_snapshot=snapshot,
         prev_log_hash=prev_hash,
+        received_at=ACT_AT,
     )
     return _to_persistable_entry(record)
 
@@ -407,7 +409,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         pass
 
     state_id = VultronReplicationState(
-        case_id=case.id_, peer_id=peer_actor_id
+        case_id=case.id_, peer_id=peer_actor_id, updated_at=ACT_AT
     ).id_
     replication_state = case_actor_dl.read(state_id)
     assert replication_state is not None
@@ -629,7 +631,9 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
     )
 
     state = case_actor_dl.read(
-        VultronReplicationState(case_id=case.id_, peer_id=peer_actor_id).id_
+        VultronReplicationState(
+            case_id=case.id_, peer_id=peer_actor_id, updated_at=ACT_AT
+        ).id_
     )
     assert state is not None
     assert state.last_acknowledged_hash == entry1.entry_hash
@@ -829,7 +833,7 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
         VultronReplicationState,
         case_actor_dl.read(
             VultronReplicationState(
-                case_id=case.id_, peer_id=peer_actor_id
+                case_id=case.id_, peer_id=peer_actor_id, updated_at=ACT_AT
             ).id_
         ),
     )

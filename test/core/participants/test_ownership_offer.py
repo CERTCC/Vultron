@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -74,6 +75,7 @@ def _ledger(
             prev_log_hash="",
             entry_hash="",
             received_at=at,
+            published=ACT_AT,
         )
     )
 

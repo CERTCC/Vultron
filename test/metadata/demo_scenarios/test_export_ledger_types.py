@@ -35,6 +35,7 @@ from pathlib import Path
 import pytest
 from pydantic import Field, computed_field
 
+from test.support.act_clock import ACT_AT
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -93,6 +94,8 @@ def _instances() -> dict[str, CoreObject]:
         payload_snapshot={"type": "Create"},
         prev_log_hash="a" * 64,
         entry_hash="b" * 64,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     consent = EmbargoConsent(
         embargo_id=f"{CASE}/embargo/1",

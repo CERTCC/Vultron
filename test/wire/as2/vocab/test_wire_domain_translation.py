@@ -18,6 +18,7 @@
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import register
 from test.support.future_dates import FAR_FUTURE
 from vultron.core.models.case import VulnerabilityCase
@@ -255,6 +256,8 @@ def test_case_ledger_entry_to_core_returns_domain_model():
         log_object_id="https://example.org/activities/1",
         semantic_type="case_created",
         payload_snapshot={"id": "https://example.org/activities/1"},
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
     assert isinstance(entry, CaseLedgerEntry)

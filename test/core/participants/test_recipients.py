@@ -19,6 +19,7 @@ import logging
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
@@ -294,6 +295,8 @@ def _entry(
         payload_snapshot={"type": "Add", "actor": actor},
         prev_log_hash="0" * 64,
         entry_hash=f"{log_index:064d}",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
 

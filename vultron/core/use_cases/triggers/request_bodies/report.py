@@ -33,7 +33,7 @@ from pydantic import (
 )
 
 from vultron.core.models._helpers import (
-    require_future_aware,
+    require_aware,
     timestamp_serializer,
 )
 from vultron.core.models.base import NonEmptyString, UriString
@@ -145,10 +145,12 @@ class SubmitReportFields(BaseModel):
 
     @field_validator("proposed_embargo_end_time")
     @classmethod
-    def proposed_end_must_be_tz_aware_and_future(
+    def proposed_end_must_be_tz_aware(
         cls, v: datetime | None
     ) -> datetime | None:
-        return require_future_aware(v, "proposed_embargo_end_time")
+        # Whether it is in the future is the trigger's to judge, against its
+        # act's instant (ADR-0176).
+        return require_aware(v, "proposed_embargo_end_time")
 
 
 class SubmitReportRequest(SubmitReportFields):

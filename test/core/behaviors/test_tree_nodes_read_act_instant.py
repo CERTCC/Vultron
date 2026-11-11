@@ -266,8 +266,8 @@ def test_clearing_a_refused_assertion_judges_its_timeout_at_the_acts_instant(
     so a still-pending entry is cleared and an overdue one is left timed
     out."""
     refused = f"{_CASE}/activities/refused"
-    owner_pending_store.add(_CASE, "add_note_to_case", refused)
     emitted = datetime.now(tz=UTC)
+    owner_pending_store.add(_CASE, "add_note_to_case", refused, at=emitted)
     at = emitted + timedelta(
         seconds=owner_pending_store.timeout_seconds + 1 if overdue else 0
     )

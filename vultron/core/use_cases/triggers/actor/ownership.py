@@ -35,7 +35,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     reject_case_ownership_transfer_trigger_bt,
     withdraw_case_ownership_transfer_trigger_bt,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, require_future_aware
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import why_may_not_act_on_case
 from vultron.core.ports.clock import ClockPort
@@ -146,6 +146,10 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
                 " (CM-21-021)"
             )
 
+        # The answer deadline is in the future at this act's instant
+        # (TRIG-11-007, ADR-0176), judged before the peer record is written.
+        end_time = require_future_aware(request.end_time, at=self._at)
+
         # A transferee is a peer named by URI — the same reasoning as an invitee
         # or a recommended actor; see ``_record_named_peer``. Handing ownership
         # to an actor on another node is the normal case, and that node's record
@@ -160,7 +164,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
 
         self._transferee_id = request.transferee_id
         self._content = request.content
-        self._end_time = request.end_time
+        self._end_time = end_time
         self._actor_id = offering_actor_id
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:

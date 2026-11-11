@@ -13,6 +13,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import (
     CONSTRUCTED_CASE_OWNERSHIP,
@@ -757,6 +758,7 @@ def _hold_pre_genesis_entries(
                 semantic_type="test_event",
                 payload_snapshot={"index": index},
                 prev_log_hash=prev,
+                received_at=ACT_AT,
             )
         )
         event = ledger_announce_event(entry, actor=_CREATOR, to=_OWNER)

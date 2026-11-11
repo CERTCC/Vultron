@@ -40,6 +40,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
@@ -100,6 +101,7 @@ def _entry() -> CaseLedgerEntry:
             semantic_type="test_event",
             payload_snapshot={"log_index": 0},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 

@@ -278,6 +278,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
             semantic_type,
             asserted_id,
             subject_id=subject_id,
+            at=self._at,
         )
         return True
 

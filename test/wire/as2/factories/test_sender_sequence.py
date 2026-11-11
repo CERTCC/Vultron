@@ -16,6 +16,7 @@ import json
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.errors import VultronActivityConstructionError
@@ -60,6 +61,8 @@ def _entry() -> as_CaseLedgerEntry:
         payload_snapshot={},
         prev_log_hash="00" * 32,
         entry_hash="ab" * 32,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     return as_CaseLedgerEntry.model_validate(core.model_dump(by_alias=True))
 

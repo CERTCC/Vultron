@@ -4,6 +4,7 @@ from typing import TypeAlias
 import pytest
 from pytest import MonkeyPatch
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
 from test.support.inbox_replay import hold_activity
@@ -273,6 +274,8 @@ def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
         semantic_type="announce",
         prev_log_hash="0",
         entry_hash="1",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     activity = announce_log_entry_activity(
         entry,

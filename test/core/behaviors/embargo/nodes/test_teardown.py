@@ -29,6 +29,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
     setup_blackboard,
 )
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
@@ -614,6 +615,7 @@ def _remove_entry(
                 "context": case_id,
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 
@@ -834,6 +836,7 @@ class TestApplyEmbargoTeardownNode:
                 received_body=f'{{"id": "{announce_id}", "type": "Announce"}}',
                 stage=ReceivedStage.HELD,
                 replay_owed=False,
+                received_at=ACT_AT,
             )
         )
 
@@ -881,6 +884,7 @@ class TestApplyEmbargoTeardownNode:
                 received_body=f'{{"id": "{announce_id}", "type": "Announce"}}',
                 stage=ReceivedStage.HELD,
                 replay_owed=False,
+                received_at=ACT_AT,
             )
         )
 

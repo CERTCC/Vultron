@@ -24,6 +24,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
     REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
@@ -71,6 +72,7 @@ def _entry(
                 "target": CASE_ID,
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 
@@ -287,6 +289,7 @@ def test_reinstatement_skips_a_snapshot_with_no_participant(
                 "target": CASE_ID,
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 

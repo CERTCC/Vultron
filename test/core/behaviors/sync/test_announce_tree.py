@@ -10,6 +10,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import (
     activate,
@@ -160,6 +161,7 @@ def _make_entry(
             semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -550,6 +552,7 @@ def _make_remove_embargo_entry(
                 "content": "EARLY",
             },
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -701,6 +704,7 @@ def _make_relayed_invite_entry(
                 },
             },
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -729,6 +733,7 @@ def _make_consent_row_entry(
                 ),
             },
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -866,6 +871,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
                     semantic_type=UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
                     payload_snapshot=json.loads(blob),
                     prev_log_hash=case_obj.genesis_hash,
+                    received_at=ACT_AT,
                 )
             )
         )
@@ -884,6 +890,7 @@ def _make_add_note_entry(
             semantic_type="add_note_to_case",
             payload_snapshot={"object": NOTE_ID},
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -990,6 +997,7 @@ class TestAnnounceLogEntryAppliesNoteRemoval:
                 semantic_type="remove_note_from_case",
                 payload_snapshot={"object": NOTE_ID},
                 prev_log_hash=case_obj.genesis_hash,
+                received_at=ACT_AT,
             )
         )
         event = _make_event(entry, actor_id=case_actor.id_)
@@ -1028,6 +1036,7 @@ class TestAnnounceLogEntryAppliesReportAddition:
                 semantic_type="add_report_to_case",
                 payload_snapshot={"object": report_id},
                 prev_log_hash=case_obj.genesis_hash,
+                received_at=ACT_AT,
             )
         )
         event = _make_event(entry, actor_id=case_actor.id_)
@@ -1072,6 +1081,7 @@ def _make_participant_status_entry(
                 "target": PARTICIPANT_ID,
             },
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -1195,6 +1205,7 @@ def _create_entry(
             semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
             payload_snapshot=snapshot,
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -1230,6 +1241,7 @@ def _reply_entry(
             semantic_type=semantic_type,
             payload_snapshot=snapshot,
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -1648,6 +1660,7 @@ def _make_close_case_entry(
             semantic_type="close_case",
             payload_snapshot={"actor": DEPARTING_ACTOR_ID},
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -1777,6 +1790,7 @@ def _make_ownership_transfer_entry(
                 "object": carried,
             },
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -1933,6 +1947,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
                     "object": record.model_dump(mode="json", by_alias=True),
                 },
                 prev_log_hash=case_obj.genesis_hash,
+                received_at=ACT_AT,
             )
         )
 
@@ -2009,6 +2024,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
                 semantic_type="accept_case_ownership_transfer",
                 payload_snapshot={"type": "Accept", "actor": NEW_OWNER_ID},
                 prev_log_hash=case_obj.genesis_hash,
+                received_at=ACT_AT,
             )
         )
 
@@ -2055,6 +2071,7 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
                 semantic_type="reject_case_ownership_transfer",
                 payload_snapshot={"type": "Reject", "actor": NEW_OWNER_ID},
                 prev_log_hash=case.genesis_hash,
+                received_at=ACT_AT,
             )
         )
         event = _make_event(entry, actor_id=case_actor.id_)
@@ -2118,6 +2135,7 @@ def _make_participant_status_entry_with_states(
                 "target": {"id": participant_id},
             },
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -2393,6 +2411,7 @@ def test_seeding_the_case_clears_the_genesis_reject_record(
             case_id=CASE_ID,
             case_actor_id=CASE_ACTOR_ACTOR_ID,
             invite_anchored=True,
+            queued_at=ACT_AT,
         )
     )
     seed = cast(

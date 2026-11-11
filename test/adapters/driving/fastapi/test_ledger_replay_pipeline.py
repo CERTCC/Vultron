@@ -110,6 +110,7 @@ def _chain(genesis_hash: str, length: int) -> list[CaseLedgerEntry]:
             semantic_type="test_event",
             payload_snapshot={"index": index},
             prev_log_hash=prev,
+            received_at=ACT_AT,
         )
         entry = _to_persistable_entry(record)
         entries.append(entry)
@@ -223,7 +224,10 @@ def test_pre_genesis_entries_converge_through_the_replay(dl, dispatcher):
     # actor's case Announce before it holds the case (PCR-03-004).
     dl.save(
         VultronPendingCaseInbox(
-            case_id=_CASE_ID, case_actor_id=_CASE_MANAGER, invite_anchored=True
+            case_id=_CASE_ID,
+            case_actor_id=_CASE_MANAGER,
+            invite_anchored=True,
+            queued_at=ACT_AT,
         )
     )
 

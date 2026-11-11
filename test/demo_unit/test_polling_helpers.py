@@ -31,6 +31,7 @@ import pytest
 import uvicorn
 from fastapi import FastAPI, Path as FastAPIPath
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.received import archive_received
@@ -578,6 +579,7 @@ def test_wait_for_pending_inbox_quiescent_non_empty_times_out_through_router(
             stage=ReceivedStage.HELD,
             replay_owed=True,
             awaiting_case_id=case_id,
+            received_at=ACT_AT,
         )
     )
     with pytest.raises(AssertionError, match="awaiting case"):
@@ -605,6 +607,7 @@ def test_wait_for_pending_inbox_quiescent_empty_returns_through_router(
         ReceivedActivityRecord(
             activity_id="http://example.com/activities/act-1",
             received_body="{}",
+            received_at=ACT_AT,
         )
     )
     wait_for_pending_inbox_quiescent(

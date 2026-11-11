@@ -23,6 +23,7 @@ Verifies:
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.protocol_pair import (
@@ -80,6 +81,8 @@ def _seed_ledger_entry(
         payload_snapshot=payload_snapshot or {},
         prev_log_hash="",
         entry_hash="",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     dl.save(entry)
     return entry

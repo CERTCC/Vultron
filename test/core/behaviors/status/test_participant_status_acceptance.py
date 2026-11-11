@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
@@ -1024,6 +1025,7 @@ def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
                 "target": {"id": PARTICIPANT_ID},
             },
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
     )
 

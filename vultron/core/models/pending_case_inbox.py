@@ -29,7 +29,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import now_utc, timestamp_serializer
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.base import CoreRecord, UriString, with_record_id
 
 
@@ -55,8 +55,10 @@ class VultronPendingCaseInbox(CoreRecord):
         serialization_alias="type",
     )
     case_id: UriString = Field(..., description="URI of the pending case")
+    # Required: the instant of the act that queued the first activity
+    # (ADR-0176).
     queued_at: datetime = Field(
-        default_factory=now_utc,
+        ...,
         description="UTC timestamp when the first activity was queued for this case",
     )
     _serialize_queued_at = timestamp_serializer("queued_at")

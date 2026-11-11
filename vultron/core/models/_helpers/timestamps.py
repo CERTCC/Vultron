@@ -24,10 +24,7 @@ from typing import (
 
 from pydantic import BaseModel, SerializerFunctionWrapHandler, field_serializer
 
-from vultron.core.models._helpers.clock import (
-    _datetime_type,
-    now_utc,
-)
+from vultron.core.models._helpers.clock import _datetime_type
 
 
 def format_timestamp(value: datetime) -> str:
@@ -55,7 +52,7 @@ def timestamp_serializer(*fields: str) -> Any:
     under a name of its own, so a subclass's assignment never replaces its
     parent's::
 
-        received_at: datetime = Field(default_factory=now_utc)
+        received_at: datetime
         _serialize_received_at = timestamp_serializer("received_at")
 
     This factory is not the only route to the form.  The four AS2 timestamps
@@ -142,27 +139,6 @@ def parse_published(value: Any) -> datetime | None:
         aware is not None
     )  # parsed is a datetime here; as_utc only returns None for None input
     return aware.astimezone(UTC)
-
-
-def claimed_published_iso(activity_obj: Any) -> str:
-    """Return *activity_obj*'s claimed ``published`` as an ISO 8601 string.
-
-    For use by the hand-built ``payloadSnapshot`` dicts that the CaseActor
-    commits on behalf of a participant.  Such a snapshot is attributed to that
-    participant, so its ``published`` must be the participant's own claimed
-    event time — taken from the activity that triggered it — and not the
-    CaseActor's clock.  Mixing two clocks inside one actor's claimed stream is
-    what the CLP-15-003 check reads as a timestamp regression, and it also
-    leaves CLP-14-007/008 comparing the receiver's clock against itself on that
-    path (ISSUE-3149).
-
-    Falls back to the local clock when *activity_obj* is ``None`` or carries no
-    parseable timestamp.  Anything that arrived off the wire has one —
-    ``parse_activity`` refuses an inbound activity without it — so the fallback
-    covers synthesised and legacy callers only.
-    """
-    claimed = parse_published(getattr(activity_obj, "published", None))
-    return format_timestamp(claimed or now_utc())
 
 
 class MissingClaimedTimeError(ValueError):

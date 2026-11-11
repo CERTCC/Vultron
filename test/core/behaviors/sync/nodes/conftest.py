@@ -5,6 +5,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -73,6 +74,7 @@ def _make_entry(
             semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 

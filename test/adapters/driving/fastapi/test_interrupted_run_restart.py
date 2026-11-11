@@ -317,6 +317,7 @@ def test_one_failing_rerun_does_not_keep_the_others_back(
             activity_id=f"{CASE_ID}/activities/{name}",
             received_body=json.dumps({"id": name, "type": "Add"}),
             stage=ReceivedStage.HELD,
+            received_at=ACT_AT,
         )
         for name in ("first", "second")
     )
@@ -366,7 +367,7 @@ def _left(dl, name: str, **fields: Any) -> ReceivedActivityRecord:
     record = ReceivedActivityRecord(
         activity_id=f"{CASE_ID}/activities/{name}",
         received_body=json.dumps({"id": name, "type": "Add"}),
-        **fields,
+        **{"received_at": ACT_AT, **fields},
     )
     dl.create(record)
     return record

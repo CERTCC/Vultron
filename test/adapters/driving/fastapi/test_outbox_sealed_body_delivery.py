@@ -31,6 +31,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
@@ -148,6 +149,7 @@ def test_the_sync_adapter_seals_the_announce_it_queues(dl):
             semantic_type="log_entry_committed",
             payload_snapshot={"state": "replicated"},
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
     )
     dl.save(entry)

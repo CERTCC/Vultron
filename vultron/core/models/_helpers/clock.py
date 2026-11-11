@@ -28,6 +28,8 @@ from typing import (
     overload,
 )
 
+from vultron.errors import VultronValidationError
+
 # Frozen reference to the real datetime type used for isinstance guards.
 # `now_utc` looks up `datetime` by name at call time so that tests can
 # monkeypatch `_helpers.clock.datetime` to control the clock; those patches must not
@@ -134,33 +136,67 @@ def days_after(at: datetime, days: int) -> datetime:
 
 
 @overload
-def require_future_aware(value: datetime, field: str = ...) -> datetime: ...
+def require_aware(value: datetime, field: str = ...) -> datetime: ...
 
 
 @overload
-def require_future_aware(value: None, field: str = ...) -> None: ...
+def require_aware(value: None, field: str = ...) -> None: ...
+
+
+def require_aware(
+    value: datetime | None, field: str = "end_time"
+) -> datetime | None:
+    """Return *value* when it is timezone-aware; else raise.
+
+    What a request body can judge about a deadline it carries: whether the
+    deadline is in the future depends on the act that reads it, so that is
+    :func:`require_future_aware`'s question, asked against the act's instant
+    (ADR-0176).  ``None`` passes through: an optional deadline that was not
+    stated is not a deadline to check.
+
+    Raises:
+        ValueError: naive (``tzinfo`` or ``utcoffset()`` is ``None``).
+    """
+    if value is not None and not is_aware(value):
+        raise ValueError(f"{field} must be timezone-aware")
+    return value
+
+
+@overload
+def require_future_aware(
+    value: datetime, field: str = ..., *, at: datetime
+) -> datetime: ...
+
+
+@overload
+def require_future_aware(
+    value: None, field: str = ..., *, at: datetime
+) -> None: ...
 
 
 def require_future_aware(
-    value: datetime | None, field: str = "end_time"
+    value: datetime | None, field: str = "end_time", *, at: datetime
 ) -> datetime | None:
-    """Return *value* when it is timezone-aware and in the future; else raise.
+    """Return *value* when it is timezone-aware and after *at*; else raise.
 
-    The one validator for a deadline a caller *states* — an embargo end, a
-    proposed embargo end — shared by the core trigger request models and the
-    HTTP body models that mirror them, so the two layers cannot drift on what
-    a well-formed deadline is (CS-13-001, CS-22-001).  ``None`` passes
-    through: an optional deadline that was not stated is not a deadline to
-    check.
+    The one check for a deadline a caller *states* — an embargo end, a
+    proposed embargo end, an answer deadline — judged against *at*, the
+    instant of the act that reads it, never a clock read (ADR-0176).  A
+    trigger passes its act's instant; the request body checks only that the
+    deadline is aware (:func:`require_aware`), so the two layers cannot drift
+    on what a well-formed deadline is (CS-13-001, CS-22-001).  ``None``
+    passes through.
 
     Raises:
-        ValueError: naive (``tzinfo`` or ``utcoffset()`` is ``None``) or not
-            strictly after now.
+        VultronValidationError: naive, or not strictly after *at*.  A
+            ``ValueError``, so a request answers it as a client fault.
     """
     if value is None:
         return None
     if not is_aware(value):
-        raise ValueError(f"{field} must be timezone-aware")
-    if value <= now_utc():
-        raise ValueError(f"{field} must be in the future")
+        raise VultronValidationError(f"{field} must be timezone-aware")
+    if value <= at:
+        raise VultronValidationError(
+            f"{field} must be in the future (after {at.isoformat()})"
+        )
     return value

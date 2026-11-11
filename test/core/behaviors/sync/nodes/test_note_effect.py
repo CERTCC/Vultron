@@ -15,6 +15,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.core.behaviors.sync.nodes.note_effect import (
     ApplyNoteFromLedgerNode,
@@ -37,6 +38,7 @@ def _make_note_entry(note_id: str = NOTE_ID):
             semantic_type="add_note_to_case",
             payload_snapshot={"object": {"id": note_id}},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 
@@ -126,6 +128,7 @@ def _make_remove_note_entry(note_id: str = NOTE_ID):
             semantic_type="remove_note_from_case",
             payload_snapshot={"object": {"id": note_id}},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 
@@ -205,6 +208,7 @@ def test_apply_note_stores_a_note_the_seeded_case_already_names(
                 }
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 
