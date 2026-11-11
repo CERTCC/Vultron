@@ -201,16 +201,15 @@ def offer_case_participant_activity(
     """
     effective_roles = roles if roles is not None else [CVDRole.VENDOR]
     actor_id = getattr(recommended, "id_", None) or str(recommended)
-    participant = as_CaseParticipant(
-        id_=f"{actor_id}#participant",
-        attributed_to=actor_id,
-        case_roles=effective_roles,
-    )
     return build_activity(
         "offer_case_participant_activity",
         _OfferCaseParticipantActivity,
         lambda: {
-            "object_": participant,
+            "object_": as_CaseParticipant(
+                id_=f"{actor_id}#participant",
+                attributed_to=actor_id,
+                case_roles=effective_roles,
+            ),
             "target": case_target_ref(target),
             **with_case_context(kwargs, target),
         },

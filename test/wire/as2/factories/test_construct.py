@@ -19,17 +19,31 @@ Spec coverage:
 
 import ast
 import logging
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from test.support.objects import make
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+)
 from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.factories import (
+    create_processing_fault_activity,
+    rm_close_report_activity,
     rm_create_report_activity,
     rm_engage_case_activity,
+    rm_invalidate_report_activity,
+    rm_read_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
 )
 from vultron.wire.as2.factories._construct import build_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
 
 class _Thing(BaseModel):
@@ -101,67 +115,224 @@ def test_named_case_refusal_reaches_the_caller_as_construction_error() -> None:
         rm_engage_case_activity("", actor="https://example.org/actors/a")
 
 
+_REPORT_FACTORIES = (
+    rm_create_report_activity,
+    rm_submit_report_activity,
+    rm_read_report_activity,
+    rm_validate_report_activity,
+    rm_invalidate_report_activity,
+    rm_close_report_activity,
+)
+
+
 @pytest.mark.spec("AF-04-003")
+@pytest.mark.parametrize(
+    "factory", _REPORT_FACTORIES, ids=lambda f: f.__name__
+)
 def test_report_factories_log_before_raising(
-    caplog: pytest.LogCaptureFixture,
+    factory: Callable[..., object], caplog: pytest.LogCaptureFixture
 ) -> None:
     """The report factories log like every other factory (AF-04-003)."""
     with caplog.at_level(logging.WARNING):
         with pytest.raises(VultronActivityConstructionError):
-            rm_create_report_activity(
-                report="not-a-report",  # type: ignore[arg-type]
-            )
+            if factory is rm_submit_report_activity:
+                factory(
+                    cast(Any, "not-a-report"),
+                    to="https://example.org/actors/b",
+                )
+            elif factory is rm_create_report_activity:
+                factory(cast(Any, "not-a-report"))
+            else:
+                # An Offer of something other than a report.
+                factory(
+                    make(
+                        as_Offer,
+                        actor="https://example.org/actors/a",
+                        object_="https://example.org/notes/1",
+                    )
+                )
     assert any(
-        "rm_create_report_activity: invalid arguments:" in r.getMessage()
+        f"{factory.__name__}: invalid arguments:" in r.getMessage()
         for r in caplog.records
     )
+
+
+@pytest.mark.spec("AF-04-001")
+def test_processing_fault_factory_reports_a_validation_failure() -> None:
+    """``create_processing_fault_activity`` builds through the helper too."""
+    fault = make(
+        as_ProcessingFault,
+        failure_class=VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+        in_reply_to="https://example.org/activities/1",
+    )
+    with pytest.raises(VultronActivityConstructionError) as info:
+        create_processing_fault_activity(actor="", fault=fault)
+    assert isinstance(info.value.__cause__, ValidationError)
 
 
 _FACTORIES = (
     Path(__file__).parents[4] / "vultron" / "wire" / "as2" / "factories"
 )
 
-# Pinned exemption set: the factory-package functions that catch
-# ``ValidationError`` themselves.  None builds an outbound activity: two
-# coerce a held Invite to the class a reply embeds, and one parses an Offer.
-# permanent: each raises its own message, not a factory's "invalid arguments"
-_OWN_VALIDATION_HANDLERS = frozenset(
+# Pinned exemption set: the scopes in the factory package that catch a
+# validation failure themselves.  The helper is the one place a factory's
+# failure is caught (CS-22-001); the others build no outbound activity: two
+# coerce a held Invite to the class a reply embeds, one parses an Offer, and
+# one parses a ``published`` string (``ValueError``, which ``ValidationError``
+# subclasses); each raises its own message, not "invalid arguments".
+# permanent: AF-04-001, CS-22-001 (build_activity is the one handler)
+OWN_VALIDATION_HANDLER_EXEMPTIONS = frozenset(
     {
         ("_construct.py", "build_activity"),
         ("case/full_case_invite.py", "_as_full_case_invite"),
         ("case/invite.py", "_as_case_invite"),
+        ("embargo/negotiation.py", "_published_instant"),
         ("report.py", "parse_submit_report_offer"),
     }
 )
 
+#: Exception names a handler may catch without catching a validation
+#: failure: what the factory package raises or catches for other reasons.
+_OTHER_EXCEPTIONS = frozenset(
+    {"AttributeError", "KeyError", "TypeError", "VultronParseError"}
+)
 
-def _catches_validation_error(handler: ast.ExceptHandler) -> bool:
-    names = (
+
+def _validation_aliases(tree: ast.Module) -> frozenset[str]:
+    """Every local name *tree* binds to pydantic's ``ValidationError``."""
+    return frozenset(
+        {"ValidationError"}
+        | {
+            alias.asname or alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+            for alias in node.names
+            if alias.name == "ValidationError"
+        }
+    )
+
+
+def _may_catch_validation_error(
+    handler: ast.ExceptHandler, aliases: frozenset[str]
+) -> bool:
+    """Whether *handler* can catch a ``ValidationError``.
+
+    A bare ``except``, ``Exception``, ``BaseException``, ``ValidationError``
+    under any alias or as an attribute (``pydantic.ValidationError``), and a
+    name that is no known exception class (a variable holding a tuple, as
+    ``build_activity``'s does) all can.
+    """
+    if handler.type is None:
+        return True
+    types = (
         handler.type.elts
         if isinstance(handler.type, ast.Tuple)
         else [handler.type]
     )
-    return any(
-        isinstance(n, ast.Name) and n.id in {"ValidationError", "caught"}
-        for n in names
+    for node in types:
+        if isinstance(node, ast.Attribute):
+            if node.attr == "ValidationError":
+                return True
+            continue
+        if not isinstance(node, ast.Name):
+            return True
+        if node.id in aliases or node.id in {"Exception", "BaseException"}:
+            return True
+        if node.id not in _OTHER_EXCEPTIONS:
+            return True
+    return False
+
+
+def _scopes(tree: ast.Module) -> list[tuple[str, ast.AST]]:
+    """The module and every function in it, each with its name."""
+    scopes: list[tuple[str, ast.AST]] = [("<module>", tree)]
+    scopes.extend(
+        (node.name, node)
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     )
+    return scopes
+
+
+def own_validation_handlers_in(tree: ast.Module) -> set[str]:
+    """The scopes of *tree* that hold a handler of a validation failure.
+
+    A ``try`` belongs to the innermost function around it, or to
+    ``<module>`` when no function encloses it.
+    """
+    aliases = _validation_aliases(tree)
+    owner: dict[int, str] = {}
+    for name, scope in _scopes(tree):
+        for node in ast.walk(scope):
+            if isinstance(node, ast.Try):
+                owner[id(node)] = name
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Try) and any(
+            _may_catch_validation_error(h, aliases) for h in node.handlers
+        ):
+            found.add(owner[id(node)])
+    return found
 
 
 def _own_validation_handlers() -> set[tuple[str, str]]:
     found: set[tuple[str, str]] = set()
     for path in _FACTORIES.rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        for fn in ast.walk(tree):
-            if not isinstance(fn, ast.FunctionDef):
-                continue
-            for node in ast.walk(fn):
-                if isinstance(node, ast.Try) and any(
-                    _catches_validation_error(h) for h in node.handlers
-                ):
-                    found.add(
-                        (path.relative_to(_FACTORIES).as_posix(), fn.name)
-                    )
+        rel = path.relative_to(_FACTORIES).as_posix()
+        found.update(
+            (rel, scope) for scope in own_validation_handlers_in(tree)
+        )
     return found
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("try:\n    pass\nexcept ValidationError:\n    pass\n", {"<module>"}),
+        (
+            "from pydantic import ValidationError as VE\n"
+            "def f():\n    try:\n        pass\n    except VE:\n        pass\n",
+            {"f"},
+        ),
+        (
+            "async def f():\n    try:\n        pass\n"
+            "    except pydantic.ValidationError:\n        pass\n",
+            {"f"},
+        ),
+        (
+            "def f():\n    try:\n        pass\n    except:\n        pass\n",
+            {"f"},
+        ),
+        (
+            "def f():\n    try:\n        pass\n"
+            "    except Exception:\n        pass\n",
+            {"f"},
+        ),
+        (
+            "def f():\n    try:\n        pass\n    except caught:\n        pass\n",
+            {"f"},
+        ),
+        (
+            "def f():\n    try:\n        pass\n"
+            "    except VultronParseError:\n        pass\n",
+            set(),
+        ),
+    ],
+    ids=[
+        "module",
+        "alias",
+        "attribute-async",
+        "bare",
+        "exception",
+        "variable",
+        "other",
+    ],
+)
+def test_the_scan_finds_each_shape_of_handler(
+    source: str, expected: set[str]
+) -> None:
+    assert own_validation_handlers_in(ast.parse(source)) == expected
 
 
 @pytest.mark.spec("AF-04-001")
@@ -170,10 +341,9 @@ def test_factories_build_through_the_one_helper() -> None:
     ``try/except ValidationError`` (CS-22-001); a listed handler that no
     longer exists is stale."""
     found = _own_validation_handlers()
-    assert found <= _OWN_VALIDATION_HANDLERS, (
+    listed = OWN_VALIDATION_HANDLER_EXEMPTIONS
+    assert found <= listed, (
         "Build the activity through build_activity"
-        f" (factories/_construct.py): {sorted(found - _OWN_VALIDATION_HANDLERS)}"
+        f" (factories/_construct.py): {sorted(found - listed)}"
     )
-    assert found >= _OWN_VALIDATION_HANDLERS, (
-        f"Stale entries: {sorted(_OWN_VALIDATION_HANDLERS - found)}"
-    )
+    assert listed <= found, f"Stale entries: {sorted(listed - found)}"

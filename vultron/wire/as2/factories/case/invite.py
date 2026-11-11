@@ -210,24 +210,36 @@ def rm_invite_to_case_activity(
             case carries no ``stub_summary`` (CM-17-010), or its active
             embargo cannot be embedded whole (CM-17-011).
     """
-    if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
-        target = _project_case_to_stub(target, embargo_obj)
-    elif isinstance(target, str):
-        # A case named by URI alone still travels as a stub: the invitee does
-        # not hold the case, and the stub Invite is told apart by its target's
-        # ``type`` (CM-11-013, VAM-04-004).
-        target = as_VulnerabilityCaseStub(case_id=target)
     if roles is not None:
         kwargs["roles"] = roles
-    return build_activity(
-        "rm_invite_to_case_activity",
-        _RmInviteToCaseActivity,
-        lambda: {
+
+    def fields() -> dict[str, Any]:
+        stub = _stub_target(target, embargo_obj)
+        return {
             "object_": carried_actor(invitee),
-            "target": target,
-            **with_case_context(kwargs, target),
-        },
+            "target": stub,
+            **with_case_context(kwargs, stub),
+        }
+
+    return build_activity(
+        "rm_invite_to_case_activity", _RmInviteToCaseActivity, fields
     )
+
+
+def _stub_target(target: Any, embargo_obj: Any) -> Any:
+    """The stub an Invite carries for *target*.
+
+    A case is projected to its enriched stub.  A case named by URI alone
+    still travels as a stub: the invitee does not hold the case, and the stub
+    Invite is told apart by its target's ``type`` (CM-11-013, VAM-04-004).
+    Run inside the factory's guarded scope, so a stub that fails validation
+    is a construction error.
+    """
+    if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
+        return _project_case_to_stub(target, embargo_obj)
+    if isinstance(target, str):
+        return as_VulnerabilityCaseStub(case_id=target)
+    return target
 
 
 def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
