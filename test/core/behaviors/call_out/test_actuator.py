@@ -35,7 +35,6 @@ import py_trees
 import pytest
 from py_trees.common import Access, Status
 
-import vultron.demo.fuzzer as fuzzer_pkg
 import vultron.demo.fuzzer.bundles as stochastic_pkg
 from test.support.act_runner import run_tree
 from test.support.call_out import (
@@ -45,6 +44,7 @@ from test.support.call_out import (
     yes,
     yes_with,
 )
+from test.support.fuzzer_nodes import capability_subclasses
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge.bt_bridge import BTBridge
 from vultron.core.behaviors.call_out.actuator import (
@@ -122,18 +122,7 @@ _PLACEMENT_ROOTS = (_VULTRON / "core", _VULTRON / "demo" / "fuzzer")
 
 
 def _fuzzer_actuators() -> list[type]:
-    for module in pkgutil.walk_packages(
-        fuzzer_pkg.__path__, prefix=f"{fuzzer_pkg.__name__}."
-    ):
-        importlib.import_module(module.name)
-    found: list[type] = []
-    pending = list(ActuatorCallOutPoint.__subclasses__())
-    while pending:
-        cls = pending.pop()
-        if cls not in found:
-            found.append(cls)
-            pending.extend(cls.__subclasses__())
-    return sorted(found, key=lambda c: f"{c.__module__}.{c.__qualname__}")
+    return list(capability_subclasses(ActuatorCallOutPoint))
 
 
 def _bundle_actuator_fields() -> list[tuple[CallOutBundle, str]]:

@@ -15,7 +15,7 @@ subject: protocol
 Vultron does not decide whether a report is credible, how urgent a case is, or when an advisory is ready to publish.
 Each of those decisions is a **call-out point**: a place where the protocol stops and asks a system you run.
 This page answers the objection "Vultron doesn't do X" by naming, for each X, the call-out point where your system does it.
-It then describes the four shapes a call-out point can take, the Sentinel call-in pattern, and the full catalog of known call-out points.
+It then describes the four shapes a call-out point can take, the Sentinel call-in pattern, and a catalog of every named capability, generated from the code.
 
 ---
 
@@ -31,10 +31,10 @@ The protocol coordinates the case; the judgment, the data, and the side effects 
 | decide which cases to host for others | [EvaluateCaseProposal](#case-admission) | Evaluator |
 | set or accept embargo terms | [SelectEmbargoOfferTerms, EvaluateEmbargoProposal](#embargo-management) | Evaluator |
 | assign Common Vulnerabilities and Exposures (CVE) IDs | [IdAssigned, InScope, AssignId](#cve-vulnerability-id-assignment) | Retriever, Evaluator, Composer |
-| develop or deploy fixes | [CreateFix](#fix-development), [DeployFix](#fix-deployment) | Composer, Evaluator |
+| develop or deploy fixes | [CreateFix](#fix-development), [DeployFix](#fix-and-mitigation-deployment) | Composer, Evaluator |
 | know whether an exploit exists | [HaveExploit, FindExploit](#exploit-management) | Retriever |
 | write or publish advisories | [DraftAdvisoryArtifact, ReviewAdvisoryDraft, SubmitAdvisoryArtifact](#publication) | Composer, Evaluator, Actuator |
-| know who else belongs in the case | [IdentifyVendors, ResolveActorDetails, InjectParticipant](#participant-suggestion-and-actor-resolution) | Retriever, Actuator |
+| know who else belongs in the case | a [Sentinel](#the-sentinel-call-in-pattern) that calls `suggest-actor-to-case`, or [IdentifyVendors, IdentifyCoordinators, InjectParticipant](#reporting-to-others) in the simulator | Retriever, Actuator |
 | watch threat feeds | [MonitorAttacks, MonitorExploits, MonitorPublicReports](#threat-monitoring), or a [Sentinel](#the-sentinel-call-in-pattern) that reports what it sees | Retriever |
 | update your ticketing system | [OnAccept, OnDefer](#report-prioritization) and [PreCloseAction](#leaving-a-case) | Actuator |
 
@@ -61,13 +61,14 @@ A **delegated** decision has no answer in the record: whether a report is credib
 The protocol marks where the decision is made and defines what an answer looks like, but it does not supply the answer.
 Two conformant implementations may legitimately differ here; every call-out point is a delegated decision.
 
-!!! note "A call-out point is answerable now; asking another actor is not"
+!!! note "A question for another actor is never a call-out point"
 
     A call-out point asks a service *you* run, so it is answered while the BT is still running (BT-18-011).
-    Some questions cannot be answered that way, because they need a **decision from another actor in the case**.
+    A question that needs a **decision from another actor in the case** is never a call-out point (BT-18-014).
+    It is a **protocol ask**: the actor sends a request, finishes, and acts on the reply when it arrives ([ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md)).
     An example is whether the Case Owner permits a change to the case's agreed state.
     No service can answer that on the owner's behalf, and the answer may take days.
-    There the actor does not wait: it sends a request and finishes, and the reply starts new work when it arrives.
+    A call-out point in its place could only ever answer *no*, because no answer exists when the BT asks.
     See [Protocol Event Flow](../protocol_flow.md#when-an-actor-must-ask-permission).
 
 ---
@@ -104,7 +105,7 @@ Every call-out point fits a three-level hierarchy:
 Think of the shape as a job description, the capability as the open role, and your implementation as the service hired into that role.
 
 Some capabilities are sub-steps of a larger workflow.
-For example, `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
+For example, `EvaluateCveEligibility` is a step within the broader [ID assignment](#cve-vulnerability-id-assignment) workflow.
 Most capabilities are not nested.
 
 !!! note "Design decisions"
@@ -208,7 +209,7 @@ A Sentinel decides for itself that the moment has come.
 
 A Sentinel takes one of two forms:
 
-- a case **Participant**, typically holding the Observer role, that learns case state through ordinary ledger replication and acts by sending ordinary protocol messages, visible to every participant;
+- a case **Participant**, typically holding the `CVDRole.OBSERVER` role, that learns case state through ordinary ledger replication (`Announce(CaseLedgerEntry)`) and acts by sending ordinary protocol messages, visible to every participant;
 - operator-side machinery with no case identity, which drives one actor through its [call-in triggers](#call-in-triggers) and is invisible to the case.
 
 Examples are an embargo timer that calls `terminate-embargo` when the agreed end date passes, a threat-feed monitor that reports active attacks, and a deployment monitor that reports a fix as deployed.
@@ -218,135 +219,207 @@ A Sentinel is a long-running monitor, so building one needs different infrastruc
 
 ## Capability hierarchy
 
-The following is the current catalog of known integration points, organized by domain.
-Use this list to identify which capability you are building toward.
+The catalog below lists every named capability, by domain.
+Use it to identify which capability you are building toward.
 
 Every entry is a call-out point: Vultron asks, and your capability answers.
 A Sentinel never appears here, because it is a call-in pattern that watches a condition and calls a trigger on its own initiative (see [The Sentinel call-in pattern](#the-sentinel-call-in-pattern)).
+
+The tables are generated from the capability declarations in `vultron/core/behaviors/call_out/capabilities/` each time the site is built.
+Each row gives these facts about one capability:
+
+- **Capability**: the name a BT gives to the backend factory.
+- **Shape**: the shape base class that the declaration subclasses.
+- **Asks**: the first paragraph of the declaration's docstring.
+- **Reads**: the input ports that the capability reads.
+- **Writes on *yes***: the output ports that the capability writes when it answers *yes* (BT-18-012).
+
+"Verdict only" means the capability writes nothing, and its *yes* or *no* is the whole answer (BT-18-010).
+A capability's simulation stand-in, its fuzzer node, sits at the same module path under `vultron/demo/fuzzer/`.
 
 ### Report Validation
 
 *See also: [Validation behavior](../behavior_logic/rm_validation_bt.md)*
 
-- **EvaluateReportCredibility** (Evaluator) — is this report from a credible source?
-- **EvaluateReportValidity** (Evaluator) — does this report describe a real, in-scope vulnerability?
-- **GatherValidationInfo** (Retriever) — collect background information needed to evaluate a report
-- **NoNewValidationInfo** (Retriever) — has no new validation-relevant information arrived since the last evaluation?
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(render_capability_table("report_management.validate"))
+```
 
 ### Report Prioritization
 
 *See also: [Prioritization behavior](../behavior_logic/rm_prioritization_bt.md)*
 
-- **EvaluateCasePriority** (Evaluator) — assign a priority score to a case; the natural home for an SSVC integration
-- **EnoughPrioritizationInfo** (Evaluator) — is there sufficient information to make a prioritization decision?
-- **GatherPrioritizationInfo** (Retriever) — collect data needed for prioritization
-- **NoNewPrioritizationInfo** (Retriever) — has no new prioritization-relevant information arrived since the last evaluation?
-- **OnAccept** / **OnDefer** (Actuators) — notification hooks when a report is accepted or deferred
+`EvaluateCasePriority` is the natural home for a Stakeholder-Specific Vulnerability Categorization (SSVC) decision.
+`OnAccept` and `OnDefer` are the hooks that update your ticketing system when a report is accepted or deferred.
+
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(render_capability_table("report_management.prioritize"))
+```
 
 ### Case Admission
 
 *See also: [Propose case behavior](../behavior_logic/use-cases/propose-case.md), [Case Initialization](../case_lifecycle/case_initialization.md)*
 
-- **EvaluateCaseProposal** (Evaluator) — should this service open and manage a case for this proposal?
-
-This is the admission decision a case actor service makes on an inbound `Create(CaseProposal)`, and the only place admission policy lives.
+`EvaluateCaseProposal` is the admission decision a case actor service makes on an inbound `Create(CaseProposal)`, and the only place admission policy lives.
 Answering *no* sends `Reject(CaseProposal)`; the default admits.
 An unreachable policy service answers *error*, which leaves the proposal in holding rather than declining it.
 
 Build this one if you run a case actor service for others.
-The [Propose case](../behavior_logic/use-cases/propose-case.md#where-judgment-enters) page carries the full reasoning — what the policy decides, why the decision sits ahead of every write, and the two ways a refusal gate can be defeated.
+The [Propose case](../behavior_logic/use-cases/propose-case.md#where-judgment-enters) page carries the full reasoning: what the policy decides, why the decision sits ahead of every write, and the two ways a refusal gate can be defeated.
+
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(render_capability_table("case_management"))
+```
 
 ### Embargo Management
 
 *See also: [Embargo behaviors](../behavior_logic/em_bt.md), [Evaluate proposed embargo](../behavior_logic/em_eval_bt.md), [Propose embargo](../behavior_logic/em_propose_bt.md), [Terminate embargo](../behavior_logic/em_terminate_bt.md)*
 
-- **WantToProposeEmbargo** (Evaluator) — should we propose an embargo for this case?
-- **SelectEmbargoOfferTerms** (Evaluator) — what embargo terms should we propose?
-- **EvaluateEmbargoProposal** (Evaluator) — should we accept an incoming embargo proposal?
-- **WillingToCounterEmbargoProposal** (Evaluator) — if we reject, should we make a counter-proposal?
-- **CurrentEmbargoAcceptable** (Evaluator) — is the active embargo still acceptable given current conditions? (see [#1943](https://github.com/CERTCC/Vultron/issues/1943))
-- **StopProposingEmbargo** (Evaluator) — should we stop trying to negotiate an embargo?
-- **ExitEmbargoWhenFixReady** / **ExitEmbargoWhenDeployed** / **ExitEmbargoForOtherReason** (Evaluators) — should the embargo end early?
-- **EmbargoTimerExpired** (Retriever; whether a Sentinel should replace this call-out point is open — see [Still open](#still-open) and [#1893](https://github.com/CERTCC/Vultron/issues/1893)) — has the embargo end date passed?
-- **CaseOwnerApprovesEmbargoResponse** (Evaluator) — security gate: does the Case Owner approve this action?
-- **OnEmbargoAccept** / **OnEmbargoReject** / **OnEmbargoExit** (Actuators) — notification hooks for embargo lifecycle events
+`CaseOwnerApprovesEmbargoResponse` gates the answer that a participant other than the Case Owner gives to an embargo proposal.
+The Case Owner's own answer does not ask it.
+A backend can answer it only from the deciding actor's own policy: a decision that only the Case Owner can make is a protocol ask, not a call-out point (BT-18-014).
+Whether the active embargo stays acceptable as conditions change (`CurrentEmbargoAcceptable`) is open in [#1943](https://github.com/CERTCC/Vultron/issues/1943).
+The embargo's end time is in the case, so a BT reads it there instead of asking `EmbargoTimerExpired` (BT-18-039; see [Still open](#still-open)).
+
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(
+    render_capability_table(
+        "embargo.proposal", "embargo.evaluation", "embargo.termination"
+    )
+)
+```
 
 ### CVE / Vulnerability ID Assignment
 
 *See also: [ID Assignment behavior](../behavior_logic/id_assignment_bt.md)*
 
-This domain has one extra level because the ID assignment workflow has distinct sub-steps.
+These capabilities are the sub-steps of one ID assignment workflow.
+`EvaluateCveEligibility` is a single judgment call that applies the CNA Operational Rules eligibility criteria as one unit.
+The publication condition stays a separate protocol check just before it.
+`RequestId` asks an outside CNA for an ID when this actor is not the appropriate authority.
 
-- **AssignCveId** — the overall ID assignment workflow, containing:
-  - **IdAssigned** (Retriever) — does a CVE ID already exist for this vulnerability?
-  - **InScope** (Evaluator) — is this vulnerability in scope for ID assignment?
-  - **ProductInCNAScope** / **IsMostAppropriateCNA** (Evaluators) — CNA scoping checks
-  - **EvaluateCveEligibility** (Evaluator) — does this vulnerability meet the CNA criteria for CVE assignment?
-    This is a single judgment call that applies the CNA Operational Rules eligibility criteria as one unit.
-    The publication condition stays a separate protocol check just before it.
-  - **AssignId** (Composer) — generate and record the CVE ID
-  - **RequestId** (Retriever) — request an ID from an external CNA if we are not the appropriate authority
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(
+    render_capability_table(
+        "report_management.assign_vul_id.eligibility",
+        "report_management.assign_vul_id.assignment",
+    )
+)
+```
 
 ### Fix Development
 
 *See also: [Fix Development behavior](../behavior_logic/fix_dev_bt.md)*
 
-- **CreateFix** (Composer) — produce a fix artifact
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
 
-### Fix Deployment
+print(render_capability_table("report_management.develop_fix"))
+```
 
-*See also: [Deployment behavior](../behavior_logic/deployment_bt.md)*
-
-- **DeployFix** / **PrioritizeDeployment** / **MonitoringRequirement** (Evaluators) — deployment decisions and monitoring judgment calls
-- **NoNewDeploymentInfo** (Retriever) — has no new deployment information arrived, so a deferred deployer can stay deferred?
-
-### Mitigation Deployment
+### Fix and Mitigation Deployment
 
 *See also: [Deployment behavior](../behavior_logic/deployment_bt.md)*
 
-- **MitigationAvailable** / **MitigationDeployed** (Retrievers) — check whether a mitigation exists and is deployed
-- **DeployMitigation** (Evaluator) — should we deploy a mitigation now?
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(render_capability_table("report_management.deploy_fix"))
+```
 
 ### Exploit Management
 
 *See also: [Exploit Acquisition behavior](../behavior_logic/acquire_exploit_bt.md)*
 
-- **HaveExploit** / **FindExploit** (Retrievers) — check for known exploits
-- **EvaluateExploitPriority** / **EvaluateExploitStrategy** / **PurchaseExploit** (Evaluators) — exploit handling decisions
-- **PrepareExploit** / **DevelopExploit** (Composers) — produce an exploit artifact
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(render_capability_table("report_management.acquire_exploit"))
+```
 
 ### Publication
 
 *See also: [Publication behavior](../behavior_logic/publication_bt.md), [Reporting behavior](../behavior_logic/reporting_bt.md)*
 
-- **PrioritizePublicationIntents** (Evaluator) — order and prioritize publication targets
-- **PrepareReport** / **PrepareFix** / **DraftAdvisoryArtifact** / **ReviseAdvisoryDraft** (Composers) — produce publication artifacts
-- **ReviewAdvisoryDraft** (Evaluator) — review an advisory draft; answer *yes* with `needs_revision` to route to revision, or *no* to block submission entirely
-- **Publish** / **SubmitAdvisoryArtifact** (Actuators) — submit the advisory to a publication platform
+`ReviewAdvisoryDraft` answers *yes* with `needs_revision` to route the draft to revision, or *no* to block submission entirely.
+
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(
+    render_capability_table(
+        "report_management.publication.intents",
+        "report_management.publication.advisory",
+    )
+)
+```
 
 ### Leaving a Case
 
 *See also: [Closure behavior](../behavior_logic/rm_closure_bt.md)*
 
 An actor closes its part in a case by calling the `leave-case` trigger, which sends `Leave(VulnerabilityCase)` to the CASE_MANAGER.
+`leave-case` runs `PreCloseAction` before it sends the Leave, for every caller, so it is where you close your own ticket.
+A failure stops the trigger with nothing sent.
+`OtherCloseCriteriaMet` is superseded, because the decision to close is the act of calling `leave-case` ([ADR-0145](../../adr/0145-a-case-is-left-through-the-leave-case-trigger-whose-actor-runs-its-pre-close-step-first.md)).
 
-- **PreCloseAction** (Actuator) — perform any pre-closure integration actions, such as closing your own ticket; `leave-case` runs it before it sends the Leave, for every caller, and a failure stops the trigger with nothing sent
-- **OtherCloseCriteriaMet** (Evaluator) — superseded: the decision to close is the act of calling `leave-case`, so Vultron no longer asks it
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
 
-### Participant Suggestion and Actor Resolution
+print(render_capability_table("report_management.close_report"))
+```
 
-*See also: [#1142](https://github.com/CERTCC/Vultron/issues/1142)*
+### Reporting to Others
 
-- **ResolveActorDetails** (Retriever) — actor resolution: turn one actor URI into that actor's profile; it does not find who belongs in a case, and it is a separate seam from participant suggestion
-- **IdentifyVendors** / **IdentifyCoordinators** (Retrievers) — participant suggestion: find parties who should be involved in this case
-- **AllPartiesKnown** (Evaluator) — have all relevant parties been identified?
-- **InjectParticipant** (Actuator) — add a discovered party to the case
+*See also: [Reporting behavior](../behavior_logic/reporting_bt.md)*
+
+These capabilities find and notify the other parties a report should reach.
+They come from the simulator's report-to-others BT.
+To find who else belongs in a case, use a Sentinel that calls `suggest-actor-to-case` or `invite-actor-to-case` ([ADR-0047](../../adr/0047-report-to-others-sentinel-over-inline-bt.md)).
+
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(
+    render_capability_table(
+        "report_management.report_to_others.recipients",
+        "report_management.report_to_others.injection",
+    )
+)
+```
 
 ### Threat Monitoring
 
 *See also: [Monitoring Threats behavior](../behavior_logic/monitor_threats_bt.md), [#1845](https://github.com/CERTCC/Vultron/issues/1845), [#1856](https://github.com/CERTCC/Vultron/issues/1856)*
 
-- **MonitorAttacks** / **MonitorExploits** / **MonitorPublicReports** (Retrievers) — query threat intelligence for current status of attacks, exploit availability, and public reports
+Each capability here answers a question the BT asks once.
+A feed watcher that reports what it sees as it happens is a [Sentinel](#the-sentinel-call-in-pattern) instead.
+
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(render_capability_table("report_management.monitor_threats"))
+```
+
+### Messaging
+
+*See also: [Other message behaviors](../behavior_logic/msg_other_bt.md)*
+
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(render_capability_table("messaging"))
+```
 
 ---
 
@@ -395,7 +468,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 
 | Sentinel condition | How it acts |
 |---|---|
-| Embargo end date passes | Calls `terminate-embargo` |
+| Embargo end date passes | Calls `terminate-embargo` with the reason `END_TIME_REACHED` |
 | Active attack observed in a threat feed | As a case Participant, sends `Add(ParticipantStatus)` recording the attack (the [*A* event](../process_models/cs/cs_model.md#the-attacks-observed-substate-a-a)); no trigger endpoint covers this yet ([#1845](https://github.com/CERTCC/Vultron/issues/1845)) |
 | Fix confirmed deployed | As a case Participant, sends `Add(ParticipantStatus)` recording deployment (the [*D* event](../process_models/cs/cs_model.md#the-fix-deployed-substate-d-d)) |
 | New party identified by a discovery service | Calls `suggest-actor-to-case` or `invite-actor-to-case` |
@@ -409,11 +482,11 @@ The questions below determine the wiring details.
 
 ### Settled
 
-**What a capability must define.**
+**What a capability must define** ([#2452](https://github.com/CERTCC/Vultron/issues/2452)).
 A named capability declares its blackboard contract as typed input and output ports, on a declaration owned by the core layer (BT-18-012, [ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
 Every capability has its declaration in `vultron/core/behaviors/call_out/capabilities/`, and its simulation stand-in binds to it (BT-18-021).
 
-**How a capability implementation is invoked.**
+**How a capability implementation is invoked** ([#2453](https://github.com/CERTCC/Vultron/issues/2453)).
 A backend answers synchronously, within the tick that asks, with *yes*, *no* or *error*, and never returns RUNNING (BT-18-011, [ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md), [ADR-0183](../../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
 It also answers within a time budget that each actor configures (BT-18-015, BT-18-026).
 An answer that takes longer is discarded and reported as an internal error that names the node (BT-18-027).
@@ -426,16 +499,23 @@ One class of gate inverts that.
 Where a permissive default would let a party other than the Case Owner force the adoption of a case state or the teardown of an embargo, the default is the conservative answer instead (BT-23-012, [ADR-0076](../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)).
 So when a page says a call-out point "defaults to accept", that describes the stub, not a protocol requirement to accept.
 
-**What the shape classes are called in code.**
+**What the shape classes are called in code** ([#2454](https://github.com/CERTCC/Vultron/issues/2454)).
 The shape base classes are `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability`, in `vultron/core/behaviors/call_out/capability.py` ([ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
 Each named capability is declared once in core, as a subclass of one of them that declares its blackboard contract as typed ports, and its fuzzer node subclasses that declaration (BT-18-012, BT-18-021).
 The older names, such as `EvaluatorCallOutPoint`, still import from `vultron/demo/fuzzer/call_out_point.py` and name the same classes.
 
 ### Still open
 
-**EmbargoTimerExpired: Retriever or Sentinel? ([#1893](https://github.com/CERTCC/Vultron/issues/1893))**
-A timer check could be a Retriever the BT asks each tick, or the call-out point could give way to a Sentinel that calls `terminate-embargo` at the right moment.
-The answer changes what you build.
+**Should a Sentinel end embargoes on time? ([#1893](https://github.com/CERTCC/Vultron/issues/1893))**
+This is no longer a choice of shape for `EmbargoTimerExpired`.
+If a BT asks "has the end date passed?" and gets only yes or no, it asks a Retriever.
+A synchronous query from the BT is always a Retriever, never a Sentinel (BT-18-006).
+The end time is in the case's embargo register, so a BT reads it there instead of asking (BT-18-039).
+The CASE_MANAGER ends the embargo the next time it handles the case after the end time (EMB-13-003).
+What stays open is whether something should end an embargo at its end time when nothing else happens in the case.
+That is a Sentinel (BT-18-013).
+No BT asks it: it watches the clock, and calls `terminate-embargo` with the reason `END_TIME_REACHED` on its own initiative.
+Who runs it, and how it authenticates to the trigger, are among the Sentinel design questions in [#2450](https://github.com/CERTCC/Vultron/issues/2450).
 
 ---
 

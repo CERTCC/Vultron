@@ -74,7 +74,7 @@ Each entry names the trigger endpoint that starts the use case.
 ## Further reading
 
 - [Protocol Event Flow](../../protocol_flow.md) — the actor model, cascades, and what happens when an actor must ask permission
-- [Capability Model](../../capability_model/index.md) — the four capability shapes and the full catalog of call-out points
+- [Capability Model](../../capability_model/index.md) — the four capability shapes and the catalog of declared capabilities
 - [Behaviors Reference](../../../reference/behaviors/index.md) — the trees the reference implementation builds today
 - [Behavior Logic](../index.md) — the original behavior tree design these use cases realize
 - [Glossary](../../../reference/glossary.md) — Participant, call-out point, capability shape, case actor service

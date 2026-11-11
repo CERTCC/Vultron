@@ -137,24 +137,13 @@ def _demo_capability_classes() -> list[type]:
     Imports the whole demo fuzzer package first, so a node defined in any of
     its modules is reached.
     """
-    import importlib
-    import pkgutil
+    from test.support.fuzzer_nodes import capability_subclasses
 
-    import vultron.demo.fuzzer as fuzzer_pkg
-    from vultron.core.behaviors.call_out.capability import Capability
-
-    for info in pkgutil.walk_packages(
-        fuzzer_pkg.__path__, prefix=f"{fuzzer_pkg.__name__}."
-    ):
-        importlib.import_module(info.name)
-    found: list[type] = []
-    pending: list[type] = list(Capability.__subclasses__())
-    while pending:
-        cls = pending.pop()
-        if cls not in found:
-            found.append(cls)
-            pending.extend(cls.__subclasses__())
-    return [c for c in found if c.__module__.startswith(_DEMO_MODULE)]
+    return [
+        c
+        for c in capability_subclasses()
+        if c.__module__.startswith(_DEMO_MODULE)
+    ]
 
 
 @pytest.mark.spec("BT-18-020")

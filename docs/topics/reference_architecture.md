@@ -152,7 +152,7 @@ In the hexagonal layout, a capability shape is a port and a concrete capability 
 Not every external question is a call-out point.
 A question that needs a decision from *another actor* — for example, whether the Case Owner approves a change — cannot be answered while the tree is running, so the actor sends a request and finishes instead of pausing (see [when an actor must ask permission](protocol_flow.md#when-an-actor-must-ask-permission)).
 
-The [Capability Model](capability_model/index.md) page is the full taxonomy: the two integration surfaces, the four shapes, the Sentinel call-in pattern, and the catalog of known call-out points by domain.
+The [Capability Model](capability_model/index.md) page is the full taxonomy: the two integration surfaces, the four shapes, the Sentinel call-in pattern, and the catalog of declared capabilities by domain, generated from the code.
 
 ---
 
