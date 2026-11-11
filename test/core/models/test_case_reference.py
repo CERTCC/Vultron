@@ -37,6 +37,11 @@ def _ref(**link: object) -> CaseReference:
     return make(CaseReference, url={"href": _HREF, **link})
 
 
+def _errors(exc: ValidationError) -> list[tuple[tuple[int | str, ...], str]]:
+    """Each refusal's location and error type, so a test pins its cause."""
+    return [(error["loc"], error["type"]) for error in exc.errors()]
+
+
 class TestCaseReferenceIsAnObject:
     """A reference keeps its own id and lifecycle (#6249, CM-34)."""
 
@@ -64,21 +69,25 @@ class TestUrlIsALink:
 
     @pytest.mark.spec("CM-05-005")
     def test_url_required(self):
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError) as exc_info:
             make(CaseReference)  # pyright: ignore[reportCallIssue]
+        assert _errors(exc_info.value) == [(("url",), "missing")]
 
     @pytest.mark.spec("CM-05-005")
     def test_href_required(self):
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError) as exc_info:
             make(CaseReference, url={"name": "No target"})
+        assert _errors(exc_info.value) == [(("url", "href"), "missing")]
 
     def test_href_must_be_non_empty(self):
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError) as exc_info:
             make(CaseReference, url={"href": ""})
+        assert _errors(exc_info.value) == [(("url", "href"), "value_error")]
 
     def test_bare_string_url_refused(self):
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError) as exc_info:
             make(CaseReference, url=_HREF)
+        assert _errors(exc_info.value) == [(("url",), "model_type")]
 
     @pytest.mark.spec("CM-05-004")
     def test_link_holds_its_fields(self):
@@ -94,10 +103,11 @@ class TestUrlIsALink:
 
     @pytest.mark.spec("CM-05-004")
     def test_link_has_no_id(self):
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError) as exc_info:
             CaseReferenceLink.model_validate(
                 {"href": _HREF, "id": "urn:test:link:1"}
             )
+        assert _errors(exc_info.value) == [(("id",), "extra_forbidden")]
 
     def test_link_serializes_in_wire_spelling(self):
         dumped = _ref(media_type="text/html", rel=[_PATCH]).model_dump(
@@ -112,8 +122,11 @@ class TestUrlIsALink:
         }
 
     def test_link_refuses_other_keys(self):
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError) as exc_info:
             make(CaseReference, url={"href": _HREF, "width": 3})
+        assert _errors(exc_info.value) == [
+            (("url", "width"), "extra_forbidden")
+        ]
 
     def test_round_trip_through_json(self):
         ref = _ref(name="Advisory", rel=[_PATCH, "related"])
@@ -138,13 +151,13 @@ class TestReadingAParsedModel:
     """A Link the parser already built is read through its given fields."""
 
     def test_given_fields_are_read(self):
-        parsed = _ParsedModel(type="Link", href=_HREF, mediaType="text/html")
+        parsed = _ParsedModel(type_="Link", href=_HREF, mediaType="text/html")
         link = CaseReferenceLink.model_validate(parsed)
         assert link.href == _HREF
         assert link.media_type == "text/html"
 
     def test_a_refusal_names_the_wire_field(self):
-        parsed = _ParsedModel(type="Note", href=_HREF)
+        parsed = _ParsedModel(type_="Note", href=_HREF)
         with pytest.raises(ValidationError) as exc_info:
             CaseReferenceLink.model_validate(parsed)
         assert [error["loc"] for error in exc_info.value.errors()] == [
@@ -152,8 +165,16 @@ class TestReadingAParsedModel:
         ]
 
     def test_a_field_the_link_does_not_hold_is_refused(self):
-        parsed = _ParsedModel(type="Link", href=_HREF, width=3)
+        parsed = _ParsedModel(type_="Link", href=_HREF, width=3)
         with pytest.raises(ValidationError, match=r"given \['width'\]"):
+            CaseReferenceLink.model_validate(parsed)
+
+    def test_an_extra_key_on_a_parsed_model_is_refused(self):
+        class _OpenModel(_ParsedModel):
+            model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+        parsed = _OpenModel(type_="Link", href=_HREF, foo="bar")  # pyright: ignore[reportCallIssue]
+        with pytest.raises(ValidationError, match=r"given \['foo'\]"):
             CaseReferenceLink.model_validate(parsed)
 
 
@@ -213,13 +234,14 @@ class TestRelVocabulary:
 
     @pytest.mark.spec("CM-05-012")
     def test_empty_rel_string_refused(self):
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError) as exc_info:
             _ref(rel=[""])
+        assert _errors(exc_info.value) == [(("url", "rel", 0), "value_error")]
 
     @pytest.mark.spec("CM-05-012")
     def test_rel_checked_on_assignment(self):
         ref = _ref()
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match="Invalid rel"):
             ref.url.rel = ["bogus"]
 
 
@@ -227,10 +249,11 @@ class TestTagsFieldIsGone:
     """The Vultron ``tags`` field is removed with no alias (ADR-0175)."""
 
     def test_tags_key_refused(self):
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError) as exc_info:
             CaseReference.model_validate(
                 {"url": {"href": _HREF}, "tags": ["patch"]}
             )
+        assert _errors(exc_info.value) == [(("tags",), "extra_forbidden")]
 
 
 class TestWireAlias:

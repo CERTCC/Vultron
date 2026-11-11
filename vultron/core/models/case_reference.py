@@ -96,13 +96,18 @@ CASE_REFERENCE_REL_VOCABULARY = frozenset(CVE_REFERENCE_TAG_RELS.values())
 _IGNORED_PARSED_LINK_FIELDS = frozenset({"context_"})
 
 
+def _wire_name(model: type[BaseModel], name: str) -> str:
+    """The wire spelling of *model*'s field *name*, or *name* itself when
+    *model* declares no such field (an ``extra`` key)."""
+    field = model.model_fields.get(name)
+    if field is None:
+        return name
+    return field.serialization_alias or field.alias or name
+
+
 def _wire_names(model: type[BaseModel], names: set[str]) -> list[str]:
     """The wire spellings of *model*'s fields *names*, sorted."""
-    fields = model.model_fields
-    return sorted(
-        fields[name].serialization_alias or fields[name].alias or name
-        for name in names
-    )
+    return sorted(_wire_name(model, name) for name in names)
 
 
 class CaseReferenceLink(ValidatedAssignmentMixin, BaseModel):
@@ -172,12 +177,8 @@ class CaseReferenceLink(ValidatedAssignmentMixin, BaseModel):
                 f"{_wire_names(cls, set(cls.model_fields))}; it was given "
                 f"{_wire_names(type(data), unheld)}"
             )
-        fields = type(data).model_fields
         return {
-            fields[name].serialization_alias or fields[name].alias or name: (
-                getattr(data, name)
-            )
-            for name in given
+            _wire_name(type(data), name): getattr(data, name) for name in given
         }
 
     @field_validator("rel", mode="before")

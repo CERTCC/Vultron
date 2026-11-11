@@ -178,7 +178,10 @@ def test_a_link_with_its_own_context_parses_with_nothing_set_aside(
 
 
 def test_a_url_holding_another_object_type_is_refused():
-    with pytest.raises(VultronParseValidationError, match="url"):
+    with pytest.raises(
+        VultronParseValidationError,
+        match=r"(?s)url.*A case reference's Link holds only",
+    ):
         parse_activity(
             _create(_reference({"type": "Note", "content": "not a link"}))
         )
@@ -190,9 +193,12 @@ def test_a_tags_key_is_not_read(caplog: pytest.LogCaptureFixture):
     body = _create(_reference({"type": "Link", "href": _HREF}, tags=["patch"]))
     with caplog.at_level(logging.INFO):
         reference = _parsed(body)
+    assert "tags" not in type(reference).model_fields
     assert reference.url.rel == []
     [record] = _set_aside_records(caplog)
     assert "'tags'" in record
+    assert "at 'object';" in record
+    assert "urn:test:create:1" in record
 
 
 def test_wire_link_rel_is_not_functional():

@@ -18,7 +18,10 @@ import re
 import pytest
 from pydantic.fields import FieldInfo
 
-from vultron.core.models.case_reference import CASE_REFERENCE_REL_VOCABULARY
+from vultron.core.models.case_reference import (
+    CASE_REFERENCE_REL_VOCABULARY,
+    CVE_REFERENCE_TAG_RELS,
+)
 from vultron.metadata.base import repo_root
 from vultron.metadata.wire_context.sync import (
     CONTEXT_JSONLD_PATH,
@@ -318,6 +321,11 @@ def test_namespace_index_page_lists_exactly_the_reference_rel_values() -> None:
     the reverse, would mislead it.
     """
     section = _ns_page_section("Link relation types")
-    rows = re.findall(r"^\|\s*`([^`]+)`\s*\|", section, flags=re.MULTILINE)
+    rows = re.findall(
+        r"^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|", section, flags=re.MULTILINE
+    )
     assert rows, "found no 'Link relation types' rows in docs/ns/index.md"
-    assert set(rows) == CASE_REFERENCE_REL_VOCABULARY
+    assert dict(rows) == {
+        rel: tag for tag, rel in CVE_REFERENCE_TAG_RELS.items()
+    }
+    assert {rel for rel, _ in rows} == CASE_REFERENCE_REL_VOCABULARY
