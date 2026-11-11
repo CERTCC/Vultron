@@ -321,6 +321,12 @@ For embargo times, the measure connects the embargo register and the consent row
     `vultron-demo-report` (`vultron/demo/report/`) reads these files and merges the replicas into one timeline for each case, in log order (DRPT-02).
     The report also shows which actors' replicas hold each entry.
     Each timeline event shows the actor, the semantic type, the target, the commit stamp, and the state changes that the entry records.
+    The measure layer reads the same files through one shared reader (`vultron/measure/ledger/`).
+    No entry says whose copy it is, because a replica's entries are identical to the CASE_MANAGER's, so the reader finds the copy by completeness.
+    It reads a copy alone when that copy holds every log index without a gap and every entry that any other copy holds.
+    Otherwise it merges the replicas and names the log indices that no replica holds.
+    Completeness can only be judged against the files the reader is given, so the reader also reports whether the ledger's end is confirmed.
+    The end is confirmed when the last entry is the CASE_MANAGER's own closure, or when another copy ends on the same entry.
 
 ## Further reading
 

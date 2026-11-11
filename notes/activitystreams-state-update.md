@@ -15,6 +15,7 @@ related_specs:
   - specs/case-bootstrap-trust.yaml
   - specs/case-ledger-processing.yaml
 related_notes:
+  - notes/as2-vocabulary-alignment.md
   - notes/activitystreams-semantics.md
   - notes/bt-integration.md
 relevant_packages:
