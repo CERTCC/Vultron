@@ -3153,9 +3153,13 @@ groups:
     - ADR-0097
     - ADR-0183
     verification: >
-      A ratchet enumerates every domain bundle field, resolves its DETERMINISTIC
-      default, and fails if the capability declares output ports that the default
-      does not write; the equivalent check covers the STOCHASTIC singletons.
+      `test_deterministic_default_writes_every_declared_output` in
+      `test/core/behaviors/call_out/test_defaults_write_declared_outputs.py`
+      enumerates every domain bundle field, resolves its DETERMINISTIC default
+      through the seam, and fails if the default does not bind to the capability
+      the field answers or answers yes without a value of its type for every
+      declared output port. `test_stochastic_node_writes_every_declared_output` in
+      the same file covers the STOCHASTIC singletons.
     relationships:
     - rel_type: supersedes
       spec_id: BT-23-002

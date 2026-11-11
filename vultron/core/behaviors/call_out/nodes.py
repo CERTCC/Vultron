@@ -19,6 +19,14 @@ the ``<DOMAIN>_DETERMINISTIC`` bundles: :class:`AlwaysSucceed` (always answers
 :class:`NoOpActuator`, the :class:`AlwaysSucceed` every Actuator field
 defaults to.
 
+A bundle field that answers a declared capability binds its default to that
+capability's core declaration with :func:`always_succeed_as` or
+:func:`always_fail_as`.  The bound default takes the declaration's ports as
+its contract, so a *yes* writes every declared output port with a
+type-conformant value (:func:`~vultron.core.behaviors.call_out.answer.constant_yes`,
+BT-23-013) and the default is traceable to the capability it stands in for.
+The mechanism reads the declaration; nothing is written per capability.
+
 These are core-owned, production-usable backends: the DETERMINISTIC bundle is
 the happy-path default a real actor uses when a call-out point has no wired-in
 capability implementation yet (ADR-0025). They deliberately carry **no** probabilistic
@@ -51,14 +59,25 @@ the rate; the core nodes remain non-probabilistic regardless of the value.
 References
 ----------
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
-- Spec: ``specs/behavior-tree-integration.yaml`` BT-23-001, BT-23-002
+- Spec: ``specs/behavior-tree-integration.yaml`` BT-23-001, BT-23-002,
+  BT-23-013
 """
 
 from __future__ import annotations
 
+import functools
+
 from vultron.core.behaviors.call_out.actuator import ActuatorBackend
-from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.answer import (
+    CallOutAnswer,
+    constant_yes,
+    yes_value,
+)
 from vultron.core.behaviors.call_out.backend import CallOutBackend
+from vultron.core.behaviors.call_out.capability import (
+    ActuatorCapability,
+    Capability,
+)
 
 #: The reason every :class:`AlwaysFail` refusal carries.
 DETERMINISTIC_REFUSAL_REASON = (
@@ -77,14 +96,19 @@ class AlwaysSucceed(CallOutBackend):
     The ceiling default for any call-out point whose stochastic success
     probability is ``>= 0.5`` (BT-23-002). Core-owned and production-usable;
     carries no probabilistic behaviour.
+
+    Its *yes* carries a value for every output its ``contract`` declares
+    (:func:`~vultron.core.behaviors.call_out.answer.constant_yes`): none for
+    the bare class, every declared port once :func:`always_succeed_as`
+    binds it to a capability declaration (BT-23-013).
     """
 
     #: Read-only rate interface parity with the simulation ``AlwaysSucceed``.
     success_rate: float = 1.0
 
     def answer(self) -> CallOutAnswer:
-        """Always answer *yes*, with no outputs."""
-        return CallOutAnswer.yes()
+        """Always answer *yes*, with a value for every declared output."""
+        return constant_yes(self.contract)
 
 
 class AlwaysFail(CallOutBackend):
@@ -143,6 +167,88 @@ class RequireCaseOwnerApprovalNode(CallOutBackend):
         return CallOutAnswer.no(CASE_OWNER_APPROVAL_REQUIRED_REASON)
 
 
+@functools.cache
+def _bound(
+    declaration: type[Capability], constant: type[CallOutBackend]
+) -> type[CallOutBackend]:
+    """The class that answers as *constant* and binds to *declaration*.
+
+    Cached, so every field bound to one capability builds one class.
+    """
+    if not (
+        isinstance(declaration, type)
+        and issubclass(declaration, Capability)
+        and declaration.declaration() is declaration
+    ):
+        raise TypeError(
+            f"{declaration!r} is not a capability declaration; a default "
+            "binds to a core declaration under "
+            "vultron.core.behaviors.call_out.capabilities (BT-18-021)."
+        )
+    if constant is AlwaysFail and declaration.REFUSAL_PORTS:
+        raise TypeError(
+            f"{declaration.__name__} declares refusal ports "
+            f"{sorted(declaration.REFUSAL_PORTS)}, which AlwaysFail does not "
+            "give; its floor default is a backend that builds them "
+            "(ADR-0183)."
+        )
+    if constant is AlwaysSucceed and issubclass(
+        declaration, ActuatorCapability
+    ):
+        constant = NoOpActuator
+    for typ in declaration.contract.outputs.values():
+        # Fail when the bundle is built, not on the first yes.
+        yes_value(typ)
+    stem = declaration.__name__.removesuffix("Capability")
+    name = f"{constant.__name__}{stem}"
+    bound = type(
+        name,
+        (declaration, constant),
+        {
+            "__module__": __name__,
+            "__qualname__": name,
+            "__doc__": (
+                f"DETERMINISTIC {constant.__name__} bound to "
+                f":class:`{declaration.__module__}.{declaration.__qualname__}`"
+                " (BT-23-013); built by :func:`always_succeed_as` or "
+                ":func:`always_fail_as`."
+            ),
+        },
+    )
+    return bound
+
+
+def always_succeed_as(declaration: type[Capability]) -> type[CallOutBackend]:
+    """The DETERMINISTIC ceiling default for *declaration* (BT-23-002, BT-23-013).
+
+    Returns an :class:`AlwaysSucceed` (a :class:`NoOpActuator` for an
+    Actuator) that binds to *declaration*: its *yes* writes every output
+    port the declaration names, with
+    :func:`~vultron.core.behaviors.call_out.answer.yes_value`.  The class is
+    a :class:`~vultron.core.behaviors.call_out.protocol.CallOutBackendFactory`,
+    so a bundle field defaults to it directly.
+
+    Raises:
+        TypeError: *declaration* is not a core capability declaration, or
+            declares an output port no constant value can fill.
+    """
+    return _bound(declaration, AlwaysSucceed)
+
+
+def always_fail_as(declaration: type[Capability]) -> type[CallOutBackend]:
+    """The DETERMINISTIC floor default for *declaration* (BT-23-006).
+
+    Returns an :class:`AlwaysFail` that binds to *declaration*.  It answers
+    *no* exactly as :class:`AlwaysFail` does; the binding names the
+    capability it stands in for, so a check can find its ports
+    (BT-18-002 binds only a *yes*).
+
+    Raises:
+        TypeError: *declaration* is not a core capability declaration.
+    """
+    return _bound(declaration, AlwaysFail)
+
+
 __all__ = [
     "AlwaysSucceed",
     "AlwaysFail",
@@ -150,4 +256,6 @@ __all__ = [
     "DETERMINISTIC_REFUSAL_REASON",
     "NoOpActuator",
     "RequireCaseOwnerApprovalNode",
+    "always_fail_as",
+    "always_succeed_as",
 ]

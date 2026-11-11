@@ -42,23 +42,34 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
+from vultron.core.behaviors.call_out.capabilities.embargo.evaluation import (
+    CaseOwnerApprovesEmbargoResponseCapability,
+    CurrentEmbargoAcceptableCapability,
+    EvaluateEmbargoProposalCapability,
+    OnEmbargoAcceptCapability,
+    OnEmbargoRejectCapability,
+)
+from vultron.core.behaviors.call_out.capabilities.embargo.proposal import (
+    ReasonToProposeEmbargoWhenDeployedCapability,
+    SelectEmbargoOfferTermsCapability,
+    StopProposingEmbargoCapability,
+    WantToProposeEmbargoCapability,
+    WillingToCounterEmbargoProposalCapability,
+)
+from vultron.core.behaviors.call_out.capabilities.embargo.termination import (
+    EmbargoExitOverrideCapability,
+    EmbargoExitPolicyGuardCapability,
+    ExitEmbargoForOtherReasonCapability,
+    ExitEmbargoWhenDeployedCapability,
+    ExitEmbargoWhenFixReadyCapability,
+    OnEmbargoExitCapability,
+)
 from vultron.core.behaviors.call_out.nodes import (
-    AlwaysFail,
-    AlwaysSucceed,
-    NoOpActuator,
+    always_fail_as,
+    always_succeed_as,
 )
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
-
-
-def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysFail(name)
 
 
 @dataclass(frozen=True)
@@ -73,54 +84,56 @@ class EmbargoCallOutBundle(CallOutBundle):
     """
 
     exit_embargo_when_deployed_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(ExitEmbargoWhenDeployedCapability)  # type: ignore[assignment]
     )
     exit_embargo_when_fix_ready_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(ExitEmbargoWhenFixReadyCapability)  # type: ignore[assignment]
     )
     exit_embargo_for_other_reason_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(ExitEmbargoForOtherReasonCapability)  # type: ignore[assignment]
     )
     stop_proposing_embargo_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(StopProposingEmbargoCapability)  # type: ignore[assignment]
     )
     select_embargo_offer_terms_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(SelectEmbargoOfferTermsCapability)  # type: ignore[assignment]
     )
     want_to_propose_embargo_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(WantToProposeEmbargoCapability)  # type: ignore[assignment]
     )
     willing_to_counter_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(WillingToCounterEmbargoProposalCapability)  # type: ignore[assignment]
     )
     reason_to_propose_when_deployed_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(ReasonToProposeEmbargoWhenDeployedCapability)  # type: ignore[assignment]
     )
     evaluate_embargo_proposal_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(EvaluateEmbargoProposalCapability)  # type: ignore[assignment]
     )
     current_embargo_acceptable_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(CurrentEmbargoAcceptableCapability)  # type: ignore[assignment]
     )
     on_embargo_exit_factory: CallOutBackendFactory = field(
-        default=NoOpActuator  # type: ignore[assignment]
+        default=always_succeed_as(OnEmbargoExitCapability)  # type: ignore[assignment]
     )
     on_embargo_accept_factory: CallOutBackendFactory = field(
-        default=NoOpActuator  # type: ignore[assignment]
+        default=always_succeed_as(OnEmbargoAcceptCapability)  # type: ignore[assignment]
     )
     on_embargo_reject_factory: CallOutBackendFactory = field(
-        default=NoOpActuator  # type: ignore[assignment]
+        default=always_succeed_as(OnEmbargoRejectCapability)  # type: ignore[assignment]
     )
     case_owner_approves_embargo_response_factory: CallOutBackendFactory = (
         field(
-            default=_always_succeed  # type: ignore[assignment]
+            default=always_succeed_as(
+                CaseOwnerApprovesEmbargoResponseCapability
+            )  # type: ignore[assignment]
         )
     )
     embargo_exit_policy_guard_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=always_succeed_as(EmbargoExitPolicyGuardCapability)  # type: ignore[assignment]
     )
     embargo_exit_override_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
+        default=always_fail_as(EmbargoExitOverrideCapability)  # type: ignore[assignment]
     )
 
 

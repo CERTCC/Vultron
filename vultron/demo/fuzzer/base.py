@@ -21,7 +21,7 @@ layer.
 ``WeightedBehavior`` is a
 :class:`~vultron.core.behaviors.call_out.backend.CallOutBackend`: each
 subclass sets a ``success_rate`` class attribute, and ``answer()`` gives *yes*
-with that probability, carrying a type-conformant zero value for every output
+with that probability, carrying a type-conformant value for every output
 its ``contract`` declares (BT-18-003), and *no* otherwise, with a reason
 naming the simulated refusal (ADR-0183).  A simulation never answers *error*.
 
@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import random
 
-from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.answer import CallOutAnswer, constant_yes
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 
 
@@ -63,10 +63,12 @@ class WeightedBehavior(CallOutBackend):
         return self.no()
 
     def yes(self) -> CallOutAnswer:
-        """A *yes* with a zero value for every declared output (BT-18-003)."""
-        return CallOutAnswer.yes(
-            {key: typ() for key, typ in self.contract.outputs.items()}
-        )
+        """A *yes* with a value for every declared output (BT-18-003).
+
+        The same answer the core DETERMINISTIC ceiling gives
+        (:func:`~vultron.core.behaviors.call_out.answer.constant_yes`).
+        """
+        return constant_yes(self.contract)
 
     def no(self) -> CallOutAnswer:
         """A *no* whose reason names the simulated refusal."""

@@ -245,7 +245,9 @@ def test_every_deterministic_actuator_default_is_the_no_op_actuator():
     """The default acts on nothing, so a repeat repeats nothing (BT-18-044)."""
     for bundle, field_name in _ACTUATOR_FIELDS:
         backend = unwrap_call_out(getattr(type(bundle)(), field_name)("x"))
-        assert type(backend) is NoOpActuator, field_name
+        # A NoOpActuator bound to the field's capability (BT-23-013).
+        assert isinstance(backend, NoOpActuator), field_name
+        assert type(backend).act is NoOpActuator.act, field_name
         # The ceiling default of a p > 0.5 call-out point (BT-23-002).
         assert isinstance(backend, AlwaysSucceed)
 
