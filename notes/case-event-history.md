@@ -221,10 +221,22 @@ Only a **trailing** event may be missing (CEH-05-005). Many cases never see a pu
 exploit, and an open case has not closed, so a sequence that stops early is normal. A
 *gap* is not: the ephemeral rules forbid it.
 
+### A vendor aware only after the exploit is public does not replay
+
+Report such a vendor unprojectable as not a valid prefix, never raise and never
+drop it (CEH-05-004, CEH-05-007). Reason: the ledger is valid — the CASE_MANAGER
+moves the public state through `P` and `X` in its own machine, and a joining
+vendor's first fix-path status has nothing to compare a compound against — yet
+`P, X, V` breaks the `vP` ephemeral rule (CSB-17-003). The single-vendor model
+cannot place a vendor that joins late, so a raise would lose every other vendor's
+sequence over a real case. Projection lives in `vultron/measure/sequences/`
+(`case_state_sequences`).
+
 ### The prefix check is this layer's, not the CASE_MANAGER's
 
-A sequence that fails the prefix check means the derivation is wrong — but not because
-the CASE_MANAGER already refused the transition. It validates a participant's
+A sequence that fails the prefix check means the derivation is wrong or the case
+outran the single-vendor model, as above — never that the CASE_MANAGER already refused
+the transition. It validates a participant's
 dimensions and the case's public state *separately*, and skips any rule that reads a
 dimension the participant does not have (`composite_state_violations`, and
 `_compound_violations` returns no violation whenever the participant's `vf` is absent).
@@ -342,8 +354,10 @@ which states only the boundary that nothing in the protocol path imports the lay
 - The layer is `vultron/measure/`, outside the protocol path. Each stage is a
   subpackage that reads through the one below it: the event history is
   `vultron/measure/history/` (`case_event_history`, `read_case_event_histories`),
-  a sibling of `ledger/`, never part of it. The chance baselines
-  (`vultron/measure/baselines/`) read only `vultron/core/states/`, never a ledger.
+  a sibling of `ledger/`, never part of it. The per-vendor case-state sequences are
+  `vultron/measure/sequences/` (`case_state_sequences`), reading only the history.
+  The chance baselines (`vultron/measure/baselines/`) read only
+  `vultron/core/states/`, never a ledger.
 - `vultron/measure/ledger/` is the reader every measure shares: `fields.py` (the
   tolerant field accessors and the dimension-state walker), `names.py` (the
   display-name resolver), `jsonl.py` (the tolerant file reader), `copies.py`

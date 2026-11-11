@@ -890,9 +890,10 @@ groups:
       sequence from being built in the first place. CEH-05-007 says what that
       participant gets instead.
     verification: >-
-      A unit test builds a history from a two-vendor ledger and asserts one sequence per
-      vendor, each in log order, and asserts that a ledger whose deployer holds no
-      Vendor role yields no sequence for that deployer.
+      `test/measure/sequences/test_project.py::test_one_sequence_per_vendor_in_log_order`
+      projects a two-vendor ledger and asserts one sequence per vendor in log order, and
+      `test/measure/sequences/test_project.py::test_a_deployer_without_the_vendor_role_is_unprojectable_with_a_reason`
+      asserts a deployer holding no Vendor role gets none.
     adr:
     - ADR-0174
   - id: CEH-05-002
@@ -906,8 +907,11 @@ groups:
       every step is a valid transition. A sequence carrying report or embargo events
       would not replay.
     verification: >-
-      A unit test asserts that every member of a projected sequence is a case-state
-      event value the validator accepts.
+      `test/measure/sequences/test_project.py::test_a_sequence_holds_only_case_state_events`
+      asserts every member of a projected sequence is a case-state event the validator
+      accepts, and
+      `test/measure/sequences/test_model.py::test_a_report_or_embargo_event_is_refused`
+      asserts a sequence holding a report or embargo event is refused.
     relationships:
     - rel_type: extends
       spec_id: CEH-05-001
@@ -924,10 +928,10 @@ groups:
       Deployer role contributes no deployment event, which leaves its sequence at VFd
       and is a valid incomplete prefix under CEH-05-005.
     verification: >-
-      A unit test asserts that a vendor's sequence holds the case's public-awareness
-      event as well as that vendor's own fix-readiness event, and that a vendor holding
-      no Deployer role yields a sequence with no deployment event that the prefix
-      validator still accepts.
+      `test/measure/sequences/test_project.py::test_a_sequence_combines_the_vendors_own_events_with_the_cases`
+      asserts a vendor's sequence holds the case's public-awareness event and its own
+      fix-path and deployment events, and that a vendor holding no Deployer role has no
+      deployment event and is still a valid prefix.
     relationships:
     - rel_type: refines
       spec_id: CEH-05-002
@@ -944,10 +948,12 @@ groups:
       whose every entry it accepted can still project a compound that does not replay.
       This layer builds the compound, so it owns the check.
     verification: >-
-      A unit test asserts the prefix validator accepts every sequence projected from
-      every committed ledger recording, and a unit test over a hand-built ledger whose
-      entries are each individually valid asserts the check fails on a compound
-      sequence that does not replay.
+      `test/measure/sequences/test_project.py::test_every_sequence_from_a_recording_is_a_valid_prefix`
+      runs the prefix validator over every sequence projected from every committed
+      recording, and
+      `test/measure/sequences/test_project.py::test_a_compound_that_does_not_replay_is_refused_with_its_reason`
+      asserts the check refuses a compound from a hand-built ledger whose every entry
+      the CASE_MANAGER admits.
     relationships:
     - rel_type: depends_on
       spec_id: CSB-17-005
@@ -965,9 +971,11 @@ groups:
       rules (CSB-17-003) oblige a specific next event, so a public-state event with no
       vendor awareness in front of it is refused rather than read as incomplete.
     verification: >-
-      A unit test projects a sequence from a ledger with no public exploit and asserts
-      the layer accepts it, and asserts the layer refuses a sequence whose public-state
-      event precedes an absent vendor-awareness event.
+      `test/measure/sequences/test_project.py::test_a_sequence_missing_trailing_events_is_an_incomplete_prefix`
+      projects a ledger with no public exploit and asserts the sequences are held, and
+      `test/measure/sequences/test_model.py::test_a_missing_event_before_a_later_one_is_refused`
+      asserts a sequence whose public-state event precedes an absent vendor-awareness
+      event is refused.
     relationships:
     - rel_type: depends_on
       spec_id: CSB-17-010
@@ -982,8 +990,8 @@ groups:
       says which vendor's event stands for the case. A rule chosen here would decide an
       open research question without review.
     verification: >-
-      A unit test asserts that a two-vendor history exposes two sequences and no
-      case-wide sequence.
+      `test/measure/sequences/test_project.py::test_two_vendors_expose_two_sequences_and_no_case_wide_one`
+      asserts a two-vendor history exposes two sequences and no case-wide one.
     relationships:
     - rel_type: refines
       spec_id: CEH-05-001
@@ -1000,9 +1008,9 @@ groups:
       stay in the event history, where a measure needing no replayable sequence reads
       them.
     verification: >-
-      A unit test builds a history whose deployer holds no Vendor role, and asserts the
-      participant is reported unprojectable with a stated reason, and that its
-      fix-deployed event is still present in the event history.
+      `test/measure/sequences/test_project.py::test_a_deployer_without_the_vendor_role_is_unprojectable_with_a_reason`
+      asserts a deployer holding no Vendor role is reported unprojectable with a stated
+      reason and that its fix-deployed event is still in the event history.
     relationships:
     - rel_type: extends
       spec_id: CEH-05-001
@@ -1019,8 +1027,11 @@ groups:
       measures computed from a history are out of this topic's scope in any case. The
       layer's deliverable is the validated sequence.
     verification: >-
-      A test asserts that the event-history layer imports no scoring entry point and
-      exposes no score on a projected sequence.
+      `test/measure/sequences/test_project.py::test_the_layer_imports_no_scoring_entry_point`
+      and
+      `test/measure/sequences/test_project.py::test_no_projected_model_exposes_a_score`
+      assert the projection imports no scoring entry point and no projected model
+      exposes a score.
     relationships:
     - rel_type: refines
       spec_id: CEH-05-004
@@ -1052,8 +1063,9 @@ groups:
       replay. Checking every recording turns that class of bug into a test failure
       rather than a wrong measure.
     verification: >-
-      A parametrized test runs the prefix validator over every sequence projected from
-      every committed recording.
+      `test/measure/sequences/test_project.py::test_every_sequence_from_a_recording_is_a_valid_prefix`
+      runs the prefix validator over every sequence projected from every committed
+      recording.
     relationships:
     - rel_type: extends
       spec_id: CEH-06-001
@@ -1088,8 +1100,11 @@ groups:
       answers and on an unprojectable participant pass with nothing exercising them,
       which is how a derivation bug survives a green suite.
     verification: >-
-      A test module holds one fixture per case and asserts the event, the label and the
-      bounding deadline each one calls for.
+      `test/measure/history/test_derive.py` holds the end-time exit, declined and
+      timed-out invitation fixtures and asserts the event, the label and the bounding
+      deadline each one calls for, and
+      `test/measure/sequences/test_project.py::test_a_deployer_without_the_vendor_role_is_unprojectable_with_a_reason`
+      holds the Vendor-less Deployer and asserts it is reported unprojectable.
     relationships:
     - rel_type: extends
       spec_id: CEH-06-001
