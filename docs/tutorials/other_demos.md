@@ -349,7 +349,7 @@ See [How to Report a Vulnerability](../howto/activitypub/activities/report_vulne
 
 ### rv-csaf
 
-The `rv-csaf` scenario shows a case that starts from a CSAF 2.1 vulnerability report.
+The `rv-csaf` scenario shows a case that starts from a Common Security Advisory Framework (CSAF) 2.1 vulnerability report.
 It is a multi-container scenario, so it does not run in this container.
 Run it from the repository root on the host, as [Running the Multi-Actor Container Demos](container_demos.md) describes:
 

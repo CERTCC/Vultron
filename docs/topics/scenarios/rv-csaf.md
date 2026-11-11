@@ -54,7 +54,7 @@ subject: implementation
 
 ## Overview
 
-The `rv-csaf` scenario shows a case that starts from a CSAF 2.1 vulnerability report.
+The `rv-csaf` scenario shows a case that starts from a Common Security Advisory Framework (CSAF) 2.1 vulnerability report.
 The **Reporter** sends the **Vendor** a report with a CSAF document attached, and states no report name, no summary and no embargo end.
 The case takes all three from the document: its name is the document's title, its summary is the document's summary note, and its embargo ends at the document's disclosure date.
 After the case starts, the scenario goes on as the [`rv`](rv.md) scenario does.
@@ -91,7 +91,7 @@ The Case Actor creates the case from the document on the Offer that the Vendor's
 The case's name is the document's title, and the case's summary is the document's summary note.
 The two embargo terms compete by shortest-wins.
 The document's 10-day term is shorter than the Vendor's 30-day default, so it becomes the active embargo.
-The Vendor's default is registered as a pending revision, and the case starts at EM `REVISE`.
+The Vendor's default is registered as a pending revision, and the case starts in the Embargo Management (EM) state `REVISE`.
 The Case Actor relays the revision to the Reporter, whose terms won, and the Reporter accepts it.
 
 *Antecedent:* the Offer reached the Vendor (step 2).
