@@ -124,6 +124,9 @@ leaves it instead (PAD-04-008):
    merge, with `- Closes #N`. `create-pr` freshens it onto `origin/main`, so it
    starts from the merged parts.
 
+While a Part PR is open, the stale-claim sweeper counts it as the claim's open
+PR, though the claim branch itself sits idle (PAD-10-001).
+
 `pr-body-lint` PRB-14 refuses a `Part of #N` body on the claim branch of #N
 before the push, and at the final stage refuses one whose PR GitHub lists #N
 in `closingIssuesReferences` (`pr-body-guide.md` § "Mechanical Checks").

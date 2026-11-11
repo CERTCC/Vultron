@@ -6,17 +6,19 @@ Two kinds of claim are swept:
 - An **issue claim** is an open, assigned Issue with a claim branch
   ``<prefix>/<N>-<slug>`` on GitHub, under any prefix (PAD-04-001). It is
   orphaned when the branch has no open PR and neither its last commit nor the
-  claim itself is within the stale window.
+  claim itself is within the stale window. An open PR whose body says
+  ``Part of #N`` counts as the claim's open PR: a split's non-final part opens
+  from an unlinked sibling branch, never the claim branch (PAD-04-008).
 - An **Epic claim** is an open, assigned Epic: an epic run (PAD-19-001). It is
   orphaned when it was claimed before the window and none of the issues it
-  holds (descendants whose nearest Epic it is) has an open PR or claim-branch
-  activity within it.
+  holds (descendants whose nearest Epic it is) has an open PR (closing it, or
+  saying ``Part of`` it) or claim-branch activity within it.
 
 The claim time (the issue's latest ``assigned`` event) counts as activity
 because GitHub creates a claim branch at the ``main`` tip, whose commit can be
 older than the window the moment the claim is taken.
 
-The decisions (``claim_issue_number``, ``claim_activity``,
+The decisions (``claim_issue_number``, ``part_of_issues``, ``claim_activity``,
 ``is_stale_issue_claim``, ``is_stale_epic_claim``) are pure functions the test suite pins without the
 GitHub API; everything else is thin ``gh`` plumbing. Flagging is idempotent: a
 claim that already carries ``stale-claim`` is skipped.
@@ -54,6 +56,15 @@ def claim_issue_number(branch: str) -> int | None:
     """The issue a claim branch is named for, or ``None`` for any other branch."""
     match = _CLAIM_BRANCH_RE.match(branch)
     return int(match.group(1)) if match else None
+
+
+# `Part of #N`, the reference a split's non-final PR carries (PAD-04-008).
+_PART_OF_RE = re.compile(r"\bPart of #(\d+)\b", re.IGNORECASE)
+
+
+def part_of_issues(body: str) -> set[int]:
+    """The issues a PR body names as ``Part of #N``."""
+    return {int(n) for n in _PART_OF_RE.findall(body)}
 
 
 def _latest(*stamps: str | None) -> str | None:
@@ -151,7 +162,7 @@ class Sweeper:
                 "--limit",
                 "1000",
                 "--json",
-                "headRefName,closingIssuesReferences",
+                "headRefName,closingIssuesReferences,body",
             )
         )
         self.pr_heads = {str(pr["headRefName"]) for pr in prs}
@@ -159,6 +170,10 @@ class Sweeper:
             int(ref["number"])
             for pr in prs
             for ref in pr.get("closingIssuesReferences") or []
+        }
+        # Issues an open split part works on, from its unlinked sibling branch.
+        self.pr_parts = {
+            n for pr in prs for n in part_of_issues(str(pr.get("body") or ""))
         }
 
     def _last_commit(self, sha: str) -> str | None:
@@ -267,7 +282,7 @@ class Sweeper:
             activity = self._branch_activity(number, sha)
             if not is_stale_issue_claim(
                 activity=activity,
-                has_open_pr=branch in self.pr_heads,
+                has_open_pr=branch in self.pr_heads or number in self.pr_parts,
                 cutoff=self.cutoff,
             ):
                 print(f"#{number}: ok ({branch})")
@@ -299,7 +314,7 @@ class Sweeper:
                 for branch, n, sha in self.branches
                 if n in children
             ]
-            has_pr = bool(children & self.pr_closes) or any(
+            has_pr = bool(children & (self.pr_closes | self.pr_parts)) or any(
                 branch in self.pr_heads for branch, _, _ in child_branches
             )
             stale = is_stale_epic_claim(

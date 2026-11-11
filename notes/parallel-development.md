@@ -5,8 +5,9 @@ kind: guidance
 description: >
   How multiple AI agents and human developers coordinate through GitHub Issues:
   the issue hierarchy, label taxonomy, bundle selection, task claiming (and
-  the unlinked branch a split's Part PR opens from), the Epic claim an epic run holds, stale-claim and merge-conflict recovery, the
-  shared-`.git` pruning danger, the two paths through GitHub Project #24
+  the unlinked branch a split's Part PR opens from), the Epic claim an epic
+  run holds, stale-claim and merge-conflict recovery, the shared-`.git`
+  pruning danger, the two paths through GitHub Project #24
   (Schedule on Epics; Status and PR ship stage mirrored from facts), and the
   GitHub issue tracker CLI conventions.
 related_specs:
