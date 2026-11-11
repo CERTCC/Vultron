@@ -11,12 +11,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``ActorSession.submit_report`` states the Reporter's terms only when given.
+"""``ActorSession.submit_report`` sends each optional key only when given.
 
 The trigger body model ignores unknown keys (TRIG-03-002), so the one way a
 proposal is silently lost is a body that spells the key differently or sends it
 when nothing was proposed.  The kwargs ratchet pins the spelling; this pins
-the presence rule and the wire form of the instant.  #3971.
+the presence rule for the Reporter's terms (#3971), the attached CSAF document,
+the report summary and the report name (#6198), and the wire form of the
+instant.
 """
 
 import pytest
@@ -58,6 +60,8 @@ def test_no_terms_sends_no_proposed_end_key(posted):
 
     assert posted["behavior"] == "submit-report"
     assert "proposed_embargo_end_time" not in posted["body"]
+    assert "csaf_document" not in posted["body"]
+    assert "report_summary" not in posted["body"]
 
 
 def test_terms_are_sent_as_an_iso_instant(posted):
@@ -72,3 +76,35 @@ def test_terms_are_sent_as_an_iso_instant(posted):
 
     assert posted["body"]["proposed_embargo_end_time"] == end.isoformat()
     assert posted["body"]["proposed_embargo_end_time"].endswith("+00:00")
+
+
+@pytest.mark.spec("DEMOMA-26-011")
+def test_csaf_document_and_summary_are_passed_through(posted):
+    """AC-2: csaf_document and report_summary, when supplied, reach the body."""
+    csaf_doc = {"document": {"title": "Test"}}
+
+    _session().submit_report(
+        report_name="n",
+        report_content="c",
+        recipient_id=f"{_NODE}/actors/v",
+        csaf_document=csaf_doc,
+        report_summary="Brief summary",
+    )
+
+    assert posted["body"]["csaf_document"] is csaf_doc
+    assert posted["body"]["report_summary"] == "Brief summary"
+
+
+@pytest.mark.spec("DEMOMA-26-011")
+def test_csaf_document_without_report_name(posted):
+    """AC-4: A report with csaf_document and no report_name omits that key."""
+    csaf_doc = {"document": {"title": "CSAF Report"}}
+
+    _session().submit_report(
+        report_content="c",
+        recipient_id=f"{_NODE}/actors/v",
+        csaf_document=csaf_doc,
+    )
+
+    assert posted["body"]["csaf_document"] is csaf_doc
+    assert "report_name" not in posted["body"]
