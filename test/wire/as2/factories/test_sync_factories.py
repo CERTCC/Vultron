@@ -25,6 +25,7 @@ Spec coverage:
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
@@ -50,6 +51,8 @@ def sample_log_entry() -> as_CaseLedgerEntry:
         case_id="https://example.org/cases/case-001",
         log_object_id="https://example.org/activities/act-001",
         semantic_type="ReportCreated",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
 
@@ -199,6 +202,8 @@ def test_read_ledger_entry_is_the_read_of_its_position():
         semantic_type="ReportCreated",
         prev_log_hash="ef" * 32,
         entry_hash="ab" * 32,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     by_entry = read_ledger_entry_activity(sample_log_entry, actor=_ACTOR_URI)
     by_position = read_ledger_position_activity(

@@ -37,6 +37,7 @@ from test.core.behaviors.port_contract import (
     decl_id,
     discover_port_declarations,
 )
+from test.support.act_clock import ACT_AT
 from vultron.core.behaviors.sync.nodes.chain import (
     PersistLogEntryNode,
     UpdateReplicationStateNode,
@@ -265,6 +266,8 @@ class TestCollectLogEntryRecipientsNodeOutputPorts:
             case_id=case_id,
             log_object_id="https://example.org/activities/act-001",
             semantic_type="close_case",
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         result = bt_scenario.run(
             CollectLogEntryRecipientsNode(case_id=case_id),
@@ -306,6 +309,8 @@ class TestFanoutCollectorsRequireCase:
             case_id=case_id,
             log_object_id="https://example.org/activities/act-001",
             semantic_type="close_case",
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         result = bt_scenario.run(
             node_cls(case_id=case_id),
@@ -333,6 +338,8 @@ def _make_ledger_entry() -> CaseLedgerEntry:
         case_id=LEDGER_CASE_ID,
         log_object_id="https://example.org/activities/act-001",
         semantic_type="close_case",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
 

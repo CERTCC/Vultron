@@ -24,6 +24,7 @@ Per ``specs/semantic-extraction.yaml`` SE-04-003, SE-04-007.
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.dead_letter import DeadLetterRecord
 from vultron.core.models.events.unknown import UnresolvableObjectReceivedEvent
@@ -71,6 +72,7 @@ class StoreDeadLetterRecordNode(DataLayerAction):
             activity_id=request.activity_id,
             activity_type=request.activity_type,
             activity_summary=activity_summary,
+            received_at=read_act_instant(),
         )
         self.datalayer.save(record)
         self.logger.info(

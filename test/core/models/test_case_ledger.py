@@ -41,6 +41,7 @@ import py_trees
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_ledger import (
@@ -80,7 +81,9 @@ def empty_log() -> CaseLedger:
 
 @pytest.fixture()
 def log_with_one_entry(empty_log: CaseLedger) -> CaseLedger:
-    empty_log.append(object_id=OBJECT_ID, semantic_type="report_received")
+    empty_log.append(
+        object_id=OBJECT_ID, semantic_type="report_received", at=ACT_AT
+    )
     return empty_log
 
 
@@ -90,15 +93,18 @@ def log_with_three_entries(empty_log: CaseLedger) -> CaseLedger:
         object_id="urn:uuid:obj1",
         semantic_type="report_received",
         payload_snapshot={"id": "urn:uuid:obj1"},
+        at=ACT_AT,
     )
     empty_log.append(
         object_id="urn:uuid:obj2",
         semantic_type="case_created",
         payload_snapshot={"id": "urn:uuid:obj2"},
+        at=ACT_AT,
     )
     empty_log.append(
         object_id="urn:uuid:obj3",
         semantic_type="participant_added",
+        at=ACT_AT,
     )
     return empty_log
 
@@ -210,6 +216,7 @@ class TestCaseLedgerEntry:
             object_id=OBJECT_ID,
             semantic_type="report_received",
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
         assert entry.case_id == CASE_ID
         assert entry.log_index == 0
@@ -225,6 +232,7 @@ class TestCaseLedgerEntry:
             object_id=OBJECT_ID,
             semantic_type="report_received",
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
         assert entry.entry_hash != ""
         assert len(entry.entry_hash) == 64
@@ -236,6 +244,7 @@ class TestCaseLedgerEntry:
             object_id=OBJECT_ID,
             semantic_type="report_received",
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
         assert entry.verify_hash()
 
@@ -247,6 +256,7 @@ class TestCaseLedgerEntry:
             object_id=OBJECT_ID,
             semantic_type="report_received",
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
         # Manually tamper with object_id after creation
         object.__setattr__(entry, "object_id", "urn:uuid:tampered")
@@ -318,6 +328,7 @@ class TestCaseLedgerEntry:
                 "actor": CASE_ACTOR_ID,
                 "context": CASE_ID,
             },
+            received_at=ACT_AT,
         )
         assert original.verify_hash()
 
@@ -402,6 +413,7 @@ class TestCaseLedgerEntry:
             object_id=OBJECT_ID,
             semantic_type="test",
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
         assert entry.term is None
 
@@ -413,6 +425,7 @@ class TestCaseLedgerEntry:
             object_id="urn:uuid:obj1",
             semantic_type="test",
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
         e2 = HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -420,6 +433,7 @@ class TestCaseLedgerEntry:
             object_id="urn:uuid:obj2",
             semantic_type="test",
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
         assert e1.entry_hash != e2.entry_hash
 
@@ -431,6 +445,7 @@ class TestCaseLedgerEntry:
             object_id=OBJECT_ID,
             semantic_type="test",
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
         hashable = entry._hashable_dict()
         assert "entry_hash" not in hashable
@@ -444,6 +459,7 @@ class TestCaseLedgerEntry:
             semantic_type="test",
             prev_log_hash=_ZERO_HASH,
             payload_snapshot=snap,
+            received_at=ACT_AT,
         )
         assert entry.payload_snapshot == snap
 
@@ -484,8 +500,12 @@ class TestCaseLedgerAppend:
     def test_second_entry_prev_hash_equals_first_entry_hash(
         self, empty_log: CaseLedger
     ):
-        e1 = empty_log.append(object_id="urn:uuid:a", semantic_type="first")
-        e2 = empty_log.append(object_id="urn:uuid:b", semantic_type="second")
+        e1 = empty_log.append(
+            object_id="urn:uuid:a", semantic_type="first", at=ACT_AT
+        )
+        e2 = empty_log.append(
+            object_id="urn:uuid:b", semantic_type="second", at=ACT_AT
+        )
         assert e2.prev_log_hash == e1.entry_hash
 
     def test_log_indices_monotonically_increase(
@@ -496,13 +516,19 @@ class TestCaseLedgerAppend:
 
     def test_next_index_increments(self, empty_log: CaseLedger):
         assert empty_log.next_index == 0
-        empty_log.append(object_id="urn:uuid:a", semantic_type="first")
+        empty_log.append(
+            object_id="urn:uuid:a", semantic_type="first", at=ACT_AT
+        )
         assert empty_log.next_index == 1
-        empty_log.append(object_id="urn:uuid:b", semantic_type="second")
+        empty_log.append(
+            object_id="urn:uuid:b", semantic_type="second", at=ACT_AT
+        )
         assert empty_log.next_index == 2
 
     def test_returned_entry_matches_stored(self, empty_log: CaseLedger):
-        returned = empty_log.append(object_id=OBJECT_ID, semantic_type="test")
+        returned = empty_log.append(
+            object_id=OBJECT_ID, semantic_type="test", at=ACT_AT
+        )
         stored = empty_log.entries[0]
         assert returned is stored
 
@@ -510,7 +536,9 @@ class TestCaseLedgerAppend:
         self, empty_log: CaseLedger
     ):
         """Omitting payload_snapshot produces an empty dict on the entry."""
-        entry = empty_log.append(object_id=OBJECT_ID, semantic_type="test")
+        entry = empty_log.append(
+            object_id=OBJECT_ID, semantic_type="test", at=ACT_AT
+        )
         assert entry.payload_snapshot == {}
         assert entry.payload_snapshot is not None
 
@@ -534,10 +562,14 @@ class TestCaseLedgerAppendOnly:
         self, empty_log: CaseLedger
     ):
         """Mutating the returned tuple does not affect the underlying log."""
-        empty_log.append(object_id="urn:uuid:a", semantic_type="first")
+        empty_log.append(
+            object_id="urn:uuid:a", semantic_type="first", at=ACT_AT
+        )
         snapshot = empty_log.entries
         assert len(snapshot) == 1
-        empty_log.append(object_id="urn:uuid:b", semantic_type="second")
+        empty_log.append(
+            object_id="urn:uuid:b", semantic_type="second", at=ACT_AT
+        )
         # snapshot captured before second append is still length 1
         assert len(snapshot) == 1
         assert len(empty_log.entries) == 2
@@ -587,8 +619,12 @@ class TestCaseLedgerVerifyChain:
     def test_tampered_prev_hash_fails_verify_chain(
         self, empty_log: CaseLedger
     ):
-        empty_log.append(object_id="urn:uuid:a", semantic_type="first")
-        e2 = empty_log.append(object_id="urn:uuid:b", semantic_type="second")
+        empty_log.append(
+            object_id="urn:uuid:a", semantic_type="first", at=ACT_AT
+        )
+        e2 = empty_log.append(
+            object_id="urn:uuid:b", semantic_type="second", at=ACT_AT
+        )
         # Tamper with e2's prev_log_hash to point at something wrong
         object.__setattr__(e2, "prev_log_hash", _ZERO_HASH)
         # verify_chain should detect the broken link
@@ -615,7 +651,7 @@ class TestCaseLedgerAppendLogging:
             logging.INFO, logger="vultron.core.models.case_ledger"
         ):
             empty_log.append(
-                object_id=OBJECT_ID, semantic_type="report_received"
+                object_id=OBJECT_ID, semantic_type="report_received", at=ACT_AT
             )
         assert any(
             r.levelno == logging.INFO and "report_received" in r.message
@@ -629,7 +665,9 @@ class TestCaseLedgerAppendLogging:
             logging.INFO, logger="vultron.core.models.case_ledger"
         ):
             empty_log.append(
-                object_id=OBJECT_ID, semantic_type="participant_added"
+                object_id=OBJECT_ID,
+                semantic_type="participant_added",
+                at=ACT_AT,
             )
         assert any("participant_added" in r.message for r in caplog.records)
 
@@ -639,7 +677,9 @@ class TestCaseLedgerAppendLogging:
         with caplog.at_level(
             logging.INFO, logger="vultron.core.models.case_ledger"
         ):
-            empty_log.append(object_id=OBJECT_ID, semantic_type="test_event")
+            empty_log.append(
+                object_id=OBJECT_ID, semantic_type="test_event", at=ACT_AT
+            )
         assert any("log_index=0" in r.message for r in caplog.records)
 
     def test_debug_log_contains_entry_hash(
@@ -649,7 +689,7 @@ class TestCaseLedgerAppendLogging:
             logging.DEBUG, logger="vultron.core.models.case_ledger"
         ):
             entry = empty_log.append(
-                object_id=OBJECT_ID, semantic_type="test_event"
+                object_id=OBJECT_ID, semantic_type="test_event", at=ACT_AT
             )
         expected_prefix = entry.entry_hash[:16]
         assert any(
@@ -669,6 +709,7 @@ class TestCaseLedgerAppendLogging:
                 object_id=OBJECT_ID,
                 semantic_type="test_event",
                 payload_snapshot=snap,
+                at=ACT_AT,
             )
         assert any(
             r.levelno == logging.DEBUG and "Create" in r.message
@@ -686,12 +727,16 @@ CASE_URI = "urn:uuid:case-abcd"
 class TestReplicationState:
     def test_construction_with_peer_id(self):
         peer = "https://example.org/vendor"
-        state = VultronReplicationState(case_id=CASE_URI, peer_id=peer)
+        state = VultronReplicationState(
+            case_id=CASE_URI, peer_id=peer, updated_at=ACT_AT
+        )
         assert state.peer_id == peer
 
     def test_default_last_acknowledged_hash_is_genesis(self):
         state = VultronReplicationState(
-            case_id=CASE_URI, peer_id="https://example.org/finder"
+            case_id=CASE_URI,
+            peer_id="https://example.org/finder",
+            updated_at=ACT_AT,
         )
         assert state.last_acknowledged_hash == ""
 
@@ -701,18 +746,23 @@ class TestReplicationState:
             case_id=CASE_URI,
             peer_id="https://example.org/finder",
             last_acknowledged_hash=digest,
+            updated_at=ACT_AT,
         )
         assert state.last_acknowledged_hash == digest
 
     def test_updated_at_is_set(self):
         state = VultronReplicationState(
-            case_id=CASE_URI, peer_id="https://example.org/finder"
+            case_id=CASE_URI,
+            peer_id="https://example.org/finder",
+            updated_at=ACT_AT,
         )
         assert state.updated_at is not None
 
     def test_pydantic_serialisation_round_trip(self):
         state = VultronReplicationState(
-            case_id=CASE_URI, peer_id="https://example.org/finder"
+            case_id=CASE_URI,
+            peer_id="https://example.org/finder",
+            updated_at=ACT_AT,
         )
         dumped = state.model_dump(by_alias=True)
         restored = VultronReplicationState.model_validate(dumped)

@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.case.nodes import (
     CheckInviteeNotAlreadyParticipantNode,
@@ -103,6 +104,7 @@ def _seed_case_with_participant(
                 case_id=_CASE_ID,
                 peer_id=_INVITEE_ID,
                 embargo_paused_from_index=0,
+                updated_at=ACT_AT,
             )
         )
     return case

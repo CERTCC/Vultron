@@ -27,6 +27,7 @@ from test.core.use_cases.received.conftest import (
     seed_inert_invitee,
     seed_store_owner_as_case_manager,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.broken_ledger_entry import tampered
 from test.support.embargo_register import activate
@@ -119,6 +120,7 @@ def _seed_ledger_entry(
         semantic_type=semantic_type,
         payload_snapshot=payload_snapshot or {},
         prev_log_hash=tail_hash,
+        received_at=ACT_AT,
     )
     entry = chain_entry.to_ledger_entry()
     dl.save(entry)
@@ -2119,7 +2121,10 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
             for index in range(2)
         ]
         pause = VultronReplicationState(
-            case_id=case_id, peer_id=invitee_id, embargo_paused_from_index=1
+            case_id=case_id,
+            peer_id=invitee_id,
+            embargo_paused_from_index=1,
+            updated_at=ACT_AT,
         )
         dl.save(pause)
         record = dl.read(f"{case_id}/participants/seated-non-signatory")

@@ -39,6 +39,7 @@ from vultron.core.behaviors.report.trigger_report_trees import (
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
+from vultron.core.models._helpers import require_future_aware
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
@@ -352,14 +353,21 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
         (EP-04-020).
 
         Raises:
-            VultronValidationError: the CSAF document has a fault that keeps
+            VultronValidationError: a stated embargo end is not after this
+                act's instant, the CSAF document has a fault that keeps
                 it off the report (CSAF-04-009), each one named, or the report
                 would have no name (CSAF-04-010).
         """
         stated = StatedReportFields(
             name=request.report_name,
             summary=request.report_summary,
-            proposed_embargo_end=request.proposed_embargo_end_time,
+            # A stated end is in the future at this act's instant, judged
+            # before anything is stored (ADR-0176).
+            proposed_embargo_end=require_future_aware(
+                request.proposed_embargo_end_time,
+                "proposed_embargo_end_time",
+                at=self._at,
+            ),
         )
         submission = request.csaf_document
         if submission is None:

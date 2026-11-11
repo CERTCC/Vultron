@@ -28,6 +28,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
 from vultron.adapters.driving.fastapi import outbox_handler as oh
@@ -616,6 +617,8 @@ class TestAnnounceLogEntryActivity:
                 case_id="https://example.org/cases/c1",
                 log_object_id="https://example.org/cases/c1/events/e1",
                 semantic_type="test_event",
+                received_at=ACT_AT,
+                published=ACT_AT,
             ),
         )
 

@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -118,6 +119,7 @@ def matching_slots(
             semantic_type=semantic_type,
             payload_snapshot={"context": CASE_ID, **snapshot},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
     matched = []

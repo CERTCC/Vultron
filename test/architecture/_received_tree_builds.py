@@ -51,6 +51,7 @@ from test.architecture import _corpus
 from test.architecture.test_received_tree_case_manager_gate import (
     _receive_calls,
 )
+from test.support.act_clock import ACT_AT
 from test.support.future_dates import FAR_FUTURE
 from vultron.core.behaviors.case.nodes.submit_report import (
     submit_report_received_effects,
@@ -101,6 +102,7 @@ def _domain_values() -> dict[type, Any]:
                 semantic_type="ratchet",
                 payload_snapshot={"semantic_type": "ratchet"},
                 prev_log_hash="0" * 64,
+                received_at=ACT_AT,
             )
         ),
         # A clock reading a clock decision compares a deadline against.

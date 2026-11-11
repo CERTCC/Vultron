@@ -8,6 +8,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.act_transaction import ActTransaction
@@ -95,6 +96,7 @@ def _make_entry(log_index: int, prev_hash: str):
             semantic_type="test_event",
             payload_snapshot={},
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 

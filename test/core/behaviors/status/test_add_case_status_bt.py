@@ -1333,6 +1333,7 @@ class TestThreatTerminationBranchNode:
             semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             payload_snapshot={"id": ask_id},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
         entry = record.to_ledger_entry()
         activity = announce_log_entry_activity(

@@ -24,6 +24,7 @@ from typing import Any
 import pytest
 
 from test.conftest import TEST_ACTOR_ID
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -71,6 +72,7 @@ def _anchor(dl: SqliteDataLayer) -> None:
             case_id=_CASE_ID,
             case_actor_id=_CASE_ACTOR_ID,
             invite_anchored=True,
+            queued_at=ACT_AT,
         )
     )
 

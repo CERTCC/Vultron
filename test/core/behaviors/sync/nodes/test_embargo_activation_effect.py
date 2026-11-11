@@ -133,6 +133,7 @@ def _apply(bridge, embargo: Any, *, accept: bool = True):
                 "target": CASE_ID,
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
     node = (

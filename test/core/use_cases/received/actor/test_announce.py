@@ -20,6 +20,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import (
     CASE_OWNER_ID,
@@ -133,7 +134,10 @@ def _anchor_expected_authority(
     """
     dl.save(
         VultronPendingCaseInbox(
-            case_id=case_id, case_actor_id=actor_id, invite_anchored=True
+            case_id=case_id,
+            case_actor_id=actor_id,
+            invite_anchored=True,
+            queued_at=ACT_AT,
         )
     )
 
@@ -486,6 +490,7 @@ class TestAnnounceFirstContactTrustGap:
                 case_id=_CASE_ID,
                 case_actor_id=_CASE_ACTOR_ID,
                 invite_anchored=True,
+                queued_at=ACT_AT,
             )
         )
 
@@ -507,6 +512,7 @@ class TestAnnounceFirstContactTrustGap:
             VultronPendingCaseInbox(
                 case_id=_CASE_ID,
                 case_actor_id=_CASE_ACTOR_ID,
+                queued_at=ACT_AT,
             )
         )
         # What waits for the case names it on its own record (ADR-0154); the
@@ -540,6 +546,7 @@ class TestAnnounceFirstContactTrustGap:
             VultronPendingCaseInbox(
                 case_id=_CASE_ID,
                 case_actor_id=None,  # no trust anchor set yet
+                queued_at=ACT_AT,
             )
         )
 
@@ -558,6 +565,7 @@ class TestAnnounceFirstContactTrustGap:
                 case_id=_CASE_ID,
                 case_actor_id=_CASE_ACTOR_ID,  # trust anchor names expected sender
                 invite_anchored=True,
+                queued_at=ACT_AT,
             )
         )
         # Build an announce from a *different* actor (the imposter)
@@ -587,6 +595,7 @@ def _genesis_entry_for(case_id: str, genesis_hash: str) -> CaseLedgerEntry:
         semantic_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=genesis_hash,
+        received_at=ACT_AT,
     )
     return chain.to_ledger_entry()
 

@@ -23,6 +23,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
@@ -266,6 +267,8 @@ def test_apply_report_entry_is_idempotent_and_tolerates_a_missing_case(dl):
         payload_snapshot={"object": report_id},
         prev_log_hash="0" * 64,
         entry_hash="1" * 64,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     activity = SimpleNamespace(log_entry=entry, actor_id=_MANAGER_ID)
 

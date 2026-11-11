@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_dispatch
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
@@ -377,6 +378,7 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     pending = VultronPendingCaseInbox(
         case_id=case_id,
         case_actor_id="https://example.org/actors/case-actor",
+        queued_at=ACT_AT,
     )
     pending.queued_at = old_time
     queue_dl.save(pending)
@@ -1037,6 +1039,7 @@ def test_pending_case_queue_expiry_changes_no_local_state():
             stage=ReceivedStage.HELD,
             replay_owed=True,
             awaiting_case_id=case_id,
+            received_at=ACT_AT,
         )
     )
     queue_dl.save(

@@ -28,6 +28,7 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from test.adapters.driven.test_sqlite_core_roundtrip import _insert_raw_row
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.ledger import (
     case_snapshot_position_violations,
@@ -75,6 +76,7 @@ def _entry(
             semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev,
+            received_at=ACT_AT,
         )
     )
 
@@ -366,6 +368,7 @@ def test_the_snapshot_check_reads_a_case_in_either_slot(slot: str) -> None:
             semantic_type="test_event",
             payload_snapshot={"actor": OWNER, slot: carried},
             prev_log_hash=case.genesis_hash,
+            received_at=ACT_AT,
         )
     )
 

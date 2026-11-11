@@ -57,6 +57,7 @@ from test.core.use_cases.received.test_reject_sync import (
     _make_entry,
     _make_reject_event,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
@@ -978,7 +979,7 @@ def test_ledger_reject_from_non_participant_is_refused():
     assert dl.outbox_list() == []
     assert not dl.by_type("Announce")
     state_id = VultronReplicationState(
-        case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID
+        case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID, updated_at=ACT_AT
     ).id_
     assert dl.read(state_id) is None
 
@@ -1000,7 +1001,7 @@ def test_ledger_reject_for_unknown_case_is_refused():
     assert result.disposition is HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
     state_id = VultronReplicationState(
-        case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID
+        case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID, updated_at=ACT_AT
     ).id_
     assert dl.read(state_id) is None
 

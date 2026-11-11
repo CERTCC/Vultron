@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import py_trees.behaviour
 import pytest
 
-from test.support.act_clock import CountingClock
+from test.support.act_clock import ACT_AT, CountingClock
 from test.support.act_runner import run_in_act
 from vultron.adapters.driven.clock import SystemClock
 from vultron.core.models._helpers import now_utc
@@ -367,6 +367,8 @@ def test_embargo_handle_result_records_the_ask_and_skips_the_lifecycle():
         clock=SystemClock(),
     )
     uc._actor_id = _ACTOR_ID
+    # The act's instant, which execute() sets; the ask is stamped with it.
+    uc._at = ACT_AT
     uc._result_out = {ASSERTED_ACTIVITY_KEY: "https://example.org/act/1"}
     uc._handle_result()
 
@@ -375,10 +377,11 @@ def test_embargo_handle_result_records_the_ask_and_skips_the_lifecycle():
         _CASE_ID,
         "test_embargo_event",
         "proposal-1",
-        at=now_utc(),
+        at=ACT_AT,
     )
     assert pending is not None
     assert pending.object_id == "https://example.org/act/1"
+    assert pending.emitted_at == ACT_AT
 
 
 @pytest.mark.spec("SYNC-11-002")
@@ -394,6 +397,7 @@ def test_embargo_duplicate_ask_is_suppressed_before_the_tree_runs():
         "test_embargo_event",
         "https://example.org/act/1",
         subject_id="proposal-1",
+        at=now_utc(),
     )
     uc = _EmbargoTrigger(
         dl=MagicMock(),
@@ -420,6 +424,7 @@ def test_embargo_ask_about_another_subject_is_not_suppressed():
         "test_embargo_event",
         "https://example.org/act/1",
         subject_id="proposal-1",
+        at=now_utc(),
     )
     uc = _EmbargoTrigger(
         dl=MagicMock(),

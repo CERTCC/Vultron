@@ -20,6 +20,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import (
     activate,
@@ -136,6 +137,7 @@ def _entry(semantic_type: str, snapshot: dict[str, Any]) -> CaseLedgerEntry:
             semantic_type=semantic_type,
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 

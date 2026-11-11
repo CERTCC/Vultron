@@ -22,6 +22,7 @@ import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
 from vultron.core.behaviors.sync.nodes.fanout import (
@@ -150,6 +151,8 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
             case_id=case.id_,
             log_object_id=f"{case.id_}/events/status-1",
             semantic_type="add_participant_status",
+            received_at=ACT_AT,
+            published=ACT_AT,
         ),
     )
 

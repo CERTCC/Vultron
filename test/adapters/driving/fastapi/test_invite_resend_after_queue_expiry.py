@@ -55,6 +55,7 @@ from test.core.use_cases.received.test_joiner_revision_relay import (
     _accept,
     _invited_joiner,
 )
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate
 from test.support.received import delivered_body, received_event
 from vultron.adapters.driven.clock import SystemClock
@@ -219,7 +220,9 @@ def test_an_inert_joiners_post_seed_read_brings_its_dropped_invites_back(
     # nothing for it, and resends both Invites as first sent.
     stated = _deliver(cm_dl, MANAGER, read)
     assert stated.status is InboxOutcomeStatus.REJECTED
-    state_id = VultronReplicationState(case_id=_CASE_ID, peer_id=JOINER).id_
+    state_id = VultronReplicationState(
+        case_id=_CASE_ID, peer_id=JOINER, updated_at=ACT_AT
+    ).id_
     assert cm_dl.read(state_id) is None
     assert set(cm_dl.outbox_list()) == {embargo_invite, full_case_invite}
     resent = {body["id"]: body for body in _queued_bodies(cm_dl)}

@@ -1371,10 +1371,10 @@ groups:
       three lookups apply the mark, and so does the write that stamps the next entry;
       each judges the entry's age against an instant it is given rather than one it
       reads, because a lookup that read the clock itself moved every later timestamp in
-      a demo recording (#5591, `notes/demo-scenario-tree.md`). The `expire_timed_out()`
-      sweep applies it too, covered by `TestExpireTimedOut`, and is the one caller that
-      reads an instant, for a caller holding none; nothing depends on it for the mark
-      to be applied.
+      a demo recording (#5591, `notes/demo-scenario-tree.md`). The `expire_timed_out(at)`
+      sweep applies it too, covered by `TestExpireTimedOut`, judging against the
+      instant its caller passes as the lookups do (ADR-0176); nothing depends on it
+      for the mark to be applied.
   - id: SYNC-11-006
     priority: SHOULD_NOT
     kind: project

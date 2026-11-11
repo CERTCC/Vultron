@@ -32,6 +32,7 @@ import logging
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from vultron.core.behaviors.case.nodes.invite_received import (
     FixInviteTrustAnchorNode,
     RecordInviteTrustAnchorNode,
@@ -358,7 +359,9 @@ class TestRecordInviteTrustAnchorNodeIdempotency:
         scenario = BTTestScenario(actor_id=INVITEE_ID)
         # Seed a record with no actor yet (as the pre-bootstrap queue creates).
         scenario.dl.create(
-            VultronPendingCaseInbox(case_id=CASE_ID, case_actor_id=None)
+            VultronPendingCaseInbox(
+                case_id=CASE_ID, case_actor_id=None, queued_at=ACT_AT
+            )
         )
         result = scenario.run(_anchor_node(case_actor_id=CASE_ACTOR_ID))
         scenario.assert_success(result)
@@ -385,7 +388,9 @@ class TestRecordInviteTrustAnchorNodeMarksTheAnchor:
     def test_a_filled_in_anchor_is_marked(self):
         scenario = BTTestScenario(actor_id=INVITEE_ID)
         scenario.dl.create(
-            VultronPendingCaseInbox(case_id=CASE_ID, case_actor_id=None)
+            VultronPendingCaseInbox(
+                case_id=CASE_ID, case_actor_id=None, queued_at=ACT_AT
+            )
         )
         scenario.assert_success(scenario.run(_anchor_node()))
         record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
@@ -400,6 +405,7 @@ class TestRecordInviteTrustAnchorNodeMarksTheAnchor:
             VultronPendingCaseInbox(
                 case_id=CASE_ID,
                 case_actor_id=CASE_ACTOR_ID,
+                queued_at=ACT_AT,
             )
         )
         _queue_an_activity(scenario)
@@ -423,6 +429,7 @@ class TestRecordInviteTrustAnchorNodeMarksTheAnchor:
                 invite_anchored=True,
                 anchor_invite_id=_invite_id(OTHER_CASE_ACTOR_ID),
                 invite_accepted=True,
+                queued_at=ACT_AT,
             )
         )
         scenario.assert_failure(scenario.run(_anchor_node()))
@@ -446,6 +453,7 @@ class TestRecordInviteTrustAnchorNodeOverQueueRecordedSender:
             VultronPendingCaseInbox(
                 case_id=CASE_ID,
                 case_actor_id=OTHER_CASE_ACTOR_ID,
+                queued_at=ACT_AT,
             )
         )
         _queue_an_activity(scenario)

@@ -24,13 +24,14 @@ execute() path against a real in-memory DataLayer and asserts:
   3. the documented failure modes the use case is documented to raise.
 """
 
-from datetime import UTC, datetime
+from datetime import datetime, timedelta
 from typing import cast
 
 import pytest
 from pydantic import ValidationError
 
-from test.support.act_runner import run_in_act
+from test.support.act_clock import ACT_AT
+from test.support.act_runner import FixedClock, run_in_act
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
 from test.support.trigger_results import activity_of
@@ -1145,26 +1146,68 @@ class TestSubmitReportProposedEmbargo:
         assert "proposedEmbargo" not in offer
         assert list(self.dl.list_objects("EmbargoEvent")) == []
 
-    @pytest.mark.parametrize(
-        "bad, message",
-        [
-            (
-                datetime(2030, 1, 1),  # noqa: DTZ001 — deliberately naive
-                "must be timezone-aware",
-            ),
-            (
-                datetime(2020, 1, 1, tzinfo=UTC),  # past
-                "must be in the future",
-            ),
-        ],
-        ids=["naive", "past"],
-    )
-    def test_a_naive_or_past_end_is_refused_at_the_request(self, bad, message):
-        with pytest.raises(ValidationError, match=message):
+    def test_a_naive_end_is_refused_at_the_request(self):
+        with pytest.raises(ValidationError, match="must be timezone-aware"):
             SubmitReportTriggerRequest(
                 actor_id=self.finder.id_,
                 report_name="CVE-TEST",
                 report_content="Vulnerability details",
                 recipient_id=self.vendor.id_,
-                proposed_embargo_end_time=bad,
+                proposed_embargo_end_time=datetime(2030, 1, 1),  # noqa: DTZ001 — deliberately naive
             )
+
+    @pytest.mark.spec("CS-13-002")
+    @pytest.mark.parametrize(
+        "offset",
+        [timedelta(0), -timedelta(days=1)],
+        ids=["at-the-act", "before-the-act"],
+    )
+    def test_an_end_not_after_the_act_is_refused_and_nothing_stored(
+        self, offset
+    ):
+        """Judged at the act's instant, not a clock read (ADR-0176).
+
+        The act runs at :data:`ACT_AT`, months before the wall clock, so an
+        end the wall clock would call past is still in this act's future;
+        only an end at or before the act's own instant is refused.
+        """
+        request = SubmitReportTriggerRequest(
+            actor_id=self.finder.id_,
+            report_name="CVE-TEST",
+            report_content="Vulnerability details",
+            recipient_id=self.vendor.id_,
+            proposed_embargo_end_time=ACT_AT + offset,
+        )
+        with pytest.raises(VultronValidationError, match="in the future"):
+            SvcSubmitReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=FixedClock(ACT_AT),
+            ).execute()
+
+        assert list(self.dl.list_objects("VulnerabilityReport")) == []
+        assert list(self.dl.list_objects("EmbargoEvent")) == []
+
+    def test_an_end_after_the_act_is_kept_though_the_clock_is_past_it(self):
+        end = ACT_AT + timedelta(days=1)
+        request = SubmitReportTriggerRequest(
+            actor_id=self.finder.id_,
+            report_name="CVE-TEST",
+            report_content="Vulnerability details",
+            recipient_id=self.vendor.id_,
+            proposed_embargo_end_time=end,
+        )
+        offer = (
+            SvcSubmitReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=FixedClock(ACT_AT),
+            )
+            .execute()
+            .offer
+        )
+
+        assert offer is not None
+        assert "proposedEmbargo" in offer

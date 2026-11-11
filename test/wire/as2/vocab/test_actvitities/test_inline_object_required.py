@@ -24,6 +24,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
 from vultron.wire.as2.vocab.activities.actor import (
@@ -150,6 +151,8 @@ _LOG_ENTRY = as_CaseLedgerEntry(
     case_id=_CASE.id_,
     log_object_id=_REPORT.id_,
     semantic_type="CREATE_REPORT",
+    received_at=ACT_AT,
+    published=ACT_AT,
 )
 
 _SUBMIT = _RmSubmitReportActivity(actor=_ACTOR, object_=_REPORT)

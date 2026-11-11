@@ -31,6 +31,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import ledger_announce_event
@@ -242,6 +243,7 @@ def test_replication_state_records_the_last_reseed() -> None:
         last_reseed_position=LedgerPosition(log_index=3, entry_hash="a" * 64),
         last_acknowledged_hash="a" * 64,
         last_acknowledged_published=_PUBLISHED,
+        updated_at=ACT_AT,
     )
 
     restored = VultronReplicationState.model_validate(
@@ -296,6 +298,7 @@ def _chain(
             object_id=f"{_CASE_ID}/notes/{index}",
             semantic_type="add_note_to_case",
             payload_snapshot=snapshot,
+            at=ACT_AT,
         )
     return [record.to_ledger_entry() for record in ledger.entries]
 
@@ -425,6 +428,7 @@ def _commit(
             semantic_type="test_event",
             payload_snapshot={"log_index": index},
             prev_log_hash=prev,
+            received_at=ACT_AT,
         )
     )
     store_ledger_entry(entry, dl)
@@ -439,6 +443,7 @@ def _replica_store() -> SqliteDataLayer:
             case_id=_CASE_ID,
             case_actor_id=_CASE_ACTOR_ID,
             invite_anchored=True,
+            queued_at=ACT_AT,
         )
     )
     return dl

@@ -28,6 +28,7 @@ from py_trees.behaviours import Failure
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
@@ -345,7 +346,9 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
 
     assert scenario.dl.read(marker_id) is None
     scenario.dl.create(
-        VultronPendingCaseInbox(case_id=CASE_ID, case_actor_id=RECEIVER)
+        VultronPendingCaseInbox(
+            case_id=CASE_ID, case_actor_id=RECEIVER, queued_at=ACT_AT
+        )
     )
     assert isinstance(scenario.dl.read(marker_id), VultronPendingCaseInbox)
     assert _archived(scenario.dl, marker_id)
@@ -389,7 +392,9 @@ def _archive(dl: SqliteDataLayer) -> None:
     assert event.received_evidence is not None
     dl.create(
         ReceivedActivityRecord(
-            activity_id=ACTIVITY_ID, received_body=event.received_evidence
+            activity_id=ACTIVITY_ID,
+            received_body=event.received_evidence,
+            received_at=ACT_AT,
         )
     )
 

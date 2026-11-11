@@ -29,6 +29,7 @@ ran.  See issues #1324, #1447, #1472.
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -72,6 +73,8 @@ def _make_announce_body() -> dict:
         entry_hash="hash-1",
         prev_log_hash="hash-0",
         log_index=1,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     announce = announce_log_entry_activity(
         entry,
