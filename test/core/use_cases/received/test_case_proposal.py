@@ -827,8 +827,8 @@ def _unreachable_policy_bundle() -> CaseProposalCallOutBundle:
 
 
 def _vendor_event(make_payload, activity_cls, object_):
-    activity = activity_cls(
-        actor=_CASE_ACTOR_URI, object_=object_, to=[_VENDOR_URI]
+    activity = make(
+        activity_cls, actor=_CASE_ACTOR_URI, object_=object_, to=[_VENDOR_URI]
     )
     return make_payload(activity).model_copy(
         update={"receiving_actor_id": _VENDOR_URI}

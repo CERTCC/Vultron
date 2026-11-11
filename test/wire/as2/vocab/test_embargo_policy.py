@@ -19,7 +19,7 @@ DUR-01-001, DUR-04-001, DUR-04-002, DUR-05-001, DUR-05-002).
 import json
 import unittest
 from datetime import timedelta
-from typing import Any, cast
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
@@ -45,7 +45,8 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
     """Test EmbargoPolicy model creation — EP-01-001 through EP-01-003."""
 
     def setUp(self):
-        self.policy = cast(Any, ep_module.as_EmbargoPolicy)(
+        self.policy = make(
+            ep_module.as_EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration="P90D",
@@ -74,7 +75,8 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
         self.assertEqual(_P60D, p.preferred_duration)
 
     def test_creation_with_required_fields_only(self):
-        p = cast(Any, ep_module.as_EmbargoPolicy)(
+        p = make(
+            ep_module.as_EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration="P60D",
@@ -86,21 +88,23 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
 
     def test_actor_id_required(self):
         with pytest.raises(ValidationError):
-            cast(Any, ep_module.as_EmbargoPolicy)(
-                inbox=INBOX, preferred_duration="P90D"
+            make(
+                ep_module.as_EmbargoPolicy,
+                inbox=INBOX,
+                preferred_duration="P90D",
             )
 
     def test_inbox_required(self):
         with pytest.raises(ValidationError):
-            cast(Any, ep_module.as_EmbargoPolicy)(
-                actor_id=ACTOR_ID, preferred_duration="P90D"
+            make(
+                ep_module.as_EmbargoPolicy,
+                actor_id=ACTOR_ID,
+                preferred_duration="P90D",
             )
 
     def test_preferred_duration_required(self):
         with pytest.raises(ValidationError):
-            cast(Any, ep_module.as_EmbargoPolicy)(
-                actor_id=ACTOR_ID, inbox=INBOX
-            )
+            make(ep_module.as_EmbargoPolicy, actor_id=ACTOR_ID, inbox=INBOX)
 
     def test_as_type_is_embargo_policy(self):
         self.assertEqual(VO_type.EMBARGO_POLICY, self.policy.type_)
@@ -127,7 +131,8 @@ class TestEmbargoPolicyValidation(unittest.TestCase):
         # converts to timedelta at runtime (mypy sees the declared timedelta type).
         return cast(
             ep_module.as_EmbargoPolicy,
-            cast(Any, ep_module.as_EmbargoPolicy)(
+            make(
+                ep_module.as_EmbargoPolicy,
                 actor_id=actor_id,
                 inbox=inbox,
                 preferred_duration=preferred_duration,
@@ -227,7 +232,8 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
     """Test EmbargoPolicy serialization — EP-01-004, DUR-05-001, DUR-05-002."""
 
     def setUp(self):
-        self.policy = cast(Any, ep_module.as_EmbargoPolicy)(
+        self.policy = make(
+            ep_module.as_EmbargoPolicy,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration="P90D",
@@ -358,7 +364,8 @@ class TestEmbargoPolicyCoreConversion(unittest.TestCase):
 
     def test_from_core_preserves_fields(self):
         """Direct core instantiation via wire alias preserves all fields."""
-        policy = self.wire_cls(
+        policy = make(
+            self.wire_cls,
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P90D,

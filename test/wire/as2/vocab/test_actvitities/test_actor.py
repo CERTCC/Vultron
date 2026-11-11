@@ -72,7 +72,7 @@ class MyTestCase(unittest.TestCase):
         expect_type: str,
     ):
         for actor_class in ACTOR_CLASSES:
-            _actor = actor_class(name=actor_class.__name__)
+            _actor = make(actor_class, name=actor_class.__name__)
             _case = make(
                 as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
@@ -84,7 +84,9 @@ class MyTestCase(unittest.TestCase):
                 object_=_actor,
                 target=_case,
             )
-            _object = cls(actor=_actor, object_=_recommendation, target=_case)  # type: ignore[arg-type]
+            _object = make(
+                cls, actor=_actor, object_=_recommendation, target=_case
+            )
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)
@@ -112,13 +114,13 @@ class MyTestCase(unittest.TestCase):
         expect_type: str,
     ):
         for actor_class in ACTOR_CLASSES:
-            _actor = actor_class(name=actor_class.__name__)
+            _actor = make(actor_class, name=actor_class.__name__)
             _case = make(
                 as_VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 name=f"{actor_class.__name__} Case",
             )
-            _object = cls(actor=_actor, object_=_actor, target=_case)  # type: ignore[arg-type]
+            _object = make(cls, actor=_actor, object_=_actor, target=_case)
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)

@@ -277,7 +277,7 @@ class TestRoleSubclasses:
     @pytest.mark.parametrize("cls,expected_roles", _ROLE_SUBCLASS_CASES)
     def test_case_roles_set_by_validator(self, cls, expected_roles):
         """Role subclass sets exactly the expected roles."""
-        p = cls(attributed_to=_ACTOR, context=_CONTEXT)
+        p = make(cls, attributed_to=_ACTOR, context=_CONTEXT)
         assert set(p.case_roles) == set(expected_roles), (
             f"{cls.__name__} should have roles {expected_roles}, "
             f"got {p.case_roles}"
@@ -291,7 +291,7 @@ class TestRoleSubclasses:
     @pytest.mark.parametrize("cls,expected_roles", _ROLE_SUBCLASS_CASES)
     def test_type_still_case_participant(self, cls, expected_roles):
         """All role subclasses retain type_ == 'CaseParticipant'."""
-        p = cls(attributed_to=_ACTOR, context=_CONTEXT)
+        p = make(cls, attributed_to=_ACTOR, context=_CONTEXT)
         assert p.type_ == "CaseParticipant"
 
 
@@ -364,7 +364,7 @@ class TestAcceptedStatusOnReporterSubclasses:
     )
     def test_non_reporter_status_rm_start(self, cls):
         """Non-reporter subclasses start at RM.START."""
-        p = cls(attributed_to=_ACTOR, context=_CONTEXT)
+        p = make(cls, attributed_to=_ACTOR, context=_CONTEXT)
         assert p.participant_status is not None
         assert p.participant_status.rm.state == RM.START
 

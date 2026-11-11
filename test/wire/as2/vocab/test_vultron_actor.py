@@ -292,7 +292,7 @@ class TestVultronActorAliasesAreCore(unittest.TestCase):
             as_VultronGroup,
         ):
             with self.subTest(wire_cls=wire_cls.__name__):
-                self.assertIsInstance(wire_cls(), CoreActor)
+                self.assertIsInstance(make(wire_cls), CoreActor)
 
     def test_inbox_is_string(self):
         p = make(

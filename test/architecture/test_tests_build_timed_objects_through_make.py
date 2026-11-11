@@ -19,10 +19,12 @@ clock (ADR-0176).  A test states that time in one place,
 such a class anywhere else under ``test/``.
 
 A *timed class* is any model ``make`` stamps (``stamped_times``), found by
-importing the model packages, so a renamed or new class is covered without an
-edit here.  A direct call names one: a bare name imported from ``vultron`` or
-``test``, a class the test file derives from one, or an attribute of a module
-(``vocab.as_Note(...)``).
+importing every ``vultron`` module, so a renamed or new class is covered
+without an edit here.  A direct call names one: a bare name imported from
+``vultron`` or ``test`` (aliased or not), a class the test file derives from
+one, or an attribute of a module (``vocab.as_Note(...)``).  A class held in a
+variable (``cls(...)``) is beyond a static read; such a test calls
+``make(cls, ...)`` by the same rule.
 
 :data:`DIRECT_BUILD_EXEMPTIONS` is a pinned exemption set (ARCH-18-001): the
 files that test a model's own time default, which must call it bare.
@@ -34,7 +36,6 @@ import ast
 import importlib
 import pkgutil
 import re
-import sys
 from collections.abc import Iterator
 from functools import cache
 from pathlib import Path
@@ -42,12 +43,13 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
+import vultron
 from test.architecture import _corpus
-from test.support.objects import stamped_times
+from test.support.objects import AUTHOR_TIMES, stamped_times
+from vultron.core.models._helpers.clock import now_utc
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _FACTORY = "test/support/objects.py"
-_MODEL_PACKAGES = ("vultron.core.models", "vultron.wire.as2.vocab")
 
 # Pinned exemption set: files that test what a model does with a time its
 # caller leaves out, so they build it without ``make`` on purpose.
@@ -61,27 +63,28 @@ DIRECT_BUILD_EXEMPTIONS: frozenset[str] = frozenset(
 
 
 @cache
-def timed_names() -> frozenset[str]:
-    """Every name a ``vultron`` module binds to a class ``make`` stamps."""
-    for package_name in _MODEL_PACKAGES:
-        package = importlib.import_module(package_name)
-        for info in pkgutil.walk_packages(
-            package.__path__, package_name + "."
-        ):
-            importlib.import_module(info.name)
-    return frozenset(
-        name
-        for module_name, module in list(sys.modules.items())
-        if module_name.startswith("vultron")
-        for name, value in list(vars(module).items())
-        if isinstance(value, type)
-        and issubclass(value, BaseModel)
-        and stamped_times(value)
+def _models() -> tuple[tuple[str, type[BaseModel]], ...]:
+    """Every ``(name, model)`` binding in every ``vultron`` module.
+
+    Every module is imported, so the result never depends on what the
+    session happened to import before this test ran.
+    """
+    modules = [vultron] + [
+        importlib.import_module(info.name)
+        for info in pkgutil.walk_packages(vultron.__path__, "vultron.")
+    ]
+    return tuple(
+        (name, value)
+        for module in modules
+        for name, value in vars(module).items()
+        if isinstance(value, type) and issubclass(value, BaseModel)
     )
 
 
-def _base_name(node: ast.expr) -> str | None:
-    return _corpus.callee_name(node)
+@cache
+def timed_names() -> frozenset[str]:
+    """Every name a ``vultron`` module binds to a class ``make`` stamps."""
+    return frozenset(name for name, model in _models() if stamped_times(model))
 
 
 def _timed_in_file(tree: ast.AST, names: frozenset[str]) -> set[str]:
@@ -101,7 +104,8 @@ def _timed_in_file(tree: ast.AST, names: frozenset[str]) -> set[str]:
         grew = False
         for cls in classes:
             if cls.name not in local and any(
-                _base_name(base) in local | names for base in cls.bases
+                _corpus.callee_name(base) in local | names
+                for base in cls.bases
             ):
                 local.add(cls.name)
                 grew = True
@@ -125,10 +129,22 @@ def direct_builds_in(tree: ast.AST, names: frozenset[str]) -> Iterator[int]:
 
 def _spelling(names: frozenset[str]) -> re.Pattern[str]:
     """What a file must contain to hold a direct build, so most files skip
-    the parse: ``Name(`` for a call, ``Name):`` for a local subclass."""
+    the parse: ``Name(`` for a call, ``Name as`` for an aliased import, and a
+    ``class`` statement naming one among its bases, on one line or several.
+    """
+    timed = r"\b(?:" + "|".join(map(re.escape, sorted(names))) + r")"
     return re.compile(
-        r"\b(?:" + "|".join(map(re.escape, sorted(names))) + r")(?:\(|\):)"
+        rf"{timed}(?:\(|\s+as\s+\w)|^\s*class\s+\w+\([^)]*{timed}\b",
+        re.MULTILINE,
     )
+
+
+def direct_builds_in_source(source: str, names: frozenset[str]) -> list[int]:
+    """The direct builds in *source*, through the same prefilter the scan
+    uses, so a shape the prefilter drops fails the inline test."""
+    if not _spelling(names).search(source):
+        return []
+    return sorted(direct_builds_in(_corpus.parse_inline(source), names))
 
 
 def _direct_builds() -> dict[str, list[int]]:
@@ -171,6 +187,24 @@ def test_tests_build_timed_objects_through_make() -> None:
     )
 
 
+@pytest.mark.spec("CS-13-002")
+def test_every_clock_defaulted_author_time_is_one_make_stamps() -> None:
+    """An author's time defaulted through another callable than ``now_utc``
+    would escape both ``make`` and this ratchet, which key on it."""
+    other = sorted(
+        {
+            f"{model.__module__}.{model.__qualname__}.{field}"
+            for _, model in _models()
+            for field in AUTHOR_TIMES
+            if field in model.model_fields
+            and model.model_fields[field].default_factory
+            not in (None, now_utc)
+        }
+    )
+
+    assert other == []
+
+
 @pytest.mark.spec("ARCH-18-001")
 def test_the_timed_names_cover_core_wire_status_and_embargo() -> None:
     """The name set is found, not listed, so check it is not empty."""
@@ -183,34 +217,68 @@ def test_the_timed_names_cover_core_wire_status_and_embargo() -> None:
     } <= timed_names()
 
 
-_EVERY_SHAPE = """
-from vultron.core.models.case import VulnerabilityCase as Case
+_SHAPES = """
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects import as_Note
-from somewhere_else import CaseStatus
-
-
-class Local(Case):
-    pass
 
 
 def test_x(vocab):
-    Case(attributed_to="a")
-    Local()
+    VulnerabilityCase(attributed_to="a")
     vocab.as_Note(content="c")
-    make(Case, attributed_to="a")
+"""
+
+_ALIASED = """
+from vultron.core.models.case import VulnerabilityCase as Zq
+
+
+def test_x():
+    Zq(attributed_to="a")
+"""
+
+_SUBCLASSED = """
+from vultron.wire.as2.vocab.objects import as_Note
+
+
+class Local(
+    Mixin,
+    as_Note,
+):
+    pass
+
+
+def test_x():
+    Local()
+"""
+
+_NOT_DIRECT = """
+from vultron.core.models.case import VulnerabilityCase as Zq
+from somewhere_else import CaseStatus
+
+
+def test_x():
+    make(Zq, attributed_to="a")
     CaseStatus()
     factory().as_Note()
-    Case.model_validate({})
+    Zq.model_validate({})
 """
 
 
 @pytest.mark.spec("ARCH-18-001")
-def test_the_finder_names_each_direct_build_and_nothing_else() -> None:
-    tree = _corpus.parse_inline(_EVERY_SHAPE)
-
-    lines = sorted(direct_builds_in(tree, timed_names()))
-
-    assert lines == [12, 13, 14]
+@pytest.mark.parametrize(
+    ("source", "lines"),
+    [
+        (_SHAPES, [7, 8]),
+        (_ALIASED, [6]),
+        (_SUBCLASSED, [13]),
+        (_NOT_DIRECT, []),
+    ],
+    ids=["imported-and-module-attribute", "aliased", "subclassed", "none"],
+)
+def test_the_scan_names_each_direct_build_and_nothing_else(
+    source: str, lines: list[int]
+) -> None:
+    """Through the prefilter, as the scan reads a file."""
+    assert direct_builds_in_source(source, timed_names()) == lines
 
 
 @pytest.mark.spec("ARCH-18-001")
@@ -219,6 +287,8 @@ def test_the_finder_names_each_direct_build_and_nothing_else() -> None:
     [
         ("VulnerabilityCase(attributed_to=a)", True),
         ("class Local(as_Note):", True),
+        ("class Local(\n    Mixin,\n    as_Note,\n):", True),
+        ("from x import VulnerabilityCase as Zq", True),
         ("make(VulnerabilityCase, attributed_to=a)", False),
         ("isinstance(x, as_Note)", False),
     ],

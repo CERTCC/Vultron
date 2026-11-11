@@ -236,7 +236,7 @@ class TestBareStringObjectRejected(unittest.TestCase):
 
     def _assert_string_rejected(self, cls, fake_id="urn:uuid:fake-id-1234"):
         with pytest.raises(ValidationError):
-            cls(actor=_ACTOR.id_, object_=fake_id)
+            make(cls, actor=_ACTOR.id_, object_=fake_id)
 
     def test_accept_actor_recommendation_rejects_string(self):
         self._assert_string_rejected(_AcceptActorRecommendationActivity)
@@ -427,11 +427,11 @@ class TestNoneObjectRejected(unittest.TestCase):
 
     def _assert_none_rejected(self, cls, **kwargs):
         with pytest.raises(ValidationError):
-            cls(actor=_ACTOR.id_, object_=None, **kwargs)
+            make(cls, actor=_ACTOR.id_, object_=None, **kwargs)
 
     def _assert_missing_rejected(self, cls, **kwargs):
         with pytest.raises(ValidationError):
-            cls(actor=_ACTOR.id_, **kwargs)
+            make(cls, actor=_ACTOR.id_, **kwargs)
 
     # --- report.py (6 classes) ---
 
@@ -675,11 +675,11 @@ class TestGenericTransitiveActivitiesRequireObject(unittest.TestCase):
 
     def _assert_none_rejected(self, cls, **kwargs):
         with pytest.raises(ValidationError):
-            cls(actor=_ACTOR.id_, object_=None, **kwargs)
+            make(cls, actor=_ACTOR.id_, object_=None, **kwargs)
 
     def _assert_missing_rejected(self, cls, **kwargs):
         with pytest.raises(ValidationError):
-            cls(actor=_ACTOR.id_, **kwargs)
+            make(cls, actor=_ACTOR.id_, **kwargs)
 
     def test_generic_transitive_classes_reject_none(self):
         for cls in _GENERIC_TRANSITIVE_CLASSES:
@@ -720,7 +720,7 @@ def test_accept_refuses_the_offered_object_in_place_of_the_offer(
 ):
     """An Accept carries the Offer or Invite itself, not what it offered."""
     with pytest.raises(ValidationError):
-        accept_cls(actor=_ACTOR.id_, object_=offered_object)
+        make(accept_cls, actor=_ACTOR.id_, object_=offered_object)
 
 
 @pytest.mark.spec("RF-03-003")
@@ -738,7 +738,7 @@ def test_reject_refuses_the_offered_object_in_place_of_the_offer(
 ):
     """A Reject carries the Offer or Invite itself, not what it offered."""
     with pytest.raises(ValidationError):
-        reject_cls(actor=_ACTOR.id_, object_=offered_object)
+        make(reject_cls, actor=_ACTOR.id_, object_=offered_object)
 
 
 @pytest.mark.spec("RF-04-003")

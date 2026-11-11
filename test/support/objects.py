@@ -20,9 +20,11 @@ every time the caller leaves out, and a test that means another time passes
 it.
 
 The time ``make`` states is the wall clock's, read once per object through
-``now_utc``: the reading the model's own default gives today, and the one
-``test/support/act_runner.py`` opens a test's act at, so an object a test
-builds is never older than the act that judges it (CLP-14-008).  A test that
+``now_utc`` and shared by every time left out, so ``published`` and
+``updated`` are equal where the model's defaults read the clock once per
+field.  ``test/support/act_runner.py`` opens a test's act at the same wall
+clock, so an object a test builds is never older than the act that judges it
+(CLP-14-008).  A test that
 pins its act at :data:`~test.support.act_clock.ACT_AT` passes that time.
 
 Tests build these models through :func:`make` rather than calling the class:
@@ -35,7 +37,7 @@ Spec: CS-13-002 (time enters at the act's edge).
 from functools import cache
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel
+from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
 from vultron.core.models._helpers.clock import now_utc
@@ -64,11 +66,8 @@ def _spellings(info: FieldInfo, name: str) -> frozenset[str]:
     spellings = {name}
     if info.alias:
         spellings.add(info.alias)
-    alias = info.validation_alias
-    if isinstance(alias, str):
-        spellings.add(alias)
-    elif isinstance(alias, AliasChoices):
-        spellings.update(c for c in alias.choices if isinstance(c, str))
+    if isinstance(info.validation_alias, str):
+        spellings.add(info.validation_alias)
     return frozenset(spellings)
 
 
@@ -83,8 +82,8 @@ def _time_spellings(
 
 
 def make[M: BaseModel](cls: type[M], /, **fields: Any) -> M:
-    """Build *cls* from *fields*, at one wall-clock reading for each time
-    left out.
+    """Build *cls* from *fields*, with one wall-clock reading shared by
+    every time left out.
 
     A time the caller passes under any spelling, ``None`` included, is kept
     as passed.

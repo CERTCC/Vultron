@@ -66,7 +66,7 @@ def make_instance(cls, **extra):
     """Create a domain object instance with minimum required fields plus any extras."""
     kwargs = dict(REQUIRED_KWARGS.get(cls, {}))
     kwargs.update(extra)
-    return cls(**kwargs)
+    return make(cls, **kwargs)
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)

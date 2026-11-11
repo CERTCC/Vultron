@@ -112,7 +112,7 @@ class TestSubclassTypeAlias:
 
     def test_dump_by_alias_uses_type_key(self, cls, expected_type):
         """model_dump(by_alias=True) must emit ``"type"``, not ``"type_"``."""
-        obj = cls(actor="https://example.org/actors/test")
+        obj = make(cls, actor="https://example.org/actors/test")
         dumped = obj.model_dump(by_alias=True)
         assert "type" in dumped, (
             f"{cls.__name__}: expected 'type' key, got {list(dumped.keys())}"

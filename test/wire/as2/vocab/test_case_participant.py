@@ -200,7 +200,8 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
             VendorParticipant,
             CoordinatorParticipant,
         ]:
-            participant = cls(
+            participant = make(
+                cls,
                 attributed_to=self.actor_id,
                 context=self.case_id,
                 embargo_consents=self._rows(),

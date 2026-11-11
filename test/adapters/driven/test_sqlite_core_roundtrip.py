@@ -76,20 +76,21 @@ _NOW = datetime(2026, 1, 1, tzinfo=UTC)
 def _make_instance(core_cls):
     """Build a minimal valid instance for any supported core domain type."""
     if core_cls in (CaseStatus, ParticipantStatus):
-        return core_cls(context=_CASE_CONTEXT)
+        return make(core_cls, context=_CASE_CONTEXT)
     if core_cls is EmbargoEvent:
-        return core_cls(context=_CASE_CONTEXT, end_time=_NOW)
+        return make(core_cls, context=_CASE_CONTEXT, end_time=_NOW)
     if core_cls is EmbargoPolicy:
-        return core_cls(
+        return make(
+            core_cls,
             actor_id="urn:uuid:actor-fixture",
             inbox="https://example.org/inbox",
             preferred_duration=timedelta(days=90),
         )
     if core_cls is VulnerabilityRecord:
-        return core_cls(name="CVE-2024-XXXX")
+        return make(core_cls, name="CVE-2024-XXXX")
     if core_cls is VulnerabilityCase:
-        return core_cls(attributed_to=CASE_OWNER_ID)
-    return core_cls()
+        return make(core_cls, attributed_to=CASE_OWNER_ID)
+    return make(core_cls)
 
 
 @pytest.fixture

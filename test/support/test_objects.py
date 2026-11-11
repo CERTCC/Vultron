@@ -77,10 +77,22 @@ def test_make_keeps_a_time_the_caller_passes() -> None:
 
 
 def test_make_reads_a_time_passed_under_its_alias() -> None:
-    embargo = make(
-        EmbargoEvent, context=_CASE, end_time=_END, startTime=_LATER
-    )
+    """``startTime`` counts as passing ``start_time``: no time is filled.
 
+    Every other time is passed too, so a clock read could only be ``make``
+    filling ``start_time`` beside the alias, which pydantic would accept.
+    """
+    with recorded_clock_reads() as reads:
+        embargo = make(
+            EmbargoEvent,
+            context=_CASE,
+            end_time=_END,
+            published=ACT_AT,
+            updated=ACT_AT,
+            startTime=_LATER,
+        )
+
+    assert reads == []
     assert embargo.start_time == _LATER
 
 

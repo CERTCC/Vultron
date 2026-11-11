@@ -1402,13 +1402,13 @@ class TestAnnounceLogEntryAppliesStubPath:
 
     @pytest.mark.spec("CM-31-039")
     @pytest.mark.parametrize(
-        "make", [_accept_entry, _reject_entry], ids=["accept", "reject"]
+        "build_entry", [_accept_entry, _reject_entry], ids=["accept", "reject"]
     )
     def test_a_reply_entry_with_no_record_fails_and_stores_nothing(
-        self, bridge, datalayer, case_actor, case_obj, make
+        self, bridge, datalayer, case_actor, case_obj, build_entry
     ):
         """No record held: a broken invariant, so the entry is refused."""
-        entry = make(0, case_obj.genesis_hash)
+        entry = build_entry(0, case_obj.genesis_hash)
 
         result = self._announce(bridge, case_actor, entry)
 

@@ -67,7 +67,7 @@ def _make_activity(cls, object_, **fields):
     *fields* carries any other field the class requires (for example the
     case Invite's stub ``target``), so a refusal is about ``object_`` alone.
     """
-    return cls(actor=ACTOR_ID, object_=object_, **fields)
+    return make(cls, actor=ACTOR_ID, object_=object_, **fields)
 
 
 def _assert_rejects_string(cls, **fields):

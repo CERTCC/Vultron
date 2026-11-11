@@ -172,7 +172,7 @@ def test_building_a_wire_object_with_a_blank_text_field_raises(
     cls: type[BaseModel], field: str, blank: str
 ) -> None:
     with pytest.raises(ValidationError):
-        cls(**{field: blank})
+        make(cls, **{field: blank})
 
 
 @pytest.mark.spec("CS-08-001")
@@ -182,9 +182,11 @@ def test_an_object_built_without_content_carries_none(
     cls: type[BaseModel],
 ) -> None:
     """Absence is ``None``, never a blank default that would be emitted."""
-    dumped = cls().model_dump(by_alias=True)
+    dumped = make(cls).model_dump(by_alias=True)
     assert dumped["content"] is None
-    assert "content" not in cls().model_dump(by_alias=True, exclude_none=True)
+    assert "content" not in make(cls).model_dump(
+        by_alias=True, exclude_none=True
+    )
 
 
 def _inbound_create(**note_fields: str) -> dict[str, Any]:

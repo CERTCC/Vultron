@@ -397,7 +397,9 @@ def test_actor_round_trips_across_a_clock_tick(actor_cls, dump, monkeypatch):
     URI-only form the datalayer hands back and the ``to_json()`` form a peer
     receives.
     """
-    actor = actor_cls(id_=ACTOR_ID, name="Alice", **hosted_endpoints(ACTOR_ID))
+    actor = make(
+        actor_cls, id_=ACTOR_ID, name="Alice", **hosted_endpoints(ACTOR_ID)
+    )
     as_stored = dump(actor)
     monkeypatch.setattr(
         helpers_clock,
