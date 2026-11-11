@@ -434,12 +434,12 @@ def _make_wire_embargo_policy():
     )
 
 
-def _make_wire_vulnerability_record():
-    from vultron.wire.as2.vocab.objects.vulnerability_record import (
-        as_VulnerabilityRecord,
+def _make_wire_vulnerability_item():
+    from vultron.wire.as2.vocab.objects.vulnerability_item import (
+        as_VulnerabilityItem,
     )
 
-    return make(as_VulnerabilityRecord, name="CVE-2401-0001")
+    return make(as_VulnerabilityItem, cve="CVE-2401-0001")
 
 
 @pytest.mark.parametrize(
@@ -452,7 +452,7 @@ def _make_wire_vulnerability_record():
         (_make_wire_case_ledger_entry, "CaseLedgerEntry"),
         (_make_wire_case_reference, "CaseReference"),
         (_make_wire_embargo_policy, "EmbargoPolicy"),
-        (_make_wire_vulnerability_record, "VulnerabilityRecord"),
+        (_make_wire_vulnerability_item, "VulnerabilityItem"),
     ],
     ids=[
         "VulnerabilityReport",
@@ -462,7 +462,7 @@ def _make_wire_vulnerability_record():
         "CaseLedgerEntry",
         "CaseReference",
         "EmbargoPolicy",
-        "VulnerabilityRecord",
+        "VulnerabilityItem",
     ],
 )
 def test_object_to_record_normalizes_migrated_wire_type(

@@ -6,16 +6,18 @@ returns the domain-field kwargs ``extract_intent`` passes to the event.
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeVar
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.note import VultronNote
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.wire.as2.errors import (
     VultronParseValidationError,
 )
@@ -115,6 +117,20 @@ def _participant_ref_to_domain(ref: object) -> str | CaseParticipant | None:
     return participant_id
 
 
+_RefT = TypeVar("_RefT")
+
+
+def _carried_refs(raw: object, core_cls: type[_RefT]) -> list[str | _RefT]:
+    """Keep each inline *core_cls* object, and reduce any other entry to its id."""
+    carried: list[str | _RefT] = []
+    for entry in raw or []:  # type: ignore[attr-defined]
+        if isinstance(entry, core_cls):
+            carried.append(entry)
+        elif entry_id := _get_id(entry):
+            carried.append(entry_id)
+    return carried
+
+
 def _build_case_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     if object_id:
@@ -156,6 +172,14 @@ def _build_case_object(obj: object) -> dict[str, Any]:
         vulnerability_reports: list[str | VulnerabilityReport] = list(
             _get_id_list(getattr(obj, "vulnerability_reports", None)) or []
         )
+        # The case's items and references: an inline object is kept, any
+        # other entry reduces to its id (CM-05-021).
+        vulnerability_items = _carried_refs(
+            getattr(obj, "vulnerability_items", None), VulnerabilityItem
+        )
+        case_references = _carried_refs(
+            getattr(obj, "case_references", None), CaseReference
+        )
         raw_statuses = getattr(obj, "case_statuses", []) or []
         case_statuses: list[str | CaseStatus] = []
         for cs in raw_statuses:
@@ -182,6 +206,8 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 case_participants=participants,
                 actor_participant_index=actor_participant_index,
                 vulnerability_reports=vulnerability_reports,
+                vulnerability_items=vulnerability_items,
+                case_references=case_references,
                 embargo_register=embargo_register,
                 case_statuses=case_statuses if case_statuses else [],
                 # Carried, not recomputed: core would otherwise rederive it

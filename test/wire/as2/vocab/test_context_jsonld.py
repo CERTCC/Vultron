@@ -174,7 +174,7 @@ def test_core_registered_types_resolve_through_context() -> None:
     core_terms = _core_registered_vultron_terms()
     for term in (
         "CaseParticipant",
-        "VulnerabilityRecord",
+        "VulnerabilityItem",
         "VulnerabilityReport",
         "ParticipantStatus",
     ):

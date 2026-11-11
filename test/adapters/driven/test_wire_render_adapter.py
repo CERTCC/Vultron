@@ -42,7 +42,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vulnerability_record import VulnerabilityRecord
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
@@ -120,10 +120,10 @@ def test_render_embargo_policy(adapter):
     _assert_wire_dict(result, "EmbargoPolicy")
 
 
-def test_render_vulnerability_record(adapter):
-    obj = make(VulnerabilityRecord, name="CVE-2024-0001")
+def test_render_vulnerability_item(adapter):
+    obj = make(VulnerabilityItem, cve="CVE-2024-0001")
     result = adapter.render(obj)
-    _assert_wire_dict(result, "VulnerabilityRecord")
+    _assert_wire_dict(result, "VulnerabilityItem")
 
 
 def test_render_case_status(adapter):
