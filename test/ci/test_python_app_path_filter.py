@@ -42,7 +42,7 @@ defect that found it, each with the file the suite reads through it:
   ``ui/src/recordings/`` and ``ui/src/synthetic-ledgers/``, but a pull request
   that edited only them ran neither (#4728).
 - ``docker/Dockerfile``. ``test_python_version_floor.py`` checks that the base
-  image runs the ``requires-python`` floor or later (IMPLTS-01-009), and no
+  image runs the ``requires-python`` floor or later (IMPLTS-01-010), and no
   other entry matches the Dockerfile, so a base-image bump alone ran no test
   (#6052).
 
@@ -129,7 +129,7 @@ def test_python_app_workflow_runs_on_a_demo_ui_artifact_change(
     )
 
 
-@pytest.mark.spec("IMPLTS-01-009")
+@pytest.mark.spec("IMPLTS-01-010")
 @pytest.mark.parametrize("event", ["push", "pull_request"])
 def test_python_app_workflow_runs_on_a_dockerfile_change(event: str) -> None:
     """A base-image bump reaches the test that compares it with the floor."""

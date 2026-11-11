@@ -1,7 +1,7 @@
 """CI verification test — the Python floor is declared once and followed.
 
-Implements IMPLTS-01-001 and IMPLTS-01-009 from ``specs/tech-stack.yaml``
-(#6052).
+Implements IMPLTS-01-001, IMPLTS-01-009 and IMPLTS-01-010 from
+``specs/tech-stack.yaml`` (#6052).
 
 The floor is declared in ``requires-python`` and read by ruff's
 ``target-version``, pyright's ``pythonVersion``, the CI setup action's default
@@ -93,7 +93,7 @@ def test_declaration_names_the_requires_python_floor(
     )
 
 
-@pytest.mark.spec("IMPLTS-01-009")
+@pytest.mark.spec("IMPLTS-01-010")
 def test_docker_base_image_runs_the_floor_or_later() -> None:
     floor = _requires_python_floor()
     base = _docker_base_python()

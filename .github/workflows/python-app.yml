@@ -67,7 +67,7 @@ on:
       # test/demo_unit/test_recordings.py validates like the recordings.
       - ui/src/synthetic-ledgers/**
       # test/ci/test_python_version_floor.py checks that the Docker base image
-      # runs the requires-python floor or later (IMPLTS-01-009), so a PR that
+      # runs the requires-python floor or later (IMPLTS-01-010), so a PR that
       # bumps only the base image must run it (#6052).
       - docker/Dockerfile
   pull_request:
@@ -115,7 +115,7 @@ on:
       - ui/src/recordings/**
       - ui/src/synthetic-ledgers/**
       # test/ci/test_python_version_floor.py checks that the Docker base image
-      # runs the requires-python floor or later (IMPLTS-01-009), so a PR that
+      # runs the requires-python floor or later (IMPLTS-01-010), so a PR that
       # bumps only the base image must run it (#6052).
       - docker/Dockerfile
   workflow_dispatch:

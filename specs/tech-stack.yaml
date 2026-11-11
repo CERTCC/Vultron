@@ -27,21 +27,34 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Ruff's `target-version`, pyright's `pythonVersion` and the default interpreter
-      of the `setup-python-uv` CI action MUST name the `requires-python` floor, and
-      the Docker base image MUST run that floor or a later version.
+      Ruff's `target-version`, pyright's `pythonVersion` and the `setup-python-uv`
+      CI action's default interpreter MUST name the `requires-python` floor.
     rationale: >-
       The floor is the oldest version the project claims to support. The static
       checks judge the code against the version they name, so a newer one accepts
       syntax the floor rejects, and an older one rejects syntax the floor accepts. CI
       runs its default interpreter, so a default above the floor leaves the floor
-      untested. A container may run a newer version, but one below the floor runs an
-      interpreter the project does not support.
+      untested.
     verification: >-
       `test/ci/test_python_version_floor.py` checks that ruff's `target-version`,
       pyright's `pythonVersion` and the `setup-python-uv` action's default
-      `python-version` equal the `requires-python` floor, and that the Docker base
-      image's version is at least that floor.
+      `python-version` equal the `requires-python` floor.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-01-001
+  - id: IMPLTS-01-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The Docker base image MUST run the `requires-python` floor or a later Python
+      version.
+    rationale: >-
+      A container may run ahead of the floor, but one below it runs an interpreter
+      the project does not support, so the shipped runtime contradicts the declared
+      one.
+    verification: >-
+      `test/ci/test_python_version_floor.py` checks that the Python version of the
+      `base` stage in `docker/Dockerfile` is at least the `requires-python` floor.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-01-001
