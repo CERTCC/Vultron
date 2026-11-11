@@ -319,7 +319,7 @@ class TestAFetchedObjectsUnknownKeys:
         document = {**body, _FOREIGN_KEY: "x"}
         received = copy.deepcopy(document)
 
-        parsed = parse_fetched_object(document, _FETCHED_ID)
+        parsed = parse_fetched_object(document, _FETCHED_ID, _HOST)
 
         assert isinstance(parsed, branch)
         assert _FOREIGN_KEY not in parsed.model_dump(by_alias=True)
@@ -328,6 +328,7 @@ class TestAFetchedObjectsUnknownKeys:
         assert len(records) == 1, [r.getMessage() for r in caplog.records]
         message = records[0].getMessage()
         assert _FETCHED_ID in message
+        assert _HOST in message
         assert "the fetched object" in message
 
     @pytest.mark.spec("MV-11-002", "MV-11-006", "MV-11-008")
@@ -338,7 +339,7 @@ class TestAFetchedObjectsUnknownKeys:
         document = {**body, "Name": "misspelled"}
 
         with pytest.raises(VultronValidationError) as refused:
-            parse_fetched_object(document, _FETCHED_ID)
+            parse_fetched_object(document, _FETCHED_ID, _HOST)
 
         message = str(refused.value)
         assert "'Name'" in message
@@ -354,7 +355,7 @@ class TestAFetchedObjectsUnknownKeys:
         author = {"type": "Person", "id": _REQUESTER, _FOREIGN_KEY: "x"}
         document = {"type": "Note", "id": _FETCHED_ID, "attributedTo": author}
 
-        parse_fetched_object(document, _FETCHED_ID)
+        parse_fetched_object(document, _FETCHED_ID, _HOST)
 
         records = _set_aside_records(caplog, _FOREIGN_KEY)
         assert len(records) == 1, [r.getMessage() for r in caplog.records]
@@ -362,7 +363,7 @@ class TestAFetchedObjectsUnknownKeys:
 
         misspelt = {**document, "attributedTo": {**author, "Name": "n"}}
         with pytest.raises(VultronValidationError, match="'Name'"):
-            parse_fetched_object(misspelt, _FETCHED_ID)
+            parse_fetched_object(misspelt, _FETCHED_ID, _HOST)
 
     def test_a_body_nested_too_deeply_is_refused_as_invalid(self):
         """The partition's refusal reaches callers as a validation fault.
@@ -376,7 +377,7 @@ class TestAFetchedObjectsUnknownKeys:
         document = {**inner, "id": _FETCHED_ID}
 
         with pytest.raises(VultronValidationError, match="too deeply"):
-            parse_fetched_object(document, _FETCHED_ID)
+            parse_fetched_object(document, _FETCHED_ID, _HOST)
 
 
 class TestParseFetchedObject:
@@ -392,7 +393,7 @@ class TestParseFetchedObject:
         self, body: dict[str, Any], match: str
     ):
         with pytest.raises(VultronValidationError, match=match):
-            parse_fetched_object(body, "urn:uuid:x")
+            parse_fetched_object(body, "urn:uuid:x", _HOST)
 
     def test_it_types_an_actor_profile_with_nothing_else_imported(self):
         """The module loads the vocabulary it types by, whoever imports it.
@@ -405,7 +406,7 @@ class TestParseFetchedObject:
             " parse_fetched_object\n"
             "actor = 'https://example.org/actors/vendor'\n"
             "parsed = parse_fetched_object("
-            "{'type': 'Person', 'id': actor}, actor)\n"
+            "{'type': 'Person', 'id': actor}, actor, actor)\n"
             "print(type(parsed).__name__)\n"
         )
 

@@ -279,9 +279,14 @@ def default_object_fetcher() -> HttpObjectFetcher:
 
 
 def parse_fetched_object(
-    document: dict[str, Any], object_id: str
+    document: dict[str, Any], object_id: str, holder_id: str
 ) -> CoreObject | as_Base:
     """The object a fetch answered with, typed by its ``type``.
+
+    *holder_id* is the actor that served *document* (AKM-05-007): the case's
+    CASE_MANAGER for a case object, the actor itself for its profile.  A
+    set-aside key's report names it as the ``actor_id``, as a received
+    activity's names its sender (MV-11-003).
 
     *document* is what the object's holder served, not a received body: the
     receive path's parsed activity stays the authority for what arrived
@@ -310,7 +315,9 @@ def parse_fetched_object(
             subject="The body",
             root="the fetched object",
         )
-        report_set_aside(set_aside, {"object_id": object_id})
+        report_set_aside(
+            set_aside, {"object_id": object_id, "actor_id": holder_id}
+        )
         parsed = cls.model_validate(declared)
     except (KeyError, ValueError, VultronParseError) as exc:
         raise VultronValidationError(

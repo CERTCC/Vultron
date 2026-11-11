@@ -156,7 +156,9 @@ class FastAPIDereferencePort:
                 f"the fetch of {fetch.object_id!r} holds no fetched body"
             )
         parsed = parse_fetched_object(
-            json.loads(fetch.fetched_body), fetch.object_id
+            json.loads(fetch.fetched_body),
+            fetch.object_id,
+            fetch.host_actor_id,
         )
         if not isinstance(parsed, CoreObject):
             raise VultronValidationError(
@@ -230,7 +232,9 @@ def settle_fetch(
         fetched: CoreObject | as_Base | None = None
         if result.body is not None:
             try:
-                fetched = parse_fetched_object(result.body, object_id)
+                fetched = parse_fetched_object(
+                    result.body, object_id, fetch.host_actor_id
+                )
             except VultronError as exc:
                 failure = str(exc)
         if isinstance(fetched, (as_Activity, VultronActivity)):

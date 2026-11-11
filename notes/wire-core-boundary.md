@@ -10,6 +10,7 @@ description: >
   inbound unknown-key rule (MV-11), decided at the parse edge, not by class
   ancestry.
 related_specs:
+  - specs/actor-knowledge-model.yaml (AKM-05-007)
   - specs/architecture.yaml (ARCH-01-001, ARCH-12-003, ARCH-20-008, ARCH-21-002,
     ARCH-22-001, ARCH-22-003, ARCH-23-005, ARCH-23-006, ARCH-25-002 through
     ARCH-25-008)

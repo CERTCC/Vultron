@@ -619,12 +619,11 @@ groups:
       decides by partitioning the arriving keys against the resolved class's declared
       spellings before it validates the object. The objects are the activity envelope,
       and an inline object whose `type` resolves to a wire class or to a core class.
-      They also include an inline `Link`, and an inline object with no `type`. A
-      fetched object (AKM-05-007) is inbound data too: `parse_fetched_object` in
-      `vultron/adapters/driven/http_object_fetch.py` MUST apply the same partition to
-      the fetched body, at every depth, before it validates the body. A declared
-      spelling is a field name, the camelCase alias the class generates for it, an
-      explicit validation alias, or `@context`.
+      They also include an inline `Link`, and an inline object with no `type`. They
+      include each object in a fetched body (AKM-05-007), which `parse_fetched_object`
+      in `vultron/adapters/driven/http_object_fetch.py` partitions the same way. A
+      declared spelling is a field name, the camelCase alias the class generates for
+      it, an explicit validation alias, or `@context`.
     rationale: >-
       Without one rule at the parse edge, the result for an unknown key depends on the
       class of its object. A core class with `extra="forbid"` (ARCH-12-003) refuses the
@@ -664,6 +663,9 @@ groups:
       `test/wire/as2/test_unknown_key_disposition.py` asserts the same disposition for
       an unknown key on the envelope, on a wire-class inline object, on a core-class
       inline object, on an inline `Link` and on an untyped inline object.
+      `TestAFetchedObjectsUnknownKeys` in
+      `test/adapters/driven/test_http_object_fetch.py` asserts the same disposition on
+      a fetched core-class and wire-class object.
     relationships:
     - rel_type: refines
       spec_id: MV-11-001
@@ -754,7 +756,9 @@ groups:
       `test/wire/as2/test_unknown_key_disposition.py` assert that the
       `VultronParseValidationError` message names both the arriving key and the
       spelling it resembles, and the JSON-LD keyword tests assert that it names `id`
-      or `type`.
+      or `type`. `test_a_near_miss_is_refused_naming_both_spellings` in
+      `test/adapters/driven/test_http_object_fetch.py` asserts the same for a fetched
+      object.
     relationships:
     - rel_type: extends
       spec_id: MV-11-002
@@ -789,6 +793,8 @@ groups:
       is not a near miss. The activity proceeds on its declared
       fields. The receiver logs one INFO record per set-aside key with `activity_id`,
       the sender's `actor_id`, the dotted field path of the key's object, and the key.
+      For a fetched object (MV-11-001), the record names its `object_id` instead, and
+      the actor that served it as `actor_id`.
     rationale: >-
       AS2 is designed for extension. Some peers send properties that Vultron does not
       read. If the receiver refuses each such message, peers lose interoperability, and
@@ -801,6 +807,9 @@ groups:
       exactly one INFO record names the key, the path, the activity id and the sender.
       `test_a_former_field_name_is_set_aside_and_reported` in the same file asserts the
       same for each name the protocol once read, such as `vfd_state` and `eventType`.
+      `test_a_foreign_key_is_set_aside_and_reported` in
+      `test/adapters/driven/test_http_object_fetch.py` asserts one such record, naming
+      the object id and the serving actor, for a fetched object.
     relationships:
     - rel_type: refines
       spec_id: MV-11-001
@@ -840,7 +849,9 @@ groups:
       Setting inbound unknown keys aside at the parse edge MUST NOT loosen
       `extra="forbid"` on any core type (ARCH-12-003). The parse edge is the only door
       inbound data enters by, so a core class never sees an inbound unknown key. An
-      unknown key on in-process or stored data remains a refusal.
+      unknown key on in-process or stored data remains a refusal. A fetched body held
+      as received for a later hand-off is inbound data, not a stored record, so its
+      parse partitions it.
     rationale: >-
       The two rules answer different questions. `extra="forbid"` asks: "Did this process
       build or store an object with a key that it does not know?" The answer yes is
