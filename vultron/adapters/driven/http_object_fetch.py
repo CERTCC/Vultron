@@ -278,9 +278,32 @@ def default_object_fetcher() -> HttpObjectFetcher:
     )
 
 
+@dataclass(frozen=True)
+class FetchedObject:
+    """A fetched object, and the body it was validated from.
+
+    Attributes:
+        value: The object, typed by its ``type``.
+        declared_body: A copy of the fetched document with every set-aside
+            key removed (MV-11-001).  A hand-off record keeps this body, not
+            the document, so parsing it again reports nothing a second time
+            (MV-11-003).
+    """
+
+    value: CoreObject | as_Base
+    declared_body: dict[str, Any]
+
+
 def parse_fetched_object(
     document: dict[str, Any], object_id: str, holder_id: str
 ) -> CoreObject | as_Base:
+    """The object a fetch answered with; see :func:`parse_fetched_body`."""
+    return parse_fetched_body(document, object_id, holder_id).value
+
+
+def parse_fetched_body(
+    document: dict[str, Any], object_id: str, holder_id: str
+) -> FetchedObject:
     """The object a fetch answered with, typed by its ``type``.
 
     *holder_id* is the actor that served *document* (AKM-05-007): the case's
@@ -337,7 +360,7 @@ def parse_fetched_object(
             f"the fetched object {parsed_id!r} is not the {object_id!r}"
             " that was asked for"
         )
-    return parsed
+    return FetchedObject(value=parsed, declared_body=declared)
 
 
 def _describe(url: str, exc: Exception) -> str:
@@ -355,7 +378,9 @@ __all__ = [
     "HttpObjectFetcher",
     "ObjectFetchResult",
     "ObjectFetcher",
+    "FetchedObject",
     "default_object_fetcher",
     "fetch_url",
+    "parse_fetched_body",
     "parse_fetched_object",
 ]

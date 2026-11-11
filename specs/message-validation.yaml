@@ -810,6 +810,9 @@ groups:
       `test_a_foreign_key_is_set_aside_and_reported` in
       `test/adapters/driven/test_http_object_fetch.py` asserts one such record, naming
       the object id and the serving actor, for a fetched object.
+      `test_a_handed_off_bodys_set_aside_key_is_reported_once` in
+      `test/adapters/driving/fastapi/test_inbox_dereference.py` asserts one record
+      across a hand-off fetch's settling and the hand-off's parse of the record.
     relationships:
     - rel_type: refines
       spec_id: MV-11-001
@@ -849,9 +852,9 @@ groups:
       Setting inbound unknown keys aside at the parse edge MUST NOT loosen
       `extra="forbid"` on any core type (ARCH-12-003). The parse edge is the only door
       inbound data enters by, so a core class never sees an inbound unknown key. An
-      unknown key on in-process or stored data remains a refusal. A fetched body held
-      as received for a later hand-off is inbound data, not a stored record, so its
-      parse partitions it.
+      unknown key on in-process or stored data remains a refusal. A hand-off record
+      holds the fetched body that its parse kept, with the set-aside keys removed, so
+      the hand-off's parse of that body sets nothing aside and reports nothing again.
     rationale: >-
       The two rules answer different questions. `extra="forbid"` asks: "Did this process
       build or store an object with a key that it does not know?" The answer yes is

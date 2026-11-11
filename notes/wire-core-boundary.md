@@ -213,6 +213,8 @@ disposition is stated once there (MV-11, ARCH-25-007/008):
    `parse_fetched_object` runs `partition_unknown_keys` and `report_set_aside`
    before it validates; a bare `cls.model_validate(document)` would let `forbid`
    refuse a core object's extension key and a wire class drop a near miss (#5486).
+   A hand-off record keeps the body that parse kept, never the raw document, so a
+   set-aside key is reported once, not again at the hand-off (MV-11-003).
 
 **`@id` and `@type` are near misses by design** (CONCERN-3958). AS2 spells them
 `id` and `type`: the normative context aliases them and AS2 Core § 2.1 requires
