@@ -255,8 +255,11 @@ ends on the same entry. A measure that needs the whole case refuses a history wh
 end is unconfirmed. Do not try to name the copy's holder: the entries cannot say it
 (decided for #5779).
 
-Two copies holding different entries at one index are reported, never resolved: a
-conforming ledger has none, so a history over one is not to be trusted.
+Two copies holding different entries at one index, or one entry hash with two
+different bodies, are reported, never resolved: a conforming ledger has none, so a
+history over one is not to be trusted, and keeping either body would pick by file
+order. A bad row that names another case does not make a file's copy incomplete; only
+a row that names no case might be the missing entry.
 
 For the same reason the layer takes its files from the caller and globs for nothing
 itself (CEH-02-003, CEH-02-010). `vultron-demo-report` keeps its own
