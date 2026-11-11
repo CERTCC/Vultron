@@ -28,16 +28,14 @@ The tests read the ports and compare the prose to them, never the reverse.
 
 from __future__ import annotations
 
-import importlib
-import pkgutil
 import re
 
 import py_trees
 import pytest
 from py_trees.common import Status
 
-import vultron.demo.fuzzer as fuzzer_pkg
 from test.support.call_out import tick_call_out
+from test.support.fuzzer_nodes import fuzzer_capability_classes
 from vultron.core.behaviors.call_out.answer import REFUSAL_REASON_KEY
 from vultron.core.behaviors.call_out.capabilities import (
     capability_declarations,
@@ -63,21 +61,9 @@ def _id(cls: type) -> str:
 
 def _simulation_nodes() -> dict[type[Capability], list[type[Capability]]]:
     """Each declaration's binding classes in ``vultron/demo/fuzzer/``."""
-    for info in pkgutil.walk_packages(
-        fuzzer_pkg.__path__, prefix=f"{fuzzer_pkg.__name__}."
-    ):
-        importlib.import_module(info.name)
     bound: dict[type[Capability], list[type[Capability]]] = {}
-    pending: list[type] = list(Capability.__subclasses__())
-    seen: set[type] = set()
-    while pending:
-        cls = pending.pop()
-        if cls in seen:
-            continue
-        seen.add(cls)
-        pending.extend(cls.__subclasses__())
-        declaration = cls.declaration()  # type: ignore[attr-defined]
-        if cls.__module__.startswith(fuzzer_pkg.__name__) and declaration:
+    for cls in fuzzer_capability_classes():
+        if declaration := cls.declaration():
             bound.setdefault(declaration, []).append(cls)
     return bound
 

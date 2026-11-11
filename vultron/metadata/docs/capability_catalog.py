@@ -26,7 +26,8 @@ Every column comes from the declaration:
 - **Capability** is the class name without its ``Capability`` suffix, which is
   the name a tree passes to the backend factory;
 - **Shape** is the shape base it subclasses (ADR-0097);
-- **Asks** is the first paragraph of its docstring;
+- **Asks** is the first paragraph of its docstring, with RST literals and
+  cross-reference roles turned into Markdown code;
 - **Reads** and **Writes on yes** are its ``INPUT_PORTS`` and
   ``OUTPUT_PORTS``, with each port's ``data_type`` (BT-18-012).
 
@@ -41,7 +42,9 @@ from __future__ import annotations
 
 import inspect
 import re
+import sys
 from collections.abc import Mapping
+from pathlib import Path
 
 from py_trees.ports import PortInformation
 
@@ -53,6 +56,7 @@ from vultron.core.behaviors.call_out.capability import (
     Capability,
     CapabilityShape,
 )
+from vultron.metadata.base import repo_root
 
 #: The package every declaration module sits under.
 DECLARATION_PACKAGE = _capabilities_pkg.__name__
@@ -67,6 +71,9 @@ TABLE_HEADER = (
 )
 
 _RST_LITERAL = re.compile(r"``([^`]+)``")
+#: A Sphinx cross-reference role, ``:class:`~a.b.C``` or ``:func:`a.b```.
+_RST_ROLE = re.compile(r":[a-z]+:`(~?)([^`]+)`")
+_PARAGRAPH_BREAK = re.compile(r"\n[ \t]*\n")
 
 
 class CapabilityCatalogError(ValueError):
@@ -110,9 +117,17 @@ def capability_name(declaration: type[Capability]) -> str:
     return name.removesuffix(CLASS_SUFFIX)
 
 
+def _role(match: re.Match[str]) -> str:
+    """A cross-reference as code: ``~`` keeps only the last name."""
+    tilde, target = match.groups()
+    return f"`{target.rsplit('.', 1)[-1] if tilde else target}`"
+
+
 def _cell(text: str) -> str:
-    """*text* as one table cell: RST literals as code, pipes escaped."""
-    return _RST_LITERAL.sub(r"`\1`", text).replace("|", r"\|")
+    """*text* as one table cell: RST literals and roles as code, pipes
+    escaped."""
+    text = _RST_ROLE.sub(_role, _RST_LITERAL.sub(r"`\1`", text))
+    return text.replace("|", r"\|")
 
 
 def summary(declaration: type[Capability]) -> str:
@@ -123,7 +138,7 @@ def summary(declaration: type[Capability]) -> str:
             f"{declaration.__qualname__} has no docstring, so the catalog "
             "has nothing to say it asks (BT-18-001)."
         )
-    first = inspect.cleandoc(doc).split("\n\n", 1)[0]
+    first = _PARAGRAPH_BREAK.split(inspect.cleandoc(doc), maxsplit=1)[0]
     return _cell(" ".join(first.split()))
 
 
@@ -157,8 +172,14 @@ def render_row(declaration: type[Capability]) -> str:
     return "| " + " | ".join(cells) + " |"
 
 
-def _module_path(module: str) -> str:
-    return f"{DECLARATION_PACKAGE}.{module}".replace(".", "/") + ".py"
+def _source_path(declarations: tuple[type[Capability], ...]) -> str:
+    """The repository path of the file that declares *declarations*."""
+    source = getattr(sys.modules[declarations[0].__module__], "__file__", None)
+    if source is None:
+        raise CapabilityCatalogError(
+            f"{declarations[0].__module__} has no source file to name."
+        )
+    return Path(source).resolve().relative_to(repo_root().resolve()).as_posix()
 
 
 def render_capability_table(
@@ -186,13 +207,13 @@ def render_capability_table(
             f"a declaration module is named twice in {list(modules)}."
         )
     grouped = declarations_by_module() if grouped is None else grouped
-    missing = [m for m in modules if m not in grouped]
+    missing = [m for m in modules if not grouped.get(m)]
     if missing:
         raise CapabilityCatalogError(
             f"{missing} declare no capability under {DECLARATION_PACKAGE}; "
             "rename or remove the page's reference to them."
         )
-    paths = ", ".join(f"`{_module_path(m)}`" for m in modules)
+    paths = ", ".join(f"`{_source_path(grouped[m])}`" for m in modules)
     lines = [f"Declared in {paths}.", "", *TABLE_HEADER]
     for module in modules:
         lines += [render_row(d) for d in grouped[module]]

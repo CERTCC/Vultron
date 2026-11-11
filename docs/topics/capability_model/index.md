@@ -281,10 +281,11 @@ print(render_capability_table("case_management"))
 
 *See also: [Embargo behaviors](../behavior_logic/em_bt.md), [Evaluate proposed embargo](../behavior_logic/em_eval_bt.md), [Propose embargo](../behavior_logic/em_propose_bt.md), [Terminate embargo](../behavior_logic/em_terminate_bt.md)*
 
-`CaseOwnerApprovesEmbargoResponse` is a security gate: it asks whether the Case Owner approves an action another participant requests.
+`CaseOwnerApprovesEmbargoResponse` gates the answer that a participant other than the Case Owner gives to an embargo proposal.
+The Case Owner's own answer does not ask it.
+A backend can answer it only from the deciding actor's own policy: a decision that only the Case Owner can make is a protocol ask, not a call-out point (BT-18-014).
 Whether the active embargo stays acceptable as conditions change (`CurrentEmbargoAcceptable`) is open in [#1943](https://github.com/CERTCC/Vultron/issues/1943).
-`EmbargoTimerExpired` has a declaration, but no reference-implementation BT asks it.
-The embargo's end time is in the case, so the BT reads it there (BT-18-039; see [Still open](#still-open)).
+The embargo's end time is in the case, so a BT reads it there instead of asking `EmbargoTimerExpired` (BT-18-039; see [Still open](#still-open)).
 
 ```python exec="true" idprefix=""
 from vultron.metadata.docs.capability_catalog import render_capability_table
@@ -370,7 +371,7 @@ print(
 An actor closes its part in a case by calling the `leave-case` trigger, which sends `Leave(VulnerabilityCase)` to the CASE_MANAGER.
 `leave-case` runs `PreCloseAction` before it sends the Leave, for every caller, so it is where you close your own ticket.
 A failure stops the trigger with nothing sent.
-Vultron no longer asks `OtherCloseCriteriaMet`, because the decision to close is the act of calling `leave-case`.
+`OtherCloseCriteriaMet` is superseded, because the decision to close is the act of calling `leave-case` ([ADR-0145](../../adr/0145-a-case-is-left-through-the-leave-case-trigger-whose-actor-runs-its-pre-close-step-first.md)).
 
 ```python exec="true" idprefix=""
 from vultron.metadata.docs.capability_catalog import render_capability_table
@@ -383,7 +384,7 @@ print(render_capability_table("report_management.close_report"))
 *See also: [Reporting behavior](../behavior_logic/reporting_bt.md)*
 
 These capabilities find and notify the other parties a report should reach.
-No reference-implementation BT asks them.
+They come from the simulator's report-to-others BT.
 To find who else belongs in a case, use a Sentinel that calls `suggest-actor-to-case` or `invite-actor-to-case` ([ADR-0047](../../adr/0047-report-to-others-sentinel-over-inline-bt.md)).
 
 ```python exec="true" idprefix=""
@@ -509,8 +510,8 @@ The older names, such as `EvaluatorCallOutPoint`, still import from `vultron/dem
 This is no longer a choice of shape for `EmbargoTimerExpired`.
 If a BT asks "has the end date passed?" and gets only yes or no, it asks a Retriever.
 A synchronous query from the BT is always a Retriever, never a Sentinel (BT-18-006).
-No reference-implementation BT asks it, because the end time is in the case's embargo register.
-The CASE_MANAGER reads the end time there, and ends the embargo the next time it handles the case (BT-18-039, EMB-13-003).
+The end time is in the case's embargo register, so a BT reads it there instead of asking (BT-18-039).
+The CASE_MANAGER ends the embargo the next time it handles the case after the end time (EMB-13-003).
 What stays open is whether something should end an embargo at its end time when nothing else happens in the case.
 That is a Sentinel (BT-18-013).
 No BT asks it: it watches the clock, and calls `terminate-embargo` with the reason `END_TIME_REACHED` on its own initiative.

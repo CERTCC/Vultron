@@ -23,16 +23,20 @@ blank row (MS-16-002, MS-16-003).
 from __future__ import annotations
 
 import ast
-import importlib
-import pkgutil
+import contextlib
+import io
 import re
+import textwrap
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
 import pytest
+from markdown.extensions.toc import slugify  # type: ignore[import-untyped]
 from py_trees.ports import PortInformation
 
+from test.support.fuzzer_nodes import FUZZER_PACKAGE, fuzzer_capability_classes
 from vultron.core.behaviors.call_out.capabilities import (
     capability_declarations,
 )
@@ -55,43 +59,99 @@ from vultron.metadata.docs.capability_catalog import (
 
 PAGE = Path("docs/topics/capability_model/index.md")
 
-_EXEC_BLOCK = re.compile(
-    r'^```python exec="true"[^\n]*\n(.*?)^```', re.M | re.S
-)
+#: A fenced block's opening line; the info string is group 2.
+_FENCE = re.compile(r"^([ \t]*)(`{3,}|~{3,})([^\n]*)$", re.M)
+_HEADING = re.compile(r"^(#{2,3}) (.+)$", re.M)
+_RENDER = "render_capability_table"
+
+
+@dataclass(frozen=True)
+class _Block:
+    """One markdown-exec block on the page, under the heading *anchor*."""
+
+    anchor: str
+    source: str
+    modules: tuple[str, ...]
 
 
 def _page_text() -> str:
     return (repo_root() / PAGE).read_text(encoding="utf-8")
 
 
-def _rendered_modules(text: str) -> list[str]:
-    """Every module a ``render_capability_table`` call on the page names."""
-    modules: list[str] = []
-    for block in _EXEC_BLOCK.findall(text):
-        for node in ast.walk(ast.parse(block)):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id == "render_capability_table"
-            ):
-                for arg in node.args:
-                    assert isinstance(arg, ast.Constant) and isinstance(
-                        arg.value, str
-                    ), "name each declaration module as a string literal"
-                    modules.append(arg.value)
-    return modules
+def _render_args(source: str) -> list[tuple[str, ...]]:
+    """The module arguments of each ``render_capability_table`` call."""
+    calls: list[tuple[str, ...]] = []
+    for node in ast.walk(ast.parse(source)):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == _RENDER
+        ):
+            args: list[str] = []
+            for arg in node.args:
+                assert isinstance(arg, ast.Constant) and isinstance(
+                    arg.value, str
+                ), "name each declaration module as a string literal"
+                args.append(arg.value)
+            calls.append(tuple(args))
+    return calls
 
 
-def _summary_table_names(text: str) -> set[str]:
-    """The capability names linked in the page's "Vultron doesn't" table."""
+def _exec_blocks(text: str) -> list[_Block]:
+    """Every fenced block whose info string sets ``exec``, any value or
+    indent, with the anchor of the heading it sits under."""
+    blocks: list[_Block] = []
+    headings = [
+        (m.start(), slugify(m.group(2), "-")) for m in _HEADING.finditer(text)
+    ]
+    pos = 0
+    while (opening := _FENCE.search(text, pos)) is not None:
+        indent, fence, info = opening.groups()
+        closing = re.compile(
+            rf"^{re.escape(indent)}{re.escape(fence[0])}{{{len(fence)},}}[ \t]*$",
+            re.M,
+        ).search(text, opening.end())
+        assert closing is not None, f"unclosed fence at {opening.start()}"
+        if re.search(r"\bexec=", info):
+            body = text[opening.end() + 1 : closing.start()]
+            source = textwrap.dedent(body)
+            anchor = next(
+                (
+                    a
+                    for start, a in reversed(headings)
+                    if start < opening.start()
+                ),
+                "",
+            )
+            calls = _render_args(source)
+            modules = tuple(m for call in calls for m in call)
+            blocks.append(_Block(anchor, source, modules))
+        pos = closing.end()
+    return blocks
+
+
+def _catalog_blocks(text: str) -> list[_Block]:
+    return [b for b in _exec_blocks(text) if _RENDER in b.source]
+
+
+def _summary_rows(text: str) -> list[tuple[list[tuple[str, str]], set[str]]]:
+    """Each row of the "Vultron doesn't" table: its (name, anchor) links and
+    its Shape cell."""
     start = text.index('| "Vultron doesn')
-    table = text[start : text.index("\n\n", start)]
-    names: set[str] = set()
-    for link_text in re.findall(r"\[([^\]]+)\]\(#", table):
-        names.update(
-            n.strip() for n in link_text.split(",") if n.strip() != "Sentinel"
-        )
-    return names
+    table = text[start : text.index("\n\n", start)].splitlines()[2:]
+    rows: list[tuple[list[tuple[str, str]], set[str]]] = []
+    for line in table:
+        cells = line.split("|")
+        assert len(cells) == 5, f"unexpected summary table row: {line!r}"
+        where, shapes = cells[2], cells[3]
+        links = [
+            (name.strip(), anchor)
+            for names, anchor in re.findall(r"\[([^\]]+)\]\(#([^)]+)\)", where)
+            if names != "Sentinel"
+            for name in names.split(",")
+        ]
+        rows.append((links, {s.strip() for s in shapes.split(",")}))
+    return rows
 
 
 # --- the page against the roster ------------------------------------------
@@ -99,7 +159,9 @@ def _summary_table_names(text: str) -> set[str]:
 
 @pytest.mark.spec("MS-16-003")
 def test_page_renders_every_declaration_module_exactly_once() -> None:
-    named = Counter(_rendered_modules(_page_text()))
+    named = Counter(
+        m for b in _catalog_blocks(_page_text()) for m in b.modules
+    )
     twice = sorted(m for m, n in named.items() if n > 1)
     assert not twice, f"named in more than one catalog block: {twice}"
     roster = set(declarations_by_module())
@@ -113,54 +175,78 @@ def test_page_renders_every_declaration_module_exactly_once() -> None:
     )
 
 
-def test_every_catalog_block_renders() -> None:
-    for module in _rendered_modules(_page_text()):
-        assert render_capability_table(module).count("\n| `") >= 1
+def test_every_exec_fence_on_the_page_is_parsed() -> None:
+    """A fence the parser skipped would hide its modules from the check."""
+    text = _page_text()
+    openers = [
+        m for m in _FENCE.finditer(text) if re.search(r"\bexec=", m.group(3))
+    ]
+    assert len(_exec_blocks(text)) == len(openers) > 0
+
+
+def test_each_catalog_block_prints_its_tables() -> None:
+    """Run each block as the build does: it must print, not only call."""
+    for block in _catalog_blocks(_page_text()):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            exec(compile(block.source, str(PAGE), "exec"), {})  # noqa: S102
+        expected = "".join(
+            render_capability_table(*call)
+            for call in _render_args(block.source)
+        )
+        assert out.getvalue().strip() == expected.strip(), (
+            f"the block under #{block.anchor} does not print its table"
+        )
 
 
 @pytest.mark.spec("MS-16-003")
-def test_summary_table_names_only_declared_capabilities() -> None:
-    names = _summary_table_names(_page_text())
-    assert names, "the summary table parser found no capability names"
-    declared = {capability_name(d) for d in capability_declarations()}
-    assert not names - declared, (
-        f"the summary table on {PAGE} cites capabilities with no core "
-        f"declaration: {sorted(names - declared)}"
-    )
+def test_summary_table_matches_the_declarations() -> None:
+    """Names are declared, Shape cells are their shapes, links reach the
+    section that renders them."""
+    text = _page_text()
+    rows = _summary_rows(text)
+    assert rows, "the summary table parser found no rows"
+    declared = {capability_name(d): d for d in capability_declarations()}
+    sections: dict[str, set[str]] = {}
+    for block in _catalog_blocks(text):
+        sections.setdefault(block.anchor, set()).update(block.modules)
+    for links, shapes in rows:
+        if not links:
+            continue
+        names = [name for name, _ in links]
+        unknown = sorted(set(names) - set(declared))
+        assert not unknown, (
+            f"the summary table on {PAGE} cites capabilities with no core "
+            f"declaration: {unknown}"
+        )
+        assert shapes == {declared[n].shape.value for n in names}, (
+            f"Shape cell {sorted(shapes)} does not match {names}"
+        )
+        for name, anchor in links:
+            assert declaration_module(declared[name]) in sections.get(
+                anchor, set()
+            ), f"#{anchor} does not render {name}"
 
 
 def test_page_parsers_find_what_they_parse() -> None:
-    """Guard the two ratchets above against passing on nothing."""
+    """Guard the ratchets above against passing on nothing."""
     text = _page_text()
-    assert len(_rendered_modules(text)) == len(declarations_by_module())
-    assert "EvaluateReportCredibility" in _summary_table_names(text)
-
-
-def _subclasses(cls: type[Capability]) -> list[type[Capability]]:
-    found: list[type[Capability]] = []
-    for sub in cls.__subclasses__():
-        found += [sub, *_subclasses(sub)]
-    return found
+    assert len(_catalog_blocks(text)) > 1
+    linked = {name for links, _ in _summary_rows(text) for name, _ in links}
+    assert "EvaluateReportCredibility" in linked
 
 
 def test_each_fuzzer_node_sits_at_its_declaration_module_path() -> None:
     """The catalog page and the wiring guide both tell a reader so."""
-    import vultron.demo.fuzzer as fuzzer_pkg
-
-    for info in pkgutil.walk_packages(
-        fuzzer_pkg.__path__, prefix=f"{fuzzer_pkg.__name__}."
-    ):
-        importlib.import_module(info.name)
+    found: dict[type[Capability], set[str]] = {}
+    for node in fuzzer_capability_classes():
+        if declaration := node.declaration():
+            found.setdefault(declaration, set()).add(node.__module__)
     for declaration in capability_declarations():
-        expected = f"{fuzzer_pkg.__name__}.{declaration_module(declaration)}"
-        modules = {
-            sub.__module__
-            for sub in _subclasses(declaration)
-            if sub.__module__.startswith(f"{fuzzer_pkg.__name__}.")
-        }
-        assert modules == {expected}, (
-            f"{declaration.__qualname__}: fuzzer nodes in {sorted(modules)}, "
-            f"expected {expected}"
+        expected = f"{FUZZER_PACKAGE}.{declaration_module(declaration)}"
+        assert found.get(declaration) == {expected}, (
+            f"{declaration.__qualname__}: fuzzer nodes in "
+            f"{sorted(found.get(declaration, set()))}, expected {expected}"
         )
 
 
@@ -239,8 +325,9 @@ def test_a_declaration_with_no_docstring_is_refused(doc: str | None) -> None:
         summary(cls)
 
 
-def test_a_class_name_without_the_suffix_is_refused() -> None:
-    cls = _declare(EvaluatorCapability, "Judge", "Judge it.")
+@pytest.mark.parametrize("name", ["Judge", "Capability"])
+def test_a_class_name_without_a_capability_name_is_refused(name: str) -> None:
+    cls = _declare(EvaluatorCapability, name, "Judge it.")
     with pytest.raises(CapabilityCatalogError, match="does not end in"):
         capability_name(cls)
 
@@ -275,3 +362,56 @@ def test_an_injected_roster_is_rendered() -> None:
     )
     text = render_capability_table("m", grouped={"m": (cls,)})
     assert "| `Only` | Evaluator | Only one. | — | `x` (`int`) |" in text
+
+
+def test_several_ports_are_listed_one_per_line() -> None:
+    cls = _declare(
+        EvaluatorCapability,
+        "PairCapability",
+        "Pair.",
+        INPUT_PORTS={
+            "c": PortInformation(data_type=float, required=True),
+            "d": PortInformation(data_type=bytes, required=False),
+        },
+        OUTPUT_PORTS={
+            "a": PortInformation(data_type=int, required=True),
+            "b": PortInformation(data_type=str, required=True),
+        },
+    )
+    assert render_row(cls).endswith(
+        "| `c` (`float`)<br>`d` (`bytes`) | `a` (`int`)<br>`b` (`str`) |"
+    )
+
+
+def test_cross_reference_roles_render_as_code() -> None:
+    cls = _declare(
+        EvaluatorCapability,
+        "RoleCapability",
+        "Read :class:`~vultron.core.models.Case` and :func:`a.b.run`.",
+    )
+    assert summary(cls) == "Read `Case` and `a.b.run`."
+
+
+def test_a_blank_line_holding_spaces_still_ends_the_summary() -> None:
+    cls = _declare(
+        EvaluatorCapability, "GapCapability", "First.\n   \nSecond."
+    )
+    assert summary(cls) == "First."
+
+
+def test_the_declared_in_line_names_the_real_source_file() -> None:
+    cls = _declare(EvaluatorCapability, "HereCapability", "Here.")
+    text = render_capability_table("m", grouped={"m": (cls,)})
+    assert text.startswith(
+        "Declared in `test/metadata/docs/test_capability_catalog.py`."
+    )
+    real = render_capability_table("case_management")
+    assert real.startswith(
+        "Declared in "
+        "`vultron/core/behaviors/call_out/capabilities/case_management.py`."
+    )
+
+
+def test_a_module_with_no_declarations_is_refused() -> None:
+    with pytest.raises(CapabilityCatalogError, match="declare no capability"):
+        render_capability_table("empty", grouped={"empty": ()})
