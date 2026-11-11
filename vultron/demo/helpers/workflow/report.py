@@ -95,7 +95,7 @@ def reporter_submits_report(
     receiver: as_Actor,
     reporter_client: DataLayerClient,
     proposed_embargo_end_time: datetime | None = None,
-    report_name: str | None = _DEMO_REPORT_NAME,
+    report_name: str | None = None,
     report_content: str = _DEMO_REPORT_CONTENT,
     *,
     csaf_document: dict[str, JsonValue] | None = None,
@@ -152,9 +152,9 @@ def reporter_submits_report(
         proposed_embargo_end_time: The Reporter's proposed embargo end for this
             report, timezone-aware and in the future; ``None`` proposes
             nothing.
-        report_name: ``name`` of the submitted report; ``None`` states
-            none, which only a submission with *csaf_document* may do: the
-            trigger then names the report from the document (CSAF-04-010).
+        report_name: ``name`` of the submitted report.  ``None`` submits the
+            family's report name, or, with *csaf_document*, states none, so
+            the trigger names the report from the document (CSAF-04-010).
         report_content: ``content`` of the submitted report.
         csaf_document: A CSAF 2.1 vulnerability report to attach, as a JSON
             object; the trigger checks it against the schema and fills the
@@ -174,7 +174,11 @@ def reporter_submits_report(
         result = ActorSession(
             client=reporter_client, actor=reporter
         ).submit_report(
-            report_name=report_name,
+            report_name=(
+                _DEMO_REPORT_NAME
+                if report_name is None and csaf_document is None
+                else report_name
+            ),
             report_content=report_content,
             recipient_id=receiver.id_,
             proposed_embargo_end_time=proposed_embargo_end_time,

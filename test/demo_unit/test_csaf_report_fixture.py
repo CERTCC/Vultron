@@ -18,7 +18,7 @@ stage-1 check is the generated models of the pinned CSAF 2.1 revision
 (CSAF-04-009), so a schema-valid verdict here is the trigger's own.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -84,11 +84,11 @@ def test_the_disclosure_date_is_the_shorter_term() -> None:
 
 
 def test_a_csaf_date_is_utc_in_whole_seconds() -> None:
-    offset = datetime(2026, 1, 2, 3, 4, 5, 999, tzinfo=UTC).astimezone(
-        datetime.now().astimezone().tzinfo
-    )
+    """An instant at another offset is written as the same instant in UTC."""
+    east = timezone(timedelta(hours=5, minutes=30))
+    when = datetime(2026, 1, 2, 8, 34, 5, 999, tzinfo=east)
 
-    assert csaf_date(offset) == "2026-01-02T03:04:05Z"
+    assert csaf_date(when) == "2026-01-02T03:04:05Z"
 
 
 def test_a_naive_date_is_refused() -> None:

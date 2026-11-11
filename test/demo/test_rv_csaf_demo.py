@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import Iterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -109,10 +109,10 @@ def _canonical_case(
     return case
 
 
-def _proposal() -> as_EmbargoEvent:
+def _proposal(context: str = "urn:test:report") -> as_EmbargoEvent:
     return as_EmbargoEvent(
         id_="urn:test:csaf-proposal",
-        context="urn:test:report",
+        context=context,
         end_time=_DISCLOSURE,
     )
 
@@ -208,14 +208,39 @@ class TestTheReporterSendsACsafReport:
         submit.assert_not_called()
         assert _labelled(outcomes, "Vendor1 publishes") is CheckOutcome.FAILED
 
-    def test_the_opening_attaches_the_document_and_states_no_name(
+    def test_a_refused_submission_is_reported_under_its_own_name(
         self,
     ) -> None:
-        """The shared opening's CSAF form; its plain form states the name."""
+        """The policy passed, so its gate must not carry the submission's fault."""
         state = story_state(REPORTER, VENDOR)
-        document: dict[str, JsonValue] = {
-            "document": {"title": CSAF_REPORT_TITLE}
-        }
+
+        with (
+            patch.object(demo, "publish_embargo_policy"),
+            patch.object(
+                demo,
+                "reporter_tells_the_vendor",
+                side_effect=AssertionError("submit-report refused"),
+            ),
+            _checks() as outcomes,
+        ):
+            demo.the_reporter_sends_a_csaf_report(state)
+
+        assert (
+            _labelled(outcomes, "Reporter sends Vendor1")
+            is CheckOutcome.FAILED
+        )
+        assert _labelled(outcomes, "Vendor1 publishes") is CheckOutcome.PASSED
+
+    @pytest.mark.parametrize(
+        "document",
+        [None, {"document": {"title": CSAF_REPORT_TITLE}}],
+        ids=["plain-report", "csaf-report"],
+    )
+    def test_the_opening_passes_on_the_document_or_none(
+        self, document: dict[str, JsonValue] | None
+    ) -> None:
+        """One submission call: the CSAF form attaches it, the plain form none."""
+        state = story_state(REPORTER, VENDOR)
         report, offer, case = MagicMock(), MagicMock(), mock_case()
 
         with (
@@ -239,18 +264,40 @@ class TestTheReporterSendsACsafReport:
                 state, csaf_document=document
             )
 
+        submits.assert_called_once()
         kwargs = submits.call_args.kwargs
         assert kwargs["csaf_document"] is document
-        assert kwargs["report_name"] is None
-        assert "proposed_embargo_end_time" not in kwargs
+        assert set(kwargs) == {
+            "receiver_client",
+            "reporter",
+            "receiver",
+            "reporter_client",
+            "csaf_document",
+        }
         assert state.offer is offer
 
 
 @pytest.mark.spec("DEMOMA-28-002")
-def test_the_submission_forwards_the_document_to_the_trigger() -> None:
-    """reporter_submits_report passes the document and no name to submit-report."""
-    document: dict[str, JsonValue] = {"document": {"title": CSAF_REPORT_TITLE}}
-
+@pytest.mark.parametrize(
+    ("document", "report_name", "sent_name"),
+    [
+        (None, None, workflow_report._DEMO_REPORT_NAME),
+        (None, "Stated name", "Stated name"),
+        ({"document": {"title": CSAF_REPORT_TITLE}}, None, None),
+        (
+            {"document": {"title": CSAF_REPORT_TITLE}},
+            "Stated name",
+            "Stated name",
+        ),
+    ],
+    ids=["plain", "plain-named", "csaf-unnamed", "csaf-named"],
+)
+def test_the_submission_states_a_name_only_when_it_has_one(
+    document: dict[str, JsonValue] | None,
+    report_name: str | None,
+    sent_name: str | None,
+) -> None:
+    """With a document and no name the trigger names the report (CSAF-04-010)."""
     with (
         patch.object(workflow_report, "_provision_case_actor"),
         patch.object(
@@ -269,13 +316,13 @@ def test_the_submission_forwards_the_document_to_the_trigger() -> None:
             reporter=MagicMock(),
             receiver=MagicMock(),
             reporter_client=MagicMock(),
-            report_name=None,
+            report_name=report_name,
             csaf_document=document,
         )
 
     kwargs = submit_report.call_args.kwargs
     assert kwargs["csaf_document"] is document
-    assert kwargs["report_name"] is None
+    assert kwargs["report_name"] == sent_name
     assert kwargs["proposed_embargo_end_time"] is None
 
 
@@ -291,37 +338,24 @@ class TestTheCaseStartsFromTheCsafReport:
     @contextlib.contextmanager
     def _run(
         self, *, case: MagicMock, proposal: object
-    ) -> Iterator[tuple[dict[str, CheckOutcome], dict[str, MagicMock]]]:
+    ) -> Iterator[tuple[dict[str, CheckOutcome], dict[str, Any]]]:
         state = _state()
+        state.report.id_ = "urn:test:report"
         state.offer.proposed_embargo = proposal
         state.case_actor_client.actor_id = "urn:test:case-actor"
-        active, revision = MagicMock(), MagicMock()
         with (
             patch.object(demo, "required_participants_are_present") as m1,
             patch.object(
                 demo, "verify_case_actor_holds_records", return_value=case
-            ) as holds,
-            patch.object(
-                demo, "verify_reporter_terms_active", return_value=active
-            ) as terms,
-            patch.object(
-                demo, "verify_pending_revision", return_value=revision
-            ) as pending,
-            patch.object(demo, "assert_window_is") as window,
+            ),
+            patch.object(demo, "verify_reporter_terms_won") as won,
             _checks() as outcomes,
         ):
-            mocks = {
-                "m1": m1,
-                "holds": holds,
-                "terms": terms,
-                "pending": pending,
-                "window": window,
-                "active": active,
-                "revision": revision,
-            }
             demo.the_case_starts_from_the_csaf_report(state)
-            mocks["case_actor_client"] = state.case_actor_client
-        yield outcomes, mocks
+        yield (
+            outcomes,
+            {"m1": m1, "won": won, "client": state.case_actor_client},
+        )
 
     def test_a_case_built_from_the_document_passes_every_check(self) -> None:
         case = _canonical_case()
@@ -330,19 +364,16 @@ class TestTheCaseStartsFromTheCsafReport:
 
         assert set(outcomes.values()) == {CheckOutcome.PASSED}, outcomes
         assert mocks["m1"].call_args.kwargs["check"].startswith("M1: ")
-        client = mocks["case_actor_client"]
-        assert mocks["terms"].call_args.args == (
-            client,
+        won = mocks["won"]
+        assert won.call_args.args == (
+            mocks["client"],
             "urn:test:case-actor",
             case,
             "urn:test:csaf-proposal",
             _DISCLOSURE,
         )
-        assert mocks["pending"].call_args.args[2:] == (case, mocks["active"])
-        assert mocks["window"].call_args.args[:2] == (
-            mocks["revision"],
-            VENDOR_DEFAULT_EMBARGO,
-        )
+        assert won.call_args.kwargs["default"] == VENDOR_DEFAULT_EMBARGO
+        assert won.call_args.kwargs["revision_check"].startswith("M3: ")
 
     @pytest.mark.parametrize(
         "case",
@@ -368,8 +399,16 @@ class TestTheCaseStartsFromTheCsafReport:
             pass
 
         assert _labelled(outcomes, "M3: the Offer") is CheckOutcome.FAILED
-        mocks["terms"].assert_not_called()
-        mocks["pending"].assert_not_called()
+        mocks["won"].assert_not_called()
+
+    def test_terms_about_another_subject_fail_m3(self) -> None:
+        with self._run(
+            case=_canonical_case(), proposal=_proposal("urn:test:other")
+        ) as (outcomes, mocks):
+            pass
+
+        assert _labelled(outcomes, "M3: the Offer") is CheckOutcome.FAILED
+        mocks["won"].assert_not_called()
 
     def test_a_canonical_case_that_cannot_be_read_skips_m2_and_m3(
         self,
@@ -382,20 +421,14 @@ class TestTheCaseStartsFromTheCsafReport:
                 "verify_case_actor_holds_records",
                 side_effect=AssertionError("absent from the CaseActor"),
             ),
-            patch.object(demo, "verify_reporter_terms_active") as terms,
+            patch.object(demo, "verify_reporter_terms_won") as won,
             _checks() as outcomes,
         ):
             demo.the_case_starts_from_the_csaf_report(state)
 
-        terms.assert_not_called()
+        won.assert_not_called()
         assert not any(label.startswith("M2") for label in outcomes)
         assert (
             _labelled(outcomes, "Dedicated case-actor container")
             is CheckOutcome.FAILED
         )
-
-
-def test_the_disclosure_date_is_the_shorter_term() -> None:
-    """The fixture's date must win shortest-wins against the Vendor's default."""
-    assert _DISCLOSURE - _WRITTEN < VENDOR_DEFAULT_EMBARGO
-    assert _WRITTEN + timedelta(days=1) < _DISCLOSURE

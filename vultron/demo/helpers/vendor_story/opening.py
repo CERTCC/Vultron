@@ -125,22 +125,12 @@ def reporter_tells_the_vendor(
     reporter = state.actor(REPORTER).actor
     vendor = state.actor(VENDOR).actor
     owner_client = state.client(VENDOR)
-    report, offer = (
-        reporter_submits_report(
-            receiver_client=owner_client,
-            reporter=reporter,
-            receiver=vendor,
-            reporter_client=state.client(REPORTER),
-        )
-        if csaf_document is None
-        else reporter_submits_report(
-            receiver_client=owner_client,
-            reporter=reporter,
-            receiver=vendor,
-            reporter_client=state.client(REPORTER),
-            report_name=None,
-            csaf_document=csaf_document,
-        )
+    report, offer = reporter_submits_report(
+        receiver_client=owner_client,
+        reporter=reporter,
+        receiver=vendor,
+        reporter_client=state.client(REPORTER),
+        csaf_document=csaf_document,
     )
     case = run_direct_path_rm_triage(
         receiver_client=owner_client,

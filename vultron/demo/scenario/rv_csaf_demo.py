@@ -62,9 +62,8 @@ from vultron.demo.helpers.csaf_report import (
 )
 from vultron.demo.helpers.embargo import publish_embargo_policy
 from vultron.demo.helpers.embargo_outcome import (
-    assert_window_is,
-    verify_pending_revision,
-    verify_reporter_terms_active,
+    offered_terms,
+    verify_reporter_terms_won,
 )
 from vultron.demo.helpers.story import (
     StoryProp,
@@ -99,7 +98,6 @@ from vultron.demo.utils import (
     setup_demo_logging,
 )
 from vultron.demo.wall_clock import from_now
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -172,9 +170,11 @@ def the_reporter_sends_a_csaf_report(state: StoryState) -> None:
     vendor-first scenario (:func:`~vultron.demo.helpers.vendor_story\
     .reporter_tells_the_vendor`).
 
-    The policy is a ``demo_gate``: without it the document's date wins
-    uncontested, so the M3 check would read a case this scenario does not
-    describe (DEMOCI-01-011).
+    The policy is a ``demo_gate`` with the submission nested in it: without
+    the policy the document's date wins uncontested, so the M3 check would
+    read a case this scenario does not describe (DEMOCI-01-011).  The
+    submission is a gate of its own, so a refused submission is reported
+    under its own name and not the policy's.
     """
     with demo_gate(
         f"{VENDOR_LABEL} publishes its default embargo policy"
@@ -185,11 +185,14 @@ def the_reporter_sends_a_csaf_report(state: StoryState) -> None:
             state.actor(VENDOR).actor,
             VENDOR_DEFAULT_EMBARGO,
         )
-        written = from_now(timedelta())
-        state.keep(THE_CSAF_DISCLOSURE_DATE, csaf_disclosure_date(written))
-        reporter_tells_the_vendor(
-            state, csaf_document=csaf_vulnerability_report(written)
-        )
+        with demo_gate(
+            f"Reporter sends {VENDOR_LABEL} a CSAF vulnerability report"
+        ):
+            written = from_now(timedelta())
+            state.keep(THE_CSAF_DISCLOSURE_DATE, csaf_disclosure_date(written))
+            reporter_tells_the_vendor(
+                state, csaf_document=csaf_vulnerability_report(written)
+            )
 
 
 def the_case_starts_from_the_csaf_report(state: StoryState) -> None:
@@ -241,34 +244,33 @@ def _the_embargo_ends_at_the_disclosure_date(
     The trigger stated the document's ``disclosure_date`` as the Offer's
     ``proposedEmbargo`` (CSAF-04-010), and the CASE_MANAGER activated it as
     the shorter term, registering the Vendor's 30-day default as the pending
-    revision (EP-04-003, CSAF-03-001).
+    revision (EP-04-003, CSAF-03-001).  The Offer's terms are a gate: the
+    embargo checks compare against them.
     """
-    proposal = state.offer.proposed_embargo
-    with demo_check(
+    with demo_gate(
         "M3: the Offer proposes the CSAF disclosure date as the embargo end"
         " (CSAF-04-010)"
     ):
-        if not isinstance(proposal, as_EmbargoEvent):
-            raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
-                "the Offer carries no proposedEmbargo; the trigger did not"
-                " fill the embargo end from the CSAF disclosure date"
+        proposal = offered_terms(state.offer, state.report.id_)
+        case_actor_client = state.case_actor_client
+        case_actor_id = case_actor_client.actor_id
+        if case_actor_id is None:
+            raise AssertionError(
+                "the case-actor client is bound to no actor, so the"
+                " CaseActor's store cannot be read (ADR-0073)"
             )
-    if not isinstance(proposal, as_EmbargoEvent):
-        return
-    case_actor_client = state.case_actor_client
-    case_actor_id = case_actor_client.actor_id
-    assert case_actor_id is not None  # verify_case_actor_holds_records checked
-    active = verify_reporter_terms_active(
-        case_actor_client, case_actor_id, case, proposal.id_, disclosure
-    )
-    revision = verify_pending_revision(
-        case_actor_client, case_actor_id, case, active
-    )
-    with demo_check(
-        f"M3: the pending revision runs the {VENDOR_LABEL}'s"
-        f" {VENDOR_DEFAULT_EMBARGO.days}-day default (shortest-wins)"
-    ):
-        assert_window_is(revision, VENDOR_DEFAULT_EMBARGO, "Pending")
+        verify_reporter_terms_won(
+            case_actor_client,
+            case_actor_id,
+            case,
+            proposal.id_,
+            disclosure,
+            default=VENDOR_DEFAULT_EMBARGO,
+            revision_check=(
+                f"M3: the pending revision runs the {VENDOR_LABEL}'s"
+                f" {VENDOR_DEFAULT_EMBARGO.days}-day default (shortest-wins)"
+            ),
+        )
 
 
 def _dump_ledgers(state: StoryState) -> None:
