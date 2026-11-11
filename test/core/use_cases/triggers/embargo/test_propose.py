@@ -141,7 +141,7 @@ def test_propose_embargo_refuses_an_end_not_after_the_act(
 
     if refused:
         with pytest.raises(VultronValidationError, match="in the future"):
-            use_case.execute()
+            run_in_act(use_case)
         assert list(finder_dl.list_objects("EmbargoEvent")) == []
     else:
-        assert use_case.execute().activity is not None
+        assert run_in_act(use_case).activity is not None

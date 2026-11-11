@@ -1179,12 +1179,14 @@ class TestSubmitReportProposedEmbargo:
             proposed_embargo_end_time=ACT_AT + offset,
         )
         with pytest.raises(VultronValidationError, match="in the future"):
-            SvcSubmitReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                clock=FixedClock(ACT_AT),
-            ).execute()
+            run_in_act(
+                SvcSubmitReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=FixedClock(ACT_AT),
+                )
+            )
 
         assert list(self.dl.list_objects("VulnerabilityReport")) == []
         assert list(self.dl.list_objects("EmbargoEvent")) == []
@@ -1201,16 +1203,14 @@ class TestSubmitReportProposedEmbargo:
             recipient_id=self.vendor.id_,
             proposed_embargo_end_time=end,
         )
-        offer = (
+        offer = run_in_act(
             SvcSubmitReportUseCase(
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
                 clock=FixedClock(ACT_AT),
             )
-            .execute()
-            .offer
-        )
+        ).offer
 
         assert offer is not None
         assert "proposedEmbargo" in offer

@@ -16,7 +16,6 @@
 import json
 from typing import Any, cast
 
-from test.support.act_clock import ACT_AT
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import (
@@ -383,7 +382,12 @@ def refusal_notice() -> Scenario:
     net = _noted("refusal-notice")
     refused_add = _note_activity(net, BYSTANDER, "different", tag="2")
     record_pending_assertion(
-        BYSTANDER, net.case_id, "add_note_to_case", refused_add.id_, at=ACT_AT
+        BYSTANDER,
+        net.case_id,
+        "add_note_to_case",
+        refused_add.id_,
+        # Sent just now: the network's acts run at the wall clock.
+        at=now_utc(),
     )
     verdict = net.receive(MANAGER, json.loads(dump_outbound_body(refused_add)))
     assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason

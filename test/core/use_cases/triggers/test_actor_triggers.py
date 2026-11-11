@@ -1901,11 +1901,11 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
 
         if refused:
             with pytest.raises(VultronValidationError, match="in the future"):
-                use_case.execute()
+                run_in_act(use_case)
             assert dl.outbox_list() == []
             assert dl.read(transferee_id) is None
         else:
-            assert use_case.execute().activity is not None
+            assert run_in_act(use_case).activity is not None
             assert dl.read(transferee_id) is not None
 
     @pytest.mark.spec("CM-24-004", "CLP-10-072")

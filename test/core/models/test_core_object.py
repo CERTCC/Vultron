@@ -11,6 +11,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 import vultron
+from test.support.act_clock import ACT_AT
 from test.support.core_vocab import restore_core_registries
 from vultron.core.models import (
     CORE_VOCABULARY,
@@ -619,6 +620,8 @@ def test_core_object_drops_alias_shadowed_field_name_twin():
         case_id="urn:uuid:case-dedup",
         log_object_id="urn:uuid:logobj-dedup",
         semantic_type="RS",
+        published=ACT_AT,
+        received_at=ACT_AT,
     )
     dumped = entry.model_dump(mode="json")
     assert "id_" in dumped  # the dump uses the Python field name
@@ -644,6 +647,8 @@ def test_case_ledger_entry_derives_id_from_wire_spelled_coordinates():
             "logIndex": 3,
             "logObjectId": "urn:uuid:logobj-wire",
             "semanticType": "RS",
+            "published": ACT_AT,
+            "receivedAt": ACT_AT,
         }
     )
     assert entry.id_ == "urn:uuid:case-wire/log/3"
