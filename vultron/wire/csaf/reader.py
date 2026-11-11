@@ -296,14 +296,15 @@ class _FieldReader:
         required: tuple[str, ...],
         what: str,
     ) -> None:
-        """Skip the *what* at *path* for each *required* key it lacks.
+        """Skip *what* at *path* when it lacks a *required* key.
 
-        A key that is present but unreadable was already skipped by
+        *what* names the entry with its article, such as ``"an id"``.  A
+        key that is present but unreadable was already skipped by
         :meth:`_text`, so it is not named twice.
         """
         missing = [key for key in required if key not in item]
         if missing:
-            self._skip(path, f"a {what} without {' or '.join(missing)}")
+            self._skip(path, f"{what} without {' or '.join(missing)}")
 
     def _object(
         self, container: dict[str, JsonValue], key: str, path: str
@@ -525,7 +526,9 @@ class _FieldReader:
             system_name = self._text(item, "system_name", here)
             text = self._text(item, "text", here)
             if system_name is None or text is None:
-                self._skip_missing(here, item, ("system_name", "text"), "id")
+                self._skip_missing(
+                    here, item, ("system_name", "text"), "an id"
+                )
                 continue
             ids.append(
                 ClaimedVulnerabilityId(system_name=system_name, text=text)
@@ -541,7 +544,7 @@ class _FieldReader:
             category = self._text(item, "category", here)
             text = self._text(item, "text", here)
             if category is None or text is None:
-                self._skip_missing(here, item, ("category", "text"), "note")
+                self._skip_missing(here, item, ("category", "text"), "a note")
                 continue
             if category not in _NOTE_CATEGORIES:
                 self._skip(

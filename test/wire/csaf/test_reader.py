@@ -424,7 +424,9 @@ def test_each_unreadable_field_is_skipped_and_named(
 
     reading = read_csaf_document(_DOCUMENT_ID, data)
 
-    assert skipped_path in [s.path for s in reading.skipped]
+    # Named once: a key that is present but unreadable is not named again
+    # for the entry that lacks it.
+    assert [s.path for s in reading.skipped].count(skipped_path) == 1
     assert all(s.reason for s in reading.skipped)
 
 

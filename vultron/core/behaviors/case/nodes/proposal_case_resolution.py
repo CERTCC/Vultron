@@ -46,9 +46,11 @@ from vultron.core.models._helpers import (
     project_wire_snapshot_to_core,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import PxaDimension
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.report_case_inputs import (
     ReportCaseInputs,
@@ -246,9 +248,6 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         # The new case, its items and its references are all stamped at the
         # act's instant, so no clock is read below its edge (ADR-0176).
         published = self._require_act_instant()
-        case = self._new_case(inputs, published=published)
-        if self._report_id is not None:
-            case.vulnerability_reports.append(self._report_id)
         items = [
             vulnerability_item_from_claims(vul, published=published)
             for vul in inputs.item_vulnerabilities
@@ -257,10 +256,9 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
             case_reference_from_claim(ref, published=published)
             for ref in inputs.references
         ]
-        # Each item and reference is an object of its own that the case
-        # lists by id, as it lists its reports (CM-05-021).
-        case.vulnerability_items.extend(item.id_ for item in items)
-        case.case_references.extend(ref.id_ for ref in references)
+        case = self._new_case(
+            inputs, published=published, items=items, references=references
+        )
 
         try:
             for owned in (*items, *references):
@@ -285,7 +283,12 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         return Status.SUCCESS
 
     def _new_case(
-        self, inputs: ReportCaseInputs, *, published: datetime
+        self,
+        inputs: ReportCaseInputs,
+        *,
+        published: datetime,
+        items: list[VulnerabilityItem],
+        references: list[CaseReference],
     ) -> VulnerabilityCase:
         """The new case, starting from its report's inputs.
 
@@ -296,9 +299,10 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
         transition: no status precedes it.  An exploit made public makes the
         public aware (the pX to PX invariant), so X starts with P.
 
-        The document's vulnerability items and case references
-        (CSAF-03-008, CSAF-03-009) are not built here: :meth:`update`
-        builds, stores and lists them.
+        The case lists its report, and the document's vulnerability items
+        and case references (CSAF-03-008, CSAF-03-009), by id: each is an
+        object of its own, as its reports are (CM-05-021).  :meth:`update`
+        builds and stores them.
         """
         case_id = new_object_id()
         pxa = CS_pxa(
@@ -320,6 +324,11 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
             attributed_to=self._owner_id,
             name=inputs.name,
             summary=inputs.summary,
+            vulnerability_reports=(
+                [self._report_id] if self._report_id is not None else []
+            ),
+            vulnerability_items=[item.id_ for item in items],
+            case_references=[ref.id_ for ref in references],
             case_statuses=[
                 CaseStatus(
                     context=case_id,

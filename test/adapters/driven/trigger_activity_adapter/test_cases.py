@@ -989,6 +989,40 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
         assert embedded["id"] == report.id_
         assert embedded["content"] == "PoC"
 
+    @pytest.mark.spec("AKM-02-004", "CM-05-021")
+    def test_held_items_and_references_are_embedded_inline(self, adapter, dl):
+        """A participant seeded from the Announce cannot read the case's
+        items and references unless they travel with it."""
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+        from vultron.core.models.case_reference import CaseReference
+        from vultron.core.models.vulnerability_item import VulnerabilityItem
+
+        item = make(VulnerabilityItem, cve="CVE-2026-0001")
+        ref = make(CaseReference, url={"href": "https://example.org/a"})
+        dl.create(item)
+        dl.create(ref)
+        case = self._case_naming(dl, [])
+        case.vulnerability_items.append(item.id_)
+        case.case_references.append(ref.id_)
+        dl.save(case)
+
+        activity_id = adapter.announce_vulnerability_case(
+            case_id=case.id_,
+            actor=_ACTOR,
+            context_id=_CONTEXT_ID,
+            to=[_PEER],
+        )
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        [carried_item] = body["object"]["vulnerabilityItems"]
+        [carried_ref] = body["object"]["caseReferences"]
+        assert (carried_item["id"], carried_item["cve"]) == (
+            item.id_,
+            "CVE-2026-0001",
+        )
+        assert carried_ref["url"]["href"] == "https://example.org/a"
+
 
 class TestRejectCaseProposal:
     """CP-05-004: the case actor service's refusal of a proposal."""

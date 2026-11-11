@@ -35,12 +35,19 @@ from test.core.use_cases.received._csaf_receipt import (
     csaf,
     document,
 )
+from test.support.act_clock import clock_at
+from test.support.act_runner import run_in_act
 from test.support.objects import make
+from test.support.received import received_event
 from test.wire.csaf._documents import section, vulnerability_report_document
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_claims import ClaimOutcome
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -50,6 +57,9 @@ from vultron.core.models.vulnerability_item import (
 )
 from vultron.core.states.cs.states import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.use_cases.received.case.create import (
+    CreateCaseReceivedUseCase,
+)
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -310,6 +320,9 @@ def test_csaf_on_a_report_that_already_has_a_case_changes_no_case_data() -> (
     assert unchanged.em_state is case.em_state
     assert unchanged.vulnerability_items == case.vulnerability_items == []
     assert unchanged.case_references == case.case_references == []
+    # Nor stores an item or reference the case does not list.
+    assert list(manager.dl.list_objects("VulnerabilityItem")) == []
+    assert list(manager.dl.list_objects("CaseReference")) == []
     assert manager.records() == []
 
 
@@ -607,6 +620,37 @@ def test_the_case_create_carries_the_items_and_references_inline() -> None:
     assert isinstance(carried, VulnerabilityCase)
     assert carried.vulnerability_items == _items(manager, case)
     assert carried.case_references == _references(manager, case)
+
+
+@pytest.mark.spec("CSAF-03-008", "CSAF-03-009", "AKM-02-004")
+def test_the_owner_replica_holds_the_items_and_references_it_was_sent() -> (
+    None
+):
+    """The owner seeds its replica from the Create, so its copy of the case
+    holds the items and references the CASE_MANAGER stored (AKM-02-004)."""
+    receipt = Receipt(csaf(_two_vulnerabilities()))
+    manager, case = _created(receipt)
+    event = received_event(
+        parse_activity(manager.case_create_body()),
+        receiving_actor_id=VENDOR,
+    )
+    assert isinstance(event, CreateCaseReceivedEvent)
+
+    with clock_at(RECEIVED_AT):
+        result = run_in_act(
+            CreateCaseReceivedUseCase(
+                receipt.dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(receipt.dl),
+            ),
+            at=RECEIVED_AT,
+        )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    replica = receipt.dl.read(case.id_)
+    assert isinstance(replica, VulnerabilityCase)
+    assert replica.vulnerability_items == _items(manager, case)
+    assert replica.case_references == _references(manager, case)
 
 
 @pytest.mark.spec("CSAF-03-009")
