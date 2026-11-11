@@ -195,12 +195,18 @@ groups:
   - id: AF-04-001
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: Every factory function MUST wrap Pydantic `ValidationError` in `VultronActivityConstructionError`
     rationale: >-
       A caller must not need to know that the factories use Pydantic. One domain
       exception for every construction failure gives callers one type to catch. The
       Pydantic error stays attached as its cause, for diagnosis.
+    verification: >-
+      `test/wire/as2/factories/test_construct.py` asserts that `build_activity` raises
+      the construction error with the `ValidationError` as its cause, for a
+      constructor failure and for an argument expression that refuses; that sampled
+      factories (`_named_case`'s refusal, the fault factory, the Offer participant
+      and the Invite stub) raise it; and that no factory-package scope catches
+      `ValidationError` itself outside a pinned exemption set.
   - id: AF-04-002
     priority: MUST
     kind: project
@@ -226,6 +232,9 @@ groups:
       A caller can catch the exception and handle it, and the failure is then hidden. A
       WARNING at the point of failure records which factory failed and why, even when a
       caller hides the exception.
+    verification: >-
+      `test/wire/as2/factories/test_construct.py` asserts that `build_activity` logs a
+      WARNING naming the factory before it raises, and that each report factory does.
 - id: AF-05
   title: Internal Vocabulary Classes
   specs:

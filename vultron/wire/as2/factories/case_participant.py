@@ -22,15 +22,11 @@ imported here and MUST NOT be imported by callers.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
-
-from pydantic import ValidationError
-
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
 )
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case_participant import (
     _AddParticipantToCaseActivity,
     _AddStatusToParticipantActivity,
@@ -52,8 +48,6 @@ from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def create_participant_activity(
@@ -79,17 +73,15 @@ def create_participant_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _CreateParticipantActivity(
-            object_=participant, target=case_target_ref(target), **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "create_participant_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "create_participant_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "create_participant_activity",
+        _CreateParticipantActivity,
+        lambda: {
+            "object_": participant,
+            "target": case_target_ref(target),
+            **kwargs,
+        },
+    )
 
 
 def update_participant_activity(
@@ -114,15 +106,11 @@ def update_participant_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _UpdateParticipantActivity(object_=participant, **kwargs)
-    except ValidationError as exc:
-        logger.warning(
-            "update_participant_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "update_participant_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "update_participant_activity",
+        _UpdateParticipantActivity,
+        lambda: {"object_": participant, **kwargs},
+    )
 
 
 def add_status_to_participant_activity(
@@ -145,17 +133,15 @@ def add_status_to_participant_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AddStatusToParticipantActivity(
-            object_=status, target=case_target_ref(target), **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "add_status_to_participant_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "add_status_to_participant_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "add_status_to_participant_activity",
+        _AddStatusToParticipantActivity,
+        lambda: {
+            "object_": status,
+            "target": case_target_ref(target),
+            **kwargs,
+        },
+    )
 
 
 def add_participant_to_case_activity(
@@ -178,19 +164,15 @@ def add_participant_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AddParticipantToCaseActivity(
-            object_=participant,
-            target=case_target_ref(target),
+    return build_activity(
+        "add_participant_to_case_activity",
+        _AddParticipantToCaseActivity,
+        lambda: {
+            "object_": participant,
+            "target": case_target_ref(target),
             **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "add_participant_to_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "add_participant_to_case_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def remove_participant_from_case_activity(
@@ -215,17 +197,12 @@ def remove_participant_from_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RemoveParticipantFromCaseActivity(
-            object_=participant,
-            target=case_target_ref(target),
+    return build_activity(
+        "remove_participant_from_case_activity",
+        _RemoveParticipantFromCaseActivity,
+        lambda: {
+            "object_": participant,
+            "target": case_target_ref(target),
             **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "remove_participant_from_case_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "remove_participant_from_case_activity: invalid arguments"
-        ) from exc
+        },
+    )

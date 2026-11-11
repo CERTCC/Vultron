@@ -17,11 +17,8 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
-
-from pydantic import ValidationError
-
 from vultron.core.models.actor import CoreActor
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -31,8 +28,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
-
-logger = logging.getLogger(__name__)
 
 
 def create_case_proposal_activity(
@@ -76,20 +71,11 @@ def create_case_proposal_activity(
             f" proposal's attributed_to {proposal.attributed_to!r}"
             " (CP-01-010)"
         )
-    try:
-        return as_Create(
-            actor=actor,
-            object_=proposal,
-            to=to,
-            **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "create_case_proposal_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "create_case_proposal_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "create_case_proposal_activity",
+        as_Create,
+        lambda: {"actor": actor, "object_": proposal, "to": to, **kwargs},
+    )
 
 
 def accept_case_proposal_activity(
@@ -117,20 +103,11 @@ def accept_case_proposal_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return as_Accept(
-            actor=actor_id,
-            object_=proposal,
-            to=to,
-            **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "accept_case_proposal_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "accept_case_proposal_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "accept_case_proposal_activity",
+        as_Accept,
+        lambda: {"actor": actor_id, "object_": proposal, "to": to, **kwargs},
+    )
 
 
 def reject_case_proposal_activity(
@@ -158,17 +135,8 @@ def reject_case_proposal_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return as_Reject(
-            actor=actor_id,
-            object_=proposal,
-            to=to,
-            **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "reject_case_proposal_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "reject_case_proposal_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "reject_case_proposal_activity",
+        as_Reject,
+        lambda: {"actor": actor_id, "object_": proposal, "to": to, **kwargs},
+    )

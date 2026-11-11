@@ -15,8 +15,12 @@ Code outside `vultron/wire/as2/vocab/activities/` and
 
 ## Error Handling
 
-Catch `ValidationError`, raise `VultronActivityConstructionError` (chains
-`__cause__`). See `vultron/wire/as2/factories/errors.py`.
+Build the activity with `build_activity(label, cls, lambda: {...})`
+(`_construct.py`): it logs a WARNING and raises
+`VultronActivityConstructionError` (chains `__cause__`) on a `ValidationError`
+from the constructor or from any argument expression inside the lambda. Do not
+write a factory's own `try/except ValidationError`;
+`test/wire/as2/factories/test_construct.py` refuses one.
 
 ## Import Rules
 

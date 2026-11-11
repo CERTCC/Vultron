@@ -17,10 +17,7 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
 from datetime import datetime, timedelta
-
-from pydantic import ValidationError
 
 from vultron.core.models._helpers import as_utc
 from vultron.core.models.rsvp_deadline import (
@@ -28,6 +25,7 @@ from vultron.core.models.rsvp_deadline import (
     RsvpDeadlineClamp,
     resolve_rsvp_deadline,
 )
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
@@ -49,8 +47,6 @@ from vultron.wire.as2.vocab.objects.embargo_event import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def _published_instant(published: object) -> datetime:
@@ -154,17 +150,11 @@ def em_propose_embargo_activity(
                 f" {deadline.effective.isoformat()} (EP-07-006)"
             )
         kwargs["end_time"] = rsvp_deadline
-    try:
-        return _EmProposeEmbargoActivity(
-            object_=embargo, context=context, **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "em_propose_embargo_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "em_propose_embargo_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "em_propose_embargo_activity",
+        _EmProposeEmbargoActivity,
+        lambda: {"object_": embargo, "context": context, **kwargs},
+    )
 
 
 def em_accept_embargo_activity(
@@ -198,19 +188,15 @@ def em_accept_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _EmAcceptEmbargoActivity(
-            object_=as_answered(_EmProposeEmbargoActivity, proposal),
-            context=context,
+    return build_activity(
+        "em_accept_embargo_activity",
+        _EmAcceptEmbargoActivity,
+        lambda: {
+            "object_": as_answered(_EmProposeEmbargoActivity, proposal),
+            "context": context,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "em_accept_embargo_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "em_accept_embargo_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def em_reject_embargo_activity(
@@ -246,19 +232,15 @@ def em_reject_embargo_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _EmRejectEmbargoActivity(
-            object_=as_answered(_EmProposeEmbargoActivity, proposal),
-            context=context,
+    return build_activity(
+        "em_reject_embargo_activity",
+        _EmRejectEmbargoActivity,
+        lambda: {
+            "object_": as_answered(_EmProposeEmbargoActivity, proposal),
+            "context": context,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "em_reject_embargo_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "em_reject_embargo_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def em_undo_embargo_invite_activity(
@@ -288,16 +270,12 @@ def em_undo_embargo_invite_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _EmUndoEmbargoInviteActivity(
-            object_=as_answered(_EmProposeEmbargoActivity, invite),
-            context=context,
+    return build_activity(
+        "em_undo_embargo_invite_activity",
+        _EmUndoEmbargoInviteActivity,
+        lambda: {
+            "object_": as_answered(_EmProposeEmbargoActivity, invite),
+            "context": context,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "em_undo_embargo_invite_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "em_undo_embargo_invite_activity: invalid arguments"
-        ) from exc
+        },
+    )

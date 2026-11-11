@@ -24,6 +24,7 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001, AF-02-001, AF-03-001.
 
 from pydantic import ValidationError
 
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._held import (
     embedded_as_received,
     validated_as,
@@ -69,12 +70,11 @@ def rm_create_report_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RmCreateReportActivity(object_=report, **kwargs)
-    except ValidationError as exc:
-        raise VultronActivityConstructionError(
-            "rm_create_report_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_create_report_activity",
+        _RmCreateReportActivity,
+        lambda: {"object_": report, **kwargs},
+    )
 
 
 def rm_submit_report_activity(
@@ -110,17 +110,16 @@ def rm_submit_report_activity(
             f" {proposed_embargo.context!r} must be the report id"
             f" {report.id_!r} (EP-04-009)"
         )
-    try:
-        return _RmSubmitReportActivity(
-            object_=report,
-            to=[to],
-            proposed_embargo=proposed_embargo,
+    return build_activity(
+        "rm_submit_report_activity",
+        _RmSubmitReportActivity,
+        lambda: {
+            "object_": report,
+            "to": [to],
+            "proposed_embargo": proposed_embargo,
             **kwargs,
-        )
-    except ValidationError as exc:
-        raise VultronActivityConstructionError(
-            "rm_submit_report_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def _as_submit_offer(offer: as_Offer) -> _RmSubmitReportActivity:
@@ -165,13 +164,11 @@ def rm_read_report_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        offer = _as_submit_offer(offer)
-        return _RmReadReportActivity(object_=offer, **kwargs)
-    except ValidationError as exc:
-        raise VultronActivityConstructionError(
-            "rm_read_report_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_read_report_activity",
+        _RmReadReportActivity,
+        lambda: {"object_": _as_submit_offer(offer), **kwargs},
+    )
 
 
 def rm_validate_report_activity(
@@ -198,13 +195,11 @@ def rm_validate_report_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        offer = _as_submit_offer(offer)
-        return _RmValidateReportActivity(object_=offer, **kwargs)
-    except ValidationError as exc:
-        raise VultronActivityConstructionError(
-            "rm_validate_report_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_validate_report_activity",
+        _RmValidateReportActivity,
+        lambda: {"object_": _as_submit_offer(offer), **kwargs},
+    )
 
 
 def rm_invalidate_report_activity(
@@ -231,13 +226,11 @@ def rm_invalidate_report_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        offer = _as_submit_offer(offer)
-        return _RmInvalidateReportActivity(object_=offer, **kwargs)
-    except ValidationError as exc:
-        raise VultronActivityConstructionError(
-            "rm_invalidate_report_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_invalidate_report_activity",
+        _RmInvalidateReportActivity,
+        lambda: {"object_": _as_submit_offer(offer), **kwargs},
+    )
 
 
 def rm_close_report_activity(
@@ -266,13 +259,11 @@ def rm_close_report_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        offer = _as_submit_offer(offer)
-        return _RmCloseReportActivity(object_=offer, **kwargs)
-    except ValidationError as exc:
-        raise VultronActivityConstructionError(
-            "rm_close_report_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_close_report_activity",
+        _RmCloseReportActivity,
+        lambda: {"object_": _as_submit_offer(offer), **kwargs},
+    )
 
 
 def parse_submit_report_offer(
