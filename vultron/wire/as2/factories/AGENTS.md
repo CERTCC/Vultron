@@ -26,7 +26,9 @@ write a factory's own `try/except ValidationError`;
 
 Every factory takes a required keyword `at: datetime`, the instant of the act
 that authors the activity, and `build_activity` sets it as the activity's
-`published` and `updated` (ADR-0176). Pass `published`/`updated` nowhere else.
+`published` and `updated` (ADR-0176). A factory passes `published`/`updated`
+nowhere else; the one activity built outside the factories, the trigger
+adapter's generic `Add` of a stored object, takes the same `at`.
 A trigger-activity or sync port method that builds an activity takes `at` too:
 a tree node passes `self._require_act_instant()`, a trigger `self._at`.
 

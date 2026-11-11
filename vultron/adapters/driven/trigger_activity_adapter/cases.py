@@ -197,7 +197,12 @@ class _CasesMixin:
         threaded to it via ``in_reply_to`` rather than read back from the
         DataLayer.
         """
-        leave = rm_close_case_activity(case=case_id, actor=close_sender, at=at)
+        # Rebuilt from what this actor knows, with no time: the owner stated
+        # the Leave's ``published``, and this actor does not hold it
+        # (AKM-02-006), so every rebuild is the same (OX-06-002).
+        leave = rm_close_case_activity(
+            case=case_id, actor=close_sender, at=at
+        ).model_copy(update={"published": None, "updated": None})
         kwargs: dict[str, Any] = {"actor": actor, "to": [close_sender]}
         if in_reply_to is not None:
             kwargs["in_reply_to"] = in_reply_to

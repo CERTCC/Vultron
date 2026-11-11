@@ -23,6 +23,7 @@ a retried attempt would be false if a later attempt succeeded (ASK-07-007).
 import asyncio
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
@@ -771,6 +772,41 @@ def test_a_startup_replay_that_raises_does_not_stop_the_next_actor(
 
     assert replayed == [_RECEIVER, other_id]
     assert _logged(caplog, _RECEIVER, "stay queued")
+
+
+@pytest.mark.spec("CS-13-002", "ASK-07-010")
+@pytest.mark.usefixtures("outbox_drains")
+def test_a_dead_letter_fault_is_authored_at_its_processing_acts_instant(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The fault held through the attempt keeps that act's instant: the
+    item's arrival stamp, not the time the drain sends it (ADR-0176)."""
+    from vultron.core.models.activity_ids import derived_activity_id
+
+    _max_attempts(monkeypatch, 1)
+    arrived = authored_at()
+    item = add_note_to_case_activity(
+        make(as_Note, content="replayed", context=_CASE),
+        target=_CASE,
+        context=_CASE,
+        actor=_SENDER,
+        to=[_RECEIVER],
+        at=arrived,
+    )
+    assert hold_activity(dl, item, received_at=arrived)
+    dl.inbox_append(item.id_)
+    fault_id = derived_activity_id(
+        "processing-fault",
+        _RECEIVER,
+        item.id_,
+        VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+    )
+
+    _run(dl, _dispatcher(_raises))
+
+    body = read_sealed_body_dict(dl, fault_id)
+    assert body is not None
+    assert datetime.fromisoformat(body["published"]) == arrived
 
 
 @pytest.mark.spec("IE-06-005", "ASK-07-010")

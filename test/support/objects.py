@@ -50,10 +50,11 @@ AUTHOR_TIMES: tuple[str, ...] = ("published", "updated", "start_time")
 def authored_at() -> datetime:
     """The time a test's object or outbound activity is authored at.
 
-    One wall-clock read, the instant ``test/support/act_runner.py`` opens a
-    test's act at.  :func:`make` supplies it for every time left out, and a
-    test passes it as ``at=`` to a factory or a trigger-activity port method,
-    which author an activity at the act's instant (ADR-0176).  Pinning tests
+    One wall-clock read per call: the same clock
+    ``test/support/act_runner.py`` opens a test's act at, read separately.
+    :func:`make` supplies it for every time left out, and a test passes it
+    as ``at=`` to a factory or a trigger-activity port method, which author
+    an activity at the act's instant (ADR-0176).  Pinning tests
     to :data:`~test.support.act_clock.ACT_AT` is a change here and in the
     runner, nowhere else.
     """

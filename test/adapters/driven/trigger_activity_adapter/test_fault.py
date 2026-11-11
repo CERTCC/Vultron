@@ -14,6 +14,7 @@
 """Unit tests for _FaultMixin.emit_processing_fault() in TriggerActivityAdapter."""
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -23,6 +24,7 @@ from test.support.signing import resigned, signed_body
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     is_sealed,
+    read_sealed_body_dict,
     sealed_body_id,
 )
 from vultron.core.models.activity_ids import derived_activity_id
@@ -75,6 +77,23 @@ class TestEmitProcessingFault:
         assert dl.read(fault_id) is None
         assert not is_sealed(dl, fault_id)
         assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CS-13-002")
+    def test_the_fault_and_its_create_are_authored_at_the_acts_instant(
+        self, adapter, dl
+    ):
+        at = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+        activity_id = adapter.emit_processing_fault(
+            actor=_ACTOR,
+            failed_activity_id=_FAILED_ACTIVITY,
+            failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+            to=[_SENDER],
+            at=at,
+        )
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        assert datetime.fromisoformat(body["published"]) == at
+        assert datetime.fromisoformat(body["object"]["published"]) == at
 
     def test_returns_activity_id(self, adapter, dl):
         activity_id = adapter.emit_processing_fault(

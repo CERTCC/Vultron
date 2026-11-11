@@ -14,6 +14,7 @@
 """Unit tests for TriggerActivityAdapter case-domain methods."""
 
 import json
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -151,6 +152,25 @@ class TestDeferCase:
 
 
 class TestAddObjectToCase:
+    @pytest.mark.spec("CS-13-002")
+    def test_the_add_is_authored_at_the_acts_instant(self, adapter, dl):
+        case = _make_case(dl)
+        note = make(as_Note, name="Finding", content="details")
+        dl.create(note)
+        at = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+
+        _, activity_dict = adapter.add_object_to_case(
+            actor=_ACTOR,
+            object_id=note.id_,
+            case_id=case.id_,
+            to=[_PEER],
+            at=at,
+        )
+
+        body = json.loads(activity_dict)
+        assert datetime.fromisoformat(body["published"]) == at
+        assert datetime.fromisoformat(body["updated"]) == at
+
     def test_returns_id_and_dict(self, adapter, dl):
         case = _make_case(dl)
         note = make(as_Note, name="Finding", content="details")

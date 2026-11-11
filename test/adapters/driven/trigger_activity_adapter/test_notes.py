@@ -14,6 +14,7 @@
 """Unit tests for TriggerActivityAdapter note-domain methods."""
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 
@@ -30,6 +31,20 @@ _CASE_ID = "https://example.org/cases/case-001"
 
 
 class TestCreateNote:
+    @pytest.mark.spec("CS-13-002")
+    def test_the_note_is_authored_at_the_acts_instant(self, adapter, dl):
+        at = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+        _, note_dict = adapter.create_note(
+            name="Bug report",
+            content="Detailed findings",
+            context_id=_CASE_ID,
+            attributed_to=_ACTOR,
+            at=at,
+        )
+        body = json.loads(note_dict)
+        assert datetime.fromisoformat(body["published"]) == at
+        assert datetime.fromisoformat(body["updated"]) == at
+
     def test_returns_id_and_dict(self, adapter, dl):
         note_id, note_dict = adapter.create_note(
             name="Bug report",
