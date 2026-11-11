@@ -178,7 +178,7 @@ The walk gives each baseline exactly, as an absorbing Markov chain, with no simu
 Each desideratum takes its baseline from the smallest model that holds its events ([ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md)):
 
 - The twelve original desiderata use the six-event CS model of this page.
-- A desideratum about one vendor, the case's shared events, or the embargo uses a model of one vendor, with the vendor's RM state, the shared events, and the embargo.
+- A desideratum about one vendor, the case's shared events, or the embargo uses a model of one vendor, with the vendor's Report Management (RM) state, the shared events, and the embargo.
 - A desideratum that relates two vendors uses the same model with two vendors.
 
 The walk does not cover a whole case with all of its participants.
