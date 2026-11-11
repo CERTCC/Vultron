@@ -105,7 +105,7 @@ Every call-out point fits a three-level hierarchy:
 Think of the shape as a job description, the capability as the open role, and your implementation as the service hired into that role.
 
 Some capabilities are sub-steps of a larger workflow.
-For example, `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
+For example, `EvaluateCveEligibility` is a step within the broader [ID assignment](#cve-vulnerability-id-assignment) workflow.
 Most capabilities are not nested.
 
 !!! note "Design decisions"

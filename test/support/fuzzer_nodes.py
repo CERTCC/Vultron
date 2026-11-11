@@ -29,6 +29,7 @@ import pkgutil
 
 import vultron.demo.fuzzer as fuzzer_pkg
 from vultron.core.behaviors.call_out.capability import Capability
+from vultron.subclasses import all_subclasses
 
 #: The package every simulation node lives under (BT-16-001).
 FUZZER_PACKAGE = fuzzer_pkg.__name__
@@ -51,14 +52,9 @@ def capability_subclasses(
     modules is reached.
     """
     import_fuzzer_modules()
-    found: set[type[Capability]] = set()
-    pending: list[type[Capability]] = list(base.__subclasses__())
-    while pending:
-        cls = pending.pop()
-        if cls not in found:
-            found.add(cls)
-            pending.extend(cls.__subclasses__())
-    return sorted(found, key=lambda c: f"{c.__module__}.{c.__qualname__}")
+    return sorted(
+        all_subclasses(base), key=lambda c: f"{c.__module__}.{c.__qualname__}"
+    )
 
 
 def fuzzer_capability_classes(
