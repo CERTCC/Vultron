@@ -27,7 +27,12 @@ This guards the ADR-0025 corrected layering: the call-out point seam
 nodes and ``<DOMAIN>_STOCHASTIC`` bundles remain in ``vultron/demo/fuzzer/`` and
 are injected explicitly via ``call_out=``.
 
-Spec: ARCH-01-001, BT-16-001
+Spec: ARCH-01-001, BT-16-001, BT-18-020, BT-18-021
+
+The last two tests check what the import rule implies for the capability
+layer: every capability declaration is core-owned, and every capability
+class in ``vultron/demo/`` binds to one rather than declaring its own
+contract (#3421).
 
 Ratchet pattern
 ---------------
@@ -46,6 +51,8 @@ The set is empty: the core→demo boundary is completely clean.  Keep it that wa
 """
 
 import ast
+
+import pytest
 
 from test.architecture import _corpus
 
@@ -117,3 +124,66 @@ def test_core_does_not_import_demo():
         diff_lines.extend(f"  - {v}" for v in sorted(resolved))
 
     assert actual == KNOWN_VIOLATIONS, "\n\n" + "\n".join(diff_lines)
+
+
+# ---------------------------------------------------------------------------
+# Capability declarations stay in core (BT-18-020, BT-18-021; #3421 AC-5)
+# ---------------------------------------------------------------------------
+
+
+def _demo_capability_classes() -> list[type]:
+    """Every capability class defined under ``vultron/demo/``.
+
+    Imports the whole demo fuzzer package first, so a node defined in any of
+    its modules is reached.
+    """
+    import importlib
+    import pkgutil
+
+    import vultron.demo.fuzzer as fuzzer_pkg
+    from vultron.core.behaviors.call_out.capability import Capability
+
+    for info in pkgutil.walk_packages(
+        fuzzer_pkg.__path__, prefix=f"{fuzzer_pkg.__name__}."
+    ):
+        importlib.import_module(info.name)
+    found: list[type] = []
+    pending: list[type] = list(Capability.__subclasses__())
+    while pending:
+        cls = pending.pop()
+        if cls not in found:
+            found.append(cls)
+            pending.extend(cls.__subclasses__())
+    return [c for c in found if c.__module__.startswith(_DEMO_MODULE)]
+
+
+@pytest.mark.spec("BT-18-020")
+@pytest.mark.spec("BT-18-021")
+def test_no_capability_declaration_lives_in_demo():
+    """A demo capability class binds to a core declaration; none is one.
+
+    So nothing core reads as a capability's contract can come from
+    ``vultron/demo/``, whatever imports a later change adds.
+    """
+    classes = _demo_capability_classes()
+    assert classes, "found no capability classes under vultron/demo/"
+    declared_in_demo = sorted(
+        f"{cls.__module__}.{cls.__qualname__} -> {declaration.__module__}"
+        for cls in classes
+        if (declaration := cls.declaration()) is None
+        or not declaration.__module__.startswith("vultron.core.")
+    )
+    assert declared_in_demo == []
+
+
+@pytest.mark.spec("BT-18-020")
+def test_every_declaration_is_core_owned():
+    from vultron.core.behaviors.call_out.capabilities import (
+        capability_declarations,
+    )
+
+    declarations = capability_declarations()
+    assert declarations
+    assert [
+        d for d in declarations if d.__module__.startswith(_DEMO_MODULE)
+    ] == []

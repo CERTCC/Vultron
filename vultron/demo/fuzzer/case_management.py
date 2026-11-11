@@ -32,17 +32,19 @@ References
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.case_management import (
+    EvaluateCaseProposalCapability,
 )
 from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
-from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
 
-class EvaluateCaseProposal(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
+class EvaluateCaseProposal(
+    EvaluateCaseProposalCapability, AlmostAlwaysSucceed
+):
     """Decide whether to admit an inbound ``Create(CaseProposal)``.
+
+    Simulates :class:`EvaluateCaseProposalCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — a case actor service reviews a proposal and decides
@@ -54,10 +56,6 @@ class EvaluateCaseProposal(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
         proposal is the exceptional outcome for a service an actor was
         configured to trust.
 
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates the proposal from the caller's DataLayer)
-      Output keys: evaluate_case_proposal_verdict: str  (yes only)
-
     Input category: Human decision / policy evaluation.
 
     Success probability: 0.90 (``AlmostAlwaysSucceed``).
@@ -66,10 +64,6 @@ class EvaluateCaseProposal(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     are fully automatable; judging whether a report is substantive enough to
     warrant a coordinated case typically needs human review.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"evaluate_case_proposal_verdict": str}
-    )
 
 
 __all__ = ["EvaluateCaseProposal"]

@@ -19,7 +19,7 @@ subject: implementation
     decision engine, an LLM (large language model) call, or any service that
     can answer the protocol's question at that point.
 
-    For the conceptual model — what call-out points are, what the five
+    For the conceptual model — what call-out points are, what the four
     capability shapes mean, and why the reference implementation uses fuzzer
     stubs during development — see
     [Capability Model](../topics/capability_model/index.md).
@@ -39,8 +39,8 @@ In production, you replace a fuzzer node with a **real capability backend** that
 
 The three-step process is:
 
-1. **Identify** the call-out point you want to implement (find the fuzzer node, read its blackboard contract).
-2. **Implement** a backend factory that satisfies the `CallOutBackendFactory` Protocol.
+1. **Identify** the call-out point you want to implement (find its capability declaration, read its ports).
+2. **Implement** a backend that subclasses the declaration, and so satisfies the `CallOutBackendFactory` Protocol.
 3. **Wire** the backend by passing it through the domain bundle to the tree builder.
 
 ---
@@ -77,32 +77,61 @@ Each fuzzer node's docstring tells you the following:
   therefore what the production default (the deterministic ceiling or floor)
   will be.
 
-### Read the blackboard contract
+### Read the capability declaration
 
-The fuzzer node's docstring contains a **blackboard contract** section
-(BT-18-001). This contract lists the keys the node reads from and writes to
-the shared BT blackboard:
+Each call-out point is a named **capability**, declared once in core under `vultron/core/behaviors/call_out/capabilities/`.
+That package mirrors the fuzzer layout.
+The declaration for a node in `vultron/demo/fuzzer/report_management/validate.py` is in `vultron/core/behaviors/call_out/capabilities/report_management/validate.py`.
+Its name is the fuzzer node's name with `Capability` added.
+The fuzzer node subclasses the declaration, so both answer against the same contract (BT-18-021).
+
+A declaration subclasses one of the four shape base classes, `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability` or `ActuatorCapability`, and declares its blackboard contract as typed ports (BT-18-012):
 
 ```python
-class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
-    """Assess whether the report's source and content are credible.
+from py_trees.ports import PortInformation
 
-    ...
+from vultron.core.behaviors.call_out.capability import EvaluatorCapability
+
+
+class EvaluateReportCredibilityCapability(EvaluatorCapability):
+    """Assess whether the report's source and content are credible.
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates report context from caller's DataLayer)
       Output keys: report_credibility_verdict: str  (yes only)
-    ...
+      Refusal keys: call_out_refusal_reason: str  (no only)
     """
 
-    contract = CallOutContract(outputs={"report_credibility_verdict": str})
+    OUTPUT_PORTS = {
+        "report_credibility_verdict": PortInformation(
+            data_type=str, required=True
+        ),
+    }
 ```
 
-The `contract` class attribute is the capability declaration.
-It names the output keys a *yes* answer carries, and the refusal keys a *no* answer carries.
-Every declaration has a refusal reason key; it is `call_out_refusal_reason` unless the capability names its own.
-Your backend must honor this contract: a *yes* answer carries a value for every declared output key, and nothing else.
-The seam refuses a *yes* that omits a declared key, so the omission is named at your backend and not at a later node.
+The ports are the contract:
+
+- `INPUT_PORTS` are the keys your backend reads while it answers.
+- `OUTPUT_PORTS` are the keys a *yes* answer carries.
+- `REFUSAL_PORTS` are any structured fields a *no* answer carries beside its reason.
+
+Every capability also has a refusal reason key, `call_out_refusal_reason` unless the declaration names its own in `REFUSAL_REASON_KEY`.
+The docstring describes the same ports, and a test checks that the two agree.
+The declaration's `contract` attribute, which the seam checks every answer against, is derived from the ports.
+
+Your backend must honor this contract: a *yes* answer carries a value for every declared output port, and nothing else.
+The seam refuses a *yes* that omits a declared port, so the omission is named at your backend and not at a later node.
+
+### Port types are checked on read and on write
+
+Each port names a concrete class as its `data_type`.
+A declaration that names `object` is refused when it is defined, because such a port would accept any value.
+A value of the wrong type is a wiring error, so it ends the whole tree run as an internal error, not just your node (BTND-03-021):
+
+- your backend's `get_input()` raises `TypeError` when the value on an input port is of the wrong type;
+- the seam raises `CallOutContractError` when a *yes* carries an output of the wrong type.
+
+A tree that would otherwise fall back to another branch does not, so a wrong value is never treated as a missing one.
 
 ---
 
@@ -138,34 +167,22 @@ An *error* leaves the message in holding.
 The next delivery asks again, and its answer is the decision.
 A backend that answers *no* for an outage turns that outage into a permanent refusal.
 
-### Subclass `CallOutBackend`
+### Subclass the capability declaration
 
-Subclass `CallOutBackend`, set `contract`, and implement `answer()`.
+Subclass the capability's declaration and implement `answer()`.
+Your backend takes the declaration's ports as they are, and a subclass that declares ports again is refused when it is defined (BT-18-021).
 `answer()` returns a `CallOutAnswer`, which you build with `CallOutAnswer.yes()`, `CallOutAnswer.no()` or `CallOutAnswer.error()`.
 Do not override `update()`: the base class holds your answer for the seam.
 
 ```python
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out import (
-    CallOutAnswer,
-    CallOutBackend,
-    CallOutContract,
+from vultron.core.behaviors.call_out import CallOutAnswer
+from vultron.core.behaviors.call_out.capabilities.report_management.validate import (
+    EvaluateReportCredibilityCapability,
 )
 
 
-class MyCredibilityEvaluator(CallOutBackend):
-    """Real credibility evaluator backed by a reputation scoring service.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries reputation service using DataLayer context)
-      Output keys: report_credibility_verdict: str  (yes only)
-      Refusal keys: call_out_refusal_reason: str  (no only)
-    """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"report_credibility_verdict": str}
-    )
+class MyCredibilityEvaluator(EvaluateReportCredibilityCapability):
+    """Real credibility evaluator backed by a reputation scoring service."""
 
     def answer(self) -> CallOutAnswer:
         try:
@@ -184,22 +201,47 @@ class MyCredibilityEvaluator(CallOutBackend):
 my_credibility_factory = MyCredibilityEvaluator
 ```
 
-A backend that reads its own input keys or needs the actor's DataLayer can attach a blackboard client or combine `CallOutBackend` with a ports base class.
+A backend reads a declared input port with `get_input()`, which returns the value or raises `NoDataAvailable` when there is none:
+
+```python
+from vultron.core.behaviors.call_out.capabilities.report_management.publication.advisory import (
+    ReviewAdvisoryDraftCapability,
+)
+
+
+class MyAdvisoryReviewer(ReviewAdvisoryDraftCapability):
+    def answer(self) -> CallOutAnswer:
+        draft = self.get_input("draft_advisory_artifact")
+        ...
+```
+
+A backend that needs the actor's DataLayer can attach a blackboard client of its own.
 It still answers through `answer()`.
+
+### Declaring a new capability
+
+A call-out point that has no declaration yet gets one in `vultron/core/behaviors/call_out/capabilities/`, never in `vultron/demo/` (BT-18-020).
+Subclass the shape base that matches what the capability produces, declare its ports, and describe them in a `Blackboard contract (BT-18-001):` section of the docstring.
+A Retriever's docstring also says, in a `Store-held answer (BT-18-039):` line, whether the case file can hold the fact it fetches.
+`capability_declarations()` in that package lists every declaration, so the checks that cover each capability reach the new one without a list to update.
 
 ### A binary backend
 
-When the call-out point's contract declares no output keys, a *yes* carries no data:
+When the capability declares no output ports, a *yes* carries no data:
 
 ```python
-class _CredibilityCheck(CallOutBackend):
-    """Backend that consults a reputation service. Binary answer."""
+from vultron.core.behaviors.call_out.capabilities.report_management.validate import (
+    NoNewValidationInfoCapability,
+)
+
+
+class _NoNewInfoCheck(NoNewValidationInfoCapability):
+    """Backend that asks the intake service for new information. Binary."""
 
     def answer(self) -> CallOutAnswer:
-        score = my_reputation_service.score_reporter(reporter_id=...)
-        if score >= 0.5:
+        if not my_intake_service.has_new_information(report_id=...):
             return CallOutAnswer.yes()
-        return CallOutAnswer.no(f"reputation score {score:.2f} is below 0.5")
+        return CallOutAnswer.no("new validation information has arrived")
 ```
 
 ### The `CallOutBackendFactory` Protocol
@@ -264,18 +306,17 @@ Three rules apply to every Actuator backend ([ADR-0183](../adr/0183-a-call-out-b
    A rejected credential is also *error*, never *no*.
    Where your credentials live and which systems your Actuator may reach are a deployment matter, outside the protocol.
 
-Subclass `ActuatorBackend` and implement `act()`, not `answer()`.
+Subclass the Actuator's capability declaration, which is an `ActuatorBackend`, and implement `act()`, not `answer()`.
 `act()` receives an `ActuationRequest` with the call's `target` and `idempotency_id`:
 
 ```python
-from vultron.core.behaviors.call_out import (
-    ActuationRequest,
-    ActuatorBackend,
-    CallOutAnswer,
+from vultron.core.behaviors.call_out import ActuationRequest, CallOutAnswer
+from vultron.core.behaviors.call_out.capabilities.report_management.publication.advisory import (
+    SubmitAdvisoryArtifactCapability,
 )
 
 
-class MyAdvisorySubmitter(ActuatorBackend):
+class MyAdvisorySubmitter(SubmitAdvisoryArtifactCapability):
     """Submits a finished advisory to an advisory platform."""
 
     def act(self, request: ActuationRequest) -> CallOutAnswer:
@@ -294,7 +335,7 @@ class MyAdvisorySubmitter(ActuatorBackend):
         return CallOutAnswer.yes()
 ```
 
-An Actuator declares no output keys: its `contract` is an `ActuatorContract`, and the class refuses one that declares outputs.
+An Actuator declares no output ports: its `contract` is an `ActuatorContract`, and `ActuatorCapability` refuses a declaration with output ports.
 The tree places each Actuator on its target with `actuator_call()`, so you do not choose the target yourself.
 The seam refuses an Actuator that is placed without a target, and a backend placed as an Actuator that is not an `ActuatorBackend`.
 
@@ -372,41 +413,30 @@ deterministic defaults and makes it easy to swap during testing.
 This section shows the full end-to-end process for the
 `EvaluateReportCredibility` call-out point.
 
-### 1. Locate the fuzzer node
+### 1. Locate the capability declaration
 
-Open `vultron/demo/fuzzer/report_management/validate.py`:
+Open `vultron/core/behaviors/call_out/capabilities/report_management/validate.py` and find `EvaluateReportCredibilityCapability`, shown in [Step 1](#read-the-capability-declaration).
+Its fuzzer node, `EvaluateReportCredibility` in `vultron/demo/fuzzer/report_management/validate.py`, subclasses it and a probability class:
 
 ```python
-class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
+class EvaluateReportCredibility(
+    EvaluateReportCredibilityCapability, AlmostAlwaysSucceed
+):
     """Assess whether the report's source and content are credible.
 
-    Semantic function:
-        Condition — assess whether the report's source and content are
-        credible (i.e., likely to describe a real vulnerability).
-        Credibility criteria may include reporter reputation, technical
-        plausibility, and SSVC exploitation status.
+    Simulates :class:`EvaluateReportCredibilityCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates report context from caller's DataLayer)
-      Output keys: report_credibility_verdict: str  (yes only)
+    ...
 
-    Input category: Human decision.
-
-    Success probability: 0.90 (AlmostAlwaysSucceed).
-
-    Automation potential: Medium — SSVC exploitation status, reporter
-    reputation scoring, and technical plausibility checks can be
-    partially automated; final credibility determination typically
-    requires human analyst review.
+    Success probability: 0.90 (``AlmostAlwaysSucceed``).
     """
-
-    contract = CallOutContract(outputs={"report_credibility_verdict": str})
 ```
 
 Key facts to carry into your implementation:
 
 - **Shape**: Evaluator (returns a decision, no content artifact).
-- **Input**: None from the blackboard — your backend queries its own data source.
+- **Input**: No input ports — your backend queries its own data source.
 - **Output**: A *yes* carries `report_credibility_verdict: str`.
 - **Default**: `AlmostAlwaysSucceed` (p = 0.90) → deterministic ceiling is `AlwaysSucceed`.
 
@@ -414,27 +444,16 @@ Key facts to carry into your implementation:
 
 ```python
 # myproject/behaviors/credibility.py
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out import (
-    CallOutAnswer,
-    CallOutBackend,
-    CallOutContract,
+from vultron.core.behaviors.call_out import CallOutAnswer
+from vultron.core.behaviors.call_out.capabilities.report_management.validate import (
+    EvaluateReportCredibilityCapability,
 )
 
 
-class ReputationServiceCredibilityEvaluator(CallOutBackend):
-    """Credibility evaluator backed by an internal reporter reputation service.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none)
-      Output keys: report_credibility_verdict: str  (yes only)
-      Refusal keys: call_out_refusal_reason: str  (no only)
-    """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"report_credibility_verdict": str}
-    )
+class ReputationServiceCredibilityEvaluator(
+    EvaluateReportCredibilityCapability
+):
+    """Credibility evaluator backed by an internal reporter reputation service."""
 
     def answer(self) -> CallOutAnswer:
         from myproject.services import reputation_service
@@ -451,7 +470,9 @@ class ReputationServiceCredibilityEvaluator(CallOutBackend):
         return CallOutAnswer.no(f"reputation score {score:.2f} is below 0.5")
 
 
-def reputation_credibility_factory(name: str) -> CallOutBackend:
+def reputation_credibility_factory(
+    name: str,
+) -> ReputationServiceCredibilityEvaluator:
     return ReputationServiceCredibilityEvaluator(name)
 ```
 
@@ -495,8 +516,11 @@ unchanged.
 
 - **[Capability Model](../topics/capability_model/index.md)** — the four capability shapes and the full catalog of known call-out points
 - **[Reference Implementation Architecture](../topics/reference_architecture.md)** — the hexagonal boundary, inbox pipeline, and behavior-tree model
-- **`vultron/core/behaviors/call_out/`** — `CallOutBackend`, `CallOutAnswer`, `CallOutContract`, the `SynchronousCallOut` seam and its time-bounded form `TimeBoundedCallOut`, the `CallOutBackendFactory` Protocol, `AlwaysSucceed`/`AlwaysFail`, and all domain bundle dataclasses
-- **`vultron/demo/fuzzer/`** — probabilistic fuzzer nodes (one per call-out point) and `STOCHASTIC` bundle singletons
+- **`vultron/core/behaviors/call_out/capabilities/`** — one declaration per capability, with its typed ports, and `capability_declarations()`
+- **`vultron/core/behaviors/call_out/`** — the four shape base classes, `CallOutBackend`, `CallOutAnswer`, `CallOutContract`, the `SynchronousCallOut` seam and its time-bounded form `TimeBoundedCallOut`, the `CallOutBackendFactory` Protocol, `AlwaysSucceed`/`AlwaysFail`, and all domain bundle dataclasses
+- **`vultron/demo/fuzzer/`** — probabilistic fuzzer nodes (one per call-out point, each bound to its declaration) and `STOCHASTIC` bundle singletons
+- **[ADR-0044](../adr/0044-py-trees-typed-ports-adoption.md)** — typed ports
+- **[ADR-0097](../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)** — four capability shapes and core-declared typed-port contracts
 - **ADR-0024** — capability shape taxonomy
 - **ADR-0025** — call-out point abstraction layer and factory-injection pattern
 - **[ADR-0183](../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)** — the *yes* / *no* / *error* answer and the seam that interprets it

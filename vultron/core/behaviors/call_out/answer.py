@@ -75,6 +75,19 @@ class CallOutVerdict(StrEnum):
     """The backend could not decide or act: the seam raises, nothing is judged."""
 
 
+def is_of_port_type(value: object, port_type: type) -> bool:
+    """Whether *value* is of a declared port's *port_type*.
+
+    ``isinstance``, except that a ``bool`` is not an ``int``: Python makes
+    ``bool`` a subclass of ``int``, so a plain check would let ``True``
+    through on an ``int`` port, and a mismatch would go unseen
+    (BTND-03-021).
+    """
+    if port_type is int and isinstance(value, bool):
+        return False
+    return isinstance(value, port_type)
+
+
 @dataclass(frozen=True)
 class CallOutContract:
     """A capability's declaration of the data each verdict carries.
@@ -211,4 +224,5 @@ __all__ = [
     "CallOutContract",
     "CallOutVerdict",
     "REFUSAL_REASON_KEY",
+    "is_of_port_type",
 ]

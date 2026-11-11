@@ -32,20 +32,18 @@ References
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.report_management.close_report import (
+    OtherCloseCriteriaMetCapability,
+    PreCloseActionCapability,
 )
 from vultron.demo.fuzzer.base import AlwaysSucceed, UsuallyFail
-from vultron.demo.fuzzer.call_out_point import (
-    ActuatorCallOutPoint,
-    EvaluatorCallOutPoint,
-)
 
 
-class OtherCloseCriteriaMet(EvaluatorCallOutPoint, UsuallyFail):
+class OtherCloseCriteriaMet(OtherCloseCriteriaMetCapability, UsuallyFail):
     """Check whether site-specific closure criteria have been satisfied.
+
+    Simulates :class:`OtherCloseCriteriaMetCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — evaluate whether organizational or case-specific criteria
@@ -57,10 +55,6 @@ class OtherCloseCriteriaMet(EvaluatorCallOutPoint, UsuallyFail):
         additional criteria are satisfied, reflecting that extra criteria are
         not routinely met.
 
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates case-specific criteria from caller's DataLayer)
-      Output keys: other_close_criteria_met_verdict: str  (yes only)
-
     Input category: Human decision / policy.
 
     Success probability: 0.25 (``UsuallyFail``).
@@ -71,23 +65,18 @@ class OtherCloseCriteriaMet(EvaluatorCallOutPoint, UsuallyFail):
     final closure decision usually benefits from human confirmation.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"other_close_criteria_met_verdict": str}
-    )
 
-
-class PreCloseAction(ActuatorCallOutPoint, AlwaysSucceed):
+class PreCloseAction(PreCloseActionCapability, AlwaysSucceed):
     """Perform required actions immediately before closing the report.
+
+    Simulates :class:`PreCloseActionCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action integration hook — execute any mandatory pre-closure tasks such
         as quality-assurance checks, notification dispatches, or bookkeeping
         updates that must be completed before the report transitions to the
         Closed state.  Must be idempotent in production to support safe retries.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; case context from construction time)
-      Output keys: (none — side effect: archive artifacts, send closure notifications)
 
     Input category: System integration.
 

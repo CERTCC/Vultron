@@ -173,9 +173,12 @@ Protocol from `vultron.core.behaviors.call_out`, not the
 
 ### Adding a backend
 
-A backend is a `CallOutBackend` subclass that sets `contract` and implements
-`answer()`; any callable that takes `name: str` and returns one is a
-`CallOutBackendFactory` (BT-18-004). No registry or decorator is needed.
+A backend for a named capability subclasses its core declaration in
+`vultron/core/behaviors/call_out/capabilities/` and implements `answer()`; it
+takes the declaration's ports and may not set `contract` or restate them
+(BT-18-021). A bare `CallOutBackend` that sets `contract` is only for a
+call-out point with no declaration. Any callable that takes `name: str` and
+returns one is a `CallOutBackendFactory` (BT-18-004). No registry or decorator is needed.
 Instantiate the domain bundle with the new factory in its field (unspecified
 fields keep the bundle defaults) and pass the bundle to the tree builder.
 A tree builder that also takes raw factory parameters guards them with
@@ -256,7 +259,7 @@ shows both.
 
 The STOCHASTIC side has the same obligation (BT-18-003). `WeightedBehavior`
 answers *yes* with a zero-value instance per port its `contract` declares, so a
-fuzzer node meets it by declaring the contract; the generic
+fuzzer node meets it by subclassing its capability's core declaration; the generic
 `AlmostAlwaysSucceed`/`AlmostAlwaysFail` used for production-only domains
 declares none and so stays binary.
 
