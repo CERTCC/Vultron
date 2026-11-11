@@ -213,7 +213,12 @@ def test_staging_store_is_emptied_when_the_rebuild_raises(dl):
         raise RuntimeError("rebuild failed")
 
     with pytest.raises(RuntimeError, match="rebuild failed"):
-        staging._rehydrate(parsed.id_, _stage_then_fail, received_body=None)
+        staging._rehydrate(
+            parsed.id_,
+            _stage_then_fail,
+            received_body=None,
+            verified_proofs=(),
+        )
 
     assert _StagingStore(dl, "urn:uuid:next").read(_NOTE_ID) is None
 
@@ -716,7 +721,10 @@ def test_a_stage_that_stages_no_activity_row_fails_loudly(dl):
     """A rebuild with no row for the activity itself is a wiring fault."""
     with pytest.raises(VultronWiringError, match="staged no row"):
         InlineObjectStaging(dl)._rehydrate(
-            "urn:uuid:unstaged", lambda _store: None, received_body=None
+            "urn:uuid:unstaged",
+            lambda _store: None,
+            received_body=None,
+            verified_proofs=(),
         )
     assert _StagingStore(dl, "urn:uuid:next").read("urn:uuid:unstaged") is None
 

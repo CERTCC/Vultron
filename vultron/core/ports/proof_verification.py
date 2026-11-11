@@ -25,16 +25,23 @@ handed the key.  The adapter is
 from collections.abc import Mapping
 from typing import Any, Protocol, runtime_checkable
 
+from vultron.core.models.verified_proof import VerifiedProof
+
 
 @runtime_checkable
 class ProofVerificationPort(Protocol):
     """Port: refuse a received document whose proof does not verify."""
 
-    async def verify(self, document: Mapping[str, Any]) -> None:
-        """Return when every proof *document* needs verifies; raise if not.
+    async def verify(
+        self, document: Mapping[str, Any]
+    ) -> tuple[VerifiedProof, ...]:
+        """Return what verified when every proof *document* needs does.
 
         *document* is the decoded JSON body as received.  Async because the
-        author's key may have to be fetched.
+        author's key may have to be fetched.  Returns one
+        :class:`~vultron.core.models.verified_proof.VerifiedProof` per proof
+        checked, the activity's first, then a ledger snapshot's: the
+        receiver keeps them on the delivery's archived record (SIG-03-004).
 
         Raises:
             VultronProofVerificationError: A proof is missing or does not

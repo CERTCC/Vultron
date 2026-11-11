@@ -1,15 +1,31 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Leave",
   "id": "urn:uuid:a1aa73db-a618-4394-98b9-95f7ea83de39",
   "name": "https://vultron.example/organizations/vendorco Leave urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're closing this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
     "type": "VulnerabilityCase",
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z2DHdA474HWxamKz7pxHj7UiivUqmVWMBCfXqsy3Hc4dKH8MWBaLU4USNZJ6B4eDPhNuy2kkXbgSDhMQnGPEoicCq"
   }
 }

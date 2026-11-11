@@ -247,6 +247,57 @@ The seam raises `CallOutContractError`, which the bridge reports as an internal 
 - gives a *no* with a refusal field that its contract does not declare;
 - is ticked outside the seam, for example placed in a tree by hand.
 
+### An Actuator acts on one target and is safe to repeat
+
+An Actuator causes a side effect in an external system: it submits an advisory, sends a notification, or writes a record.
+Three rules apply to every Actuator backend ([ADR-0183](../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
+
+1. **One target per call.**
+   Each call acts on exactly one target.
+   A tree that acts on several targets makes one call for each target and sees one verdict for each call.
+2. **Safe to repeat.**
+   Each call carries an idempotency id that the tree derives from the act and the target.
+   When a message is re-run from holding, every call gets the same id again.
+   Key your side effect on that id: when the id is one you have already acted on, do not act again, and answer *yes*.
+3. **Answer error when you cannot confirm.**
+   A side effect that you started but cannot confirm is *error*, not *no*.
+   A rejected credential is also *error*, never *no*.
+   Where your credentials live and which systems your Actuator may reach are a deployment matter, outside the protocol.
+
+Subclass `ActuatorBackend` and implement `act()`, not `answer()`.
+`act()` receives an `ActuationRequest` with the call's `target` and `idempotency_id`:
+
+```python
+from vultron.core.behaviors.call_out import (
+    ActuationRequest,
+    ActuatorBackend,
+    CallOutAnswer,
+)
+
+
+class MyAdvisorySubmitter(ActuatorBackend):
+    """Submits a finished advisory to an advisory platform."""
+
+    def act(self, request: ActuationRequest) -> CallOutAnswer:
+        try:
+            receipt = my_advisory_platform.submit(
+                advisory=request.target,
+                idempotency_key=request.idempotency_id,
+            )
+        except my_advisory_platform.CredentialRejected as exc:
+            return CallOutAnswer.error(f"advisory platform: {exc}")
+        except my_advisory_platform.Unavailable as exc:
+            return CallOutAnswer.error(f"advisory platform: {exc}")
+        if not receipt.confirmed:
+            return CallOutAnswer.error("advisory platform: no confirmation")
+        # A receipt for a key the platform already holds is a yes as well.
+        return CallOutAnswer.yes()
+```
+
+An Actuator declares no output keys: its `contract` is an `ActuatorContract`, and the class refuses one that declares outputs.
+The tree places each Actuator on its target with `actuator_call()`, so you do not choose the target yourself.
+The seam refuses an Actuator that is placed without a target, and a backend placed as an Actuator that is not an `ActuatorBackend`.
+
 ---
 
 ## Step 3 — Wire the backend via the domain bundle

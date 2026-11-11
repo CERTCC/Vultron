@@ -279,6 +279,9 @@ def extract_intent(
             # Carried, never re-derived: core records it in the ledger as
             # received (VM-08-002, CLP-07-011, ADR-0107).
             received_evidence=activity.received_evidence_json,
+            # What the inbox verified on that body, recorded with it
+            # (SIG-03-004).
+            verified_proofs=list(activity.verified_proofs),
             **extra_kwargs,
         ),
     )

@@ -49,6 +49,28 @@ class CountingClock:
 
 
 @contextmanager
+def recorded_clock_reads() -> Iterator[list[datetime]]:
+    """Record every read of the wall clock behind ``now_utc``, in order.
+
+    Yields the list the reads are appended to; it starts empty.  A test that
+    asserts it is still empty after a call shows the call moved no
+    recording clock (ADR-0176).
+    """
+    reads: list[datetime] = []
+    real = helpers_clock.datetime
+
+    class _Counting(real):  # type: ignore[valid-type, misc]
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[override]
+            value = real.now(tz)
+            reads.append(value)
+            return value
+
+    with patch.object(helpers_clock, "datetime", _Counting):
+        yield reads
+
+
+@contextmanager
 def clock_at(at: datetime) -> Iterator[None]:
     """Hold the clock at *at*, a microsecond per read, while an act at *at*
     runs.

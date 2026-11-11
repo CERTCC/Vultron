@@ -51,6 +51,7 @@ from httpx2 import Response
 
 from vultron.adapters.driving.fastapi.deps import ACTOR_PROFILE_FETCHER_STATE
 from vultron.core.models.actor import CoreActor, VultronOrganization
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.errors import VultronActorProfileFetchError
 from vultron.primitives import normalise_actor_id
 from vultron.wire.as2 import signing
@@ -167,9 +168,15 @@ class AcceptingProofVerifier:
     def __init__(self) -> None:
         self.verified: list[Mapping[str, Any]] = []
 
-    async def verify(self, document: Mapping[str, Any]) -> None:
-        """Accept *document*, recording that it was asked to verify it."""
+    async def verify(
+        self, document: Mapping[str, Any]
+    ) -> tuple[VerifiedProof, ...]:
+        """Accept *document*, recording that it was asked to verify it.
+
+        No key is read, so it reports no proof verified.
+        """
         self.verified.append(document)
+        return ()
 
 
 class PublishedProfileFetcher:

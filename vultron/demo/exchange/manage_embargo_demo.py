@@ -47,7 +47,7 @@ from collections.abc import Callable, Sequence
 
 from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.embargo_register import TerminationReason
-from vultron.demo.helpers.embargo import make_embargo_event
+from vultron.demo.helpers.embargo import case_minted_at, make_embargo_event
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     owner_activates_embargo,
@@ -107,7 +107,9 @@ def demo_activate_then_terminate(
     # #3038).  Steps 5 and 7 verify their effects and must stay in sequence
     # between and after them, so they nest with them.
     with demo_step("Step 2: Coordinator proposes embargo"):
-        embargo = make_embargo_event(case, days=90, seq=1)
+        embargo = make_embargo_event(
+            case, at=case_minted_at(client, case, vendor.id_), days=90, seq=1
+        )
         proposal = em_propose_embargo_activity(
             embargo,
             id_=f"{case.id_}/embargo_proposals/activate-1",
@@ -228,7 +230,9 @@ def demo_reject_then_repropose(
     # (ADR-0058, #3038); the verification that follows each decision must stay
     # in sequence after it, so it nests with it.
     with demo_step("Step 2: Coordinator proposes first embargo (45-day)"):
-        embargo_v1 = make_embargo_event(case, days=45, seq=1)
+        embargo_v1 = make_embargo_event(
+            case, at=case_minted_at(client, case, vendor.id_), days=45, seq=1
+        )
         proposal_v1 = em_propose_embargo_activity(
             embargo_v1,
             id_=f"{case.id_}/embargo_proposals/reject-1",
@@ -264,7 +268,9 @@ def demo_reject_then_repropose(
                     )
 
     with demo_step("Step 5: Coordinator proposes revised embargo (90-day)"):
-        embargo_v2 = make_embargo_event(case, days=90, seq=2)
+        embargo_v2 = make_embargo_event(
+            case, at=case_minted_at(client, case, vendor.id_), days=90, seq=2
+        )
         proposal_v2 = em_propose_embargo_activity(
             embargo_v2,
             id_=f"{case.id_}/embargo_proposals/reject-2",

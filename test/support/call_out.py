@@ -23,21 +23,32 @@ only by the seam, so a test injects one of these instead of a raw
 - :class:`CountingBackend` answers fixed and counts its ticks.
 - :func:`tick_call_out` ticks one backend behind the seam and returns the
   status the tree would see.
+- :func:`acting` builds an Actuator factory whose backend gives a fixed
+  answer and records every request it is called with; :data:`acts` and
+  :data:`declines_to_act` are its common cases.
 """
 
 from __future__ import annotations
 
 from typing import Protocol
 
+import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.call_out.actuator import (
+    ActuationRequest,
+    ActuatorBackend,
+)
 from vultron.core.behaviors.call_out.answer import (
     BINARY_CONTRACT,
     CallOutAnswer,
     CallOutContract,
 )
 from vultron.core.behaviors.call_out.backend import CallOutBackend
-from vultron.core.behaviors.call_out.guard import SynchronousCallOut
+from vultron.core.behaviors.call_out.guard import (
+    SynchronousCallOut,
+    unwrap_call_out,
+)
 
 #: The reason a test backend's *no* carries unless the test gives one.
 TEST_REFUSAL_REASON = "test backend declines"
@@ -125,8 +136,85 @@ yes: FixedAnswerFactory = answering(CallOutAnswer.yes())
 no: FixedAnswerFactory = no_because()
 
 
+#: The target :func:`tick_call_out` binds to an unbound Actuator.
+TEST_ACTUATION_TARGET = "urn:test:actuation-target"
+
+
+class FixedAnswerActuator(ActuatorBackend):
+    """An Actuator that gives the same answer and records each request."""
+
+    def __init__(self, name: str = "", *, fixed: CallOutAnswer) -> None:
+        super().__init__(name)
+        self._fixed = fixed
+        self.requests: list[ActuationRequest] = []
+
+    def act(self, request: ActuationRequest) -> CallOutAnswer:
+        self.requests.append(request)
+        return self._fixed
+
+
+class FixedAnswerActuatorFactory(Protocol):
+    """An Actuator factory whose product is a :class:`FixedAnswerActuator`."""
+
+    def __call__(self, name: str) -> FixedAnswerActuator: ...
+
+
+def acting(fixed: CallOutAnswer) -> FixedAnswerActuatorFactory:
+    """An Actuator factory whose backend gives *fixed*."""
+
+    def factory(name: str) -> FixedAnswerActuator:
+        return FixedAnswerActuator(name, fixed=fixed)
+
+    return factory
+
+
+def acting_as(
+    label: str, fixed: CallOutAnswer | None = None
+) -> FixedAnswerActuatorFactory:
+    """An Actuator factory whose backend is named *label*, whatever the tree asks.
+
+    For a test that finds the node a factory placed by its name.  The
+    backend answers *fixed*, *yes* by default.
+    """
+    answer = fixed if fixed is not None else CallOutAnswer.yes()
+
+    def factory(name: str) -> FixedAnswerActuator:
+        return FixedAnswerActuator(label, fixed=answer)
+
+    return factory
+
+
+#: An Actuator factory whose backend answers *yes*: the side effect happened.
+acts: FixedAnswerActuatorFactory = acting(CallOutAnswer.yes())
+
+#: An Actuator factory whose backend answers *no* with
+#: :data:`TEST_REFUSAL_REASON`: it decided not to act.
+declines_to_act: FixedAnswerActuatorFactory = acting(
+    CallOutAnswer.no(TEST_REFUSAL_REASON)
+)
+
+
+def bind_test_target(
+    node: py_trees.behaviour.Behaviour,
+) -> py_trees.behaviour.Behaviour:
+    """Bind :data:`TEST_ACTUATION_TARGET` to *node* when it is an unbound Actuator.
+
+    For a test that ticks a bundle's product directly, outside a tree, as a
+    tree's ``actuator_call`` would bind it (BT-18-041).  Returns *node*.
+    """
+    backend = unwrap_call_out(node)
+    if isinstance(backend, ActuatorBackend) and backend.target is None:
+        backend.bind_target(TEST_ACTUATION_TARGET)
+    return node
+
+
 def tick_call_out(backend: CallOutBackend) -> Status:
-    """Tick *backend* behind the seam once; return the status a tree sees."""
+    """Tick *backend* behind the seam once; return the status a tree sees.
+
+    An Actuator no tree has bound is bound to :data:`TEST_ACTUATION_TARGET`
+    first, as a tree would bind its one target (BT-18-041).
+    """
+    bind_test_target(backend)
     seam = backend.parent
     if not isinstance(seam, SynchronousCallOut):
         seam = SynchronousCallOut(backend)

@@ -1,13 +1,16 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Offer",
   "id": "urn:uuid:bda15e68-5f7b-4e66-8e89-dc114b57bc4a",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:c415b264-41f3-48a5-81ba-b83eda457cd0 to Coordinator LLC",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "inReplyTo": "urn:uuid:eb7fed99-5549-4dc7-a593-3385642a19f7",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're offering the coordinator role on case VendorCo Case #20260601 to Coordinator LLC.",
   "to": [
     "https://vultron.example/organizations/coordinator"
@@ -37,5 +40,18 @@
     "published": "2026-06-01T19:12:00.000000+00:00",
     "updated": "2026-06-01T19:12:00.000000+00:00",
     "role": "coordinator"
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z4ftdqfKzNEHYGVbBv295NJbEVh26xwY1iKNPusLHMX22zGbjiezADjt4sqhPTbNBRzn8uAUoDiNNRMMrY2EfMAV9"
   }
 }

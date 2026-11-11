@@ -29,6 +29,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.adapters.driven.datalayer_sqlite.engine import scratch_memory_url
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 
 #: Every actor's staging store is emptied around each use, so two uses must
@@ -99,3 +100,5 @@ class _Staged:
 
     received_body: str | None
     inline_rows: list[dict[str, object]]
+    #: The proofs the inbox verified on that body (SIG-03-004).
+    verified_proofs: tuple[VerifiedProof, ...] = ()

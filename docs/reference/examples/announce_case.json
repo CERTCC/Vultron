@@ -1,11 +1,14 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Announce",
   "id": "urn:uuid:6a39650d-c253-4913-9ea4-10a5522d0e8e",
   "name": "https://vultron.example/organizations/vendorco Announce VendorCo Case #20260601",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
     "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -120,5 +123,18 @@
       "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/finndervul",
       "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/participants/vendorco"
     ]
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z2PWEeYZTYj8UcEiMHAQgNGF8rE5iRmDYA5wvAM4nJDRVCZWCLhLhyFs2LqAGv3ALPZDXtzeUpzGvhQqHuyhvPTtE"
   }
 }

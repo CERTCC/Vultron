@@ -73,6 +73,7 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.call_out.bundles.prioritization import (
     PRIORITIZATION_DETERMINISTIC,
 )
@@ -390,7 +391,9 @@ def create_prioritize_subtree(
                 actor_id=actor_id,
                 activity_builder=_build_engage,
             ),
-            bundle.on_accept_factory("OnAccept"),
+            actuator_call(
+                bundle.on_accept_factory, "OnAccept", target=case_id
+            ),
         ],
     )
     defer_path = py_trees.composites.Sequence(
@@ -402,7 +405,7 @@ def create_prioritize_subtree(
                 actor_id=actor_id,
                 activity_builder=_build_defer,
             ),
-            bundle.on_defer_factory("OnDefer"),
+            actuator_call(bundle.on_defer_factory, "OnDefer", target=case_id),
         ],
     )
     root = py_trees.composites.Selector(

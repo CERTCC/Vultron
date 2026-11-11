@@ -179,6 +179,7 @@ def post_actor_inbox(
         dispatcher,
         emitter,
         arrived_at=arrived_at,
+        verified_proofs=delivery.proofs,
     )
 
 

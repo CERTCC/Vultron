@@ -55,6 +55,7 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
 )
@@ -187,7 +188,11 @@ def create_terminate_active_embargo_tree(
             HasActiveEmbargoNode(case_id=case_id, result_out=result_out),
             reason_selector,
             authorize_selector,
-            bundle.on_embargo_exit_factory("OnEmbargoExit"),
+            actuator_call(
+                bundle.on_embargo_exit_factory,
+                "OnEmbargoExit",
+                target=case_id,
+            ),
             terminate_embargo_bt(
                 case_id=case_id,
                 result_out=result_out,

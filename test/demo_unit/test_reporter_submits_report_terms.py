@@ -46,6 +46,11 @@ def quiet_transport(monkeypatch):
         "wait_for_report_submission_stored",
         lambda *a, **k: None,
     )
+    monkeypatch.setattr(
+        workflow_report,
+        "verify_receiver_verified_sender_key",
+        lambda *a, **k: None,
+    )
 
 
 def _client() -> DataLayerClient:

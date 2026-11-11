@@ -6,6 +6,8 @@
   "type": "Person",
   "id": "https://vultron.example/users/finndervul",
   "name": "Finn der Vul",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "inbox": {
     "type": "OrderedCollection",
     "id": "https://vultron.example/users/finndervul/inbox",

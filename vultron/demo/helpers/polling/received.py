@@ -20,6 +20,8 @@ id (DL-06-006).
 
 import logging
 
+from vultron.core.models.received_activity_record import ReceivedStage
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.demo.helpers.polling._poll import (
     CROSS_CONTAINER_TIMEOUT,
     _poll_datalayer_for,
@@ -31,6 +33,7 @@ from vultron.demo.utils import (
     logfmt,
     not_received_error,
     read_received_activity,
+    read_received_record,
     received_activity_in,
 )
 
@@ -348,3 +351,55 @@ def wait_for_reporter_introduction(
         ),
         id_fn=lambda _raw_id, link: str(link["case_id"]),
     )
+
+
+def wait_for_verified_proofs(
+    client: DataLayerClient,
+    receiver_id: str,
+    activity_id: str,
+    timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
+    poll_interval: float = 0.5,
+) -> list[VerifiedProof]:
+    """Poll the receiver's store until it archives *activity_id* as verified.
+
+    The receiver's inbox verifies every proof a delivery needs before it
+    parses it, and keeps what it verified, each proof's author, key id and
+    the key as fetched, on the delivery's received record (SIG-03-004).  So
+    this waits on the receiver's own record of that act (EDF-06-002): the
+    archived ``ReceivedActivityRecord`` naming at least one verified proof.
+
+    Args:
+        client: DataLayerClient connected to the receiver's container.
+        receiver_id: Actor id whose store to read (ADR-0073).
+        activity_id: The sender's id for the received activity.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between poll attempts.
+
+    Returns:
+        The record's verified proofs.
+
+    Raises:
+        AssertionError: If no archived record names a verified proof by the
+            deadline.
+    """
+    found: list[VerifiedProof] = []
+
+    def _verified() -> bool:
+        record = read_received_record(client, activity_id, receiver_id)
+        if record is None or record.get("stage") != ReceivedStage.ARCHIVED:
+            return False
+        proofs = record.get("verified_proofs")
+        if not isinstance(proofs, list) or not proofs:
+            return False
+        found[:] = [VerifiedProof.model_validate(proof) for proof in proofs]
+        return True
+
+    _poll_until(
+        _verified,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for {receiver_id!r} at {client.base_url} to"
+        f" archive {activity_id!r} with the proofs it verified (SIG-03-004)",
+        swallow_exceptions=True,
+    )
+    return found

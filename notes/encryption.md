@@ -77,7 +77,9 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
 - **An outbox signs only its own actor's messages** (SIG-05-004). The seed
   scheme is guessable by design, so any code could compute any actor's key;
   the guarantee is that only the owning actor's outbox calls the signer for
-  that actor. `seal_outbound_body` passes its store's `actor_id` (DL-07-004)
+  that actor, and the one other signer, the docs example renderer, signs
+  only bodies no server sends, each as its own `actor` (see below).
+  `seal_outbound_body` passes its store's `actor_id` (DL-07-004)
   to `sign_as_author`, which refuses an activity whose `actor` names anyone
   else with `VultronForeignAuthorError` before signing or storing. Never
   sign through a store that is not the author's, and never add a fallback.
@@ -192,13 +194,44 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   profile from the node that serves it; the single-node demo `client`
   fixture installs the same fetcher on `app_v2`. An unsigned body a test posts
   on purpose is a refusal test, or a strict `xfail` naming the Task that signs
-  it (the tutorial's report, #5387).
+  it.
 - **Demo and harness code never signs as an actor.** Only an actor's own
-  outbox signs (SIG-05-004). An exchange demo's hand-built activity goes
+  outbox signs (SIG-05-004). The one other signer is the docs example
+  renderer (`json2md`, `obj_to_file` in `vocab/examples/_base.py`), which
+  signs a documentation example, a body no server sends, only as that
+  example's own `actor`, through `signing.sign_docs_example`. Its `created` is
+  the example's `published`, as on the outbox path, and every example is
+  stamped with `EXAMPLE_TIMESTAMP`; Ed25519 is deterministic, so a
+  regeneration writes the same bytes. `test/architecture/test_seeded_signer_callers.py`
+  lists every `vultron/` module that makes a proof or computes a seeded key,
+  so a third caller fails there until it is reviewed; it counts any reference,
+  not only a call, and keeps the helpers that sign as whatever actor they are
+  given (`signed_outbound_body`, the renderers) inside their own modules, so a
+  wrapper cannot get round it. An exchange demo's
+  hand-built activity goes
   through the sender's outbox on the same server (`post_to_inbox_and_wait`
   posts it to `/actors/{sender}/outbox/`), which signs it as its owner; a
-  scenario step goes through a trigger. Tests sign only through
+  scenario step goes through a trigger. A docs walkthrough does the same:
+  the submit-a-report tutorial creates its finder on the reader's server and
+  posts the report to the finder's outbox, so the vendor can fetch the
+  finder's key. Tests sign only through
   `test/support/signing.py`, never from `vultron/`.
+- **The received record names the key each proof verified against**
+  (SIG-03-004, SIG-03-005). `ProofVerificationPort.verify` returns one
+  `VerifiedProof` (author, `verification_method`, `public_key_multibase` as
+  fetched) per proof, the `Announce`'s first, then its snapshot's. The route
+  hands them to the background run (`VerifiedProofs`,
+  `adapters/driving/fastapi/verified_proofs.py`); the ingress adapter seals
+  them on the parsed activity beside its evidence, the extractor puts them on
+  the event, and intake writes them in the record's first save. Every later
+  save keeps them: a hold copies them from the staged rebuild or the
+  released record, a replay seals them again from the held record, and the
+  archive keeps the record's. Never add a second write: a record written
+  without them by one save and patched by another loses them to a crash, and
+  a patch keyed only on the id can put a reused id's key on the first
+  sender's record. A receipt stub keeps none. It is the audit trail key
+  rotation (#1184) needs, and what `reporter_submits_report`'s demo check
+  reads across containers.
 - **Resolve a key with `resolve_verification_key`**
   (`vultron/core/services/verification_key.py`), never by hand. It takes the
   proof's `verificationMethod`, the document's author and an

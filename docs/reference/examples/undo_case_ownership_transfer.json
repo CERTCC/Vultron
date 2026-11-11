@@ -1,11 +1,14 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Undo",
   "id": "urn:uuid:69d18287-3a13-4005-9304-d7f1ed3a673a",
   "name": "https://vultron.example/organizations/vendorco Undo https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're withdrawing our proposal to transfer ownership of case VendorCo Case #20260601.",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
@@ -39,5 +42,18 @@
         "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
       }
     }
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z4F9wrw1N5gff7N5e7dq1yjTHD2NhrPuzbjJTZyhapKRxXjbaxS4bsGAPWuDpKtswyaLzhBZoiGWTetKFZ87eo18"
   }
 }

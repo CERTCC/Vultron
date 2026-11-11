@@ -69,6 +69,7 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
 )
@@ -95,6 +96,17 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+
+def deployment_target(case_id: str, deployed: str) -> str:
+    """The one target a ``MonitorDeployment`` call acts on (BT-18-041).
+
+    The case's deployment of *deployed* (``"fix"`` or ``"mitigation"``).  The
+    deploy tree runs both arms in one act, and each arm places its own
+    ``MonitorDeployment``, so each needs its own target to get its own
+    idempotency id (BT-18-042, BT-18-043).
+    """
+    return f"{case_id}#deployment-{deployed}"
 
 
 def create_stay_deferred_arm(
@@ -194,7 +206,11 @@ def create_deploy_fix_tree(
         memory=False,
         children=[
             bundle.monitoring_requirement_factory("MonitoringRequirement"),
-            bundle.monitor_deployment_factory("MonitorDeployment"),
+            actuator_call(
+                bundle.monitor_deployment_factory,
+                "MonitorDeployment",
+                target=deployment_target(case_id, "fix"),
+            ),
         ],
     )
 

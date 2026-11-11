@@ -1,11 +1,14 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Add",
   "id": "urn:uuid:752d9d3f-fbec-4525-a22a-a5f3fa93500a",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Add NONE Pxa to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "to": [
     "https://vultron.example/users/finndervul"
   ],
@@ -19,5 +22,18 @@
     "published": "2026-06-01T19:13:00.000000+00:00",
     "emState": "NONE",
     "pxaState": "Pxa"
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z2ToQREeQm9MvudsYYu4wPRw3UJKitaG47UqpKsvxxCLWTANK3pDN39JxJXABFUmwHwqPc5Art7sQ1DLS5z1vgNVK"
   }
 }

@@ -1,12 +1,15 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Create",
   "id": "urn:uuid:4bc281de-9275-525f-b4e1-2671dcace1bb/create",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Create urn:uuid:4bc281de-9275-525f-b4e1-2671dcace1bb",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "object": {
     "id": "urn:uuid:4bc281de-9275-525f-b4e1-2671dcace1bb",
@@ -14,5 +17,18 @@
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "embargoId": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/embargo_events/2026-08-30T00:00:00+00:00",
     "state": "UNINVITED"
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "zQkQWRDB4cQBGntH6v83vpwd3Tu6EB9un352Tz6tCPQ1sLTykNZA5ovV11yuttR7rHqMnAttZ9t5q1LHZE2GujPo"
   }
 }

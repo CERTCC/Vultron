@@ -1,12 +1,15 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Add",
   "id": "urn:uuid:5de88e01-e38d-4cb0-aa7c-547b7ba79384",
   "name": "https://vultron.example/organizations/vendorco Add VendorCo to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're adding ourselves as a participant to this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -40,5 +43,18 @@
     ],
     "embargoConsents": [],
     "joined": true
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "zcKkXWyrX9FsYqVucmv86hLwLhnmnt4UBGgPNQm8o9aZN1WfewmsQF7LkNyHo83NsK9fE1oJyharuU7EQZ8UHdbu"
   }
 }

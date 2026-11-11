@@ -307,18 +307,7 @@ KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
 
 # Reads below an act's edge that no slice names yet: the epic routes each one.
 # owner: #5676
-KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
-    (
-        "vultron/core/use_cases/received/embargo/reject.py",
-        "RejectInviteToEmbargoOnCaseReceivedUseCase.execute",
-        "now_utc",
-    ),
-    (
-        "vultron/demo/helpers/embargo.py",
-        "make_embargo_event",
-        "now_utc",
-    ),
-)
+KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = ()
 
 _ALL_LISTS: dict[str, tuple[ClockRead, ...]] = {
     "CLOCK_EDGE_EXEMPTIONS": CLOCK_EDGE_EXEMPTIONS,

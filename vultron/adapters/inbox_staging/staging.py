@@ -21,7 +21,7 @@ and holds a deferred activity for replay on the activity's one
 
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import Any, cast
 
@@ -39,6 +39,7 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.services.carried_embargo import store_carried_embargo
@@ -208,11 +209,17 @@ class InlineObjectStaging:
         """
 
         return self._rehydrate_with(
-            activity, received_body=activity.received_evidence_json
+            activity,
+            received_body=activity.received_evidence_json,
+            verified_proofs=activity.verified_proofs,
         )
 
     def _rehydrate_with(
-        self, activity: as_Activity, *, received_body: str | None
+        self,
+        activity: as_Activity,
+        *,
+        received_body: str | None,
+        verified_proofs: Sequence[VerifiedProof],
     ) -> as_Activity | None:
         """Rebuild *activity*, holding *received_body* as what arrived."""
 
@@ -221,7 +228,10 @@ class InlineObjectStaging:
             _stage_inline_object(store, activity)
 
         return self._rehydrate(
-            activity.id_, _stage, received_body=received_body
+            activity.id_,
+            _stage,
+            received_body=received_body,
+            verified_proofs=verified_proofs,
         )
 
     def can_hold(self, activity_id: str) -> bool:
@@ -296,9 +306,14 @@ class InlineObjectStaging:
             return None
         archived = parse_received_body(sealed_body_of(record))
         evidence = archived.received_evidence_json
-        result = self._rehydrate_with(archived, received_body=evidence)
+        result = self._rehydrate_with(
+            archived,
+            received_body=evidence,
+            verified_proofs=record.verified_proofs,
+        )
         if result is not None and evidence is not None:
             result.seal_received_evidence(evidence)
+            result.seal_verified_proofs(record.verified_proofs)
         return result
 
     def rehydrate_deferred(self, activity_id: str) -> as_Activity | None:
@@ -338,6 +353,9 @@ class InlineObjectStaging:
             evidence = parsed.received_evidence_json
             if evidence is not None:
                 result.seal_received_evidence(evidence)
+                # The proofs the inbox verified on the held body, so the
+                # replay's intake records them again (SIG-03-004).
+                result.seal_verified_proofs(pending.verified_proofs)
         return result
 
     def hold_for_replay(
@@ -386,6 +404,7 @@ class InlineObjectStaging:
                 received_at=released.received_at,
                 replay_rows_json=released.replay_rows_json,
                 awaiting_case_id=awaiting_case_id or released.awaiting_case_id,
+                verified_proofs=released.verified_proofs,
             )
         staged = self._staged.get(activity_id)
         if staged is None and activity_id in self._routed_in_place:
@@ -414,6 +433,7 @@ class InlineObjectStaging:
             received_at=received_at,
             replay_rows_json=json.dumps(staged.inline_rows),
             awaiting_case_id=awaiting_case_id,
+            verified_proofs=staged.verified_proofs,
         )
 
     def _rebuild_from(
@@ -443,6 +463,7 @@ class InlineObjectStaging:
             pending.activity_id,
             _restage,
             received_body=body,
+            verified_proofs=pending.verified_proofs,
         )
         return result, parsed
 
@@ -452,6 +473,7 @@ class InlineObjectStaging:
         stage: Callable[[DataLayer], None],
         *,
         received_body: str | None,
+        verified_proofs: Sequence[VerifiedProof],
     ) -> as_Activity | None:
         with _STAGING_LOCK:
             store = _StagingStore(self._dl, activity_id)
@@ -467,6 +489,7 @@ class InlineObjectStaging:
                 self._staged[activity_id] = _Staged(
                     received_body=received_body,
                     inline_rows=inline_rows,
+                    verified_proofs=tuple(verified_proofs),
                 )
                 result = rehydrate(activity_id, dl=store)
             finally:

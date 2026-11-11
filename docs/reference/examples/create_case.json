@@ -1,12 +1,15 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Create",
   "id": "urn:uuid:9344e364-f6a8-4649-879c-5bacaa564cfb",
   "name": "https://vultron.example/organizations/vendorco Create VendorCo Case #20260602",
   "context": "https://demo.vultron.local/VulnerabilityReport/17a7b3e5-d74e-481e-ad90-2b9ab88c6dac",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We've created a case from this report.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
@@ -87,5 +90,18 @@
     "activeParticipants": [
       "urn:uuid:d5a50ba5-464f-441a-9825-eee7073c92cd"
     ]
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z3JQs8cppMN8yNj9Te55tjVYJtr35CMma9yqcB3zXsL9pieeNzpxGXNwUqsuuPjXMbGW22jPx7iwP1CgmpgydiTii"
   }
 }

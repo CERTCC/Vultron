@@ -1,11 +1,14 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Read",
   "id": "urn:uuid:28fc50c5-d5d5-4278-a718-99ef7bed2af7",
   "name": "https://vultron.example/organizations/vendorco Read https://vultron.example/users/finndervul Offer FDR-8675309",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We have received the report. We will get back to you soon.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
@@ -27,5 +30,18 @@
       "content": "I found a vulnerability!",
       "attributedTo": "https://vultron.example/users/finndervul"
     }
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z4HCohFfNtKP8HgFMRDnt6KtZTiMG5N4qbyD24ix19QzCqgbQHbjRBrHpXFdYNgRMDmw1tYFZczX6fAjTB6WZz5dC"
   }
 }

@@ -1,11 +1,14 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Add",
   "id": "urn:uuid:48c15016-48eb-4f74-90ff-99be1ecb5795",
   "name": "https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "actor": "https://vultron.example/organizations/vendor",
   "target": "https://vultron.example/cases/1/participants/vendor",
   "object": {
@@ -31,5 +34,18 @@
       "emState": "NONE",
       "pxaState": "pxa"
     }
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendor#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z2giGV5AVHet3a1au1iA2o1W2m7fyVqf2QNmUECFA7goQMisnjk5RN3pfDzcq9jPeypNTEiwg5Hmxs7GqFu5qKwKC"
   }
 }

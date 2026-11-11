@@ -11,6 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import json
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -27,6 +28,7 @@ from vultron.core.models._helpers import (
     install_id_source,
 )
 from vultron.core.models.actor import hosted_endpoints
+from vultron.wire.as2 import signing
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,
@@ -345,8 +347,11 @@ def _admits_none(annotation: object) -> bool:
 def _strip_published_udpated(obj: as_Base | BaseModel) -> as_Base | BaseModel:
     """Return a copy of *obj* with its ``published``/``updated`` timestamps cleared.
 
-    Both timestamps default to build time, so leaving them in would make every
-    rendered example churn on each docs build.
+    For a body built outside :func:`_example_scope`, whose timestamps default
+    to build time and would churn on each docs build (the submit-report
+    tutorial's posted body).  A docs example keeps both: it is built inside
+    that scope, so they read :data:`EXAMPLE_TIMESTAMP`, and its proof's
+    ``created`` is its ``published`` (:func:`_example_json`).
 
     This returns a copy rather than clearing the timestamps in place, for two
     independent reasons:
@@ -399,18 +404,43 @@ def _to_json(obj: object, **kwargs: object) -> str:
     raise TypeError(f"obj must be serializable to JSON: {obj}")
 
 
+def _example_json(obj: as_Base | BaseModel) -> str:
+    """*obj* as a docs example shows it: indented JSON, signed if it is sent.
+
+    The object's ``published``/``updated`` are shown as built: inside
+    :func:`_example_scope` they read :data:`EXAMPLE_TIMESTAMP`.  An object
+    that names an ``actor`` is an activity that actor sends, so it is shown
+    as that actor's outbox would seal it: with a proof made by the example's
+    own ``actor`` (:func:`vultron.wire.as2.signing.sign_docs_example`,
+    SIG-01-001).  The proof's ``created`` is the activity's ``published``,
+    the rule the outbox follows (``signing.authored_time``), so the proof
+    asserts the time the example says it was sent and the signed bytes are
+    the same on every regeneration.  The proof covers the body as shown, so
+    a reader can check it against the key the actor's seed gives.  Anything
+    else, such as an actor profile or a report, is shown unsigned.
+    """
+    text = _to_json(obj, indent=2)
+    document = json.loads(text)
+    if not isinstance(document, dict) or "actor" not in document:
+        return text
+    signed = signing.sign_docs_example(document)
+    return json.dumps(signed, indent=2, ensure_ascii=False)
+
+
 def json2md(obj: as_Base | BaseModel) -> str:
     """
     Given a Pydantic model, return a markdown-formatted string of the object's JSON.
+
+    The JSON is :func:`_example_json`'s, so an activity carries its actor's
+    proof.
+
     Args:
         obj: a Pydantic model (wire or core)
 
     Returns:
         a markdown-formatted string of the object's JSON
     """
-    obj = _strip_published_udpated(obj)
-    s = f"```json\n{_to_json(obj, indent=2)}\n```"
-    return s
+    return f"```json\n{_example_json(obj)}\n```"
 
 
 def obj_to_file(obj: as_Base | BaseModel, filename: str) -> None:
@@ -425,11 +455,14 @@ def obj_to_file(obj: as_Base | BaseModel, filename: str) -> None:
     nothing outside ``vultron/metadata/`` depends on that tooling and this
     package is imported by the running app.
 
+    The text is :func:`_example_json`'s, so an activity carries its actor's
+    proof.
+
     Args:
         obj: a Pydantic model (wire or core)
         filename: the file to write to
     """
-    text = _to_json(_strip_published_udpated(obj), indent=2)
+    text = _example_json(obj)
     with open(filename, "w", encoding="utf-8", newline="\n") as fp:
         fp.write(text)
 

@@ -1,13 +1,16 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Reject",
   "id": "urn:uuid:7bdceebd-59f8-4a2b-bfb7-322e3f51180d",
   "name": "https://vultron.example/case-actors/vendorco-case-actor Reject https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor",
   "context": "https://vultron.example/cases/1",
   "inReplyTo": "urn:uuid:2987701c-3c95-4077-8e97-5ce4c02fa016",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "summary": "fix readiness (VF) asserted before vendor awareness (Vf) was recorded for the Vendor",
   "to": [
     "https://vultron.example/organizations/vendor"
@@ -49,5 +52,18 @@
         "pxaState": "pxa"
       }
     }
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z2sVLZ4aNy7d4CArZmucLvPdm5gdLAE6Ng9xM1Ercb9J1VMZUWxefzHnhppuM6Pa3491Am9W9DNwC5ohqk5zFrNBk"
   }
 }

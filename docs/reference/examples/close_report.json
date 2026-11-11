@@ -1,12 +1,15 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Reject",
   "id": "urn:uuid:1a976e03-b7a9-4c2a-a044-5e9569f4d867",
   "name": "https://vultron.example/organizations/vendorco Reject https://vultron.example/users/finndervul Offer FDR-8675309",
   "inReplyTo": "urn:uuid:9b449431-1c12-4239-bbe4-268fa648540c",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're closing this report.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
@@ -28,5 +31,18 @@
       "content": "I found a vulnerability!",
       "attributedTo": "https://vultron.example/users/finndervul"
     }
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z4uYunf8AZSdNGeD5DkTJ7mSE9ry5jaLSfKyzT8ituo7FNbvf9oeBPEhtwFSV5ru4BP4cfEeJztK6zc58ZjukEDew"
   }
 }
