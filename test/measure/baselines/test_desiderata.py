@@ -32,6 +32,7 @@ from vultron.measure.baselines import (
 )
 from vultron.measure.baselines.desiderata import _candidates
 from vultron.measure.baselines.render import (
+    _exact,
     extended_baseline_table,
     implication_table,
     original_baseline_table,
@@ -174,3 +175,15 @@ def test_the_groups_are_the_pages_groups():
 def test_the_pages_print_the_computed_tables(page, renderer):
     text = (_DOCS / page).read_text(encoding="utf-8")
     assert f"print({renderer}())" in text
+
+
+@pytest.mark.parametrize(
+    ("value", "shown"),
+    [
+        (Fraction(1), "1"),
+        (Fraction(2, 23), "2/23"),
+        (Fraction(1, 10_007), "—"),
+    ],
+)
+def test_a_baseline_prints_as_a_fraction_only_when_short(value, shown):
+    assert _exact(value) == shown

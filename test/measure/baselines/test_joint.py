@@ -33,6 +33,7 @@ from vultron.measure.baselines import (
     JointState,
     VendorPath,
 )
+from vultron.measure.baselines.walk import Step
 
 K = EventKind
 
@@ -197,3 +198,20 @@ def test_a_model_needs_a_vendor():
 def test_an_event_names_its_vendor():
     assert str(Event(K.ACCEPTED, 2)) == "Ac_2"
     assert str(Event(K.EXIT_OWN_TERMS)) == "ExOwn"
+
+
+class _ConflictingModel(JointModel):
+    """A model whose public-awareness step reaches a state another step reaches as a different event."""
+
+    def _pxa_steps(self, state):
+        found = super()._pxa_steps(state)
+        if state == self.initial:
+            target = _state(RM.RECEIVED, CS_vf.Vf)
+            found.append(Step(Event(K.P), target))
+        return found
+
+
+def test_two_steps_to_one_state_as_different_events_are_refused():
+    model = _ConflictingModel(1)
+    with pytest.raises(VultronInvalidStateTransitionError, match="different"):
+        model.steps(model.initial)
