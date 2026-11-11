@@ -30,6 +30,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
@@ -43,6 +44,7 @@ from vultron.core.models.object_fetch import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.services.dereference import (
     case_object_for_participant,
     references_to_fetch,
@@ -488,6 +490,23 @@ class TestCaseObjectForParticipant:
         )
 
         assert isinstance(found, VulnerabilityCase)
+
+    @pytest.mark.spec("AKM-05-006")
+    def test_a_listed_item_and_reference_are_served(self):
+        dl, case = self._host()
+        item = make(VulnerabilityItem, cve="CVE-2024-0001")
+        ref = make(CaseReference, url="https://example.org/advisory")
+        dl.save(item)
+        dl.save(ref)
+        case.vulnerability_items.append(item.id_)
+        case.case_references.append(ref.id_)
+        dl.save(case)
+
+        for listed in (item, ref):
+            found = case_object_for_participant(
+                dl, CASE_MANAGER_ID, case.id_, listed.id_, _PARTICIPANT
+            )
+            assert found == listed
 
     @pytest.mark.spec("AKM-05-009")
     @pytest.mark.spec("AKM-05-006")

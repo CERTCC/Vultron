@@ -129,7 +129,7 @@ groups:
     statement: >-
       A receiver MUST NOT change case data from a CSAF document other than the one
       that CSAF-02-001 names: a document on another activity, on a report that
-      already belongs to a case, in a vulnerability record, or of another category.
+      already belongs to a case, in a vulnerability item, or of another category.
     rationale: >-
       Participants produce CSAF documents from their copies of a case and share
       draft advisories in CSAF. Such a document is a result of the case, so

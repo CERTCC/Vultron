@@ -68,9 +68,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: E402
     as_VulnerabilityCase,
     as_VulnerabilityCaseRef,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_record import (  # noqa: E402
-    as_VulnerabilityRecord,
-    as_VulnerabilityRecordRef,
+from vultron.wire.as2.vocab.objects.vulnerability_item import (  # noqa: E402
+    as_VulnerabilityItem,
+    as_VulnerabilityItemRef,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (  # noqa: E402
     as_VulnerabilityReport,
@@ -108,8 +108,8 @@ EmbargoPolicy = as_EmbargoPolicy
 EmbargoPolicyRef = as_EmbargoPolicyRef
 VulnerabilityCase = as_VulnerabilityCase
 VulnerabilityCaseRef = as_VulnerabilityCaseRef
-VulnerabilityRecord = as_VulnerabilityRecord
-VulnerabilityRecordRef = as_VulnerabilityRecordRef
+VulnerabilityItem = as_VulnerabilityItem
+VulnerabilityItemRef = as_VulnerabilityItemRef
 VulnerabilityReport = as_VulnerabilityReport
 VulnerabilityReportRef = as_VulnerabilityReportRef
 VultronApplication = as_VultronApplication

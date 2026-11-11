@@ -635,7 +635,7 @@ class TestWhatTheVerdictHolds:
             "VultronNote",
             "VultronOrganization",
             "EmbargoPolicy",
-            "VulnerabilityRecord",
+            "VulnerabilityItem",
         } <= names
 
     @pytest.mark.spec("DEMOCI-11-072")

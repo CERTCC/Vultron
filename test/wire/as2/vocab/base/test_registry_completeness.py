@@ -134,7 +134,7 @@ _EXPECTED_TYPES = [
     # Vultron domain objects (types that need faithful round-trips through TinyDB)
     "VulnerabilityReport",
     "VulnerabilityCase",
-    "VulnerabilityRecord",
+    "VulnerabilityItem",
     "CaseParticipant",
     "EmbargoPolicy",
     "CaseStatus",
