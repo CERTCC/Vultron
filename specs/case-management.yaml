@@ -2064,25 +2064,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver that holds no replica of the case MUST hold a full-case Invite at
-      the inbox's defer check until the Announce delivers the case, and MUST drop it
-      when that hold expires. It never judges the Invite without the replica.
+      A receiver MUST NOT judge a full-case Invite for a case it holds no replica
+      of.
     rationale: >-
-      The full-case Invite names a case the invitee is meant to hold already: the
-      CASE_MANAGER queues it after the Announce and the replay (CM-11-010). Delivery
-      order is not guaranteed, so the Invite can arrive first. It is case-scoped, not
-      a message that precedes its case like the stub Invite, so the inbox holds it
-      (HP-01-041) and the tree declares no no-case path. With no trust anchor, no
-      Announce can create the replica (PCR-03-004), so the held Invite is never
-      processed and expires. The receiver fails closed, as it did when it refused.
+      The CASE_MANAGER queues the full-case Invite after the Announce and the replay
+      (CM-11-010), but delivery order is not guaranteed. The Invite is case-scoped,
+      so the inbox's defer check holds it until the Announce delivers the case
+      (HP-01-041). Its tree declares no no-case path. With no trust anchor, no
+      Announce can create the replica (PCR-03-004), so the held Invite expires
+      unprocessed and the receiver fails closed.
     verification: >-
-      A test in `test/core/behaviors/inbox/test_process_payload.py` delivers a
-      full-case Invite before the Announce and confirms the inbox holds it and the
-      Announce's replay processes it on the participant-replica path. A second test
-      confirms that, with no trust anchor, the held Invite is never processed and is
-      dropped when the hold expires. The declaration pin in
-      `test/core/behaviors/test_declared_received_paths.py` records that the tree
-      declares no no-case path.
+      `test/core/use_cases/received/actor/test_full_case_invite.py` and
+      `test/core/behaviors/inbox/test_process_payload.py` confirm that a full-case
+      Invite delivered before the Announce is held and then processed by the
+      Announce's replay, and that with no trust anchor it is never processed.
     relationships:
     - rel_type: extends
       spec_id: CM-11-032
