@@ -79,10 +79,10 @@ distinct artifacts:
 
 The intent, set by ADR-0097, is that the contract a capability declares is
 machine-readable and belongs to the core layer, so a substituted implementation is
-checked against it rather than trusted. The shape base classes and the
-per-capability declarations are being moved into the core layer to make that
-checking possible; until that work lands they live in the simulation layer and the
-contract is carried as prose plus a key dictionary.
+checked against it rather than trusted. The shape base classes and one declaration
+per capability live in the core layer, and each declaration names its contract as
+typed ports. The simulation layer's stand-in for a capability binds to that
+declaration rather than restating it.
 
 This mapping is specific to the hexagonal architecture of the reference
 implementation. Other implementations are not required to use this structure.

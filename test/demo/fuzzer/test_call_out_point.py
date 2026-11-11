@@ -236,7 +236,7 @@ def test_exemplar_is_behaviour(node_cls):
 
 @pytest.mark.parametrize("node_cls", _ALL_EXEMPLARS)
 def test_exemplar_has_blackboard_contract_docstring(node_cls):
-    """Exemplar docstring must contain the BT-18-001 blackboard contract."""
+    """The declaration an exemplar binds to documents its contract (BT-18-001)."""
     assert "Blackboard contract" in _declared_doc(node_cls)
 
 
@@ -278,14 +278,9 @@ def test_evaluate_report_credibility_output_keys_declared():
 def test_evaluate_report_credibility_writes_blackboard_on_success():
     """EvaluateReportCredibility writes report_credibility_verdict on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
-    from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
-    class _AlwaysSucceedEvaluator(EvaluatorCallOutPoint, AlwaysSucceed):
-        OUTPUT_PORTS = {
-            "report_credibility_verdict": PortInformation(
-                data_type=str, required=True
-            )
-        }
+    class _AlwaysSucceedEvaluator(EvaluateReportCredibility, AlwaysSucceed):
+        """The production node, made to answer yes."""
 
     node = _AlwaysSucceedEvaluator("TestCredibility")
     node.setup()
@@ -315,14 +310,9 @@ def test_gather_validation_info_output_keys_declared():
 def test_gather_validation_info_writes_blackboard_on_success():
     """GatherValidationInfo writes validation_info_gathered on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
-    from vultron.demo.fuzzer.call_out_point import RetrieverCallOutPoint
 
-    class _AlwaysSucceedRetriever(RetrieverCallOutPoint, AlwaysSucceed):
-        OUTPUT_PORTS = {
-            "validation_info_gathered": PortInformation(
-                data_type=str, required=True
-            )
-        }
+    class _AlwaysSucceedRetriever(GatherValidationInfo, AlwaysSucceed):
+        """The production node, made to answer yes."""
 
     node = _AlwaysSucceedRetriever("TestGather")
     node.setup()
@@ -348,14 +338,9 @@ def test_prepare_report_output_keys_declared():
 def test_prepare_report_writes_blackboard_on_success():
     """PrepareReport writes prepared_report_artifact on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
-    from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
-    class _AlwaysSucceedComposer(ComposerCallOutPoint, AlwaysSucceed):
-        OUTPUT_PORTS = {
-            "prepared_report_artifact": PortInformation(
-                data_type=str, required=True
-            )
-        }
+    class _AlwaysSucceedComposer(PrepareReport, AlwaysSucceed):
+        """The production node, made to answer yes."""
 
     node = _AlwaysSucceedComposer("TestPrepare")
     node.setup()
@@ -593,10 +578,8 @@ def test_rm_composer_node_writes_blackboard_on_success():
     """A Composer node writes its output key to the blackboard on yes."""
     from vultron.demo.fuzzer.base import AlwaysSucceed
 
-    class _AlwaysSucceedComposer(ComposerCallOutPoint, AlwaysSucceed):
-        OUTPUT_PORTS = {
-            "assigned_vul_id": PortInformation(data_type=str, required=True)
-        }
+    class _AlwaysSucceedComposer(AssignId, AlwaysSucceed):
+        """The production node, made to answer yes."""
 
     node = _AlwaysSucceedComposer("TestAssignId")
     node.setup()

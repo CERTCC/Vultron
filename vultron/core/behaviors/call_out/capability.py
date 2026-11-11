@@ -49,6 +49,17 @@ run as an internal error instead of one node (BTND-03-021).  For that check
 to mean anything, a declared ``data_type`` is a concrete class: ``object``
 would let every value through, so a declaration naming it is refused.
 
+The ports use py_trees' ``PortInformation`` but not its ``PortsMixin``
+(``BehaviourWithPorts``), which ADR-0044 adopts for nodes that read and write
+their own ports.  A capability backend writes none of its own: the seam
+writes the outputs and refusal ports at the plain keys the tree reads, which
+``PortsMixin`` would instead synthesize per node unless every port were
+remapped.  ``PortsMixin`` also registers every concrete class by name in a
+global registry, and many fuzzer nodes share a name with a core node, which
+warns.  So :class:`Capability` keeps the declaration form and the checks —
+one owner per port, a concrete type on both reads and writes — and leaves
+the wiring to the seam.
+
 A backend binds to a declaration by subclassing it, and so takes its ports
 as they are: a subclass of a declaration that declares ports again is
 refused when it is created (BT-18-021).  The probabilistic simulation node
@@ -87,6 +98,7 @@ from vultron.core.behaviors.call_out.actuator import (
 from vultron.core.behaviors.call_out.answer import (
     REFUSAL_REASON_KEY,
     CallOutContract,
+    is_of_port_type,
 )
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 
@@ -188,6 +200,21 @@ class Capability(CallOutBackend):
             for a in (*PORT_ATTRIBUTES, "REFUSAL_REASON_KEY")
             if a in vars(cls)
         ]
+        bound = sorted(
+            {
+                klass.__qualname__
+                for klass in cls.__mro__[1:]
+                if isinstance(klass, type)
+                and issubclass(klass, Capability)
+                and klass.declaration() is klass
+            }
+        )
+        if len(bound) > 1:
+            raise TypeError(
+                f"{cls.__name__} binds to the capabilities {bound}; a "
+                "backend stands in for one capability, so it binds to one "
+                "declaration (BT-18-021)."
+            )
         declaration = cls.declaration()
         if own and declaration is not None and declaration is not cls:
             raise TypeError(
@@ -254,12 +281,16 @@ class Capability(CallOutBackend):
             for key in self.INPUT_PORTS:
                 self._inputs.register_key(key, Access.READ)
 
-    def get_input(self, port: str) -> object:
+    def get_input(self, port: str) -> object | None:
         """Read input port *port*, checked against its declared type.
+
+        An optional input port (``required=False``) with nothing on it reads
+        as ``None``; a required one raises.  Only absence reads as ``None``:
+        a wrong-typed value raises on either kind of port (BTND-03-021).
 
         Raises:
             KeyError: *port* is not a declared input port.
-            NoDataAvailable: Nothing is on the port.
+            NoDataAvailable: Nothing is on a required port.
             TypeError: The value is not of the port's ``data_type``.  It is
                 a wiring error, so it fails the whole tree run, not the one
                 node (BTND-03-021).
@@ -273,12 +304,15 @@ class Capability(CallOutBackend):
             value: object = self._inputs.get(port)
         except KeyError:
             value = None
+        info = self.INPUT_PORTS[port]
         if value is None:
+            if not info.required:
+                return None
             raise NoDataAvailable(
                 f"{self.name}: input port {port!r} has no data available."
             )
-        data_type = self.INPUT_PORTS[port].data_type
-        if not isinstance(value, data_type):
+        data_type = info.data_type
+        if not is_of_port_type(value, data_type):
             raise TypeError(
                 f"{self.name}: value on input port {port!r} is not of type "
                 f"{data_type.__name__}, but {type(value).__name__} "

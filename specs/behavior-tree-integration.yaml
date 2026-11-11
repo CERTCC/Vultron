@@ -1505,12 +1505,11 @@ groups:
   - id: BT-18-001
     priority: MUST
     kind: project
-    verification_debt: '#2574'
     statement: >-
-      Every call-out point node MUST describe its blackboard contract in its class
-      docstring. The contract is the set of input keys it reads before dispatch, the
-      set of output keys, with types, written when it answers yes, and the set of
-      refusal keys written when it answers no.
+      Every capability declaration MUST describe its call-out point's blackboard
+      contract in its class docstring. The contract is the set of input keys it reads
+      before dispatch, the set of output keys, with types, written when it answers yes,
+      and the set of refusal keys written when it answers no.
     rationale: >-
       The blackboard contract is the integration seam between the tree and the backend.
       Without an explicit contract, swapping from a fuzzer backend to a real
@@ -1521,6 +1520,11 @@ groups:
       metadata; the declaration is what a test enforces, and the prose is what makes the
       seam legible. A backend answers yes, no or error (ADR-0183), and only yes and no
       write the blackboard, so the contract names the keys of those two.
+    verification: >-
+      `test_docstring_contract_names_the_declared_ports` in
+      `test/core/behaviors/call_out/test_capability_declarations.py` asserts that the
+      class docstring of every capability declaration has a `Blackboard contract
+      (BT-18-001):` section naming its input, output and refusal keys.
     adr:
     - ADR-0025
     - ADR-0097
@@ -1529,7 +1533,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The class docstring of a call-out point node MUST agree with its typed-port
+      The class docstring of a capability declaration MUST agree with its typed-port
       declaration (BT-18-012), which is the authoritative, machine-readable contract.
     rationale: >-
       The docstring is for a human reader, and the typed-port declaration is what a test

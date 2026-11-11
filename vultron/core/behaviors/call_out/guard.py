@@ -78,6 +78,7 @@ from vultron.config.app import load_actor_config
 from vultron.core.behaviors.call_out.answer import (
     CallOutAnswer,
     CallOutVerdict,
+    is_of_port_type,
 )
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.errors import (
@@ -114,7 +115,7 @@ def _check_data(
         )
     for key, typ in declared.items():
         value = data[key]
-        if not isinstance(value, typ):
+        if not is_of_port_type(value, typ):
             raise CallOutContractError(
                 f"Call-out backend {node!r} answered {what} with "
                 f"{key}={type(value).__name__}, not the declared "

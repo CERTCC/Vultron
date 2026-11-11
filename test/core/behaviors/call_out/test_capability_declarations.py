@@ -183,12 +183,17 @@ _WRITERS = [d for d in _DECLARATIONS if d.OUTPUT_PORTS]
 
 
 def _answering_yes(node_cls: type[Capability]) -> Capability:
-    """*node_cls*, made to give its simulated *yes* on every tick.
+    """A node of *node_cls* whose own ``answer()`` gives *yes*.
 
-    A simulation node answers *yes* only at its success rate, and some never
-    do, so the test takes the node's own *yes* (a zero value of each
-    declared output's type, BT-18-003) rather than rolling for it.
+    The test patches the roll to 0.0, so a probabilistic node takes its
+    *yes* branch through its real ``answer()``.  A node that never answers
+    *yes* (``AlwaysFail``) has no *yes* branch to run; for it alone the test
+    calls the simulation's ``yes()`` directly.
     """
+    from vultron.demo.fuzzer.base import AlwaysFail
+
+    if node_cls.answer is not AlwaysFail.answer:
+        return node_cls()
     forced: type[Capability] = type(
         f"{node_cls.__name__}AnsweringYes",
         (node_cls,),
@@ -209,9 +214,12 @@ def test_writers_are_found() -> None:
 @pytest.mark.spec("BT-18-012")
 @pytest.mark.parametrize("declaration", _WRITERS, ids=_id)
 def test_yes_writes_every_declared_output_port(
-    declaration: type[Capability],
+    declaration: type[Capability], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Read the declared output ports, then check a *yes* writes each one."""
+    from vultron.demo.fuzzer import base
+
+    monkeypatch.setattr(base.random, "random", lambda: 0.0)
     nodes = _BOUND.get(declaration, [])
     assert nodes
     for node_cls in nodes:

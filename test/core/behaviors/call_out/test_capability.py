@@ -211,13 +211,31 @@ def test_a_port_cannot_be_both_read_and_written() -> None:
         )
 
 
-def test_an_optional_input_port_is_allowed() -> None:
-    cls: type[Capability] = type(
-        "_OptionalInput",
-        (RetrieverCapability,),
-        {"INPUT_PORTS": {_IN: _port(str, required=False)}},
-    )
-    assert not cls.INPUT_PORTS[_IN].required
+class _OptionalInput(RetrieverCapability):
+    INPUT_PORTS = {_IN: _port(str, required=False)}
+
+
+def test_an_optional_input_port_reads_absence_as_none() -> None:
+    assert _OptionalInput("Reader").get_input(_IN) is None
+
+
+@pytest.mark.spec("BTND-03-021")
+def test_an_optional_input_port_still_refuses_a_wrong_type() -> None:
+    py_trees.blackboard.Blackboard.set(f"/{_IN}", 42)
+    with pytest.raises(TypeError, match="not of type str"):
+        _OptionalInput("Reader").get_input(_IN)
+
+
+class _Other(EvaluatorCapability):
+    """A second probe declaration."""
+
+    OUTPUT_PORTS = {"probe_other_output": _port(str)}
+
+
+@pytest.mark.spec("BT-18-021")
+def test_a_class_binds_to_one_declaration_only() -> None:
+    with pytest.raises(TypeError, match="binds to one declaration"):
+        type("_Both", (_Declared, _Other), {})
 
 
 @pytest.mark.spec("BT-18-028")
@@ -268,6 +286,33 @@ def test_get_input_reads_a_stored_none_as_no_data() -> None:
 def test_get_input_refuses_an_undeclared_port() -> None:
     with pytest.raises(KeyError, match="not an input port"):
         _AnswersYes("Reader").get_input(_OUT)
+
+
+class _ReadsCount(EvaluatorCapability):
+    INPUT_PORTS = {_IN: _port(int)}
+
+
+@pytest.mark.spec("BTND-03-021")
+def test_a_bool_is_not_an_int_on_an_input_port() -> None:
+    py_trees.blackboard.Blackboard.set(f"/{_IN}", True)
+    with pytest.raises(TypeError, match="not of type int"):
+        _ReadsCount("Reader").get_input(_IN)
+    py_trees.blackboard.Blackboard.set(f"/{_IN}", 3)
+    assert _ReadsCount("Reader").get_input(_IN) == 3
+
+
+class _AnswersBool(_AnswersYes):
+    outputs = {_OUT: True}
+
+
+@pytest.mark.spec("BTND-03-021")
+@pytest.mark.spec("BT-18-036")
+def test_a_bool_is_not_an_int_on_an_output_port() -> None:
+    from vultron.core.behaviors.call_out.errors import CallOutContractError
+
+    py_trees.blackboard.Blackboard.set(f"/{_IN}", "supplied")
+    with pytest.raises(CallOutContractError, match="not the declared int"):
+        tick_call_out(_AnswersBool("Writer"))
 
 
 @pytest.mark.spec("BTND-03-021")
