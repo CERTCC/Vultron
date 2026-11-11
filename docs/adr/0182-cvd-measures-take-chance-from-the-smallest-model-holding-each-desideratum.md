@@ -2,8 +2,8 @@
 status: proposed
 date: 2026-11-06
 created: 2026-11-06
-updated: 2026-11-06
-revision: 1
+updated: 2026-11-11
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Epic #5068; Ideas #5072, #5143, #5828, #5142; ADR-0174;
@@ -71,7 +71,9 @@ Chosen option: "One indifference walk, applied to the smallest model that holds 
    A two-party case reduces to its one vendor's score.
    A participant with no vendor path is out of scope until it has measures of its own.
 5. **Path preferences are simple counts.**
-   A preference about the shape of a history is a per-participant count or ratio read from the event history, such as invitations answered before their deadline out of those received.
+   A preference about the shape of a history is a count or ratio read from the event history.
+   A preference about a participant's own acts is a count or ratio for each participant, such as invitations answered before their deadline out of those received.
+   A preference about an embargo is a count or ratio for the case, because the embargo belongs to the case, such as the number of embargo revisions.
    No combined reward function is defined.
 
 ### Consequences

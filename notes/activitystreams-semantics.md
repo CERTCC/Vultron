@@ -6,13 +6,15 @@ tags: [as2, activitystreams, wire, semantics, extractor, rehydration, accept-rej
 description: >
   Activities as state-change statements, not commands; inbound/outbound
   semantics, Accept/Reject object rules, rehydration, and how a bare
-  reference matches a pattern (`object_` strict, `target_` lenient).
+  reference matches a pattern (`object_` strict, `target_` lenient); and the
+  rules for choosing an AS2 verb or property before inventing a Vultron one.
 related_specs:
   - specs/semantic-extraction.yaml
   - specs/response-format.yaml
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
 related_notes:
+  - notes/as2-vocabulary-alignment.md
   - notes/activitystreams-state-update.md
   - notes/activity-factories.md
   - notes/bt-integration.md
@@ -56,6 +58,37 @@ the work.
   `Create(VulnerabilityCase)`.
 - Causal antecedents (the Accept that authorized an action, the Offer being
   answered) go in `inReplyTo`, never `context` (CP-05-003, ADR-0045).
+
+## Choosing AS2 Terms
+
+The changes these rules imply for today's code are tracked in
+[as2-vocabulary-alignment.md](as2-vocabulary-alignment.md).
+
+- **Use AS2's own term before inventing one, but never manufacture a use.** The aim
+  is the most natural AS2 form of each CVD sentence, so check the Vocabulary for a
+  verb or property with that meaning before adding a Vultron property or type.
+- **An extension type carries the core type it overlaps** (AS2 Core's example is
+  `"type": ["Resign", "Leave"]`), and every Vultron property gets a JSON-LD term. A
+  generic AS2 reader then still understands the message, and a JSON-LD processor
+  keeps the property (AS2 Core § Extensibility).
+- **A verb describes what was done.** If the sentence would be false, such as `Move`
+  for a case that stays where it is, pick another verb.
+- **`origin` is where something comes from or leaves; `target` is where it goes.**
+  `Remove(x, origin=…)`, `Move(x, origin=…, target=…)`, and `Add(x, target=…)` with an
+  optional `origin` for a copy. One meaning per slot means a receiver never needs to
+  know the verb to read it (VOC Remove, Add, Move).
+- **`result` names what an act caused, set by the actor that caused it** (Primer:
+  "changes of state or indirect outcomes"). It is not the created object, which is a
+  `Create`'s `object`.
+- **`attachment` includes; `tag` refers** (VOC `tag`, errata). A tag never changes
+  recipients or entitlement: a `Mention` in `tag` notifies no one by itself.
+- **Identity decides `Update` versus a new object.** If a thing keeps its identity
+  and its author may revise it, the change is `Update(x)`. If each version is a fact
+  others answer or rely on, it is a new object. Status records are append-only and
+  never updated: a new status is an `Add` to the history.
+- **A request for an approval of a concrete act is `Offer(<the act>)`**, answered by
+  `Accept` or `Reject`; `Question` is for choices and open inquiries (VOC Offer,
+  Question).
 
 ## Responses Reference the Request Twice
 
