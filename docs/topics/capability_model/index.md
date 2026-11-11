@@ -34,7 +34,7 @@ The protocol coordinates the case; the judgment, the data, and the side effects 
 | develop or deploy fixes | [CreateFix](#fix-development), [DeployFix](#fix-and-mitigation-deployment) | Composer, Evaluator |
 | know whether an exploit exists | [HaveExploit, FindExploit](#exploit-management) | Retriever |
 | write or publish advisories | [DraftAdvisoryArtifact, ReviewAdvisoryDraft, SubmitAdvisoryArtifact](#publication) | Composer, Evaluator, Actuator |
-| know who else belongs in the case | a participant suggester, asked by [SuggestParticipants](#participant-and-actor-discovery) inside a BT or by a [Sentinel](#the-sentinel-call-in-pattern) that calls `suggest-actor-to-case`, or [IdentifyVendors, IdentifyCoordinators, InjectParticipant](#reporting-to-others) in the simulator | Retriever, Actuator |
+| know who else belongs in the case | a participant suggester, asked by [SuggestParticipants](#participant-and-actor-discovery) inside a behavior tree or by a [Sentinel](#the-sentinel-call-in-pattern) that calls `suggest-actor-to-case`, or [IdentifyVendors, IdentifyCoordinators, InjectParticipant](#reporting-to-others) in the simulator | Retriever, Actuator |
 | watch threat feeds | [MonitorAttacks, MonitorExploits, MonitorPublicReports](#threat-monitoring), or a [Sentinel](#the-sentinel-call-in-pattern) that reports what it sees | Retriever |
 | update your ticketing system | [OnAccept, OnDefer](#report-prioritization) and [PreCloseAction](#leaving-a-case) | Actuator |
 
@@ -410,7 +410,8 @@ Your system answers it by implementing one port, `ParticipantSuggestionPort` in 
 The same adapter serves a BT and a [Sentinel](#the-sentinel-call-in-pattern), because both ask through one core service, `suggest_case_participants` (BT-24-001, BT-24-008).
 
 The port never sees the case.
-It receives a suggestion context, which the core service builds from the case: each report's title, summary and body as the evidence, and each participant's actor id and roles as who is already in the case (BT-24-002, BT-24-009).
+It receives a suggestion context, which the core service builds from the case (BT-24-002, BT-24-009).
+The context carries each report's title, summary and body as the evidence, and each participant's actor id and roles as who is already in the case.
 A report can name a vendor or a product that is not yet in the case, and finding that party is the point of the port.
 The participants that hold the VENDOR role are the case's current vendors.
 
