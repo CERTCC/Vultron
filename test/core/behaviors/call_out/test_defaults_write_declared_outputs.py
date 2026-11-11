@@ -34,12 +34,14 @@ inherited field (``DeploymentMonitoringBundle``'s) is one field, checked
 against every subclass singleton that builds it; every field that answers a
 declaration has a simulation node, and its default keeps the STOCHASTIC
 rate's yes/no direction (BT-23-002), save the pinned
-:data:`DIRECTION_EXEMPT_FIELDS`.
+:data:`DIRECTION_EXEMPTIONS`.
 
 A field no singleton binds answers no declaration, so its backends are
-binary and BT-23-013 does not reach it.  Those fields are a pinned exemption
-set, :data:`BINARY_FIELDS_WITH_NO_CAPABILITY`, kept equal to what the
-bindings derive, and every backend they build declares no outputs.
+binary and BT-23-013 does not reach it.  Those fields are the pinned
+exemption set :data:`BINARY_FIELD_EXEMPTIONS` plus the ratchet
+:data:`UNDECLARED_CAPABILITY_EXEMPTIONS` (owner #6306), together kept equal
+to what the bindings derive, and every backend they build declares no
+outputs.
 """
 
 from __future__ import annotations
@@ -292,39 +294,46 @@ def test_stochastic_node_writes_every_declared_output(
 
 
 # Pinned exemption set, not a ratchet: the bundle fields that answer no
-# declared capability.  Each is a pass/fail gate whose verdict is the whole
-# answer, so BT-23-013 does not reach it.  A new field missing from both
-# sides' bindings fails the equality below instead of passing as binary
+# declared capability by design.  Each is a pass/fail gate whose verdict is
+# the whole answer, so BT-23-013 does not reach it.  A new field missing from
+# both sides' bindings fails the equality below instead of passing as binary
 # (ARCH-18-001, ARCH-18-005).
-# permanent: BT-23-013 (binds only a capability that declares output ports)
-BINARY_FIELDS_WITH_NO_CAPABILITY: frozenset[FieldKey] = frozenset(
-    {
-        ("ActorResolutionCallOutBundle", "resolve_actor_factory"),
-        ("StatusAuthorizationCallOutBundle", "status_adoption_gate_factory"),
-    }
+# permanent: RSH-07-001 (the status adoption gate is a yes/no gate)
+BINARY_FIELD_EXEMPTIONS: frozenset[FieldKey] = frozenset(
+    {("StatusAuthorizationCallOutBundle", "status_adoption_gate_factory")}
+)
+
+# Ratchet: fields that will answer a declared capability but have none yet.
+# Actor resolution is a stub until it becomes a Retriever with a CoreActor
+# output port; that issue binds it and empties this set.
+# owner: #6306
+UNDECLARED_CAPABILITY_EXEMPTIONS: frozenset[FieldKey] = frozenset(
+    {("ActorResolutionCallOutBundle", "resolve_actor_factory")}
+)
+
+_FIELDS_WITH_NO_CAPABILITY = (
+    BINARY_FIELD_EXEMPTIONS | UNDECLARED_CAPABILITY_EXEMPTIONS
 )
 
 
 @pytest.mark.spec("BT-23-013")
 def test_the_fields_with_no_capability_are_exactly_the_pinned_set() -> None:
     unbound = {k for k in _FIELD_DECLARATIONS if _answers(k) is None}
-    assert unbound == BINARY_FIELDS_WITH_NO_CAPABILITY, (
+    assert unbound == _FIELDS_WITH_NO_CAPABILITY, (
         "a field binds no capability on either side; bind its default and "
         "its simulation node to its declaration, or record here why it is "
-        "binary"
+        "binary (and drop a newly bound field from its exemption set)"
     )
 
 
 @pytest.mark.spec("BT-23-013")
-@pytest.mark.parametrize(
-    "key", sorted(BINARY_FIELDS_WITH_NO_CAPABILITY), ids=_id
-)
+@pytest.mark.parametrize("key", sorted(_FIELDS_WITH_NO_CAPABILITY), ids=_id)
 def test_a_field_with_no_capability_is_binary(key: FieldKey) -> None:
     """A field no singleton binds declares no outputs anywhere it is built.
 
     BT-23-013 reaches only a capability that declares output ports, so such
-    a field (actor resolution, the status adoption gate) stays binary until
-    a declaration for it exists.
+    a field (the status adoption gate; actor resolution until #6306) stays
+    binary until a declaration for it exists.
     """
     _, field = key
     for bundle in _ALL_INSTANCES:
@@ -354,7 +363,7 @@ _STOCHASTIC_RATES = _stochastic_rates()
 
 @pytest.mark.spec("BT-23-013")
 def test_the_direction_exemptions_are_real_fields() -> None:
-    assert set(_FIELD_DECLARATIONS) >= DIRECTION_EXEMPT_FIELDS
+    assert set(_FIELD_DECLARATIONS) >= DIRECTION_EXEMPTIONS
 
 
 @pytest.mark.spec("BT-23-013")
@@ -375,18 +384,18 @@ def test_every_field_that_answers_a_capability_is_simulated() -> None:
 # default does not follow the STOCHASTIC rate's direction (ARCH-18-001).
 # permanent: RSH-07-001 (the status adoption gate defaults to requiring
 # CASE_OWNER approval, ADR-0076)
-DIRECTION_EXEMPT_FIELDS: frozenset[FieldKey] = frozenset(
+DIRECTION_EXEMPTIONS: frozenset[FieldKey] = frozenset(
     {("StatusAuthorizationCallOutBundle", "status_adoption_gate_factory")}
 )
 
 
 def _directed_fields() -> list[FieldKey]:
-    """Every default field outside :data:`DIRECTION_EXEMPT_FIELDS`."""
+    """Every default field outside :data:`DIRECTION_EXEMPTIONS`."""
     return sorted(
         (name, f.name)
         for name, bundle in _DEFAULTS.items()
         for f in dataclasses.fields(bundle)  # type: ignore[arg-type]
-        if _key(bundle, f.name) not in DIRECTION_EXEMPT_FIELDS
+        if _key(bundle, f.name) not in DIRECTION_EXEMPTIONS
     )
 
 
