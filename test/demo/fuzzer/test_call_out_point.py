@@ -27,7 +27,7 @@ import pytest
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
-from test.support.call_out import tick_call_out
+from test.support.call_out import refused_class, tick_call_out
 from vultron.core.behaviors.call_out.capability import Capability
 from vultron.core.behaviors.call_out.guard import SynchronousCallOut
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
@@ -648,7 +648,7 @@ def test_actuator_node_does_not_write_blackboard_on_success():
     """
     from vultron.demo.fuzzer.base import AlwaysSucceed
 
-    with pytest.raises(TypeError, match="BT-18-028"):
+    with refused_class("BT-18-028"):
 
         class _AlwaysSucceedActuator(ActuatorCallOutPoint, AlwaysSucceed):
             OUTPUT_PORTS = {

@@ -63,15 +63,18 @@ References
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import py_trees
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.call_out.actuator import actuator_call
+from vultron.core.behaviors.call_out.bundles.publication import (
+    PUBLICATION_DETERMINISTIC,
+    PublicationCallOutBundle,
+)
 from vultron.core.behaviors.call_out.guard import guard_call_out_factory
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 from vultron.core.behaviors.report.advisory_review import (
@@ -79,11 +82,6 @@ from vultron.core.behaviors.report.advisory_review import (
     REVIEW_DECISION_KEY,
     AdvisoryReviewDecision,
 )
-
-if TYPE_CHECKING:
-    from vultron.core.behaviors.call_out.bundles.publication import (
-        PublicationCallOutBundle,
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -162,41 +160,6 @@ class _NeedsRevisionGate(BehaviourWithPorts):
         return Status.FAILURE
 
 
-def _default_draft_advisory_artifact_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    # Core DETERMINISTIC default (ADR-0025, BT-23-002): the happy-path backend
-    # a real actor uses before a Composer agent is wired in.  The probabilistic
-    # DraftAdvisoryArtifact fuzzer node lives in the simulation layer and is
-    # injected via ``call_out=PUBLICATION_STOCHASTIC``.
-    return AlwaysSucceed(name)
-
-
-def _default_review_advisory_draft_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    # Core DETERMINISTIC default (ADR-0025, BT-23-002); the auto-approve
-    # happy-path backend.  STOCHASTIC ReviewAdvisoryDraft is injected via
-    # ``call_out=PUBLICATION_STOCHASTIC``.
-    return AlwaysSucceed(name)
-
-
-def _default_revise_advisory_draft_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    # Core DETERMINISTIC default (ADR-0025, BT-23-002).  STOCHASTIC
-    # ReviseAdvisoryDraft is injected via ``call_out=PUBLICATION_STOCHASTIC``.
-    return AlwaysSucceed(name)
-
-
-def _default_submit_advisory_artifact_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    # Core DETERMINISTIC default (ADR-0025, BT-23-002).  STOCHASTIC
-    # SubmitAdvisoryArtifact is injected via ``call_out=PUBLICATION_STOCHASTIC``.
-    return NoOpActuator(name)
-
-
 def advisory_target(case_id: str, artifact_label: str = "") -> str:
     """The one target a ``SubmitAdvisoryArtifact`` call acts on (BT-18-041).
 
@@ -212,10 +175,10 @@ def advisory_target(case_id: str, artifact_label: str = "") -> str:
 def create_publish_artifact_tree(
     case_id: str,
     artifact_label: str = "",
-    draft_advisory_artifact_factory: CallOutBackendFactory = _default_draft_advisory_artifact_factory,
-    review_advisory_draft_factory: CallOutBackendFactory = _default_review_advisory_draft_factory,
-    revise_advisory_draft_factory: CallOutBackendFactory = _default_revise_advisory_draft_factory,
-    submit_advisory_artifact_factory: CallOutBackendFactory = _default_submit_advisory_artifact_factory,
+    draft_advisory_artifact_factory: CallOutBackendFactory = PUBLICATION_DETERMINISTIC.draft_advisory_artifact_factory,
+    review_advisory_draft_factory: CallOutBackendFactory = PUBLICATION_DETERMINISTIC.review_advisory_draft_factory,
+    revise_advisory_draft_factory: CallOutBackendFactory = PUBLICATION_DETERMINISTIC.revise_advisory_draft_factory,
+    submit_advisory_artifact_factory: CallOutBackendFactory = PUBLICATION_DETERMINISTIC.submit_advisory_artifact_factory,
     call_out: PublicationCallOutBundle | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the publish-artifact pipeline (Production Collapse 4).
@@ -244,21 +207,24 @@ def create_publish_artifact_tree(
             in the py_trees display tree.  Optional — defaults to empty string.
         draft_advisory_artifact_factory: Factory for the Composer call-out
             point that drafts the advisory artifact from case data.  Defaults
-            to the core DETERMINISTIC ``AlwaysSucceed`` backend (ADR-0025,
-            BT-23-002); inject ``call_out=PUBLICATION_STOCHASTIC`` for the
+            to the ``PUBLICATION_DETERMINISTIC`` field, an ``AlwaysSucceed``
+            that writes ``draft_advisory_artifact`` (ADR-0025, BT-23-002,
+            BT-23-013); inject ``call_out=PUBLICATION_STOCHASTIC`` for the
             probabilistic fuzzer node.
         review_advisory_draft_factory: Factory for the Evaluator call-out
             point that reviews and approves the draft.  The default
-            auto-approve DETERMINISTIC backend allows the pipeline to function
-            before a real review agent is available (AC-3, ADR-0030).
+            auto-approve DETERMINISTIC backend writes an
+            :class:`AdvisoryReviewDecision` that asks for no revision, so
+            the pipeline functions before a real review agent is available
+            (ADR-0030, BT-23-013).
         revise_advisory_draft_factory: Factory for the optional Composer
             call-out point that revises the draft based on review feedback.
             Runs only when the Evaluator sets ``needs_revision=True``.
-            Defaults to the core DETERMINISTIC ``AlwaysSucceed`` backend.
+            Defaults to the ``PUBLICATION_DETERMINISTIC`` field.
         submit_advisory_artifact_factory: Factory for the Actuator call-out
             point that submits the finalized artifact to the external advisory
-            platform.  Defaults to the core DETERMINISTIC ``NoOpActuator``
-            backend.  It is placed on :func:`advisory_target`, the one
+            platform.  Defaults to the ``PUBLICATION_DETERMINISTIC`` field,
+            a ``NoOpActuator``.  It is placed on :func:`advisory_target`, the one
             target its call acts on (BT-18-041).
 
     Returns:

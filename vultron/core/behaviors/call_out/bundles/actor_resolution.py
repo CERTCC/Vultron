@@ -41,15 +41,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
 
 
 @dataclass(frozen=True)
@@ -66,7 +60,7 @@ class ActorResolutionCallOutBundle(CallOutBundle):
     """
 
     resolve_actor_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=AlwaysSucceed  # type: ignore[assignment]
     )
     """ResolveActorDetails (Retriever): p=0.90 → AlwaysSucceed.
 
