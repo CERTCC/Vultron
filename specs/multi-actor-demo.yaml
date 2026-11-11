@@ -3591,10 +3591,9 @@ groups:
     statement: >-
       The RV-CSAF scenario expected-semantic-types list MUST include
       `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case` and
-      `remove_embargo_event_from_case` in addition to the universal types
-      (DEMOMA-16-001), because the CASE_MANAGER relays the Vendor's longer
-      default as an embargo revision, the revision's invitation is accepted, and
-      the Vendor's publication ends the embargo.
+      `remove_embargo_event_from_case`, besides the universal types
+      (DEMOMA-16-001). They record the relayed revision of the Vendor's longer
+      default, its acceptance, and the end of the embargo.
     rationale: >-
       The relayed revision is what shortest-wins leaves behind when the CSAF
       date is the shorter term (EP-04-003, EP-04-027); without its entries a
@@ -7315,11 +7314,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      In the RV-CSAF scenario, the Reporter MUST submit its report through the
-      submit-report trigger with a CSAF 2.1 vulnerability report attached and no
-      report name, summary or proposed embargo end, after the Vendor has
-      published a default embargo longer than the term to the document's
-      `disclosure_date`.
+      In the RV-CSAF scenario, the Reporter MUST call submit-report with a CSAF
+      2.1 vulnerability report attached and no report name, summary or embargo
+      end. The Vendor has first published a default embargo longer than the
+      term to the document's `disclosure_date`.
     rationale: >-
       Stating none of the three leaves each one to the document (CSAF-04-010),
       so the case's values can only have come from it. The Vendor's longer
@@ -7339,10 +7337,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The RV-CSAF scenario MUST check, on the canonical case, that its name is
-      the CSAF `document.title`, its summary is the document-level `summary`
-      note, and its active embargo ends at the CSAF `disclosure_date`, with the
-      Vendor's default registered as the pending revision.
+      The RV-CSAF scenario MUST check the canonical case against the CSAF
+      document. Its name is the `document.title` and its summary the
+      document-level `summary` note. Its active embargo ends at the
+      `disclosure_date`, and the Vendor's default is the pending revision.
     rationale: >-
       These are the values a CASE_MANAGER fills from an initial CSAF report
       (CSAF-03-001, CSAF-03-007). Reading them on the CaseActor's store checks
@@ -7408,8 +7406,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The RV-CSAF scenario's CSAF document MUST be one this project wrote, and
-      MUST be schema-valid against the pinned CSAF 2.1 revision.
+      The RV-CSAF scenario's CSAF document MUST be a document this project wrote
+      that is schema-valid against the pinned CSAF 2.1 revision.
     rationale: >-
       The suite never reads the CSAF Technical Committee's test documents
       (CSAF-05-004), and the submit-report trigger refuses a document that is
@@ -7427,9 +7425,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The RV-CSAF story MUST tell the note thread and the two-party ending, the
-      Vendor's fix, the publication and the closure, with the same fragments as
-      rv.
+      After the case starts, the RV-CSAF story MUST tell rv's note thread, fix,
+      publication and closure with rv's own fragments.
     rationale: >-
       Only the opening differs from rv, so what follows the case's start is one
       copy of the code (DEMOMA-17-001), and a fix to rv's ending reaches this
