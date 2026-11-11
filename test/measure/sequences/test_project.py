@@ -219,7 +219,9 @@ def test_a_sequence_combines_the_vendors_own_events_with_the_cases():
     assert deploying is not None
     by_kind = {e.kind: e for e in deploying.events}
     assert by_kind[CSEvent.P].participant is None
-    assert {by_kind[k].participant for k in "VFD"} == {VENDOR}
+    assert {
+        by_kind[k].participant for k in (CSEvent.V, CSEvent.F, CSEvent.D)
+    } == {VENDOR}
     # A vendor holding no Deployer role has no deployment event, and its
     # sequence is still a valid prefix.
     plain = projected.for_participant(VENDOR_2)
