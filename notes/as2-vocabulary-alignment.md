@@ -34,6 +34,7 @@ tracks:
   - "#6258"   # end-date poll (deferred)
   - "#6259"   # concern: rebuilt replies
   - "#6260"   # concern: Create(CaseParticipant) target
+  - "#6295"   # Create(CaseParticipant) drops target, keeps context
   - "#6261"   # concern: stale Offer(EmbargoEvent) payload
   - "#6293"   # idea: owner's removal and reinstatement requests name the Actor
 description: >
@@ -590,7 +591,7 @@ extending the RSVP deadline is a separate Idea.
 
 ## Create(CaseParticipant) Names Its Case in context
 
-Issue: #6260.
+Issue: #6295 (from Concern #6260).
 
 **Decision.** The CASE_MANAGER's `Create(CaseParticipant)` ledger entry drops `target`
 and keeps `context` = the case. It stays a `Create`: the act is "this record now
