@@ -42,10 +42,11 @@ from typing import ClassVar, Self, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from vultron.core.models.base import ValidatedAssignmentMixin
 from vultron.errors import VultronValidationError
 
 
-class ModelProfile(BaseModel):
+class ModelProfile(ValidatedAssignmentMixin):
     """The base of every model profile; see the module docstring.
 
     Class attributes:

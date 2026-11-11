@@ -61,18 +61,17 @@ from vultron.core.ports.participant_suggestion import (
     ParticipantSuggestionPort,
 )
 from vultron.core.services.participant_suggestion import (
-    suggest_case_participants,
+    suggest_participants_for_case_id,
 )
-from vultron.errors import VultronError, VultronNotFoundError
+from vultron.errors import VultronError
 
 
 class SuggestParticipantsRetriever(SuggestParticipantsCapability):
     """The REAL backend of SuggestParticipants: asks the core service.
 
-    Reads the case id from its input port, reads the case from *dl*, and
-    answers *yes* with what
-    :func:`~vultron.core.services.participant_suggestion.suggest_case_participants`
-    returns, an empty list included.  It never calls the port itself
+    Reads the case id from its input port and answers *yes* with what
+    :func:`~vultron.core.services.participant_suggestion.suggest_participants_for_case_id`
+    returns for it, an empty list included.  It never calls the port itself
     (BT-24-008).
 
     A case it cannot read, a reference the case names that *dl* lacks, or
@@ -95,10 +94,9 @@ class SuggestParticipantsRetriever(SuggestParticipantsCapability):
         """Answer *yes* with the case's suggestions, or *error*."""
         case_id = str(self.get_input(SUGGESTION_CASE_ID_KEY))
         try:
-            case = self._dl.read_case(case_id)
-            if case is None:
-                raise VultronNotFoundError("VulnerabilityCase", case_id)
-            suggestions = suggest_case_participants(case, self._port, self._dl)
+            suggestions = suggest_participants_for_case_id(
+                case_id, self._port, self._dl
+            )
         except VultronError as exc:
             return CallOutAnswer.error(
                 f"participant suggestion for case '{case_id}' failed: {exc}"

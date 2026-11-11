@@ -134,4 +134,32 @@ def suggest_case_participants(
     return suggestions
 
 
-__all__ = ["suggest_case_participants", "suggestion_context"]
+def suggest_participants_for_case_id(
+    case_id: str,
+    port: ParticipantSuggestionPort,
+    dl: CasePersistence,
+) -> list[ParticipantSuggestion]:
+    """Read case *case_id* from *dl*, then :func:`suggest_case_participants`.
+
+    For a caller that holds the case's id, as the tree's call-out and a
+    Sentinel do.
+
+    Raises:
+        VultronNotFoundError: *dl* holds no case *case_id*, or a report or
+            participant the case names.
+        VultronValidationError: A participant names no actor.
+        VultronError: The adapter could not answer.
+        TypeError: The adapter answered with something other than
+            :class:`ParticipantSuggestion` objects.
+    """
+    case = dl.read_case(case_id)
+    if case is None:
+        raise VultronNotFoundError("VulnerabilityCase", case_id)
+    return suggest_case_participants(case, port, dl)
+
+
+__all__ = [
+    "suggest_case_participants",
+    "suggest_participants_for_case_id",
+    "suggestion_context",
+]

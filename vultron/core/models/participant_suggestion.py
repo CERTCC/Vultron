@@ -41,6 +41,7 @@ from pydantic import (
     model_validator,
 )
 
+from vultron.core.models.base import ValidatedAssignmentMixin
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.profile import ModelProfile
@@ -183,7 +184,7 @@ class SuggestionContext(ModelProfile):
         ]
 
 
-class ParticipantSuggestion(BaseModel):
+class ParticipantSuggestion(ValidatedAssignmentMixin):
     """One party the suggester thinks belongs in the case, and why.
 
     It names an identity and nothing about timing: whoever receives the
