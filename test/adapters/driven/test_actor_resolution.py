@@ -16,6 +16,7 @@
 import asyncio
 import threading
 from datetime import timedelta
+from types import SimpleNamespace
 
 import pytest
 
@@ -221,10 +222,90 @@ def test_live_adapter_waits_less_than_the_call_out_budget_by_default():
     """The rest of the budget is the seam's, so a late peer is an error."""
     budget = load_actor_config().call_out_time_budget
 
-    adapter = HttpActorResolutionAdapter()
+    wait = HttpActorResolutionAdapter()._wait()
 
-    assert adapter._budget == budget * BUDGET_SHARE
-    assert adapter._budget < budget
+    assert wait == budget * BUDGET_SHARE
+    assert wait < budget
+
+
+@pytest.mark.spec("BT-18-026")
+@pytest.mark.spec("BT-18-027")
+def test_live_adapter_reads_the_budget_at_each_resolution(monkeypatch):
+    """A budget changed after the adapter is built still bounds the wait."""
+    adapter = HttpActorResolutionAdapter()
+    monkeypatch.setattr(
+        "vultron.adapters.driven.actor_resolution.load_actor_config",
+        lambda: SimpleNamespace(call_out_time_budget=timedelta(seconds=1)),
+    )
+
+    assert adapter._wait() == timedelta(seconds=1) * BUDGET_SHARE
+
+
+def test_live_adapter_refuses_a_configured_budget_that_is_not_positive(
+    monkeypatch,
+):
+    adapter = HttpActorResolutionAdapter()
+    monkeypatch.setattr(
+        "vultron.adapters.driven.actor_resolution.load_actor_config",
+        lambda: SimpleNamespace(call_out_time_budget=timedelta(0)),
+    )
+
+    with pytest.raises(ValueError, match="must be positive"):
+        adapter.resolve_actor(PEER, REQUESTER)
+
+
+@pytest.mark.spec("BT-18-011")
+def test_a_fetch_ended_by_a_base_exception_is_an_error_answer():
+    """A worker cancelled before it answers gives *error*, not a KeyError."""
+
+    class _Cancelled:
+        async def fetch_profile(
+            self, actor_id: str, requester_id: str
+        ) -> CoreActor:
+            raise asyncio.CancelledError()
+
+    with pytest.raises(
+        VultronActorProfileFetchError, match="ended with CancelledError"
+    ):
+        HttpActorResolutionAdapter(
+            _Cancelled(), budget=timedelta(seconds=5)
+        ).resolve_actor(PEER, REQUESTER)
+
+
+@pytest.mark.spec("AKM-02-006")
+def test_live_adapter_invents_no_time_a_profile_body_omits():
+    """A peer that states no ``published``/``updated`` gets none stored."""
+    body = {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "id": PEER,
+        "type": "Organization",
+        "name": "Peer Org",
+        "inbox": f"{PEER}/inbox/",
+    }
+
+    resolved = _live(BodyFetcher(body)).resolve_actor(PEER, REQUESTER)
+
+    assert resolved.published is None
+    assert resolved.updated is None
+    assert resolved.name == "Peer Org"
+
+
+def test_live_adapter_keeps_the_times_a_profile_body_states():
+    stated = "2026-01-02T03:04:05+00:00"
+    body = {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "id": PEER,
+        "type": "Organization",
+        "name": "Peer Org",
+        "published": stated,
+        "updated": stated,
+    }
+
+    resolved = _live(BodyFetcher(body)).resolve_actor(PEER, REQUESTER)
+
+    assert resolved.published is not None
+    assert resolved.published.isoformat() == stated
+    assert resolved.updated == resolved.published
 
 
 def test_the_default_live_fetch_makes_one_attempt_within_the_wait():

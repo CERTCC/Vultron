@@ -39,6 +39,12 @@ fetcher makes one attempt, bounded by the same wait, so the worker ends soon
 after a late answer is given up on: resolution enriches a record, so a slow
 peer is not retried here (AKM-05-001, AKM-05-008).
 
+The wait is spent inside the tree run, so it is spent holding the bridge's
+process-wide lock (``notes/bt-integration.md``): a slow peer delays every
+other tree run in the process by up to that wait.  That is the cost of every
+call-out backend, bounded by the budget (BT-18-015), and the reason the wait
+is a share of it rather than a timeout of its own.
+
 A fetched profile's ``inbox`` and ``outbox`` must meet the rule a profile
 URL meets, since a stored peer's inbox is where delivery posts.
 """
@@ -148,6 +154,32 @@ def _check_endpoints(profile: CoreActor) -> None:
             ) from exc
 
 
+def _require_positive(wait: timedelta) -> None:
+    """Refuse a resolution wait that is not positive (BT-18-015).
+
+    Raises:
+        ValueError: *wait* is zero or negative.
+    """
+    if wait <= timedelta(0):
+        raise ValueError(
+            f"resolution budget {wait} must be positive (BT-18-015)"
+        )
+
+
+def _unclaimed_times_cleared(profile: CoreActor) -> CoreActor:
+    """*profile* with each time its body did not state set to ``None``.
+
+    The profile parse fills an absent ``published`` or ``updated`` from this
+    actor's clock, which is right for an object this process authors and
+    wrong for a peer's profile: the stored record would carry a time the
+    peer never claimed (AKM-02-006).
+    """
+    unclaimed = {"published", "updated"} - profile.model_fields_set
+    if not unclaimed:
+        return profile
+    return profile.model_copy(update=dict.fromkeys(unclaimed))
+
+
 class HttpActorResolutionAdapter:
     """:class:`ActorResolutionPort` that fetches the peer's profile live.
 
@@ -156,8 +188,10 @@ class HttpActorResolutionAdapter:
             :func:`resolution_profile_fetcher` over the wait.
         budget: How long a resolution may take; defaults to
             :data:`BUDGET_SHARE` of the local actor's
-            ``call_out_time_budget`` (BT-18-026), read when the adapter is
-            built.
+            ``call_out_time_budget`` (BT-18-026), read at each resolution.
+
+    Raises:
+        ValueError: *budget* is not positive.
     """
 
     def __init__(
@@ -166,21 +200,24 @@ class HttpActorResolutionAdapter:
         *,
         budget: timedelta | None = None,
     ) -> None:
-        self._budget = (
-            budget
-            if budget is not None
-            else load_actor_config().call_out_time_budget * BUDGET_SHARE
-        )
-        if self._budget <= timedelta(0):
-            raise ValueError(
-                f"resolution budget {self._budget} must be positive"
-                " (BT-18-015)"
-            )
-        self._fetcher = (
-            fetcher
-            if fetcher is not None
-            else resolution_profile_fetcher(self._budget)
-        )
+        if budget is not None:
+            _require_positive(budget)
+        self._budget = budget
+        self._fetcher = fetcher
+
+    def _wait(self) -> timedelta:
+        """How long this resolution may take.
+
+        The explicit budget, or else :data:`BUDGET_SHARE` of the
+        ``call_out_time_budget`` read now, as the seam reads it for each run
+        (BT-18-026), so a changed budget never leaves the wait longer than
+        the seam's own stopwatch (BT-18-027).
+        """
+        if self._budget is not None:
+            return self._budget
+        wait = load_actor_config().call_out_time_budget * BUDGET_SHARE
+        _require_positive(wait)
+        return wait
 
     def resolve_actor(self, actor_id: str, requester_id: str) -> CoreActor:
         """Fetch *actor_id*'s profile on behalf of *requester_id*.
@@ -193,39 +230,53 @@ class HttpActorResolutionAdapter:
         Raises:
             VultronActorProfileFetchError: The fetch failed, its answer is
                 not *actor_id*'s profile, the profile names an endpoint this
-                actor does not deliver to, or the fetch took longer than the
-                budget.
+                actor does not deliver to, the fetch took longer than the
+                budget, or it ended with no answer.
+            ValueError: The configured budget is not positive.
         """
-        outcome: dict[str, CoreActor | Exception] = {}
+        wait = self._wait()
+        fetcher = (
+            self._fetcher
+            if self._fetcher is not None
+            else resolution_profile_fetcher(wait)
+        )
+        outcome: dict[str, CoreActor | BaseException] = {}
 
         def _fetch() -> None:
             try:
                 outcome["profile"] = asyncio.run(
-                    self._fetcher.fetch_profile(actor_id, requester_id)
+                    fetcher.fetch_profile(actor_id, requester_id)
                 )
-            except Exception as exc:  # noqa: BLE001 (re-raised by the caller)
+            except BaseException as exc:  # noqa: BLE001 (read by the caller)
                 outcome["raised"] = exc
 
         worker = threading.Thread(
             target=_fetch, name="actor-resolution", daemon=True
         )
         worker.start()
-        worker.join(timeout=self._budget.total_seconds())
+        worker.join(timeout=wait.total_seconds())
         if worker.is_alive():
             raise VultronActorProfileFetchError(
                 f"fetching the profile of {actor_id!r} took longer than"
-                f" the resolution budget of {self._budget}"
+                f" the resolution budget of {wait}"
             )
         raised = outcome.get("raised")
         if isinstance(raised, Exception):
             raise raised
-        profile = outcome["profile"]
+        if isinstance(raised, BaseException):
+            # A BaseException that is not an Exception (a cancelled loop, a
+            # SystemExit in the fetch) ended the worker with no answer.
+            raise VultronActorProfileFetchError(
+                f"fetching the profile of {actor_id!r} ended with"
+                f" {type(raised).__name__}: {raised}"
+            ) from raised
+        profile = outcome.get("profile")
         if not isinstance(profile, CoreActor):
             raise VultronActorProfileFetchError(
                 f"the fetch of {actor_id!r} gave no actor profile"
             )
         _check_endpoints(profile)
-        return profile
+        return _unclaimed_times_cleared(profile)
 
 
 __all__ = [

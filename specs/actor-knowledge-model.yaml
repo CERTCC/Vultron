@@ -451,7 +451,8 @@ groups:
     verification: >-
       `test/core/use_cases/triggers/test_record_named_peer.py::test_a_resolved_record_of_the_peer_is_stored`
       checks that a peer the bundle resolves is stored with the resolved record, and
-      `test_unknown_peer_is_resolved_before_it_is_recorded` in the same file checks the
+      `test_real_backend_has_its_ports_when_record_named_peer_ticks_it` in the same file
+      checks the backend finds no peer record in the store when it answers, so the
       bundle is asked before the record is minted.
   - id: AKM-05-016
     priority: SHOULD

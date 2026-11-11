@@ -141,9 +141,16 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   `ActorProfileFetchPort` (`vultron/adapters/driven/actor_resolution.py`). The port
   is synchronous: the live adapter runs the async fetch on its own loop in a daemon
   thread, with one attempt and a wait of 80% of the call-out budget, so a slow
-  peer is its *error*, not a seam overrun. A fetched `inbox`/`outbox` meets the
-  profile-URL rule. Reason: a call-out answers in one tick within that budget
+  peer is its *error*, not a seam overrun. It reads the budget at each call, as
+  the seam does. A fetched `inbox`/`outbox` meets the profile-URL rule, and a time
+  the profile body omits is stored as absent, not stamped from the clock
+  (AKM-02-006). Reason: a call-out answers in one tick within that budget
   (BT-18-011, BT-18-015).
+- **The live wait holds the bridge's process-wide lock.** The tree run holds
+  `BTBridge`'s `RLock` ([bt-integration](bt-integration.md)), so a slow peer
+  delays every tree run in the process by up to the wait. Keep the wait a share of
+  the call-out budget, never a separate timeout. Reason: the budget is what bounds
+  that stall (BT-18-015).
 - **The seam lives in the use case's `_prepare()`, not a BT node.** Recording a
   peer changes no protocol-observable state, so BT-15-001 does not apply. The
   backend still runs as a one-tick tree through `BTBridge`, acting as the acting

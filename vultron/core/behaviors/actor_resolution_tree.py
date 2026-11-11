@@ -49,8 +49,9 @@ class KeepResolvedActorNode(_OptionalPortRead, BehaviourWithPorts):
     """Copy the record on ``resolved_actor`` into the caller's dict.
 
     It reads no store, so it takes only the shared optional-port read, not
-    a DataLayer base.  Reads the port as optional: a backend that answers *yes* without writing
-    it (one that binds no declaration) leaves the dict empty.  A value that
+    a DataLayer base.  Reads the port as optional: a backend that answers
+    *yes* without writing it (one that binds no declaration) leaves the dict
+    empty.  A value that
     is not a :class:`~vultron.core.models.actor.CoreActor` raises
     ``TypeError`` and fails the whole run (BTND-03-021).
 

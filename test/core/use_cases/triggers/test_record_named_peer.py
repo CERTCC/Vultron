@@ -87,6 +87,7 @@ def _record(dl: SqliteDataLayer, factory: object) -> None:
     _record_named_peer(dl, PEER, "peer_id", ACTING, bundle)
 
 
+@pytest.mark.spec("AKM-05-002")
 def test_real_backend_has_its_ports_when_record_named_peer_ticks_it(dl):
     seen: list[tuple[object, str | None]] = []
 
