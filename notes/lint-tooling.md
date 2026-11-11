@@ -80,7 +80,7 @@ obligations, and changing one silently breaks a requirement:
 | Setting | Carries |
 |---|---|
 | `line-length` | the retired `[tool.black]` value; keeps lint and format agreed |
-| `target-version` | IMPLTS-01-001, the Python floor |
+| `target-version` | IMPLTS-01-009, equal to the `requires-python` floor |
 | `[tool.ruff.lint.mccabe] max-complexity` | IMPLTS-07-008, the complexity gate |
 | `[tool.ruff.lint.pycodestyle] max-doc-length` | PD-10-006, the 88-character doc-line limit; `W505` stays ignored (below) |
 | `per-file-ignores` for `__init__.py` | the re-export exemption (`F401`) |

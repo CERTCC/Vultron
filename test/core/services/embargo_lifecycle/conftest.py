@@ -279,9 +279,7 @@ def _assert_activation_wrote_nothing(
 
 
 @pytest.fixture()
-def owner_and_dl() -> Generator[
-    tuple[as_Service, SqliteDataLayer], None, None
-]:
+def owner_and_dl() -> Generator[tuple[as_Service, SqliteDataLayer]]:
     owner = make(as_Service, name="Owner Org")
     reset_datalayer(owner.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)
