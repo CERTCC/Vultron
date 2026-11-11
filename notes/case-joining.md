@@ -48,6 +48,7 @@ relevant_packages:
   - vultron/core/behaviors/sender_entitlement/
   - vultron/core/states/rm.py
   - vultron/wire/as2/factories/case/
+  - vultron/core/models/events/case_context.py
 ---
 
 # Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
@@ -290,6 +291,12 @@ distinction in new messages: we accept offers and invitations, never bare object
   is part of what the participant judges, and an `INVALID` participant keeps receiving
   updates (`INVALID` is not `CLOSED`). No readiness handshake: the Accept is the signal,
   and buffering (SYNC-14, SYNC-15) covers the rest.
+- **A full-case Invite that arrives before the Announce waits at the inbox.** It is
+  case-scoped, so the defer check holds it until the Announce's replay, and its tree
+  declares no no-case path (CM-11-033, HP-01-041). The stub-Invite trust anchor
+  decides only whether the Announce may create the replica (PCR-03-004). Do not
+  exempt a message from deferral to let the anchor judge its sender: it is the
+  stub Invite's alone (#5793).
 - **The full-case Invite's ledger position is a floor, not a pin.** The reply carries
   the participant's own position, at or beyond it; pinning would make every reply on a
   busy case stale. The CASE_MANAGER reads the floor from its own stored Invite.

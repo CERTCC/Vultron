@@ -2040,19 +2040,19 @@ groups:
     kind: protocol
     statement: >-
       A receiver MUST refuse a full-case Invite whose sender is not the
-      CASE_MANAGER on its replica or, with no replica, its stub-Invite trust
-      anchor (PCR-03-004).
+      CASE_MANAGER on its replica of the case.
     rationale: >-
-      Only the case's CASE_MANAGER may ask a participant to judge the case. Before the
-      Announce arrives, the invitee has no replica, so the CASE_MANAGER it recorded
-      from the stub Invite is the one it trusts (PCR-03-004).
+      Only the case's CASE_MANAGER may ask a participant to judge the case. The
+      receiver judges the Invite only when it holds the replica (CM-11-033), so the
+      replica's CASE_MANAGER is the only record the sender check needs. The
+      stub-Invite trust anchor decides an earlier question: whether the Announce may
+      create that replica (PCR-03-004).
     verification: >-
-      `test_a_full_case_invite_from_the_case_manager_is_accepted`,
-      `test_a_full_case_invite_from_another_actor_is_refused_and_writes_nothing` and
-      `test_before_the_announce_the_recorded_trust_anchor_is_the_case_manager` in
+      `test_a_full_case_invite_from_the_case_manager_is_accepted` and
+      `test_a_full_case_invite_from_another_actor_is_refused_and_writes_nothing` in
       `test/core/use_cases/received/actor/test_full_case_invite.py` confirm a
-      full-case Invite from the CASE_MANAGER is accepted and one from any other
-      actor is refused.
+      full-case Invite from the replica's CASE_MANAGER is accepted and one from any
+      other actor is refused.
     relationships:
     - rel_type: uses_definition
       spec_id: PCR-03-004
@@ -2064,19 +2064,30 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver that holds neither a replica of the case nor a trust anchor for
-      it MUST refuse a full-case Invite.
+      A receiver that holds no replica of the case MUST hold a full-case Invite at
+      the inbox's defer check until the Announce delivers the case, and MUST drop it
+      when that hold expires. It never judges the Invite without the replica.
     rationale: >-
-      With neither record, the receiver cannot tell the case's CASE_MANAGER from any
-      other sender. It fails closed, so no sender can ask it to judge a case it never
-      joined.
+      The full-case Invite names a case the invitee is meant to hold already: the
+      CASE_MANAGER queues it after the Announce and the replay (CM-11-010). Delivery
+      order is not guaranteed, so the Invite can arrive first. It is case-scoped, not
+      a message that precedes its case like the stub Invite, so the inbox holds it
+      (HP-01-041) and the tree declares no no-case path. With no trust anchor, no
+      Announce can create the replica (PCR-03-004), so the held Invite is never
+      processed and expires. The receiver fails closed, as it did when it refused.
     verification: >-
-      `test_with_no_replica_and_no_trust_anchor_a_full_case_invite_is_refused` in
-      `test/core/use_cases/received/actor/test_full_case_invite.py` confirms the
-      refusal.
+      A test in `test/core/behaviors/inbox/test_process_payload.py` delivers a
+      full-case Invite before the Announce and confirms the inbox holds it and the
+      Announce's replay processes it on the participant-replica path. A second test
+      confirms that, with no trust anchor, the held Invite is never processed and is
+      dropped when the hold expires. The declaration pin in
+      `test/core/behaviors/test_declared_received_paths.py` records that the tree
+      declares no no-case path.
     relationships:
     - rel_type: extends
       spec_id: CM-11-032
+    - rel_type: uses_definition
+      spec_id: HP-01-041
     adr:
     - ADR-0121
     stories:
