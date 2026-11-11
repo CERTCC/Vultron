@@ -350,9 +350,10 @@ Call-out factories are grouped into **domain bundles** — one frozen
 `CallOutBackendFactory` fields consumed by the tree builders in that domain.
 The bundle lives in `vultron/core/behaviors/call_out/bundles/`.
 
-To wire in your backend, instantiate the appropriate bundle with your factory
-in the relevant field. Fields you do not specify keep their default
-(deterministic `AlwaysSucceed` or `AlwaysFail` as appropriate):
+To wire in your backend, instantiate the appropriate bundle with your factory in the relevant field.
+Fields you do not specify keep their default, a deterministic `AlwaysSucceed` or `AlwaysFail` as appropriate.
+Each default is bound to the capability its field answers, so a default that answers *yes* still writes every output port the capability declares (BT-23-013).
+For example:
 
 ```python
 from vultron.core.behaviors.call_out.bundles.validation import (
@@ -438,7 +439,7 @@ Key facts to carry into your implementation:
 - **Shape**: Evaluator (returns a decision, no content artifact).
 - **Input**: No input ports — your backend queries its own data source.
 - **Output**: A *yes* carries `report_credibility_verdict: str`.
-- **Default**: `AlmostAlwaysSucceed` (p = 0.90) → deterministic ceiling is `AlwaysSucceed`.
+- **Default**: `AlmostAlwaysSucceed` (p = 0.90) → deterministic ceiling is `always_succeed_as(EvaluateReportCredibilityCapability)`, an `AlwaysSucceed` whose *yes* writes an empty `report_credibility_verdict`.
 
 ### 2. Implement the backend
 
