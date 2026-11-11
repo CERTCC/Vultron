@@ -976,7 +976,7 @@ groups:
       No namespace is the only one: CVE, CERT/CC VU#, GHSA, CNNVD and vendor IDs all
       name real vulnerabilities. A rule that reads meaning out of an identifier's value,
       or admits only one namespace, would refuse valid identifiers. A field that is
-      CVE-typed on purpose may still check the CVE ID format (CM-05-018), because it
+      CVE-typed on purpose may still check the CVE ID format (CM-05-019), because it
       chose its namespace up front (ADR-0187).
     adr:
     - ADR-0187
@@ -1075,8 +1075,9 @@ groups:
       The item names and describes a vulnerability. The case's state lives in its own
       records, so a second copy on the item could disagree with them (ADR-0187).
     verification: >-
-      A test marked `CM-05-020` asserts a vulnerability item refuses a CSAF
-      `product_status`, `metrics` or `remediations` field.
+      A test marked `CM-05-020` asserts a vulnerability item refuses each of the CSAF
+      fields `product_status`, `metrics`, `disclosure_date`, `discovery_date`,
+      `remediations`, `threats` and `flags`.
     adr:
     - ADR-0187
     stories:
@@ -1092,8 +1093,9 @@ groups:
       have references, so the case needs a place for both. Each item and each reference
       is an object of its own, which the case lists as it lists its reports (ADR-0187).
     verification: >-
-      A test marked `CM-05-021` saves a case holding a vulnerability item and a case
-      reference and asserts both survive `dl.save` and `dl.read`.
+      A test marked `CM-05-021` asserts a new case has both lists empty, then saves a
+      case holding a vulnerability item and a case reference and asserts both survive
+      `dl.save` and `dl.read`.
     adr:
     - ADR-0187
     stories:
@@ -12121,7 +12123,8 @@ groups:
       A decline means the claim was not admitted, so the case stays as it was.
     verification: >-
       A test marked `CM-34-006` declines each offer at the CASE_MANAGER and asserts the
-      case's items and references are unchanged.
+      case's items and references are unchanged and the ledger holds no change entry
+      after the offer's entry.
     adr:
     - ADR-0187
     stories:
