@@ -52,6 +52,7 @@ from vultron.demo.scenario.rcvcv_demo.fragments import (
     all_five_close_the_case,
     both_vendors_run_the_fix_lifecycle,
     c1_invites_the_second_coordinator,
+    c2_asks_who_else_belongs,
     c2_suggests_the_vendor_deployer,
     every_replica_converges,
     replicas_drain_before_the_second_coordinator,
@@ -70,7 +71,8 @@ logger = logging.getLogger(__name__)
 # objects, so each of those waits remains necessary.
 
 #: The RCVCV story: the opening it shares with ``rcv`` up to C1's decision,
-#: then the second Coordinator, the ADR-0026 suggestion that brings V2 in, and
+#: then the second Coordinator, the suggestion C2's participant suggester
+#: answers with and the ADR-0026 flow that brings V2 in, and
 #: the five-party lifecycle to closure.  The registry reads this scenario's
 #: path off the ``choose`` items (DEMOCI-11-019), so it declares no ``path=``.
 STORY = story(
@@ -81,6 +83,7 @@ STORY = story(
     seed_the_second_coordinator_and_vendor,
     c1_invites_the_second_coordinator,
     required_participants_are_present,
+    c2_asks_who_else_belongs,
     c2_suggests_the_vendor_deployer,
     every_replica_converges,
     the_joiners_add_their_notes,

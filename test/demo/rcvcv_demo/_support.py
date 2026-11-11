@@ -25,9 +25,12 @@ from collections.abc import Iterator
 from test.demo._helpers import mock_case, no_demo_banners, story_state
 from vultron.demo.helpers import coordinated_story, owner_decision_story
 from vultron.demo.helpers.coordinated_story import REPORTER
+from vultron.demo.helpers.owner_decision_story import Part
+from vultron.demo.helpers.participant_suggestion import SuggestedActor
 from vultron.demo.helpers.story import StoryState
 from vultron.demo.scenario import rcvcv_demo
 from vultron.demo.scenario.rcvcv_demo import fragments
+from vultron.enums.roles import CVDRole
 
 #: The scenario's five cast names, in ``ROLES`` order.
 CAST = (
@@ -46,13 +49,26 @@ def no_banners() -> Iterator[None]:
         yield
 
 
-def five_party_state(joined: bool = True) -> StoryState:
+def five_party_state(
+    joined: bool = True, suggested: bool = True
+) -> StoryState:
     """A story state seating all five, on an open case.
 
     C2's join is kept by default: the suggestion C2 makes reads it, because
-    only a participant may suggest anyone (DEMOMA-19-009, #5535).
+    only a participant may suggest anyone (DEMOMA-19-009, #5535).  So is the
+    answer C2's participant suggester gives from the scenario's table, V2 as
+    Vendor and Deployer, which the suggestion C2 makes reads (#6152).
     """
     state = story_state(*CAST, case=mock_case())
     if joined:
         state.keep(fragments.C2_JOINED, str(state.case.id_))
+    if suggested:
+        state.keep(
+            fragments.C2_SUGGESTED,
+            SuggestedActor(
+                Part(fragments.V2, fragments.V2_LABEL),
+                state.actor_id(fragments.V2),
+                (CVDRole.VENDOR, CVDRole.DEPLOYER),
+            ),
+        )
     return state

@@ -39,6 +39,8 @@ from test.demo._helpers import (
 )
 from test.demo.rcvcv_demo._support import CAST, five_party_state, no_banners
 from test.support.objects import make
+from test.support.replica_client import StoreClient, seed_case_replica
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
@@ -50,10 +52,13 @@ from vultron.demo.helpers.coordinated_story import (
 )
 from vultron.demo.helpers.invite_chain import links as invite_links
 from vultron.demo.helpers.owner_decision_story import (
+    Part,
     keep as owner_decision_keep,
     parts as owner_decision_parts,
 )
+from vultron.demo.helpers.participant_suggestion import SuggestedActor
 from vultron.demo.helpers.polling import LATE_JOINER_TIMEOUT
+from vultron.demo.helpers.story import StoryState
 from vultron.demo.scenario.rcvcv_demo import fragments
 from vultron.demo.utils.failures import _demo_failures
 from vultron.enums.roles import CVDRole
@@ -206,6 +211,131 @@ class TestC1InvitesTheSecondCoordinator:
 # ---------------------------------------------------------------------------
 # V2 arrives through the ADR-0026 suggestion chain (DEMOMA-19-009)
 # ---------------------------------------------------------------------------
+
+
+def _c2_reads_its_replica(state: StoryState) -> StoreClient:
+    """Point C2's session at a real replica of the case before V2 joins.
+
+    The replica holds the four parties seated so far and a report, as C2's
+    store would after it joined, and is served the way the inspection route
+    serves it, so the ask reads the same bytes it reads from C2's container.
+    """
+    store = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=state.actor_id(fragments.C2)
+    )
+    seed_case_replica(
+        store,
+        str(state.case.id_),
+        {
+            state.actor_id(fragments.C1): [CVDRole.CASE_OWNER],
+            state.actor_id(REPORTER): [CVDRole.REPORTER],
+            state.actor_id(fragments.V1): [CVDRole.VENDOR],
+            state.actor_id(fragments.C2): [CVDRole.COORDINATOR],
+        },
+    )
+    client = StoreClient(store)
+    c2 = state.actor(fragments.C2)
+    state.cast[fragments.C2] = ActorSession(client=client, actor=c2.actor)  # type: ignore[arg-type]
+    return client
+
+
+@pytest.mark.spec("BT-24-007")
+class TestC2AsksWhoElseBelongs:
+    """C2's suggester names V2 from the scenario's table (#6152)."""
+
+    def test_the_table_names_v2_as_vendor_and_deployer(self):
+        """The declared table is the scenario's whole answer."""
+        assert [
+            (row.part.name, row.role) for row in fragments.C2_CANDIDATES
+        ] == [
+            (fragments.V2, CVDRole.VENDOR),
+            (fragments.V2, CVDRole.DEPLOYER),
+        ]
+
+    def test_v2_is_suggested_from_the_declared_table(self):
+        """The ask keeps what the static adapter answered from C2's replica."""
+        state = five_party_state(suggested=False)
+        client = _c2_reads_its_replica(state)
+
+        fragments.c2_asks_who_else_belongs(state)
+
+        assert not gate_failures(), _demo_failures
+        assert state.kept(fragments.C2_SUGGESTED) == SuggestedActor(
+            Part(fragments.V2, fragments.V2_LABEL),
+            state.actor_id(fragments.V2),
+            (CVDRole.VENDOR, CVDRole.DEPLOYER),
+        )
+        # The case was read on C2's own container, not on C1's or the
+        # CaseActor's: C2 asks about the replica it holds.
+        assert client.paths
+        state.client(fragments.C1).get.assert_not_called()
+        state.case_actor_client.get.assert_not_called()
+
+    @pytest.mark.spec("DEMOMA-19-009")
+    def test_c2_suggests_the_actor_the_adapter_answered(self):
+        """AC-2: the suggestion's actor and roles are the adapter's answer."""
+        state = five_party_state(suggested=False)
+        _c2_reads_its_replica(state)
+
+        with (
+            patch.object(
+                ActorSession, "suggest_actor_to_case", autospec=True
+            ) as suggest,
+            patch.object(ActorSession, "accept_actor_recommendation"),
+            patch.object(
+                owner_decision_keep,
+                "find_cp_offer_for_case",
+                return_value="urn:test:cp-offer",
+            ),
+            patch.object(
+                owner_decision_parts,
+                "find_case_actor_participant_id",
+                return_value="urn:test:case-actor-participant",
+            ),
+            patch.object(owner_decision_keep, "run_case_invite_chain"),
+            patch.object(owner_decision_keep, "invitee_triages_after_joining"),
+            patch_chain_shared(
+                coordinated_joining, "wait_for_case_on_container"
+            ),
+            no_banners(),
+        ):
+            fragments.c2_asks_who_else_belongs(state)
+            fragments.c2_suggests_the_vendor_deployer(state)
+
+        assert suggest.call_args.kwargs == {
+            "suggested_actor_id": state.actor_id(fragments.V2),
+            "roles": [CVDRole.VENDOR, CVDRole.DEPLOYER],
+        }
+        assert (
+            suggest.call_args.args[0].actor is state.actor(fragments.C2).actor
+        )
+
+    def test_an_empty_table_stops_the_story_before_any_suggestion(self):
+        """No one named: the gate records it and C2 suggests nobody."""
+        state = five_party_state(suggested=False)
+        _c2_reads_its_replica(state)
+
+        with patch.object(fragments, "C2_CANDIDATES", ()):
+            fragments.c2_asks_who_else_belongs(state)
+
+        assert any("names one actor" in f for f in gate_failures()), (
+            _demo_failures
+        )
+        with (
+            patch.object(ActorSession, "suggest_actor_to_case") as suggest,
+            pytest.raises(DemoStoryError, match="actor C2's suggester named"),
+        ):
+            fragments.c2_suggests_the_vendor_deployer(state)
+        suggest.assert_not_called()
+
+    def test_a_c2_that_never_joined_asks_nothing(self):
+        """C2 asks about a case it is in, so a missing join stops the story."""
+        state = five_party_state(joined=False, suggested=False)
+        client = _c2_reads_its_replica(state)
+
+        with pytest.raises(DemoStoryError, match="no case C2 joined"):
+            fragments.c2_asks_who_else_belongs(state)
+        assert client.paths == []
 
 
 @pytest.mark.spec("DEMOMA-19-009")

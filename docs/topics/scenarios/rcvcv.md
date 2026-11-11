@@ -81,11 +81,9 @@ subject: implementation
 
 ## Overview
 
-The RCVCV scenario exercises the **actor-suggestion flow** (ADR-0026).  A
-Reporter reports to Coordinator 1 (C1), who creates the case and directly invites
-Vendor 1 (V1) and Coordinator 2 (C2).  After C2 joins, C2 *suggests* Vendor 2
-(V2) to the case; C1, as the Case Owner, approves the recommendation and the
-Case Actor sends V2 a formal invitation.
+The RCVCV scenario exercises the **actor-suggestion flow** (ADR-0026).
+A Reporter reports to Coordinator 1 (C1), who creates the case and directly invites Vendor 1 (V1) and Coordinator 2 (C2).
+After C2 joins, C2 *suggests* Vendor 2 (V2), the party its participant suggester names, to the case; C1, as the Case Owner, approves the recommendation and the Case Actor sends V2 a formal invitation.
 
 This five-actor scenario validates the indirect participant onboarding path
 where C2 acts as a broker for V2 rather than C1 inviting V2 directly.
@@ -95,7 +93,7 @@ where C2 acts as a broker for V2 rather than C1 inviting V2 directly.
 - {% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
 - **C1 (Coordinator 1)** — receives the report; validates, engages, and owns the case; invites V1 and C2.
 - **V1 (Vendor 1)** — receives a direct invite from C1; develops a fix (reaches VFd, not VFD).
-- **C2 (Coordinator 2)** — receives a direct invite from C1; suggests V2 to the case.
+- **C2 (Coordinator 2)** — receives a direct invite from C1; suggests V2, the party its participant suggester names, to the case.
 - **V2 (Vendor 2 / Deployer)** — joins via the actor-suggestion path; develops and deploys a fix (VFD).
 - {% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
 
@@ -156,8 +154,11 @@ C2 accepts, and an `accept_invite_actor_to_case` entry appears.
 
 ### 9. C2 suggests V2 via the actor-suggestion flow
 
-C2 is aware that V2 is also affected.  C2 submits an `offer_case_participant`
-entry proposing V2 for case membership (ADR-0026).
+C2 learns that V2 is also affected by asking its participant suggester who else belongs in the case.
+In the demo, that suggester is a static adapter that answers from a candidate table the scenario declares: V2, once as a Vendor and once as a Deployer.
+The question goes through the core participant-suggestion service, which hands the adapter a profile of C2's own replica of the case, not the case itself ([ADR-0186](../../adr/0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md)).
+The ask runs in the demo runner rather than in C2's container, so no actor is configured with the table, and it writes nothing to the ledger.
+C2 then suggests the actor the answer names, in both of its roles, and an `offer_case_participant` entry proposes V2 for case membership (ADR-0026).
 
 *Antecedent:* C2's `accept_invite_actor_to_case` entry is in the ledger.
 
@@ -216,6 +217,7 @@ V1, V2, C2, and the Reporter leave first; C1, the Case Owner, leaves last.
 | Unobservable step | Why not in ledger |
 |---|---|
 | Reporter submits report to C1 | Report submission precedes the case. |
+| C2 asks its participant suggester who else belongs | The ask is C2's own question; only the suggestion it leads to is a case event. |
 
 ## The story as the code tells it
 
