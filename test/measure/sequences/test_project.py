@@ -20,10 +20,13 @@ the exploit is public.
 """
 
 import ast
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
+import vultron.measure.sequences as sequences_package
 from test.measure.history.builders import (
     CM,
     DEPLOYER,
@@ -155,6 +158,22 @@ def test_one_sequence_per_vendor_in_log_order():
 
 
 @pytest.mark.spec("CEH-05-001")
+def test_sequences_are_ordered_by_vendor_awareness_not_first_event():
+    """The vendor seated first becomes aware second."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    _seat_vendor(ledger, VENDOR, "vf")
+    _seat_vendor(ledger, VENDOR_2, "Vf")
+    ledger.add_status(VENDOR, status("v-V", VENDOR, "RECEIVED", vf="Vf"))
+    history, projected = _projected(ledger)
+    first_events = [
+        p for p in dict.fromkeys(e.participant for e in history.events) if p
+    ]
+    assert first_events.index(VENDOR) < first_events.index(VENDOR_2)
+    assert [s.participant for s in projected.sequences] == [VENDOR_2, VENDOR]
+
+
+@pytest.mark.spec("CEH-05-001")
 @pytest.mark.spec("CEH-05-007")
 @pytest.mark.spec("CEH-06-006")
 def test_a_deployer_without_the_vendor_role_is_unprojectable_with_a_reason():
@@ -247,7 +266,10 @@ def test_a_compound_that_does_not_replay_is_refused_with_its_reason():
     assert projected.sequences == []
     refused = _unprojectable(projected, VENDOR)
     assert refused.reason is UnprojectableReason.NOT_A_VALID_PREFIX
-    assert refused.detail.startswith("PXV does not replay")
+    assert refused.detail.startswith(
+        "PXV is not a valid case-state history prefix"
+    )
+    assert "requires event(s) ['V'] next" in refused.detail
 
 
 @pytest.mark.spec("CEH-05-005")
@@ -276,7 +298,6 @@ def test_two_vendors_expose_two_sequences_and_no_case_wide_one():
     for sequence in projected.sequences:
         own = {e.participant for e in sequence.events} - {None}
         assert own == {sequence.participant}
-    assert projected.for_participant(projected.case_id) is None
 
 
 def _imported_modules(module) -> set[str]:
@@ -293,7 +314,9 @@ def _imported_modules(module) -> set[str]:
 
 @pytest.mark.spec("CEH-05-008")
 @pytest.mark.parametrize(
-    "module", [sequences_model, sequences_project], ids=lambda m: m.__name__
+    "module",
+    [sequences_package, sequences_model, sequences_project],
+    ids=lambda m: m.__name__,
 )
 def test_the_layer_imports_no_scoring_entry_point(module):
     imported = _imported_modules(module)
@@ -303,6 +326,30 @@ def test_the_layer_imports_no_scoring_entry_point(module):
             for name in imported
         ), scoring
     assert not any("score" in name.lower() for name in imported)
+
+
+#: The scoring entry points: the legacy desiderata scorer
+#: (``CVDmodel.score_hist``) and the chance baselines #6068 scores through.
+_SCORING_PACKAGES = (
+    "vultron.core.case_states.hypercube",
+    "vultron.measure.baselines",
+)
+
+
+@pytest.mark.spec("CEH-05-008")
+def test_importing_the_layer_loads_no_scoring_entry_point():
+    """Indirect imports count too, so ask a fresh interpreter."""
+    probe = (
+        "import sys, vultron.measure.sequences\n"
+        f"print([m for m in sys.modules if m.startswith({_SCORING_PACKAGES!r})])"
+    )
+    loaded = subprocess.run(
+        [sys.executable, "-c", probe],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert loaded == "[]"
 
 
 @pytest.mark.spec("CEH-05-008")

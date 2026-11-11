@@ -67,7 +67,7 @@ def test_an_incomplete_prefix_is_held():
     [
         # Public awareness then the exploit, vendor awareness absent between.
         (CSEvent.P, CSEvent.X, CSEvent.V),
-        # A fix before awareness.
+        # A deployment with no fix-ready event before it.
         (CSEvent.V, CSEvent.D),
     ],
     ids=["PXV", "VD"],
@@ -116,8 +116,26 @@ def test_events_out_of_log_order_are_refused():
         _sequence(events=events)
 
 
+def test_an_event_repeated_is_refused():
+    with pytest.raises(ValidationError, match="occurs more than once"):
+        _sequence(CSEvent.V, CSEvent.V)
+
+
+def test_every_violation_is_named():
+    events = [_event(CSEvent.F, 3), _event(EventKind.REPORT_VALID, 1)]
+    with pytest.raises(ValidationError) as caught:
+        _sequence(events=events)
+    message = str(caught.value)
+    for problem in (
+        "not a case-state event",
+        "not in log order",
+        "no vendor-awareness event",
+    ):
+        assert problem in message
+
+
 def test_an_empty_sequence_is_refused():
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="at least 1 item"):
         _sequence(events=[])
 
 
@@ -135,5 +153,59 @@ def test_for_participant_finds_only_a_projected_vendor():
     sequences = CaseStateSequences(
         case_id="urn:uuid:case-1", sequences=[_sequence(CSEvent.V)]
     )
-    assert sequences.for_participant(VENDOR) is not None
+    found = sequences.for_participant(VENDOR)
+    assert found is not None
+    assert found.participant == VENDOR
     assert sequences.for_participant(VENDOR_2) is None
+
+
+def _sequence_of(participant: str, aware_at: int) -> CaseStateSequence:
+    return CaseStateSequence(
+        participant=participant,
+        events=[_event(CSEvent.V, aware_at, participant)],
+    )
+
+
+def _unprojectable(participant: str) -> UnprojectableParticipant:
+    return UnprojectableParticipant(
+        participant=participant,
+        reason=UnprojectableReason.NO_CASE_STATE_EVENTS,
+        detail="it has no fix-path or deployment event of its own",
+    )
+
+
+@pytest.mark.parametrize(
+    ("sequences", "unprojectable", "problem"),
+    [
+        (
+            [_sequence_of(VENDOR, 1), _sequence_of(VENDOR, 2)],
+            [],
+            "projected twice",
+        ),
+        (
+            [],
+            [_unprojectable(VENDOR), _unprojectable(VENDOR)],
+            "reported unprojectable twice",
+        ),
+        (
+            [_sequence_of(VENDOR, 1)],
+            [_unprojectable(VENDOR)],
+            "both projected and reported unprojectable",
+        ),
+        (
+            [_sequence_of(VENDOR, 5), _sequence_of(VENDOR_2, 2)],
+            [],
+            "not in vendor-awareness order",
+        ),
+    ],
+    ids=["projected-twice", "reported-twice", "both", "out-of-order"],
+)
+def test_the_sequences_answer_each_participant_once_in_order(
+    sequences, unprojectable, problem
+):
+    with pytest.raises(ValidationError, match=problem):
+        CaseStateSequences(
+            case_id="urn:uuid:case-1",
+            sequences=sequences,
+            unprojectable=unprojectable,
+        )

@@ -25,11 +25,9 @@ caller's to judge, as for any measure built on the history.
 
 from __future__ import annotations
 
-from vultron.core.states.cs_invariants import CSEvent, replay_cs_history
-from vultron.errors import (
-    VultronInvalidStateTransitionError,
-    VultronValidationError,
-)
+from pydantic import ValidationError
+
+from vultron.core.states.cs_invariants import CSEvent
 from vultron.measure.history import CaseEvent, CaseEventHistory, EventScope
 from vultron.measure.sequences.model import (
     CaseStateSequence,
@@ -89,15 +87,21 @@ def _project_one(
         )
     ]
     try:
-        replay_cs_history(CSEvent(event.kind) for event in events)
-    except (VultronValidationError, VultronInvalidStateTransitionError) as exc:
-        order = "".join(str(event.kind) for event in events)
+        return CaseStateSequence(participant=participant, events=events)
+    except ValidationError as exc:
         return UnprojectableParticipant(
             participant=participant,
             reason=UnprojectableReason.NOT_A_VALID_PREFIX,
-            detail=f"{order} does not replay: {exc}",
+            detail="; ".join(_messages(exc)),
         )
-    return CaseStateSequence(participant=participant, events=events)
+
+
+def _messages(exc: ValidationError) -> list[str]:
+    """The validator's own words, without pydantic's ``Value error,``."""
+    return [
+        str(error["msg"]).removeprefix("Value error, ")
+        for error in exc.errors()
+    ]
 
 
 def case_state_sequences(history: CaseEventHistory) -> CaseStateSequences:
@@ -121,14 +125,9 @@ def case_state_sequences(history: CaseEventHistory) -> CaseStateSequences:
             sequences.append(result)
         else:
             unprojectable.append(result)
-    sequences.sort(key=_awareness_index)
+    sequences.sort(key=lambda sequence: sequence.awareness_index)
     return CaseStateSequences(
         case_id=history.case_id,
         sequences=sequences,
         unprojectable=unprojectable,
     )
-
-
-def _awareness_index(sequence: CaseStateSequence) -> int:
-    """The log index of the vendor-awareness event of *sequence*."""
-    return next(e.log_index for e in sequence.events if e.kind is CSEvent.V)

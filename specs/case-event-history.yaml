@@ -941,8 +941,10 @@ groups:
     statement: >-
       Every projected sequence MUST be a valid case-state history prefix.
     rationale: >-
-      Checking the prefix turns a derivation bug into a loud failure instead of a wrong
-      score. It is not redundant with what the CASE_MANAGER enforces. That actor
+      Checking the prefix turns a derivation bug into a reported refusal instead of a
+      wrong score, and it refuses the same way a case the single-vendor model cannot
+      place, such as a vendor that becomes aware only after the exploit is public. It
+      is not redundant with what the CASE_MANAGER enforces. That actor
       validates a participant's dimensions and the case's public state separately, and
       skips a rule reading a dimension the participant lacks (ADR-0075), so a ledger
       whose every entry it accepted can still project a compound that does not replay.

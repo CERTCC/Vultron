@@ -31,9 +31,10 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from vultron.core.states.cs_invariants import (
-    CSEvent,
-    is_valid_cs_history_prefix,
+from vultron.core.states.cs_invariants import CSEvent, replay_cs_history
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
 )
 from vultron.measure.history import CaseEvent, EventScope
 from vultron.primitives import NonEmptyString
@@ -59,9 +60,19 @@ class CaseStateSequence(BaseModel):
         """The sequence as the case-state history validator reads it."""
         return tuple(CSEvent(event.kind) for event in self.events)
 
+    @property
+    def awareness_index(self) -> int:
+        """The log index of the vendor's vendor-awareness event."""
+        return next(e.log_index for e in self.events if e.kind is CSEvent.V)
+
     @model_validator(mode="after")
     def _is_a_valid_prefix(self) -> CaseStateSequence:
-        """Refuse a foreign event, a disorder, or a non-replaying compound."""
+        """Refuse a foreign event, a disorder, or a non-replaying compound.
+
+        Every violation is named (EH-07-001).  The replay runs only when every
+        member is a case-state event: over a foreign one it would report the
+        foreign value again rather than an ordering problem.
+        """
         problems: list[str] = []
         for event in self.events:
             if not isinstance(event.kind, CSEvent):
@@ -77,15 +88,20 @@ class CaseStateSequence(BaseModel):
         indices = [event.log_index for event in self.events]
         if indices != sorted(indices):
             problems.append("the events are not in log order")
-        if problems:
-            raise ValueError("; ".join(problems))
-        if CSEvent.V not in self.kinds:
+        kinds = [event.kind for event in self.events]
+        if CSEvent.V not in kinds:
             problems.append("the events include no vendor-awareness event")
-        elif not is_valid_cs_history_prefix(self.kinds):
-            problems.append(
-                f"{''.join(self.kinds)} is not a valid case-state history"
-                " prefix"
-            )
+        if all(isinstance(kind, CSEvent) for kind in kinds):
+            try:
+                replay_cs_history(kinds)
+            except (
+                VultronValidationError,
+                VultronInvalidStateTransitionError,
+            ) as exc:
+                problems.append(
+                    f"{''.join(kinds)} is not a valid case-state history"
+                    f" prefix: {exc}"
+                )
         if problems:
             raise ValueError("; ".join(problems))
         return self
@@ -133,7 +149,8 @@ class CaseStateSequences(BaseModel):
     Fields:
         case_id: The case.
         sequences: One sequence per participant whose events include a
-            vendor-awareness event, in the order of those events.
+            vendor-awareness event that replays, in the order of those
+            events.
         unprojectable: Every other participant of the history, in
             first-event order, with the reason it has no sequence.
     """
@@ -143,6 +160,31 @@ class CaseStateSequences(BaseModel):
     case_id: NonEmptyString
     sequences: list[CaseStateSequence] = Field(default_factory=list)
     unprojectable: list[UnprojectableParticipant] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _one_answer_per_participant(self) -> CaseStateSequences:
+        """Refuse a participant answered twice, or sequences out of order."""
+        problems: list[str] = []
+        projected = [s.participant for s in self.sequences]
+        reported = [u.participant for u in self.unprojectable]
+        for label, names in (
+            ("projected", projected),
+            ("reported unprojectable", reported),
+        ):
+            twice = sorted({n for n in names if names.count(n) > 1})
+            if twice:
+                problems.append(f"{', '.join(twice)} {label} twice")
+        both = sorted(set(projected) & set(reported))
+        if both:
+            problems.append(
+                f"{', '.join(both)} both projected and reported unprojectable"
+            )
+        order = [s.awareness_index for s in self.sequences]
+        if order != sorted(order):
+            problems.append("the sequences are not in vendor-awareness order")
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
 
     def for_participant(self, participant: str) -> CaseStateSequence | None:
         """The sequence of *participant*, or ``None`` when it has none."""
