@@ -72,3 +72,35 @@ def test_terms_are_sent_as_an_iso_instant(posted):
 
     assert posted["body"]["proposed_embargo_end_time"] == end.isoformat()
     assert posted["body"]["proposed_embargo_end_time"].endswith("+00:00")
+
+
+@pytest.mark.spec("CSAF-04-010", "DEMOMA-26-012")
+def test_csaf_document_and_summary_are_passed_through(posted):
+    """AC-2: csaf_document and report_summary, when supplied, reach the body."""
+    csaf_doc = {"document": {"title": "Test"}}
+
+    _session().submit_report(
+        report_name="n",
+        report_content="c",
+        recipient_id=f"{_NODE}/actors/v",
+        csaf_document=csaf_doc,
+        report_summary="Brief summary",
+    )
+
+    assert posted["body"]["csaf_document"] is csaf_doc
+    assert posted["body"]["report_summary"] == "Brief summary"
+
+
+@pytest.mark.spec("CSAF-04-010", "DEMOMA-26-012")
+def test_csaf_document_without_report_name(posted):
+    """AC-4: A report with csaf_document and no report_name omits that key."""
+    csaf_doc = {"document": {"title": "CSAF Report"}}
+
+    _session().submit_report(
+        report_content="c",
+        recipient_id=f"{_NODE}/actors/v",
+        csaf_document=csaf_doc,
+    )
+
+    assert posted["body"]["csaf_document"] is csaf_doc
+    assert "report_name" not in posted["body"]
