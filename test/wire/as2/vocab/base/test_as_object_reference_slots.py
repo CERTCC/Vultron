@@ -32,6 +32,7 @@ from pydantic.alias_generators import to_camel
 import vultron.wire.as2.vocab.activities  # trigger dynamic discovery
 import vultron.wire.as2.vocab.objects  # noqa: F401
 from test.support.blank_strings import BLANKS
+from test.support.objects import make
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -126,14 +127,16 @@ def test_parse_edge_refuses_a_blank_addressing_reference(
 
 def test_wire_object_keeps_every_shape_as2_allows() -> None:
     """An IRI, a list of IRIs, an object, a Link and a core object all validate."""
-    note = as_Note(id_="https://example.org/notes/1", content="hi")
+    note = make(as_Note, id_="https://example.org/notes/1", content="hi")
     link = as_Link(href="https://example.org/x")
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/1",
         name="a case",
         attributed_to="https://example.org/actors/alice",
     )
-    obj = as_Object(
+    obj = make(
+        as_Object,
         to="https://example.org/actors/bob",
         cc=["https://example.org/actors/a", "https://example.org/actors/b"],
         in_reply_to=note,
@@ -163,7 +166,7 @@ def test_wire_object_refuses_a_value_as2_does_not_allow(value: object) -> None:
 def test_url_refuses_an_embedded_object() -> None:
     """``url``'s range is an IRI or a Link (AS2 4), never an object."""
     with pytest.raises(ValidationError):
-        as_Object.model_validate({"url": as_Note(content="hi")})
+        as_Object.model_validate({"url": make(as_Note, content="hi")})
 
 
 @pytest.mark.spec("VM-10-005")
@@ -175,7 +178,7 @@ def test_core_object_holds_a_wire_object_it_cannot_name() -> None:
     another layer built and serializes it as that object.
     """
     link = as_Link(href="https://example.org/x")
-    obj = CoreObject(tag=[link])
+    obj = make(CoreObject, tag=[link])
 
     assert obj.tag == [link]
     dumped = obj.model_dump(by_alias=True, exclude_none=True)
@@ -352,7 +355,7 @@ def test_an_unmodelled_link_extension_type_is_refused() -> None:
 
 def test_an_object_this_process_builds_still_takes_a_minted_id() -> None:
     """Minting stays the default for an object built here, Link included."""
-    assert as_Note(content="x").id_
+    assert make(as_Note, content="x").id_
     assert as_Link(href="https://example.org/x").id_
 
 
@@ -380,6 +383,6 @@ def test_recipient_readers_read_every_recipient_of_a_tuple(
 ) -> None:
     """A ``Sequence`` slot keeps a tuple as given; every recipient is read."""
     recipients = ("https://example.org/a", "https://example.org/b")
-    obj = as_Object(to=recipients)
+    obj = make(as_Object, to=recipients)
     assert isinstance(obj.to, tuple)
     assert reader(obj.to) == list(recipients)
