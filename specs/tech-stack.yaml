@@ -20,14 +20,31 @@ groups:
       A minimum Python version tells users and contributors which interpreters the code
       supports. CI and the container images run Python 3.13, so 3.13 is the oldest
       version the code is tested on. A lower floor would be a claim nothing tests.
-      `requires-python` in `pyproject.toml`, ruff's `target-version` and pyright's
-      `pythonVersion` name the same version, so the static checks judge the code
-      against the runtime CI tests.
+    verification: >-
+      `test/ci/test_python_version_floor.py` checks that the `requires-python` floor
+      in `pyproject.toml` is 3.13 or later.
+  - id: IMPLTS-01-009
+    priority: MUST
+    kind: project
+    statement: >-
+      Ruff's `target-version`, pyright's `pythonVersion` and the default interpreter
+      of the `setup-python-uv` CI action MUST name the `requires-python` floor, and
+      the Docker base image MUST run that floor or a later version.
+    rationale: >-
+      The floor is the oldest version the project claims to support. The static
+      checks judge the code against the version they name, so a newer one accepts
+      syntax the floor rejects, and an older one rejects syntax the floor accepts. CI
+      runs its default interpreter, so a default above the floor leaves the floor
+      untested. A container may run a newer version, but one below the floor runs an
+      interpreter the project does not support.
     verification: >-
       `test/ci/test_python_version_floor.py` checks that ruff's `target-version`,
-      pyright's `pythonVersion`, the `setup-python-uv` action's default
-      `python-version` and the Docker base image all name the `requires-python`
-      floor, and that the floor is 3.13 or later.
+      pyright's `pythonVersion` and the `setup-python-uv` action's default
+      `python-version` equal the `requires-python` floor, and that the Docker base
+      image's version is at least that floor.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-01-001
   - id: IMPLTS-01-007
     priority: MUST
     kind: project

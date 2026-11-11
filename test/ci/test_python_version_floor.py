@@ -1,14 +1,15 @@
-"""CI verification test — every declaration of the Python floor names one version.
+"""CI verification test — the Python floor is declared once and followed.
 
-Implements IMPLTS-01-001 from ``specs/tech-stack.yaml`` (#6052).
+Implements IMPLTS-01-001 and IMPLTS-01-009 from ``specs/tech-stack.yaml``
+(#6052).
 
-The floor is declared in three places that only read it (``requires-python``,
-ruff's ``target-version``, pyright's ``pythonVersion``) and run in two (the CI
-setup action's default interpreter and the Docker base image). When they
-disagree, the declared floor is a claim nothing tests: the checks accept code
-for a version CI never runs, or reject syntax the shipped runtime supports.
-This module keeps all five on one version, so raising the floor is one change
-that moves them together.
+The floor is declared in ``requires-python`` and read by ruff's
+``target-version``, pyright's ``pythonVersion``, the CI setup action's default
+interpreter and the Docker base image. When the first three disagree with it,
+the declared floor is a claim nothing tests: the checks accept code for a
+version CI never runs, or reject syntax the floor supports. This module keeps
+them on one version, so raising the floor is one change that moves them
+together. The container may run ahead of the floor, never behind it.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from __future__ import annotations
 import json
 import re
 import tomllib
+from collections.abc import Callable
 
 import pytest
 
@@ -66,25 +68,41 @@ def _docker_base_python() -> str:
     return match.group(1)
 
 
-@pytest.mark.spec("IMPLTS-01-001")
+def _as_tuple(version: str) -> tuple[int, int]:
+    major, minor = (int(part) for part in version.split("."))
+    return major, minor
+
+
+@pytest.mark.spec("IMPLTS-01-009")
 @pytest.mark.parametrize(
     ("where", "read"),
     [
         ("ruff target-version", _ruff_target),
         ("pyright pythonVersion", _pyright_version),
         ("CI setup-python-uv default", _ci_default_python),
-        ("Docker base image", _docker_base_python),
     ],
 )
-def test_declaration_names_the_requires_python_floor(where, read):
+def test_declaration_names_the_requires_python_floor(
+    where: str, read: Callable[[], str]
+) -> None:
     floor = _requires_python_floor()
-    assert read() == floor, (
-        f"{where} names Python {read()}, but requires-python's floor is "
+    actual = read()
+    assert actual == floor, (
+        f"{where} names Python {actual}, but requires-python's floor is "
         f"{floor}; raise or lower them together."
     )
 
 
+@pytest.mark.spec("IMPLTS-01-009")
+def test_docker_base_image_runs_the_floor_or_later() -> None:
+    floor = _requires_python_floor()
+    base = _docker_base_python()
+    assert _as_tuple(base) >= _as_tuple(floor), (
+        f"docker/Dockerfile's base image runs Python {base}, below the "
+        f"requires-python floor {floor}."
+    )
+
+
 @pytest.mark.spec("IMPLTS-01-001")
-def test_floor_meets_the_minimum_the_spec_names():
-    major, minor = (int(part) for part in _requires_python_floor().split("."))
-    assert (major, minor) >= (3, 13)
+def test_floor_meets_the_minimum_the_spec_names() -> None:
+    assert _as_tuple(_requires_python_floor()) >= (3, 13)
