@@ -59,12 +59,38 @@ def claim_issue_number(branch: str) -> int | None:
 
 
 # `Part of #N`, the reference a split's non-final PR carries (PAD-04-008).
+# Twin of `_PART_OF_RE` and `_CODE_SPAN_RE` in
+# vultron/metadata/planning/pr_body_lint/checks.py (PRB-14), which this script
+# cannot import: it runs under `python3 -I` without the package. Keep them equal.
 _PART_OF_RE = re.compile(r"\bPart of #(\d+)\b", re.IGNORECASE)
+_CODE_SPAN_RE = re.compile(r"(`+)(?!`).*?(?<!`)\1(?!`)")
+_FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 
 
 def part_of_issues(body: str) -> set[int]:
-    """The issues a PR body names as ``Part of #N``."""
-    return {int(n) for n in _PART_OF_RE.findall(body)}
+    """The issues a PR body names as ``Part of #N``, outside code.
+
+    A reference in a code span or a fenced block is quoted, not claimed, so it
+    keeps no claim live (as PRB-14 reads the body).
+    """
+    numbers: set[int] = set()
+    fence: str | None = None
+    for line in body.splitlines():
+        opener = _FENCE_RE.match(line)
+        if fence is not None:
+            if (
+                opener
+                and opener.group(1)[0] == fence[0]
+                and len(opener.group(1)) >= len(fence)
+            ):
+                fence = None
+            continue
+        if opener:
+            fence = opener.group(1)
+            continue
+        stripped = _CODE_SPAN_RE.sub("", line)
+        numbers.update(int(n) for n in _PART_OF_RE.findall(stripped))
+    return numbers
 
 
 def _latest(*stamps: str | None) -> str | None:

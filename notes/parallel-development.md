@@ -140,13 +140,13 @@ live-PR phases and the delta (PAD-07-007, PAD-07-012, ADR-0139).
 ```text
 Sweeper (stale_claim_sweeper.yml, weekly or on demand):
   For each Issue that is assigned, has a claim branch on GitHub (any prefix),
-  no open PR for that branch, and neither a branch commit nor its claim
-  in the last 3 days:
+  no open PR (on that branch, or from any branch saying `Part of #N`), and
+  neither a branch commit nor its claim in the last 3 days:
   → add stale-claim label
   → comment: "Orphaned claim on branch <branch>. Human review needed."
   For each Epic that is assigned (an epic run), was claimed > 3 days ago, and
   none of whose held issues (descendants down to a nested Epic) has an open
-  PR or claim-branch activity in 3 days:
+  PR (closing it, or saying `Part of` it) or claim-branch activity in 3 days:
   → add stale-claim label, comment
   (logic and tests: .github/scripts/stale_claim_sweeper.py)
 

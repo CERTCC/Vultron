@@ -1,8 +1,9 @@
 # Stale-claim sweeper: flags orphaned claims with stale-claim.
 # An orphaned issue claim is an assigned Issue whose <prefix>/<N>-slug branch
-# (any prefix) has no open PR and no commit or claim within 3 days. An orphaned
-# Epic claim is an assigned Epic none of whose children has an open PR or
-# claim-branch activity within 3 days. The logic is in
+# (any prefix) has no open PR and no commit or claim within 3 days; an open PR
+# saying `Part of #N` counts as its open PR. An orphaned Epic claim is an
+# assigned Epic none of whose children has an open PR (closing it or `Part of`
+# it) or claim-branch activity within 3 days. The logic is in
 # .github/scripts/stale_claim_sweeper.py.
 #
 # Reference: specs/parallel-development.yaml PAD-10, PAD-14-003, PAD-19-005

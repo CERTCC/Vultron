@@ -170,7 +170,7 @@ class _FakeGitHub:
         branches: dict[str, str],
         *,
         open_pr_heads: tuple[str, ...] = (),
-        open_pr_bodies: dict[str, str] | None = None,
+        open_pr_bodies: dict[str, str | None] | None = None,
         sub_issues: dict[int, list[dict]] | None = None,
         assigned_at: str = OLD,
     ) -> None:
@@ -200,7 +200,8 @@ class _FakeGitHub:
         if not retry:
             self.unretried.append(args[:2])
         if args[:2] == ("pr", "list"):
-            heads = {h: "" for h in self.open_pr_heads} | self.open_pr_bodies
+            heads: dict[str, str | None] = {h: "" for h in self.open_pr_heads}
+            heads |= self.open_pr_bodies
             return json.dumps(
                 [
                     {
@@ -313,7 +314,12 @@ def test_a_hung_gh_call_ends_well_before_the_job_cap() -> None:
         ("- part of #7\n- Part of #12", {7, 12}),
         ("- Closes #7", set()),
         ("Part of #7a", set()),
+        ("Depart of #7", set()),
         ("", set()),
+        # Quoted, not claimed: a code span or a fenced block keeps nothing live.
+        ("Like `Part of #7`.", set()),
+        ("```text\n- Part of #7\n```\n- Part of #9", {9}),
+        ("~~~~\n```\nPart of #7\n~~~~", set()),
     ],
 )
 def test_part_of_issues(body: str, expected: set[int]) -> None:
@@ -351,3 +357,34 @@ def test_an_open_split_part_keeps_an_epic_run_live(
         ),
     )
     assert fake.writes == []
+
+
+@pytest.mark.spec("PAD-19-005", "PAD-04-008")
+def test_a_part_pr_for_an_issue_the_run_does_not_hold_leaves_it_stale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic, child = _issue(1, "Epic"), _issue(2, assigned=False)
+    subs = {1: [{"number": 2, "type": {"name": "Task"}}]}
+    fake = _sweep(
+        monkeypatch,
+        _FakeGitHub(
+            [epic, child],
+            {"task/2-x": OLD},
+            open_pr_bodies={"task/9a-x": "- Part of #9\n"},
+            sub_issues=subs,
+        ),
+    )
+    assert fake.writes == [("issue", "edit", "1"), ("issue", "comment", "1")]
+
+
+@pytest.mark.spec("PAD-10-001")
+def test_a_pr_with_a_null_body_keeps_nothing_live(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _sweep(
+        monkeypatch,
+        _FakeGitHub(
+            [_issue(7)], {"bug/7-x": OLD}, open_pr_bodies={"x/1": None}
+        ),
+    )
+    assert fake.writes == [("issue", "edit", "7"), ("issue", "comment", "7")]

@@ -84,7 +84,8 @@ _DOCS_GAP_RE = re.compile(
 
 
 #: ``Part of #N``, the reference a split's non-final PR carries in place of
-#: ``Closes #N`` (``bundling.md`` § "Split PRs").
+#: ``Closes #N`` (``bundling.md`` § "Split PRs"). Twinned in
+#: ``.github/scripts/stale_claim_sweeper.py``, which cannot import this module.
 _PART_OF_RE = re.compile(r"\bPart of #(\d+)\b", re.I)
 
 
