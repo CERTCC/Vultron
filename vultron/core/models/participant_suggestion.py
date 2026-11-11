@@ -204,9 +204,28 @@ class ParticipantSuggestion(ValidatedAssignmentMixin):
     rationale: NonEmptyString
 
 
+class ParticipantSuggestions(ValidatedAssignmentMixin):
+    """The suggestions one ask of the port answered, as one typed value.
+
+    The participant-suggestion Retriever's output port holds this rather
+    than a bare ``list``, so the seam's type check on that port covers every
+    suggestion, not just the container (BT-18-012, BTND-03-021).  It is
+    empty by default: an answer naming nobody is valid (BT-24-004), and it
+    is what a constant *yes* writes (BT-23-013).
+
+    Attributes:
+        suggestions: The suggestions, in the order the adapter gave them.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    suggestions: tuple[ParticipantSuggestion, ...] = ()
+
+
 __all__ = [
     "ParticipantProfile",
     "ParticipantSuggestion",
+    "ParticipantSuggestions",
     "ReportProfile",
     "SuggestionContext",
 ]

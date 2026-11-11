@@ -66,14 +66,18 @@ class ModelProfile(ValidatedAssignmentMixin):
         holds one builds it field by field instead.
 
         Raises:
-            TypeError: *source* is not an instance of :attr:`profile_of`.
+            TypeError: This profile names no model it profiles, or *source*
+                is not an instance of :attr:`profile_of`.
             VultronValidationError: A value of *source* does not fit the
                 profile's narrower type, such as a missing value on a field
                 the profile requires.
         """
-        if not isinstance(source, cls.profile_of):
+        profile_of = getattr(cls, "profile_of", None)
+        if profile_of is None:
+            raise TypeError(f"{cls.__name__} names no model it profiles.")
+        if not isinstance(source, profile_of):
             raise TypeError(
-                f"{cls.__name__} profiles {cls.profile_of.__name__}, not "
+                f"{cls.__name__} profiles {profile_of.__name__}, not "
                 f"{type(source).__name__}."
             )
         return cls._build(
@@ -127,7 +131,9 @@ def _admits(source: object, narrowed: object) -> bool:
 
 def _admits_member(source: object, narrowed: object) -> bool:
     if isinstance(narrowed, type) and issubclass(narrowed, ModelProfile):
-        return narrowed.profile_of is source
+        # A nested profile with no ``profile_of`` admits nothing here and is
+        # reported by name when the walk reaches it (EH-07-001).
+        return getattr(narrowed, "profile_of", None) is source
     if source == narrowed:
         return True
     origin = get_origin(narrowed)

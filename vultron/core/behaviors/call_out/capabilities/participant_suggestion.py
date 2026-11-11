@@ -29,26 +29,28 @@ from typing import Final
 from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.call_out.capability import RetrieverCapability
+from vultron.core.models.participant_suggestion import ParticipantSuggestions
 
 #: Input port: the id of the case the suggestions are for.
 SUGGESTION_CASE_ID_KEY: Final[str] = "case_id"
 
-#: Output port: the suggestions, a list of ``ParticipantSuggestion``.
+#: Output port: the suggestions, one ``ParticipantSuggestions``.
 PARTICIPANT_SUGGESTIONS_KEY: Final[str] = "participant_suggestions"
 
 
 class SuggestParticipantsCapability(RetrieverCapability):
     """Suggest the parties a case is missing, each with a role and a reason.
 
-    Each item of the output is a
-    :class:`~vultron.core.models.participant_suggestion.ParticipantSuggestion`;
-    an empty list is a valid answer (BT-24-004).  A tree that places this
+    The output is one
+    :class:`~vultron.core.models.participant_suggestion.ParticipantSuggestions`,
+    so the seam's type check covers each suggestion it holds (BTND-03-021);
+    an answer naming nobody is valid (BT-24-004).  A tree that places this
     Retriever pairs it with one ``suggest-actor-to-case`` Actuator per
     suggestion it acts on (BT-20-013).
 
     Blackboard contract (BT-18-001):
       Input keys:  case_id: str  (the case the suggestions are for)
-      Output keys: participant_suggestions: list  (yes only)
+      Output keys: participant_suggestions: ParticipantSuggestions  (yes only)
       Refusal keys: call_out_refusal_reason: str  (no only)
 
     Store-held answer (BT-18-039): **cannot** — the case file lists who is
@@ -62,7 +64,7 @@ class SuggestParticipantsCapability(RetrieverCapability):
     }
     OUTPUT_PORTS = {
         PARTICIPANT_SUGGESTIONS_KEY: PortInformation(
-            data_type=list, required=True
+            data_type=ParticipantSuggestions, required=True
         ),
     }
 

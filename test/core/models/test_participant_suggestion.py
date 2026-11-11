@@ -39,6 +39,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_suggestion import (
     ParticipantProfile,
     ParticipantSuggestion,
+    ParticipantSuggestions,
     ReportProfile,
     SuggestionContext,
 )
@@ -60,8 +61,10 @@ _VULTRON = Path(core_models.__file__).resolve().parents[2]
 def _profile_modules() -> list[str]:
     """Every module in ``vultron/`` whose source subclasses a profile.
 
-    Found from the source, not from what happens to be imported, so a
-    profile declared anywhere in ``vultron/`` is checked.
+    Found from the source, not from what happens to be imported: every
+    module declaring a class whose direct base's name ends in ``Profile`` is
+    imported.  A profile built only on a base named otherwise, in a module
+    nothing imports, is not reached.
     """
     modules: list[str] = []
     for path in sorted(_VULTRON.rglob("*.py")):
@@ -240,6 +243,12 @@ class _NoModel(ModelProfile):
     id_: NonEmptyString
 
 
+class _NoModelNested(ModelProfile):
+    profile_of = VulnerabilityCase
+
+    case_participants: list[_NoModel]
+
+
 @pytest.mark.spec("BT-24-009")
 @pytest.mark.parametrize(
     ("profile", "fragment"),
@@ -251,6 +260,7 @@ class _NoModel(ModelProfile):
         (_WrongContainer, "_WrongContainer.case_participants"),
         (_BadAtDepth, "_BadLeaf.case_roles"),
         (_NoModel, "names no model it profiles"),
+        (_NoModelNested, "_NoModel names no model it profiles"),
         (_AnnotatedOverPlain, "_AnnotatedOverPlain.plain"),
         (_FewerArgs, "_FewerArgs.pair"),
         (_SharedNested, "_LeafProfile.label"),
@@ -262,6 +272,13 @@ def test_the_subset_check_reports_a_breach(
 ) -> None:
     problems = profile_violations(profile)
     assert any(fragment in p for p in problems), problems
+
+
+def test_a_profile_naming_no_model_cannot_build() -> None:
+    with pytest.raises(TypeError, match="names no model it profiles"):
+        _NoModel.from_model(
+            make(VulnerabilityCase, id_=_CASE, attributed_to=_OWNER)
+        )
 
 
 def test_a_nested_profile_shared_by_two_fields_is_reported_once() -> None:
@@ -421,6 +438,21 @@ def test_a_suggestion_missing_a_part_is_refused(
 ) -> None:
     with pytest.raises(ValidationError):
         ParticipantSuggestion(**fields)  # type: ignore[arg-type]
+
+
+@pytest.mark.spec("BT-24-004")
+def test_the_suggestions_hold_only_suggestions_and_may_be_empty() -> None:
+    suggestion = ParticipantSuggestion(
+        actor_id=_VENDOR, role=CVDRole.VENDOR, rationale="ships libexample"
+    )
+    assert ParticipantSuggestions().suggestions == ()
+    assert ParticipantSuggestions(suggestions=(suggestion,)).suggestions == (
+        suggestion,
+    )
+    with pytest.raises(ValidationError):
+        ParticipantSuggestions(suggestions=({"actor_id": _VENDOR},))  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        ParticipantSuggestions(suggestions=(), extra=1)  # type: ignore[call-arg]
 
 
 @pytest.mark.spec("BT-24-006")

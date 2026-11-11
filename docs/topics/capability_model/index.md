@@ -424,7 +424,7 @@ Choosing such an adapter is your trust decision, not one the port can make.
 
 Inside a BT, the `SuggestParticipants` Retriever below wraps the core service, and it answers within the call-out time budget like any other capability (BT-18-015).
 An adapter too slow for that budget is reachable only from a Sentinel.
-With no adapter wired, the default answers with an empty list, so nobody is suggested.
+With no adapter wired, the default answers with no suggestions, so nobody is suggested.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.docs.capability_catalog import render_capability_table

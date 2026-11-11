@@ -15,8 +15,8 @@
 """Probabilistic fuzzer node for participant suggestion (ADR-0186).
 
 The node stands in for a participant suggester in fuzz runs.  It answers
-*yes* with an empty list of suggestions, the type-conformant synthetic value
-BT-18-003 asks for; a demo scenario that needs real suggestions answers the
+*yes* with an empty ``ParticipantSuggestions``, the type-conformant
+synthetic value BT-18-003 asks for; a demo scenario that needs real suggestions answers the
 port with a static adapter over a declared candidate table instead
 (BT-24-007).
 

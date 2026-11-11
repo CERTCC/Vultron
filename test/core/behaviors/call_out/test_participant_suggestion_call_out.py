@@ -15,7 +15,7 @@
 - Its REAL backend reads the case id, asks the service and writes the
   suggestions to its typed output port (BT-18-012, BT-24-008).
 - A failure to find out is *error*, never *no* (ADR-0183).
-- Its DETERMINISTIC default writes an empty list (BT-23-013, BT-23-014).
+- Its DETERMINISTIC default writes no suggestions (BT-23-013, BT-23-014).
 - It sits behind the time-bounded seam and answers within the budget
   (BT-18-015).
 """
@@ -32,6 +32,7 @@ from py_trees.ports import NoDataAvailable
 
 from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.bundles.participant_suggestion import (
     PARTICIPANT_SUGGESTION_DETERMINISTIC,
     ParticipantSuggestionCallOutBundle,
@@ -46,6 +47,7 @@ from vultron.core.behaviors.call_out.capabilities.participant_suggestion import 
 from vultron.core.behaviors.call_out.errors import (
     CallOutBackendError,
     CallOutBudgetExceededError,
+    CallOutContractError,
 )
 from vultron.core.behaviors.call_out.guard import (
     TimeBoundedCallOut,
@@ -54,6 +56,7 @@ from vultron.core.behaviors.call_out.guard import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.participant_suggestion import (
     ParticipantSuggestion,
+    ParticipantSuggestions,
     SuggestionContext,
 )
 from vultron.enums import CVDRole
@@ -162,7 +165,7 @@ def test_the_retriever_writes_the_services_suggestions(
     node.tick_once()
 
     assert node.status == Status.SUCCESS
-    assert _written() == [_SUGGESTION]
+    assert _written() == ParticipantSuggestions(suggestions=(_SUGGESTION,))
     [asked] = port.asked
     assert asked.id_ == _CASE
     backend = unwrap_call_out(node)
@@ -171,7 +174,7 @@ def test_the_retriever_writes_the_services_suggestions(
 
 
 @pytest.mark.spec("BT-24-004")
-def test_an_empty_answer_is_a_yes_with_an_empty_list(
+def test_an_empty_answer_is_a_yes_with_no_suggestions(
     dl: SqliteDataLayer,
 ) -> None:
     node = _node(
@@ -184,7 +187,7 @@ def test_an_empty_answer_is_a_yes_with_an_empty_list(
     _place_case_id()
     node.tick_once()
     assert node.status == Status.SUCCESS
-    assert _written() == []
+    assert _written() == ParticipantSuggestions()
 
 
 @pytest.mark.parametrize(
@@ -228,6 +231,33 @@ def test_a_wrong_typed_answer_fails_the_tick_whole(
     assert _written() is None
 
 
+class _BareListBackend(SuggestParticipantsCapability):
+    """A backend that answers with a bare list, as the port once allowed."""
+
+    def answer(self) -> CallOutAnswer:
+        return CallOutAnswer.yes(
+            {PARTICIPANT_SUGGESTIONS_KEY: [{"actor_id": "x"}]}
+        )
+
+
+@pytest.mark.spec("BT-18-012")
+@pytest.mark.spec("BTND-03-021")
+def test_the_seam_refuses_an_answer_that_is_not_participant_suggestions() -> (
+    None
+):
+    """The port's concrete type is what lets the seam check the items."""
+    node = _node(
+        ParticipantSuggestionCallOutBundle(
+            suggest_participants_factory=_BareListBackend
+        )
+    )
+    with pytest.raises(
+        CallOutContractError, match=PARTICIPANT_SUGGESTIONS_KEY
+    ):
+        node.tick_once()
+    assert _written() is None
+
+
 def test_no_case_id_on_the_blackboard_is_a_wiring_error(
     dl: SqliteDataLayer,
 ) -> None:
@@ -245,11 +275,11 @@ def test_no_case_id_on_the_blackboard_is_a_wiring_error(
 
 @pytest.mark.spec("BT-23-013")
 @pytest.mark.spec("BT-23-014")
-def test_the_deterministic_default_writes_an_empty_list() -> None:
+def test_the_deterministic_default_writes_no_suggestions() -> None:
     node = _node(PARTICIPANT_SUGGESTION_DETERMINISTIC)
     node.tick_once()
     assert node.status == Status.SUCCESS
-    assert _written() == []
+    assert _written() == ParticipantSuggestions()
     backend = unwrap_call_out(node)
     assert isinstance(backend, SuggestParticipantsCapability)
     assert type(backend).declaration() is SuggestParticipantsCapability
@@ -296,7 +326,7 @@ def test_the_retriever_answers_within_the_budget(
     else:
         seam.tick_once()
         assert seam.status == Status.SUCCESS
-        assert _written() == [_SUGGESTION]
+        assert _written() == ParticipantSuggestions(suggestions=(_SUGGESTION,))
 
 
 @pytest.mark.spec("BT-24-001")

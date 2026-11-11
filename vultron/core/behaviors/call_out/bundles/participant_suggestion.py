@@ -37,8 +37,9 @@ outside any tree (ADR-0186).
 Ceiling/floor mapping (BT-23-002):
 
 - ``suggest_participants_factory`` — SuggestParticipants (p=0.90) →
-  AlwaysSucceed bound to the declaration, whose *yes* writes an empty list
-  (BT-23-013): with no suggester wired, nobody is suggested.
+  AlwaysSucceed bound to the declaration, whose *yes* writes an empty
+  ``ParticipantSuggestions`` (BT-23-013): with no suggester wired, nobody is
+  suggested.
 """
 
 from __future__ import annotations
@@ -56,6 +57,7 @@ from vultron.core.behaviors.call_out.capabilities.participant_suggestion import 
 )
 from vultron.core.behaviors.call_out.nodes import always_succeed_as
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
+from vultron.core.models.participant_suggestion import ParticipantSuggestions
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.participant_suggestion import (
     ParticipantSuggestionPort,
@@ -71,7 +73,7 @@ class SuggestParticipantsRetriever(SuggestParticipantsCapability):
 
     Reads the case id from its input port and answers *yes* with what
     :func:`~vultron.core.services.participant_suggestion.suggest_participants_for_case_id`
-    returns for it, an empty list included.  It never calls the port itself
+    returns for it, an empty answer included.  It never calls the port itself
     (BT-24-008).
 
     A case it cannot read, a reference the case names that *dl* lacks, or
@@ -101,7 +103,13 @@ class SuggestParticipantsRetriever(SuggestParticipantsCapability):
             return CallOutAnswer.error(
                 f"participant suggestion for case '{case_id}' failed: {exc}"
             )
-        return CallOutAnswer.yes({PARTICIPANT_SUGGESTIONS_KEY: suggestions})
+        return CallOutAnswer.yes(
+            {
+                PARTICIPANT_SUGGESTIONS_KEY: ParticipantSuggestions(
+                    suggestions=tuple(suggestions)
+                )
+            }
+        )
 
 
 def suggest_participants_with(
@@ -133,7 +141,7 @@ class ParticipantSuggestionCallOutBundle(CallOutBundle):
     suggest_participants_factory: CallOutBackendFactory = field(
         default=always_succeed_as(SuggestParticipantsCapability)  # type: ignore[assignment]
     )
-    """SuggestParticipants (Retriever): p=0.90 → AlwaysSucceed (empty list).
+    """SuggestParticipants (Retriever): p=0.90 → AlwaysSucceed (no suggestions).
 
     Store-held answer (BT-18-039): **cannot**.  The case file lists who is
     in the case, not who is missing from it, and the participants it lists
@@ -142,7 +150,7 @@ class ParticipantSuggestionCallOutBundle(CallOutBundle):
 
 
 PARTICIPANT_SUGGESTION_DETERMINISTIC = ParticipantSuggestionCallOutBundle()
-"""Deterministic bundle: no suggester wired, so an empty list (BT-23-013)."""
+"""Deterministic bundle: no suggester wired, so no suggestions (BT-23-013)."""
 
 __all__ = [
     "PARTICIPANT_SUGGESTION_DETERMINISTIC",
