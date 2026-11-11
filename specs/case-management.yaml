@@ -2000,7 +2000,9 @@ groups:
       The participant already holds the case from the Announce, so the Invite
       only asks the question and carries no copy of the case. Delivery to each
       recipient is ordered (ADR-0112), so queuing the Invite after the replay
-      means it arrives once the participant can answer it.
+      means it usually arrives once the participant can answer it. The protocol
+      does not rely on that order (ADR-0161): CM-11-033 covers an Invite that
+      arrives first.
     verification: >-
       `test_stub_accept_sends_announce_then_replay_then_full_case_invite` in
       `test/core/use_cases/received/actor/test_full_case_invite.py` confirms the
@@ -2053,9 +2055,6 @@ groups:
       `test/core/use_cases/received/actor/test_full_case_invite.py` confirm a
       full-case Invite from the replica's CASE_MANAGER is accepted and one from any
       other actor is refused.
-    relationships:
-    - rel_type: uses_definition
-      spec_id: PCR-03-004
     adr:
     - ADR-0121
     stories:
@@ -2067,24 +2066,25 @@ groups:
       A receiver MUST NOT judge a full-case Invite for a case it holds no replica
       of.
     rationale: >-
-      The CASE_MANAGER queues the full-case Invite after the Announce and the replay
-      (CM-11-010), but delivery order is not guaranteed. The Invite is case-scoped,
-      so the inbox's defer check holds it until the Announce delivers the case
-      (HP-01-041). Its tree declares no no-case path. With no trust anchor, no
-      Announce can create the replica (PCR-03-004), so the held Invite expires
-      unprocessed and the receiver fails closed.
+      The protocol does not rely on delivery order (ADR-0161), so the Invite can
+      arrive before the Announce (CM-11-010). It is case-scoped: the inbox's defer
+      check holds it until the Announce creates the replica, then replays it
+      (HP-01-041). With no trust anchor, no Announce can create the replica
+      (PCR-03-004), so the held Invite expires unprocessed (CBT-03-003) and the
+      receiver fails closed.
     verification: >-
-      `test/core/use_cases/received/actor/test_full_case_invite.py` and
-      `test/core/behaviors/inbox/test_process_payload.py` confirm that a full-case
-      Invite delivered before the Announce is held and then processed by the
-      Announce's replay, and that with no trust anchor it is never processed.
+      `test_a_full_case_invite_with_no_replica_waits_at_the_inbox` in
+      `test/core/behaviors/case/test_received_path_stage.py` confirms that the
+      full-case Invite is not deferral-exempt and that the inbox's defer check
+      holds it at a store with no replica, so its received tree never judges it.
     relationships:
     - rel_type: extends
       spec_id: CM-11-032
-    - rel_type: uses_definition
+    - rel_type: depends_on
       spec_id: HP-01-041
     adr:
     - ADR-0121
+    - ADR-0161
     stories:
     - story_2022_006
   - id: CM-11-011

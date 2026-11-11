@@ -585,7 +585,6 @@ def invitee_without_replica(joining_case):  # noqa: F811
     return dl
 
 
-@pytest.mark.spec("CM-11-032")
 @pytest.mark.spec("PCR-03-004")
 @pytest.mark.spec("HP-01-006")
 def test_before_the_announce_the_recorded_trust_anchor_is_the_case_manager(
@@ -643,7 +642,6 @@ def test_a_queue_recorded_sender_does_not_admit_a_full_case_invite(
     assert result.disposition is HandlerDisposition.REFUSED
 
 
-@pytest.mark.spec("CM-11-033")
 @pytest.mark.spec("PCR-03-004")
 @pytest.mark.spec("HP-01-006")
 def test_with_no_replica_and_no_trust_anchor_a_full_case_invite_is_refused(
