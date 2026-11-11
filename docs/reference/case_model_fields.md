@@ -27,6 +27,8 @@ Defined in `vultron/core/models/case/vulnerability_case.py`.
 | `case_participants` | `CaseParticipant` records (or their URIs) |
 | `actor_participant_index` | Fast-lookup map: actor URI → participant URI |
 | `vulnerability_reports` | Reports associated with this case (objects or URIs) |
+| `vulnerability_items` | The case's `VulnerabilityItem` entries, one for each vulnerability, in the shape of a CSAF 2.1 vulnerability entry's identity fields (objects or URIs). Empty by default ([CM-05-021](vultron-spec/requirements/case-management.md#cm-05-021)) |
+| `case_references` | The case's `CaseReference` entries (objects or URIs). Empty by default ([CM-05-021](vultron-spec/requirements/case-management.md#cm-05-021)) |
 | `case_statuses` | Append-only history of `CaseStatus` snapshots |
 | `notes` | URIs of notes attached to the case |
 | `embargo_register` | One entry per embargo ever proposed on the case, appended and never removed: the embargo (object or URI), its status (`PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`) and the embargo an activated revision replaced. The case's Embargo Management (EM) state, its active embargo and its open proposals are all read from it (ADR-0122) |
@@ -127,6 +129,8 @@ classDiagram
         case_participants list~str|CaseParticipant~
         actor_participant_index dict~str,str~
         vulnerability_reports list~str|VulnerabilityReport~
+        vulnerability_items list~str|VulnerabilityItem~
+        case_references list~str|CaseReference~
         case_statuses list~CaseStatus~
         active_embargo EmbargoEvent | None
         genesis_hash str
