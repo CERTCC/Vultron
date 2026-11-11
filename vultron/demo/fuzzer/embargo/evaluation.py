@@ -15,19 +15,17 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.embargo.evaluation import (
+    CaseOwnerApprovesEmbargoResponseCapability,
+    CurrentEmbargoAcceptableCapability,
+    EvaluateEmbargoProposalCapability,
+    OnEmbargoAcceptCapability,
+    OnEmbargoRejectCapability,
 )
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     AlwaysSucceed,
     UsuallySucceed,
-)
-from vultron.demo.fuzzer.call_out_point import (
-    ActuatorCallOutPoint,
-    EvaluatorCallOutPoint,
 )
 
 # ---------------------------------------------------------------------------
@@ -35,18 +33,19 @@ from vultron.demo.fuzzer.call_out_point import (
 # ---------------------------------------------------------------------------
 
 
-class EvaluateEmbargoProposal(EvaluatorCallOutPoint, UsuallySucceed):
+class EvaluateEmbargoProposal(
+    EvaluateEmbargoProposalCapability, UsuallySucceed
+):
     """Assess an incoming embargo proposal and decide whether to accept it.
+
+    Simulates :class:`EvaluateEmbargoProposalCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition/action — review the proposed terms and determine whether
         they are acceptable.  In production may involve automated policy
         compatibility checks or structured human analyst review.  Modeled
         as usually succeeding (acceptance is the common outcome).
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates incoming proposal from caller's DataLayer)
-      Output keys: evaluate_embargo_proposal_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -57,22 +56,17 @@ class EvaluateEmbargoProposal(EvaluatorCallOutPoint, UsuallySucceed):
     accept/reject for out-of-range proposals typically needs human review.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"evaluate_embargo_proposal_verdict": str}
-    )
 
-
-class OnEmbargoAccept(ActuatorCallOutPoint, AlwaysSucceed):
+class OnEmbargoAccept(OnEmbargoAcceptCapability, AlwaysSucceed):
     """Execute site-specific tasks when an embargo proposal is accepted.
+
+    Simulates :class:`OnEmbargoAcceptCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action integration hook — notify stakeholders, record the
         agreement, and start the embargo timer when the proposal is
         accepted.  Must be idempotent in production.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; proposal context from construction time)
-      Output keys: (none — side effect: notify stakeholders, initialize embargo timer)
 
     Input category: System integration.
 
@@ -84,17 +78,16 @@ class OnEmbargoAccept(ActuatorCallOutPoint, AlwaysSucceed):
     """
 
 
-class OnEmbargoReject(ActuatorCallOutPoint, AlwaysSucceed):
+class OnEmbargoReject(OnEmbargoRejectCapability, AlwaysSucceed):
     """Execute site-specific tasks when an embargo proposal is rejected.
+
+    Simulates :class:`OnEmbargoRejectCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action integration hook — notify stakeholders and log the
         rejection rationale when the proposal is not accepted.  Must be
         idempotent in production.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; proposal context from construction time)
-      Output keys: (none — side effect: notify stakeholders, log rejection)
 
     Input category: System integration.
 
@@ -110,18 +103,19 @@ class OnEmbargoReject(ActuatorCallOutPoint, AlwaysSucceed):
 # ---------------------------------------------------------------------------
 
 
-class CaseOwnerApprovesEmbargoResponse(EvaluatorCallOutPoint, AlwaysSucceed):
+class CaseOwnerApprovesEmbargoResponse(
+    CaseOwnerApprovesEmbargoResponseCapability, AlwaysSucceed
+):
     """Adjudication call-out: non-owner actor requests CASE_OWNER approval.
+
+    Simulates :class:`CaseOwnerApprovesEmbargoResponseCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — a non-CASE_OWNER actor (e.g. a CaseActor processing an
         inbound overture on the owner's behalf) requests authorization from the
         case owner before accepting or countering.  Defaults to approval in
         simulation (owner approval assumed).
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — reads actor/case context from construction time)
-      Output keys: (none — pass/fail gate only)
 
     Input category: Human approval / adjudication.
 
@@ -137,17 +131,18 @@ class CaseOwnerApprovesEmbargoResponse(EvaluatorCallOutPoint, AlwaysSucceed):
 # ---------------------------------------------------------------------------
 
 
-class CurrentEmbargoAcceptable(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
+class CurrentEmbargoAcceptable(
+    CurrentEmbargoAcceptableCapability, AlmostAlwaysSucceed
+):
     """Decide whether the current active embargo terms remain acceptable.
+
+    Simulates :class:`CurrentEmbargoAcceptableCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — is the participant satisfied with the current active
         embargo, or do they wish to propose a revision?  Modeled as
         usually acceptable; revision proposals are relatively uncommon.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates active embargo terms from caller's DataLayer)
-      Output keys: current_embargo_acceptable_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -157,7 +152,3 @@ class CurrentEmbargoAcceptable(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     terms against policy preferences is feasible; edge cases and dynamic
     negotiation contexts may still require human judgment.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"current_embargo_acceptable_verdict": str}
-    )

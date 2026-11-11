@@ -116,6 +116,6 @@ This sub-tree decides whether to accept (engage) or defer a valid report.
   PROTO-05-001 lets the prototype use an always-engage stub in place of an SSVC evaluation.
 - **Automation potential**: **High** — SSVC scoring, asset inventory lookups, and policy-based engage/defer decisions are fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.EvaluateCasePriority`
-- **Call-out point shape**: Evaluator — `EvaluatorCallOutPoint`.
+- **Call-out point shape**: Evaluator — `EvaluatorCapability`.
   It outputs `evaluate_case_priority_verdict: str` on SUCCESS.
 - **Factory-fn placement**: `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree` — injected through `bundle.evaluate_priority_factory("EvaluateCasePriority")` as the first child of the `EngageCaseTriggerBT` Sequence (BT-18-004).

@@ -35,6 +35,14 @@ are **core concerns**, kept out of the simulation layer so that
   :func:`~vultron.core.behaviors.call_out.actuator.actuator_call` — an
   Actuator acts on one target per call, keyed on an idempotency id the tree
   derives from the act and the target (BT-18-041 to BT-18-044).
+- :class:`~vultron.core.behaviors.call_out.capability.EvaluatorCapability`,
+  :class:`~vultron.core.behaviors.call_out.capability.RetrieverCapability`,
+  :class:`~vultron.core.behaviors.call_out.capability.ComposerCapability` and
+  :class:`~vultron.core.behaviors.call_out.capability.ActuatorCapability` —
+  the four capability shapes.  Each named capability is declared once, with
+  its typed ports, in ``capabilities``, and
+  :func:`~vultron.core.behaviors.call_out.capabilities.capability_declarations`
+  enumerates them (BT-18-012, BT-18-021).
 - :class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed` /
   :class:`~vultron.core.behaviors.call_out.nodes.AlwaysFail` — deterministic,
   production-usable constant backends (BT-23-002).
@@ -64,6 +72,17 @@ from vultron.core.behaviors.call_out.answer import (
     CallOutVerdict,
 )
 from vultron.core.behaviors.call_out.backend import CallOutBackend
+from vultron.core.behaviors.call_out.capabilities import (
+    capability_declarations,
+)
+from vultron.core.behaviors.call_out.capability import (
+    ActuatorCapability,
+    Capability,
+    CapabilityShape,
+    ComposerCapability,
+    EvaluatorCapability,
+    RetrieverCapability,
+)
 from vultron.core.behaviors.call_out.guard import (
     CallOutBackendError,
     CallOutBudgetExceededError,
@@ -83,6 +102,13 @@ from vultron.core.behaviors.call_out.nodes import (
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 __all__ = [
+    "ActuatorCapability",
+    "Capability",
+    "CapabilityShape",
+    "ComposerCapability",
+    "EvaluatorCapability",
+    "RetrieverCapability",
+    "capability_declarations",
     "ACTUATOR_CONTRACT",
     "ActuationRequest",
     "ActuatorBackend",

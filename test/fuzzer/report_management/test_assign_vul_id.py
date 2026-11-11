@@ -255,4 +255,8 @@ class TestAssignIdIsComposer:
         assert AssignId.contract.outputs["assigned_vul_id"] is str
 
     def test_docstring_has_blackboard_contract(self) -> None:
-        assert AssignId.__doc__ and "Blackboard contract" in AssignId.__doc__
+        """The contract is documented on the core declaration it binds to."""
+        declaration = AssignId.declaration()
+        assert declaration is not None
+        assert declaration.__module__.startswith("vultron.core.")
+        assert "Blackboard contract" in (declaration.__doc__ or "")

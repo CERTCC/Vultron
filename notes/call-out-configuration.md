@@ -256,7 +256,7 @@ shows both.
 
 The STOCHASTIC side has the same obligation (BT-18-003). `WeightedBehavior`
 answers *yes* with a zero-value instance per port its `contract` declares, so a
-fuzzer node meets it by declaring the contract; the generic
+fuzzer node meets it by subclassing its capability's core declaration; the generic
 `AlmostAlwaysSucceed`/`AlmostAlwaysFail` used for production-only domains
 declares none and so stays binary.
 

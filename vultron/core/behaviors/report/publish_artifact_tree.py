@@ -68,13 +68,17 @@ from typing import TYPE_CHECKING, Any
 import py_trees
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
-from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out.actuator import actuator_call
 from vultron.core.behaviors.call_out.guard import guard_call_out_factory
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
+from vultron.core.behaviors.report.advisory_review import (
+    DRAFT_ARTIFACT_KEY,  # noqa: F401 — re-exported (moved, CS-05-003)
+    REVIEW_DECISION_KEY,
+    AdvisoryReviewDecision,
+)
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.publication import (
@@ -82,43 +86,6 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
-
-#: Blackboard key written by ``DraftAdvisoryArtifact`` Composer on SUCCESS.
-DRAFT_ARTIFACT_KEY = "draft_advisory_artifact"
-
-#: Blackboard key written by ``ReviewAdvisoryDraft`` Evaluator on SUCCESS.
-REVIEW_DECISION_KEY = "advisory_review_decision"
-
-
-class AdvisoryReviewDecision(BaseModel):
-    """Structured output record for the ReviewAdvisoryDraft call-out point.
-
-    Written to the blackboard key :data:`REVIEW_DECISION_KEY` by the
-    ``ReviewAdvisoryDraft`` Evaluator node on SUCCESS (BT-18-001).
-
-    The ``needs_revision`` field drives the optional revision arm: when
-    ``True``, the ``ReviseAdvisoryDraft`` Composer runs before
-    ``SubmitAdvisoryArtifact``; when ``False`` (the default auto-approve
-    path), the revision arm is a graceful no-op and the pipeline proceeds
-    directly to submission.
-
-    To block submission for any reason (legal hold, compliance failure,
-    editorial rejection) the backend MUST return ``Status.FAILURE`` from
-    ``update()`` — that is the universal BT blocking idiom (BT-18-007).
-    There is no separate approval flag: FAILURE is both necessary and
-    sufficient to stop the pipeline.
-
-    The default instance (``needs_revision=False``) encodes the auto-approve
-    path used when no real review agent is available (AC-3, ADR-0030).
-
-    Attributes:
-        needs_revision: Whether the draft requires revision before submission.
-            When ``True``, the optional ``ReviseAdvisoryDraft`` Composer runs.
-        feedback: Human-readable or machine-generated review feedback.
-    """
-
-    needs_revision: bool = False
-    feedback: str = ""
 
 
 class _NeedsRevisionGate(BehaviourWithPorts):

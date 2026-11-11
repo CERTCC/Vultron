@@ -427,8 +427,9 @@ Where a permissive default would let a party other than the Case Owner force the
 So when a page says a call-out point "defaults to accept", that describes the stub, not a protocol requirement to accept.
 
 **What the shape classes are called in code.**
-The shape base classes are being renamed to `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability` ([ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), [#3421](https://github.com/CERTCC/Vultron/issues/3421)).
-Until that lands, the code uses names such as `EvaluatorCallOutPoint`.
+The shape base classes are `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability`, in `vultron/core/behaviors/call_out/capability.py` ([ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
+Each named capability is declared once in core, as a subclass of one of them that declares its blackboard contract as typed ports, and its fuzzer node subclasses that declaration (BT-18-012, BT-18-021).
+The older names, such as `EvaluatorCallOutPoint`, still import from `vultron/demo/fuzzer/call_out_point.py` and name the same classes.
 
 ### Still open
 

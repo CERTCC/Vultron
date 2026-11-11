@@ -1528,7 +1528,6 @@ groups:
   - id: BT-18-016
     priority: MUST
     kind: project
-    verification_debt: '#2574'
     statement: >-
       The class docstring of a call-out point node MUST agree with its typed-port
       declaration (BT-18-012), which is the authoritative, machine-readable contract.
@@ -1536,6 +1535,12 @@ groups:
       The docstring is for a human reader, and the typed-port declaration is what a test
       enforces. If the two disagree, a reader trusts a contract that the code does not
       keep.
+    verification: >-
+      `test_docstring_contract_names_the_declared_ports` in
+      `test/core/behaviors/call_out/test_capability_declarations.py` parses the
+      `Blackboard contract (BT-18-001):` section of every capability declaration and
+      asserts that its input, output and refusal keys, with their types, are exactly
+      the declared ports.
     relationships:
     - rel_type: extends
       spec_id: BT-18-001
@@ -1546,7 +1551,6 @@ groups:
   - id: BT-18-002
     priority: MUST
     kind: project
-    verification_debt: '#2574'
     statement: >-
       A call-out point backend, fuzzer or real, MUST give a value for every declared
       output key when it answers yes.
@@ -1557,6 +1561,14 @@ groups:
       but the failure is attributed to the downstream node rather than the backend. Both
       fuzzer and real backends must be contract-conformant to make backend swaps
       transparent. The seam refuses a yes that omits one (BT-18-036).
+    verification: >-
+      `test_yes_writes_every_declared_output_port` in
+      `test/core/behaviors/call_out/test_capability_declarations.py` has the
+      simulation node of every capability that declares output ports answer yes and
+      asserts each declared port is written with a value of its type.
+      `test_seam_rejects_data_its_declaration_does_not_name` in
+      `test/core/behaviors/call_out/test_guard.py` asserts that the seam refuses a yes
+      that omits a declared port.
     adr:
     - ADR-0025
     - ADR-0183
@@ -1818,8 +1830,12 @@ groups:
     - ADR-0097
     - ADR-0044
     verification: >-
-      A test reads a capability's declared output ports (not its docstring) and asserts
-      each declared port is written when the backend returns SUCCESS.
+      `test_yes_writes_every_declared_output_port` in
+      `test/core/behaviors/call_out/test_capability_declarations.py` reads each
+      declaration's `OUTPUT_PORTS` (not its docstring), has its simulation node answer
+      yes, and asserts each declared port is written with a value of its type. In the
+      same file, `test_docstring_contract_names_the_declared_ports` checks the
+      BT-18-001 docstring against the ports.
     relationships:
     - rel_type: extends
       spec_id: BT-18-001
@@ -1840,7 +1856,9 @@ groups:
       `test_core_does_not_import_demo` in
       `test/architecture/test_core_no_demo_imports.py` asserts that no module under
       vultron/core/ imports from vultron/demo/, so no capability declaration reaches
-      core from there.
+      core from there. In the same file, `test_no_capability_declaration_lives_in_demo`
+      and `test_every_declaration_is_core_owned` assert that every capability class in
+      vultron/demo/ binds to a declaration under vultron/core/.
     relationships:
     - rel_type: extends
       spec_id: BT-18-012
@@ -1860,9 +1878,12 @@ groups:
       of one capability. When the declaration is separate from the simulation node, core
       owns what the capability promises, and demo owns one way to simulate it.
     verification: >-
-      Inspection of the capability declarations under vultron/core/behaviors/ confirms
-      that each named capability has its own declaration carrying its ports, and that
-      its simulation node in vultron/demo/fuzzer/ binds to that declaration.
+      `test_a_simulation_node_binds_to_each_declaration` in
+      `test/core/behaviors/call_out/test_capability_declarations.py` asserts that each
+      declaration `capability_declarations()` returns has a simulation node in
+      vultron/demo/fuzzer/ that binds to it. `test_a_bound_class_cannot_restate_ports`
+      in `test/core/behaviors/call_out/test_capability.py` asserts that a class bound
+      to a declaration cannot declare ports again.
     relationships:
     - rel_type: extends
       spec_id: BT-18-012
