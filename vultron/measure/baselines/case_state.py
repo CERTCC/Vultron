@@ -26,7 +26,8 @@ Two kinds of reader use it:
   :func:`vultron.measure.baselines.walk.frequency`, the same computation the
   joint models use (:data:`CASE_STATE_MODEL`);
 * a scorer of an incomplete sequence weights each completion by the walk's
-  probability from where the case stands (ADR-0182 decision 3), which is
+  probability from where the case stands (ADR-0182, on scoring an
+  incomplete sequence through its completions), which is
   :func:`completion_probabilities`.
 """
 

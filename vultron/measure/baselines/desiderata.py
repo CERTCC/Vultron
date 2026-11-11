@@ -15,7 +15,7 @@
 
 Every ordering desideratum of ``docs/topics/measuring_cvd/process_model_desiderata.md``
 is one :class:`Desideratum`: the ordering, the events that scope it, and the
-model it takes chance from (ADR-0182 decision 2):
+model it takes chance from (ADR-0182, on the smallest model that holds it):
 
 * the twelve original desiderata use the six-event case-state model;
 * a desideratum about one vendor, the case's shared events or the embargo

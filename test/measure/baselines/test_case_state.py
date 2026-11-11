@@ -14,7 +14,8 @@
 """The six-event walk reproduces the published baselines (#6067 AC-3).
 
 It also gives the per-history and from-a-prefix probabilities that scoring an
-incomplete sequence weights completions by (ADR-0182 decision 3).
+incomplete sequence weights completions by (ADR-0182, on scoring an
+incomplete sequence through its completions).
 """
 
 from fractions import Fraction

@@ -204,7 +204,7 @@ def test_an_event_names_its_vendor():
 
 
 class _ConflictingModel(JointModel):
-    """A model whose public-awareness step reaches a state another step reaches as a different event."""
+    """A model whose P step reaches a state another step reaches as another event."""
 
     def _pxa_steps(self, state):
         found = super()._pxa_steps(state)

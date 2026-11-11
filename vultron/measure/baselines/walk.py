@@ -85,7 +85,7 @@ class Ordering[E: Hashable](NamedTuple):
 
 
 class OrderingQuery[E: Hashable](NamedTuple):
-    """Every ordering in ``orderings`` holds, among walks in which every ``given`` event occurs.
+    """Every ordering in ``orderings`` holds, among walks where every ``given`` occurs.
 
     A desideratum is one ordering; a conjunction of desiderata (used to test
     whether one implies another) is several.  ``given`` scopes a desideratum

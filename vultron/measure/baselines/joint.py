@@ -97,7 +97,10 @@ from vultron.measure.baselines.walk import Step
 
 
 class EmbargoEnd(StrEnum):
-    """Why the embargo exited (``process_model_desiderata.md`` § "Splitting embargo exit by cause")."""
+    """Why the embargo exited.
+
+    ``process_model_desiderata.md`` § "Splitting embargo exit by cause".
+    """
 
     OWN_TERMS = "OWN_TERMS"
     THREAT_SIGNAL = "THREAT_SIGNAL"
