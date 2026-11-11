@@ -94,7 +94,11 @@
     "published": "2026-01-02T03:04:05.000000+00:00",
     "type": "CaseReference",
     "updated": "2026-01-02T03:04:05.000000+00:00",
-    "url": "urn:test:url:1"
+    "url": {
+      "href": "urn:test:href:1",
+      "rel": [],
+      "type": "Link"
+    }
   },
   "CaseStatus": {
     "@context": [

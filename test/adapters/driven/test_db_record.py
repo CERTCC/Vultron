@@ -417,7 +417,8 @@ def _make_wire_case_reference():
     from vultron.wire.as2.vocab.objects.case_reference import as_CaseReference
 
     return make(
-        as_CaseReference, url="https://example.org/cases/ext-case-2401"
+        as_CaseReference,
+        url={"href": "https://example.org/cases/ext-case-2401"},
     )
 
 

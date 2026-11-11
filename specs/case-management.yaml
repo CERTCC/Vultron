@@ -915,22 +915,32 @@ groups:
   - id: CM-05-004
     priority: MAY
     kind: protocol
-    statement: A `VulnerabilityCase` MAY have zero or more associated `CaseReference` objects
+    statement: >-
+      A `VulnerabilityCase` MAY have zero or more associated `CaseReference` objects,
+      each an object with its own `id` whose `url` holds an `as:Link` to the referenced
+      resource.
     rationale: >-
       Advisories, patches and other public material can exist for a case or not. Their
       number depends on how many parties publish. Zero or more items let the case record
-      what exists, with no placeholder.
+      what exists, with no placeholder. A reference is offered, admitted and ledgered
+      (CM-34), so it needs an id; an `as:Link` has none, because AS2 makes `Link`
+      disjoint with `Object` and treats a Link's properties as hints about another
+      resource. The Link therefore sits in the reference's `url`, which AS2 types as a
+      URI or a Link.
     stories:
     - story_2022_069
   - id: CM-05-005
     priority: MUST
     kind: protocol
-    statement: '`CaseReference` objects MUST include at minimum a `url` field.'
+    statement: >-
+      `CaseReference` objects MUST include at minimum a `url` field, an `as:Link` whose
+      `href` names the referenced resource.
     rationale: >-
-      A reference points a reader to a public resource. Without a `url`, it identifies
-      nothing that a consumer can get or examine.
-    verification: Inspection of `vultron/core/models/case/` confirms that the `CaseReference`
-      model declares a required `url` field.
+      A reference points a reader to a public resource. Without a `url` and its `href`,
+      it identifies nothing that a consumer can get or examine.
+    verification: >-
+      A test marked `CM-05-005` builds a `CaseReference` with no `url`, and one whose
+      `url` Link has no `href`, and asserts both are refused.
     stories:
     - story_2022_069
   - id: CM-05-006
@@ -1001,7 +1011,10 @@ groups:
     rationale: >-
       Tools that read a CVE record expect the CVE JSON schema, and they refuse or misread
       data that does not conform. A CVE ID on its own is an identifier, not a CVE record,
-      so it carries no data for the schema to check (CM-05-008, ADR-0187).
+      so it carries no data for the schema to check (CM-05-008, ADR-0187). A case
+      reference borrows only the schema's reference tag names, as the `rel` values of
+      its `url` Link (CM-05-012); that is a vocabulary, not CVE record content, so this
+      rule does not reach it.
     verification: >-
       A test marked `CM-05-010` gives a vulnerability item CVE record content that fails
       the CVE JSON schema and asserts it is refused, and gives an item a CVE ID with no
@@ -1021,12 +1034,20 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      `CaseReference` objects MAY include a `tags` field (array of one or more type
-      descriptors, e.g., "patch", "vendor-advisory", "third-party-advisory", "exploit",
-      "release-notes").
+      The `url` Link of a `CaseReference` MAY carry one or more `rel` values, each a CVE
+      JSON schema reference tag (e.g., "patch", "vendor-advisory", "exploit") written as
+      an RFC 8288 link relation type: the bare name for a type IANA registers
+      ("related"), and otherwise a URI under `https://certcc.github.io/Vultron/ns/rel/`.
     rationale: >-
-      Type descriptor tags allow consumers to filter or categorise references without
-      parsing the URL or name.
+      Relation types let consumers filter or categorise references without parsing the
+      URL or name. AS2 puts a link's relation types in the Link's `rel`, which takes
+      values in the RFC 8288 form, where an unregistered type is a URI; a CVE tag on its
+      own is not one. AS2's `tag` takes objects and links, not strings, so it cannot
+      carry them.
+    verification: >-
+      Tests marked `CM-05-012` assert each CVE tag maps to its
+      relation type, each of those is accepted as a `rel` value, and a bare unregistered
+      tag or an unknown value is refused.
     stories:
     - story_2022_069
   - id: CM-05-018
@@ -12069,15 +12090,16 @@ groups:
     kind: protocol
     statement: >-
       A participant that proposes a new case reference MUST send the CASE_MANAGER an
-      `Offer` whose `object` is an `Add` of the `CaseReference` with the case as the
-      `Add`'s `target`.
+      `Offer` whose `object` is an `Add` of the `CaseReference`, the object with its own
+      `id` and its `url` Link, with the case as the `Add`'s `target`.
     rationale: >-
       A reference is a claim about the case like an item, so it takes the same path
-      (ADR-0187).
+      (ADR-0187). The `Add` carries the `CaseReference` object, not its bare `as:Link`:
+      a Link has no id, so the case could not list it, nor the ledger name it.
     verification: >-
       A test marked `CM-34-003` runs the propose-reference trigger and asserts one queued
       `Offer(Add(CaseReference))` addressed to the CASE_MANAGER with the case as the
-      `Add`'s `target`.
+      `Add`'s `target`, and the `CaseReference` carrying its `id` and its `url` Link.
     adr:
     - ADR-0187
     stories:
