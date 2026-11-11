@@ -25,10 +25,11 @@ from typing import Any
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from vultron.adapters.media_types import AS2_CONTENT_TYPE
 from vultron.core.models.base import CoreObject
 from vultron.wire.as2.vocab.base.base import as_Base
 
-AS2_CONTENT_TYPE = "application/activity+json"
+__all__ = ["AS2_CONTENT_TYPE", "AS2JSONResponse"]
 
 
 class AS2JSONResponse(JSONResponse):
