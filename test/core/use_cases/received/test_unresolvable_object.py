@@ -19,6 +19,7 @@ import pytest
 
 from test.conftest import TEST_ACTOR_ID
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import MessageSemantics
@@ -36,7 +37,8 @@ UNRESOLVABLE_URI = "urn:uuid:some-offer-id-that-does-not-exist"
 
 def _make_unresolvable_event() -> UnresolvableObjectReceivedEvent:
     """Create an UnresolvableObjectReceivedEvent from an Accept with bare-string object_."""
-    accept = as_Accept(
+    accept = make(
+        as_Accept,
         actor=ACTOR_URI,
         to=[TEST_ACTOR_ID],
         object_=UNRESOLVABLE_URI,

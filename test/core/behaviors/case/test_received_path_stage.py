@@ -30,6 +30,7 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BlackboardKeyProbe, BTTestScenario
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.behaviors.bridge.act_instant import act_instant_in_tree_run
 from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
@@ -102,7 +103,8 @@ _CONTEXT = SenderCheckContext(sender_id=OWNER_ID, case_id=CASE_ID)
 
 
 def _participant(suffix: str, actor_id: str, *roles: CVDRole):
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/{suffix}",
         attributed_to=actor_id,
         context=CASE_ID,
@@ -116,7 +118,8 @@ def _seed_case(scenario: BTTestScenario) -> None:
     scenario.seed(
         manager,
         vendor,
-        VulnerabilityCase(
+        make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="PATH-STAGE",
             attributed_to=OWNER_ID,

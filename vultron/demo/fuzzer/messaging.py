@@ -32,17 +32,19 @@ References
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.messaging import (
+    FollowUpOnErrorMessageCapability,
 )
 from vultron.demo.fuzzer.base import UniformSucceedFail
-from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
 
-class FollowUpOnErrorMessage(ComposerCallOutPoint, UniformSucceedFail):
+class FollowUpOnErrorMessage(
+    FollowUpOnErrorMessageCapability, UniformSucceedFail
+):
     """Attempt to send a follow-up inquiry when an error message is received.
+
+    Simulates :class:`FollowUpOnErrorMessageCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — when an unexpected or error message type is received,
@@ -52,10 +54,6 @@ class FollowUpOnErrorMessage(ComposerCallOutPoint, UniformSucceedFail):
         ``EmitGI`` action; the net effect is stochastic success at
         p=0.50.
 
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — reads message context from caller's DataLayer)
-      Output keys: followup_message_artifact: str  (yes only)
-
     Input category: System integration / Human analyst.
 
     Success probability: 0.50 (``UniformSucceedFail``).
@@ -64,7 +62,3 @@ class FollowUpOnErrorMessage(ComposerCallOutPoint, UniformSucceedFail):
     message dispatch in response to error conditions; can be fully
     automated once the follow-up policy is defined.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"followup_message_artifact": str}
-    )

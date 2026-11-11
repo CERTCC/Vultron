@@ -40,6 +40,7 @@ from test.support.case_owner import (
     CONSTRUCTED_CASE_OWNERSHIP,
 )
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -92,7 +93,8 @@ def _case_with_case_actor_participant() -> tuple:
     participant is embedded INLINE in the case snapshot (not just an ID),
     matching what a real bootstrap ``Create(VulnerabilityCase)`` would carry.
     """
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_PARTICIPANT_ID,
         attributed_to=_CASE_ACTOR_ID,
@@ -308,7 +310,8 @@ class TestAnnounceValidatedByTrustedCaseActorId:
 
     @pytest.fixture()
     def case_obj(self):
-        return as_VulnerabilityCase(
+        return make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=_CASE_ID,
             name="CBT announce gate case",
@@ -398,7 +401,8 @@ def _bootstrap_event(
     creator_id: str,
     case_actor_id: str,
 ) -> CreateCaseReceivedEvent:
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         case_roles=[CVDRole.CASE_MANAGER],
         id_=f"{case_id}/participants/case-actor",
         attributed_to=case_actor_id,

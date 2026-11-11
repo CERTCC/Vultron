@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from test.support.act_runner import run_in_act
+from test.support.act_runner import FixedClock, run_in_act
 from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -20,7 +20,10 @@ from vultron.core.use_cases.triggers.embargo import SvcProposeEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
     ProposeEmbargoTriggerRequest,
 )
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
@@ -97,3 +100,48 @@ def test_propose_embargo_updates_case_state_via_bt_path(
         finder_dl, case.id_
     )
     assert not activity_of(result).get("to")
+
+
+@pytest.mark.spec("CS-13-002")
+@pytest.mark.parametrize(
+    "offset, refused",
+    [
+        (-timedelta(days=1), True),
+        (timedelta(0), True),
+        (timedelta(microseconds=1), False),
+    ],
+    ids=["before-the-act", "at-the-act", "just-after-the-act"],
+)
+def test_propose_embargo_refuses_an_end_not_after_the_act(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+    offset: timedelta,
+    refused: bool,
+) -> None:
+    """The end is judged against the act's instant, not a clock read.
+
+    The boundary sits at the act's own instant (ADR-0176): an end one
+    microsecond after it is taken, though the wall clock has moved past it
+    by the time the trigger runs.  A refused proposal leaves no embargo
+    behind.
+    """
+    finder, finder_dl = finder_actor_and_dl
+    case = _build_unbound_case_with_case_manager(finder_dl, finder.id_)
+    at = datetime.now(tz=UTC)
+    request = ProposeEmbargoTriggerRequest(
+        actor_id=finder.id_, case_id=case.id_, end_time=at + offset
+    )
+    use_case = SvcProposeEmbargoUseCase(
+        finder_dl,
+        request,
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        sync_port=SyncActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
+        clock=FixedClock(at),
+    )
+
+    if refused:
+        with pytest.raises(VultronValidationError, match="in the future"):
+            run_in_act(use_case)
+        assert list(finder_dl.list_objects("EmbargoEvent")) == []
+    else:
+        assert run_in_act(use_case).activity is not None

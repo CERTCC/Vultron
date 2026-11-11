@@ -47,6 +47,7 @@ from test.support.ledger import (
     commit_case_manager_closure,
     committed_semantic_types,
 )
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -183,11 +184,12 @@ def _proposal(
     reporter_uri: str = _REPORTER_URI,
 ) -> as_CaseProposal:
     """A proposal carrying its report inline, as CP-01-004 requires."""
-    return as_CaseProposal(
+    return make(
+        as_CaseProposal,
         id_=proposal_uri,
         attributed_to=proposer_uri,
-        object_=as_VulnerabilityReport(
-            id_=_REPORT_URI, attributed_to=reporter_uri
+        object_=make(
+            as_VulnerabilityReport, id_=_REPORT_URI, attributed_to=reporter_uri
         ),
         target=_CASE_ACTOR_URI,
     )
@@ -219,8 +221,9 @@ def _run_tree_result(
     caller that injected no ``TriggerActivityPort``.
     """
     proposal = _proposal(proposal_uri, proposer_uri, reporter_uri)
-    activity = as_Create(
-        actor=VultronOrganization(id_=proposer_uri),
+    activity = make(
+        as_Create,
+        actor=make(VultronOrganization, id_=proposer_uri),
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
@@ -236,8 +239,8 @@ def _run_tree_result(
             if with_proposal_dict
             else None
         ),
-        inline_report=VulnerabilityReport(
-            id_=_REPORT_URI, attributed_to=reporter_uri
+        inline_report=make(
+            VulnerabilityReport, id_=_REPORT_URI, attributed_to=reporter_uri
         ),
         call_out=call_out,
         sender_rule=_SENDER_RULE,
@@ -838,16 +841,20 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
 
             # A different proposal, from a different actor, naming the same
             # report. The deployment's policy refuses it.
-            proposal = as_CaseProposal(
+            proposal = make(
+                as_CaseProposal,
                 id_=second_proposal_uri,
                 attributed_to=second_proposer_uri,
-                object_=as_VulnerabilityReport(
-                    id_=_REPORT_URI, attributed_to=_REPORTER_URI
+                object_=make(
+                    as_VulnerabilityReport,
+                    id_=_REPORT_URI,
+                    attributed_to=_REPORTER_URI,
                 ),
                 target=_CASE_ACTOR_URI,
             )
-            activity = as_Create(
-                actor=VultronOrganization(id_=second_proposer_uri),
+            activity = make(
+                as_Create,
+                actor=make(VultronOrganization, id_=second_proposer_uri),
                 object_=proposal,
                 to=[_CASE_ACTOR_URI],
             )
@@ -862,8 +869,10 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                 proposal_dict=proposal.model_dump(
                     by_alias=True, serialize_as_any=True
                 ),
-                inline_report=VulnerabilityReport(
-                    id_=_REPORT_URI, attributed_to=_REPORTER_URI
+                inline_report=make(
+                    VulnerabilityReport,
+                    id_=_REPORT_URI,
+                    attributed_to=_REPORTER_URI,
                 ),
                 call_out=_declining_bundle(ticks),
                 sender_rule=_SENDER_RULE,
@@ -1448,12 +1457,14 @@ def test_find_proposer_case_matches_the_owner_however_it_is_spelled(
     fast_path: bool,
 ):
     """The owner comparison is ``same_actor_id``, the sender guard's (#4772)."""
-    own = VulnerabilityCase(
+    own = make(
+        VulnerabilityCase,
         id_=_CASE_ID,
         attributed_to=_VENDOR_URI + "/",
         vulnerability_reports=[_REPORT_URI],
     )
-    other = VulnerabilityCase(
+    other = make(
+        VulnerabilityCase,
         id_=_CASE_ID + "-other",
         attributed_to=_OTHER_PROPOSER_URI,
         vulnerability_reports=[_REPORT_URI],

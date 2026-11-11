@@ -43,6 +43,7 @@ from test.support.blank_strings import (
     rejects_blank,
     string_leaves,
 )
+from test.support.objects import make
 from test.support.wire_vocab import import_all_wire_vocab
 from vultron.core.models.base import CoreObject
 from vultron.primitives import NonEmptyString
@@ -172,7 +173,7 @@ def test_building_a_wire_object_with_a_blank_text_field_raises(
     cls: type[BaseModel], field: str, blank: str
 ) -> None:
     with pytest.raises(ValidationError):
-        cls(**{field: blank})
+        make(cls, **{field: blank})
 
 
 @pytest.mark.spec("CS-08-001")
@@ -182,9 +183,11 @@ def test_an_object_built_without_content_carries_none(
     cls: type[BaseModel],
 ) -> None:
     """Absence is ``None``, never a blank default that would be emitted."""
-    dumped = cls().model_dump(by_alias=True)
+    dumped = make(cls).model_dump(by_alias=True)
     assert dumped["content"] is None
-    assert "content" not in cls().model_dump(by_alias=True, exclude_none=True)
+    assert "content" not in make(cls).model_dump(
+        by_alias=True, exclude_none=True
+    )
 
 
 def _inbound_create(**note_fields: str) -> dict[str, Any]:
@@ -258,8 +261,9 @@ def test_no_serialized_example_activity_holds_an_empty_string(
 
 @pytest.mark.spec("VM-07-005")
 def test_a_built_activity_serializes_without_an_empty_string_field() -> None:
-    activity = as_Create(
+    activity = make(
+        as_Create,
         actor="https://example.org/actors/alice",
-        object_=as_Note(content="A note.", name="Title"),
+        object_=make(as_Note, content="A note.", name="Title"),
     )
     assert _empty_string_paths(json.loads(activity.to_json())) == []

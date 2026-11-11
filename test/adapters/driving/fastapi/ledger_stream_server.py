@@ -24,6 +24,7 @@ SIGTERM.  Not a test module: pytest does not collect it.
 from fastapi import FastAPI
 
 from test.adapters.driving.fastapi.sse_helpers import save_ledger_entry
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
@@ -50,11 +51,15 @@ def build_app(dl: SqliteDataLayer) -> FastAPI:
     """
     if get_config().mode != RunMode.PROTOTYPE:
         raise RuntimeError("the ledger stream is mounted only in prototype")
-    dl.create(as_Service(id_=ACTOR_ID, name="Stream Actor Co"))
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="Stream Case", attributed_to=ACTOR_ID
+    dl.create(make(as_Service, id_=ACTOR_ID, name="Stream Actor Co"))
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="Stream Case",
+        attributed_to=ACTOR_ID,
     )
-    manager = as_CaseParticipant(
+    manager = make(
+        as_CaseParticipant,
         attributed_to=ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],

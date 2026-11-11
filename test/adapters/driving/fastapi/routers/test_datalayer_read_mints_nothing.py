@@ -30,6 +30,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from test.support.objects import make
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
     get_datalayer,
@@ -63,7 +64,7 @@ ACTOR_SEGMENT = "read-mints-nothing"
 ACTOR_ID = canonical_actor_uri(ACTOR_SEGMENT)
 _BASE = f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer"
 READS = 5
-_SERVICE = as_Service(id_=ACTOR_ID, name="Read Mints Nothing")
+_SERVICE = make(as_Service, id_=ACTOR_ID, name="Read Mints Nothing")
 
 #: Anything that renders as an AS2 document.
 _AS2Object = as_Base | CoreObject
@@ -94,13 +95,16 @@ def client(datalayer: DataLayer) -> TestClient:
 @pytest.fixture
 def built() -> dict[str, _AS2Object]:
     """One object of each kind a demo reads back, keyed by type, as built."""
-    report = as_VulnerabilityReport(name="Report", content="content")
-    case = as_VulnerabilityCase(
+    report = make(as_VulnerabilityReport, name="Report", content="content")
+    case = make(
+        as_VulnerabilityCase,
         name="Case",
         vulnerability_reports=[report.id_],
         attributed_to=ACTOR_ID,
     )
-    participant = as_CaseParticipant(attributed_to=ACTOR_ID, context=case.id_)
+    participant = make(
+        as_CaseParticipant, attributed_to=ACTOR_ID, context=case.id_
+    )
     return {
         "Service": _SERVICE,
         "VulnerabilityReport": report,
@@ -177,8 +181,11 @@ def offers(datalayer: DataLayer, stored: dict[str, str]) -> list[str]:
     for object_type in _URN_TYPES:
         held = datalayer.read(stored[object_type])
         assert isinstance(held, CoreObject)
-        offer = as_Offer(
-            actor=ACTOR_ID, object_=held, to=["https://example.org/actors/b"]
+        offer = make(
+            as_Offer,
+            actor=ACTOR_ID,
+            object_=held,
+            to=["https://example.org/actors/b"],
         )
         datalayer.create(offer)
         ids.append(offer.id_)
@@ -285,7 +292,8 @@ def test_camel_case_participant_dump_revalidates_without_minting() -> None:
     so an AS2 dump (``participantStatuses``) looked empty, and a status was
     built (an id and a clock read) before the alias overrode it.
     """
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         attributed_to="https://example.org/actors/a",
         context="https://example.org/cases/c",
     )
@@ -329,7 +337,7 @@ def test_a_bookkeeping_row_is_served_as_its_plain_dump() -> None:
 
 
 def test_an_as2_object_is_served_as_an_as2_document() -> None:
-    report = as_VulnerabilityReport(name="Report", content="content")
+    report = make(as_VulnerabilityReport, name="Report", content="content")
 
     assert report.published is not None and report.updated is not None
 
@@ -539,7 +547,7 @@ def test_the_offers_list_skips_a_row_the_store_reads_as_absent(
     list row by row therefore answered 500 for the whole list; the typed
     listing skips that row and serves the rest.
     """
-    broken = as_Offer(actor=ACTOR_ID, object_="urn:uuid:absent")
+    broken = make(as_Offer, actor=ACTOR_ID, object_="urn:uuid:absent")
     datalayer.create(broken)
     assert datalayer.update(
         broken.id_,

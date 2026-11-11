@@ -32,6 +32,7 @@ import pytest
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import (
     inbox_queue_drain as drain,
@@ -79,8 +80,11 @@ def dl() -> SqliteDataLayer:
     """The receiver's store, holding the case so a replay is not deferred."""
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     store.save(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_CASE, name="Replica"
+        make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE,
+            name="Replica",
         )
     )
     return store
@@ -119,7 +123,7 @@ def _queued_item(dl: SqliteDataLayer) -> as_Activity:
     return _queue(
         dl,
         add_note_to_case_activity(
-            as_Note(content="replayed", context=_CASE),
+            make(as_Note, content="replayed", context=_CASE),
             target=_CASE,
             context=_CASE,
             actor=_SENDER,
@@ -459,7 +463,8 @@ def test_a_dead_lettered_fault_is_not_answered_with_a_fault(
         dl,
         create_processing_fault_activity(
             actor=_SENDER,
-            fault=as_ProcessingFault(
+            fault=make(
+                as_ProcessingFault,
                 failure_class=VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
                 in_reply_to="https://example.org/activities/earlier",
             ),
@@ -567,7 +572,9 @@ def _writes_then(dl: SqliteDataLayer, error: BaseException) -> Callable:
     """A use case that writes to the receiver's store, then raises *error*."""
 
     def _act(_event: Any, _store: Any) -> HandlerResult:
-        dl.save(as_Note(id_=_ACT_WRITE, content="kept only if committed"))
+        dl.save(
+            make(as_Note, id_=_ACT_WRITE, content="kept only if committed")
+        )
         raise error
 
     return _act

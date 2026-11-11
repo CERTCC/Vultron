@@ -21,6 +21,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
 )
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -66,7 +67,8 @@ class TestCaseParticipantUseCases:
         tree still ran, so intake archived the delivery (CLP-10-017).
         """
         dl, case_id, _ = _removal_store()
-        stranger = CaseParticipant(
+        stranger = make(
+            CaseParticipant,
             id_=f"{case_id}/participants/stranger",
             attributed_to="https://example.org/users/stranger",
             context=case_id,
@@ -91,7 +93,8 @@ class TestCaseParticipantUseCases:
         Invite (ADR-0114).
         """
         dl, case_id, _ = _removal_store()
-        newcomer = CaseParticipant(
+        newcomer = make(
+            CaseParticipant,
             id_=f"{case_id}/participants/newcomer",
             attributed_to="https://example.org/users/newcomer",
             context=case_id,
@@ -119,7 +122,8 @@ class TestCaseParticipantUseCases:
         A rejection of the message, reported as REFUSED (#2255).
         """
         dl, case_id, _ = _removal_store()
-        unknown = CaseParticipant(
+        unknown = make(
+            CaseParticipant,
             id_=f"{case_id}/participants/unknown",
             attributed_to="https://example.org/users/unknown",
             context=case_id,
@@ -151,13 +155,15 @@ class TestCaseParticipantUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case_id = "https://example.org/cases/no-such-case"
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/coord",
             attributed_to="https://example.org/users/coordinator",
             context=case_id,
         )
         event = make_payload(
-            as_Remove(
+            make(
+                as_Remove,
                 actor="https://example.org/users/owner",
                 object_=participant,
                 target=case_id,
@@ -199,7 +205,8 @@ class TestCaseParticipantUseCases:
         event = make_payload(
             getattr(transitive, activity_name)(
                 actor="https://example.org/users/owner",
-                object_=as_CaseParticipant(
+                object_=make(
+                    as_CaseParticipant,
                     id_="https://example.org/cases/c/participants/p",
                     attributed_to="https://example.org/users/coordinator",
                     context="https://example.org/cases/c",
@@ -240,14 +247,16 @@ _COORDINATOR = "https://example.org/users/coordinator"
 def _removal_store() -> tuple[SqliteDataLayer, str, CaseParticipant]:
     """A CASE_MANAGER store: the manager, the Case Owner and a coordinator."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/caseRM1",
         name="TEST-REMOVE",
         attributed_to=_OWNER,
     )
     seed_case_manager_participant(dl, case, _MANAGER)
     seed_case_owner_participant(dl, case, _OWNER)
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/coord",
         attributed_to=_COORDINATOR,
         context=case.id_,

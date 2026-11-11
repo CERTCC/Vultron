@@ -33,6 +33,7 @@ from test.demo._helpers import (
     story_state,
 )
 from test.demo.vendor_story._support import SEATED, family_state
+from test.support.objects import make
 from vultron.core.states.cs import CS_vf
 from vultron.demo.helpers import (
     vendor_story as family,
@@ -385,8 +386,8 @@ class TestTheJoinersAddTheirNotes:
         scenario of the family watches.
         """
         state = family_state(family.VENDOR2)
-        answer = as_Note(
-            name=WORKAROUND_ANSWER_NAME, content=WORKAROUND_ANSWER
+        answer = make(
+            as_Note, name=WORKAROUND_ANSWER_NAME, content=WORKAROUND_ANSWER
         )
         state.keep(family.VENDORS_ANSWER, answer)
         updates = [

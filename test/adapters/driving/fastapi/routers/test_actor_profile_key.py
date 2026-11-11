@@ -26,7 +26,8 @@ from test.adapters.driving.fastapi._redelivery import (
     get_from_store,
     served_store,
 )
-from test.support.signing import published_multikeys
+from test.support.objects import make
+from test.support.signing import TEST_PROOF_CREATED, published_multikeys
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -109,7 +110,9 @@ def test_the_published_key_verifies_the_actors_proofs(tmp_path: Path):
     actor_id = canonical_actor_uri("profile-key-signer")
     owner_key = signing.seeded_signing_key(actor_id)
     signed = signing.sign(
-        {"id": f"{actor_id}/activities/1", "type": "Create"}, owner_key
+        {"id": f"{actor_id}/activities/1", "type": "Create"},
+        owner_key,
+        created=TEST_PROOF_CREATED,
     )
 
     [key] = published_multikeys(
@@ -151,7 +154,7 @@ def test_the_actor_id_serves_the_whole_profile_with_its_endpoints(
     dl = SqliteDataLayer(
         f"sqlite:///{tmp_path / 'bare.db'}", actor_id=actor_id
     )
-    bare = VultronOrganization(id_=actor_id, name=segment)
+    bare = make(VultronOrganization, id_=actor_id, name=segment)
 
     with served_store(dl, actor_id, segment, bare) as (client, _emitter):
         by_id = client.get(f"/api/v2/actors/{segment}")
@@ -204,7 +207,8 @@ def test_a_stored_key_is_replaced_by_the_key_the_actor_signs_with(
     segment = "profile-key-stale"
     actor_id = canonical_actor_uri(segment)
     other_key = signing.seeded_signing_key(canonical_actor_uri("someone-else"))
-    stored = VultronOrganization(
+    stored = make(
+        VultronOrganization,
         id_=actor_id,
         name=segment,
         assertion_method=[
@@ -241,8 +245,11 @@ def test_a_held_peer_profile_keeps_its_key_through_the_store(tmp_path: Path):
     dl = SqliteDataLayer(
         f"sqlite:///{tmp_path / 'holder.db'}", actor_id=holder_id
     )
-    peer = VultronOrganization(
-        id_=peer_id, name="VendorCo", assertion_method=[peer_key]
+    peer = make(
+        VultronOrganization,
+        id_=peer_id,
+        name="VendorCo",
+        assertion_method=[peer_key],
     )
 
     dl.create(object_to_record(peer))

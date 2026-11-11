@@ -32,6 +32,7 @@ from test.core.behaviors.case.nodes.test_seen_before import (
     RECEIVER,
     _event,
 )
+from test.support.act_clock import ACT_AT
 from test.support.received import body_of
 from vultron.core.behaviors.case.nodes.earlier_run import (
     FirstRunOfMessageNode,
@@ -55,6 +56,7 @@ def _hold(scenario: BTTestScenario, **fields) -> None:
         ReceivedActivityRecord(
             activity_id=ACTIVITY_ID,
             received_body=body_of(_event().activity),
+            received_at=ACT_AT,
             **fields,
         )
     )

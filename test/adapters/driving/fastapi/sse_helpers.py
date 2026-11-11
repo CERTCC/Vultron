@@ -21,6 +21,8 @@ Parses server-sent events the way a client reads them, and stores bare
 
 from collections.abc import Iterable, Iterator
 
+from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.datalayer import DataLayer
 
@@ -62,11 +64,14 @@ def save_ledger_entry(
     semantic_type: str | None = None,
 ) -> CaseLedgerEntry:
     """Store a bare ledger entry for *case_id* directly in *dl*."""
-    entry = CaseLedgerEntry(
+    entry = make(
+        CaseLedgerEntry,
         case_id=case_id,
         log_index=log_index,
         log_object_id=f"{case_id}/objects/{log_index}",
         semantic_type=semantic_type or f"test_event_{log_index}",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     dl.save(entry)
     return entry

@@ -20,6 +20,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -55,12 +56,13 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 # Fixtures
 @pytest.fixture
 def reporter():
-    return as_Actor(name="Test Reporter")
+    return make(as_Actor, name="Test Reporter")
 
 
 @pytest.fixture
 def report(reporter):
-    return as_VulnerabilityReport(
+    return make(
+        as_VulnerabilityReport,
         name="Test Vulnerability Report",
         summary="This is a test vulnerability report.",
         attributed_to=reporter.id_,
@@ -69,12 +71,13 @@ def report(reporter):
 
 @pytest.fixture
 def coordinator():
-    return as_Actor(name="Test Coordinator")
+    return make(as_Actor, name="Test Coordinator")
 
 
 @pytest.fixture
 def case(report):
-    return as_VulnerabilityCase(
+    return make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         name="Test Vulnerability Case",
         vulnerability_reports=[report],
@@ -119,14 +122,16 @@ def _call_use_case(
 
 # Tests
 def test_create_report_handler_returns_applied(reporter, report, dl):
-    activity = as_Create(actor=reporter, object_=report, to=[dl.actor_id])
+    activity = make(
+        as_Create, actor=reporter, object_=report, to=[dl.actor_id]
+    )
     _call_use_case(activity, CreateReportReceivedUseCase, dl=dl)
 
 
 def test_unaddressed_submit_report_is_refused_and_stores_nothing(
     reporter, report, dl
 ):
-    activity = as_Offer(actor=reporter, object_=report)
+    activity = make(as_Offer, actor=reporter, object_=report)
     # Addressed to no one, so the addressee door refuses it before anything
     # is stored (HP-01-005, ADR-0154): no report, and no received record,
     # because intake never ran; the inbox's outcome stage writes the receipt
@@ -143,8 +148,10 @@ def test_unaddressed_submit_report_is_refused_and_stores_nothing(
 
 
 def test_read_activity_from_a_non_addressee_is_refused(reporter, report, dl):
-    activity = as_Read(
-        actor=reporter, object_=as_Offer(actor=reporter, object_=report)
+    activity = make(
+        as_Read,
+        actor=reporter,
+        object_=make(as_Offer, actor=reporter, object_=report),
     )
     # The receiver holds no record of the Offer naming the sender as its
     # addressee, so the sender is not entitled to acknowledge it (RMB-08-004).
@@ -157,8 +164,8 @@ def test_read_activity_from_a_non_addressee_is_refused(reporter, report, dl):
 
 
 def test_accept_offer(reporter, report, dl):
-    offer = as_Offer(actor=reporter, object_=report)
-    activity = as_Accept(actor=reporter, object_=offer)
+    offer = make(as_Offer, actor=reporter, object_=report)
+    activity = make(as_Accept, actor=reporter, object_=offer)
     # No local case for the report, so there is no RM state to move (#2255).
     _call_use_case(
         activity,
@@ -169,8 +176,8 @@ def test_accept_offer(reporter, report, dl):
 
 
 def test_tentative_reject_triggers_invalidation(reporter, report, dl):
-    offer = as_Offer(actor=reporter, object_=report)
-    activity = as_TentativeReject(actor=reporter, object_=offer)
+    offer = make(as_Offer, actor=reporter, object_=report)
+    activity = make(as_TentativeReject, actor=reporter, object_=offer)
     # No local case for the report, so there is no RM state to move (#2255).
     _call_use_case(
         activity,
@@ -187,7 +194,7 @@ def test_tentative_reject_triggers_invalidation(reporter, report, dl):
 def test_create_case_from_untrusted_sender_is_refused(coordinator, case, dl):
     # No anchor this actor wrote names the sender, so nothing makes it a
     # trusted creator of this replica (#2255, CBT-01-011).
-    activity = as_Create(actor=coordinator, object_=case)
+    activity = make(as_Create, actor=coordinator, object_=case)
     _call_use_case(
         activity,
         CreateCaseReceivedUseCase,
@@ -197,8 +204,8 @@ def test_create_case_from_untrusted_sender_is_refused(coordinator, case, dl):
 
 
 def test_reject_offer_triggers_close_report(reporter, report, dl):
-    offer = as_Offer(actor=reporter, object_=report)
-    activity = as_Reject(actor=reporter, object_=offer)
+    offer = make(as_Offer, actor=reporter, object_=report)
+    activity = make(as_Reject, actor=reporter, object_=offer)
     # No local case for the report, so there is no RM state to move (#2255).
     _call_use_case(
         activity,

@@ -16,6 +16,7 @@
 
 import pytest
 
+from test.support.objects import make
 from test.support.participant_status import impossible_state_reasons
 from vultron.core.behaviors.status.nodes.status_subject import (
     on_behalf_status_roles,
@@ -46,7 +47,8 @@ def _status(
         *([CVDRole.VENDOR] if vf is not None else []),
         *([CVDRole.DEPLOYER] if d is not None else []),
     ]
-    return ParticipantStatus(
+    return make(
+        ParticipantStatus,
         context=_CASE,
         rm=RmDimension(state=rm),
         vf=VfDimension(state=vf) if vf is not None else None,
@@ -107,8 +109,8 @@ def test_every_overreach_is_reported():
         rm=RM.DEFERRED,
         vf=CS_vf.VF,
         d=CS_d.D,
-        case_status=CaseStatus(
-            context=_CASE, pxa=PxaDimension(state=CS_pxa.Pxa)
+        case_status=make(
+            CaseStatus, context=_CASE, pxa=PxaDimension(state=CS_pxa.Pxa)
         ),
     )
 

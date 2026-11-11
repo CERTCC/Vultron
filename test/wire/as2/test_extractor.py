@@ -9,6 +9,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import extract_stamped, stamped
 from vultron.core.models._helpers import URN_UUID_PREFIX, _as_id
 from vultron.core.models.dimensions import (
@@ -34,8 +35,9 @@ def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
 
     # Create + Actor has no matching pattern (conservative string matching
     # means only explicit typed objects trigger pattern skips)
-    actor = as_Actor(name="test-actor")
-    activity = as_Create(
+    actor = make(as_Actor, name="test-actor")
+    activity = make(
+        as_Create,
         actor="https://example.org/alice",
         object_=actor,
     )
@@ -54,8 +56,9 @@ def test_find_matching_semantics_returns_correct_semantics_for_create_report():
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(name="VR-001", content="test report")
-    activity = as_Create(
+    report = make(as_VulnerabilityReport, name="VR-001", content="test report")
+    activity = make(
+        as_Create,
         actor="https://example.org/finder",
         object_=report,
     )
@@ -88,7 +91,8 @@ def test_activity_pattern_match_returns_false_for_wrong_activity_type():
     )
 
     pattern = ActivityPattern(activity_=TAtype.ADD, object_=AOtype.NOTE)
-    activity = as_Create(
+    activity = make(
+        as_Create,
         actor="https://example.org/alice",
         object_="https://example.org/notes/1",
     )
@@ -110,7 +114,8 @@ def test_extract_intent_report_pass_through_fields():
     )
 
     now = datetime.now(UTC)
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="VR-001",
         summary="Brief summary",
         content="Full content",
@@ -121,7 +126,9 @@ def test_extract_intent_report_pass_through_fields():
         published=now,
         updated=now,
     )
-    activity = as_Create(actor="https://example.org/alice", object_=report)
+    activity = make(
+        as_Create, actor="https://example.org/alice", object_=report
+    )
     event = extract_stamped(activity)
 
     r = cast(Any, event).report
@@ -144,14 +151,15 @@ def test_extract_intent_case_pass_through_fields():
     )
 
     now = datetime.now(UTC)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         name="CASE-001",
         summary="Case summary",
         published=now,
         updated=now,
     )
-    activity = as_Create(actor="https://example.org/alice", object_=case)
+    activity = make(as_Create, actor="https://example.org/alice", object_=case)
     event = extract_stamped(activity)
 
     c = cast(Any, event).case
@@ -173,13 +181,18 @@ def test_extract_reads_inline_reports_from_their_wire_name():
         as_VulnerabilityCase,
     )
 
-    report = VulnerabilityReport(
-        id_="https://example.org/reports/r-inline", name="FDR", content="x"
+    report = make(
+        VulnerabilityReport,
+        id_="https://example.org/reports/r-inline",
+        name="FDR",
+        content="x",
     )
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, vulnerability_reports=[report]
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        vulnerability_reports=[report],
     )
-    activity = as_Create(actor="https://example.org/alice", object_=case)
+    activity = make(as_Create, actor="https://example.org/alice", object_=case)
     event = received_event(activity)
 
     body = event.received_body()
@@ -210,7 +223,9 @@ def test_extract_refuses_a_case_object_naming_no_owner():
         type_="VulnerabilityCase",
         attributed_to=None,
     )
-    activity = as_Create(actor="https://example.org/alice", object_=ownerless)
+    activity = make(
+        as_Create, actor="https://example.org/alice", object_=ownerless
+    )
 
     with pytest.raises(VultronParseValidationError, match="names no owner"):
         extract_stamped(activity)
@@ -237,8 +252,8 @@ def test_extract_refuses_a_case_object_naming_no_ledger_position():
         attributed_to=CASE_OWNER_ID,
         ledger_position=None,
     )
-    activity = as_Create(
-        actor="https://example.org/alice", object_=unpositioned
+    activity = make(
+        as_Create, actor="https://example.org/alice", object_=unpositioned
     )
 
     with pytest.raises(
@@ -256,14 +271,16 @@ def test_extract_intent_embargo_pass_through_fields():
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     now = datetime.now(UTC)
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         context="https://example.org/cases/1",
         published=now,
         updated=now,
         end_time=days_from_now(45),
     )
     # InviteToEmbargoOnCase pattern: Invite + EVENT + context=VULNERABILITY_CASE
-    activity = as_Invite(
+    activity = make(
+        as_Invite,
         actor="https://example.org/alice",
         object_=embargo,
         context="https://example.org/cases/1",
@@ -290,13 +307,15 @@ def test_extract_intent_embargo_keeps_its_descriptive_fields():
     )
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         context="https://example.org/cases/1",
         content="Terms",
         summary="Thirty days",
         end_time=days_from_now(30),
     )
-    activity = as_Invite(
+    activity = make(
+        as_Invite,
         actor="https://example.org/alice",
         object_=embargo,
         context="https://example.org/cases/1",
@@ -315,7 +334,8 @@ def test_extract_intent_note_pass_through_fields():
     from vultron.wire.as2.factories import add_note_to_case_activity
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-    note = as_Note(
+    note = make(
+        as_Note,
         name="Note title",
         summary="Note summary",
         content="Note body",
@@ -346,8 +366,9 @@ def test_extract_intent_activity_origin_field():
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(name="VR-001", content="test")
-    activity = as_Create(
+    report = make(as_VulnerabilityReport, name="VR-001", content="test")
+    activity = make(
+        as_Create,
         actor="https://example.org/alice",
         object_=report,
         origin="https://example.org/cases/original",
@@ -377,8 +398,9 @@ def test_extract_intent_preserves_sender_published_timestamp():
     )
 
     claimed = datetime(2026, 3, 4, 5, 6, 7, tzinfo=UTC)
-    report = as_VulnerabilityReport(name="VR-001", content="test")
-    activity = as_Create(
+    report = make(as_VulnerabilityReport, name="VR-001", content="test")
+    activity = make(
+        as_Create,
         actor="https://example.org/alice",
         object_=report,
         published=claimed,
@@ -400,13 +422,15 @@ def test_extract_intent_participant_case_roles():
         as_CaseParticipant,
     )
 
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to="https://example.org/alice",
         context="https://example.org/cases/1",
     )
     object.__setattr__(participant, "case_roles", [CVDRole.VENDOR])
     # AddCaseParticipantToCase pattern: Add + CASE_PARTICIPANT + target=VULNERABILITY_CASE
-    activity = as_Add(
+    activity = make(
+        as_Add,
         actor="https://example.org/alice",
         object_=participant,
         target="https://example.org/cases/1",
@@ -426,9 +450,10 @@ def test_extract_intent_case_status_name():
     )
     from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
-    cs = as_CaseStatus(context="https://example.org/cases/1")
+    cs = make(as_CaseStatus, context="https://example.org/cases/1")
     # AddCaseStatusToCase pattern: Add + CASE_STATUS + target=VULNERABILITY_CASE
-    activity = as_Add(
+    activity = make(
+        as_Add,
         actor="https://example.org/alice",
         object_=cs,
         target="https://example.org/cases/1",
@@ -449,11 +474,13 @@ def test_extract_intent_participant_status_vf_state():
     )
     from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
-    ps = as_ParticipantStatus(
+    ps = make(
+        as_ParticipantStatus,
         context="https://example.org/cases/1",
         vf=VfDimension(state=CS_vf.Vf),
     )
-    activity = as_Add(
+    activity = make(
+        as_Add,
         actor="https://example.org/alice",
         object_=ps,
         target="https://example.org/cases/1/participants/alice",
@@ -476,12 +503,14 @@ def test_extract_intent_participant_status_rm_and_d():
     )
     from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
-    ps = as_ParticipantStatus(
+    ps = make(
+        as_ParticipantStatus,
         context="https://example.org/cases/1",
         rm=RmDimension(state=RM.RECEIVED),
         d=DDimension(state=CS_d.D),
     )
-    activity = as_Add(
+    activity = make(
+        as_Add,
         actor="https://example.org/alice",
         object_=ps,
         target="https://example.org/cases/1/participants/alice",
@@ -512,12 +541,15 @@ def _make_embargo_invite(end_time=None, embargo_end=None, published=None):
         as_VulnerabilityCase,
     )
 
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         context="https://example.org/cases/1",
         end_time=embargo_end or datetime.now(tz=UTC) + timedelta(days=90),
     )
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/1"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/1",
     )
     kwargs = {
         "object_": embargo,
@@ -528,7 +560,7 @@ def _make_embargo_invite(end_time=None, embargo_end=None, published=None):
         kwargs["end_time"] = end_time
     if published is not None:
         kwargs["published"] = published
-    return as_Invite(**kwargs)
+    return make(as_Invite, **kwargs)
 
 
 @pytest.mark.spec("CM-28-001")
@@ -849,8 +881,11 @@ def test_extract_event_return_type_narrows_via_isinstance():
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(name="VR-001", content="test content")
-    activity = as_Create(
+    report = make(
+        as_VulnerabilityReport, name="VR-001", content="test content"
+    )
+    activity = make(
+        as_Create,
         actor="https://example.org/finder",
         object_=report,
     )
@@ -875,8 +910,9 @@ def test_extract_intent_return_type_narrows_via_isinstance():
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(name="VR-002", content="submission")
-    activity = as_Offer(
+    report = make(as_VulnerabilityReport, name="VR-002", content="submission")
+    activity = make(
+        as_Offer,
         actor="https://example.org/reporter",
         object_=report,
     )
@@ -939,13 +975,16 @@ def _ownership_offer(attributed_to: Any) -> Any:
     )
 
     return offer_case_ownership_transfer_activity(
-        as_VulnerabilityCase(
+        make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/c1",
             name="C1",
         ),
-        target=as_Service(
-            id_="https://example.org/actors/coordinator", name="Coordinator"
+        target=make(
+            as_Service,
+            id_="https://example.org/actors/coordinator",
+            name="Coordinator",
         ),
         actor="https://example.org/actors/case-actor",
         attributed_to=attributed_to,
@@ -1048,7 +1087,8 @@ def _deadline_offer(end_time=None):
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/ot-deadline",
     )
@@ -1113,7 +1153,8 @@ def test_extract_intent_normalises_slash_spelled_sender_id():
 
     canonical = "https://example.org/alice"
     case_id = "https://example.org/cases/1"
-    note = as_Note(
+    note = make(
+        as_Note,
         content="Note body",
         attributed_to=canonical + "/",
         context=case_id,
@@ -1144,8 +1185,8 @@ def test_extract_intent_attributes_both_actor_spellings_to_one_actor():
     case_id = "https://example.org/cases/1"
 
     def _event_from(actor: str) -> AnyReceivedEvent:
-        note = as_Note(
-            content="Note body", attributed_to=actor, context=case_id
+        note = make(
+            as_Note, content="Note body", attributed_to=actor, context=case_id
         )
         return extract_stamped(
             add_note_to_case_activity(note, target=case_id, actor=actor)

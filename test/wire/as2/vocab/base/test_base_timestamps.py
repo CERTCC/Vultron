@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 import pytest
 
 from test.support.blank_strings import BLANKS
+from test.support.objects import make
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
@@ -95,7 +96,7 @@ def test_a_built_activity_carries_published_by_default():
     inherits, so no factory can emit an activity without one.
     """
     before = datetime.now(UTC).replace(microsecond=0)
-    activity = as_Activity(actor="https://example.org/actors/alice")
+    activity = make(as_Activity, actor="https://example.org/actors/alice")
 
     assert activity.published is not None
     assert activity.published >= before

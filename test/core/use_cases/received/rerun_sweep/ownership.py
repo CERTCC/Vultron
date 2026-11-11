@@ -21,6 +21,7 @@ rejects it, and the owner may withdraw it with ``Undo``.
 from typing import Any, cast
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.events.base import MessageSemantics
@@ -51,12 +52,15 @@ def _network(name: str) -> LedgerNetwork:
 
 def _proposal(net: LedgerNetwork) -> Any:
     """OWNER's proposal to transfer the case to BYSTANDER."""
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=net.case_id, name="Rerun sweep"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=net.case_id,
+        name="Rerun sweep",
     )
     return propose_case_ownership_transfer_activity(
         case,
-        target=as_Service(id_=BYSTANDER, name="Transferee"),
+        target=make(as_Service, id_=BYSTANDER, name="Transferee"),
         actor=OWNER,
         to=[MANAGER],
         id_=f"{net.case_id}/proposals/1",
@@ -87,12 +91,15 @@ def propose_ownership_transfer() -> Scenario:
 def propose_ownership_transfer_while_one_is_open() -> Scenario:
     """A second proposal while the first Offer is unanswered: refused."""
     net, _, _ = _offered("propose-refused")
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=net.case_id, name="Rerun sweep"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=net.case_id,
+        name="Rerun sweep",
     )
     second = propose_case_ownership_transfer_activity(
         case,
-        target=as_Service(id_=BYSTANDER, name="Transferee"),
+        target=make(as_Service, id_=BYSTANDER, name="Transferee"),
         actor=OWNER,
         to=[MANAGER],
         id_=f"{net.case_id}/proposals/2",

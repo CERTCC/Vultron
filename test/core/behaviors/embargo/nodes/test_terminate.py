@@ -28,9 +28,11 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes.chosen_cause import (
@@ -44,7 +46,6 @@ from vultron.core.behaviors.embargo.nodes.terminate import (
     TeardownAskPendingNode,
     ask_case_manager_to_terminate_once,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     FixDeployedCause,
@@ -90,7 +91,8 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
         (_VENDOR_ID, [CVDRole.CASE_OWNER, CVDRole.VENDOR]),
         (_FINDER_ID, [CVDRole.REPORTER]),
     ):
-        p = CaseParticipant(
+        p = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
             # `attributed_to` is what `add_participant` keys the
             # actor→participant index on.
@@ -99,7 +101,8 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
             case_roles=roles,
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=_EMBARGO_ID, state=EmbargoConsentState.AGREED
+                    embargo_id=_EMBARGO_ID,
+                    state=EmbargoConsentState.AGREED,
                 )
             ],
         )
@@ -107,11 +110,15 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
         parts.append(p)
 
     dl.create(
-        EmbargoEvent(
-            id_=_EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
+        make(
+            EmbargoEvent,
+            id_=_EMBARGO_ID,
+            context=CASE_ID,
+            end_time=days_from_now(45),
         )
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="Teardown ask",
         attributed_to=_VENDOR_ID,
@@ -139,7 +146,7 @@ def _pending_ask(actor_id: str) -> PendingAssertion | None:
         CASE_ID,
         EMBARGO_TEARDOWN_SEMANTIC_TYPE,
         _EMBARGO_ID,
-        at=now_utc(),
+        at=ACT_AT,
     )
 
 
@@ -150,6 +157,7 @@ def _record_earlier_ask(subject_id: str = _EMBARGO_ID) -> None:
         EMBARGO_TEARDOWN_SEMANTIC_TYPE,
         _EARLIER_ASK_ID,
         subject_id=subject_id,
+        at=ACT_AT,
     )
 
 
@@ -165,6 +173,8 @@ def _run(
         BTBridge(datalayer=dl, trigger_activity=factory),
         tree=tree,
         actor_id=actor_id,
+        # The act the earlier ask was stamped in (_record_earlier_ask).
+        at=ACT_AT,
     )
     return dl, result
 
@@ -270,6 +280,8 @@ class TestTeardownAsk:
         assert pending is not None
         assert pending.object_id == _ASK_ID
         assert pending.subject_id == _EMBARGO_ID
+        # Stamped with the act's instant, not a clock read (ADR-0176).
+        assert pending.emitted_at == ACT_AT
 
     @pytest.mark.spec("SYNC-11-002")
     def test_failed_outbox_write_records_nothing(

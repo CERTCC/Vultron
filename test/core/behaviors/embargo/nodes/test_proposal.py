@@ -35,6 +35,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
@@ -70,7 +71,8 @@ def _case_with_rejecter(
     """An ACTIVE case whose embargo is in force, plus a rejecter whose row
     for that embargo is *consent*."""
     case, embargo = make_case_and_embargo("rpr1", em_state=EM.ACTIVE)
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=REJECTER,
         context=case.id_,
         embargo_consents=[
@@ -199,18 +201,21 @@ class TestRecordParticipantAcceptanceNode:
         case, active = make_case_and_embargo(
             "rpa1", em_state=EM.ACTIVE, attributed_to=OWNER
         )
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/e2",
             context=case.id_,
             end_time=days_from_now(90),
         )
         propose(case, revision)
-        owner_p = as_CaseParticipant(
+        owner_p = make(
+            as_CaseParticipant,
             attributed_to=OWNER,
             context=case.id_,
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=active.id_, state=EmbargoConsentState.AGREED
+                    embargo_id=active.id_,
+                    state=EmbargoConsentState.AGREED,
                 ),
                 # The row the revision's proposal wrote (ADR-0122).
                 EmbargoConsent(

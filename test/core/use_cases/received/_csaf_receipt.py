@@ -25,6 +25,7 @@ from pydantic import JsonValue
 
 from test.support.act_clock import clock_at
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import received_event
 from test.wire.csaf._documents import section, vulnerability_report_document
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -66,8 +67,11 @@ RECEIVED_AT = datetime(2026, 11, 1, 12, tzinfo=UTC)
 
 
 def document(content: str, document_id: str = CSAF_ID) -> AttachedDocument:
-    return AttachedDocument(
-        id_=document_id, media_type="application/json", content=content
+    return make(
+        AttachedDocument,
+        id_=document_id,
+        media_type="application/json",
+        content=content,
     )
 
 
@@ -89,7 +93,8 @@ class Receipt:
         proposed_embargo_end: datetime | None = None,
     ) -> None:
         self.report_id = report_id
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             id_=report_id,
             name=report_name,
             summary=report_summary,
@@ -97,7 +102,8 @@ class Receipt:
             attachment=list(attachments) or None,
         )
         proposed = (
-            as_EmbargoEvent(
+            make(
+                as_EmbargoEvent,
                 id_=f"{report_id}/proposed-embargo",
                 start_time=RECEIVED_AT,
                 end_time=proposed_embargo_end,
@@ -113,7 +119,7 @@ class Receipt:
         assert isinstance(event, SubmitReportReceivedEvent)
         self.event = event
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
-        self.dl.save(VultronService(id_=receiver_id, name=receiver_name))
+        self.dl.save(make(VultronService, id_=receiver_id, name=receiver_name))
 
     def handle(self, at: datetime = RECEIVED_AT) -> HandlerResult:
         """Handle the Offer inside an act at *at*, as the inbox does
@@ -181,7 +187,7 @@ class CaseManager:
         assert case_actor_id is not None, "the CaseActor URL is configured"
         self.actor_id = case_actor_id
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-        self.dl.save(VultronService(id_=case_actor_id))
+        self.dl.save(make(VultronService, id_=case_actor_id))
 
     def receive(
         self, body: dict[str, Any], at: datetime = RECEIVED_AT

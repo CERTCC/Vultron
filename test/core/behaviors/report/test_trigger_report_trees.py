@@ -27,6 +27,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.behaviors.report.trigger_report_trees import (
     create_invalidate_report_trigger_tree,
     create_reject_report_trigger_tree,
@@ -66,14 +67,14 @@ def scenario() -> BTTestScenario:
 
 @pytest.fixture
 def actor(scenario: BTTestScenario) -> VultronService:
-    obj = VultronService(id_=ACTOR_ID, name="Vendor Co")
+    obj = make(VultronService, id_=ACTOR_ID, name="Vendor Co")
     scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
 def report(scenario: BTTestScenario) -> VulnerabilityReport:
-    obj = VulnerabilityReport(name="TEST-001", content="Test vuln")
+    obj = make(VulnerabilityReport, name="TEST-001", content="Test vuln")
     scenario.dl.create(obj)
     return obj
 
@@ -84,7 +85,9 @@ def offer(
     report: VulnerabilityReport,
     actor: VultronService,
 ) -> VultronOffer:
-    obj = VultronOffer(actor=REPORTER_ID, object_=report.id_, target=ACTOR_ID)
+    obj = make(
+        VultronOffer, actor=REPORTER_ID, object_=report.id_, target=ACTOR_ID
+    )
     scenario.dl.create(obj)
     offer_record = VultronOfferRecord(
         offer_id=obj.id_,
@@ -131,16 +134,22 @@ def case_with_owner(
     scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VulnerabilityCase:
     """Create a VulnerabilityCase where ACTOR_ID is CASE_OWNER and a separate CASE_MANAGER exists for routing."""
-    owner_participant = CaseParticipant(
+    owner_participant = make(
+        CaseParticipant,
         attributed_to=ACTOR_ID,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    manager_actor = VultronService(id_=CASE_MANAGER_ID, name="Case Manager")
-    manager_participant = CaseParticipant(
+    manager_actor = make(
+        VultronService, id_=CASE_MANAGER_ID, name="Case Manager"
+    )
+    manager_participant = make(
+        CaseParticipant,
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
+    case = make(
+        VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Test Case"
+    )
     case.vulnerability_reports.append(report.id_)
     case.actor_participant_index[ACTOR_ID] = owner_participant.id_
     case.actor_participant_index[CASE_MANAGER_ID] = manager_participant.id_

@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.act_transaction import (
     ActTransaction,
@@ -56,7 +57,7 @@ def dl() -> Iterator[SqliteDataLayer]:
 
 
 def _note(name: str) -> as_Note:
-    return as_Note(id_=f"https://example.org/notes/{name}", content=name)
+    return make(as_Note, id_=f"https://example.org/notes/{name}", content=name)
 
 
 class _Do(py_trees.behaviour.Behaviour):

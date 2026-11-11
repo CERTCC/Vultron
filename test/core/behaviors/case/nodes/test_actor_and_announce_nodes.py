@@ -27,6 +27,7 @@ from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -154,14 +155,16 @@ class TestAcceptCaseOwnershipTransferNode:
         """Happy path: case.attributed_to updated to new_owner_id."""
         # The new owner is a participant: the Accept's guards admit only an
         # active transferee (CM-21-022), and the node refuses any other.
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-new-owner",
             attributed_to=NEW_OWNER_ID,
             context=CASE_ID,
             case_roles=[CVDRole.COORDINATOR],
         )
         dl.create(participant)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OT Node Test",
             attributed_to=ACTOR_ID,
@@ -185,7 +188,8 @@ class TestAcceptCaseOwnershipTransferNode:
 
     def test_idempotent_when_already_owned(self, bridge, dl) -> None:
         """SUCCESS without mutation when case already has the new owner."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OT Node Idempotent",
             attributed_to=NEW_OWNER_ID,
@@ -220,14 +224,16 @@ class TestAcceptCaseOwnershipTransferNode:
         changes anything: the bridge flags an internal error and the old
         owner, its role and ``attributed_to`` are untouched.
         """
-        old_owner = CaseParticipant(
+        old_owner = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-old-owner",
             attributed_to=ACTOR_ID,
             context=CASE_ID,
             case_roles=[CVDRole.CASE_OWNER],
         )
         dl.create(old_owner)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OT Node No New Owner",
             attributed_to=ACTOR_ID,
@@ -258,13 +264,15 @@ class TestAcceptCaseOwnershipTransferNode:
         so the node must find that record too, rather than raise after the
         Accept is ledgered and leave the transfer unapplied.
         """
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-inline-owner",
             attributed_to=NEW_OWNER_ID,
             context=CASE_ID,
             case_roles=[CVDRole.COORDINATOR],
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OT Inline New Owner",
             attributed_to=ACTOR_ID,
@@ -299,20 +307,23 @@ class TestAcceptCaseOwnershipTransferNode:
         its record is saved with the transfer, so the case is never left
         with two owners.
         """
-        old_owner = CaseParticipant(
+        old_owner = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-inline-old-owner",
             attributed_to=ACTOR_ID,
             context=CASE_ID,
             case_roles=[CVDRole.CASE_OWNER],
         )
-        new_owner = CaseParticipant(
+        new_owner = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-stored-new-owner",
             attributed_to=NEW_OWNER_ID,
             context=CASE_ID,
             case_roles=[CVDRole.COORDINATOR],
         )
         dl.create(new_owner)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OT Inline Old Owner",
             attributed_to=ACTOR_ID,
@@ -346,8 +357,11 @@ class TestAcceptCaseOwnershipTransferNode:
     ) -> None:
         """The recorded-Offer variant names no owner it cannot read, so it
         fails and leaves ownership unchanged rather than guessing one."""
-        case = as_VulnerabilityCase(
-            id_=CASE_ID, name="OT Node No Offer", attributed_to=ACTOR_ID
+        case = make(
+            as_VulnerabilityCase,
+            id_=CASE_ID,
+            name="OT Node No Offer",
+            attributed_to=ACTOR_ID,
         )
         dl.create(case)
         tree = AcceptRecordedOwnershipOfferNode(
@@ -361,14 +375,16 @@ class TestAcceptCaseOwnershipTransferNode:
     @pytest.mark.spec("CM-21-002")
     def test_grants_case_owner_role_to_participant(self, bridge, dl) -> None:
         """New owner's participant record gains CVDRole.CASE_OWNER on transfer."""
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-new-owner",
             attributed_to=NEW_OWNER_ID,
             context=CASE_ID,
             case_roles=[CVDRole.COORDINATOR],
         )
         dl.create(participant)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OT Role Grant Test",
             attributed_to=ACTOR_ID,
@@ -392,13 +408,15 @@ class TestAcceptCaseOwnershipTransferNode:
         self, bridge, dl
     ) -> None:
         """Previous owner's participant loses CVDRole.CASE_OWNER on transfer (CM-21-003)."""
-        old_owner_participant = CaseParticipant(
+        old_owner_participant = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-old-owner",
             attributed_to=ACTOR_ID,
             context=CASE_ID,
             case_roles=[CVDRole.CASE_OWNER, CVDRole.COORDINATOR],
         )
-        new_owner_participant = CaseParticipant(
+        new_owner_participant = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-new-owner",
             attributed_to=NEW_OWNER_ID,
             context=CASE_ID,
@@ -406,7 +424,8 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         dl.create(old_owner_participant)
         dl.create(new_owner_participant)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OT Role Strip Test",
             attributed_to=ACTOR_ID,
@@ -431,13 +450,15 @@ class TestAcceptCaseOwnershipTransferNode:
     @pytest.mark.spec("CM-21-023")
     def test_at_most_one_case_owner_after_transfer(self, bridge, dl) -> None:
         """Exactly one participant holds CVDRole.CASE_OWNER after transfer (CM-21-001)."""
-        old_owner_participant = CaseParticipant(
+        old_owner_participant = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-old-owner",
             attributed_to=ACTOR_ID,
             context=CASE_ID,
             case_roles=[CVDRole.CASE_OWNER],
         )
-        new_owner_participant = CaseParticipant(
+        new_owner_participant = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-new-owner",
             attributed_to=NEW_OWNER_ID,
             context=CASE_ID,
@@ -445,7 +466,8 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         dl.create(old_owner_participant)
         dl.create(new_owner_participant)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OT At-Most-One Test",
             attributed_to=ACTOR_ID,
@@ -474,13 +496,15 @@ class TestAcceptCaseOwnershipTransferNode:
         """Failed save_many leaves both participants unchanged (CM-21-004)."""
         from unittest.mock import patch
 
-        old_owner_participant = CaseParticipant(
+        old_owner_participant = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-old-owner",
             attributed_to=ACTOR_ID,
             context=CASE_ID,
             case_roles=[CVDRole.CASE_OWNER],
         )
-        new_owner_participant = CaseParticipant(
+        new_owner_participant = make(
+            CaseParticipant,
             id_="https://example.org/participants/p-new-owner",
             attributed_to=NEW_OWNER_ID,
             context=CASE_ID,
@@ -488,7 +512,8 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         dl.create(old_owner_participant)
         dl.create(new_owner_participant)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OT Atomic Test",
             attributed_to=ACTOR_ID,
@@ -524,13 +549,15 @@ class TestAcceptCaseOwnershipTransferNode:
 
 def _owned_case(dl) -> tuple[CaseParticipant, CaseParticipant]:
     """A case ACTOR_ID owns, with NEW_OWNER_ID as a plain participant."""
-    old = CaseParticipant(
+    old = make(
+        CaseParticipant,
         id_="https://example.org/participants/p-old-owner",
         attributed_to=ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    new = CaseParticipant(
+    new = make(
+        CaseParticipant,
         id_="https://example.org/participants/p-new-owner",
         attributed_to=NEW_OWNER_ID,
         context=CASE_ID,
@@ -539,7 +566,8 @@ def _owned_case(dl) -> tuple[CaseParticipant, CaseParticipant]:
     dl.create(old)
     dl.create(new)
     dl.create(
-        as_VulnerabilityCase(
+        make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OT Entries Test",
             attributed_to=ACTOR_ID,
@@ -652,15 +680,21 @@ class TestTransferRecordsEachChange:
 
 @pytest.fixture
 def case():
-    return as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID2, name="Seed Announce Test"
+    return make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID2,
+        name="Seed Announce Test",
     )
 
 
 def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
     """*case* with an owner, so it names a ledger position (SYNC-16-005)."""
-    return as_VulnerabilityCase(
-        id_=case.id_, name=case.name, attributed_to=ACTOR_ID
+    return make(
+        as_VulnerabilityCase,
+        id_=case.id_,
+        name=case.name,
+        attributed_to=ACTOR_ID,
     )
 
 
@@ -770,12 +804,14 @@ class TestSeedAnnouncedCaseNode:
 
         # Simulate what _build_case_object produces: a case carrying a fully
         # materialised inline wire CaseParticipant rather than a bare string ID.
-        inline_participant = as_CaseParticipant(
+        inline_participant = make(
+            as_CaseParticipant,
             id_=participant_id,
             attributed_to=actor_id,
             context=CASE_ID2,
         )
-        case_with_inline = as_VulnerabilityCase(
+        case_with_inline = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID2,
             name="Inline Participant Write-Path Test",
@@ -862,7 +898,8 @@ class TestSeedAnnouncedCaseNode:
         one for an embargo the copy's register does not record yet, and one
         for a proposal the copy's register has activated.
         """
-        decided = EmbargoEvent(
+        decided = make(
+            EmbargoEvent,
             id_=f"{CASE_ID2}/embargo_events/decided",
             context=CASE_ID2,
             end_time=days_from_now(45),
@@ -908,7 +945,8 @@ class TestSeedAnnouncedCaseNode:
         self, bridge, dl, case
     ) -> None:
         """Nothing is proposed once an embargo terminated, recorded or not."""
-        ended = EmbargoEvent(
+        ended = make(
+            EmbargoEvent,
             id_=f"{CASE_ID2}/embargo_events/ended",
             context=CASE_ID2,
             end_time=days_from_now(45),
@@ -940,8 +978,11 @@ class TestSeedAnnouncedCaseNode:
         """The replacement raises rather than keep an empty index."""
         copy = _owned(case)
         dl.create(
-            CaseParticipant(
-                id_=CASE_ID2, attributed_to=ACTOR_ID, context=CASE_ID2
+            make(
+                CaseParticipant,
+                id_=CASE_ID2,
+                attributed_to=ACTOR_ID,
+                context=CASE_ID2,
             )
         )
         event = _announce_event_for(copy)
@@ -959,12 +1000,14 @@ class TestSeedAnnouncedCaseNode:
         self, bridge, dl
     ) -> None:
         """An inline active embargo becomes a record this store can read."""
-        embargo = EmbargoEvent(
+        embargo = make(
+            EmbargoEvent,
             id_=f"{CASE_ID2}/embargo_events/inline",
             context=CASE_ID2,
             end_time=days_from_now(45),
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID2,
             name="Inline Embargo",
@@ -982,7 +1025,8 @@ class TestSeedAnnouncedCaseNode:
     @pytest.mark.spec("EMB-18-003")
     def test_refuses_a_case_naming_an_unheld_embargo(self, bridge, dl) -> None:
         """A bare embargo id this store cannot read is refused, not seeded."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID2,
             name="Unheld Embargo",
@@ -1005,7 +1049,8 @@ class TestSeedAnnouncedCaseNode:
         """An already-held case is left as stored, participants included."""
         dl.create(case)
         participant_id = f"{CASE_ID2}/participants/reannounced"
-        reannounced = as_VulnerabilityCase(
+        reannounced = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID2,
             name="Re-announced",
@@ -1013,7 +1058,8 @@ class TestSeedAnnouncedCaseNode:
                 active=f"{CASE_ID2}/embargo_events/unheld"
             ),
             case_participants=[
-                as_CaseParticipant(
+                make(
+                    as_CaseParticipant,
                     id_=participant_id,
                     attributed_to=ACTOR_ID,
                     context=CASE_ID2,
@@ -1091,7 +1137,8 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
         )
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=AC3_CASE_ID,
             name="AC3 commit order",
             attributed_to=ACTOR_ID,
@@ -1178,7 +1225,8 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
 
         # attributed_to triggers genesis_hash computation so the internal
         # commit_log_entry_tree inside EmitInviteActorToCaseNode can bootstrap.
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=AC3_CASE_ID,
             name="AC2 test case",
             attributed_to=ACTOR_ID,
@@ -1251,18 +1299,21 @@ def _make_ot_case(dl: SqliteDataLayer) -> None:
         as_VulnerabilityCase as _VC,
     )
 
-    case = _VC(
+    case = make(
+        _VC,
         id_=_OT_CASE_ID,
         name="OT Emit Test",
         attributed_to=_OT_OWNER_ID,
     )
-    owner_p = CaseParticipant(
+    owner_p = make(
+        CaseParticipant,
         id_=f"{_OT_CASE_ID}/participants/owner",
         attributed_to=_OT_OWNER_ID,
         context=_OT_CASE_ID,
         case_roles=[_CVDRole.CASE_OWNER],
     )
-    ca_p = CaseParticipant(
+    ca_p = make(
+        CaseParticipant,
         id_=f"{_OT_CASE_ID}/participants/case-actor",
         attributed_to=_OT_CASE_ACTOR_ID,
         context=_OT_CASE_ID,

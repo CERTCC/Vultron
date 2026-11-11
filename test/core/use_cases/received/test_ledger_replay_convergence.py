@@ -42,6 +42,7 @@ from test.support.act_runner import run_in_act
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.failed_teardown import fail_pxa_teardown
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -195,7 +196,8 @@ def _set_rm(net: LedgerNetwork, member: str, rm: RM) -> None:
             CaseParticipant, dl.read(case.actor_participant_index[member])
         )
         participant.add_participant_status(
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=net.case_id,
                 attributed_to=member,
                 rm=RmDimension(state=rm),
@@ -295,7 +297,8 @@ def _propose_revision_everywhere(
     net: LedgerNetwork, *, days: int
 ) -> as_EmbargoEvent:
     """Put a revision of the active embargo on every store's register."""
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{net.case_id}/embargo_events/revision",
         context=net.case_id,
         end_time=days_from_now(days),
@@ -632,10 +635,14 @@ def test_a_replica_follows_a_participants_engagement_decision(
 
 def _create_note(net: LedgerNetwork, note_id: str) -> as_Create:
     """A bystander's ``Create(Note)`` to the CASE_MANAGER, naming its case."""
-    return as_Create(
+    return make(
+        as_Create,
         actor=BYSTANDER,
-        object_=as_Note(
-            id_=note_id, content="A general inquiry", context=net.case_id
+        object_=make(
+            as_Note,
+            id_=note_id,
+            content="A general inquiry",
+            context=net.case_id,
         ),
         to=[MANAGER],
     )
@@ -693,7 +700,9 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     net = LedgerNetwork(
         "https://example.org/cases/trigger-add-note", em_state=EM.NONE
     )
-    net.stores[BYSTANDER].create(as_Service(id_=BYSTANDER, name="Vendor B"))
+    net.stores[BYSTANDER].create(
+        make(as_Service, id_=BYSTANDER, name="Vendor B")
+    )
 
     result = run_in_act(
         SvcAddNoteToCaseUseCase(
@@ -763,7 +772,8 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     [
         pytest.param(
             OWNER,
-            lambda: as_VulnerabilityReport(
+            lambda: make(
+                as_VulnerabilityReport,
                 id_="https://example.org/reports/trigger-add-object",
                 name="Report",
                 content="details",
@@ -773,7 +783,8 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
         ),
         pytest.param(
             BYSTANDER,
-            lambda: as_Note(
+            lambda: make(
+                as_Note,
                 id_="https://example.org/notes/trigger-add-object",
                 content="Written here",
                 attributed_to=BYSTANDER,
@@ -799,7 +810,7 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
     )
     dl = net.stores[sender]
     if dl.read(sender) is None:
-        dl.create(as_Service(id_=sender, name="Sender"))
+        dl.create(make(as_Service, id_=sender, name="Sender"))
     obj = make_object()
     dl.create(obj)
 
@@ -853,7 +864,8 @@ def test_an_add_naming_a_note_the_manager_already_holds_is_refused():
     net = LedgerNetwork(
         "https://example.org/cases/replay-add-existing-note", em_state=EM.NONE
     )
-    note = as_Note(
+    note = make(
+        as_Note,
         id_="https://example.org/notes/replay-add-existing-note",
         content="Written elsewhere",
         context=net.case_id,
@@ -962,7 +974,8 @@ def test_case_status_writes_nothing_at_a_replica():
         em_state=EM.NONE,
     )
     before = [_as_id(s) for s in net.case(OWNER).case_statuses]
-    status = CaseStatus(
+    status = make(
+        CaseStatus,
         context=net.case_id,
         attributed_to=MANAGER,
         em=EmDimension(state=EM.NONE),

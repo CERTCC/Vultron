@@ -19,8 +19,9 @@ import unittest
 import pytest
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from test.support.objects import make
+from vultron.core.models._helpers import format_timestamp
 from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.examples._base import _admits_none
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -85,7 +86,8 @@ class Foo(as_Base):
 
 def _frozen_report() -> as_VulnerabilityReport:
     """A report object carrying both timestamps."""
-    return as_VulnerabilityReport(
+    return make(
+        as_VulnerabilityReport,
         name="FDR-0000001",
         id_="https://vultron.example/reports/FDR-0000001",
         content="I found a vulnerability!",
@@ -93,12 +95,13 @@ def _frozen_report() -> as_VulnerabilityReport:
     )
 
 
-class TestStripPublishedUpdated(unittest.TestCase):
-    """Regression tests for issue #2904.
+class TestRenderedTimestamps(unittest.TestCase):
+    """The renderers show an object's ``published``/``updated`` as built.
 
-    ``Foo`` above declares neither ``published`` nor ``updated``,
-    so ``TestVocabUtils`` never reaches the timestamp-stripping
-    branch. These tests use a real domain object that carries both timestamps.
+    An activity's proof asserts its ``published`` (``signing.authored_time``),
+    so the renderer strips neither time; the generator pins both through
+    ``_example_scope``.  ``Foo`` above declares neither, so these tests use a
+    real domain object that carries both timestamps.
     """
 
     def test_frozen_wire_object_carries_both_timestamps(self):
@@ -106,7 +109,7 @@ class TestStripPublishedUpdated(unittest.TestCase):
         self.assertIsNotNone(report.published)
         self.assertIsNotNone(report.updated)
 
-    def test_json2md_strips_timestamps_from_frozen_model(self):
+    def test_json2md_keeps_timestamps_of_frozen_model(self):
         report = _frozen_report()
 
         rendered = examples.json2md(report)
@@ -114,14 +117,17 @@ class TestStripPublishedUpdated(unittest.TestCase):
             rendered.removeprefix("```json").removesuffix("```")
         )
 
-        self.assertNotIn("published", payload)
-        self.assertNotIn("updated", payload)
+        assert report.published is not None and report.updated is not None
+        self.assertEqual(
+            payload["published"], format_timestamp(report.published)
+        )
+        self.assertEqual(payload["updated"], format_timestamp(report.updated))
         self.assertEqual(payload["name"], "FDR-0000001")
 
     def test_json2md_does_not_mutate_the_object_it_renders(self):
         """The examples are shared singletons served live by the example API.
 
-        Stripping in place would strip them for every other consumer too
+        Changing one in place would change it for every other consumer too
         (the shared-singleton hazard of issue #1328), so rendering MUST
         leave its argument alone.
         """
@@ -133,7 +139,7 @@ class TestStripPublishedUpdated(unittest.TestCase):
         self.assertEqual(report.published, published)
         self.assertEqual(report.updated, updated)
 
-    def test_obj_to_file_strips_timestamps_from_frozen_model(self):
+    def test_obj_to_file_keeps_timestamps_of_frozen_model(self):
         report = _frozen_report()
         with tempfile.TemporaryDirectory() as tmpdirname:
             filename = os.path.join(tmpdirname, "report.json")
@@ -142,10 +148,12 @@ class TestStripPublishedUpdated(unittest.TestCase):
             with open(filename) as f:
                 payload = json.load(f)
 
-        self.assertNotIn("published", payload)
-        self.assertNotIn("updated", payload)
+        assert report.published is not None and report.updated is not None
+        self.assertEqual(
+            payload["published"], format_timestamp(report.published)
+        )
+        self.assertEqual(payload["updated"], format_timestamp(report.updated))
         self.assertEqual(payload["name"], "FDR-0000001")
-        self.assertIsNotNone(report.published)
 
 
 @pytest.mark.parametrize("func", _example_funcs(), ids=lambda f: f.__name__)
@@ -161,14 +169,11 @@ def test_every_example_renders_as_json(func):
     assert rendered.endswith("```")
     payload = json.loads(rendered.removeprefix("```json").removesuffix("```"))
     assert payload.get("type"), f"{func.__name__} rendered no AS2 type"
-    # A time the class requires is kept (CaseStatus.published, CLP-15-010);
-    # every other top-level time is stripped so the page does not churn.
-    fields = type(func()).model_fields
-    for key in ("published", "updated"):
-        if key in fields and _admits_none(fields[key].annotation):
-            assert key not in payload, f"{func.__name__} rendered {key!r}"
-        elif key in fields:
-            assert key in payload, f"{func.__name__} dropped required {key!r}"
+    # An activity is shown with the published time its proof asserts
+    # (signing.authored_time): the renderer strips no top-level time.
+    if "actor" in payload:
+        assert payload.get("published"), f"{func.__name__} dropped published"
+        assert payload["proof"]["created"] == payload["published"]
 
 
 def test_example_func_discovery_is_not_vacuous():

@@ -26,6 +26,7 @@ import base58
 import pytest
 
 from test.adapters.driving.fastapi._redelivery import served_store
+from test.support.signing import TEST_PROOF_CREATED
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2 import signing
@@ -95,7 +96,9 @@ def test_a_seeded_private_key_reaches_no_log_and_no_api_response(
     key = signing.seeded_signing_key(actor_id)
 
     signed = signing.sign(
-        {"id": f"{actor_id}/activities/1", "type": "Create"}, key
+        {"id": f"{actor_id}/activities/1", "type": "Create"},
+        key,
+        created=TEST_PROOF_CREATED,
     )
     signing.verify(signed, key.public_key_multibase)
     logging.getLogger(__name__).debug("signing with %s, %r", key, key)

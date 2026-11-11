@@ -347,8 +347,11 @@ def _admits_none(annotation: object) -> bool:
 def _strip_published_udpated(obj: as_Base | BaseModel) -> as_Base | BaseModel:
     """Return a copy of *obj* with its ``published``/``updated`` timestamps cleared.
 
-    Both timestamps default to build time, so leaving them in would make every
-    rendered example churn on each docs build.
+    For a body built outside :func:`_example_scope`, whose timestamps default
+    to build time and would churn on each docs build (the submit-report
+    tutorial's posted body).  A docs example keeps both: it is built inside
+    that scope, so they read :data:`EXAMPLE_TIMESTAMP`, and its proof's
+    ``created`` is its ``published`` (:func:`_example_json`).
 
     This returns a copy rather than clearing the timestamps in place, for two
     independent reasons:
@@ -404,21 +407,23 @@ def _to_json(obj: object, **kwargs: object) -> str:
 def _example_json(obj: as_Base | BaseModel) -> str:
     """*obj* as a docs example shows it: indented JSON, signed if it is sent.
 
-    The top-level ``published``/``updated`` are cleared first
-    (:func:`_strip_published_udpated`).  An object that names an ``actor``
-    is an activity that actor sends, so it is shown as that actor's outbox
-    would seal it: with a proof made by the example's own ``actor``
-    (:func:`vultron.wire.as2.signing.sign_docs_example`, SIG-01-001).  The
-    proof's ``created`` is :data:`EXAMPLE_TIMESTAMP`, so the signed bytes
-    are the same on every regeneration.  The proof covers the body as
-    shown, so a reader can check it against the key the actor's seed gives.
-    Anything else, such as an actor profile or a report, is shown unsigned.
+    The object's ``published``/``updated`` are shown as built: inside
+    :func:`_example_scope` they read :data:`EXAMPLE_TIMESTAMP`.  An object
+    that names an ``actor`` is an activity that actor sends, so it is shown
+    as that actor's outbox would seal it: with a proof made by the example's
+    own ``actor`` (:func:`vultron.wire.as2.signing.sign_docs_example`,
+    SIG-01-001).  The proof's ``created`` is the activity's ``published``,
+    the rule the outbox follows (``signing.authored_time``), so the proof
+    asserts the time the example says it was sent and the signed bytes are
+    the same on every regeneration.  The proof covers the body as shown, so
+    a reader can check it against the key the actor's seed gives.  Anything
+    else, such as an actor profile or a report, is shown unsigned.
     """
-    text = _to_json(_strip_published_udpated(obj), indent=2)
+    text = _to_json(obj, indent=2)
     document = json.loads(text)
     if not isinstance(document, dict) or "actor" not in document:
         return text
-    signed = signing.sign_docs_example(document, created=EXAMPLE_TIMESTAMP)
+    signed = signing.sign_docs_example(document)
     return json.dumps(signed, indent=2, ensure_ascii=False)
 
 

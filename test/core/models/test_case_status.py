@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from test.support.act_clock import ACT_AT
 from test.support.blank_strings import BLANKS
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     MissingClaimedTimeError,
@@ -29,7 +30,7 @@ def _cause(exc: ValidationError) -> object:
 def test_case_status_requires_published():
     """A status built without a time fails at construction, not at sorting."""
     with pytest.raises(ValidationError):
-        CaseStatus(context=CASE_ID, published=None)  # type: ignore[arg-type]
+        make(CaseStatus, context=CASE_ID, published=None)  # type: ignore[arg-type]
 
 
 @pytest.mark.spec("SM-05-003")
@@ -47,8 +48,8 @@ def test_authored_case_status_updated_equals_published():
     path) and one built by ``append_case_status``, which copies the current
     status and so would otherwise carry its old ``updated`` forward.
     """
-    built = CaseStatus(context=CASE_ID)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=CASE_OWNER_ID)
+    built = make(CaseStatus, context=CASE_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=CASE_OWNER_ID)
     seeded = case.current_status
     seeded.updated = seeded.published - timedelta(days=1)
     case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
@@ -60,7 +61,7 @@ def test_authored_case_status_updated_equals_published():
 
 @pytest.mark.spec("ARCH-21-001")
 def test_case_status_published_cannot_be_cleared_by_assignment():
-    status = CaseStatus(context=CASE_ID)
+    status = make(CaseStatus, context=CASE_ID)
     with pytest.raises(ValidationError):
         status.published = None  # type: ignore[assignment]
 

@@ -352,6 +352,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         )
 
         ledger_cfg = get_config().ledger
+        at = self._require_act_instant()
         _validate_canonical_entry(
             case_id=self.case_id,
             payload_snapshot=self.payload_snapshot,
@@ -361,7 +362,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             future_tolerance=ledger_cfg.future_tolerance,
             staleness_window=ledger_cfg.staleness_window,
             skew_tolerance=ledger_cfg.clock_skew_tolerance,
-            at=self._require_act_instant(),
+            at=at,
         )
 
         tail_hash = self.tail_hash
@@ -374,6 +375,9 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             payload_snapshot=self.payload_snapshot,
             prev_log_hash=tail_hash,
             term=self.term,
+            # The committing act's instant: the commit stamp the guard above
+            # judged the claimed times against (ADR-0176).
+            received_at=at,
         )
         self._set_output("log_entry", _to_persistable_entry(chain_entry))
         self._set_output("log_entry_preexisting", False)

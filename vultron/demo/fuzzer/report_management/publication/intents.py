@@ -15,13 +15,15 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
-)
-from vultron.core.behaviors.report.publication_intent import (
-    PublicationIntentDecision,
+from vultron.core.behaviors.call_out.capabilities.report_management.publication.intents import (
+    PrepareExploitCapability,
+    PrepareFixCapability,
+    PrepareReportCapability,
+    PrioritizePublicationIntentsCapability,
+    PublishCapability,
+    ReprioritizeExploitCapability,
+    ReprioritizeFixCapability,
+    ReprioritizeReportCapability,
 )
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
@@ -30,11 +32,6 @@ from vultron.demo.fuzzer.base import (
     OftenSucceed,
     UsuallyFail,
     UsuallySucceed,
-)
-from vultron.demo.fuzzer.call_out_point import (
-    ActuatorCallOutPoint,
-    ComposerCallOutPoint,
-    EvaluatorCallOutPoint,
 )
 
 
@@ -77,8 +74,13 @@ class PublicationIntentsSet(UsuallyFail):
     """
 
 
-class PrioritizePublicationIntents(EvaluatorCallOutPoint, AlwaysSucceed):
+class PrioritizePublicationIntents(
+    PrioritizePublicationIntentsCapability, AlwaysSucceed
+):
     """Establish and record publication intentions for the case.
+
+    Simulates :class:`PrioritizePublicationIntentsCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — establish and record publication intentions: which
@@ -95,11 +97,6 @@ class PrioritizePublicationIntents(EvaluatorCallOutPoint, AlwaysSucceed):
     default ``PublicationIntentDecision()`` (publish fix + report, withhold
     exploit); a real backend overrides per case policy.
 
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates case context from caller's DataLayer)
-      Output keys: publication_intent_decision: PublicationIntentDecision
-        (yes only; default instance written by fuzzer backend)
-
     Input category: Human decision.
 
     Success probability: 1.00 (``AlwaysSucceed``).
@@ -109,13 +106,12 @@ class PrioritizePublicationIntents(EvaluatorCallOutPoint, AlwaysSucceed):
     editorial or legal exceptions require human judgment.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"publication_intent_decision": PublicationIntentDecision}
-    )
 
-
-class Publish(ActuatorCallOutPoint, AlmostAlwaysSucceed):
+class Publish(PublishCapability, AlmostAlwaysSucceed):
     """Execute the publication of a prepared artifact to the intended audience.
+
+    Simulates :class:`PublishCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — publish a prepared artifact (advisory, patch, bulletin,
@@ -124,10 +120,6 @@ class Publish(ActuatorCallOutPoint, AlmostAlwaysSucceed):
         package repository) or a prompt for a human to complete the
         publication step.  The fuzzer succeeds almost always, allowing
         the rest of the workflow to be exercised.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; artifact context from construction time)
-      Output keys: (none — side effect: publish artifact to intended audience)
 
     Input category: System integration.
 
@@ -177,8 +169,11 @@ class ExploitReady(OftenSucceed):
     """
 
 
-class PrepareExploit(ComposerCallOutPoint, AlmostAlwaysSucceed):
+class PrepareExploit(PrepareExploitCapability, AlmostAlwaysSucceed):
     """Create, document, and stage the exploit artifact for publication.
+
+    Simulates :class:`PrepareExploitCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — create, document, and stage the exploit artifact for
@@ -186,10 +181,6 @@ class PrepareExploit(ComposerCallOutPoint, AlmostAlwaysSucceed):
         system).  In production this would typically be a prompt for a
         human security researcher to package and document the
         proof-of-concept.  The fuzzer succeeds almost always.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: prepared_exploit_artifact: str  (yes only)
 
     Input category: Human decision.
 
@@ -200,13 +191,12 @@ class PrepareExploit(ComposerCallOutPoint, AlmostAlwaysSucceed):
     automatable in the general case.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"prepared_exploit_artifact": str}
-    )
 
-
-class ReprioritizeExploit(EvaluatorCallOutPoint, AlwaysSucceed):
+class ReprioritizeExploit(ReprioritizeExploitCapability, AlwaysSucceed):
     """Update the priority of the exploit artifact in the publication queue.
+
+    Simulates :class:`ReprioritizeExploitCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — update the priority of the exploit artifact in the
@@ -214,10 +204,6 @@ class ReprioritizeExploit(EvaluatorCallOutPoint, AlwaysSucceed):
         landscape or embargo state change).  In production this is a
         human analyst decision or an automated policy trigger.  The
         fuzzer always succeeds.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates exploit publication context from caller's DataLayer)
-      Output keys: reprioritize_exploit_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -227,10 +213,6 @@ class ReprioritizeExploit(EvaluatorCallOutPoint, AlwaysSucceed):
     threat-level updates can trigger automated reprioritization rules;
     human override may be needed for unusual cases.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"reprioritize_exploit_verdict": str}
-    )
 
 
 class NoPublishFix(AlmostAlwaysFail):
@@ -252,8 +234,11 @@ class NoPublishFix(AlmostAlwaysFail):
     """
 
 
-class PrepareFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
+class PrepareFix(PrepareFixCapability, AlmostAlwaysSucceed):
     """Create, document, and stage the fix artifact for publication.
+
+    Simulates :class:`PrepareFixCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — create, document, and stage the fix artifact for
@@ -261,10 +246,6 @@ class PrepareFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
         production this involves the engineering team's patch release
         pipeline and content-authoring workflow.  The fuzzer succeeds
         almost always, allowing the rest of the workflow to be exercised.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: prepared_fix_artifact: str  (yes only)
 
     Input category: System integration.
 
@@ -275,23 +256,18 @@ class PrepareFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
     require human authoring and review.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"prepared_fix_artifact": str}
-    )
 
-
-class ReprioritizeFix(EvaluatorCallOutPoint, AlwaysSucceed):
+class ReprioritizeFix(ReprioritizeFixCapability, AlwaysSucceed):
     """Update the priority of the fix artifact in the publication queue.
+
+    Simulates :class:`ReprioritizeFixCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — update the priority of the fix artifact in the
         publication queue.  In production this is a human analyst
         decision or an automated policy trigger.  The fuzzer always
         succeeds.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates fix publication context from caller's DataLayer)
-      Output keys: reprioritize_fix_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -301,10 +277,6 @@ class ReprioritizeFix(EvaluatorCallOutPoint, AlwaysSucceed):
     threat-level updates can trigger automated reprioritization rules;
     human override may be needed.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"reprioritize_fix_verdict": str}
-    )
 
 
 class NoPublishReport(AlmostAlwaysFail):
@@ -326,8 +298,11 @@ class NoPublishReport(AlmostAlwaysFail):
     """
 
 
-class PrepareReport(ComposerCallOutPoint, AlmostAlwaysSucceed):
+class PrepareReport(PrepareReportCapability, AlmostAlwaysSucceed):
     """Create, review, and stage the vulnerability advisory for publication.
+
+    Simulates :class:`PrepareReportCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — create, review, and stage the vulnerability advisory or
@@ -335,10 +310,6 @@ class PrepareReport(ComposerCallOutPoint, AlmostAlwaysSucceed):
         human analyst authoring, editorial review, approval workflow, and
         staging in the advisory publishing pipeline.  The fuzzer succeeds
         almost always, allowing the rest of the workflow to be exercised.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: prepared_report_artifact: str  (yes only)
 
     Input category: Human decision.
 
@@ -349,23 +320,18 @@ class PrepareReport(ComposerCallOutPoint, AlmostAlwaysSucceed):
     typically involves human stakeholders.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"prepared_report_artifact": str}
-    )
 
-
-class ReprioritizeReport(EvaluatorCallOutPoint, AlwaysSucceed):
+class ReprioritizeReport(ReprioritizeReportCapability, AlwaysSucceed):
     """Update the priority of the report artifact in the publication queue.
+
+    Simulates :class:`ReprioritizeReportCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — update the priority of the report artifact in the
         publication queue.  In production this is a human analyst
         decision or an automated policy trigger (e.g., on embargo exit or
         threat escalation).  The fuzzer always succeeds.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates report publication context from caller's DataLayer)
-      Output keys: reprioritize_report_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -375,7 +341,3 @@ class ReprioritizeReport(EvaluatorCallOutPoint, AlwaysSucceed):
     (e.g., on embargo exit or threat escalation) is automatable; complex
     editorial decisions require human oversight.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"reprioritize_report_verdict": str}
-    )

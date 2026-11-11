@@ -48,6 +48,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import settle_as_the_inbox
 from test.support.rm_declaration import (
     ACTOR_ID,
@@ -118,15 +119,22 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 def _offer() -> Any:
     return rm_submit_report_activity(
-        as_VulnerabilityReport(id_=REPORT_ID, name="Shared RM table report"),
+        make(
+            as_VulnerabilityReport,
+            id_=REPORT_ID,
+            name="Shared RM table report",
+        ),
         to=ACTOR_ID,
         actor="https://example.org/actors/finder",
     )
 
 
 def _case_ref() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Issue 2235 Case"
+    return make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="Issue 2235 Case",
     )
 
 
@@ -178,9 +186,10 @@ def _seed(dl: SqliteDataLayer, current: RM) -> None:
     # CASE_MANAGER's store holds the embargo and the report the case names,
     # so a broadcast to the active sender can carry them (EMB-18-003).
     dl.create(
-        VulnerabilityReport(id_=REPORT_ID, name="Shared RM table report")
+        make(VulnerabilityReport, id_=REPORT_ID, name="Shared RM table report")
     )
-    embargo = EmbargoEvent(
+    embargo = make(
+        EmbargoEvent,
         id_=f"{CASE_ID}/embargoes/shared-table",
         context=CASE_ID,
         end_time=days_from_now(45),
@@ -330,7 +339,8 @@ class TestSenderMustBeAParticipant:
 
 def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
     """Deliver ``Add(ParticipantStatus)`` declaring *rm* for the sender."""
-    status = as_ParticipantStatus(
+    status = make(
+        as_ParticipantStatus,
         id_=f"{PARTICIPANT_ID}/statuses/declared-{rm.name.lower()}",
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -339,8 +349,11 @@ def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
     dl.create(status)
     activity = add_status_to_participant_activity(
         status=status,
-        target=as_CaseParticipant(
-            id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+        target=make(
+            as_CaseParticipant,
+            id_=PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
         ),
         actor=ACTOR_ID,
         to=[CASE_MANAGER_ID],
@@ -496,7 +509,8 @@ def _status_declaration(
     *sender_id* sends it to *to*: the participant itself to the CASE_MANAGER
     by default, or the CASE_MANAGER relaying it to a replica (PCR-03-001).
     """
-    status = as_ParticipantStatus(
+    status = make(
+        as_ParticipantStatus,
         id_=f"{PARTICIPANT_ID}/statuses/declared-{rm.name.lower()}",
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -504,8 +518,11 @@ def _status_declaration(
     )
     return status, add_status_to_participant_activity(
         status=status,
-        target=as_CaseParticipant(
-            id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+        target=make(
+            as_CaseParticipant,
+            id_=PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
         ),
         actor=sender_id,
         to=[to],

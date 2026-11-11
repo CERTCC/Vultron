@@ -25,6 +25,7 @@ import pytest
 
 from test.support.act_clock import recorded_clock_reads
 from test.support.act_runner import in_act
+from test.support.objects import make
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.base import CoreObject
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -47,9 +48,10 @@ def _proposal() -> CreateCaseProposalReceivedEvent:
     return CreateCaseProposalReceivedEvent(
         activity_id="https://example.org/activities/create-proposal",
         actor_id=_REPORTER,
-        proposer_profile=VultronOrganization(id_=_REPORTER),
-        inner_object=CoreObject(id_=_REPORT),
-        proposed_embargo=EmbargoEvent(
+        proposer_profile=make(VultronOrganization, id_=_REPORTER),
+        inner_object=make(CoreObject, id_=_REPORT),
+        proposed_embargo=make(
+            EmbargoEvent,
             id_="https://example.org/embargoes/proposed",
             context=_REPORT,
             start_time=_END - timedelta(days=90),

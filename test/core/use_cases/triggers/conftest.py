@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -46,7 +47,7 @@ def actor_store() -> Iterator[Any]:
     stores: list[SqliteDataLayer] = []
 
     def _make(name: str) -> tuple[as_Service, SqliteDataLayer]:
-        actor = as_Service(name=name)
+        actor = make(as_Service, name=name)
         reset_datalayer(actor.id_)
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
         dl.clear_all()

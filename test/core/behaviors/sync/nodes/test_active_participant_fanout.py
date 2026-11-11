@@ -22,8 +22,10 @@ import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
 )
@@ -57,7 +59,8 @@ def _participant(
     *,
     joined: bool = True,
 ) -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         joined=joined,
         attributed_to=actor_id,
         context=case_id,
@@ -66,7 +69,8 @@ def _participant(
             EmbargoConsent(embargo_id=embargo_id, state=consent)
         ],
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=case_id,
                 attributed_to=actor_id,
                 rm=RmDimension(state=rm_state),
@@ -90,12 +94,15 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
     The invitee is also ``INVITED``, so either fact alone excludes it.
     """
     scenario = BTTestScenario(actor_id=MANAGER_ID)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="Active fan-out",
         stub_summary="Security issue — active fan-out test",
         attributed_to=MANAGER_ID,
     )
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
+    embargo = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
+    )
     activate(case, embargo.id_)
     participants = {
         MANAGER_ID: _participant(
@@ -146,10 +153,13 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
 
     result = scenario.run(
         CollectLogEntryRecipientsNode(case_id=case.id_),
-        log_entry=CaseLedgerEntry(
+        log_entry=make(
+            CaseLedgerEntry,
             case_id=case.id_,
             log_object_id=f"{case.id_}/events/status-1",
             semantic_type="add_participant_status",
+            received_at=ACT_AT,
+            published=ACT_AT,
         ),
     )
 

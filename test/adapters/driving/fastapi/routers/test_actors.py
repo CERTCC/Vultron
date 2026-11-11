@@ -21,6 +21,7 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.signing import signed_body
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -144,8 +145,8 @@ def test_non_post_on_inbox_path_returns_405(
 @pytest.mark.spec("HTTP-03-003")
 def test_post_activity_to_actor_inbox_accepted(client_actors, created_actors):
     for actor in created_actors:
-        note = as_Note(content="This is a test note.")
-        activity = as_Create(object_=note, actor=actor.id_)
+        note = make(as_Note, content="This is a test note.")
+        activity = make(as_Create, object_=note, actor=actor.id_)
         payload = signed_body(jsonable_encoder(activity, exclude_none=True))
         resp = client_actors.post(
             f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
@@ -158,8 +159,8 @@ def test_post_non_activity_to_actor_inbox_returns_422(
     client_actors, created_actors
 ):
     for actor in created_actors:
-        note = as_Note(
-            id_="urn:uuid:test-note", content="This is a test note."
+        note = make(
+            as_Note, id_="urn:uuid:test-note", content="This is a test note."
         )
         payload = jsonable_encoder(note, exclude_none=True)
         resp = client_actors.post(
@@ -360,7 +361,9 @@ def test_an_activity_in_its_types_form_is_scheduled_for_processing(
     """The contrast case: a well-formed activity reaches the processing path."""
     scheduled = _record_scheduled_pipelines(monkeypatch)
     actor = created_actors[0]
-    activity = as_Create(object_=as_Note(content="hello"), actor=actor.id_)
+    activity = make(
+        as_Create, object_=make(as_Note, content="hello"), actor=actor.id_
+    )
     resp = client_actors.post(
         _inbox_path(actor.id_),
         json=signed_body(jsonable_encoder(activity, exclude_none=True)),
@@ -380,7 +383,9 @@ def test_an_accepted_delivery_is_answered_with_an_empty_202(
     profile names (OX-12-009), ``/inbox/`` the documented one.
     """
     actor = created_actors[0]
-    activity = as_Create(object_=as_Note(content="hello"), actor=actor.id_)
+    activity = make(
+        as_Create, object_=make(as_Note, content="hello"), actor=actor.id_
+    )
     resp = client_actors.post(
         f"/actors/{_route_key(actor.id_)}{path_suffix}",
         json=signed_body(jsonable_encoder(activity, exclude_none=True)),
@@ -421,7 +426,9 @@ def test_a_refused_delivery_carries_the_error_body(
 
 
 def _create_note_body(actor_id: str) -> str:
-    activity = as_Create(object_=as_Note(content="hello"), actor=actor_id)
+    activity = make(
+        as_Create, object_=make(as_Note, content="hello"), actor=actor_id
+    )
     return json.dumps(
         signed_body(jsonable_encoder(activity, exclude_none=True))
     )
@@ -555,7 +562,9 @@ def test_get_actor_profile_publishes_the_inbox_its_record_states(
     stated = "https://boxes.example/stated-inbox"
     get_datalayer(actor_id, db_url="sqlite:///:memory:").create(
         object_to_record(
-            VultronOrganization(id_=actor_id, name="Stated", inbox=stated)
+            make(
+                VultronOrganization, id_=actor_id, name="Stated", inbox=stated
+            )
         )
     )
 
@@ -598,8 +607,8 @@ def test_post_inbox_returns_400_when_activity_addressed_to_other_actor(
     actor = created_actors[0]
     other_id = created_actors[1].id_
 
-    note = as_Note(content="not for you")
-    activity = as_Create(object_=note, actor=other_id)
+    note = make(as_Note, content="not for you")
+    activity = make(as_Create, object_=note, actor=other_id)
     object.__setattr__(
         activity, "to", other_id
     )  # explicitly addressed to a different actor
@@ -625,8 +634,8 @@ def test_a_misaddressed_activity_writes_nothing_to_the_receivers_store(
         return frozenset(records), dl.inbox_list(), dl.outbox_list()
 
     before = _snapshot()
-    note = as_Note(content="not for you")
-    activity = as_Create(object_=note, actor=other_id)
+    note = make(as_Note, content="not for you")
+    activity = make(as_Create, object_=note, actor=other_id)
     object.__setattr__(activity, "to", other_id)
 
     payload = signed_body(jsonable_encoder(activity, exclude_none=True))
@@ -647,8 +656,8 @@ def test_post_inbox_returns_202_when_activity_addressed_to_actor(
     """AC-2/IE-11-001: Activity explicitly addressed to receiving actor → 202."""
     actor = created_actors[0]
 
-    note = as_Note(content="this is for you")
-    activity = as_Create(object_=note, actor=actor.id_)
+    note = make(as_Note, content="this is for you")
+    activity = make(as_Create, object_=note, actor=actor.id_)
     object.__setattr__(activity, "to", actor.id_)
 
     payload = signed_body(jsonable_encoder(activity, exclude_none=True))
@@ -664,8 +673,8 @@ def test_post_inbox_returns_202_when_activity_has_no_addressing(
     """AC-3/IE-11-002: Activity with absent addressing → Liberal Accept → 202."""
     actor = created_actors[0]
 
-    note = as_Note(content="no addressing")
-    activity = as_Create(object_=note, actor=actor.id_)
+    note = make(as_Note, content="no addressing")
+    activity = make(as_Create, object_=note, actor=actor.id_)
     # no to/cc/bto/bcc set
 
     payload = signed_body(jsonable_encoder(activity, exclude_none=True))
@@ -698,13 +707,15 @@ def test_get_actors_does_not_log_raw_records_at_info_level(
 
 def _seed_action_rules_data(dl):
     """Insert a minimal valid VulnerabilityCase / as_CaseParticipant pair."""
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         id_=_URN_PARTICIPANT_ID,
         attributed_to=_LOCAL_ACTOR_ID,
         context=_URN_CASE_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 context=_URN_CASE_ID,
                 rm=RmDimension(state=RM.ACCEPTED),
                 vf=VfDimension(state=CS_vf.VF),
@@ -713,12 +724,14 @@ def _seed_action_rules_data(dl):
     )
     dl.create(participant)
 
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_URN_CASE_ID,
         name="Test Case",
         case_statuses=[
-            CaseStatus(
+            make(
+                CaseStatus,
                 context=_URN_CASE_ID,
                 em=EmDimension(state=EM.ACTIVE),
                 pxa=PxaDimension(state=CS_pxa.Pxa),
@@ -801,7 +814,7 @@ def test_get_action_rules_maps_a_bare_uuid_segment_to_the_urn_actor(
     store = get_datalayer(
         canonical_actor_uri(bare), db_url="sqlite:///:memory:"
     )
-    store.create(as_Person(id_=urn_actor_id))
+    store.create(make(as_Person, id_=urn_actor_id))
     _seed_action_rules_data(store)
 
     resp = client_actors.get(
@@ -1253,7 +1266,7 @@ def test_get_actor_by_final_path_segment_returns_actor(client_actors):
     from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
     actor_id = canonical_actor_uri("vendor-with-path")
-    actor = as_Organization(id_=actor_id, name="VendorActor")
+    actor = make(as_Organization, id_=actor_id, name="VendorActor")
     get_datalayer(actor_id, db_url="sqlite:///:memory:").create(
         object_to_record(actor)
     )

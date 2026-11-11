@@ -34,6 +34,7 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
 )
@@ -70,13 +71,13 @@ ROLES = [
 
 
 def _scenario(roles: list[CVDRole], embargo: bool) -> BTTestScenario:
-    case = VulnerabilityCase(
-        id_=CASE_ID, name="Case", attributed_to=MANAGER_ID
+    case = make(
+        VulnerabilityCase, id_=CASE_ID, name="Case", attributed_to=MANAGER_ID
     )
     if embargo:
         activate(case, EMBARGO_ID)
     s = BTTestScenario(actor_id=MANAGER_ID).seed(
-        VultronService(id_=MANAGER_ID, name="Manager"), case
+        make(VultronService, id_=MANAGER_ID, name="Manager"), case
     )
     s.assert_success(
         s.run(

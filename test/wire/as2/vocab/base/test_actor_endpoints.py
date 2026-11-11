@@ -32,6 +32,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     clock as helpers_clock,
@@ -97,7 +98,7 @@ def _arrival_shapes(field_name: str) -> dict[str, dict[str, Any]]:
         },
         # What the parser hands over for an inline id-less collection: a
         # model whose ``id_`` came from ``default_factory``, never set.
-        "idless-collection-model": {field_name: as_OrderedCollection()},
+        "idless-collection-model": {field_name: make(as_OrderedCollection)},
     }
 
 
@@ -186,8 +187,11 @@ def test_a_hosted_actor_publishes_the_endpoints_it_states(field_name):
     (ISSUE-3616); the actor this node hosts states the ones this node routes
     for it (``hosted_endpoints``).
     """
-    actor = VultronOrganization(
-        id_=ACTOR_ID, name="Alice", **hosted_endpoints(ACTOR_ID)
+    actor = make(
+        VultronOrganization,
+        id_=ACTOR_ID,
+        name="Alice",
+        **hosted_endpoints(ACTOR_ID),
     )
 
     expected = f"{ACTOR_ID}/{field_name}"
@@ -206,8 +210,11 @@ def test_core_actor_reads_an_empty_endpoint_as_absent(field_name, empty):
     )
     assert getattr(built, field_name) is None
 
-    actor = VultronOrganization(
-        id_=ACTOR_ID, name="Alice", **hosted_endpoints(ACTOR_ID)
+    actor = make(
+        VultronOrganization,
+        id_=ACTOR_ID,
+        name="Alice",
+        **hosted_endpoints(ACTOR_ID),
     )
 
     setattr(actor, field_name, empty)
@@ -390,7 +397,9 @@ def test_actor_round_trips_across_a_clock_tick(actor_cls, dump, monkeypatch):
     URI-only form the datalayer hands back and the ``to_json()`` form a peer
     receives.
     """
-    actor = actor_cls(id_=ACTOR_ID, name="Alice", **hosted_endpoints(ACTOR_ID))
+    actor = make(
+        actor_cls, id_=ACTOR_ID, name="Alice", **hosted_endpoints(ACTOR_ID)
+    )
     as_stored = dump(actor)
     monkeypatch.setattr(
         helpers_clock,

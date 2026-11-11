@@ -40,8 +40,10 @@ from test.core.use_cases.received.test_joiner_revision_relay import (
     JOINER,
     _join,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import activate, reject
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -309,7 +311,9 @@ def test_an_inert_joiner_is_resent_its_invites_and_still_refused(
     assert result.disposition is HandlerDisposition.REFUSED
     assert "not an active participant" in (result.reason or "")
     assert "SYNC-17-002" in (result.reason or "")
-    state_id = VultronReplicationState(case_id=case_id, peer_id=JOINER).id_
+    state_id = VultronReplicationState(
+        case_id=case_id, peer_id=JOINER, updated_at=ACT_AT
+    ).id_
     assert dl.read(state_id) is None
     queued = dl.outbox_list()
     assert _embargo_invite(dl) in queued
@@ -365,7 +369,8 @@ def test_a_closed_or_off_roster_peer_is_owed_nothing(make_payload):
         CaseParticipant, dl.read(case.actor_participant_index[JOINER])
     )
     record.participant_statuses = [
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             context=case_id,
             attributed_to=JOINER,
             rm=RmDimension(state=RM.CLOSED),

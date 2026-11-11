@@ -26,6 +26,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.objects import make
 from vultron.demo.helpers import seeding
 from vultron.demo.helpers.seeding import actors as seeding_actors
 from vultron.wire.as2.vocab.base.objects.actors import (
@@ -47,9 +48,15 @@ def _ca_client() -> MagicMock:
 @pytest.mark.spec("AKM-05-005")
 def test_every_seeded_actor_is_registered_with_the_case_actor():
     actors = [
-        as_Person(id_="http://reporter:7999/api/v2/actors/r", name="Reporter"),
-        as_Organization(
-            id_="http://vendor:7999/api/v2/actors/v", name="Vendor"
+        make(
+            as_Person,
+            id_="http://reporter:7999/api/v2/actors/r",
+            name="Reporter",
+        ),
+        make(
+            as_Organization,
+            id_="http://vendor:7999/api/v2/actors/v",
+            name="Vendor",
         ),
     ]
     with patch.object(seeding_actors, "seed_peer") as seed_peer:
@@ -71,7 +78,7 @@ def test_every_seeded_actor_is_registered_with_the_case_actor():
 
 def test_no_case_actor_client_registers_nothing():
     with patch.object(seeding_actors, "seed_peer") as seed_peer:
-        seeding.seed_case_actor_peers(None, [as_Actor(id_="http://x/a")])
+        seeding.seed_case_actor_peers(None, [make(as_Actor, id_="http://x/a")])
     seed_peer.assert_not_called()
 
 
@@ -81,7 +88,7 @@ def test_a_nameless_actor_is_refused():
         pytest.raises(ValueError, match="no name"),
     ):
         seeding.seed_case_actor_peers(
-            _ca_client(), [as_Actor(id_="http://x/a")]
+            _ca_client(), [make(as_Actor, id_="http://x/a")]
         )
 
 

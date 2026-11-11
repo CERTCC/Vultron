@@ -24,6 +24,7 @@ related_notes:
   - archived_notes/federation_ideas.md
   - notes/case-ledger-genesis-hardening.md
   - notes/case-actor-cluster.md
+  - notes/act-instant.md
 ---
 
 # Signing and encryption implementation notes
@@ -82,6 +83,12 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   to `sign_as_author`, which refuses an activity whose `actor` names anyone
   else with `VultronForeignAuthorError` before signing or storing. Never
   sign through a store that is not the author's, and never add a fallback.
+- **A proof is created at its activity's `published`, never a clock read.**
+  `sign` takes `created` as a required argument, and `sign_as_author` passes
+  the document's `published`, the instant of the act that wrote it
+  (ADR-0176). So one activity seals to one proof on every run (SIG-05-001)
+  and a seal moves no recording clock. A body with no valid `published` is
+  refused, never stamped with a fresh time.
 - **`actor` is the signer; `attributed_to` is the initiator** (SIG-05-005).
   An actor that sends on another's behalf, such as the CASE_MANAGER recording
   a status the case owner set, names itself as `actor` and carries the owner
@@ -192,9 +199,10 @@ The rules are SIG-01 to SIG-05; these notes say how to build them.
   outbox signs (SIG-05-004). The one other signer is the docs example
   renderer (`json2md`, `obj_to_file` in `vocab/examples/_base.py`), which
   signs a documentation example, a body no server sends, only as that
-  example's own `actor`, with `created` fixed to `EXAMPLE_TIMESTAMP`, through
-  `signing.sign_docs_example`; Ed25519 is deterministic, so a regeneration
-  writes the same bytes. `test/architecture/test_seeded_signer_callers.py`
+  example's own `actor`, through `signing.sign_docs_example`. Its `created` is
+  the example's `published`, as on the outbox path, and every example is
+  stamped with `EXAMPLE_TIMESTAMP`; Ed25519 is deterministic, so a
+  regeneration writes the same bytes. `test/architecture/test_seeded_signer_callers.py`
   lists every `vultron/` module that makes a proof or computes a seeded key,
   so a third caller fails there until it is reviewed; it counts any reference,
   not only a call, and keeps the helpers that sign as whatever actor they are

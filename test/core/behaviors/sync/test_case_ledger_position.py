@@ -28,11 +28,13 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from test.adapters.driven.test_sqlite_core_roundtrip import _insert_raw_row
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.ledger import (
     case_snapshot_position_violations,
     checking_each_commit,
 )
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import STORED_ROW_CONTEXT
 from vultron.core.behaviors.bridge import BTBridge
@@ -61,7 +63,7 @@ CASE_ID = "https://example.org/cases/position"
 
 
 def _case(**fields: Any) -> VulnerabilityCase:
-    return VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER, **fields)
+    return make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER, **fields)
 
 
 def _entry(
@@ -75,6 +77,7 @@ def _entry(
             semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev,
+            received_at=ACT_AT,
         )
     )
 
@@ -366,6 +369,7 @@ def test_the_snapshot_check_reads_a_case_in_either_slot(slot: str) -> None:
             semantic_type="test_event",
             payload_snapshot={"actor": OWNER, slot: carried},
             prev_log_hash=case.genesis_hash,
+            received_at=ACT_AT,
         )
     )
 

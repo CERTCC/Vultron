@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.objects import make
 from vultron.demo.helpers import notes
 from vultron.demo.helpers.coordinated_story import (
     continuations as coordinated_continuations,
@@ -447,7 +448,7 @@ def test_the_timeline_fragment_gates_its_thread_on_the_vendors_replica() -> (
     from vultron.demo.helpers import coordinated_story
 
     state = story_state("reporter", "coordinator", "vendor", case=mock_case())
-    answer = as_Note(name="Coordinator Summary", content="x")
+    answer = make(as_Note, name="Coordinator Summary", content="x")
 
     with patch.object(
         coordinated_opening, "gated_note_thread", return_value=answer

@@ -15,10 +15,11 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.report_management.assign_vul_id.assignment import (
+    AssignIdCapability,
+    IdAssignableCapability,
+    IdAssignedCapability,
+    RequestIdCapability,
 )
 from vultron.demo.fuzzer.base import (
     AlwaysSucceed,
@@ -27,15 +28,13 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import (
-    ComposerCallOutPoint,
-    EvaluatorCallOutPoint,
-    RetrieverCallOutPoint,
-)
 
 
-class IdAssigned(RetrieverCallOutPoint, UsuallyFail):
+class IdAssigned(IdAssignedCapability, UsuallyFail):
     """Check whether the vulnerability has already been assigned an identity.
+
+    Simulates :class:`IdAssignedCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Environmental condition — verify that a vulnerability identifier (such
@@ -44,14 +43,6 @@ class IdAssigned(RetrieverCallOutPoint, UsuallyFail):
         the CVE database.  The fuzzer models the common case where the
         workflow has not yet assigned an ID (i.e., the condition fails most of
         the time), so that subsequent ID-assignment steps are exercised.
-
-    Store-held answer (BT-18-039): **cannot** — the case file has no field
-    for an assigned identifier, so no read-first guard precedes it (see
-    ``AssignCveIdCallOutBundle.id_assigned_factory``).
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries an external ID registry)
-      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 
@@ -62,8 +53,11 @@ class IdAssigned(RetrieverCallOutPoint, UsuallyFail):
     """
 
 
-class IdAssignable(EvaluatorCallOutPoint, ProbablySucceed):
+class IdAssignable(IdAssignableCapability, ProbablySucceed):
     """Check whether the vulnerability qualifies for an ID assignment.
+
+    Simulates :class:`IdAssignableCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Environmental condition — evaluate whether the vulnerability meets the
@@ -74,10 +68,6 @@ class IdAssignable(EvaluatorCallOutPoint, ProbablySucceed):
         may be in scope for an ID space yet not assignable by the current
         party.
 
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates vulnerability attributes from caller's DataLayer)
-      Output keys: id_assignable_verdict: str  (yes only)
-
     Input category: Environmental check.
 
     Success probability: 0.6667 (``ProbablySucceed``).
@@ -87,10 +77,6 @@ class IdAssignable(EvaluatorCallOutPoint, ProbablySucceed):
     organizational metadata; edge cases or out-of-scope products may still
     require human review.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"id_assignable_verdict": str}
-    )
 
 
 class IsIDAssignmentAuthority(OftenSucceed):
@@ -113,8 +99,11 @@ class IsIDAssignmentAuthority(OftenSucceed):
     """
 
 
-class RequestId(RetrieverCallOutPoint, UsuallySucceed):
+class RequestId(RequestIdCapability, UsuallySucceed):
     """Request a Vulnerability ID assignment from an external authority.
+
+    Simulates :class:`RequestIdCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — submit a request for a VUL ID to the applicable assignment
@@ -122,14 +111,6 @@ class RequestId(RetrieverCallOutPoint, UsuallySucceed):
         relevant CNA.  In production this step may be automatable via an API
         call, or may involve prompting a human operator to file the request
         manually.
-
-    Store-held answer (BT-18-039): **cannot** — it asks an outside
-    authority for a new identifier, which nothing in the case file or the
-    actor's store holds before the answer.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — submits request to external ID authority)
-      Output keys: assigned_id: str  (yes only)
 
     Input category: System integration.
 
@@ -140,13 +121,12 @@ class RequestId(RetrieverCallOutPoint, UsuallySucceed):
     request without human intervention in most cases.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"assigned_id": str}
-    )
 
-
-class AssignId(ComposerCallOutPoint, AlwaysSucceed):
+class AssignId(AssignIdCapability, AlwaysSucceed):
     """Assign a Vulnerability ID directly to the vulnerability.
+
+    Simulates :class:`AssignIdCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — record the assignment of a VUL ID (e.g., a CVE ID) to the
@@ -154,10 +134,6 @@ class AssignId(ComposerCallOutPoint, AlwaysSucceed):
         itself an ID assignment authority.  In production this may be an
         automated internal allocation from a pre-reserved ID pool or an API
         call to the local ID management system.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: assigned_vul_id: str  (yes only)
 
     Input category: System integration.
 
@@ -167,7 +143,3 @@ class AssignId(ComposerCallOutPoint, AlwaysSucceed):
     internal tracking system is fully automatable; no human involvement is
     required once the allocation decision is made.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"assigned_vul_id": str}
-    )

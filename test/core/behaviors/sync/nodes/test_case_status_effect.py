@@ -34,8 +34,10 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, terminate
+from test.support.objects import make
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.sync.nodes.case_status_effect import (
     ApplyCaseStatusFromLedgerNode,
@@ -53,7 +55,8 @@ EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
 
 
 def _case_status(em: EM, pxa: CS_pxa, **fields: Any) -> CaseStatus:
-    return CaseStatus(
+    return make(
+        CaseStatus,
         context=CASE_ID,
         attributed_to=MANAGER,
         em=EmDimension(state=em),
@@ -73,7 +76,7 @@ def _register_at(case: VulnerabilityCase, em: EM) -> None:
 
 def _seed(datalayer, em: EM = EM.ACTIVE, pxa: CS_pxa = CS_pxa.pxa):
     current = _case_status(em, pxa)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     _register_at(case, em)
     case.case_statuses = []
     case.add_case_status(current)
@@ -110,6 +113,7 @@ def _apply(bridge, status_object: Any):
                 "object": status_object,
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
     return run_tree(
@@ -296,7 +300,7 @@ def test_a_status_with_no_materialized_one_to_compare_is_appended(
     status is appended as recorded.
     """
     unresolved = "urn:uuid:unresolved-status"
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     _register_at(case, EM.ACTIVE)
     case.case_statuses = [unresolved]
     datalayer.save(case)

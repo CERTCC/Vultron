@@ -21,6 +21,7 @@ Fixtures (dl) come from conftest.
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.factories import rm_submit_report_activity
 
@@ -35,7 +36,8 @@ def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Test CVE",
         content="A critical vulnerability",
         attributed_to="https://example.org/finder",
@@ -63,7 +65,8 @@ def test_activity_nested_object_retrievable_separately_after_dehydration(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Test CVE 2",
         content="Another vulnerability",
         attributed_to="https://example.org/finder",
@@ -92,7 +95,8 @@ def test_reading_activity_back_yields_expanded_nested_object(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Test CVE 3",
         content="Yet another vulnerability",
         attributed_to="https://example.org/finder",
@@ -118,7 +122,8 @@ def test_rehydration_restores_nested_object_from_datalayer(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Test CVE 4",
         content="One more vulnerability",
         attributed_to="https://example.org/finder",
@@ -146,7 +151,8 @@ def test_rehydration_does_not_mutate_stored_record(dl):
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Test CVE 5",
         content="Final vulnerability",
         attributed_to="https://example.org/finder",
@@ -187,9 +193,10 @@ def test_hydrate_expands_list_ref_field(dl):
     )
 
     case_actor_id = "https://example.org/actors/case-actor-hydrate"
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
 
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         case_roles=[CVDRole.CASE_MANAGER],
         attributed_to=case_actor_id,
         context=case.id_,
@@ -222,8 +229,9 @@ def test_hydrate_leaves_already_expanded_participants_unchanged(dl):
     )
 
     case_actor_id = "https://example.org/actors/case-actor-noop"
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
-    participant = as_CaseParticipant(
+    case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
+    participant = make(
+        as_CaseParticipant,
         case_roles=[CVDRole.CASE_MANAGER],
         attributed_to=case_actor_id,
         context=case.id_,
@@ -246,7 +254,7 @@ def test_hydrate_keeps_unresolvable_string_ids(dl):
     )
 
     missing_id = "urn:uuid:00000000-0000-0000-0000-000000000000"
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
     object.__setattr__(case, "case_participants", [missing_id])
     dl.save(case)
 
@@ -265,7 +273,7 @@ def test_hydrate_warns_for_unresolvable_string_ids(dl, caplog):
     )
 
     missing_id = "urn:uuid:00000000-0000-0000-0000-000000000001"
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case = make(as_VulnerabilityCase, attributed_to=CASE_OWNER_ID)
     object.__setattr__(case, "case_participants", [missing_id])
     dl.save(case)
 

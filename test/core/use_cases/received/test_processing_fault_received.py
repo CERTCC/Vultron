@@ -3,6 +3,7 @@ import logging
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -28,7 +29,8 @@ def test_fault_event_carries_failed_activity_id(make_payload):
     The parse edge extracts it from the fault object at the wire boundary
     (ASK-07-004, ADR-0032), so core never reads the wire object for it.
     """
-    fault = as_ProcessingFault(
+    fault = make(
+        as_ProcessingFault,
         failure_class="https://vultron.example/faults/status-refused",
         in_reply_to=_FAILED_ACTIVITY,
     )
@@ -53,7 +55,7 @@ def test_fault_without_in_reply_to_is_logged_as_unnamed(make_payload, caplog):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     activity = create_processing_fault_activity(
         actor=_EMITTER,
-        fault=as_ProcessingFault(failure_class=_STATUS_REFUSED),
+        fault=make(as_ProcessingFault, failure_class=_STATUS_REFUSED),
         to=[_RECEIVER],
     )
     event = make_payload(activity, at=dl)
@@ -81,8 +83,10 @@ def test_fault_event_carries_failure_class(make_payload):
     """The parse edge carries the fault's class, which picks the response."""
     activity = create_processing_fault_activity(
         actor=_EMITTER,
-        fault=as_ProcessingFault(
-            failure_class=_CASE_DIVERGED, in_reply_to=_FAILED_ACTIVITY
+        fault=make(
+            as_ProcessingFault,
+            failure_class=_CASE_DIVERGED,
+            in_reply_to=_FAILED_ACTIVITY,
         ),
         to=[_RECEIVER],
     )
@@ -100,7 +104,7 @@ def test_case_diverged_fault_naming_no_announce_is_refused(make_payload):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     activity = create_processing_fault_activity(
         actor=_EMITTER,
-        fault=as_ProcessingFault(failure_class=_CASE_DIVERGED),
+        fault=make(as_ProcessingFault, failure_class=_CASE_DIVERGED),
         to=[_RECEIVER],
     )
 
@@ -126,7 +130,8 @@ def test_received_fault_is_skipped_until_ask_register_exists(make_payload):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     activity = create_processing_fault_activity(
         actor=_EMITTER,
-        fault=as_ProcessingFault(
+        fault=make(
+            as_ProcessingFault,
             failure_class="https://vultron.example/faults/status-refused",
             in_reply_to=_FAILED_ACTIVITY,
         ),
@@ -155,7 +160,8 @@ def test_received_fault_is_logged_naming_its_sender_and_fault(
     correctly (CLP-04-008).
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
-    fault = as_ProcessingFault(
+    fault = make(
+        as_ProcessingFault,
         failure_class=_CASE_DIVERGED,
         in_reply_to=_FAILED_ACTIVITY,
     )
@@ -194,7 +200,8 @@ def test_a_create_without_a_parsed_fault_is_refused_at_the_parse_edge():
         as_Create,
     )
 
-    activity = as_Create(
+    activity = make(
+        as_Create,
         actor=_EMITTER,
         object_="https://example.org/objects/not-a-fault",
         to=[_RECEIVER],
@@ -233,8 +240,10 @@ def test_a_fault_about_a_report_not_held_is_answered_with_nothing(
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     activity = create_processing_fault_activity(
         actor=_EMITTER,
-        fault=as_ProcessingFault(
-            failure_class=failure_class, in_reply_to=_UNKNOWN_REPORT_OFFER
+        fault=make(
+            as_ProcessingFault,
+            failure_class=failure_class,
+            in_reply_to=_UNKNOWN_REPORT_OFFER,
         ),
         to=[_RECEIVER],
     )

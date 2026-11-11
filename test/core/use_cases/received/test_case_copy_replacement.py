@@ -26,6 +26,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, received_event
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
@@ -283,7 +284,9 @@ def _noted(case_id: str) -> tuple[LedgerNetwork, str]:
     """A network whose CASE_MANAGER committed the bystander's note; the
     owner's replica has not received the entry."""
     net = LedgerNetwork(case_id, em_state=EM.NONE)
-    net.stores[BYSTANDER].create(as_Service(id_=BYSTANDER, name="Vendor B"))
+    net.stores[BYSTANDER].create(
+        make(as_Service, id_=BYSTANDER, name="Vendor B")
+    )
     result = run_in_act(
         SvcAddNoteToCaseUseCase(
             net.stores[BYSTANDER],

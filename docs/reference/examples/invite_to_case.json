@@ -8,6 +8,8 @@
   "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/invitation/1",
   "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a/stub",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're inviting you to participate in VendorCo Case #20260601.",
   "to": "https://vultron.example/organizations/coordinator",
   "actor": "https://vultron.example/organizations/vendorco",
@@ -45,6 +47,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z2SHHKsLorZK3VZ512B5zoaPfyRryn8rMh2wC5coA17nhHuc7WXwS6d61MJGWMagNpXgoCNX9mGZ2hpYtVJrKd82k"
+    "proofValue": "z45XcTrwfpRP7xzMxMdRU63bzxRDet5AmFLg4F2JKpcgb21tsi2d5LiMvVxziiKALsQcuGwaExzeZL9ZQh8xgzfAi"
   }
 }

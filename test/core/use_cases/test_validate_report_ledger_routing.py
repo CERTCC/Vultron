@@ -48,6 +48,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import with_evidence
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -128,9 +129,12 @@ def _make_case_at_received(
     Returns:
         (case, offer) — both persisted in *dl*.
     """
-    report_obj = as_VulnerabilityReport(id_=report_id, name="Test Vul Report")
+    report_obj = make(
+        as_VulnerabilityReport, id_=report_id, name="Test Vul Report"
+    )
     dl.save(report_obj)
-    offer = as_Offer(
+    offer = make(
+        as_Offer,
         actor=finder_id,
         object_=report_obj.id_,
         target=vendor_id,
@@ -146,7 +150,8 @@ def _make_case_at_received(
 
     embargo_id = f"{vendor_id}/embargoes/test-embargo"
     case_id = f"{vendor_id}/cases/test-case-received"
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="Test Case at Received",
         attributed_to=vendor_id,
@@ -155,12 +160,14 @@ def _make_case_at_received(
     )
     dl.create(case)
 
-    case_actor = as_Service(
+    case_actor = make(
+        as_Service,
         name="Case Actor Service",
         context=case_id,
     )
     dl.create(case_actor)
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor.id_,
         context=case_id,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -173,12 +180,14 @@ def _make_case_at_received(
     # case replica — what Create(VulnerabilityCase) delivers (ADR-0041,
     # CBT-01-002).  Absent that, the validate-report BT refuses to act instead
     # of latching a transition that never happened (ISSUE-2548).
-    vendor_participant = as_CaseParticipant(
+    vendor_participant = make(
+        as_CaseParticipant,
         attributed_to=vendor_id,
         context=case_id,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=vendor_id,
                 context=case_id,
                 rm=RmDimension(state=RM.RECEIVED),
@@ -202,12 +211,14 @@ def _add_participant_at_received(
 
     The caller saves *case* afterwards.
     """
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=actor_id,
                 context=case.id_,
                 rm=RmDimension(state=RM.RECEIVED),
@@ -274,8 +285,8 @@ class TestTriggerEmitsToCaseActorOutbox:
     ) -> tuple[SqliteDataLayer, VulnerabilityCase, as_Offer, str]:
         """Return (dl, case, offer, case_actor_id) after BT receive-report."""
         dl = _make_dl(self.VENDOR_ID)
-        vendor = as_Service(id_=self.VENDOR_ID, name="Vendor")
-        finder = as_Service(id_=self.FINDER_ID, name="Finder")
+        vendor = make(as_Service, id_=self.VENDOR_ID, name="Vendor")
+        finder = make(as_Service, id_=self.FINDER_ID, name="Finder")
         dl.save(vendor)
         dl.save(finder)
         case, offer = _make_case_at_received(
@@ -411,7 +422,8 @@ class TestCaseActorReceivedWritesLedgerEntry:
 
         # The CaseActor Service must have context=case_id so that
         # _find_case_actor_id resolves it via the Service scan.
-        case_actor_svc = VultronService(
+        case_actor_svc = make(
+            VultronService,
             id_=self.CASE_ACTOR_ID,
             context=self.CASE_ID,
         )
@@ -423,7 +435,8 @@ class TestCaseActorReceivedWritesLedgerEntry:
         # writes anything, so an embargo-eligible replica missing the embargo
         # blocks the RM.VALID transition outright rather than latching a phantom
         # report-phase record (DUR-07-004, ISSUE-2548).
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=self.CASE_ID,
             name="Ledger Routing Test Case",
             attributed_to=self.CASE_ACTOR_ID,
@@ -437,7 +450,8 @@ class TestCaseActorReceivedWritesLedgerEntry:
         if pxa is not CS_pxa.pxa:
             case.append_case_status(ACT_AT, pxa=pxa)
 
-        cm_participant = as_CaseParticipant(
+        cm_participant = make(
+            as_CaseParticipant,
             attributed_to=self.CASE_ACTOR_ID,
             context=self.CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -580,8 +594,9 @@ class TestCaseActorReceivedWritesLedgerEntry:
             receiving_actor_id = self.CASE_ACTOR_ID
 
         # The inner Offer carries the as_VulnerabilityReport.
-        report_obj = VulnerabilityReport(id_=self.REPORT_ID)
-        offer_obj = VultronActivity(
+        report_obj = make(VulnerabilityReport, id_=self.REPORT_ID)
+        offer_obj = make(
+            VultronActivity,
             id_=self.OFFER_ID,
             type_="Offer",
             actor=self.VENDOR_ID,
@@ -589,7 +604,8 @@ class TestCaseActorReceivedWritesLedgerEntry:
             context=self.CASE_ID,
         )
         # The Accept wraps the Offer.
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_=self.ACCEPT_ID,
             type_="Accept",
             actor=self.VENDOR_ID,
@@ -799,8 +815,8 @@ class TestFullValidateReportLedgerChain:
 
         # ── Step 1: vendor_dl — case at RM.RECEIVED ──────────────────────────
         vendor_dl = _make_dl(self.VENDOR_ID)
-        vendor = as_Service(id_=self.VENDOR_ID, name="Vendor Co")
-        finder = as_Service(id_=self.FINDER_ID, name="Finder Co")
+        vendor = make(as_Service, id_=self.VENDOR_ID, name="Vendor Co")
+        finder = make(as_Service, id_=self.FINDER_ID, name="Finder Co")
         vendor_dl.save(vendor)
         vendor_dl.save(finder)
 
@@ -856,10 +872,11 @@ class TestFullValidateReportLedgerChain:
         case_actor_dl = _make_dl(case_actor_id)
 
         # The CaseActor Service needs context=case.id_ for _find_case_actor_id.
-        ca_svc = VultronService(id_=case_actor_id, context=case.id_)
+        ca_svc = make(VultronService, id_=case_actor_id, context=case.id_)
         case_actor_dl.save(ca_svc)
 
-        ca_case = as_VulnerabilityCase(
+        ca_case = make(
+            as_VulnerabilityCase,
             id_=case.id_,
             name=case.name or "Test Case",
             attributed_to=case_actor_id,
@@ -868,7 +885,8 @@ class TestFullValidateReportLedgerChain:
         # DUR-07-004: validation needs an embargo in force.  The validation
         # and the received act's entry are one act (CLP-07-015), so a
         # validation that fails keeps no validate_report entry either.
-        embargo = EmbargoEvent(
+        embargo = make(
+            EmbargoEvent,
             id_=f"{ca_case.id_}/embargoes/chain-embargo",
             context=ca_case.id_,
             end_time=days_from_now(45),
@@ -876,7 +894,8 @@ class TestFullValidateReportLedgerChain:
         case_actor_dl.create(embargo)
         activate(ca_case, embargo.id_)
 
-        ca_participant = as_CaseParticipant(
+        ca_participant = make(
+            as_CaseParticipant,
             attributed_to=case_actor_id,
             context=ca_case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -897,8 +916,9 @@ class TestFullValidateReportLedgerChain:
                 report_id=self.REPORT_ID, rm_state=RM.RECEIVED
             )
         )
-        report_obj = VulnerabilityReport(id_=self.REPORT_ID)
-        offer_obj = VultronActivity(
+        report_obj = make(VulnerabilityReport, id_=self.REPORT_ID)
+        offer_obj = make(
+            VultronActivity,
             id_=offer.id_,
             type_="Offer",
             actor=self.FINDER_ID,
@@ -906,7 +926,8 @@ class TestFullValidateReportLedgerChain:
             context=ca_case.id_,
         )
         # The Accept wraps the Offer — canonical signature ("Accept", "Offer").
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_=emitted_id,
             type_="Accept",
             actor=self.VENDOR_ID,

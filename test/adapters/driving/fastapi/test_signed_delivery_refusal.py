@@ -35,6 +35,7 @@ from test.core.use_cases.received._ledger_network import (
     LedgerNetwork,
 )
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from test.support.signing import (
     AcceptingProofVerifier,
     resigned,
@@ -83,7 +84,9 @@ def _owner_note(net: LedgerNetwork, note_id: str) -> dict[str, Any]:
     """The sealed body the owner's adapter builds for a new note."""
     dl = net.stores[OWNER]
     if dl.read(note_id) is None:
-        dl.create(as_Note(id_=note_id, content="signed", context=CASE_ID))
+        dl.create(
+            make(as_Note, id_=note_id, content="signed", context=CASE_ID)
+        )
     _activity_id, body = TriggerActivityAdapter(dl).add_note_to_case(
         note_id=note_id, case_id=CASE_ID, actor=OWNER, to=[MANAGER]
     )
@@ -242,8 +245,11 @@ def test_a_published_key_that_is_no_ed25519_multikey_is_a_proof_refusal(
                 controller=OWNER,
                 public_key_multibase="zNotAKey",
             )
-            return VultronOrganization(
-                id_=OWNER, name="owner", assertion_method=[key]
+            return make(
+                VultronOrganization,
+                id_=OWNER,
+                name="owner",
+                assertion_method=[key],
             )
 
     setattr(
@@ -336,8 +342,11 @@ def test_a_stored_peer_key_is_ignored(
         ).public_key_multibase,
     )
     net.stores[MANAGER].save(
-        VultronOrganization(
-            id_=OWNER, name="owner", assertion_method=[planted]
+        make(
+            VultronOrganization,
+            id_=OWNER,
+            name="owner",
+            assertion_method=[planted],
         )
     )
     body = _owner_note(net, "https://example.org/notes/stored-peer-key")

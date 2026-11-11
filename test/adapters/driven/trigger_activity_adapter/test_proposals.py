@@ -18,6 +18,7 @@ from datetime import timedelta
 
 import pytest
 
+from test.support.objects import make
 from test.support.received import (
     archive_delivered,
     archive_received,
@@ -44,9 +45,11 @@ _CASE_ACTOR = "https://example.org/actors/case-actor"
 
 def _vendor_profile(duration: timedelta) -> VultronOrganization:
     """The sender's own profile, with a published policy of *duration*."""
-    return VultronOrganization(
+    return make(
+        VultronOrganization,
         id_=_VENDOR,
-        embargo_policy=EmbargoPolicy(
+        embargo_policy=make(
+            EmbargoPolicy,
             actor_id=_VENDOR,
             inbox=f"{_VENDOR}/inbox",
             preferred_duration=duration,
@@ -55,7 +58,9 @@ def _vendor_profile(duration: timedelta) -> VultronOrganization:
 
 
 def _make_report(dl) -> as_VulnerabilityReport:
-    report = as_VulnerabilityReport(name="CVE-2025-001", content="PoC details")
+    report = make(
+        as_VulnerabilityReport, name="CVE-2025-001", content="PoC details"
+    )
     dl.create(report)
     return report
 
@@ -102,7 +107,9 @@ class TestCreateCaseProposal:
         """A record under the sender's id that is not an actor profile is a
         fault, not a profile to send, and nothing is persisted."""
         report = _make_report(dl)
-        dl.create(as_VulnerabilityReport(id_=_VENDOR, content="not an actor"))
+        dl.create(
+            make(as_VulnerabilityReport, id_=_VENDOR, content="not an actor")
+        )
 
         with pytest.raises(TypeError, match="CP-01-010"):
             adapter.create_case_proposal(

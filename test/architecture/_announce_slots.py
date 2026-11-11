@@ -30,8 +30,10 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
@@ -84,11 +86,12 @@ def _replica_store(active_embargo: str | None = None) -> SqliteDataLayer:
     With *active_embargo* the case's register holds that embargo in force.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=PROPOSER)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=PROPOSER)
     if active_embargo is not None:
         propose(case, active_embargo)
         activate(case, active_embargo)
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         attributed_to=MANAGER,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -118,6 +121,7 @@ def matching_slots(
             semantic_type=semantic_type,
             payload_snapshot={"context": CASE_ID, **snapshot},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
     matched = []

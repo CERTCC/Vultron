@@ -35,6 +35,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -87,16 +88,21 @@ def _store(
     *active* puts a prior embargo in force, so the proposal is a revision.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
-    case = VulnerabilityCase(
-        id_=_CASE_ID, name="Owner decision", attributed_to=_OWNER
+    case = make(
+        VulnerabilityCase,
+        id_=_CASE_ID,
+        name="Owner decision",
+        attributed_to=_OWNER,
     )
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{_CASE_ID}/embargo_events/proposal",
         context=_CASE_ID,
         end_time=days_from_now(30),
     )
     if active:
-        prior = as_EmbargoEvent(
+        prior = make(
+            as_EmbargoEvent,
             id_=f"{_CASE_ID}/embargo_events/prior",
             context=_CASE_ID,
             end_time=days_from_now(60),

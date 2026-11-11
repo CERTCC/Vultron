@@ -139,16 +139,6 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
 # owner: #5758
 KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
     (
-        "vultron/core/models/_helpers/clock.py",
-        "require_future_aware",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/_helpers/timestamps.py",
-        "claimed_published_iso",
-        "now_utc",
-    ),
-    (
         "vultron/core/models/base/core_object.py",
         "CoreObject.published",
         "now_utc",
@@ -164,79 +154,14 @@ KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
         "now_utc",
     ),
     (
-        "vultron/core/models/case_ledger/record.py",
-        "HashChainLedgerRecord._compute_entry_hash",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/case_ledger/record.py",
-        "HashChainLedgerRecord.received_at",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/case_ledger_entry.py",
-        "CaseLedgerEntry.published",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/case_ledger_entry.py",
-        "CaseLedgerEntry.received_at",
-        "now_utc",
-    ),
-    (
         "vultron/core/models/case_status.py",
         "CaseStatus.published",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/dead_letter.py",
-        "DeadLetterRecord.received_at",
         "now_utc",
     ),
     (
         "vultron/core/models/embargo_event.py",
         "EmbargoEvent.start_time",
         "now_utc",
-    ),
-    (
-        "vultron/core/models/pending_assertion/store.py",
-        "PendingAssertion.emitted_at",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/pending_assertion/store.py",
-        "PendingAssertionStore.expire_timed_out",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/pending_case_inbox.py",
-        "VultronPendingCaseInbox.queued_at",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/received_activity_record.py",
-        "ReceivedActivityRecord.received_at",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/replication_state.py",
-        "VultronReplicationState.updated_at",
-        "now_utc",
-    ),
-    (
-        "vultron/core/use_cases/triggers/request_bodies/actor.py",
-        "OfferCaseOwnershipTransferRequest.end_time_must_be_tz_aware_and_future",
-        "require_future_aware",
-    ),
-    (
-        "vultron/core/use_cases/triggers/request_bodies/embargo.py",
-        "ProposeEmbargoRequest.end_time_must_be_tz_aware_and_future",
-        "require_future_aware",
-    ),
-    (
-        "vultron/core/use_cases/triggers/request_bodies/report.py",
-        "SubmitReportFields.proposed_end_must_be_tz_aware_and_future",
-        "require_future_aware",
     ),
     (
         "vultron/wire/as2/vocab/base/objects/base.py",
@@ -256,11 +181,6 @@ KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
     (
         "vultron/demo/wall_clock.py",
         "from_now",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/signing.py",
-        "sign",
         "now_utc",
     ),
 )
@@ -400,7 +320,7 @@ def reads(clock):
     _t.perf_counter()
     _when.now()
     _now()
-    require_future_aware(end)
+    require_future_aware(end, at=at)
     stamp_after(at, latest)
     deadline_from(at, delta)
     days_after(at, 30)
@@ -421,6 +341,5 @@ def test_the_finder_names_each_read_shape_and_not_a_port_read() -> None:
             ("m.py", "reads", "time.time"): 1,
             ("m.py", "reads", "time.monotonic"): 1,
             ("m.py", "reads", "now_utc"): 1,
-            ("m.py", "reads", "require_future_aware"): 1,
         }
     )

@@ -38,16 +38,14 @@ Ceiling/floor mapping (BT-23-002):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import ClassVar, Final
 
 import py_trees
 
-from vultron.core.behaviors.call_out.answer import (
-    CallOutAnswer,
-    CallOutContract,
-)
-from vultron.core.behaviors.call_out.backend import CallOutBackend
+from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
+from vultron.core.behaviors.call_out.capabilities.report_management.publication.intents import (
+    PrioritizePublicationIntentsCapability,
+)
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 from vultron.core.behaviors.report.publication_intent import (
@@ -60,13 +58,9 @@ def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
     return AlwaysSucceed(name)
 
 
-#: The ``PrioritizePublicationIntents`` capability declaration (ADR-0183).
-PUBLICATION_INTENT_CONTRACT: Final[CallOutContract] = CallOutContract(
-    outputs={INTENT_DECISION_KEY: PublicationIntentDecision}
-)
-
-
-class _DeterministicPrioritizePublicationIntents(CallOutBackend):
+class _DeterministicPrioritizePublicationIntents(
+    PrioritizePublicationIntentsCapability
+):
     """DETERMINISTIC PrioritizePublicationIntents: *yes* with the default intents.
 
     Gives :class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`
@@ -81,16 +75,12 @@ class _DeterministicPrioritizePublicationIntents(CallOutBackend):
     exploit.  A real Evaluator backend overrides these per case policy via
     ``call_out=PUBLICATION_STOCHASTIC`` (or a custom :class:`PublicationCallOutBundle`).
 
-    Blackboard contract (BT-18-001):
-      Output keys: ``publication_intent_decision``: :class:`PublicationIntentDecision`
-        (yes only)
-      Refusal keys: ``call_out_refusal_reason``: ``str`` (no only)
+    It binds to :class:`PrioritizePublicationIntentsCapability`, whose ports
+    are its blackboard contract (BT-18-021).
     """
 
     #: Read-only rate interface parity with the simulation backends.
     success_rate: float = 1.0
-
-    contract: ClassVar[CallOutContract] = PUBLICATION_INTENT_CONTRACT
 
     def answer(self) -> CallOutAnswer:
         return CallOutAnswer.yes(
@@ -151,7 +141,6 @@ to the blackboard. All other factories use :class:`~vultron.core.behaviors.call_
 """
 
 __all__ = [
-    "PUBLICATION_INTENT_CONTRACT",
     "PublicationCallOutBundle",
     "PUBLICATION_DETERMINISTIC",
 ]

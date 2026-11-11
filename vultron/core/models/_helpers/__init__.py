@@ -34,6 +34,7 @@ from vultron.core.models._helpers.clock import (
     deadline_from,
     is_aware,
     now_utc,
+    require_aware,
     require_future_aware,
     stamp_after,
 )
@@ -59,7 +60,6 @@ from vultron.core.models._helpers.inbound import (
 from vultron.core.models._helpers.timestamps import (
     MissingClaimedTimeError,
     as_utc,
-    claimed_published_iso,
     format_timestamp,
     parse_published,
     refuse_absent_published,
@@ -78,7 +78,6 @@ __all__ = [
     "absent_times_as_none",
     "as_utc",
     "blank_times_as_none",
-    "claimed_published_iso",
     "collapse_duplicate_spellings",
     "days_after",
     "deadline_from",
@@ -91,6 +90,7 @@ __all__ = [
     "project_wire_snapshot_to_core",
     "refuse_absent_id",
     "refuse_absent_published",
+    "require_aware",
     "require_future_aware",
     "stamp_after",
     "strip_annotated",

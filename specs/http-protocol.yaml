@@ -77,10 +77,9 @@ groups:
       looser than ActivityPub, so the rule is Vultron's own. A receiver that refuses
       other media types (HTTP-01-003) refuses plain `application/json`.
     verification: >-
-      No check covers this yet: the delivery adapter posts with `Content-Type:
-      application/json` (#3660).
       `test/adapters/driven/test_delivery_media_type.py::test_delivery_posts_an_activitystreams_media_type`
-      is a strict `xfail` until it does.
+      catches a delivery POST at `AsyncClient.send` and fails unless its
+      `Content-Type` names one of the two ActivityStreams media types.
     relationships:
     - rel_type: extends
       spec_id: HTTP-01-001

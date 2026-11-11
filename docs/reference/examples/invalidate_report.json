@@ -8,6 +8,8 @@
   "id": "urn:uuid:ca2ec341-edaa-4457-a200-5a8f1c13ac6b",
   "name": "https://vultron.example/organizations/vendorco TentativeReject https://vultron.example/users/finndervul Offer FDR-8675309",
   "inReplyTo": "urn:uuid:ee00d16a-4faf-40d3-9b00-104666aff73e",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
@@ -41,6 +43,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5gKqamXEF1Xagw2KccDPTT1wCpuaDJGmLQ8CpGySn8psnKp6J9gftcKoburEGUruGVGqReJMVuW2BdzHFwmCQiTH"
+    "proofValue": "z3bkeT7VXn8UMBnR4qhbixNv5YfYHttpDe5STJ7z7LAh8eD7A2h4Kfqt6fs2e8sQYKCWiZbvW6tXSJJ6VRofQy3L3"
   }
 }

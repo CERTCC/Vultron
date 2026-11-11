@@ -8,6 +8,8 @@
   "id": "urn:uuid:9344e364-f6a8-4649-879c-5bacaa564cfb",
   "name": "https://vultron.example/organizations/vendorco Create VendorCo Case #20260602",
   "context": "https://demo.vultron.local/VulnerabilityReport/17a7b3e5-d74e-481e-ad90-2b9ab88c6dac",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We've created a case from this report.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
@@ -61,6 +63,8 @@
         "attributedTo": "https://vultron.example/users/finndervul"
       }
     ],
+    "vulnerabilityItems": [],
+    "caseReferences": [],
     "caseStatuses": [
       {
         "id": "urn:uuid:14c9dcfe-a058-4a4b-a0da-e55de9630f5d",
@@ -100,6 +104,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5hdQf2xeS6t4oWiGvTk1BA7zZvhjU9HckqiEC34svkobxzJdyebivuifbmCf5DZuyxqn2YWt88YgBUNxqx3EVHMN"
+    "proofValue": "zL6J5pmD53N377vGiqAErmGfXb9C4YduEUy2o4RhZq2YbnbJDT1QqGdp2nLUoc1psN7ZHmwz38aoe5mzmHsydMyd"
   }
 }

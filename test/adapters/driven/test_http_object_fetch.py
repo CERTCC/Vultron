@@ -13,7 +13,9 @@
 """The HTTP object fetcher: URLs, retries and terminal answers (AKM-05-008)."""
 
 import asyncio
+import copy
 import json
+import logging
 import subprocess
 import sys
 from collections.abc import AsyncIterator
@@ -33,12 +35,14 @@ from vultron.adapters.driven.http_object_fetch import (
     fetch_url,
     parse_fetched_object,
 )
+from vultron.core.models.base import CoreObject
 from vultron.core.models.object_fetch import (
     ObjectFetchSource,
     ObjectFetchUse,
     ObjectReference,
 )
 from vultron.errors import VultronValidationError
+from vultron.wire.as2.vocab.base.base import as_Base
 
 _HOST = "https://example.org/api/v2/actors/case-actor"
 _CASE = "https://example.org/cases/c-1"
@@ -266,6 +270,116 @@ class TestTheDefaultFetcher:
         assert fetcher._timeout == 1.5
 
 
+_FETCHED_ID = "https://example.org/objects/fetched-1"
+_FOREIGN_KEY = "peerExtension"
+
+#: One fetched body per root branch (MV-11-006): a ``VulnerabilityReport``
+#: resolves to a core class, whose ``extra="forbid"`` would refuse a foreign
+#: key, and a ``Note`` to a wire class, whose ``extra="ignore"`` would drop
+#: one silently.  Neither configuration may decide (MV-11-001, MV-11-004).
+_BRANCHES = [
+    pytest.param(
+        {"type": "VulnerabilityReport", "id": _FETCHED_ID, "name": "r"},
+        CoreObject,
+        id="core-class",
+    ),
+    pytest.param(
+        {"type": "Note", "id": _FETCHED_ID, "name": "n"},
+        as_Base,
+        id="wire-class",
+    ),
+]
+
+
+def _set_aside_records(
+    caplog: pytest.LogCaptureFixture, key: str
+) -> list[logging.LogRecord]:
+    return [
+        record
+        for record in caplog.records
+        if record.levelno == logging.INFO
+        and "Set aside unknown key" in record.getMessage()
+        and repr(key) in record.getMessage()
+    ]
+
+
+@pytest.mark.spec("MV-11-001")
+class TestAFetchedObjectsUnknownKeys:
+    """A fetched body is inbound data, partitioned as the parse edge does."""
+
+    @pytest.mark.spec("MV-11-003", "MV-11-006")
+    @pytest.mark.parametrize("body, branch", _BRANCHES)
+    def test_a_foreign_key_is_set_aside_and_reported(
+        self,
+        body: dict[str, Any],
+        branch: type,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        caplog.set_level(logging.INFO)
+        document = {**body, _FOREIGN_KEY: "x"}
+        received = copy.deepcopy(document)
+
+        parsed = parse_fetched_object(document, _FETCHED_ID, _HOST)
+
+        assert isinstance(parsed, branch)
+        assert _FOREIGN_KEY not in parsed.model_dump(by_alias=True)
+        assert document == received
+        records = _set_aside_records(caplog, _FOREIGN_KEY)
+        assert len(records) == 1, [r.getMessage() for r in caplog.records]
+        message = records[0].getMessage()
+        assert _FETCHED_ID in message
+        assert _HOST in message
+        assert "the fetched object" in message
+
+    @pytest.mark.spec("MV-11-002", "MV-11-006", "MV-11-008")
+    @pytest.mark.parametrize("body, branch", _BRANCHES)
+    def test_a_near_miss_is_refused_naming_both_spellings(
+        self, body: dict[str, Any], branch: type
+    ):
+        document = {**body, "Name": "misspelled"}
+
+        with pytest.raises(VultronValidationError) as refused:
+            parse_fetched_object(document, _FETCHED_ID, _HOST)
+
+        message = str(refused.value)
+        assert "'Name'" in message
+        assert "'name'" in message
+        assert _FETCHED_ID in message
+
+    @pytest.mark.spec("MV-11-002", "MV-11-003")
+    def test_a_nested_object_is_partitioned_too(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """The partition walks every depth of a fetched body, not its root."""
+        caplog.set_level(logging.INFO)
+        author = {"type": "Person", "id": _REQUESTER, _FOREIGN_KEY: "x"}
+        document = {"type": "Note", "id": _FETCHED_ID, "attributedTo": author}
+
+        parse_fetched_object(document, _FETCHED_ID, _HOST)
+
+        records = _set_aside_records(caplog, _FOREIGN_KEY)
+        assert len(records) == 1, [r.getMessage() for r in caplog.records]
+        assert "'attributedTo'" in records[0].getMessage()
+
+        misspelt = {**document, "attributedTo": {**author, "Name": "n"}}
+        with pytest.raises(VultronValidationError, match="'Name'"):
+            parse_fetched_object(misspelt, _FETCHED_ID, _HOST)
+
+    def test_a_body_nested_too_deeply_is_refused_as_invalid(self):
+        """The partition's refusal reaches callers as a validation fault.
+
+        The profile fetch catches only ``VultronValidationError``, so the
+        parse error must not escape as itself (AKM-05-008).
+        """
+        inner: dict[str, Any] = {"type": "Note", "content": "leaf"}
+        for _ in range(sys.getrecursionlimit()):
+            inner = {"type": "Note", "inReplyTo": inner}
+        document = {**inner, "id": _FETCHED_ID}
+
+        with pytest.raises(VultronValidationError, match="too deeply"):
+            parse_fetched_object(document, _FETCHED_ID, _HOST)
+
+
 class TestParseFetchedObject:
     @pytest.mark.parametrize(
         "body, match",
@@ -279,7 +393,7 @@ class TestParseFetchedObject:
         self, body: dict[str, Any], match: str
     ):
         with pytest.raises(VultronValidationError, match=match):
-            parse_fetched_object(body, "urn:uuid:x")
+            parse_fetched_object(body, "urn:uuid:x", _HOST)
 
     def test_it_types_an_actor_profile_with_nothing_else_imported(self):
         """The module loads the vocabulary it types by, whoever imports it.
@@ -292,7 +406,7 @@ class TestParseFetchedObject:
             " parse_fetched_object\n"
             "actor = 'https://example.org/actors/vendor'\n"
             "parsed = parse_fetched_object("
-            "{'type': 'Person', 'id': actor}, actor)\n"
+            "{'type': 'Person', 'id': actor}, actor, actor)\n"
             "print(type(parsed).__name__)\n"
         )
 

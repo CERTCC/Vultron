@@ -22,6 +22,7 @@ from test.support.case_manager import (
     make_case_with_case_manager,
 )
 from test.support.embargo_register import activate, propose
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -29,6 +30,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
@@ -42,6 +44,7 @@ from vultron.core.models.object_fetch import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.services.dereference import (
     case_object_for_participant,
     references_to_fetch,
@@ -68,7 +71,9 @@ def _replica(actor_id: str = _PARTICIPANT) -> SqliteDataLayer:
 def _seat(
     dl: SqliteDataLayer, case: VulnerabilityCase, actor_id: str
 ) -> CaseParticipant:
-    participant = CaseParticipant(attributed_to=actor_id, context=case.id_)
+    participant = make(
+        CaseParticipant, attributed_to=actor_id, context=case.id_
+    )
     case.add_participant(participant)
     dl.save(case)
     dl.create(participant)
@@ -76,7 +81,9 @@ def _seat(
 
 
 def _embargo(case_id: str, days: int = 30) -> EmbargoEvent:
-    return EmbargoEvent(context=case_id, end_time=now_utc() + timedelta(days))
+    return make(
+        EmbargoEvent, context=case_id, end_time=now_utc() + timedelta(days)
+    )
 
 
 def _unresolvable(case_id: str, object_id: str) -> Any:
@@ -391,8 +398,10 @@ class TestReferencesToFetch:
     @pytest.mark.spec("AKM-05-007")
     def test_a_case_naming_no_case_manager_has_no_one_to_fetch_from(self):
         dl = _replica()
-        case = VulnerabilityCase(
-            attributed_to="https://example.org/actors/owner", name="No CM"
+        case = make(
+            VulnerabilityCase,
+            attributed_to="https://example.org/actors/owner",
+            name="No CM",
         )
         dl.save(case)
 
@@ -413,7 +422,7 @@ class TestWithFetchedObject:
 
     @pytest.mark.spec("CP-01-009")
     def test_the_fetched_profile_becomes_the_proposals_profile(self):
-        profile = VultronOrganization(id_=_PARTICIPANT, name="Vendor")
+        profile = make(VultronOrganization, id_=_PARTICIPANT, name="Vendor")
 
         event = with_fetched_object(
             _proposal(_PARTICIPANT), self._REF, profile
@@ -423,14 +432,16 @@ class TestWithFetchedObject:
 
     @pytest.mark.spec("CP-01-009")
     def test_a_fetched_object_that_is_not_the_one_named_is_refused(self):
-        other = VultronOrganization(id_=_OUTSIDER)
+        other = make(VultronOrganization, id_=_OUTSIDER)
 
         with pytest.raises(VultronValidationError, match="is not the"):
             with_fetched_object(_proposal(_PARTICIPANT), self._REF, other)
 
     @pytest.mark.spec("CP-01-009")
     def test_a_fetched_object_that_is_not_a_profile_is_refused(self):
-        report = VulnerabilityReport(id_=_PARTICIPANT, name="not a profile")
+        report = make(
+            VulnerabilityReport, id_=_PARTICIPANT, name="not a profile"
+        )
 
         with pytest.raises(VultronValidationError, match="not an actor"):
             with_fetched_object(_proposal(_PARTICIPANT), self._REF, report)
@@ -438,7 +449,7 @@ class TestWithFetchedObject:
     def test_an_event_with_no_slot_for_it_is_refused(self):
         dl = _replica()
         case = make_case_with_case_manager(dl)
-        profile = VultronOrganization(id_=_PARTICIPANT)
+        profile = make(VultronOrganization, id_=_PARTICIPANT)
 
         with pytest.raises(VultronValidationError, match="no slot"):
             with_fetched_object(
@@ -480,6 +491,23 @@ class TestCaseObjectForParticipant:
 
         assert isinstance(found, VulnerabilityCase)
 
+    @pytest.mark.spec("AKM-05-006")
+    def test_a_listed_item_and_reference_are_served(self):
+        dl, case = self._host()
+        item = make(VulnerabilityItem, cve="CVE-2024-0001")
+        ref = make(CaseReference, url="https://example.org/advisory")
+        dl.save(item)
+        dl.save(ref)
+        case.vulnerability_items.append(item.id_)
+        case.case_references.append(ref.id_)
+        dl.save(case)
+
+        for listed in (item, ref):
+            found = case_object_for_participant(
+                dl, CASE_MANAGER_ID, case.id_, listed.id_, _PARTICIPANT
+            )
+            assert found == listed
+
     @pytest.mark.spec("AKM-05-009")
     @pytest.mark.spec("AKM-05-006")
     def test_a_non_participant_is_refused(self):
@@ -511,7 +539,8 @@ class TestCaseObjectForParticipant:
         participant = dl.read(case.actor_participant_index[_PARTICIPANT])
         assert isinstance(participant, CaseParticipant)
         participant.participant_statuses = [
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=case.id_,
                 attributed_to=_PARTICIPANT,
                 rm=RmDimension(state=RM.CLOSED),

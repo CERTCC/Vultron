@@ -14,10 +14,10 @@
 
 A **clock read** is a reference to anything that returns the current time:
 
-- the core clock helpers that read the clock — ``now_utc`` and
-  ``require_future_aware`` — by name or attribute, called or not, so
-  ``Field(default_factory=now_utc)`` counts (the ordered-stamp and deadline
-  helpers take the act's instant and read no clock, ADR-0176);
+- the core clock helper ``now_utc``, by name or attribute, called or not,
+  so ``Field(default_factory=now_utc)`` counts (the ordered-stamp, deadline
+  and future-deadline helpers take the act's instant and read no clock,
+  ADR-0176);
 - ``now``, ``utcnow`` or ``today`` on ``datetime`` or ``date``;
 - ``time``, ``time_ns``, ``monotonic``, ``monotonic_ns``, ``perf_counter`` or
   ``perf_counter_ns`` from the ``time`` module.
@@ -61,12 +61,7 @@ ClockRead = tuple[str, str, str]
 _SCAN_ROOT = _corpus.REPO_ROOT / "vultron"
 _NOT_SCANNED = (_SCAN_ROOT / "metadata",)
 
-_HELPERS = frozenset(
-    {
-        "now_utc",
-        "require_future_aware",
-    }
-)
+_HELPERS = frozenset({"now_utc"})
 _WALL_ATTRS = frozenset({"now", "utcnow", "today"})
 _WALL_RECEIVERS = frozenset({"datetime", "date"})
 _TIME_FUNCS = frozenset(
@@ -83,7 +78,6 @@ _TIME_FUNCS = frozenset(
 #: Substrings at least one of which every module with a read contains.
 _FRAGMENTS = (
     "now_utc",
-    "require_future_aware",
     "now(",
     "utcnow",
     "today",

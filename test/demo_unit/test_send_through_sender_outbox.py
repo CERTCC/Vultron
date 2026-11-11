@@ -22,6 +22,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
@@ -37,7 +38,7 @@ _RECEIVER = "https://example.org/users/vendor"
 
 def _note(**kwargs: Any):
     return add_note_to_case_activity(
-        as_Note(id_=f"{_CASE}/notes/1", content="n", context=_CASE),
+        make(as_Note, id_=f"{_CASE}/notes/1", content="n", context=_CASE),
         target=_CASE,
         actor=_SENDER,
         **kwargs,

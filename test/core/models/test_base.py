@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import FAR_FUTURE
+from test.support.objects import make
 from vultron.core.models.activity import (
     VultronAccept,
     VultronActivity,
@@ -65,7 +66,7 @@ def make_instance(cls, **extra):
     """Create a domain object instance with minimum required fields plus any extras."""
     kwargs = dict(REQUIRED_KWARGS.get(cls, {}))
     kwargs.update(extra)
-    return cls(**kwargs)
+    return make(cls, **kwargs)
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
@@ -106,8 +107,8 @@ def test_has_name_field(cls):
 
 def test_vultron_participant_status_context_required():
     with pytest.raises(ValidationError):
-        ParticipantStatus()
-    ps = ParticipantStatus(context="urn:uuid:case-123")
+        make(ParticipantStatus)
+    ps = make(ParticipantStatus, context="urn:uuid:case-123")
     assert issubclass(ParticipantStatus, CoreObject)
     assert ps.id_.startswith("urn:uuid:")
     assert ps.type_ == "ParticipantStatus"
@@ -116,51 +117,56 @@ def test_vultron_participant_status_context_required():
 
 def test_vultron_activity_as_type_required():
     with pytest.raises(ValidationError):
-        VultronActivity(  # pyright: ignore[reportCallIssue]
-            actor="https://example.org/actors/test"
+        make(
+            VultronActivity,  # pyright: ignore[reportCallIssue]
+            actor="https://example.org/actors/test",
         )
-    act = VultronActivity(
-        type_="Offer", actor="https://example.org/actors/test"
+    act = make(
+        VultronActivity, type_="Offer", actor="https://example.org/actors/test"
     )
     assert act.type_ == "Offer"
 
 
 def test_domain_object_as_id_unique():
-    a = VulnerabilityReport()
-    b = VulnerabilityReport()
+    a = make(VulnerabilityReport)
+    b = make(VulnerabilityReport)
     assert a.id_ != b.id_
 
 
 def test_domain_object_expected_as_types():
-    assert VulnerabilityReport().type_ == "VulnerabilityReport"
+    assert make(VulnerabilityReport).type_ == "VulnerabilityReport"
     assert (
-        VulnerabilityCase(attributed_to=CASE_OWNER_ID).type_
+        make(VulnerabilityCase, attributed_to=CASE_OWNER_ID).type_
         == "VulnerabilityCase"
     )
-    assert VultronNote(content="test").type_ == "Note"
+    assert make(VultronNote, content="test").type_ == "Note"
     assert (
-        CaseParticipant(context="urn:uuid:c", attributed_to="urn:uuid:a").type_
+        make(
+            CaseParticipant, context="urn:uuid:c", attributed_to="urn:uuid:a"
+        ).type_
         == "CaseParticipant"
     )
     assert (
-        CaseStatus(context="urn:uuid:c", attributed_to="urn:uuid:a").type_
+        make(
+            CaseStatus, context="urn:uuid:c", attributed_to="urn:uuid:a"
+        ).type_
         == "CaseStatus"
     )
     assert (
-        EmbargoEvent(context="urn:uuid:c", end_time=_FUTURE_DT).type_
+        make(EmbargoEvent, context="urn:uuid:c", end_time=_FUTURE_DT).type_
         == "EmbargoEvent"
     )
-    assert VultronService().type_ == "Service"
+    assert make(VultronService).type_ == "Service"
     _test_actor = "https://example.org/actors/test"
-    assert VultronOffer(actor=_test_actor).type_ == "Offer"
-    assert VultronAccept(actor=_test_actor).type_ == "Accept"
-    assert VultronCreateCaseActivity(actor=_test_actor).type_ == "Create"
+    assert make(VultronOffer, actor=_test_actor).type_ == "Offer"
+    assert make(VultronAccept, actor=_test_actor).type_ == "Accept"
+    assert make(VultronCreateCaseActivity, actor=_test_actor).type_ == "Create"
 
 
 def test_vultron_note_content_required():
     with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
-        VultronNote()
-    note = VultronNote(content="test content")
+        make(VultronNote)
+    note = make(VultronNote, content="test content")
     assert note.content == "test content"
 
 
@@ -170,11 +176,13 @@ def test_vultron_participant_required_fields():
     Both context and attributed_to are optional; when attributed_to is
     provided, name is auto-derived from it.
     """
-    p_empty = CaseParticipant()
+    p_empty = make(CaseParticipant)
     assert p_empty.context is None
 
-    p = CaseParticipant(
-        context="urn:uuid:case-123", attributed_to="urn:uuid:actor-456"
+    p = make(
+        CaseParticipant,
+        context="urn:uuid:case-123",
+        attributed_to="urn:uuid:actor-456",
     )
     assert p.context == "urn:uuid:case-123"
     assert p.attributed_to == "urn:uuid:actor-456"
@@ -183,13 +191,15 @@ def test_vultron_participant_required_fields():
 
 def test_vultron_case_status_required_fields():
     with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
-        CaseStatus()
+        make(CaseStatus)
     # attributed_to is optional; context alone is sufficient
-    cs_no_attr = CaseStatus(context="urn:uuid:case-123")
+    cs_no_attr = make(CaseStatus, context="urn:uuid:case-123")
     assert cs_no_attr.context == "urn:uuid:case-123"
     assert cs_no_attr.attributed_to is None
-    cs = CaseStatus(
-        context="urn:uuid:case-123", attributed_to="urn:uuid:actor-456"
+    cs = make(
+        CaseStatus,
+        context="urn:uuid:case-123",
+        attributed_to="urn:uuid:actor-456",
     )
     assert cs.context == "urn:uuid:case-123"
     assert cs.attributed_to == "urn:uuid:actor-456"
@@ -198,19 +208,21 @@ def test_vultron_case_status_required_fields():
 def test_vultron_embargo_event_required_fields():
     # context is required; omitting it must raise
     with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
-        EmbargoEvent(end_time=_FUTURE_DT)
+        make(EmbargoEvent, end_time=_FUTURE_DT)
     # end_time is required too — no implicit default duration (EP-04-023,
     # #3404); context alone is not sufficient
     with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
-        EmbargoEvent(context="urn:uuid:case-123")
+        make(EmbargoEvent, context="urn:uuid:case-123")
     # both supplied is the only valid construction
-    em = EmbargoEvent(context="urn:uuid:case-123", end_time=_FUTURE_DT)
+    em = make(EmbargoEvent, context="urn:uuid:case-123", end_time=_FUTURE_DT)
     assert em.context == "urn:uuid:case-123"
     assert em.end_time == _FUTURE_DT
 
 
 def test_vultron_case_init_case_statuses():
-    case_with_actor = VulnerabilityCase(attributed_to="urn:uuid:actor-123")
+    case_with_actor = make(
+        VulnerabilityCase, attributed_to="urn:uuid:actor-123"
+    )
     assert len(case_with_actor.case_statuses) == 1
     assert isinstance(case_with_actor.case_statuses[0], CaseStatus)
     assert case_with_actor.case_statuses[0].context == case_with_actor.id_
@@ -218,11 +230,14 @@ def test_vultron_case_init_case_statuses():
         case_with_actor.case_statuses[0].attributed_to == "urn:uuid:actor-123"
     )
 
-    case_existing_statuses = VulnerabilityCase(
+    case_existing_statuses = make(
+        VulnerabilityCase,
         attributed_to="urn:uuid:actor-123",
         case_statuses=[
-            CaseStatus(
-                context="urn:uuid:case-123", attributed_to="urn:uuid:actor-456"
+            make(
+                CaseStatus,
+                context="urn:uuid:case-123",
+                attributed_to="urn:uuid:actor-456",
             )
         ],
     )
@@ -237,10 +252,15 @@ def test_vultron_case_init_case_statuses():
 
 def test_vultron_case_rewrites_status_context_to_case_id():
     """An inline status belongs to the case holding it (``set_cs_context``)."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         case_statuses=[
-            CaseStatus(context="urn:uuid:other", attributed_to="urn:uuid:a")
+            make(
+                CaseStatus,
+                context="urn:uuid:other",
+                attributed_to="urn:uuid:a",
+            )
         ],
     )
     status = case.case_statuses[0]

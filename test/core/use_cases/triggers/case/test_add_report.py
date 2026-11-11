@@ -29,6 +29,7 @@ from test.support.case_manager import (
     make_case_with_case_manager,
 )
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -67,7 +68,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 def _make_actor_dl(actor_name: str):
     """Create an as_Service actor and a matching per-actor SqliteDataLayer."""
-    actor = as_Service(name=actor_name)
+    actor = make(as_Service, name=actor_name)
     actor_id = actor.id_
     reset_datalayer(actor_id)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -123,7 +124,8 @@ class TestSvcAddReportToCaseUseCase:
     def test_add_report_to_case_happy_path(self):
         """SvcAddReportToCaseUseCase adds a report to a case."""
         # Create a report
-        report = as_VulnerabilityReport(
+        report = make(
+            as_VulnerabilityReport,
             name="Test Report",
             content="Test report content",
         )
@@ -155,7 +157,9 @@ class TestSvcAddReportToCaseUseCase:
     @pytest.mark.spec("PCR-08-005", "PCR-08-018")
     def test_add_report_to_case_addresses_case_manager_alone(self):
         """The queued Add goes to the CASE_MANAGER and no one else."""
-        report = as_VulnerabilityReport(name="To-Field Report", content="c")
+        report = make(
+            as_VulnerabilityReport, name="To-Field Report", content="c"
+        )
         self.dl.create(report)
 
         result = self._execute(report.id_)
@@ -167,11 +171,13 @@ class TestSvcAddReportToCaseUseCase:
     @pytest.mark.spec("PCR-08-016")
     def test_add_report_to_case_without_case_manager_queues_nothing(self):
         """A case with no CASE_MANAGER fails fast with nothing queued."""
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="No Manager"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="No Manager",
         )
         self.dl.create(case)
-        report = as_VulnerabilityReport(name="Orphan", content="c")
+        report = make(as_VulnerabilityReport, name="Orphan", content="c")
         self.dl.create(report)
 
         with pytest.raises(VultronValidationError):
@@ -183,7 +189,7 @@ class TestSvcAddReportToCaseUseCase:
     def test_add_report_to_case_records_pending_assertion(self):
         """The Add is pending under ``add_report_to_case``, the semantic type the
         CASE_MANAGER commits."""
-        report = as_VulnerabilityReport(name="Pending", content="c")
+        report = make(as_VulnerabilityReport, name="Pending", content="c")
         self.dl.create(report)
 
         result = self._execute(report.id_)
@@ -218,8 +224,10 @@ class TestSvcAddReportToCaseUseCase:
         """SvcAddReportToCaseUseCase raises VultronValidationError when report_id
         is not a VulnerabilityReport."""
         # Create a wrong type object (as_VulnerabilityCase instead)
-        case_obj = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Not a Report"
+        case_obj = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="Not a Report",
         )
         self.dl.create(case_obj)
 
@@ -243,7 +251,8 @@ class TestSvcAddReportToCaseUseCase:
     def test_add_report_to_case_raises_when_case_not_found(self):
         """SvcAddReportToCaseUseCase raises VultronNotFoundError when case
         not found."""
-        report = as_VulnerabilityReport(
+        report = make(
+            as_VulnerabilityReport,
             name="Test Report",
             content="Test report content",
         )
@@ -267,7 +276,8 @@ class TestSvcAddReportToCaseUseCase:
     def test_add_report_to_case_activity_queued_in_delivery_queue(self):
         """SvcAddReportToCaseUseCase queues activity in delivery queue for
         outbox_handler."""
-        report = as_VulnerabilityReport(
+        report = make(
+            as_VulnerabilityReport,
             name="Test Report",
             content="Test report content",
         )
@@ -303,7 +313,8 @@ class TestSvcAddReportToCaseUseCase:
         """SvcAddReportToCaseUseCase validates report type then delegates to
         SvcAddObjectToCaseUseCase."""
         assert issubclass(SvcAddReportToCaseUseCase, SvcAddObjectToCaseUseCase)
-        report = as_VulnerabilityReport(
+        report = make(
+            as_VulnerabilityReport,
             name="Test Report",
             content="Test report content",
         )
@@ -330,11 +341,13 @@ class TestSvcAddReportToCaseUseCase:
     @pytest.mark.spec("CM-05-017")
     def test_add_multiple_reports_to_case(self):
         """SvcAddReportToCaseUseCase can add multiple reports (called multiple times)."""
-        report1 = as_VulnerabilityReport(
+        report1 = make(
+            as_VulnerabilityReport,
             name="Test Report 1",
             content="Test report content 1",
         )
-        report2 = as_VulnerabilityReport(
+        report2 = make(
+            as_VulnerabilityReport,
             name="Test Report 2",
             content="Test report content 2",
         )

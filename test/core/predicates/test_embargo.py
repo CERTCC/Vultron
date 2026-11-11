@@ -19,6 +19,7 @@ import pytest
 
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate, propose
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_register import rejection_changes
 from vultron.core.predicates.embargo import (
@@ -77,8 +78,10 @@ _OTHER = f"{_CASE}/embargo_events/other"
 def _case(
     *, active: bool = True, others: bool = False, pxa: CS_pxa = CS_pxa.Pxa
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
-        id_=_CASE, attributed_to="https://example.org/users/owner"
+    case = make(
+        VulnerabilityCase,
+        id_=_CASE,
+        attributed_to="https://example.org/users/owner",
     )
     case.append_case_status(ACT_AT, pxa=pxa)
     if active:

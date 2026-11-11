@@ -8,6 +8,8 @@
   "id": "urn:uuid:e37dd281-a585-442e-b817-23c07e556f20",
   "name": "https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a to https://vultron.example/organizations/coordinator",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "Please offer ownership of case VendorCo Case #20260601 to the coordinator.",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
@@ -40,6 +42,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4oogkCWNJuBGiwpFYz1avDZwTcUZspq4whQLWrQav661XLJBXHqqKwWhnqHo755NWcYmvsZdBShNmbm9C7VbGFYN"
+    "proofValue": "z3PAqAMBXmHAdKXcFa7trwtXwowujhyn2EuipymYtB15Ti3GBCfw7UxqLyqcS1Aj9hRXHTwmWscX7ihoUyAvkEmyB"
   }
 }

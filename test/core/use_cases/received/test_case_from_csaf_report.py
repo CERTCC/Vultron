@@ -34,6 +34,7 @@ from test.core.use_cases.received._csaf_receipt import (
     csaf,
     document,
 )
+from test.support.objects import make
 from test.wire.csaf._documents import section, vulnerability_report_document
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
@@ -394,7 +395,8 @@ def test_two_cases_from_one_report_each_keep_their_record() -> None:
 def test_csaf_on_the_proposal_itself_changes_no_case_data() -> None:
     """A proposal with no carried Offer: the document on its own report is
     on another activity than the initial Offer, so it fills nothing."""
-    report = VulnerabilityReport(
+    report = make(
+        VulnerabilityReport,
         id_=REPORT_ID,
         name="Widget overflow",
         content="The widget overflows its buffer.",
@@ -403,11 +405,15 @@ def test_csaf_on_the_proposal_itself_changes_no_case_data() -> None:
         ],
     )
     manager = CaseManager()
-    proposal = as_CaseProposal(
-        attributed_to=VENDOR, object_=report, target=manager.actor_id
+    proposal = make(
+        as_CaseProposal,
+        attributed_to=VENDOR,
+        object_=report,
+        target=manager.actor_id,
     )
-    activity = as_Create(
-        actor=VultronOrganization(id_=VENDOR),
+    activity = make(
+        as_Create,
+        actor=make(VultronOrganization, id_=VENDOR),
         object_=proposal,
         to=[manager.actor_id],
     )

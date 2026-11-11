@@ -29,6 +29,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from test.support.objects import make
 from test.support.received import extract_stamped
 from test.support.signing import signed_body
 from vultron.core.models.actor import CoreActor, VultronOrganization
@@ -74,7 +75,8 @@ _BUILDERS: dict[
         lambda peer: rm_invite_to_case_activity(
             peer,
             target=as_VulnerabilityCaseStub(
-                case_id=_CASE, summary="An issue in widget"
+                case_id=_CASE,
+                summary="An issue in widget",
             ),
             actor=_ACTOR,
             to=[_PEER],
@@ -93,8 +95,11 @@ _BUILDERS: dict[
     ),
     "offer_case_ownership_transfer_activity": (
         lambda peer: offer_case_ownership_transfer_activity(
-            as_VulnerabilityCase(
-                id_=_CASE, attributed_to=_ACTOR, name="Case c1"
+            make(
+                as_VulnerabilityCase,
+                id_=_CASE,
+                attributed_to=_ACTOR,
+                name="Case c1",
             ),
             target=peer,
             actor=_ACTOR,
@@ -139,7 +144,7 @@ def test_an_actor_given_by_uri_travels_as_an_actor_reference(
 @pytest.mark.spec("AKM-05-005")
 @pytest.mark.parametrize("name", sorted(_BUILDERS))
 def test_a_held_actor_profile_travels_as_held(name: str) -> None:
-    held = as_Organization(id_=_PEER, name="Vendor Co")
+    held = make(as_Organization, id_=_PEER, name="Vendor Co")
     expected = held.model_dump(mode="json", by_alias=True, exclude_none=True)
     # Carried inside an activity, it does not restate the activity's
     # ``@context`` (VM-10-004).
@@ -161,8 +166,12 @@ _SEMANTICS: dict[str, MessageSemantics] = {
 
 #: A peer record as the address book holds it: only what the peer supplied,
 #: so no clock time and no endpoint (AKM-02-006).
-_HELD_PEER = VultronOrganization(
-    id_=_PEER, name="Vendor Co", published=None, updated=None
+_HELD_PEER = make(
+    VultronOrganization,
+    id_=_PEER,
+    name="Vendor Co",
+    published=None,
+    updated=None,
 )
 
 
@@ -186,7 +195,7 @@ def test_a_held_peer_record_travels_with_nothing_added(name: str) -> None:
 @pytest.mark.spec("VAM-04-011")
 @pytest.mark.parametrize(
     "peer",
-    [as_Organization(id_=_PEER, name="Vendor Co"), _HELD_PEER, _PEER],
+    [make(as_Organization, id_=_PEER, name="Vendor Co"), _HELD_PEER, _PEER],
     ids=["wire-profile", "held-record", "actor-reference"],
 )
 @pytest.mark.parametrize("name", sorted(_BUILDERS))
@@ -209,7 +218,7 @@ def test_the_activity_dispatches_to_the_same_semantic(
 def test_a_minimal_core_actor_record_travels_as_a_reference(name: str) -> None:
     """A bare ``CoreActor`` names no wire type, so it travels as id and type."""
     build, field = _BUILDERS[name]
-    minimal = CoreActor(id_=_PEER, published=None, updated=None)
+    minimal = make(CoreActor, id_=_PEER, published=None, updated=None)
     dumped = build(minimal).model_dump(
         mode="json", by_alias=True, exclude_none=True
     )

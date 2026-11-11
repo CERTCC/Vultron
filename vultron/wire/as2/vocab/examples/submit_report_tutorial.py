@@ -216,8 +216,8 @@ def create_report_activity() -> as_Create:
 def create_report_activity_body() -> dict[str, Any]:
     """Return the ``Create(VulnerabilityReport)`` as a JSON-ready dict.
 
-    The activity's own ``published``/``updated`` default to build time, so they
-    are stripped (exactly as :func:`json2md` does for the displayed payload) and
+    The activity is built outside the docs examples' fixed clock, so its own
+    ``published``/``updated`` default to build time; they are stripped and
     ``published`` is then re-set to the same fixed timestamp the nested report
     uses.  This keeps the posted body deterministic across docs builds and
     identical to what :func:`render_payload` shows the reader.  The report's
@@ -294,8 +294,8 @@ def render_payload() -> str:
     Rendered from :func:`create_report_activity_body` — the same dict the
     tutorial's ``curl`` command posts — so the block the reader copies and the
     body the reader sends cannot drift apart.  It deliberately does not go
-    through :func:`json2md`, which strips ``published`` from every example it
-    renders; the inbox refuses an activity without one.
+    through :func:`json2md`, which would sign it as the finder; the reader
+    posts it unsigned, and the finder's own outbox signs it (SIG-05-004).
     """
     body = json.dumps(create_report_activity_body(), indent=2)
     return f"```json\n{body}\n```"

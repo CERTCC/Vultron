@@ -21,8 +21,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -57,6 +59,7 @@ def _make_entry(
         semantic_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=prev_hash,
+        received_at=ACT_AT,
     )
     return chain.to_ledger_entry()
 
@@ -173,21 +176,26 @@ def _seed_case(dl: SqliteDataLayer) -> None:
         as_VulnerabilityCase,
     )
 
-    manager = as_CaseParticipant(
+    manager = make(
+        as_CaseParticipant,
         id_=f"{CASE_URI}/participants/case-manager",
         context=CASE_URI,
         attributed_to=CASE_ACTOR_URI,
         case_roles=[CVDRole.CASE_MANAGER],
     )
     dl.create(manager)
-    peer = as_CaseParticipant(
+    peer = make(
+        as_CaseParticipant,
         id_=f"{CASE_URI}/participants/peer",
         context=CASE_URI,
         attributed_to=PARTICIPANT_URI,
     )
     dl.create(peer)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_URI, name="Reject Sync Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_URI,
+        name="Reject Sync Case",
     )
     case.case_participants.extend([manager.id_, peer.id_])
     case.actor_participant_index[CASE_ACTOR_URI] = manager.id_
@@ -230,7 +238,7 @@ class TestRejectLedgerEntryReceivedUseCase:
         run_in_act(uc)
 
         state_id = VultronReplicationState(
-            case_id=CASE_URI, peer_id=PARTICIPANT_URI
+            case_id=CASE_URI, peer_id=PARTICIPANT_URI, updated_at=ACT_AT
         ).id_
         stored = manager_dl.read(state_id)
         assert stored is not None
@@ -271,7 +279,7 @@ class TestRejectLedgerEntryReceivedUseCase:
         assert "not the CASE_MANAGER" in (result.reason or "")
         sync_port.send_announce_log_entry.assert_not_called()
         state_id = VultronReplicationState(
-            case_id=CASE_URI, peer_id=PARTICIPANT_URI
+            case_id=CASE_URI, peer_id=PARTICIPANT_URI, updated_at=ACT_AT
         ).id_
         assert dl.read(state_id) is None
 

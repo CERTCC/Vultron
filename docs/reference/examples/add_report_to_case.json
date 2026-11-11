@@ -7,6 +7,8 @@
   "type": "Add",
   "id": "urn:uuid:21f4bfb2-5b99-48e3-8597-8cb42d3482ac",
   "name": "https://vultron.example/organizations/vendorco Add FDR-8675309 to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're adding this report to this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -30,6 +32,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z63rxE7inKzQgL6k6jWReyk39R2ZU8hiy5LY5hZ9MTW1kwrnCpFLLQQqTJxKu2oJ9arKmjFQ1Yk5cW7xkJeje1yuM"
+    "proofValue": "z3zziu5zS8N8cugfEHYhEqPfCNmTE4GLyhQh3wDPxCVy8b7jGSNPmc2hCsvUBXtAawPgYuBFDWfDxT4N4AZufvo4t"
   }
 }

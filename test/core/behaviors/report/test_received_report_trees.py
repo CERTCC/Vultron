@@ -35,6 +35,7 @@ from py_trees.common import Status
 
 from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -104,7 +105,7 @@ def _make_activity(
     actor: str = ACTOR_ID,
 ) -> VultronActivity:
     """Build a minimal VultronActivity with sensible defaults."""
-    return VultronActivity(id_=id_, type_=type_, actor=actor)
+    return make(VultronActivity, id_=id_, type_=type_, actor=actor)
 
 
 def _setup_case_with_participant(
@@ -121,23 +122,28 @@ def _setup_case_with_participant(
     Returns:
         Tuple of (case, participant) as persisted in *dl*.
     """
-    report = CoreReport(id_=report_id)
+    report = make(CoreReport, id_=report_id)
     dl.save(report)
 
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=PARTICIPANT_ID,
         attributed_to=actor_id,
         context=CASE_ID,
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 rm=RmDimension(state=initial_rm),
                 context=CASE_ID,
                 attributed_to=actor_id,
             )
         ],
     )
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="BT Test Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="BT Test Case",
     )
     case.vulnerability_reports.append(report_id)
     case.case_participants.append(participant.id_)
@@ -174,7 +180,7 @@ def bridge(dl: SqliteDataLayer) -> BTBridge:
 class TestStoreReportNode:
     def test_stores_report_in_dl(self, dl, bridge):
         """StoreReportNode persists a VulnerabilityReport → SUCCESS."""
-        report = CoreReport(id_=REPORT_ID)
+        report = make(CoreReport, id_=REPORT_ID)
         node = StoreReportNode(report_id=REPORT_ID, report_obj=report)
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
 
@@ -184,7 +190,7 @@ class TestStoreReportNode:
 
     def test_idempotent_second_store(self, dl, bridge):
         """StoreReportNode is idempotent — second call is a no-op SUCCESS."""
-        report = CoreReport(id_=REPORT_ID)
+        report = make(CoreReport, id_=REPORT_ID)
         dl.create(report)  # pre-store
 
         node = StoreReportNode(report_id=REPORT_ID, report_obj=report)
@@ -203,7 +209,7 @@ class TestStoreReportNode:
     def test_empty_report_id_is_no_op(self, bridge):
         """StoreReportNode with empty report_id is a no-op SUCCESS."""
         node = StoreReportNode(
-            report_id="", report_obj=CoreReport(id_=REPORT_ID)
+            report_id="", report_obj=make(CoreReport, id_=REPORT_ID)
         )
         result = run_tree(bridge, tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
@@ -249,7 +255,7 @@ class TestCreateParticipantStatusNodeClosed:
             CreateParticipantStatusNode,
         )
 
-        report = CoreReport(id_=REPORT_ID)
+        report = make(CoreReport, id_=REPORT_ID)
         dl.save(report)
 
         node = CreateParticipantStatusNode(
@@ -274,13 +280,14 @@ class TestCreateParticipantStatusNodeClosed:
             CreateParticipantStatusNode,
         )
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             vulnerability_reports=[REPORT_ID],
         )
         dl.save(case)
-        dl.save(CoreReport(id_=REPORT_ID))
+        dl.save(make(CoreReport, id_=REPORT_ID))
 
         node = CreateParticipantStatusNode(
             actor_id=ACTOR_ID,
@@ -330,7 +337,7 @@ class TestCreateParticipantStatusNodeInvalid:
             CreateParticipantStatusNode,
         )
 
-        report = CoreReport(id_=REPORT_ID)
+        report = make(CoreReport, id_=REPORT_ID)
         dl.save(report)
 
         node = CreateParticipantStatusNode(
@@ -355,13 +362,14 @@ class TestCreateParticipantStatusNodeInvalid:
             CreateParticipantStatusNode,
         )
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             vulnerability_reports=[REPORT_ID],
         )
         dl.save(case)
-        dl.save(CoreReport(id_=REPORT_ID))
+        dl.save(make(CoreReport, id_=REPORT_ID))
 
         node = CreateParticipantStatusNode(
             actor_id=ACTOR_ID,
@@ -388,8 +396,8 @@ def _make_create_report_event() -> CreateReportReceivedEvent:
             semantic_type=MessageSemantics.CREATE_REPORT,
             activity_id=ACTIVITY_ID,
             actor_id=ACTOR_ID,
-            object_=CoreReport(id_=REPORT_ID),
-            inner_object=CoreReport(id_=REPORT_ID),
+            object_=make(CoreReport, id_=REPORT_ID),
+            inner_object=make(CoreReport, id_=REPORT_ID),
             activity=_make_activity(type_="Create"),
         )
     )
@@ -401,8 +409,8 @@ def _make_ack_report_event() -> AckReportReceivedEvent:
             semantic_type=MessageSemantics.ACK_REPORT,
             activity_id=ACTIVITY_ID,
             actor_id=ACTOR_ID,
-            object_=CoreReport(id_=ACTIVITY_ID),
-            inner_object=CoreReport(id_=REPORT_ID),
+            object_=make(CoreReport, id_=ACTIVITY_ID),
+            inner_object=make(CoreReport, id_=REPORT_ID),
             activity=_make_activity(type_="Read"),
             receiving_actor_id=ACTOR_ID,
         )
@@ -431,8 +439,8 @@ def _make_close_report_event() -> CloseReportReceivedEvent:
             semantic_type=MessageSemantics.CLOSE_REPORT,
             activity_id=ACTIVITY_ID,
             actor_id=ACTOR_ID,
-            object_=CoreReport(id_=ACTIVITY_ID),
-            inner_object=CoreReport(id_=REPORT_ID),
+            object_=make(CoreReport, id_=ACTIVITY_ID),
+            inner_object=make(CoreReport, id_=REPORT_ID),
             activity=_make_activity(type_="Reject"),
         )
     )
@@ -444,8 +452,8 @@ def _make_invalidate_report_event() -> InvalidateReportReceivedEvent:
             semantic_type=MessageSemantics.INVALIDATE_REPORT,
             activity_id=ACTIVITY_ID,
             actor_id=ACTOR_ID,
-            object_=CoreReport(id_=ACTIVITY_ID),
-            inner_object=CoreReport(id_=REPORT_ID),
+            object_=make(CoreReport, id_=ACTIVITY_ID),
+            inner_object=make(CoreReport, id_=REPORT_ID),
             activity=_make_activity(type_="TentativeReject"),
         )
     )

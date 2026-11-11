@@ -33,16 +33,23 @@ References
 
 from __future__ import annotations
 
+from vultron.core.behaviors.call_out.capabilities.report_management.monitor_threats import (
+    MonitorAttacksCapability,
+    MonitorExploitsCapability,
+    MonitorPublicReportsCapability,
+)
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlwaysSucceed,
     UsuallyFail,
 )
-from vultron.demo.fuzzer.call_out_point import RetrieverCallOutPoint
 
 
-class MonitorAttacks(RetrieverCallOutPoint, AlmostAlwaysFail):
+class MonitorAttacks(MonitorAttacksCapability, AlmostAlwaysFail):
     """Monitor threat-intelligence feeds for active attacks on the vulnerability.
+
+    Simulates :class:`MonitorAttacksCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — query threat-intelligence feeds, SIEM systems, or other
@@ -50,15 +57,6 @@ class MonitorAttacks(RetrieverCallOutPoint, AlmostAlwaysFail):
         has been observed in the wild.  Fails almost always to reflect the
         realistic low prior probability that an attack against a specific
         vulnerability will be detected during a routine coordination cycle.
-
-    Store-held answer (BT-18-039): **can**, in part — the case's
-    attacks-observed bit (``A``) records attacks the case already knows of,
-    so a tree that places this Retriever reads that bit first and asks only
-    while it is unset.  No core tree places it today.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries TI feeds and SIEM for attack signals)
-      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: System integration.
 
@@ -71,8 +69,11 @@ class MonitorAttacks(RetrieverCallOutPoint, AlmostAlwaysFail):
     """
 
 
-class MonitorExploits(RetrieverCallOutPoint, AlmostAlwaysFail):
+class MonitorExploits(MonitorExploitsCapability, AlmostAlwaysFail):
     """Monitor threat-intelligence feeds for public exploits of the vulnerability.
+
+    Simulates :class:`MonitorExploitsCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — query exploit databases, threat-intelligence platforms, or
@@ -80,15 +81,6 @@ class MonitorExploits(RetrieverCallOutPoint, AlmostAlwaysFail):
         the vulnerability has been published or is circulating.  Fails almost
         always to reflect the realistic low prior probability that a public
         exploit will be detected during a routine coordination cycle.
-
-    Store-held answer (BT-18-039): **can**, in part — the case's
-    exploit-public bit (``X``) records a public exploit the case already
-    knows of, so a tree that places this Retriever reads that bit first and
-    asks only while it is unset.  No core tree places it today.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries exploit databases and TI platforms)
-      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: System integration.
 
@@ -100,8 +92,11 @@ class MonitorExploits(RetrieverCallOutPoint, AlmostAlwaysFail):
     """
 
 
-class MonitorPublicReports(RetrieverCallOutPoint, UsuallyFail):
+class MonitorPublicReports(MonitorPublicReportsCapability, UsuallyFail):
     """Monitor public sources for disclosure of the vulnerability.
+
+    Simulates :class:`MonitorPublicReportsCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — scan news feeds, security mailing lists, social media, and
@@ -109,15 +104,6 @@ class MonitorPublicReports(RetrieverCallOutPoint, UsuallyFail):
         disclosed or publicly discussed before the coordinated embargo
         expires.  Fails most of the time to reflect that premature public
         disclosure is the uncommon case during active coordination.
-
-    Store-held answer (BT-18-039): **can**, in part — the case's
-    public-awareness bit (``P``) records a disclosure the case already
-    knows of, so a tree that places this Retriever reads that bit first and
-    asks only while it is unset.  No core tree places it today.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — scans public news feeds, mailing lists, social media)
-      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: System integration.
 

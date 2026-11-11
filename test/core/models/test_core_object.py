@@ -11,7 +11,9 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 import vultron
+from test.support.act_clock import ACT_AT
 from test.support.core_vocab import restore_core_registries
+from test.support.objects import make
 from vultron.core.models import (
     CORE_VOCABULARY,
     CoreObject,
@@ -29,7 +31,7 @@ from vultron.core.models.case_ledger_entry import (
 from vultron.core.models.note import VultronNote
 from vultron.core.models.registry import CORE_TYPE_MAP
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vulnerability_record import VulnerabilityRecord
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 
 # --- Inheritance shape ------------------------------------------------------
 
@@ -57,12 +59,12 @@ def test_core_object_has_required_as2_fields():
 
 
 def test_core_object_default_instance():
-    obj = CoreObject()
+    obj = make(CoreObject)
     assert obj.id_.startswith("urn:uuid:")
     # The bare root is the extractor's minimal reference: its type is the
     # referenced object's, so the class name is never invented for it.
     assert obj.type_ is None
-    assert CoreObject(type_="Invite").type_ == "Invite"
+    assert make(CoreObject, type_="Invite").type_ == "Invite"
     # context_ is a wire concern and defaults to None on the domain side.
     assert obj.context_ is None
     assert obj.published is not None
@@ -161,7 +163,7 @@ def test_core_object_context_defaults_to_the_list_on_the_wire():
 
     VM-10-001 requires the list on every outbound top-level document.
     """
-    as2 = CoreObject().model_dump(by_alias=True, exclude_none=True)
+    as2 = make(CoreObject).model_dump(by_alias=True, exclude_none=True)
     assert as2["@context"] == list(DEFAULT_JSONLD_CONTEXT)
 
 
@@ -172,7 +174,7 @@ def test_core_object_reads_the_default_list_back_as_no_override():
     A single Vultron URI, the pre-#6006 default, is not the default any more,
     so it is kept as the context the object arrived with.
     """
-    obj = CoreObject()
+    obj = make(CoreObject)
     again = CoreObject.model_validate(obj.model_dump(by_alias=True))
     assert again.context_ is None
     assert again == obj
@@ -391,11 +393,11 @@ def test_vulnerability_report_inherits_core_object():
     assert CORE_VOCABULARY["VulnerabilityReport"] is VulnerabilityReport
 
 
-def test_vulnerability_record_inherits_core_object():
-    """VulnerabilityRecord (new in #727) must be a CoreObject subclass."""
-    assert issubclass(VulnerabilityRecord, CoreObject)
-    assert "VulnerabilityRecord" in CORE_VOCABULARY
-    assert CORE_VOCABULARY["VulnerabilityRecord"] is VulnerabilityRecord
+def test_vulnerability_item_inherits_core_object():
+    """VulnerabilityItem (new in #727) must be a CoreObject subclass."""
+    assert issubclass(VulnerabilityItem, CoreObject)
+    assert "VulnerabilityItem" in CORE_VOCABULARY
+    assert CORE_VOCABULARY["VulnerabilityItem"] is VulnerabilityItem
 
 
 def test_core_case_ledger_entry_inherits_core_object():
@@ -615,10 +617,13 @@ def test_core_object_drops_alias_shadowed_field_name_twin():
     Without the de-dup validator the leftover ``id_`` is an unknown key under
     ``extra="forbid"``; the alias (carrying the derived value) must win.
     """
-    entry = CoreCaseLedgerEntry(
+    entry = make(
+        CoreCaseLedgerEntry,
         case_id="urn:uuid:case-dedup",
         log_object_id="urn:uuid:logobj-dedup",
         semantic_type="RS",
+        published=ACT_AT,
+        received_at=ACT_AT,
     )
     dumped = entry.model_dump(mode="json")
     assert "id_" in dumped  # the dump uses the Python field name
@@ -644,6 +649,8 @@ def test_case_ledger_entry_derives_id_from_wire_spelled_coordinates():
             "logIndex": 3,
             "logObjectId": "urn:uuid:logobj-wire",
             "semanticType": "RS",
+            "published": ACT_AT,
+            "receivedAt": ACT_AT,
         }
     )
     assert entry.id_ == "urn:uuid:case-wire/log/3"

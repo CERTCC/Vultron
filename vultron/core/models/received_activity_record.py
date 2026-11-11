@@ -123,7 +123,7 @@ from typing import Any, Literal, Self
 
 from pydantic import Field, field_validator, model_validator
 
-from vultron.core.models._helpers import now_utc, timestamp_serializer
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.base import (
     CoreRecord,
     NonEmptyString,
@@ -283,8 +283,10 @@ class ReceivedActivityRecord(CoreRecord):
             " that is what it waits for (IO-03-009)"
         ),
     )
+    # Required: the message's arrival stamp, the instant of the act that
+    # first held it (ADR-0176).  No default reads the clock.
     received_at: datetime = Field(
-        default_factory=now_utc,
+        ...,
         description="When this receiver first held the message",
     )
     _serialize_received_at = timestamp_serializer("received_at")

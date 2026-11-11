@@ -31,6 +31,7 @@ from py_trees.common import Status
 from test.support.act_runner import run_tree
 from test.support.call_out import yes as call_out_yes
 from test.support.embargo_register import register
+from test.support.objects import make
 from test.support.participant_status import advance_participant_rm
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
@@ -99,19 +100,21 @@ def _mock_read_helper(
     if id_ in storage:
         return storage[id_]
     if "report" in id_:
-        return VulnerabilityReport(
+        return make(
+            VulnerabilityReport,
             id_=id_,
             name="TEST-REPORT",
             content="Test vulnerability report",
         )
     if "offer" in id_:
-        return VultronOffer(
+        return make(
+            VultronOffer,
             id_=id_,
             actor="https://example.org/finder",
             object_="test-report-123",
         )
     if id_.startswith("https://example.org/"):
-        return VultronService(id_=id_, name="Test Actor")
+        return make(VultronService, id_=id_, name="Test Actor")
     if raise_on_missing:
         raise ValueError(f"Object not found: {id_}")
     return None
@@ -160,7 +163,8 @@ def _seed_mock_case(storage: dict) -> VulnerabilityCase:
     real ``isinstance`` check, and ``TransitionRMtoValid`` actually advances the
     participant's case-scoped RM state.
     """
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/perf-case",
         name="Perf test case",
         attributed_to=_PERF_ACTOR_ID,
@@ -169,7 +173,8 @@ def _seed_mock_case(storage: dict) -> VulnerabilityCase:
             active="https://example.org/embargoes/perf-embargo"
         ),
     )
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/vendor",
         attributed_to=_PERF_ACTOR_ID,
         context=case.id_,
@@ -233,17 +238,20 @@ def perf_bridge(mock_datalayer) -> BTBridge:
 @pytest.fixture
 def sample_activity():
     """Sample validation activity for testing."""
-    report = VulnerabilityReport(
+    report = make(
+        VulnerabilityReport,
         name="TEST-PERF-001",
         content="Performance test report",
     )
 
-    offer = VultronOffer(
+    offer = make(
+        VultronOffer,
         actor="https://example.org/finder",
         object_=report.id_,
     )
 
-    return VultronAccept(
+    return make(
+        VultronAccept,
         actor="https://example.org/vendor",
         object_=offer.id_,
     )

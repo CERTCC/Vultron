@@ -24,6 +24,7 @@ import pytest
 
 from test.support import ledger_labels
 from test.support.ledger_labels import label_mismatch, registry_label
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.note import VultronNote
@@ -48,7 +49,7 @@ def _store_holding_the_note() -> SqliteDataLayer:
     dl = SqliteDataLayer(
         "sqlite:///:memory:", actor_id="https://example.org/actors/cm"
     )
-    dl.create(VultronNote(id_=_NOTE, content="a note", context=_CASE))
+    dl.create(make(VultronNote, id_=_NOTE, content="a note", context=_CASE))
     return dl
 
 
@@ -80,7 +81,7 @@ def test_a_payload_rehydrated_to_a_non_activity_is_refused(monkeypatch):
     monkeypatch.setattr(
         ledger_labels,
         "rehydrate",
-        lambda _activity, _dl: VultronNote(id_=_NOTE, content="x"),
+        lambda _activity, _dl: make(VultronNote, id_=_NOTE, content="x"),
     )
 
     with pytest.raises(TypeError, match="not an activity"):

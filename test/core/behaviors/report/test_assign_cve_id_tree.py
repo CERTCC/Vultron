@@ -35,11 +35,13 @@ from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
     CNA_RULES_REFERENCE_EDITION,
-    CVE_ELIGIBILITY_OUTPUT_KEYS,
     CVE_ELIGIBILITY_RATIONALE_KEY,
     CVE_ELIGIBILITY_VERDICT_KEY,
     AssignCveIdCallOutBundle,
     DeterministicEvaluateCveEligibility,
+)
+from vultron.core.behaviors.call_out.capabilities.report_management.assign_vul_id.eligibility import (
+    EvaluateCveEligibilityCapability,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.core.behaviors.report.assign_cve_id_tree import (
@@ -298,13 +300,20 @@ def test_reference_rules_edition_is_4_1_0():
     assert CNA_RULES_REFERENCE_EDITION == "4.1.0"
 
 
+#: The outputs BTND-05-008 names for the eligibility capability.
+_ELIGIBILITY_OUTPUTS = {
+    CVE_ELIGIBILITY_VERDICT_KEY: bool,
+    CVE_ELIGIBILITY_RATIONALE_KEY: str,
+}
+
+
 @pytest.mark.spec("BTND-05-008")
+@pytest.mark.spec("BT-18-012")
 def test_eligibility_contract_declares_verdict_and_rationale():
-    """The eligibility contract declares a bool verdict and a str rationale."""
-    assert {
-        CVE_ELIGIBILITY_VERDICT_KEY: bool,
-        CVE_ELIGIBILITY_RATIONALE_KEY: str,
-    } == CVE_ELIGIBILITY_OUTPUT_KEYS
+    """The eligibility ports declare a bool verdict and a str rationale."""
+    ports = EvaluateCveEligibilityCapability.OUTPUT_PORTS
+    assert {k: p.data_type for k, p in ports.items()} == _ELIGIBILITY_OUTPUTS
+    assert all(p.required for p in ports.values())
 
 
 @pytest.mark.spec("BTND-05-008")
@@ -313,7 +322,7 @@ def test_eligibility_contract_declares_verdict_and_rationale():
     ["core_default", "fuzzer"],
 )
 def test_eligibility_docstring_documents_edition_and_outputs(contract_owner):
-    """Both backends' contracts name the rules edition and both output keys."""
+    """Both backends name the edition and bind to the one declaration."""
     from vultron.demo.fuzzer.report_management.assign_vul_id import (
         EvaluateCveEligibility,
     )
@@ -322,12 +331,13 @@ def test_eligibility_docstring_documents_edition_and_outputs(contract_owner):
         "core_default": DeterministicEvaluateCveEligibility,
         "fuzzer": EvaluateCveEligibility,
     }[contract_owner]
-    doc = cls.__doc__ or ""
-    assert "Blackboard contract (BT-18-001)" in doc
-    assert f"v{CNA_RULES_REFERENCE_EDITION}" in doc
-    for key, typ in CVE_ELIGIBILITY_OUTPUT_KEYS.items():
-        assert f"{key}: {typ.__name__}" in doc
-    assert cls.contract.outputs == CVE_ELIGIBILITY_OUTPUT_KEYS
+    assert f"v{CNA_RULES_REFERENCE_EDITION}" in (cls.__doc__ or "")
+    assert cls.declaration() is EvaluateCveEligibilityCapability
+    declared = EvaluateCveEligibilityCapability.__doc__ or ""
+    assert "Blackboard contract (BT-18-001)" in declared
+    for key, typ in _ELIGIBILITY_OUTPUTS.items():
+        assert f"{key}: {typ.__name__}" in declared
+    assert cls.contract.outputs == _ELIGIBILITY_OUTPUTS
 
 
 @pytest.mark.spec("BT-23-013")
@@ -363,7 +373,7 @@ def test_stochastic_eligibility_writes_outputs_only_on_success(
     node.setup()
     assert tick_call_out(node) == expected
     storage = py_trees.blackboard.Blackboard.storage
-    for key, typ in CVE_ELIGIBILITY_OUTPUT_KEYS.items():
+    for key, typ in _ELIGIBILITY_OUTPUTS.items():
         if expected == Status.SUCCESS:
             assert isinstance(storage[f"/{key}"], typ)
         else:

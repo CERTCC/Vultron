@@ -38,6 +38,8 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_dead_letter import (
     InboxDeadLetterEntry,
@@ -294,11 +296,14 @@ def test_resolve_ledger_entry_id_reads_inline_object_from_sqlite(alice_dl):
         as_CaseLedgerEntry,
     )
 
-    wire_entry = as_CaseLedgerEntry(
+    wire_entry = make(
+        as_CaseLedgerEntry,
         case_id="urn:case:seam-test",
         log_index=0,
         log_object_id="urn:activity:seam-object",
         semantic_type="SeamTest",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     ledger_entry_id = wire_entry.id_
     announce = announce_log_entry_activity(

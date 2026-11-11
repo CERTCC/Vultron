@@ -17,6 +17,7 @@
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case import VulnerabilityCase
@@ -49,7 +50,8 @@ def bridge(dl):
 
 @pytest.fixture
 def participant():
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -59,19 +61,23 @@ def participant():
 
 @pytest.fixture
 def status_obj():
-    return as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+    return make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID)
 
 
 @pytest.fixture
 def populated_dl(dl, participant, status_obj):
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = make(
+        CaseParticipant,
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(
-        id_=CASE_ID, name="Test Case", attributed_to=CASE_MANAGER_ID
+    case = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        name="Test Case",
+        attributed_to=CASE_MANAGER_ID,
     )
     case.add_participant(participant)
     case.add_participant(case_manager_participant)

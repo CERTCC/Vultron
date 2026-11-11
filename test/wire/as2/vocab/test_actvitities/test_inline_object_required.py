@@ -24,8 +24,10 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
     _RecommendActorActivity,
@@ -129,48 +131,63 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-_ACTOR = as_Person(name="Alice")
-_CASE = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
-_REPORT = as_VulnerabilityReport(name="CVE-TEST-001")
-_NOTE = as_Note(name="Test Note")
+_ACTOR = make(as_Person, name="Alice")
+_CASE = make(
+    as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Test Case"
+)
+_REPORT = make(as_VulnerabilityReport, name="CVE-TEST-001")
+_NOTE = make(as_Note, name="Test Note")
 # ``context`` is required: it names the case the status belongs to, and a status
 # with no case is not a thing the protocol can carry.  The deleted wire class
 # admitted it as absent, because the wire branch was deliberately lenient
 # (ARCH-12-002); the core class is fail-fast (ARCH-10-001) and is now the only
 # class.
-_STATUS = as_CaseStatus(context=_CASE.id_)
-_PARTICIPANT_STATUS = as_ParticipantStatus(context=_CASE.id_)
-_EMBARGO = as_EmbargoEvent(
+_STATUS = make(as_CaseStatus, context=_CASE.id_)
+_PARTICIPANT_STATUS = make(as_ParticipantStatus, context=_CASE.id_)
+_EMBARGO = make(
+    as_EmbargoEvent,
     name="Embargo Event",
     context="urn:uuid:case-123",
     end_time=days_from_now(45),
 )
-_PARTICIPANT = as_CaseParticipant(attributed_to=_ACTOR.id_)
-_LOG_ENTRY = as_CaseLedgerEntry(
+_PARTICIPANT = make(as_CaseParticipant, attributed_to=_ACTOR.id_)
+_LOG_ENTRY = make(
+    as_CaseLedgerEntry,
     case_id=_CASE.id_,
     log_object_id=_REPORT.id_,
     semantic_type="CREATE_REPORT",
+    received_at=ACT_AT,
+    published=ACT_AT,
 )
 
-_SUBMIT = _RmSubmitReportActivity(actor=_ACTOR, object_=_REPORT)
+_SUBMIT = make(_RmSubmitReportActivity, actor=_ACTOR, object_=_REPORT)
 _STUB = as_VulnerabilityCaseStub(case_id=_CASE.id_)
-_INVITE = _RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_STUB)
-_LEAVE = _RmCloseCaseActivity(actor=_ACTOR, object_=_CASE)
-_PROPOSE = _EmProposeEmbargoActivity(
+_INVITE = make(
+    _RmInviteToCaseActivity, actor=_ACTOR, object_=_ACTOR, target=_STUB
+)
+_LEAVE = make(_RmCloseCaseActivity, actor=_ACTOR, object_=_CASE)
+_PROPOSE = make(
+    _EmProposeEmbargoActivity,
     actor=_ACTOR,
-    object_=as_EmbargoEvent(
-        name="Embargo Event", context=_CASE.id_, end_time=days_from_now(45)
+    object_=make(
+        as_EmbargoEvent,
+        name="Embargo Event",
+        context=_CASE.id_,
+        end_time=days_from_now(45),
     ),
     context=_CASE.id_,
 )
-_RECOMMEND = _RecommendActorActivity(
-    actor=_ACTOR, object_=_ACTOR, target=_CASE
+_RECOMMEND = make(
+    _RecommendActorActivity, actor=_ACTOR, object_=_ACTOR, target=_CASE
 )
-_OFFER_TRANSFER = _OfferCaseOwnershipTransferActivity(
-    actor=_ACTOR, object_=_CASE
+_OFFER_TRANSFER = make(
+    _OfferCaseOwnershipTransferActivity, actor=_ACTOR, object_=_CASE
 )
-_PROPOSE_TRANSFER = _ProposeCaseOwnershipTransferActivity(
-    actor=_ACTOR, object_=_OFFER_TRANSFER, context=_CASE.id_
+_PROPOSE_TRANSFER = make(
+    _ProposeCaseOwnershipTransferActivity,
+    actor=_ACTOR,
+    object_=_OFFER_TRANSFER,
+    context=_CASE.id_,
 )
 _GENERIC_TRANSITIVE_CLASSES = (
     as_TransitiveActivity,
@@ -219,7 +236,7 @@ class TestBareStringObjectRejected(unittest.TestCase):
 
     def _assert_string_rejected(self, cls, fake_id="urn:uuid:fake-id-1234"):
         with pytest.raises(ValidationError):
-            cls(actor=_ACTOR.id_, object_=fake_id)
+            make(cls, actor=_ACTOR.id_, object_=fake_id)
 
     def test_accept_actor_recommendation_rejects_string(self):
         self._assert_string_rejected(_AcceptActorRecommendationActivity)
@@ -238,7 +255,8 @@ class TestBareStringObjectRejected(unittest.TestCase):
 
     def test_propose_case_ownership_transfer_rejects_string(self):
         with pytest.raises(ValidationError):
-            _ProposeCaseOwnershipTransferActivity(
+            make(
+                _ProposeCaseOwnershipTransferActivity,
                 actor=_ACTOR.id_,
                 object_=cast(Any, "urn:uuid:fake-id-1234"),
                 context=_CASE.id_,
@@ -281,34 +299,44 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
     """Inline typed objects must be accepted at construction time (INLINE-OBJ-B)."""
 
     def test_accept_actor_recommendation_accepts_typed(self):
-        obj = _AcceptActorRecommendationActivity(
-            actor=_ACTOR.id_, object_=_RECOMMEND
+        obj = make(
+            _AcceptActorRecommendationActivity,
+            actor=_ACTOR.id_,
+            object_=_RECOMMEND,
         )
         assert isinstance(obj.object_, _RecommendActorActivity)
 
     def test_reject_actor_recommendation_accepts_typed(self):
-        obj = _RejectActorRecommendationActivity(
-            actor=_ACTOR.id_, object_=_RECOMMEND
+        obj = make(
+            _RejectActorRecommendationActivity,
+            actor=_ACTOR.id_,
+            object_=_RECOMMEND,
         )
         assert isinstance(obj.object_, _RecommendActorActivity)
 
     @pytest.mark.spec("RF-02-004")
     def test_accept_case_ownership_transfer_accepts_typed(self):
-        obj = _AcceptCaseOwnershipTransferActivity(
-            actor=_ACTOR.id_, object_=_OFFER_TRANSFER
+        obj = make(
+            _AcceptCaseOwnershipTransferActivity,
+            actor=_ACTOR.id_,
+            object_=_OFFER_TRANSFER,
         )
         assert isinstance(obj.object_, _OfferCaseOwnershipTransferActivity)
 
     @pytest.mark.spec("RF-03-003")
     def test_reject_case_ownership_transfer_accepts_typed(self):
-        obj = _RejectCaseOwnershipTransferActivity(
-            actor=_ACTOR.id_, object_=_OFFER_TRANSFER
+        obj = make(
+            _RejectCaseOwnershipTransferActivity,
+            actor=_ACTOR.id_,
+            object_=_OFFER_TRANSFER,
         )
         assert isinstance(obj.object_, _OfferCaseOwnershipTransferActivity)
 
     def test_undo_case_ownership_transfer_accepts_typed(self):
-        obj = _UndoCaseOwnershipTransferActivity(
-            actor=_ACTOR.id_, object_=_PROPOSE_TRANSFER
+        obj = make(
+            _UndoCaseOwnershipTransferActivity,
+            actor=_ACTOR.id_,
+            object_=_PROPOSE_TRANSFER,
         )
         assert isinstance(obj.object_, _ProposeCaseOwnershipTransferActivity)
 
@@ -318,46 +346,63 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
         )
 
     def test_rm_accept_invite_accepts_typed(self):
-        obj = _RmAcceptInviteToCaseActivity(actor=_ACTOR.id_, object_=_INVITE)
+        obj = make(
+            _RmAcceptInviteToCaseActivity, actor=_ACTOR.id_, object_=_INVITE
+        )
         assert isinstance(obj.object_, _RmInviteToCaseActivity)
 
     def test_rm_reject_invite_accepts_typed(self):
-        obj = _RmRejectInviteToCaseActivity(actor=_ACTOR.id_, object_=_INVITE)
+        obj = make(
+            _RmRejectInviteToCaseActivity, actor=_ACTOR.id_, object_=_INVITE
+        )
         assert isinstance(obj.object_, _RmInviteToCaseActivity)
 
     def test_rm_reject_close_accepts_typed(self):
-        obj = _RmRejectCloseCaseActivity(actor=_ACTOR.id_, object_=_LEAVE)
+        obj = make(
+            _RmRejectCloseCaseActivity, actor=_ACTOR.id_, object_=_LEAVE
+        )
         assert isinstance(obj.object_, _RmCloseCaseActivity)
 
     def test_em_accept_embargo_accepts_typed(self):
-        obj = _EmAcceptEmbargoActivity(actor=_ACTOR.id_, object_=_PROPOSE)
+        obj = make(
+            _EmAcceptEmbargoActivity, actor=_ACTOR.id_, object_=_PROPOSE
+        )
         assert isinstance(obj.object_, _EmProposeEmbargoActivity)
 
     def test_em_reject_embargo_accepts_typed(self):
-        obj = _EmRejectEmbargoActivity(actor=_ACTOR.id_, object_=_PROPOSE)
+        obj = make(
+            _EmRejectEmbargoActivity, actor=_ACTOR.id_, object_=_PROPOSE
+        )
         assert isinstance(obj.object_, _EmProposeEmbargoActivity)
 
     def test_em_undo_embargo_invite_accepts_typed(self):
-        obj = _EmUndoEmbargoInviteActivity(actor=_ACTOR.id_, object_=_PROPOSE)
+        obj = make(
+            _EmUndoEmbargoInviteActivity, actor=_ACTOR.id_, object_=_PROPOSE
+        )
         assert isinstance(obj.object_, _EmProposeEmbargoActivity)
 
     @pytest.mark.spec("RF-02-004")
     def test_rm_validate_report_accepts_typed(self):
-        obj = _RmValidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
+        obj = make(
+            _RmValidateReportActivity, actor=_ACTOR.id_, object_=_SUBMIT
+        )
         assert isinstance(obj.object_, _RmSubmitReportActivity)
 
     @pytest.mark.spec("RF-04-003")
     def test_rm_invalidate_report_accepts_typed(self):
-        obj = _RmInvalidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
+        obj = make(
+            _RmInvalidateReportActivity, actor=_ACTOR.id_, object_=_SUBMIT
+        )
         assert isinstance(obj.object_, _RmSubmitReportActivity)
 
     @pytest.mark.spec("RF-03-003")
     def test_rm_close_report_accepts_typed(self):
-        obj = _RmCloseReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
+        obj = make(_RmCloseReportActivity, actor=_ACTOR.id_, object_=_SUBMIT)
         assert isinstance(obj.object_, _RmSubmitReportActivity)
 
     def test_reject_log_entry_accepts_typed(self):
-        obj = _RejectLogEntryActivity(
+        obj = make(
+            _RejectLogEntryActivity,
             actor=_ACTOR.id_,
             object_=_LOG_ENTRY,
             in_reply_to="https://example.org/activities/prompting-announce",
@@ -366,7 +411,9 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
 
     def test_announce_log_entry_still_accepts_typed(self):
         """_AnnounceLogEntryActivity should still accept a as_CaseLedgerEntry."""
-        obj = _AnnounceLogEntryActivity(actor=_ACTOR.id_, object_=_LOG_ENTRY)
+        obj = make(
+            _AnnounceLogEntryActivity, actor=_ACTOR.id_, object_=_LOG_ENTRY
+        )
         assert isinstance(obj.object_, as_CaseLedgerEntry)
 
 
@@ -380,11 +427,11 @@ class TestNoneObjectRejected(unittest.TestCase):
 
     def _assert_none_rejected(self, cls, **kwargs):
         with pytest.raises(ValidationError):
-            cls(actor=_ACTOR.id_, object_=None, **kwargs)
+            make(cls, actor=_ACTOR.id_, object_=None, **kwargs)
 
     def _assert_missing_rejected(self, cls, **kwargs):
         with pytest.raises(ValidationError):
-            cls(actor=_ACTOR.id_, **kwargs)
+            make(cls, actor=_ACTOR.id_, **kwargs)
 
     # --- report.py (6 classes) ---
 
@@ -628,11 +675,11 @@ class TestGenericTransitiveActivitiesRequireObject(unittest.TestCase):
 
     def _assert_none_rejected(self, cls, **kwargs):
         with pytest.raises(ValidationError):
-            cls(actor=_ACTOR.id_, object_=None, **kwargs)
+            make(cls, actor=_ACTOR.id_, object_=None, **kwargs)
 
     def _assert_missing_rejected(self, cls, **kwargs):
         with pytest.raises(ValidationError):
-            cls(actor=_ACTOR.id_, **kwargs)
+            make(cls, actor=_ACTOR.id_, **kwargs)
 
     def test_generic_transitive_classes_reject_none(self):
         for cls in _GENERIC_TRANSITIVE_CLASSES:
@@ -673,7 +720,7 @@ def test_accept_refuses_the_offered_object_in_place_of_the_offer(
 ):
     """An Accept carries the Offer or Invite itself, not what it offered."""
     with pytest.raises(ValidationError):
-        accept_cls(actor=_ACTOR.id_, object_=offered_object)
+        make(accept_cls, actor=_ACTOR.id_, object_=offered_object)
 
 
 @pytest.mark.spec("RF-03-003")
@@ -691,13 +738,15 @@ def test_reject_refuses_the_offered_object_in_place_of_the_offer(
 ):
     """A Reject carries the Offer or Invite itself, not what it offered."""
     with pytest.raises(ValidationError):
-        reject_cls(actor=_ACTOR.id_, object_=offered_object)
+        make(reject_cls, actor=_ACTOR.id_, object_=offered_object)
 
 
 @pytest.mark.spec("RF-04-003")
 def test_tentative_reject_refuses_the_offered_object_in_place_of_the_offer():
     """A TentativeReject carries the Offer itself, not the offered report."""
     with pytest.raises(ValidationError):
-        _RmInvalidateReportActivity(
-            actor=_ACTOR.id_, object_=cast(Any, _REPORT)
+        make(
+            _RmInvalidateReportActivity,
+            actor=_ACTOR.id_,
+            object_=cast(Any, _REPORT),
         )

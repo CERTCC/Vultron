@@ -16,6 +16,7 @@
 import json
 from datetime import UTC, datetime
 
+from test.support.objects import make
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent as WireEmbargoEvent,
@@ -33,29 +34,31 @@ class TestWireEmbargoEventBasics:
         assert WireEmbargoEvent is CoreEmbargoEvent
 
     def test_default_type(self):
-        e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
+        e = make(WireEmbargoEvent, context=_CONTEXT, end_time=_FUTURE)
         assert e.type_ == "EmbargoEvent"
 
     def test_json_has_camelcase_keys(self):
-        e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
+        e = make(WireEmbargoEvent, context=_CONTEXT, end_time=_FUTURE)
         data = json.loads(e.model_dump_json(exclude_none=True, by_alias=True))
         assert "endTime" in data
         assert "startTime" in data
 
     def test_set_name_populated(self):
         """The derived label survives the collapse onto the core class."""
-        e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
+        e = make(WireEmbargoEvent, context=_CONTEXT, end_time=_FUTURE)
         assert e.name is not None
         assert "Embargo for" in e.name
         assert _CONTEXT in e.name
 
     def test_carried_name_is_kept(self):
         """A name the sender supplied is not overwritten by the derivation."""
-        e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE, name="mine")
+        e = make(
+            WireEmbargoEvent, context=_CONTEXT, end_time=_FUTURE, name="mine"
+        )
         assert e.name == "mine"
 
     def test_fields_accessible(self):
-        e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
+        e = make(WireEmbargoEvent, context=_CONTEXT, end_time=_FUTURE)
         assert e.end_time == _FUTURE
         assert e.context == _CONTEXT
 
@@ -67,7 +70,8 @@ class TestWireEmbargoEventFromCore:
         assert WireEmbargoEvent is CoreEmbargoEvent
 
     def test_direct_instantiation_preserves_times(self):
-        e = WireEmbargoEvent(
+        e = make(
+            WireEmbargoEvent,
             context=_CONTEXT,
             start_time=_START,
             end_time=_FUTURE,
@@ -76,7 +80,7 @@ class TestWireEmbargoEventFromCore:
         assert e.start_time == _START
 
     def test_core_instance_is_wire_instance(self):
-        core = CoreEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
+        core = make(CoreEmbargoEvent, context=_CONTEXT, end_time=_FUTURE)
         assert isinstance(core, WireEmbargoEvent)
 
 
@@ -84,11 +88,12 @@ class TestWireEmbargoEventToCore:
     """Wire instances ARE core instances — no to_core() conversion needed."""
 
     def test_wire_instance_is_core_instance(self):
-        wire = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
+        wire = make(WireEmbargoEvent, context=_CONTEXT, end_time=_FUTURE)
         assert isinstance(wire, CoreEmbargoEvent)
 
     def test_fields_directly_accessible(self):
-        wire = WireEmbargoEvent(
+        wire = make(
+            WireEmbargoEvent,
             context=_CONTEXT,
             start_time=_START,
             end_time=_FUTURE,
@@ -97,11 +102,12 @@ class TestWireEmbargoEventToCore:
         assert wire.start_time == _START
 
     def test_context_directly_accessible(self):
-        wire = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
+        wire = make(WireEmbargoEvent, context=_CONTEXT, end_time=_FUTURE)
         assert wire.context == _CONTEXT
 
     def test_roundtrip_model_dump_validate(self):
-        core1 = CoreEmbargoEvent(
+        core1 = make(
+            CoreEmbargoEvent,
             context=_CONTEXT,
             start_time=_START,
             end_time=_FUTURE,

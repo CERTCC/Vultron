@@ -8,6 +8,8 @@
   "id": "urn:uuid:baf90f4a-0626-4f16-9171-0448af271ffc",
   "name": "https://vultron.example/organizations/vendorco Add Finn der Vul to urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We're adding the finder as a participant to this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "target": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
@@ -52,6 +54,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z4mAmLyGipaAwFEx4cDGQa5D8khmkknk8xzps6fNt36PYrzc8cb8TyN5x5q28CbLybn63SkuK74jL17YmD4a9Bz7z"
+    "proofValue": "z87njRQpicfaBrdx4XAkRCxNAUUSGz3HHGhCjEbeYBhsdDrVb9Ft2AA3DAE5JMfLYxkuyfyLuPEhaGANcq3M3bXa"
   }
 }

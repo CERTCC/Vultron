@@ -26,6 +26,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.future_dates import FAR_FUTURE
+from test.support.objects import make
 from vultron.core.models.base import CoreObject
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -44,19 +45,19 @@ class TestCoreEmbargoEventBasics:
         assert issubclass(EmbargoEvent, CoreObject)
 
     def test_type_literal(self):
-        e = EmbargoEvent(context=_CONTEXT, end_time=_FUTURE_DT)
+        e = make(EmbargoEvent, context=_CONTEXT, end_time=_FUTURE_DT)
         assert e.type_ == "EmbargoEvent"
 
     def test_context_required(self):
         with pytest.raises(ValidationError):
-            EmbargoEvent(end_time=_FUTURE_DT)
+            make(EmbargoEvent, end_time=_FUTURE_DT)
 
     def test_start_time_has_default(self):
-        e = EmbargoEvent(context=_CONTEXT, end_time=_FUTURE_DT)
+        e = make(EmbargoEvent, context=_CONTEXT, end_time=_FUTURE_DT)
         assert e.start_time is not None
 
     def test_explicit_end_time_accepted(self):
-        e = EmbargoEvent(context=_CONTEXT, end_time=_FUTURE_DT)
+        e = make(EmbargoEvent, context=_CONTEXT, end_time=_FUTURE_DT)
         assert e.end_time == _FUTURE_DT
 
 
@@ -71,7 +72,7 @@ class TestCoreEmbargoEventNoDefaultDuration:
     @pytest.mark.spec("EP-04-023")
     def test_end_time_is_required(self):
         with pytest.raises(ValidationError) as exc_info:
-            EmbargoEvent(context=_CONTEXT)
+            make(EmbargoEvent, context=_CONTEXT)
         assert any(
             err["loc"] == ("endTime",) and err["type"] == "missing"
             for err in exc_info.value.errors()
@@ -92,8 +93,11 @@ class TestCoreEmbargoEventNoDefaultDuration:
         alone, enforced on ``ActorConfig`` (EP-04-018, test_actor_config)."""
         start = FAR_FUTURE  # far-future; tests duration, not the absolute date
         for delta in (timedelta(hours=12), timedelta(days=400)):
-            e = EmbargoEvent(
-                context=_CONTEXT, start_time=start, end_time=start + delta
+            e = make(
+                EmbargoEvent,
+                context=_CONTEXT,
+                start_time=start,
+                end_time=start + delta,
             )
             assert e.end_time - start == delta
 
@@ -108,7 +112,7 @@ class TestCoreEmbargoEventTimesAreUtc:
 
     @pytest.mark.spec("CS-13-001")
     def test_naive_end_time_is_read_as_utc(self):
-        e = EmbargoEvent(context=_CONTEXT, end_time=_NAIVE_DT)
+        e = make(EmbargoEvent, context=_CONTEXT, end_time=_NAIVE_DT)
         assert e.end_time.tzinfo == UTC
         assert e.end_time == _NAIVE_DT.replace(tzinfo=UTC)
 
@@ -116,14 +120,17 @@ class TestCoreEmbargoEventTimesAreUtc:
     def test_aware_end_time_is_kept(self):
         plus_five = timezone(timedelta(hours=5))
         aware = _NAIVE_DT.replace(tzinfo=plus_five)
-        e = EmbargoEvent(context=_CONTEXT, end_time=aware)
+        e = make(EmbargoEvent, context=_CONTEXT, end_time=aware)
         assert e.end_time == aware
         assert e.end_time.utcoffset() is not None
 
     @pytest.mark.spec("CS-13-001")
     def test_naive_start_time_is_read_as_utc(self):
-        e = EmbargoEvent(
-            context=_CONTEXT, start_time=_NAIVE_DT, end_time=_FUTURE_DT
+        e = make(
+            EmbargoEvent,
+            context=_CONTEXT,
+            start_time=_NAIVE_DT,
+            end_time=_FUTURE_DT,
         )
         assert e.start_time is not None
         assert e.start_time.tzinfo == UTC
@@ -131,8 +138,11 @@ class TestCoreEmbargoEventTimesAreUtc:
     @pytest.mark.spec("CLP-15-007")
     def test_absent_start_time_stays_none(self):
         """Normalisation never fabricates a time."""
-        e = EmbargoEvent(
-            context=_CONTEXT, start_time=None, end_time=_FUTURE_DT
+        e = make(
+            EmbargoEvent,
+            context=_CONTEXT,
+            start_time=None,
+            end_time=_FUTURE_DT,
         )
         assert e.start_time is None
 
@@ -145,7 +155,7 @@ class TestCoreEmbargoEventTimesAreUtc:
         (it validates straight into ``EmbargoEvent``), so this is the path
         #3784 exists for.
         """
-        embargo = EmbargoEvent(context=_CONTEXT, end_time=_FUTURE_DT)
+        embargo = make(EmbargoEvent, context=_CONTEXT, end_time=_FUTURE_DT)
         invite = em_propose_embargo_activity(
             embargo, actor="https://example.org/actors/vendor"
         )
@@ -172,7 +182,8 @@ class TestCoreEmbargoEventRegistration:
 def test_with_subject_relabels_a_derived_name_for_the_new_subject() -> None:
     """The label ``_set_name`` derived for the report is not a sender's name;
     the case-scoped copy is labelled by the case."""
-    event = EmbargoEvent(
+    event = make(
+        EmbargoEvent,
         context="https://example.org/reports/r-1",
         end_time=datetime(2099, 6, 1, tzinfo=UTC),
     )
@@ -187,7 +198,8 @@ def test_with_subject_relabels_a_derived_name_for_the_new_subject() -> None:
 
 @pytest.mark.spec("EP-04-004")
 def test_with_subject_keeps_a_name_the_sender_chose() -> None:
-    event = EmbargoEvent(
+    event = make(
+        EmbargoEvent,
         name="Widget parser embargo",
         context="https://example.org/reports/r-1",
         end_time=datetime(2099, 6, 1, tzinfo=UTC),
@@ -210,7 +222,8 @@ def test_with_subject_keeps_a_name_the_sender_chose() -> None:
 def test_an_embargo_over_90_days_carries_a_justification() -> None:
     """An embargo longer than P90D has a justification field to carry."""
     start = datetime(2099, 1, 1, tzinfo=UTC)
-    event = EmbargoEvent(
+    event = make(
+        EmbargoEvent,
         context=_CONTEXT,
         start_time=start,
         end_time=start + timedelta(days=120),

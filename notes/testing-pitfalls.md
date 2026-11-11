@@ -506,9 +506,9 @@ FAILURE-path tests are unaffected.
 ### BT Contract Tests: Inherit the Production Node Class
 
 A deterministic wrapper for a probabilistic call-out node MUST subclass the
-**production node** plus `AlwaysSucceed`, not the abstract mixin plus
-`AlwaysSucceed`; otherwise it redeclares `contract` and cannot catch a
-regression in the real node:
+**production node** plus `AlwaysSucceed`, not a shape base plus `AlwaysSucceed`;
+otherwise it declares ports of its own and cannot catch a regression in the real
+node or its core declaration (BT-18-021):
 
 ```python
 class _DeterministicDevelopExploit(DevelopExploit, AlwaysSucceed):

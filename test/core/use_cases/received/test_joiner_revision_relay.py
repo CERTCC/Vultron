@@ -42,6 +42,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import case_stub
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -113,7 +114,7 @@ def _accept(dl: SqliteDataLayer, event):
 def _invited_joiner(dl: SqliteDataLayer, case_id: str, make_payload):
     """Seat the joiner inert under a stub Invite; return its Accept event."""
     invite = rm_invite_to_case_activity(
-        as_Actor(id_=JOINER),
+        make(as_Actor, id_=JOINER),
         to=[JOINER],
         target=case_stub(case_id),
         actor=MANAGER,
@@ -354,7 +355,8 @@ def test_every_open_proposal_is_relayed_to_the_joiner(make_payload):
     """Two counter-proposals are open, so the joiner gets two Invites."""
     case_id = "https://example.org/cases/joiner-two-proposals"
     dl, _ = _open_revision(case_id, make_payload)
-    second = as_EmbargoEvent(
+    second = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/second",
         content="Even longer terms",
         context=case_id,
@@ -572,7 +574,8 @@ def test_a_late_joiner_holds_an_uninvited_row_for_every_final_entry(
     case = cast(VulnerabilityCase, dl.read(case_id))
     superseded = _active_id(dl, case_id)
     d1, d2 = (
-        as_EmbargoEvent(
+        make(
+            as_EmbargoEvent,
             id_=f"{case_id}/embargo_events/{name}",
             content=f"Terms {name}",
             context=case_id,

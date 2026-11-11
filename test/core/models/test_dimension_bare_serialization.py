@@ -29,6 +29,7 @@ demonstrated.
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     DDimension,
@@ -174,8 +175,8 @@ _EQUIVALENT_STATES = [
         },
         {
             "rm": RM.VALID,
-            "case_status": as_CaseStatus(
-                id_="urn:uuid:cs-nested", context="urn:case:1"
+            "case_status": make(
+                as_CaseStatus, id_="urn:uuid:cs-nested", context="urn:case:1"
             ),
         },
     ),
@@ -199,11 +200,14 @@ def test_core_participant_status_as2_output_matches_wire(
     excluded because the two objects are constructed in separate statements.
     """
     object_id = f"urn:uuid:ps-{label}"
-    core = ParticipantStatus(
-        id_=object_id, context="urn:case:1", **core_kwargs
+    core = make(
+        ParticipantStatus, id_=object_id, context="urn:case:1", **core_kwargs
     )
-    wire = as_ParticipantStatus(
-        id_=object_id, context="urn:case:1", **wire_kwargs
+    wire = make(
+        as_ParticipantStatus,
+        id_=object_id,
+        context="urn:case:1",
+        **wire_kwargs,
     )
 
     def strip(value):
@@ -245,14 +249,15 @@ def test_enclosing_field_alias_carries_the_bare_state_on_the_wire():
     wire form ARCH-25-005 says must not change: the enclosing field's alias
     (``rmState``, ``emState``, ``pxaState``) maps to the bare state value.
     """
-    participant = ParticipantStatus(
+    participant = make(
+        ParticipantStatus,
         id_="urn:uuid:ps-wire",
         context="urn:case:1",
         rm=RmDimension(state=RM.ACCEPTED),
     ).model_dump(mode="json", by_alias=True)
-    case = CaseStatus(id_="urn:uuid:cs-wire", context="urn:case:1").model_dump(
-        mode="json", by_alias=True
-    )
+    case = make(
+        CaseStatus, id_="urn:uuid:cs-wire", context="urn:case:1"
+    ).model_dump(mode="json", by_alias=True)
 
     assert participant["rmState"] == "ACCEPTED"
     assert (case["emState"], case["pxaState"]) == ("NONE", "pxa")
@@ -261,7 +266,8 @@ def test_enclosing_field_alias_carries_the_bare_state_on_the_wire():
 @pytest.mark.spec("SM-08-001")
 def test_vendor_and_deployer_states_travel_as_bare_labels():
     """The VF and D dimensions reach the wire as bare labels, as RM does."""
-    participant = ParticipantStatus(
+    participant = make(
+        ParticipantStatus,
         id_="urn:uuid:ps-wire-vfd",
         context="urn:case:1",
         cvd_role=[CVDRole.VENDOR, CVDRole.DEPLOYER],
@@ -296,8 +302,8 @@ class TestStatePersistsThroughTheNormalisationRoundTrip:
     def test_em_state_survives_the_normalisation_round_trip(self):
         # em is a frozen field (SDO-03-010): build the status with the
         # desired EM at construction, never by assigning to em.state.
-        status = CaseStatus(
-            context="urn:case:1", em=EmDimension(state=EM.EXITED)
+        status = make(
+            CaseStatus, context="urn:case:1", em=EmDimension(state=EM.EXITED)
         )
 
         data = self._normalised(status)

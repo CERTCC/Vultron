@@ -29,17 +29,20 @@ import pytest
 
 from test.support.act_clock import no_clock
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models._helpers import (
     clock as helpers_clock,
     days_after,
     deadline_from,
     format_timestamp,
     now_utc,
+    require_aware,
     require_future_aware,
     stamp_after,
     timestamp_serializer,
 )
 from vultron.demo.determinism import SteppingClock
+from vultron.errors import VultronValidationError
 
 # --- Architecture ratchet ------------------------------------------------
 
@@ -244,10 +247,13 @@ def test_has_case_statuses_true_when_non_empty():
     from vultron.core.models.case import VulnerabilityCase, has_case_statuses
     from vultron.core.models.case_status import CaseStatus
 
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/x1",
-        case_statuses=[CaseStatus(context="https://example.org/cases/x1")],
+        case_statuses=[
+            make(CaseStatus, context="https://example.org/cases/x1")
+        ],
     )
     assert has_case_statuses(case) is True
 
@@ -255,8 +261,10 @@ def test_has_case_statuses_true_when_non_empty():
 def test_has_case_statuses_false_when_empty():
     from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/x2"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/x2",
     )
     case.case_statuses = []
     assert has_case_statuses(case) is False
@@ -266,8 +274,10 @@ def test_has_case_statuses_true_when_default():
     """A new case is seeded with one status, since it always has an owner."""
     from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/x3"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/x3",
     )
     assert has_case_statuses(case) is True
 
@@ -538,15 +548,32 @@ def test_the_time_helpers_refuse_a_naive_instant(
         helper(_PINNED.replace(tzinfo=None))
 
 
-def test_require_future_aware_compares_against_now_utc(
-    _frozen_clock: None,
-) -> None:
-    # The pinned clock is long past, so only a read through now_utc() lets a
-    # value one second after it count as the future.
-    future = _PINNED + timedelta(seconds=1)
-    assert require_future_aware(future) == future
-    with pytest.raises(ValueError, match="must be in the future"):
-        require_future_aware(_PINNED)
+@pytest.mark.spec("CS-13-002")
+def test_require_future_aware_judges_against_the_instant_it_is_given() -> None:
+    """Strictly after *at*, read from no clock (ADR-0176)."""
+    after = _PINNED + timedelta(microseconds=1)
+    with no_clock():
+        assert require_future_aware(after, at=_PINNED) == after
+        assert require_future_aware(None, at=_PINNED) is None
+        for not_after in (_PINNED, _PINNED - timedelta(days=1)):
+            with pytest.raises(
+                VultronValidationError, match="must be in the future"
+            ):
+                require_future_aware(not_after, at=_PINNED)
+        with pytest.raises(VultronValidationError, match="timezone-aware"):
+            require_future_aware(after.replace(tzinfo=None), at=_PINNED)
+
+
+def test_require_aware_checks_only_the_offset() -> None:
+    """A request body's check: a past instant passes, a naive one does not."""
+    past = _PINNED - timedelta(days=365)
+    with no_clock():
+        assert require_aware(past) == past
+        assert require_aware(None) is None
+        with pytest.raises(
+            ValueError, match="end_time must be timezone-aware"
+        ):
+            require_aware(past.replace(tzinfo=None))
 
 
 # CS-13-002 (time enters only through the act clock) is checked by

@@ -19,6 +19,7 @@ import py_trees
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.core.behaviors.status.nodes.append import (
     AppendStatusAndSaveParticipantNode,
     LoadParticipantNode,
@@ -72,7 +73,7 @@ class TestResolveAndPersistStatusObjectNode:
 
         from .conftest import CASE_ID
 
-        fallback = ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+        fallback = make(ParticipantStatus, id_=STATUS_ID, context=CASE_ID)
         node = ResolveAndPersistStatusObjectNode(
             status_id=STATUS_ID, status_obj_fallback=fallback
         )

@@ -21,11 +21,10 @@ SYNC-11-001 through SYNC-11-005.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.primitives import require_non_empty
 
@@ -64,7 +63,9 @@ class PendingAssertion:
     case_id: str
     semantic_type: str
     object_id: str
-    emitted_at: datetime = field(default_factory=now_utc)
+    # Required: the instant of the act that emitted the assertion
+    # (ADR-0176).  No default reads the clock.
+    emitted_at: datetime
     status: Literal["pending", "cleared", "timed_out"] = "pending"
     subject_id: str | None = None
 
@@ -88,10 +89,10 @@ class PendingAssertionStore:
     suppress future decisions.
 
     **A lookup judges expiry against an instant its caller supplies** (#5591,
-    see the module docstring).  :meth:`add` uses the instant it stamped on the
-    new entry, :meth:`expire_timed_out` reads the clock, and every lookup
-    takes an ``at`` argument; each applies the mark to whatever the instant
-    shows is overdue.  No method here reads the clock except that sweep.
+    see the module docstring).  :meth:`add` uses the instant it stamps on the
+    new entry, and :meth:`expire_timed_out` and every lookup take an ``at``
+    argument; each applies the mark to whatever the instant shows is
+    overdue.  No method here reads the clock (ADR-0176).
 
     Setting ``timeout_seconds=0`` disables suppression entirely.
 
@@ -188,6 +189,8 @@ class PendingAssertionStore:
         semantic_type: str,
         object_id: str,
         subject_id: str | None = None,
+        *,
+        at: datetime,
     ) -> None:
         """Record a just-emitted assertion as *pending*.
 
@@ -204,6 +207,8 @@ class PendingAssertionStore:
             object_id: Full URI of the asserted activity or primary object.
             subject_id: What the assertion is about, when a repeat would
                 carry a new activity id (see :class:`PendingAssertion`).
+            at: The emitting act's instant, stamped as ``emitted_at``
+                (ADR-0176).
         """
         key = self._key(case_id, semantic_type, object_id)
         entry = PendingAssertion(
@@ -211,6 +216,7 @@ class PendingAssertionStore:
             semantic_type=semantic_type,
             object_id=object_id,
             subject_id=subject_id,
+            emitted_at=at,
         )
         # Marked before the new entry joins the store, so an instant an
         # earlier caller supplied cannot time out the entry this write
@@ -341,19 +347,18 @@ class PendingAssertionStore:
             self.clear(entry.case_id, entry.semantic_type, entry.object_id)
         return cleared
 
-    def expire_timed_out(self) -> int:
-        """Sweep the store and expire all overdue pending entries.
+    def expire_timed_out(self, at: datetime) -> int:
+        """Sweep the store and expire every entry overdue at *at*.
 
-        The one method here that reads the clock, for a caller that holds no
-        instant of its own — an operator forcing a sweep, or the reap trigger
-        of ASK-05-002 (#2887).  Nothing depends on it for the timeout to
-        fire: every lookup judges expiry against the instant its caller
-        supplies (#5591).
+        For a caller with no lookup to make — an operator forcing a sweep, or
+        the reap trigger of ASK-05-002 (#2887) — which passes its act's
+        instant, as every lookup does (#5591, ADR-0176).  Nothing depends on
+        it for the timeout to fire.
 
         Returns:
             Number of entries transitioned to ``"timed_out"`` this sweep.
         """
-        return self._mark_overdue(now_utc())
+        return self._mark_overdue(at)
 
     def __len__(self) -> int:
         """Return the total number of tracked entries (all statuses)."""

@@ -39,6 +39,7 @@ from test.support.ledger_rebuild import (
     replay_inbox,
     run_use_case,
 )
+from test.support.objects import make
 from test.support.received import (
     in_step_sender_sequence,
     received_event,
@@ -511,14 +512,16 @@ class LedgerNetwork:
         )
         current = participant.participant_status
         assert current is not None
-        status = ParticipantStatus(
+        status = make(
+            ParticipantStatus,
             context=self.case_id,
             attributed_to=member,
             rm=current.rm,
             vf=current.vf,
             d=current.d,
             cvd_role=current.cvd_role,
-            case_status=CaseStatus(
+            case_status=make(
+                CaseStatus,
                 context=self.case_id,
                 attributed_to=member,
                 em=EmDimension(state=case.em_state),
@@ -527,8 +530,11 @@ class LedgerNetwork:
         )
         return add_status_to_participant_activity(
             status,
-            target=as_CaseParticipant(
-                id_=participant.id_, context=self.case_id, attributed_to=member
+            target=make(
+                as_CaseParticipant,
+                id_=participant.id_,
+                context=self.case_id,
+                attributed_to=member,
             ),
             actor=member,
             to=[MANAGER],

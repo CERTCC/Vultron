@@ -136,9 +136,9 @@ This Representational State Transfer (REST) profile is the transport this versio
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("IE-02-001", "IE-02-002", "HTTP-01-004", "HTTP-01-001", "HTTP-01-002", "HTTP-01-003"))
 ```
 
-!!! note "The reference implementation posts plain JSON"
-    The reference implementation delivers with `Content-Type: application/json`, and its inbox does not yet refuse other media types.
-    HTTP-01-003 and HTTP-01-004 are listed in [Known Gaps](known-gaps.md).
+!!! note "The reference implementation's inbox accepts any media type"
+    The reference implementation delivers with `Content-Type: application/activity+json`, but its inbox does not yet refuse other media types.
+    HTTP-01-003 is listed in [Known Gaps](known-gaps.md).
 
 {% include-markdown "./_oq-transport-status-codes.md" %}
 

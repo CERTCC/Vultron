@@ -35,6 +35,8 @@ from pydantic import BaseModel
 
 import vultron.core.models
 import vultron.wire.as2.vocab
+from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case.vulnerability_case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -641,7 +643,7 @@ class TestWhatTheVerdictHolds:
             "VultronNote",
             "VultronOrganization",
             "EmbargoPolicy",
-            "VulnerabilityRecord",
+            "VulnerabilityItem",
         } <= names
 
     @pytest.mark.spec("DEMOCI-11-072")
@@ -672,7 +674,8 @@ class TestWhatTheVerdictHolds:
         A renamed digest field keeps its 64-character hex value, so a rename
         that put it in the verdict would fail here (#5535).
         """
-        entry = CaseLedgerEntry(
+        entry = make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_index=0,
             log_object_id=CASE_ID,
@@ -680,6 +683,8 @@ class TestWhatTheVerdictHolds:
             payload_snapshot={"id": ACTIVITY_ID, "type": "Create"},
             prev_log_hash="0" * 64,
             entry_hash="a" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         line = json.dumps(
             entry.model_dump(by_alias=True, exclude_none=True, mode="json")

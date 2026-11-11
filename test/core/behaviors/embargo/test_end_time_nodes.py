@@ -31,6 +31,7 @@ from py_trees.common import Status
 from test.core.behaviors.embargo.nodes.conftest import setup_blackboard
 from test.support.act_runner import in_act
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.end_time_tree import (
     EmbargoEndTimePassedNode,
@@ -53,12 +54,15 @@ def _store(end_time=None) -> tuple[SqliteDataLayer, VulnerabilityCase]:
     With *end_time* the embargo is stored; without, it cannot be read.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR)
-    case = VulnerabilityCase(name="End-time nodes", attributed_to=ACTOR)
+    case = make(VulnerabilityCase, name="End-time nodes", attributed_to=ACTOR)
     embargo_id = f"{case.id_}/embargo_events/e1"
     if end_time is not None:
         dl.create(
-            as_EmbargoEvent(
-                id_=embargo_id, context=case.id_, end_time=end_time
+            make(
+                as_EmbargoEvent,
+                id_=embargo_id,
+                context=case.id_,
+                end_time=end_time,
             )
         )
     activate(case, embargo_id)

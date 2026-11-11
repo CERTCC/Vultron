@@ -25,6 +25,7 @@ of the ask clears it (SYNC-11-003).  BTND-07-005.
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.embargo.nodes.chosen_cause import (
     ChosenTermination,
 )
@@ -210,6 +211,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
             EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             activity_id,
             subject_id=self.embargo_id,
+            at=read_act_instant(),
         )
 
     def _on_outbox_write_failure(

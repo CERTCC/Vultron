@@ -31,8 +31,10 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.core.behaviors.embargo.nodes import (
     ApplyCreatedEmbargoFromLedgerNode,
 )
@@ -77,6 +79,7 @@ def _entry(embargo: dict[str, Any]) -> CaseLedgerEntry:
                 "object": embargo,
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 
@@ -84,7 +87,7 @@ def _entry(embargo: dict[str, Any]) -> CaseLedgerEntry:
 @pytest.fixture
 def created_case(datalayer) -> VulnerabilityCase:
     """A replica seeded from a genesis entry naming its embargo by id."""
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     activate(case, EMBARGO_ID)
     datalayer.save(case)
     return case

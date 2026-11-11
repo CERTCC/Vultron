@@ -36,6 +36,7 @@ import pytest
 from test.core.use_cases.received._archived_redelivery import (
     archived_redelivery,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_dispatch, run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
@@ -47,6 +48,7 @@ from test.support.embargo_register import (
 )
 from test.support.future_dates import days_from_now
 from test.support.ledger import fail_commits, is_consent_row_update
+from test.support.objects import make
 from test.support.received import (
     TEST_SENDER_POSITION,
     received_event,
@@ -163,16 +165,18 @@ def _make_full_dl(
     """
     dl = _make_dl(store_owner_id)
 
-    ca_svc = VultronService(id_=CASE_ACTOR_ID, context=CASE_ID)
+    ca_svc = make(VultronService, id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=CASE_ID,
         name="Role Semantics Test",
         attributed_to=CASE_ACTOR_ID,
     )
 
-    cm_participant = as_CaseParticipant(
+    cm_participant = make(
+        as_CaseParticipant,
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -181,7 +185,8 @@ def _make_full_dl(
     case.case_participants.append(cm_participant.id_)
     case.actor_participant_index[CASE_ACTOR_ID] = cm_participant.id_
 
-    owner_participant = as_CaseParticipant(
+    owner_participant = make(
+        as_CaseParticipant,
         attributed_to=owner_id,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_OWNER, CVDRole.REPORTER],
@@ -191,7 +196,8 @@ def _make_full_dl(
     case.actor_participant_index[owner_id] = owner_participant.id_
 
     if extra_participant_id is not None:
-        vendor_participant = as_CaseParticipant(
+        vendor_participant = make(
+            as_CaseParticipant,
             attributed_to=extra_participant_id,
             context=CASE_ID,
             case_roles=[CVDRole.VENDOR],
@@ -211,8 +217,11 @@ def _make_close_case_event(
     receiving_actor_id: str = CASE_ACTOR_ID,
     activity_id: str = "https://example.org/activities/leave-role-test",
 ) -> CloseCaseReceivedEvent:
-    case_obj = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID)
-    activity = VultronActivity(
+    case_obj = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
+    )
+    activity = make(
+        VultronActivity,
         id_=activity_id,
         type_="Leave",
         actor=sender_actor_id,
@@ -247,7 +256,8 @@ def _seed_rm(dl: SqliteDataLayer, actor_id: str, rm_state: RM) -> None:
     participant = dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)
     participant.add_participant_status(
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             attributed_to=actor_id,
             context=CASE_ID,
             rm=RmDimension(state=rm_state),
@@ -772,7 +782,8 @@ def _seed_pending_invite(
     """
     case = dl.read_case(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{CASE_ID}/embargo_events/{suffix}",
         context=CASE_ID,
         end_time=days_from_now(45),
@@ -1006,7 +1017,8 @@ class TestOwnerCloseSettlesPendingInvites:
         dl = _make_full_dl()
         case = dl.read_case(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{CASE_ID}/embargo_events/in-force",
             context=CASE_ID,
             end_time=days_from_now(45),
@@ -1089,6 +1101,7 @@ class TestOwnerCloseSettlesPendingInvites:
                         "object": {"type": "EmbargoEvent", "id": embargo_id},
                     },
                     prev_log_hash=_ZERO_HASH,
+                    received_at=ACT_AT,
                 )
             )
 
@@ -1131,6 +1144,7 @@ class TestOwnerCloseSettlesPendingInvites:
                     semantic_type=source.semantic_type,
                     payload_snapshot=source.payload_snapshot,
                     prev_log_hash=prev_hash,
+                    received_at=ACT_AT,
                 )
             )
             prev_hash = entry.entry_hash
@@ -1192,10 +1206,12 @@ def _add_note_event(
     from vultron.wire.as2.factories import add_note_to_case_activity
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-    note = as_Note(id_=note_id, content="late note", context=CASE_ID)
+    note = make(as_Note, id_=note_id, content="late note", context=CASE_ID)
     activity = add_note_to_case_activity(
         note,
-        target=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID),
+        target=make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        ),
         actor=sender_id,
         to=[CASE_ACTOR_ID],
     )
@@ -1438,7 +1454,8 @@ class TestPostCloseWriteBoundary:
         assert case is not None
         participant = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(participant, CaseParticipant)
-        status = as_ParticipantStatus(
+        status = make(
+            as_ParticipantStatus,
             id_=f"{CASE_ID}/participants/vendor/statuses/late",
             context=CASE_ID,
             attributed_to=VENDOR_ID,
@@ -1449,8 +1466,8 @@ class TestPostCloseWriteBoundary:
             target=participant,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID
+            context=make(
+                as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
             ),
         )
         event = received_event(activity, at=dl).model_copy(
@@ -1541,6 +1558,7 @@ def _make_close_case_ledger_entry(
             semantic_type="close_case",
             payload_snapshot={"actor": departing_actor_id},
             prev_log_hash=genesis_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -2494,7 +2512,8 @@ def _seed_active_embargo(
     assert isinstance(case, VulnerabilityCase)
     # Hold the record too: a case never names an embargo its own store
     # cannot read (EMB-18-003).
-    embargo = EmbargoEvent(
+    embargo = make(
+        EmbargoEvent,
         id_=f"{CASE_ID}/embargo_events/e1",
         context=CASE_ID,
         end_time=days_from_now(45),
@@ -2502,7 +2521,8 @@ def _seed_active_embargo(
     dl.save(embargo)
     activate(case, embargo.id_)
     if em_state == EM.REVISE:
-        revision = EmbargoEvent(
+        revision = make(
+            EmbargoEvent,
             id_=f"{CASE_ID}/embargo_events/e2",
             context=CASE_ID,
             end_time=days_from_now(60),

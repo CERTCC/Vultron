@@ -25,7 +25,9 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import INBOUND_CASE_OWNERSHIP
+from test.support.objects import make
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
@@ -335,11 +337,14 @@ def _inline_case_participant(**extra: Any) -> dict[str, Any]:
 def _inline_ledger_entry(**keys: Any) -> dict[str, Any]:
     from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
-    entry = CaseLedgerEntry(
+    entry = make(
+        CaseLedgerEntry,
         case_id="https://example.org/cases/1",
         log_index=0,
         log_object_id="https://example.org/activities/0",
         semantic_type="create_case",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     body = entry.model_dump(by_alias=True, mode="json", exclude_none=True)
     body.update(keys)
@@ -775,8 +780,8 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
         case_id=case_id,
         summary="Security issue — embargo active, details after acceptance",
         active_embargo="https://example.org/embargoes/1",
-        case_status=CaseStatus(
-            context=case_id, em=EmDimension(state=EM.ACTIVE)
+        case_status=make(
+            CaseStatus, context=case_id, em=EmDimension(state=EM.ACTIVE)
         ),
     )
     target = stub.model_dump(by_alias=True, mode="json", exclude_none=True)

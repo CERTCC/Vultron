@@ -27,6 +27,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
+from test.support.objects import make
 from test.support.signing import post_delivered, serve_published_profiles
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -60,7 +61,8 @@ def served_store(
         dl.create(
             object_to_record(
                 actor
-                or CoreActor(
+                or make(
+                    CoreActor,
                     id_=actor_id,
                     name=name,
                     inbox=f"{actor_id}/inbox",

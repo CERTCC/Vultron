@@ -31,6 +31,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
@@ -68,19 +69,22 @@ OFFER_ID = "https://example.org/activities/offer-2252"
 
 
 def _seed_case(bt_scenario: BTTestScenario) -> None:
-    case_actor_participant = CaseParticipant(
+    case_actor_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/case-actor-cp",
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
     )
-    transferee_participant = CaseParticipant(
+    transferee_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/coordinator-cp",
         attributed_to=TRANSFEREE_ID,
         context=CASE_ID,
         case_roles=[CVDRole.COORDINATOR],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="ISSUE-2252 test case",
         attributed_to="https://example.org/actors/vendor",
@@ -103,7 +107,8 @@ def _accept_event() -> AcceptCaseOwnershipTransferReceivedEvent:
     A real event, not a stand-in: intake reads it first (CLP-10-017) and a
     bare object would be a wiring fault.
     """
-    activity = VultronActivity(
+    activity = make(
+        VultronActivity,
         id_=OFFER_ID,
         type_="Accept",
         actor=TRANSFEREE_ID,

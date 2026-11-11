@@ -28,8 +28,10 @@ from py_trees.behaviours import Failure
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import (
     TEST_SENDER_POSITION,
     extract_stamped,
@@ -92,7 +94,8 @@ ACTIVITY_ID = "https://example.org/activities/add-note-1"
 
 def _note_event(note: VultronNote) -> AddNoteToCaseReceivedEvent:
     """An ``Add(Note)`` event whose wire activity inlines *note*."""
-    activity = VultronActivity(
+    activity = make(
+        VultronActivity,
         id_=ACTIVITY_ID,
         type_="Add",
         actor=SENDER,
@@ -113,7 +116,9 @@ def _note_event(note: VultronNote) -> AddNoteToCaseReceivedEvent:
 
 
 def _rich_note() -> VultronNote:
-    return VultronNote(id_=NOTE_ID, content="what arrived", context=CASE_ID)
+    return make(
+        VultronNote, id_=NOTE_ID, content="what arrived", context=CASE_ID
+    )
 
 
 def _archived(dl: SqliteDataLayer, activity_id: str) -> bool:
@@ -259,10 +264,14 @@ def test_intake_writes_no_core_record_from_the_letter(scenario):
 @pytest.mark.spec("PCR-03-004")
 @pytest.mark.spec("CLP-10-038")
 def test_inlined_case_does_not_become_a_replica(scenario):
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="not mine to seed"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="not mine to seed",
     )
-    activity = VultronActivity(
+    activity = make(
+        VultronActivity,
         id_="https://example.org/activities/announce-1",
         type_="Announce",
         actor=SENDER,
@@ -326,8 +335,12 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
     id: the receiver's later ``create()`` of the real marker succeeds.
     """
     marker_id = VultronPendingCaseInbox.build_id(CASE_ID)
-    squatter = VultronActivity(
-        id_=marker_id, type_="Add", actor=SENDER, object_=_rich_note()
+    squatter = make(
+        VultronActivity,
+        id_=marker_id,
+        type_="Add",
+        actor=SENDER,
+        object_=_rich_note(),
     )
     event = with_evidence(
         AddNoteToCaseReceivedEvent(
@@ -345,7 +358,9 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
 
     assert scenario.dl.read(marker_id) is None
     scenario.dl.create(
-        VultronPendingCaseInbox(case_id=CASE_ID, case_actor_id=RECEIVER)
+        VultronPendingCaseInbox(
+            case_id=CASE_ID, case_actor_id=RECEIVER, queued_at=ACT_AT
+        )
     )
     assert isinstance(scenario.dl.read(marker_id), VultronPendingCaseInbox)
     assert _archived(scenario.dl, marker_id)
@@ -374,7 +389,7 @@ def test_an_event_with_no_body_is_a_wiring_fault(scenario):
 
 def _hold_owing_a_replay(dl: SqliteDataLayer) -> None:
     add = add_note_to_case_activity(
-        as_Note(id_=NOTE_ID, content="deferred", context=CASE_ID),
+        make(as_Note, id_=NOTE_ID, content="deferred", context=CASE_ID),
         target=CASE_ID,
         context=CASE_ID,
         actor=SENDER,
@@ -389,7 +404,9 @@ def _archive(dl: SqliteDataLayer) -> None:
     assert event.received_evidence is not None
     dl.create(
         ReceivedActivityRecord(
-            activity_id=ACTIVITY_ID, received_body=event.received_evidence
+            activity_id=ACTIVITY_ID,
+            received_body=event.received_evidence,
+            received_at=ACT_AT,
         )
     )
 
@@ -471,7 +488,9 @@ def test_missing_activity_on_blackboard_returns_failure(scenario):
 def test_non_event_activity_returns_failure_with_wiring_reason(scenario):
     """A bare wire activity on the blackboard is not a received event."""
     node = IntakeReceivedActivityNode()
-    bare = VultronActivity(type_="Add", actor=SENDER, object_=_rich_note())
+    bare = make(
+        VultronActivity, type_="Add", actor=SENDER, object_=_rich_note()
+    )
 
     result = scenario.run(node, activity=bare)
 
@@ -555,25 +574,31 @@ def test_a_sender_guard_refusal_records_nothing():
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
 
     case_id = "https://example.org/cases/case-intake"
-    manager = as_CaseParticipant(
+    manager = make(
+        as_CaseParticipant,
         id_=f"{case_id}/participants/vendor",
         context=case_id,
         attributed_to=receiver,
     )
     dl.create(manager)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=case_id, name="Intake Test Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=case_id,
+        name="Intake Test Case",
     )
     case.case_participants.append(manager.id_)
     case.actor_participant_index[receiver] = manager.id_
     dl.create(case)
 
-    status = as_ParticipantStatus(
+    status = make(
+        as_ParticipantStatus,
         id_=f"{case_id}/participants/stranger/statuses/s1",
         context=case_id,
         rm=RmDimension(state=RM.VALID),
     )
-    target = as_CaseParticipant(
+    target = make(
+        as_CaseParticipant,
         id_=f"{case_id}/participants/stranger",
         context=case_id,
         attributed_to=stranger,
