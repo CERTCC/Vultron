@@ -32,6 +32,7 @@ from pydantic import (
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     STORED_CONTEXT_KEY,
+    blank_as_none,
     new_object_id,
 )
 from vultron.core.models.case_ledger import compute_genesis_hash
@@ -229,14 +230,19 @@ def init_case_statuses(data: Any, info: ValidationInfo) -> Any:
                 " received case must carry its status history, and the"
                 " receiver does not seed one on its own clock (CM-29-004)"
             )
+        # The first status is authored with the case, at the case's own
+        # ``published`` (ADR-0176): the model reads no clock.  A case with no
+        # time has no time to seed one at, so it is left to the field checks,
+        # which report the missing ``published`` and ``updated`` together
+        # (EH-07-001) rather than a nested status error.
+        if blank_as_none(data.get("published")) is None:
+            return data
         data = dict(data)
         # Mint only an absent id: a blank one is refused by ``id_``'s
         # type, not silently replaced (CS-08-001).
         if data.get("id") is None and data.get("id_") is None:
             data["id"] = new_object_id()
         case_id = data.get("id") or data.get("id_")
-        # The first status is authored with the case, at the case's own
-        # ``published`` (ADR-0176): the model reads no clock.
         data[statuses_key] = [
             CaseStatus(
                 context=case_id,

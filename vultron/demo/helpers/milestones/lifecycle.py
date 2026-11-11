@@ -41,6 +41,7 @@ from vultron.demo.helpers.verification.states import (
     _check_participant_vf_state_in,
 )
 from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils.served import from_server
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -80,7 +81,7 @@ def verify_case_active(
     assert case_data, (
         f"verify_case_active: receiver case {case_id!r} not found"
     )
-    case = as_VulnerabilityCase.model_validate(case_data)
+    case = from_server(as_VulnerabilityCase, case_data)
 
     required = {receiver_actor_id, reporter_actor_id}
     missing = required - set(case.actor_participant_index.keys())
@@ -117,7 +118,7 @@ def verify_case_active(
             f"verify_case_active: reporter does not have case replica for"
             f" {case_id!r} — outbox delivery may not have completed"
         )
-    reporter_case = as_VulnerabilityCase.model_validate(reporter_case_data)
+    reporter_case = from_server(as_VulnerabilityCase, reporter_case_data)
 
     receiver_embargo_id = _extract_ref_id(case.active_embargo)
     reporter_embargo_id = _extract_ref_id(reporter_case.active_embargo)

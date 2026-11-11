@@ -101,6 +101,20 @@ def strip_annotated(annotation: Any) -> Any:
     return annotation
 
 
+def reads_absent_as_none(field: FieldInfo) -> bool:
+    """Whether a received omission of *field* reads as ``None``.
+
+    True for a required time that admits ``None``: an author time
+    (``published``, ``updated``, an embargo's ``start_time``), which an
+    authored object states and a received one may omit (ADR-0103, ADR-0176).
+    """
+    return (
+        field.is_required()
+        and _is_datetime_field(field)
+        and _admits_none(field)
+    )
+
+
 def _admits_none(field: FieldInfo) -> bool:
     """Return whether *field*'s annotation admits ``None``."""
     annotation = field.annotation
@@ -132,7 +146,9 @@ def _is_datetime_field(field: FieldInfo) -> bool:
 
 
 #: Validation-context key that marks a ``model_validate`` call as reading
-#: *inbound* data.  ``parse_activity`` sets it; nothing else should.  Defined in
+#: *inbound* data.  ``parse_activity`` sets it, and so do the other edges that
+#: read a peer's body (a fetched object, a demo client reading a served one);
+#: an object this process authors must never be validated with it.  Defined in
 #: core because both ``as_Base`` and ``CoreObject`` gate on it, and under
 #: ARCH-25-003 (ADR-0099) a core class is what an inbound payload validates into.
 INBOUND_CONTEXT_KEY = "inbound_wire"
@@ -188,11 +204,7 @@ def absent_times_as_none(
     rather than deciding on a minted value later (ADR-0032, ADR-0103).
     """
     for name, field in cls.model_fields.items():
-        if not (
-            field.is_required()
-            and _is_datetime_field(field)
-            and _admits_none(field)
-        ):
+        if not reads_absent_as_none(field):
             continue
         keys = {name} | {
             key

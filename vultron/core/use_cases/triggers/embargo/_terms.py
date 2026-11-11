@@ -30,7 +30,7 @@ import py_trees.behaviour
 
 from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_SEMANTIC_TYPE
 from vultron.core.models._helpers import (
-    authored_times,
+    embargo_authored_times,
     format_timestamp,
     require_future_aware,
 )
@@ -70,8 +70,7 @@ class SvcOfferEmbargoTermsBase(SvcEmbargoTriggerBase):
         self._embargo = EmbargoEvent(
             context=self._case.id_,
             end_time=end_time,
-            **authored_times(self._at),
-            start_time=self._at,
+            **embargo_authored_times(self._at),
         )
 
     def _assertion_subject(self) -> str:

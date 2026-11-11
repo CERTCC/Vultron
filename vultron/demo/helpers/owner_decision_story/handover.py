@@ -50,6 +50,7 @@ from vultron.demo.utils import (
     demo_gate,
     demo_step,
 )
+from vultron.demo.utils.served import from_server
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -241,8 +242,9 @@ def the_owner_hands_the_case_over(
         # restate_case checks (CM-21-024).
         owner_client = state.client(owner.name)
         state.restate_case(
-            as_VulnerabilityCase.model_validate(
-                owner_client.get(owner_client.dl_path(state.case.id_))
+            from_server(
+                as_VulnerabilityCase,
+                owner_client.get(owner_client.dl_path(state.case.id_)),
             )
         )
         state.keep(HANDED_OVER_CASE, str(state.case.id_))

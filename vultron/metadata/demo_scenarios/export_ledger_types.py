@@ -83,6 +83,7 @@ import annotated_types
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
+from vultron.core.models._helpers import reads_absent_as_none
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -404,17 +405,13 @@ def _field_probe(model: type[BaseModel], name: str, key: str) -> Probe:
     return probe
 
 
-#: The author times a received object may omit (ADR-0103, ADR-0176).
-_AUTHOR_TIMES = frozenset({"published", "updated", "startTime", "start_time"})
-
-
 def _is_required(
     ledger_type: LedgerType, key: str, field: FieldInfo, nullable: bool
 ) -> bool:
     """Whether a line must carry the field, by the model's role (LedgerType)."""
     if ledger_type.role == "written":
         return field.is_required() or not nullable
-    if key in _AUTHOR_TIMES:
+    if reads_absent_as_none(field):
         # An author time is required where an object is built (ADR-0176), but
         # a received omission reads as ``None`` (ADR-0103): only a class that
         # reads its sender's time refuses it (CLP-15-010).

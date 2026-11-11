@@ -66,7 +66,11 @@ def stamped_times(cls: type[BaseModel]) -> tuple[str, ...]:
     A time is one of :data:`AUTHOR_TIMES` that *cls* requires: the model
     takes no default and reads no clock (ADR-0176), so its author states it.
     A model whose time is absent until stated (a case status's ``updated``,
-    CM-29-006; a consent row's times) gets none.
+    CM-29-006; a consent row's times) gets none.  A ledger entry's
+    ``published`` is its commit stamp, and it is filled like any required
+    time, deliberately: a test's entry is committed when the test builds it,
+    and one that means another commit time passes it (its ``received_at``,
+    which the hash covers, is never filled).
     """
     fields = cls.model_fields
     return tuple(

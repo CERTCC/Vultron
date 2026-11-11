@@ -44,9 +44,10 @@ logger = logging.getLogger(__name__)
 
 #: Marks every ``model_validate`` call in this module as reading inbound data,
 #: which is what tells ``as_Base`` to read an absent required timestamp as
-#: ``None``, the sender claiming no time (ISSUE-3257, CLP-15-007).  Parsing is
-#: the only place this belongs: a caller *authoring* an object states the act's
-#: instant (ADR-0176), and passing this context for one would hide its omission.
+#: ``None``, the sender claiming no time (ISSUE-3257, CLP-15-007).  It belongs
+#: only where a peer's body is read (here, and the fetch edge): a caller
+#: *authoring* an object states the act's instant (ADR-0176), and passing this
+#: context for one would hide its omission.
 _INBOUND_CONTEXT = {as_Base.INBOUND_CONTEXT_KEY: True}
 
 #: The wire name of an activity's sender sequence (SYNC-21-001).

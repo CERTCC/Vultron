@@ -22,6 +22,7 @@ from vultron.demo.utils import (
     read_received_activity,
     ref_id,
 )
+from vultron.demo.utils.served import from_server
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -75,11 +76,12 @@ def _load_case_from_datalayer(
         The ``as_VulnerabilityCase``, or ``None`` if the fetch fails.
     """
     if not isinstance(item, str):
-        return as_VulnerabilityCase.model_validate(item)
+        return from_server(as_VulnerabilityCase, item)
 
     try:
-        return as_VulnerabilityCase.model_validate(
-            client.get(client.dl_path(item, actor_id=actor_id))
+        return from_server(
+            as_VulnerabilityCase,
+            client.get(client.dl_path(item, actor_id=actor_id)),
         )
     except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
         logger.warning("Could not fetch case %s: %s", item, exc)

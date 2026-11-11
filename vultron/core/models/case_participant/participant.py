@@ -21,6 +21,7 @@ import logging
 from typing import Any, Literal
 
 from pydantic import (
+    BaseModel,
     Field,
     ValidationInfo,
     field_serializer,
@@ -28,7 +29,7 @@ from pydantic import (
     model_validator,
 )
 
-from vultron.core.models._helpers import new_object_id
+from vultron.core.models._helpers import blank_as_none, new_object_id
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_participant._consent import (
     EmbargoConsentRowsMixin,
@@ -47,6 +48,27 @@ from vultron.errors import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def first_status(
+    cls: type[BaseModel], data: dict[str, Any], id_val: str, **dims: Any
+) -> ParticipantStatus:
+    """The first ``ParticipantStatus`` a participant built from *data* has.
+
+    Authored with the participant, at its own ``published`` (ADR-0176): the
+    model reads no clock.  A blank time is absence (CS-08-001), read as
+    ``None`` as the field validator reads it.  *dims* are the status's
+    dimensions, such as a reporter's ``RM.ACCEPTED``.
+    """
+    published = blank_as_none(first_input(data, cls, "published"))
+    return ParticipantStatus(
+        context=first_input(data, cls, "context") or id_val,
+        attributed_to=first_input(data, cls, "attributed_to"),
+        published=published,
+        updated=published,
+        cvd_role=coerce_cvd_roles(first_input(data, cls, "case_roles") or []),
+        **dims,
+    )
 
 
 class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
@@ -163,23 +185,7 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
         id_val = first_input(data, cls, "id_")
         if not id_val:
             id_val = data["id"] = new_object_id()
-        # Authored with the participant, at its own ``published``
-        # (ADR-0176): the model reads no clock.  A blank time is absence
-        # (CS-08-001), read as ``None`` here as the field validator reads it.
-        published = first_input(data, cls, "published")
-        if isinstance(published, str) and not published.strip():
-            published = None
-        data["participant_statuses"] = [
-            ParticipantStatus(
-                context=first_input(data, cls, "context") or id_val,
-                attributed_to=first_input(data, cls, "attributed_to"),
-                published=published,
-                updated=published,
-                cvd_role=coerce_cvd_roles(
-                    first_input(data, cls, "case_roles") or []
-                ),
-            ),
-        ]
+        data["participant_statuses"] = [first_status(cls, data, id_val)]
         return data
 
     def _sync_latest_status_metadata(self) -> None:

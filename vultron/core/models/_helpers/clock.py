@@ -97,6 +97,20 @@ def authored_times(at: datetime) -> AuthoredTimes:
     return AuthoredTimes(published=at, updated=at)
 
 
+class EmbargoAuthoredTimes(AuthoredTimes):
+    """:class:`AuthoredTimes` plus an embargo's ``start_time``."""
+
+    start_time: datetime
+
+
+def embargo_authored_times(at: datetime) -> EmbargoAuthoredTimes:
+    """The times of an embargo authored at *at*: it starts when it is made.
+
+    Pass as ``**embargo_authored_times(at)`` (ADR-0176).
+    """
+    return EmbargoAuthoredTimes(published=at, updated=at, start_time=at)
+
+
 def is_aware(value: datetime) -> bool:
     """Whether *value* is timezone-aware: it has a ``tzinfo`` that gives an
     offset (CS-13-001)."""

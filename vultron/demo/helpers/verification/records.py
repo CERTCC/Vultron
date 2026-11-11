@@ -35,6 +35,7 @@ from vultron.demo.utils import (
     read_received_activity,
     ref_id,
 )
+from vultron.demo.utils.served import from_server
 from vultron.enums.roles import CVDRole
 from vultron.primitives import normalise_actor_id
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -256,8 +257,9 @@ def verify_receiver_case_state(
     # not masked by one of the case assertions below failing first.
     _require_note_thread_pair(question_note_id, reply_note_id)
 
-    final_case = as_VulnerabilityCase(
-        **receiver_client.get(receiver_client.dl_path(case_id))
+    final_case = from_server(
+        as_VulnerabilityCase,
+        receiver_client.get(receiver_client.dl_path(case_id)),
     )
 
     # Verify required participants are present by ID rather than a raw count,
@@ -349,7 +351,7 @@ def verify_case_actor_holds_records(
             f" does not hold case {case_id!r} in CaseActor {case_actor_id}'s"
             " store: the proposal was not handled there (DEMOMA-06-008)"
         ) from exc
-    case = as_VulnerabilityCase.model_validate(case_data)
+    case = from_server(as_VulnerabilityCase, case_data)
     participant = _fetch_participant(case_actor_client, case_id, case_actor_id)
     if participant is None:
         raise AssertionError(

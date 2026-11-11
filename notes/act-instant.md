@@ -5,7 +5,7 @@ kind: plan
 tracks:
   - "#5676"   # epic: a re-recorded scenario equals the committed one
   - "#5651"   # slice 3: sync rate-limit checks and the replication-state key
-  - "#5760"   # slice 6: recordings through the port
+  - "#5760"   # slice 5: recordings through the port
   - "#5761"   # follow-on: generated ids, decided in ADR-0185
   - "#5848"   # follow-on: drift limit, after the call-out budget (#3423)
   - "#6191"   # a received message's instant is its arrival stamp

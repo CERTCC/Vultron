@@ -300,7 +300,7 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
                     context=case_id,
                     attributed_to=self._owner_id,
                     pxa=PxaDimension(state=pxa),
-                    published=self._require_act_instant(),
+                    published=published,
                 )
             ],
         )

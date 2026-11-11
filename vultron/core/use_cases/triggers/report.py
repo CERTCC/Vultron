@@ -29,6 +29,7 @@ from datetime import datetime
 from typing import Any, cast
 
 import py_trees.behaviour
+from pydantic import BaseModel
 
 from vultron.core.behaviors.report.trigger_report_trees import (
     create_ack_report_trigger_tree,
@@ -39,7 +40,11 @@ from vultron.core.behaviors.report.trigger_report_trees import (
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
-from vultron.core.models._helpers import authored_times, require_future_aware
+from vultron.core.models._helpers import (
+    authored_times,
+    embargo_authored_times,
+    require_future_aware,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
@@ -303,11 +308,7 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
             attributed_to=self._actor_id,
             attachment=(
                 # Authored with the report, at this act's instant (ADR-0176).
-                [
-                    request.csaf_document.attachment.model_copy(
-                        update=dict(authored_times(self._at))
-                    )
-                ]
+                [_authored(request.csaf_document.attachment, self._at)]
                 if request.csaf_document is not None
                 else None
             ),
@@ -444,8 +445,7 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
         proposal = EmbargoEvent(
             context=report.id_,
             end_time=end_time,
-            **authored_times(self._at),
-            start_time=self._at,
+            **embargo_authored_times(self._at),
         )
         self._dl.create(proposal)
         logger.info(
@@ -476,3 +476,13 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
     def _build_result(self) -> OfferResult:
         """The body is the captured ``Offer(VulnerabilityReport)`` alone."""
         return OfferResult(offer=self._captured.get("offer"))
+
+
+def _authored[M: BaseModel](obj: M, at: datetime) -> M:
+    """*obj* re-validated with the author times of an object made at *at*.
+
+    For an object read before the act opened, which states no time until the
+    act authors it (ADR-0176).  Re-validated, not ``model_copy``-updated, so
+    the times pass the field checks.
+    """
+    return type(obj).model_validate({**obj.model_dump(), **authored_times(at)})

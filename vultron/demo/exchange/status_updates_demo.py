@@ -128,6 +128,7 @@ def demo_notes_workflow(
     this implementation does not send a separate ``Create(Note)`` ahead of
     the ``Add`` (VAM-01-015, #4706).
     """
+    at = wall_clock.now()  # one read for this step (ADR-0176)
     logger.info("=" * 80)
     logger.info("DEMO: Notes Workflow")
     logger.info("=" * 80)
@@ -145,10 +146,10 @@ def demo_notes_workflow(
             ),
             context=case.id_,
             attributed_to=vendor.id_,
-            **authored_times(wall_clock.now()),
+            **authored_times(at),
         )
         add_note_activity = add_note_to_case_activity(
-            note, actor=vendor.id_, target=case.id_, at=wall_clock.now()
+            note, actor=vendor.id_, target=case.id_, at=at
         )
         post_to_inbox_and_wait(client, vendor.id_, add_note_activity)
         with demo_check("Note stored in data layer"):
@@ -173,7 +174,7 @@ def demo_notes_workflow(
                 actor=vendor.id_,
                 object_=note,
                 target=case.id_,
-                **authored_times(wall_clock.now()),
+                **authored_times(at),
             )
             post_to_inbox_and_wait(client, vendor.id_, remove_note_activity)
             with demo_check("Note absent from case"):
@@ -212,6 +213,7 @@ def demo_status_workflow(
     on the ``Add`` that attaches it.  This implementation does not support a
     separate ``Create(ParticipantStatus)`` ahead of the ``Add`` (#4598).
     """
+    at = wall_clock.now()  # one read for this step (ADR-0176)
     logger.info("=" * 80)
     logger.info("DEMO: Status Updates Workflow")
     logger.info("=" * 80)
@@ -250,15 +252,15 @@ def demo_status_workflow(
                 context=case.id_,
                 em=before.current_status.em,
                 pxa=PxaDimension(state=CS_pxa.Pxa),
-                published=wall_clock.now(),
+                published=at,
             ),
-            **authored_times(wall_clock.now()),
+            **authored_times(at),
         )
         add_pstatus_activity = add_status_to_participant_activity(
             participant_status,
             actor=vendor.id_,
             target=vendor_participant.id_,
-            at=wall_clock.now(),
+            at=at,
         )
         post_to_inbox_and_wait(client, vendor.id_, add_pstatus_activity)
 
