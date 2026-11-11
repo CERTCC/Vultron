@@ -10,7 +10,7 @@ available.
 
 ## Prerequisites
 
-- Python 3.12+
+- Python 3.13+
 - `uv`
 - Git
 
@@ -78,7 +78,7 @@ dev-only maintainer docs.
 
 ## Troubleshooting
 
-- If `uv sync --dev` fails, verify Python 3.12+ and rerun `uv sync --dev`.
+- If `uv sync --dev` fails, verify Python 3.13+ and rerun `uv sync --dev`.
 - If `mkdocs serve` starts but `/developer/` is missing, confirm you are
   running `mkdocs serve` (not `mkdocs build`) — draft pages are served locally
   but excluded from production builds.

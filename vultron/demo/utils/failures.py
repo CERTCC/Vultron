@@ -122,9 +122,7 @@ _MARKS: dict[CheckKind, _Marks] = {
 
 
 @contextmanager
-def _demo_accumulate(
-    kind: CheckKind, description: str
-) -> Generator[None, None, None]:
+def _demo_accumulate(kind: CheckKind, description: str) -> Generator[None]:
     """Shared try/except/log backbone for demo context managers.
 
     Logs *kind*'s start mark on entry, its pass mark on clean exit, its fail
@@ -155,7 +153,7 @@ def _demo_accumulate(
 
 
 @contextmanager
-def demo_step(description: str) -> Generator[None, None, None]:
+def demo_step(description: str) -> Generator[None]:
     """Context manager for declaring workflow steps in demo logs.
 
     Logs 🚥 at INFO on entry, 🟢 at INFO on clean exit, 🔴 at ERROR on
@@ -169,7 +167,7 @@ def demo_step(description: str) -> Generator[None, None, None]:
 
 
 @contextmanager
-def demo_check(description: str) -> Generator[None, None, None]:
+def demo_check(description: str) -> Generator[None]:
     """Context manager for declaring side-effect checks in demo logs.
 
     Logs 📋 at INFO on entry, ✅ at INFO on clean exit, ❌ at ERROR on
@@ -183,7 +181,7 @@ def demo_check(description: str) -> Generator[None, None, None]:
 
 
 @contextmanager
-def demo_gate(description: str) -> Generator[None, None, None]:
+def demo_gate(description: str) -> Generator[None]:
     """Context manager for causal preconditions in demo scripts.
 
     Place the precondition check **and the steps that depend on it** inside

@@ -66,6 +66,10 @@ on:
       # The hand-authored synthetic ledgers, which
       # test/demo_unit/test_recordings.py validates like the recordings.
       - ui/src/synthetic-ledgers/**
+      # test/ci/test_python_version_floor.py checks that the Docker base image
+      # names the requires-python floor (IMPLTS-01-001), so a pull request that
+      # bumps only the base image must run it (#6052).
+      - docker/Dockerfile
   pull_request:
     branches: [ "main" ]
     paths:
@@ -110,6 +114,10 @@ on:
       - ui/src/data/**
       - ui/src/recordings/**
       - ui/src/synthetic-ledgers/**
+      # test/ci/test_python_version_floor.py checks that the Docker base image
+      # names the requires-python floor (IMPLTS-01-001), so a pull request that
+      # bumps only the base image must run it (#6052).
+      - docker/Dockerfile
   workflow_dispatch:
 
 permissions:

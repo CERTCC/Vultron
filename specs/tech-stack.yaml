@@ -15,13 +15,19 @@ groups:
   - id: IMPLTS-01-001
     priority: MUST
     kind: project
-    verification_debt: '#2575'
-    statement: The implementation MUST use Python 3.12 or later.
+    statement: The implementation MUST use Python 3.13 or later.
     rationale: >-
       A minimum Python version tells users and contributors which interpreters the code
-      supports. `requires-python` in `pyproject.toml`, ruff's `target-version` and
-      pyright's `pythonVersion` all name 3.12. The checks then report code that needs a
-      later version, even though CI and the container images run Python 3.13.
+      supports. CI and the container images run Python 3.13, so 3.13 is the oldest
+      version the code is tested on. A lower floor would be a claim nothing tests.
+      `requires-python` in `pyproject.toml`, ruff's `target-version` and pyright's
+      `pythonVersion` name the same version, so the static checks judge the code
+      against the runtime CI tests.
+    verification: >-
+      `test/ci/test_python_version_floor.py` checks that ruff's `target-version`,
+      pyright's `pythonVersion`, the `setup-python-uv` action's default
+      `python-version` and the Docker base image all name the `requires-python`
+      floor, and that the floor is 3.13 or later.
   - id: IMPLTS-01-007
     priority: MUST
     kind: project

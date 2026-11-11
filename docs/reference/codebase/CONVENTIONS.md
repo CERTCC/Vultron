@@ -26,7 +26,7 @@ stakeholder_type: [project-contributor]
 
 ### 2) Formatting and Linting
 
-- **Formatter and linter**: ruff (ADR-0094), `line-length = 79`, `target-version = "py312"`.
+- **Formatter and linter**: ruff (ADR-0094), `line-length = 79`, `target-version = "py313"`.
   Config lives in `pyproject.toml` `[tool.ruff]`, which also declares the scope, so every caller runs it with no path arguments (IMPLTS-07-021).
   `ruff format` excludes `**/*.md`.
   Comments and docstrings are held to 88 characters (`max-doc-length`); a growth guard in `test/architecture/test_line_length_ratchet.py` fails each overlong line a change adds, and `W505` stays ignored because older lines predate the limit (PD-10-002).

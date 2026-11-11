@@ -48,9 +48,7 @@ _TOLERANCE = timedelta(seconds=2)
 
 
 @pytest.fixture()
-def owner_and_dl() -> Generator[
-    tuple[VultronService, SqliteDataLayer], None, None
-]:
+def owner_and_dl() -> Generator[tuple[VultronService, SqliteDataLayer]]:
     owner = VultronService(name="Seeded Vendor")
     reset_datalayer(owner.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)

@@ -67,7 +67,7 @@ ACTIVITY_ID = "https://example.org/activities/act-001"
 
 
 @pytest.fixture()
-def myactor_dl() -> Generator[SqliteDataLayer, None, None]:
+def myactor_dl() -> Generator[SqliteDataLayer]:
     """The addressed actor's own in-memory store.
 
     Formerly named for the shared DataLayer and scoped to a generic marker actor
