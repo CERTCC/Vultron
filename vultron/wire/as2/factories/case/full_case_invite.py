@@ -17,7 +17,6 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
 
@@ -27,6 +26,7 @@ from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories._actor import carried_actor
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     with_case_context,
 )
@@ -46,8 +46,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
-logger = logging.getLogger(__name__)
 
 
 def rm_invite_to_full_case_activity(
@@ -81,20 +79,16 @@ def rm_invite_to_full_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     case_id = case if isinstance(case, str) else case.id_
-    try:
-        return _RmInviteToFullCaseActivity(
-            object_=carried_actor(invitee),
-            target=case_id,
-            ledger_position=ledger_tail,
+    return build_activity(
+        "rm_invite_to_full_case_activity",
+        _RmInviteToFullCaseActivity,
+        lambda: {
+            "object_": carried_actor(invitee),
+            "target": case_id,
+            "ledger_position": ledger_tail,
             **with_case_context(kwargs, case_id),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "rm_invite_to_full_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "rm_invite_to_full_case_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def _as_full_case_invite(invite: as_Invite) -> _RmInviteToFullCaseActivity:
@@ -135,17 +129,15 @@ def _full_case_reply(
     ledger_tail: LedgerPosition,
     kwargs: dict[str, Any],
 ) -> _Reply:
-    try:
-        return reply_class(
-            object_=_as_full_case_invite(invite),
-            ledger_position=ledger_tail,
+    return build_activity(
+        label,
+        reply_class,
+        lambda: {
+            "object_": _as_full_case_invite(invite),
+            "ledger_position": ledger_tail,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning("%s: invalid arguments: %s", label, exc)
-        raise VultronActivityConstructionError(
-            f"{label}: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def rm_accept_full_case_invite_activity(

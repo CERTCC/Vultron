@@ -17,19 +17,16 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
 from typing import cast
-
-from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories._actor import carried_actor
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_uri_of,
     with_case_context,
 )
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case.roles import (
     _AcceptCaseParticipantRoleActivity,
     _OfferCaseParticipantRoleActivity,
@@ -47,8 +44,6 @@ from vultron.wire.as2.vocab.objects.case_participant_role import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def offer_case_participant_role_activity(
@@ -89,22 +84,16 @@ def offer_case_participant_role_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        role_obj = as_CaseParticipantRole(role=role)
-        return _OfferCaseParticipantRoleActivity(
-            object_=role_obj,
-            target=carried_actor(target_actor),
-            context=case_uri_of(case) or case,
+    return build_activity(
+        "offer_case_participant_role_activity",
+        _OfferCaseParticipantRoleActivity,
+        lambda: {
+            "object_": as_CaseParticipantRole(role=role),
+            "target": carried_actor(target_actor),
+            "context": case_uri_of(case) or case,
             **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "offer_case_participant_role_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "offer_case_participant_role_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def accept_case_participant_role_activity(
@@ -126,19 +115,14 @@ def accept_case_participant_role_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AcceptCaseParticipantRoleActivity(
-            object_=cast(_OfferCaseParticipantRoleActivity, offer),
+    return build_activity(
+        "accept_case_participant_role_activity",
+        _AcceptCaseParticipantRoleActivity,
+        lambda: {
+            "object_": cast(_OfferCaseParticipantRoleActivity, offer),
             **with_case_context(kwargs, getattr(offer, "context", None)),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "accept_case_participant_role_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "accept_case_participant_role_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def reject_case_participant_role_activity(
@@ -160,16 +144,11 @@ def reject_case_participant_role_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RejectCaseParticipantRoleActivity(
-            object_=cast(_OfferCaseParticipantRoleActivity, offer),
+    return build_activity(
+        "reject_case_participant_role_activity",
+        _RejectCaseParticipantRoleActivity,
+        lambda: {
+            "object_": cast(_OfferCaseParticipantRoleActivity, offer),
             **with_case_context(kwargs, getattr(offer, "context", None)),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "reject_case_participant_role_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "reject_case_participant_role_activity: invalid arguments"
-        ) from exc
+        },
+    )

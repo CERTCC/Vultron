@@ -17,7 +17,6 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
 from typing import Any
 
 from pydantic import ValidationError
@@ -29,6 +28,7 @@ from vultron.core.models.dimensions import (
 )
 from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._actor import carried_actor
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     with_case_context,
 )
@@ -56,8 +56,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseStub,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def _project_case_to_stub(
@@ -221,19 +219,15 @@ def rm_invite_to_case_activity(
         target = as_VulnerabilityCaseStub(case_id=target)
     if roles is not None:
         kwargs["roles"] = roles
-    try:
-        return _RmInviteToCaseActivity(
-            object_=carried_actor(invitee),
-            target=target,
+    return build_activity(
+        "rm_invite_to_case_activity",
+        _RmInviteToCaseActivity,
+        lambda: {
+            "object_": carried_actor(invitee),
+            "target": target,
             **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "rm_invite_to_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "rm_invite_to_case_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
@@ -294,18 +288,11 @@ def rm_accept_invite_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RmAcceptInviteToCaseActivity(
-            object_=_as_case_invite(invite),
-            **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "rm_accept_invite_to_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "rm_accept_invite_to_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_accept_invite_to_case_activity",
+        _RmAcceptInviteToCaseActivity,
+        lambda: {"object_": _as_case_invite(invite), **kwargs},
+    )
 
 
 def rm_reject_invite_to_case_activity(
@@ -335,15 +322,8 @@ def rm_reject_invite_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RmRejectInviteToCaseActivity(
-            object_=_as_case_invite(invite),
-            **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "rm_reject_invite_to_case_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "rm_reject_invite_to_case_activity: invalid arguments"
-        ) from exc
+    return build_activity(
+        "rm_reject_invite_to_case_activity",
+        _RmRejectInviteToCaseActivity,
+        lambda: {"object_": _as_case_invite(invite), **kwargs},
+    )

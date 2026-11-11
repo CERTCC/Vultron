@@ -22,14 +22,12 @@ imported here and MUST NOT be imported by callers.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import logging
 from typing import cast
-
-from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories._actor import carried_actor
+from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
@@ -38,7 +36,6 @@ from vultron.wire.as2.factories._held import (
     embedded_as_received,
     validated_as,
 )
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
     _AcceptCaseParticipantOfferActivity,
@@ -57,8 +54,6 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def recommend_actor_activity(
@@ -89,18 +84,16 @@ def recommend_actor_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RecommendActorActivity(
-            object_=carried_actor(recommended),
-            target=case_target_ref(target),
-            suggested_roles=suggested_roles,
+    return build_activity(
+        "recommend_actor_activity",
+        _RecommendActorActivity,
+        lambda: {
+            "object_": carried_actor(recommended),
+            "target": case_target_ref(target),
+            "suggested_roles": suggested_roles,
             **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning("recommend_actor_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "recommend_actor_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def accept_actor_recommendation_activity(
@@ -130,20 +123,15 @@ def accept_actor_recommendation_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AcceptActorRecommendationActivity(
-            object_=cast(_RecommendActorActivity, offer),
-            target=case_target_ref(target),
+    return build_activity(
+        "accept_actor_recommendation_activity",
+        _AcceptActorRecommendationActivity,
+        lambda: {
+            "object_": cast(_RecommendActorActivity, offer),
+            "target": case_target_ref(target),
             **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "accept_actor_recommendation_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "accept_actor_recommendation_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def reject_actor_recommendation_activity(
@@ -171,20 +159,15 @@ def reject_actor_recommendation_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RejectActorRecommendationActivity(
-            object_=cast(_RecommendActorActivity, offer),
-            target=case_target_ref(target),
+    return build_activity(
+        "reject_actor_recommendation_activity",
+        _RejectActorRecommendationActivity,
+        lambda: {
+            "object_": cast(_RecommendActorActivity, offer),
+            "target": case_target_ref(target),
             **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "reject_actor_recommendation_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "reject_actor_recommendation_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def offer_case_participant_activity(
@@ -223,19 +206,15 @@ def offer_case_participant_activity(
         attributed_to=actor_id,
         case_roles=effective_roles,
     )
-    try:
-        return _OfferCaseParticipantActivity(
-            object_=participant,
-            target=case_target_ref(target),
+    return build_activity(
+        "offer_case_participant_activity",
+        _OfferCaseParticipantActivity,
+        lambda: {
+            "object_": participant,
+            "target": case_target_ref(target),
             **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "offer_case_participant_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "offer_case_participant_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def accept_case_participant_offer_activity(
@@ -260,22 +239,18 @@ def accept_case_participant_offer_activity(
     # rehydrated from the DataLayer as a core type) are coerced to wire types.
     # serialize_as_any=True prevents PydanticSerializationUnexpectedValue when the
     # inner object_ is a core model; json round-trip normalises field aliases.
-    try:
-        typed_offer = validated_as(_OfferCaseParticipantActivity, offer)
-        return _AcceptCaseParticipantOfferActivity(
+    return build_activity(
+        "accept_case_participant_offer_activity",
+        _AcceptCaseParticipantOfferActivity,
+        lambda: {
             # Embedded as the Case Owner received it (DL-06-004).
-            object_=embedded_as_received(typed_offer, offer),
-            target=case_target_ref(target),
+            "object_": embedded_as_received(
+                validated_as(_OfferCaseParticipantActivity, offer), offer
+            ),
+            "target": case_target_ref(target),
             **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "accept_case_participant_offer_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "accept_case_participant_offer_activity: invalid arguments"
-        ) from exc
+        },
+    )
 
 
 def reject_case_participant_offer_activity(
@@ -298,18 +273,14 @@ def reject_case_participant_offer_activity(
     """
     # Re-validated and embedded as received, as the Accept does
     # (accept_case_participant_offer_activity, DL-06-004).
-    try:
-        typed_offer = validated_as(_OfferCaseParticipantActivity, offer)
-        return _RejectCaseParticipantOfferActivity(
-            object_=embedded_as_received(typed_offer, offer),
-            target=case_target_ref(target),
+    return build_activity(
+        "reject_case_participant_offer_activity",
+        _RejectCaseParticipantOfferActivity,
+        lambda: {
+            "object_": embedded_as_received(
+                validated_as(_OfferCaseParticipantActivity, offer), offer
+            ),
+            "target": case_target_ref(target),
             **with_case_context(kwargs, target),
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "reject_case_participant_offer_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "reject_case_participant_offer_activity: invalid arguments"
-        ) from exc
+        },
+    )
