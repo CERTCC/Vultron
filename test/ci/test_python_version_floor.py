@@ -4,16 +4,17 @@ Implements IMPLTS-01-001, IMPLTS-01-009 and IMPLTS-01-010 from
 ``specs/tech-stack.yaml`` (#6052).
 
 The floor is declared in ``requires-python`` and read by ruff's
-``target-version``, pyright's ``pythonVersion``, the CI setup action's default
-interpreter and the Docker base image. When the first three disagree with it,
-the declared floor is a claim nothing tests: the checks accept code for a
-version CI never runs, or reject syntax the floor supports. This module keeps
-them on one version, so raising the floor is one change that moves them
-together. The container may run ahead of the floor, never behind it.
+``target-version``, mypy's ``python_version``, pyright's ``pythonVersion``, the
+CI setup action's default interpreter and the Docker base image. When the first
+four disagree with it, the declared floor is a claim nothing tests: the checks
+accept code for a version CI never runs, or reject syntax the floor supports.
+This module keeps them on one version, so raising the floor is one change that
+moves them together. The container may run ahead of the floor, never behind it.
 """
 
 from __future__ import annotations
 
+import configparser
 import json
 import re
 import tomllib
@@ -25,6 +26,7 @@ from test.ci._workflows import REPO_ROOT
 from vultron.metadata.planning.ci_mirror._workflows import load_mapping
 
 _PYPROJECT = REPO_ROOT / "pyproject.toml"
+_MYPY = REPO_ROOT / ".mypy.ini"
 _PYRIGHT = REPO_ROOT / "pyrightconfig.json"
 _SETUP_ACTION = (
     REPO_ROOT / ".github" / "actions" / "setup-python-uv" / "action.yml"
@@ -48,6 +50,16 @@ def _ruff_target() -> str:
     match = re.fullmatch(r"py3(\d+)", target)
     assert match, f"ruff target-version {target!r} is not `py3N`"
     return f"3.{match.group(1)}"
+
+
+def _mypy_version() -> str:
+    config = configparser.ConfigParser()
+    config.read(_MYPY, encoding="utf-8")
+    assert config.has_option("mypy", "python_version"), (
+        ".mypy.ini sets no [mypy] python_version, so mypy follows the "
+        "interpreter that runs it"
+    )
+    return config.get("mypy", "python_version")
 
 
 def _pyright_version() -> str:
@@ -78,6 +90,7 @@ def _as_tuple(version: str) -> tuple[int, int]:
     ("where", "read"),
     [
         ("ruff target-version", _ruff_target),
+        ("mypy python_version", _mypy_version),
         ("pyright pythonVersion", _pyright_version),
         ("CI setup-python-uv default", _ci_default_python),
     ],

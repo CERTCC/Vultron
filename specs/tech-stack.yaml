@@ -27,18 +27,21 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Ruff's `target-version`, pyright's `pythonVersion` and the `setup-python-uv`
-      CI action's default interpreter MUST name the `requires-python` floor.
+      Ruff's `target-version`, mypy's `python_version`, pyright's `pythonVersion`
+      and the `setup-python-uv` CI action's default interpreter MUST name the
+      `requires-python` floor.
     rationale: >-
       The floor is the oldest version the project claims to support. The static
       checks judge the code against the version they name, so a newer one accepts
-      syntax the floor rejects, and an older one rejects syntax the floor accepts. CI
-      runs its default interpreter, so a default above the floor leaves the floor
-      untested.
+      syntax the floor rejects, and an older one rejects syntax the floor accepts. A
+      check that names no version follows the interpreter that runs it, so it too
+      must name the floor. CI runs its default interpreter, so a default above the
+      floor leaves the floor untested.
     verification: >-
       `test/ci/test_python_version_floor.py` checks that ruff's `target-version`,
-      pyright's `pythonVersion` and the `setup-python-uv` action's default
-      `python-version` equal the `requires-python` floor.
+      mypy's `python_version` in `.mypy.ini`, pyright's `pythonVersion` and the
+      `setup-python-uv` action's default `python-version` equal the
+      `requires-python` floor.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-01-001
