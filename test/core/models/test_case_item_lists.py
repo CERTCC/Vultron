@@ -17,6 +17,7 @@
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_reference import CaseReference
@@ -37,18 +38,19 @@ def dl():
 
 @pytest.mark.spec("CM-05-021")
 def test_both_lists_are_empty_by_default():
-    case = VulnerabilityCase(attributed_to=OWNER)
+    case = make(VulnerabilityCase, attributed_to=OWNER)
     assert case.vulnerability_items == []
     assert case.case_references == []
 
 
 @pytest.mark.spec("CM-05-021")
 def test_the_lists_survive_save_and_read(dl):
-    item = VulnerabilityItem(cve="CVE-2024-0001")
-    ref = CaseReference(url="https://example.org/a", name="Advisory")
+    item = make(VulnerabilityItem, cve="CVE-2024-0001")
+    ref = make(CaseReference, url="https://example.org/a", name="Advisory")
     dl.save(item)
     dl.save(ref)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=OWNER,
         vulnerability_items=[item.id_],
         case_references=[ref.id_],
@@ -65,9 +67,10 @@ def test_the_lists_survive_save_and_read(dl):
 
 @pytest.mark.spec("CM-05-021")
 def test_the_lists_ride_the_case_snapshot_to_a_replica():
-    item = VulnerabilityItem(cve="CVE-2024-0001")
-    ref = CaseReference(url="https://example.org/a")
-    case = VulnerabilityCase(
+    item = make(VulnerabilityItem, cve="CVE-2024-0001")
+    ref = make(CaseReference, url="https://example.org/a")
+    case = make(
+        VulnerabilityCase,
         attributed_to=OWNER,
         vulnerability_items=[item.id_, item],
         case_references=[ref.id_],
@@ -82,7 +85,7 @@ def test_the_lists_ride_the_case_snapshot_to_a_replica():
 @pytest.mark.spec("CM-05-021")
 def test_a_blank_entry_is_refused():
     with pytest.raises(ValueError):
-        VulnerabilityCase(attributed_to=OWNER, vulnerability_items=[" "])
+        make(VulnerabilityCase, attributed_to=OWNER, vulnerability_items=[" "])
 
 
 @pytest.mark.spec("CM-05-021")
@@ -91,8 +94,9 @@ def test_a_received_case_keeps_both_lists_through_the_extractor():
         _build_case_object,
     )
 
-    item = VulnerabilityItem(cve="CVE-2024-0001")
-    case = VulnerabilityCase(
+    item = make(VulnerabilityItem, cve="CVE-2024-0001")
+    case = make(
+        VulnerabilityCase,
         attributed_to=OWNER,
         vulnerability_items=[item, "urn:uuid:item-2"],
         case_references=["urn:uuid:ref-1"],

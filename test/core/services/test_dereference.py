@@ -494,8 +494,8 @@ class TestCaseObjectForParticipant:
     @pytest.mark.spec("AKM-05-006")
     def test_a_listed_item_and_reference_are_served(self):
         dl, case = self._host()
-        item = VulnerabilityItem(cve="CVE-2024-0001")
-        ref = CaseReference(url="https://example.org/advisory")
+        item = make(VulnerabilityItem, cve="CVE-2024-0001")
+        ref = make(CaseReference, url="https://example.org/advisory")
         dl.save(item)
         dl.save(ref)
         case.vulnerability_items.append(item.id_)
