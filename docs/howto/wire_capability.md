@@ -352,7 +352,8 @@ The bundle lives in `vultron/core/behaviors/call_out/bundles/`.
 
 To wire in your backend, instantiate the appropriate bundle with your factory in the relevant field.
 Fields you do not specify keep their default, a deterministic `AlwaysSucceed` or `AlwaysFail` as appropriate.
-Each default is bound to the capability its field answers, so a default that answers *yes* still writes every output port the capability declares (BT-23-013).
+When a field answers a declared capability, its default is bound to that capability, so a default that answers *yes* still writes every output port the capability declares (BT-23-013).
+The pass/fail gates that answer no declared capability, such as actor resolution and the status adoption gate, keep a plain binary default.
 For example:
 
 ```python

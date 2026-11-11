@@ -393,6 +393,50 @@ def test_a_binding_refuses_an_output_no_constant_can_fill():
         always_succeed_as(_NeedsCapability)
 
 
+def test_a_floor_binding_accepts_an_output_no_constant_can_fill():
+    """A floor never answers *yes*, so it needs no output value."""
+    from py_trees.ports import PortInformation
+    from pydantic import BaseModel
+
+    from vultron.core.behaviors.call_out.capability import EvaluatorCapability
+    from vultron.core.behaviors.call_out.nodes import (
+        AlwaysFail,
+        always_fail_as,
+    )
+
+    class _Needs(BaseModel):
+        value: str
+
+    class _NeedsFloorCapability(EvaluatorCapability):
+        OUTPUT_PORTS = {"needs": PortInformation(data_type=_Needs)}
+
+    bound = always_fail_as(_NeedsFloorCapability)
+    assert issubclass(bound, AlwaysFail)
+    assert bound("probe").answer().verdict == "no"
+
+
+@pytest.mark.parametrize("attribute", ["answer", "success_rate"])
+def test_a_binding_refuses_a_declaration_that_shadows_the_constant(
+    attribute: str,
+):
+    """The declaration is the first base, so it must not override the
+    constant's answer or rate (BT-18-021)."""
+    from vultron.core.behaviors.call_out.answer import CallOutAnswer
+    from vultron.core.behaviors.call_out.capability import EvaluatorCapability
+    from vultron.core.behaviors.call_out.nodes import always_fail_as
+
+    def _answer(self: object) -> CallOutAnswer:
+        return CallOutAnswer.yes()
+
+    namespace: dict[str, object] = (
+        {"answer": _answer} if attribute == "answer" else {"success_rate": 1.0}
+    )
+    shadowing = type("_ShadowingCapability", (EvaluatorCapability,), namespace)
+
+    with pytest.raises(TypeError, match="would override AlwaysFail"):
+        always_fail_as(shadowing)  # type: ignore[arg-type]
+
+
 def test_a_floor_binding_refuses_a_capability_with_refusal_ports():
     from py_trees.ports import PortInformation
 

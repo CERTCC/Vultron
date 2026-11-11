@@ -66,6 +66,7 @@ References
 from __future__ import annotations
 
 import functools
+from typing import cast
 
 from vultron.core.behaviors.call_out.actuator import ActuatorBackend
 from vultron.core.behaviors.call_out.answer import (
@@ -195,29 +196,45 @@ def _bound(
             "give; its floor default is a backend that builds them "
             "(ADR-0183)."
         )
-    if constant is AlwaysSucceed and issubclass(
-        declaration, ActuatorCapability
-    ):
-        constant = NoOpActuator
-    for typ in declaration.contract.outputs.values():
-        # Fail when the bundle is built, not on the first yes.
-        yes_value(typ)
+    is_actuator = issubclass(declaration, ActuatorCapability)
+    if constant is AlwaysSucceed:
+        if is_actuator:
+            constant = NoOpActuator
+        for typ in declaration.contract.outputs.values():
+            # Fail when the bundle is built, not on the first yes.  A floor
+            # never answers yes, so it needs no output values.
+            yes_value(typ)
     stem = declaration.__name__.removesuffix("Capability")
     name = f"{constant.__name__}{stem}"
-    bound = type(
-        name,
-        (declaration, constant),
-        {
-            "__module__": __name__,
-            "__qualname__": name,
-            "__doc__": (
-                f"DETERMINISTIC {constant.__name__} bound to "
-                f":class:`{declaration.__module__}.{declaration.__qualname__}`"
-                " (BT-23-013); built by :func:`always_succeed_as` or "
-                ":func:`always_fail_as`."
-            ),
-        },
+    bound = cast(
+        type[CallOutBackend],
+        type(
+            name,
+            (declaration, constant),
+            {
+                "__module__": __name__,
+                "__qualname__": name,
+                "__doc__": (
+                    f"DETERMINISTIC {constant.__name__} bound to "
+                    f":class:`{declaration.__module__}.{declaration.__qualname__}`"
+                    " (BT-23-013); built by :func:`always_succeed_as` or "
+                    ":func:`always_fail_as`."
+                ),
+            },
+        ),
     )
+    # The declaration is listed first (an Actuator's request handling must
+    # precede the constant), so nothing on it may shadow the constant's
+    # answer or rate: a check reading them would then be fooled.
+    expected = ActuatorBackend.answer if is_actuator else constant.answer
+    if bound.answer is not expected or getattr(
+        bound, "success_rate", None
+    ) != getattr(constant, "success_rate", None):
+        raise TypeError(
+            f"{declaration.__name__} defines answer() or success_rate, which "
+            f"would override {constant.__name__}'s; a declaration names "
+            "ports only (BT-18-021)."
+        )
     return bound
 
 
@@ -247,7 +264,8 @@ def always_fail_as(declaration: type[Capability]) -> type[CallOutBackend]:
     (BT-18-002 binds only a *yes*).
 
     Raises:
-        TypeError: *declaration* is not a core capability declaration.
+        TypeError: *declaration* is not a core capability declaration, or
+            declares refusal ports, which :class:`AlwaysFail` does not give.
     """
     return _bound(declaration, AlwaysFail)
 

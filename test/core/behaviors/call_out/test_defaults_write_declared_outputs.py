@@ -29,6 +29,13 @@ so a field whose STOCHASTIC node answers a capability names it here.
   answers a declaration builds a node bound to it, and that node, answering
   *yes*, writes every declared output port (BT-18-003).
 
+A field is keyed by the most basic bundle class that declares it, so an
+inherited field (``DeploymentMonitoringBundle``'s) is one field, checked
+against every subclass singleton that builds it; every field that answers a
+declaration has a simulation node, and its default keeps the STOCHASTIC
+rate's yes/no direction (BT-23-002), save the pinned
+:data:`DIRECTION_EXEMPT_FIELDS`.
+
 A field no singleton binds answers no declaration, so its backends are
 binary and BT-23-013 does not reach it.  Those fields are a pinned exemption
 set, :data:`BINARY_FIELDS_WITH_NO_CAPABILITY`, kept equal to what the
@@ -111,6 +118,21 @@ def _backend(
     return unwrap_call_out(node)
 
 
+def _key(bundle: CallOutBundle, field: str) -> FieldKey:
+    """*field*'s key: the most basic bundle class that declares it.
+
+    An inherited field is one field, so a shared base's fields
+    (``DeploymentMonitoringBundle``) are checked against the singletons of
+    every subclass that builds them.
+    """
+    owner = next(
+        cls
+        for cls in reversed(type(bundle).__mro__)
+        if field in vars(cls).get("__annotations__", {})
+    )
+    return owner.__qualname__, field
+
+
 def _declaration_of(node: py_trees.behaviour.Behaviour) -> type | None:
     if isinstance(node, Capability):
         return type(node).declaration()
@@ -122,7 +144,7 @@ def _field_declarations() -> dict[FieldKey, set[type]]:
     bound: dict[FieldKey, set[type]] = {}
     for bundle in _ALL_INSTANCES:
         for f in dataclasses.fields(bundle):  # type: ignore[arg-type]
-            key = (type(bundle).__qualname__, f.name)
+            key = _key(bundle, f.name)
             declaration = _declaration_of(_backend(bundle, f.name))
             entry = bound.setdefault(key, set())
             if declaration is not None:
@@ -143,12 +165,16 @@ def _answers(key: FieldKey) -> type[Capability] | None:
 
 
 def _default_fields() -> list[FieldKey]:
-    """Every default field that answers a capability."""
+    """Every default field that answers a capability.
+
+    Read without :func:`_answers`, so a field bound to two capabilities
+    fails its own test below instead of the module's collection.
+    """
     return [
         (name, f.name)
         for name, bundle in _DEFAULTS.items()
         for f in dataclasses.fields(bundle)  # type: ignore[arg-type]
-        if _answers((name, f.name)) is not None
+        if _FIELD_DECLARATIONS[_key(bundle, f.name)]
     ]
 
 
@@ -158,7 +184,7 @@ def _stochastic_fields() -> list[tuple[str, str]]:
         (name, f.name)
         for name, bundle in sorted(_STOCHASTIC.items())
         for f in dataclasses.fields(bundle)  # type: ignore[arg-type]
-        if _answers((type(bundle).__qualname__, f.name)) is not None
+        if _FIELD_DECLARATIONS[_key(bundle, f.name)]
     ]
 
 
@@ -212,7 +238,7 @@ def test_deterministic_default_writes_every_declared_output(
     """The default binds to the field's capability and a yes writes its ports."""
     bundle_name, field = key
     bundle = _DEFAULTS[bundle_name]
-    declaration = _answers(key)
+    declaration = _answers(_key(bundle, field))
     assert declaration is not None
     default = _backend(bundle, field)
     assert _declaration_of(default) is declaration, (
@@ -246,7 +272,7 @@ def test_stochastic_node_writes_every_declared_output(
 
     singleton_name, field = key
     bundle = _STOCHASTIC[singleton_name]
-    declaration = _answers((type(bundle).__qualname__, field))
+    declaration = _answers(_key(bundle, field))
     assert declaration is not None
     node = _backend(bundle, field)
     assert _declaration_of(node) is declaration
@@ -300,11 +326,84 @@ def test_a_field_with_no_capability_is_binary(key: FieldKey) -> None:
     a field (actor resolution, the status adoption gate) stays binary until
     a declaration for it exists.
     """
-    bundle_name, field = key
+    _, field = key
     for bundle in _ALL_INSTANCES:
-        if type(bundle).__qualname__ == bundle_name:
+        names = {f.name for f in dataclasses.fields(bundle)}  # type: ignore[arg-type]
+        if field in names and _key(bundle, field) == key:
             backend = _backend(bundle, field)
             assert not backend.contract.outputs, (  # type: ignore[attr-defined]
                 f"{_id(key)} builds {type(backend).__name__}, which declares "
                 "outputs but binds no capability"
             )
+
+
+def _stochastic_rates() -> dict[FieldKey, set[float]]:
+    """Each field's STOCHASTIC success rates, over every singleton."""
+    rates: dict[FieldKey, set[float]] = {}
+    for bundle in _STOCHASTIC.values():
+        for f in dataclasses.fields(bundle):  # type: ignore[arg-type]
+            node = _backend(bundle, f.name)
+            rates.setdefault(_key(bundle, f.name), set()).add(
+                node.success_rate  # type: ignore[attr-defined]
+            )
+    return rates
+
+
+_STOCHASTIC_RATES = _stochastic_rates()
+
+
+@pytest.mark.spec("BT-23-013")
+def test_the_direction_exemptions_are_real_fields() -> None:
+    assert set(_FIELD_DECLARATIONS) >= DIRECTION_EXEMPT_FIELDS
+
+
+@pytest.mark.spec("BT-23-013")
+def test_every_field_that_answers_a_capability_is_simulated() -> None:
+    """The capability a field answers is cross-checked by a simulation node.
+
+    Without one, the field's capability is read from its own default, so a
+    default bound to the wrong declaration would pass the checks above.
+    """
+    answered = {k for k, d in _FIELD_DECLARATIONS.items() if d}
+    assert answered <= set(_STOCHASTIC_RATES), (
+        f"{sorted(answered - set(_STOCHASTIC_RATES))} answer a capability "
+        "but no STOCHASTIC singleton builds them"
+    )
+
+
+# Pinned exemption set, not a ratchet: the fields whose DETERMINISTIC
+# default does not follow the STOCHASTIC rate's direction (ARCH-18-001).
+# permanent: RSH-07-001 (the status adoption gate defaults to requiring
+# CASE_OWNER approval, ADR-0076)
+DIRECTION_EXEMPT_FIELDS: frozenset[FieldKey] = frozenset(
+    {("StatusAuthorizationCallOutBundle", "status_adoption_gate_factory")}
+)
+
+
+def _directed_fields() -> list[FieldKey]:
+    """Every default field outside :data:`DIRECTION_EXEMPT_FIELDS`."""
+    return sorted(
+        (name, f.name)
+        for name, bundle in _DEFAULTS.items()
+        for f in dataclasses.fields(bundle)  # type: ignore[arg-type]
+        if _key(bundle, f.name) not in DIRECTION_EXEMPT_FIELDS
+    )
+
+
+@pytest.mark.spec("BT-23-002")
+@pytest.mark.spec("BT-23-013")
+@pytest.mark.parametrize("key", _directed_fields(), ids=_id)
+def test_a_default_keeps_its_stochastic_direction(key: FieldKey) -> None:
+    """Binding keeps BT-23-002's direction: a ceiling for a rate >= 0.5."""
+    bundle_name, field = key
+    bundle = _DEFAULTS[bundle_name]
+    owner_key = _key(bundle, field)
+    rates = _STOCHASTIC_RATES.get(owner_key, set())
+    assert rates, f"{_id(owner_key)} has no STOCHASTIC node to compare with"
+    ceiling = _backend(bundle, field).success_rate == 1.0  # type: ignore[attr-defined]
+    for rate in rates:
+        assert ceiling == (rate >= 0.5), (
+            f"{_id(key)} defaults to a "
+            f"{'ceiling' if ceiling else 'floor'} but its STOCHASTIC rate is "
+            f"{rate} (BT-23-002)"
+        )

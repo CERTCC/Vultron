@@ -3159,7 +3159,11 @@ groups:
       through the seam, and fails if the default does not bind to the capability
       the field answers or answers yes without a value of its type for every
       declared output port. `test_stochastic_node_writes_every_declared_output` in
-      the same file covers the STOCHASTIC singletons.
+      the same file covers the STOCHASTIC singletons,
+      `test_a_default_keeps_its_stochastic_direction` fails a default that answers
+      yes for a STOCHASTIC rate below 0.5 or no for one at or above it, and
+      `test_every_field_that_answers_a_capability_is_simulated` fails a field whose
+      capability no simulation node cross-checks.
     relationships:
     - rel_type: supersedes
       spec_id: BT-23-002
