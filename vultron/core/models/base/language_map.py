@@ -33,9 +33,11 @@ from vultron.primitives import NonEmptyString
 def absent_as_empty(value: object) -> object:
     """Read a ``null`` language map as an absent one, which is empty.
 
-    JSON-LD reads a ``null`` value as no value, and every other AS2 property
-    on the object roots admits ``null``, so a peer that writes
-    ``"contentMap": null`` is read, not refused (ARCH-21-002).
+    A ``null`` value means the same as no value (VM-07-001), and every other
+    AS2 property on the object roots admits ``null``, so a peer that writes
+    ``"contentMap": null`` is read, not refused.  Only ``None`` is rewritten:
+    a blank tag or text, or a value that is not an object, is still refused
+    (CS-08-001, ARCH-25-024).
     """
     return {} if value is None else value
 

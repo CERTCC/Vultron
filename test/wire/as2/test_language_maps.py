@@ -128,17 +128,22 @@ def test_a_received_language_map_is_read_not_set_aside(
 
 
 @pytest.mark.spec("ARCH-25-008")
-def test_a_received_language_map_round_trips_through_the_datalayer() -> None:
-    activity = parse_activity(_create(_inline("VulnerabilityReport", **MAPS)))
+@pytest.mark.parametrize("obj_type, branch", INLINE_TYPES)
+def test_a_received_language_map_round_trips_through_the_datalayer(
+    obj_type: str, branch: type
+) -> None:
+    activity = parse_activity(_create(_inline(obj_type, **MAPS)))
     assert isinstance(activity, as_TransitiveActivity)
-    report = activity.object_
-    assert isinstance(report, VulnerabilityReport)
+    inline = activity.object_
+    assert isinstance(inline, branch)
+    assert isinstance(inline, (CoreObject, as_Object))
     dl = SqliteDataLayer(db_url="sqlite:///:memory:", actor_id=SENDER)
 
-    dl.save(report)
+    dl.save(inline)
     stored = dl.read(OBJECT_ID)
 
-    assert isinstance(stored, VulnerabilityReport)
+    # The DataLayer returns core objects (ADR-0034), whichever branch built it.
+    assert isinstance(stored, CoreObject)
     for key, field in FIELDS.items():
         assert getattr(stored, field) == MAPS[key]
 
@@ -172,13 +177,13 @@ def test_a_received_blank_value_is_refused_at_the_parse_edge(
         parse_activity(_create(_inline(obj_type, **{key: {"en": " "}})))
 
 
-@pytest.mark.spec("ARCH-21-002")
+@pytest.mark.spec("ARCH-25-008", "VM-07-001")
 @pytest.mark.parametrize("obj_type, branch", INLINE_TYPES)
 def test_a_received_null_map_is_read_as_empty(
     obj_type: str, branch: type
 ) -> None:
-    """JSON-LD reads ``null`` as no value, as every other AS2 property on
-    the roots admits it."""
+    """A ``null`` value means no value (VM-07-001), as every other AS2
+    property on the roots admits it."""
     nulls = dict.fromkeys(MAPS)
 
     activity = parse_activity(_create(_inline(obj_type, **nulls)))

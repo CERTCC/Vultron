@@ -482,10 +482,7 @@ def _is_required(
 ) -> bool:
     """Whether a line must carry the field, by the model's role (LedgerType)."""
     if ledger_type.role == "written":
-        # A field the dump may leave out (an empty language map) is not
-        # always written, so a line without it is well formed.
-        omittable = field.exclude_if is not None
-        return field.is_required() or not (nullable or omittable)
+        return field.is_required() or not nullable
     if field.is_required():
         return True
     # A received object of a class that reads its sender's time is refused

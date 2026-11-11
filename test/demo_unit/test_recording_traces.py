@@ -682,6 +682,20 @@ class TestWhatTheVerdictHolds:
             "fr": "premier contact",
         }
 
+    @pytest.mark.spec("DEMOCI-11-071")
+    def test_a_data_keyed_field_that_is_not_a_map_is_projected_as_a_value(
+        self,
+    ):
+        """A peer's non-object value is normalized as any kept value is."""
+        entry = _entry(0)
+        snapshot = entry["payloadSnapshot"]
+        assert isinstance(snapshot, dict)
+        snapshot["contentMap"] = "ends 2026-01-04T00:00:00+00:00"
+        projected = json.loads(normalize_run(_run(_ledger(entry))).ledger[0])
+        assert projected["payloadSnapshot"]["contentMap"] == (
+            f"ends {TIMESTAMP_PLACEHOLDER}"
+        )
+
     def test_every_data_keyed_mapping_is_a_verdict_field(self):
         assert DATA_KEYED_MAPPINGS <= VERDICT_FIELDS
 

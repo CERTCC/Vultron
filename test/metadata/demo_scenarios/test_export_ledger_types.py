@@ -29,15 +29,19 @@ To fix a drift failure here::
     git add ui/src/data/ledgerTypes.ts
 """
 
+import typing
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Annotated
 
+import annotated_types
 import pytest
-from pydantic import Field, computed_field
+from pydantic import BeforeValidator, Field, computed_field
 
 from test.support.act_clock import ACT_AT
 from test.support.objects import make
 from vultron.core.models.base import CoreObject
+from vultron.core.models.base.language_map import absent_as_empty
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -394,6 +398,32 @@ def test_the_language_maps_are_optional_non_blank_string_maps(
             }
             assert not field.required
             assert field.nullable
+
+
+def test_the_null_reader_is_stripped_and_other_metadata_kept() -> None:
+    """Only the ``null``-as-empty reader leaves the annotation; a constraint
+    beside it still reaches the projection."""
+    kept = annotated_types.Ge(0)
+    annotation = Annotated[
+        dict[str, int], BeforeValidator(absent_as_empty), kept
+    ]
+
+    stripped, reads_null = export_ledger_types._strip_absent_as_empty(
+        annotation
+    )
+
+    assert reads_null
+    assert typing.get_origin(stripped) is typing.Annotated
+    assert typing.get_args(stripped) == (dict[str, int], kept)
+
+
+def test_an_annotation_without_the_null_reader_is_left_alone() -> None:
+    annotation = Annotated[dict[str, int], annotated_types.Ge(0)]
+
+    assert export_ledger_types._strip_absent_as_empty(annotation) == (
+        annotation,
+        False,
+    )
 
 
 def test_the_payload_snapshot_is_an_untyped_object(
