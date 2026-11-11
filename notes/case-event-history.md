@@ -177,6 +177,10 @@ the commit, so it is wrong where that distance is not there. EMB-13-003 reaches 
 same termination two ways: the CASE_MANAGER's own lazy check, which can be much later,
 and an outside request made at the end time, such as from a Sentinel watching embargo
 timers, which is stamped close to the deadline. Label the lazy path only (CEH-03-013).
+The ledger does not yet say which path committed an exit: both are the CASE_MANAGER's
+`Remove(EmbargoEvent)` with `END_TIME_REACHED` and no requester. Until the decision
+on issue #5780 settles that, the layer labels every `END_TIME_REACHED` exit the
+CASE_MANAGER commits, and carries the end time as the bound.
 
 Where the ledger holds a deadline that bounds the real time better than the stamp,
 carry the deadline too (CEH-03-015). An embargo terminated `END_TIME_REACHED` really

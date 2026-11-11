@@ -41,6 +41,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from pydantic import JsonValue
+
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.cs_invariants import CSEvent
 from vultron.core.states.embargo_register import TerminationReason
@@ -63,7 +65,6 @@ from vultron.measure.history.snapshot import (
     ParticipantRecord,
     member_of,
     parse_time,
-    ref_of,
     roles_of,
     snapshot_records,
 )
@@ -144,7 +145,11 @@ class _Entry:
         *,
         participant: str | None = None,
         gaps: Iterable[GapLabel] = (),
-        **fields: Any,
+        deadline: datetime | None = None,
+        embargo_id: str | None = None,
+        replaces_embargo_id: str | None = None,
+        exit_reason: TerminationReason | None = None,
+        exit_cause: dict[str, JsonValue] | None = None,
     ) -> CaseEvent:
         """Build the event of *kind* this entry records."""
         labels = set(gaps)
@@ -158,7 +163,11 @@ class _Entry:
             committed_at=self.committed_at,
             claimed_at=self.claimed_at,
             gaps=[label for label in GapLabel if label in labels],
-            **fields,
+            deadline=deadline,
+            embargo_id=embargo_id,
+            replaces_embargo_id=replaces_embargo_id,
+            exit_reason=exit_reason,
+            exit_cause=exit_cause,
         )
 
 
@@ -210,14 +219,23 @@ class _Deriver:
             return
         self._acts(context)
         records = snapshot_records(context.payload)
+        if records.nameless_participants:
+            self._unreadable(
+                context.log_index, "a participant record names no actor"
+            )
         for record in records.participants:
             self._participant_record(context, record)
         for status in records.loose_statuses:
-            actor = ref_of(
+            actor = actor_uri(
                 first_present(status, "attributedTo", "attributed_to")
             )
-            if actor is not None:
-                self._status(context, self._tracker(actor), status)
+            if actor is None:
+                self._unreadable(
+                    context.log_index,
+                    "a participant status names no participant",
+                )
+                continue
+            self._status(context, self._tracker(actor), status)
         for case_status in records.case_statuses:
             self._case_status(context, case_status)
         for row in records.consents:
@@ -274,7 +292,7 @@ class _Deriver:
 
     def _on_activation(self, context: _Entry, obj: object) -> None:
         self._remember_end_time(obj)
-        embargo_id = ref_of(obj)
+        embargo_id = actor_uri(obj)
         if embargo_id is not None:
             self._activate(context, embargo_id)
 
@@ -299,6 +317,10 @@ class _Deriver:
         """A participant's ``Accept`` or ``Reject`` of an embargo Invite."""
         embargo_id = _invitee(invite)
         if context.actor is None or embargo_id is None:
+            self._unreadable(
+                context.log_index,
+                "an embargo reply names no embargo or sender",
+            )
             return
         state = (
             EmbargoConsentState.AGREED
@@ -321,7 +343,7 @@ class _Deriver:
         if isinstance(invite, dict):
             target = invite.get("target")
             if isinstance(target, dict):
-                return ref_of(
+                return actor_uri(
                     first_present(target, "activeEmbargo", "active_embargo")
                 )
         return None
@@ -354,7 +376,7 @@ class _Deriver:
     def _remember_end_time(self, embargo: object) -> None:
         if not isinstance(embargo, dict):
             return
-        embargo_id = ref_of(embargo)
+        embargo_id = actor_uri(embargo)
         end_time = parse_time(first_present(embargo, "endTime", "end_time"))
         if embargo_id is not None and end_time is not None:
             self.end_times[embargo_id] = end_time
@@ -424,7 +446,7 @@ class _Deriver:
         label (CEH-03-013).
         """
         self._remember_end_time(embargo)
-        embargo_id = ref_of(embargo) or self.active_embargo
+        embargo_id = actor_uri(embargo) or self.active_embargo
         if embargo_id is None:
             self._unreadable(
                 context.log_index, "embargo exit names no embargo"
@@ -465,7 +487,7 @@ class _Deriver:
         """A carried case's register: an ``ACTIVE`` entry is in force."""
         embargo = register_entry.get("embargo")
         self._remember_end_time(embargo)
-        embargo_id = ref_of(embargo)
+        embargo_id = actor_uri(embargo)
         if embargo_id is not None and register_entry.get("status") == "ACTIVE":
             self._start(context, embargo_id)
 
@@ -475,12 +497,16 @@ class _Deriver:
         self, context: _Entry, row: Mapping[str, Any], actor: str | None
     ) -> None:
         """A carried consent row: record its deadline, and any new answer."""
-        participant = actor or ref_of(
+        participant = actor or actor_uri(
             first_present(row, "attributedTo", "attributed_to")
         )
-        embargo_id = ref_of(first_present(row, "embargoId", "embargo_id"))
+        embargo_id = actor_uri(first_present(row, "embargoId", "embargo_id"))
         state = member_of(EmbargoConsentState, row.get("state"))
         if state is None or participant is None or embargo_id is None:
+            self._unreadable(
+                context.log_index,
+                "a consent row lacks its participant, embargo or a known state",
+            )
             return
         deadline = parse_time(
             first_present(row, "rsvpDeadline", "rsvp_deadline")
@@ -584,7 +610,7 @@ class _Deriver:
         self, context: _Entry, tracker: _Participant, status: Mapping[str, Any]
     ) -> None:
         """One participant status the history may not have seen."""
-        status_id = ref_of(status)
+        status_id = actor_uri(status)
         if status_id is not None:
             if status_id in self.seen_statuses:
                 return
@@ -606,10 +632,12 @@ class _Deriver:
         self, context: _Entry, tracker: _Participant, status: Mapping[str, Any]
     ) -> None:
         raw = dimension_state([dict(status)], Dimension.RM)
-        if raw is None:
-            return
         declared = member_of(RM, raw)
         if declared is None:
+            self._unreadable(
+                context.log_index,
+                f"a participant status has no known RM state ({raw!r})",
+            )
             return
         verdict = classify_rm_declaration(tracker.rm, declared)
         if verdict is RMDeclaration.CONFIRMATION:
@@ -638,7 +666,13 @@ class _Deriver:
         is excluded and *reached* kept (CEH-04-015).
         """
         named = _flags(raw, letters)
+        if dimension is Dimension.VF and named == (False, True):
+            named = None  # a fix ready with no vendor aware has no spelling
         if named is None:
+            self._unreadable(
+                context.log_index,
+                f"unreadable {dimension.value} state {raw!r}",
+            )
             return reached
         if any(
             was and not now for was, now in zip(reached, named, strict=True)
@@ -674,7 +708,7 @@ class _Deriver:
         self, context: _Entry, case_status: Mapping[str, Any]
     ) -> None:
         """One case status: the case's own public state (CEH-03-012)."""
-        status_id = ref_of(case_status)
+        status_id = actor_uri(case_status)
         if status_id is not None:
             if status_id in self.seen_case_statuses:
                 return
@@ -688,7 +722,9 @@ class _Deriver:
 
 def _invitee(invite: object) -> str | None:
     """The id of what an ``Invite`` invites: an actor, or an embargo."""
-    return ref_of(invite.get("object")) if isinstance(invite, dict) else None
+    return (
+        actor_uri(invite.get("object")) if isinstance(invite, dict) else None
+    )
 
 
 _Handler = Callable[[_Deriver, _Entry, object], None]

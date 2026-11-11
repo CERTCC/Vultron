@@ -40,15 +40,16 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from vultron.core.models._helpers import parse_published
 from vultron.measure.ledger import actor_uri, first_present
 
 #: The activity type whose whole subtree is a recommendation or an offer.
 _OFFER = "Offer"
 
-
-def ref_of(value: object) -> str | None:
-    """A reference as a string id, from a bare id or an inline object."""
-    return actor_uri(value)
+#: Activity fields that name where the act lands, not what it records: an
+#: Invite's ``target`` is a case stub whose status says nothing true about the
+#: case (``VulnerabilityCaseStub``).
+_PLACE_KEYS = frozenset({"target", "origin"})
 
 
 _E = TypeVar("_E", bound=StrEnum)
@@ -65,13 +66,12 @@ def member_of(enum: type[_E], value: object) -> _E | None:
 
 
 def parse_time(value: object) -> datetime | None:
-    """Parse an ISO 8601 timestamp, or return ``None`` when it is not one."""
-    if not isinstance(value, str) or not value.strip():
-        return None
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError:
-        return None
+    """Parse an ISO 8601 timestamp as UTC, or return ``None`` when it is not one.
+
+    A time with no offset is read as UTC, so any two times the history holds
+    compare (the shared ``parse_published`` rule, CS-22-001).
+    """
+    return parse_published(value)
 
 
 def roles_of(*values: object) -> set[str]:
@@ -117,6 +117,7 @@ class SnapshotRecords(BaseModel):
         consents: Every consent row outside a participant record and outside
             an offer.
         register_entries: Every embargo register entry of a carried case.
+        nameless_participants: How many participant records named no actor.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -126,6 +127,7 @@ class SnapshotRecords(BaseModel):
     case_statuses: list[dict[str, Any]] = Field(default_factory=list)
     consents: list[dict[str, Any]] = Field(default_factory=list)
     register_entries: list[dict[str, Any]] = Field(default_factory=list)
+    nameless_participants: int = 0
 
 
 def _dicts(value: object) -> list[dict[str, Any]]:
@@ -150,14 +152,14 @@ def _walk(
         return
     yield node, parents
     here = (*parents, node_type if isinstance(node_type, str) else "")
-    for child in node.values():
-        if isinstance(child, (dict, list)):
+    for key, child in node.items():
+        if key not in _PLACE_KEYS and isinstance(child, (dict, list)):
             yield from _walk(child, here)
 
 
 def _participant_record(node: Mapping[str, Any]) -> ParticipantRecord | None:
     """Read one ``CaseParticipant`` node, or ``None`` when it names no actor."""
-    actor = ref_of(first_present(node, "attributedTo", "attributed_to"))
+    actor = actor_uri(first_present(node, "attributedTo", "attributed_to"))
     if actor is None:
         return None
     joined = node.get("joined")
@@ -185,6 +187,7 @@ def snapshot_records(snapshot: Mapping[str, Any]) -> SnapshotRecords:
     case_statuses: list[dict[str, Any]] = []
     consents: list[dict[str, Any]] = []
     register: list[dict[str, Any]] = []
+    nameless = 0
     if snapshot.get("type") == _OFFER:
         return SnapshotRecords()
     for node, parents in _walk(snapshot.get("object"), ()):
@@ -192,7 +195,9 @@ def snapshot_records(snapshot: Mapping[str, Any]) -> SnapshotRecords:
         in_participant = "CaseParticipant" in parents
         if node_type == "CaseParticipant":
             record = _participant_record(node)
-            if record is not None:
+            if record is None:
+                nameless += 1
+            else:
                 participants.append(record)
         elif node_type == "ParticipantStatus" and not in_participant:
             loose.append(node)
@@ -212,4 +217,5 @@ def snapshot_records(snapshot: Mapping[str, Any]) -> SnapshotRecords:
         case_statuses=case_statuses,
         consents=consents,
         register_entries=register,
+        nameless_participants=nameless,
     )

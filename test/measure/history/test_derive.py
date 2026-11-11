@@ -428,11 +428,30 @@ def test_joining_is_derived_from_the_acceptance_entry():
 
 @pytest.mark.spec("CEH-04-010")
 def test_an_expired_invitation_yields_no_joining_event():
+    """The stub Invite's deadline passes; its expiry changes no record, so
+    no entry records it (CM-11-039, CM-11-040)."""
     ledger = Ledger()
     ledger.standard_genesis()
     ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
-    _invited(ledger)
-    ledger.add_status(OWNER, status("owner-a", OWNER, "ACCEPTED"))
+    deadline = stamp(6)
+    ledger.add(
+        "invite_actor_to_case",
+        "Invite",
+        CM,
+        {"id": INVITEE, "type": "Organization"},
+        endTime=deadline,
+    )
+    ledger.seat(
+        participant(
+            INVITEE,
+            [status("inv-r", INVITEE, "RECEIVED", vf="vf", roles=("VENDOR",))],
+            roles=("VENDOR",),
+            joined=False,
+            consents=[consent(INVITEE, "INVITED")],
+        )
+    )
+    after = ledger.add_status(OWNER, status("owner-a", OWNER, "ACCEPTED"))
+    assert ledger.entries[after]["published"] > deadline
     history = ledger.history()
     assert history.of_kind(EventKind.JOINED) == []
     assert history.for_participant(INVITEE) == []
@@ -862,3 +881,236 @@ def test_an_exit_naming_no_embargo_with_none_in_force_is_unreadable():
     history = ledger.history()
     assert history.of_kind(EventKind.EMBARGO_EXIT) == []
     assert [u.log_index for u in history.unreadable_entries] == [index]
+
+
+# ---------------------------------------------------------------------------
+# Edge paths found in review
+# ---------------------------------------------------------------------------
+
+
+def test_an_end_time_exit_not_committed_by_the_case_manager_is_unlabelled():
+    """Only the CASE_MANAGER's own exit is a deadline it found late."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
+    ledger.add(
+        "remove_embargo_event_from_case",
+        "Remove",
+        OWNER,
+        embargo(),
+        content="END_TIME_REACHED",
+    )
+    (event,) = ledger.history().of_kind(EventKind.EMBARGO_EXIT)
+    assert event.gaps == []
+    assert event.deadline == datetime.fromisoformat(EMBARGO_END)
+
+
+@pytest.mark.spec("CEH-04-008")
+def test_an_implied_agreement_never_overrides_a_refusal():
+    """A joiner that declined the embargo first stays declined (CM-11-001)."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
+    _invited(ledger)
+    ledger.add(
+        "update_embargo_consent", "Update", CM, consent(INVITEE, "DECLINED")
+    )
+    ledger.add(
+        "accept_invite_actor_to_case",
+        "Accept",
+        INVITEE,
+        ledger.stub_invite(INVITEE),
+    )
+    kinds = _kinds(ledger.history().for_participant(INVITEE))
+    assert kinds == [
+        EventKind.CONSENT_DECLINED,
+        EventKind.JOINED,
+        EventKind.REPORT_RECEIVED,
+    ]
+
+
+@pytest.mark.spec("CEH-04-005")
+def test_an_activation_with_none_in_force_replaces_nothing_and_starts_once():
+    ledger = Ledger()
+    ledger.genesis(
+        [
+            participant(
+                CM, [status("cm-r", CM, "RECEIVED")], roles=("CASE_MANAGER",)
+            )
+        ],
+        with_embargo=False,
+    )
+    ledger.add_status(OWNER, status("owner-r", OWNER, "RECEIVED"))
+    first = ledger.add(
+        "activate_embargo_on_case", "Add", OWNER, embargo(EMBARGO_2)
+    )
+    ledger.add("activate_embargo_on_case", "Add", OWNER, embargo(EMBARGO_2))
+    starts = ledger.history().of_kind(EventKind.EMBARGO_START)
+    assert [
+        (e.log_index, e.embargo_id, e.replaces_embargo_id) for e in starts
+    ] == [(first, EMBARGO_2, None)]
+
+
+@pytest.mark.spec("CEH-04-005")
+def test_ending_an_embargo_not_in_force_leaves_the_one_in_force():
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
+    ledger.add(
+        "remove_embargo_event_from_case",
+        "Remove",
+        OWNER,
+        embargo(EMBARGO_2),
+        content="EARLY",
+    )
+    _invited(ledger)
+    ledger.add(
+        "accept_invite_actor_to_case",
+        "Accept",
+        INVITEE,
+        ledger.stub_invite(INVITEE),
+    )
+    history = ledger.history()
+    assert [e.embargo_id for e in history.of_kind(EventKind.EMBARGO_EXIT)] == [
+        EMBARGO_2
+    ]
+    agreed = [
+        e.embargo_id
+        for e in history.for_participant(INVITEE)
+        if e.kind is EventKind.CONSENT_AGREED
+    ]
+    assert agreed == [EMBARGO]
+
+
+@pytest.mark.spec("CEH-03-008")
+def test_an_unparseable_claimed_time_reads_as_absent():
+    ledger = _vendor_ledger()
+    index = ledger.add(
+        "add_participant_status_to_participant",
+        "Add",
+        VENDOR,
+        status("v-v", VENDOR, "VALID", vf="vf"),
+        claimed="last tuesday",
+    )
+    (event,) = [e for e in ledger.history().events if e.log_index == index]
+    assert event.claimed_at is None
+
+
+def test_times_with_no_offset_read_as_utc_and_compare():
+    """A revision whose end time has no offset is compared, not a crash."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
+    _proposal(ledger, end_time="2026-01-02T00:00:00")
+    active = ledger.add(
+        "activate_embargo_on_case",
+        "Add",
+        OWNER,
+        embargo(EMBARGO_2, "2026-01-02T00:00:00"),
+    )
+    history = ledger.history()
+    carried = {
+        e.participant
+        for e in history.of_kind(EventKind.CONSENT_AGREED)
+        if e.log_index == active
+    }
+    assert carried == {CM, OWNER}
+    assert all(e.committed_at.tzinfo is not None for e in history.events)
+
+
+@pytest.mark.parametrize(
+    ("record", "reason"),
+    [
+        (status("bad-rm", VENDOR, "REOPENED", vf="vf"), "no known RM state"),
+        (
+            {
+                "id": "no-rm",
+                "type": "ParticipantStatus",
+                "attributedTo": VENDOR,
+            },
+            "no known RM state",
+        ),
+        (status("bad-vf", VENDOR, "RECEIVED", vf="vF"), "unreadable vf state"),
+        (status("odd-vf", VENDOR, "RECEIVED", vf="Xf"), "unreadable vf state"),
+        (
+            {"id": "anon", "type": "ParticipantStatus", "rmState": "VALID"},
+            "names no participant",
+        ),
+        (
+            {"type": "CaseParticipant", "participantStatuses": []},
+            "record names no actor",
+        ),
+        (
+            {
+                "type": "EmbargoConsent",
+                "attributedTo": VENDOR,
+                "state": "AGREED",
+            },
+            "consent row lacks",
+        ),
+    ],
+)
+def test_an_unreadable_record_is_reported_and_the_rest_derived(record, reason):
+    ledger = _vendor_ledger()
+    odd = ledger.add(
+        "add_participant_status_to_participant", "Add", VENDOR, record
+    )
+    later = ledger.add_status(
+        VENDOR, status("v-a", VENDOR, "ACCEPTED", vf="vf")
+    )
+    history = ledger.history()
+    (unreadable,) = history.unreadable_entries
+    assert unreadable.log_index == odd
+    assert reason in unreadable.reason
+    assert not any(e.log_index == odd for e in history.events)
+    assert any(e.log_index == later for e in history.events)
+
+
+def test_an_embargo_reply_naming_no_embargo_is_reported():
+    ledger = _vendor_ledger()
+    odd = ledger.add(
+        "accept_invite_to_embargo_on_case",
+        "Accept",
+        VENDOR,
+        {"id": "urn:uuid:inv", "type": "Invite"},
+    )
+    history = ledger.history()
+    assert [u.log_index for u in history.unreadable_entries] == [odd]
+    assert history.of_kind(EventKind.CONSENT_AGREED)[-1].log_index != odd
+
+
+def test_a_refusal_with_no_embargo_in_force_records_no_consent():
+    ledger = Ledger()
+    ledger.standard_genesis()
+    ledger.add_status(OWNER, status("owner-v", OWNER, "VALID"))
+    ledger.add(
+        "remove_embargo_event_from_case",
+        "Remove",
+        OWNER,
+        embargo(),
+        content="EARLY",
+    )
+    _invited(ledger)
+    ledger.add(
+        "reject_invite_actor_to_case",
+        "Reject",
+        INVITEE,
+        ledger.stub_invite(INVITEE),
+    )
+    history = ledger.history()
+    assert history.for_participant(INVITEE) == []
+    assert history.unreadable_entries == []
+
+
+def test_a_stub_case_status_in_an_invite_target_is_not_the_cases():
+    """An Invite's target is a case stub; its status is no public state."""
+    ledger = _vendor_ledger()
+    ledger.add(
+        "add_case_status_to_case", "Add", CM, case_status("cs-P", "Pxa")
+    )
+    invite = ledger.stub_invite(INVITEE)
+    invite["target"]["caseStatus"] = case_status("stub-cs", "pxa")
+    ledger.add("accept_invite_actor_to_case", "Accept", INVITEE, invite)
+    history = ledger.history()
+    assert history.excluded == []
+    assert len(history.of_kind(CSEvent.P)) == 1

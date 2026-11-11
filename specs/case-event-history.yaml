@@ -532,7 +532,10 @@ groups:
       `test/measure/history/test_derive.py::TestGapLabels::test_an_end_time_exit_by_the_case_manager_is_stamped_when_next_handled`
       asserts the deadline label on an end-time exit the CASE_MANAGER committed, and
       `test/measure/history/test_derive.py::test_a_timed_out_invitation_carries_the_earlier_rsvp_deadline`
-      on an invitation that timed out.
+      on an invitation that timed out. A unit test must also assert the label is
+      absent on an exit committed from an outside request made at the end time; none
+      exists yet, because the ledger records both paths with the same entry (open on
+      #5780).
     relationships:
     - rel_type: implements
       spec_id: CEH-03-010

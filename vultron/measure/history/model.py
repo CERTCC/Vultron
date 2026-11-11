@@ -266,12 +266,16 @@ class ExcludedState(BaseModel):
 
 
 class UnreadableEntry(BaseModel):
-    """A placed ledger entry the history could derive nothing from.
+    """A ledger entry, or a record in it, the history could not read.
+
+    The entry's other records still yield their events; only what is named
+    here is left out, and it is reported rather than dropped.
 
     Fields:
         log_index: The entry.
-        reason: What it lacks: a commit stamp, a known semantic type, or a
-            termination reason on an embargo exit.
+        reason: What is missing or unreadable: the entry's commit stamp or
+            semantic type, an exit's reason or embargo, or a record's actor,
+            state or embargo.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -297,8 +301,8 @@ class CaseEventHistory(BaseModel):
             the order the entry records them (CEH-04-011, CEH-04-012).
         excluded: Every state named behind the state already reached
             (CEH-04-016).
-        unreadable_entries: Every entry that yielded nothing because it
-            lacked a field the derivation needs.
+        unreadable_entries: Every entry, or record in one, left out because
+            it lacked a field the derivation needs.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
