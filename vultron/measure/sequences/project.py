@@ -15,9 +15,9 @@
 The projection is keyed on the vendor-awareness event, never on a role
 (CEH-05-001): a participant whose events include ``V`` gets one sequence
 holding its own fix-path and deployment events and the case's public-state
-events, in event-history order (CEH-05-003), except that a late
-public-awareness event is placed right after exploit publication and a late
-vendor-awareness event right after public awareness (CEH-05-009).  Every
+events, in event-history order (CEH-05-003), except where a transient state
+forces one next event the record does not take: the projection takes it,
+moving the recorded event or implying one (CEH-05-009).  Every
 other participant is reported with the reason it has none (CEH-05-007).
 
 The sequence is the deliverable; nothing here scores it (CEH-05-008).  The
@@ -29,10 +29,23 @@ from __future__ import annotations
 
 from pydantic import ValidationError
 
-from vultron.core.states.cs_invariants import CSEvent
-from vultron.measure.history import CaseEvent, CaseEventHistory, EventScope
+from vultron.core.states.cs import CS
+from vultron.core.states.cs_invariants import (
+    CSEvent,
+    apply_cs_event,
+    required_next_cs_events,
+)
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
+from vultron.measure.history import (
+    CaseEvent,
+    CaseEventHistory,
+    EventScope,
+    scope_of,
+)
 from vultron.measure.sequences.model import (
-    PLACEMENT_RULES,
     CaseStateSequence,
     CaseStateSequences,
     Placement,
@@ -93,7 +106,8 @@ def _project_one(
     ]
     try:
         return CaseStateSequence(
-            participant=participant, events=_place_coupled_events(events)
+            participant=participant,
+            events=_take_forced_ways_out(events, participant),
         )
     except ValidationError as exc:
         return UnprojectableParticipant(
@@ -103,42 +117,66 @@ def _project_one(
         )
 
 
-def _place_coupled_events(events: list[CaseEvent]) -> list[SequenceEvent]:
-    """Place each coupled event the ledger records late (CEH-05-009).
-
-    The model couples exploit publication to public awareness and public
-    awareness to vendor awareness, because ``pX`` and ``vP`` are transient
-    (CSB-17-003).  A ``P`` recorded after ``X`` with another event between
-    them is placed immediately after ``X``; then a ``V`` recorded after that
-    ``P`` with another event between them is placed immediately after ``P``.
-    The order composes: ``X, V, P`` becomes ``X, P, V``.  Every event keeps
-    its recorded log index and clocks, and every other event stays where the
-    history put it.
-    """
-    members = [SequenceEvent(event=event) for event in events]
-    for placement, (kind, after) in PLACEMENT_RULES.items():
-        members = _place(members, kind, after, placement)
-    return members
-
-
-def _place(
-    members: list[SequenceEvent],
-    kind: CSEvent,
-    after: CSEvent,
-    placement: Placement,
+def _take_forced_ways_out(
+    events: list[CaseEvent], participant: str
 ) -> list[SequenceEvent]:
-    """Move *kind* to directly after *after* when something lies between."""
-    kinds = [member.kind for member in members]
-    if kind not in kinds or after not in kinds:
-        return members
-    anchor, found = kinds.index(after), kinds.index(kind)
-    if found <= anchor + 1:
-        return members
-    moved = members.pop(found)
-    members.insert(
-        anchor + 1, SequenceEvent(event=moved.event, placement=placement)
+    """Take each transient state's one way out where the record does not.
+
+    Replaying the recorded order, a state that ``required_next_cs_events``
+    says forces one next event (``pX`` forces ``P``, ``vP`` forces ``V``,
+    CSB-17-003) is followed by that event: the recorded one, moved up when the
+    ledger records it later, or an implied one when it records it nowhere
+    (CEH-05-009).  So ``P, X, V`` becomes ``P, V, X``, ``X, V, P`` becomes
+    ``X, P, V``, and ``V, X, A`` becomes ``V, X, P, A``.  Every recorded event
+    keeps its log index and clocks; an order that does not replay is left
+    for the sequence model to refuse.
+    """
+    pending = [SequenceEvent(event=event) for event in events]
+    placed: list[SequenceEvent] = []
+    state = CS.vfdpxa
+    while pending:
+        member = _next_member(pending, placed, state, participant)
+        placed.append(member)
+        try:
+            state = apply_cs_event(state, member.kind)
+        except (VultronValidationError, VultronInvalidStateTransitionError):
+            return [*placed, *pending]
+    return placed
+
+
+def _next_member(
+    pending: list[SequenceEvent],
+    placed: list[SequenceEvent],
+    state: CS,
+    participant: str,
+) -> SequenceEvent:
+    """Take the member that comes after *state* off *pending*."""
+    forced = required_next_cs_events(state)
+    if len(forced) != 1 or pending[0].kind in forced:
+        return pending.pop(0)
+    (kind,) = forced
+    for i, member in enumerate(pending):
+        if member.kind is kind:
+            return SequenceEvent(
+                event=pending.pop(i).event, placement=Placement.MOVED
+            )
+    return SequenceEvent(
+        event=_implied(kind, placed[-1].event, participant),
+        placement=Placement.IMPLIED,
     )
-    return members
+
+
+def _implied(kind: CSEvent, cause: CaseEvent, participant: str) -> CaseEvent:
+    """An event of *kind* on *cause*'s entry, with its clocks and gap labels.
+
+    *participant* owns it when *kind* belongs to a participant.
+    """
+    fields = cause.model_dump(exclude={"scope"})
+    fields["kind"] = kind
+    fields["participant"] = (
+        None if scope_of(kind) is EventScope.CASE else participant
+    )
+    return CaseEvent.model_validate(fields)
 
 
 def _messages(exc: ValidationError) -> list[str]:

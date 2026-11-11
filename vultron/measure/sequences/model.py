@@ -15,13 +15,12 @@
 A :class:`CaseStateSequence` is one vendor's case-state events, in log order:
 its own fix-path and deployment events combined with the case's public-state
 events (CEH-05-001, CEH-05-003).  Each member is a :class:`SequenceEvent`, the
-history's event plus its :class:`Placement`: a public-awareness event recorded
-late sits immediately after ``X``, and a vendor-awareness event recorded late
-immediately after ``P`` (CEH-05-009, CSB-17-003), each keeping its recorded
-log index and clocks.  It refuses at
-construction anything the case-state history validator would not replay as a
-prefix (CEH-05-002, CEH-05-004), so a held sequence is always a valid,
-possibly incomplete, prefix (CEH-05-005).
+history's event plus its :class:`Placement`: where a transient state forces
+one next event and the ledger records it later, it is moved there, and where
+the ledger records it nowhere, it is implied there (CEH-05-009, CSB-17-003).
+It refuses at construction anything the case-state history validator would
+not replay as a prefix (CEH-05-002, CEH-05-004), so a held sequence is always
+a valid, possibly incomplete, prefix (CEH-05-005).
 
 A participant with no sequence is an :class:`UnprojectableParticipant`, with
 the reason (CEH-05-007).  :class:`CaseStateSequences` holds both, and holds no
@@ -35,7 +34,13 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from vultron.core.states.cs_invariants import CSEvent, replay_cs_history
+from vultron.core.states.cs import CS
+from vultron.core.states.cs_invariants import (
+    CSEvent,
+    apply_cs_event,
+    replay_cs_history,
+    required_next_cs_events,
+)
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronValidationError,
@@ -45,33 +50,22 @@ from vultron.primitives import NonEmptyString
 
 
 class Placement(StrEnum):
-    """Where a sequence member sits relative to its recorded position.
+    """Where a sequence member sits relative to what the ledger records.
 
-    The model couples two pairs of events: an exploit made public makes the
-    public aware at once, and a public that is aware makes the vendor aware at
-    once, because ``pX`` and ``vP`` are transient states (CSB-17-003).  A
-    coupled event the ledger records late is placed where the model puts it
+    Two case states are transient and force one next event: ``pX`` (exploit
+    public, public unaware) forces ``P``, and ``vP`` (public aware, vendor
+    unaware) forces ``V`` (CSB-17-003, ``required_next_cs_events``).  When the
+    recorded order does not take that way out, the projection does
     (CEH-05-009).
     """
 
-    #: In the order the event history records it.
+    #: Recorded, and in the order the event history records it.
     RECORDED = "recorded"
-    #: A public-awareness event recorded after exploit publication with
-    #: another event between them, placed immediately after ``X``.
-    AT_EXPLOIT_PUBLICATION = "at_exploit_publication"
-    #: A vendor-awareness event recorded after public awareness with another
-    #: event between them, placed immediately after ``P``.
-    AT_PUBLIC_AWARENESS = "at_public_awareness"
-
-
-#: For each placement other than as recorded: the kind it places and the kind
-#: it places that event after, in the order the projection applies them.  The
-#: public-awareness rule runs first so the vendor-awareness rule anchors on
-#: the placed ``P``.
-PLACEMENT_RULES: dict[Placement, tuple[CSEvent, CSEvent]] = {
-    Placement.AT_EXPLOIT_PUBLICATION: (CSEvent.P, CSEvent.X),
-    Placement.AT_PUBLIC_AWARENESS: (CSEvent.V, CSEvent.P),
-}
+    #: Recorded later; placed where the transient state before it forces it.
+    MOVED = "moved"
+    #: Recorded nowhere; forced by the transient state the previous member
+    #: reached, and carrying that member's log index and clocks.
+    IMPLIED = "implied"
 
 
 class SequenceEvent(BaseModel):
@@ -80,8 +74,10 @@ class SequenceEvent(BaseModel):
     Fields:
         event: The event from the case event history, unchanged: its kind,
             log index, clocks and gap labels are the recorded ones.
-        placement: ``RECORDED`` for an event in its recorded position;
-            otherwise the rule that placed it out of log order (CEH-05-009).
+            An ``IMPLIED`` member's event is not in the history: it is the
+            forced kind with the previous member's other fields.
+        placement: Whether the event is recorded in place, recorded later and
+            moved, or implied (CEH-05-009).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -112,8 +108,8 @@ class CaseStateSequence(BaseModel):
         participant: The vendor the sequence belongs to.
         events: The vendor's own ``V``, ``F`` and ``D`` events and the case's
             ``P``, ``X`` and ``A`` events, in event-history order, except a
-            late ``P`` or ``V``, which sits where the model couples it and
-            says so (CEH-05-009).
+            ``P`` or ``V`` a transient state forces, which sits where it is
+            forced and says so (CEH-05-009).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -133,7 +129,7 @@ class CaseStateSequence(BaseModel):
 
     @property
     def placed(self) -> tuple[SequenceEvent, ...]:
-        """The members placed out of their recorded position (CEH-05-009)."""
+        """The members moved or implied (CEH-05-009)."""
         return tuple(m for m in self.events if m.is_placed)
 
     @model_validator(mode="after")
@@ -177,34 +173,53 @@ class CaseStateSequence(BaseModel):
         return self
 
     def _order_problems(self) -> list[str]:
-        """Recorded members keep log order; a placed member is the kind its
-        rule places, directly follows the kind the rule names, and comes
-        before some member recorded no later than itself."""
+        """Recorded members keep log order, and each moved or implied member
+        is the one event the state before it forces (CEH-05-009)."""
         problems: list[str] = []
         recorded = [m.log_index for m in self.events if not m.is_placed]
         if recorded != sorted(recorded):
             problems.append("the events are not in log order")
+        state = CS.vfdpxa
         for i, member in enumerate(self.events):
-            if not member.is_placed:
-                continue
-            kind, after = PLACEMENT_RULES[member.placement]
-            if member.kind is not kind:
-                problems.append(
-                    f"only {kind} is placed {member.placement}, not"
-                    f" {member.kind}"
-                )
-            if i == 0 or self.events[i - 1].kind is not after:
-                problems.append(
-                    f"{member.kind} placed {member.placement} must directly"
-                    f" follow {after}"
-                )
-            if not any(
-                later.log_index <= member.log_index
-                for later in self.events[i + 1 :]
+            if not isinstance(member.kind, CSEvent):
+                return problems
+            if member.is_placed:
+                problems.extend(self._placement_problems(i, state))
+            try:
+                state = apply_cs_event(state, member.kind)
+            except (
+                VultronValidationError,
+                VultronInvalidStateTransitionError,
+            ):
+                return problems
+        return problems
+
+    def _placement_problems(self, i: int, state: CS) -> list[str]:
+        """What is wrong with the moved or implied member at *i*."""
+        member = self.events[i]
+        label = f"{member.kind} {member.placement}"
+        problems: list[str] = []
+        if member.kind not in required_next_cs_events(state):
+            problems.append(f"{label} is not forced by {state.name}")
+        if member.placement is Placement.MOVED and not any(
+            later.log_index <= member.log_index
+            for later in self.events[i + 1 :]
+        ):
+            problems.append(
+                f"{label} must come before an event recorded no later than"
+                " itself"
+            )
+        if member.placement is Placement.IMPLIED:
+            previous = self.events[i - 1].event if i else None
+            if (
+                previous is None
+                or member.log_index != previous.log_index
+                or member.event.committed_at != previous.committed_at
+                or member.event.claimed_at != previous.claimed_at
             ):
                 problems.append(
-                    f"{member.kind} placed {member.placement} must come"
-                    " before an event recorded no later than itself"
+                    f"{label} must carry the log index and clocks of the"
+                    " event before it"
                 )
         return problems
 
@@ -220,10 +235,10 @@ class UnprojectableReason(StrEnum):
     NO_VENDOR_AWARENESS = "no_vendor_awareness"
     #: The participant's events combined with the case's public-state events
     #: do not replay as a case-state history prefix even after the coupled
-    #: events are placed (CEH-05-004, CEH-05-009).  Two shapes reach it: an
-    #: exploit published with no public awareness recorded and some event
-    #: after it, since there is no ``P`` to place; and an entry a
-    #: CASE_MANAGER would refuse, such as a fix deployed before it is ready.
+    #: events are placed (CEH-05-004, CEH-05-009).  The placements make every
+    #: order of one vendor's and the case's events replay, so only an entry a
+    #: CASE_MANAGER would refuse reaches it, such as a fix deployed before it
+    #: is ready.
     NOT_A_VALID_PREFIX = "not_a_valid_prefix"
 
 

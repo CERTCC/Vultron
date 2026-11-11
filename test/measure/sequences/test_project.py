@@ -280,10 +280,10 @@ def _placements(sequence: CaseStateSequence | None) -> list[Placement]:
     return [member.placement for member in sequence.events]
 
 
-_R, _AT_X, _AT_P = (
+_R, _MOVED, _IMPLIED = (
     Placement.RECORDED,
-    Placement.AT_EXPLOIT_PUBLICATION,
-    Placement.AT_PUBLIC_AWARENESS,
+    Placement.MOVED,
+    Placement.IMPLIED,
 )
 
 
@@ -299,7 +299,7 @@ def test_awareness_recorded_after_publication_is_placed_at_public_awareness():
     assert sequence is not None
     assert _kinds(sequence) == "PVX"
     assert is_valid_cs_history_prefix(sequence.kinds)
-    assert _placements(sequence) == [_R, _AT_P, _R]
+    assert _placements(sequence) == [_R, _MOVED, _R]
     # The placed event is the recorded one: same log index, same clocks.
     (placed,) = sequence.placed
     assert placed.event == recorded[2]
@@ -353,7 +353,7 @@ def test_public_awareness_recorded_after_publication_is_placed_at_the_exploit():
     assert sequence is not None
     assert is_valid_cs_history_prefix(sequence.kinds)
     # P moved; V now directly follows it, so V is in place and unmarked.
-    assert _placements(sequence) == [_R, _AT_X, _R]
+    assert _placements(sequence) == [_R, _MOVED, _R]
     (placed,) = sequence.placed
     assert placed.event == recorded[2]
     assert history.events[-1].kind is CSEvent.P
@@ -364,9 +364,9 @@ def test_public_awareness_recorded_after_publication_is_placed_at_the_exploit():
     ("steps", "expected", "placements"),
     [
         # X, A, P, V: both late; P goes after X, then V after P.
-        (["pXa", "pXA", "PXA", "V"], "XPVA", [_R, _AT_X, _AT_P, _R]),
+        (["pXa", "pXA", "PXA", "V"], "XPVA", [_R, _MOVED, _MOVED, _R]),
         # X, A, V, P: P goes after X, leaving A between P and V.
-        (["pXa", "pXA", "V", "PXA"], "XPVA", [_R, _AT_X, _AT_P, _R]),
+        (["pXa", "pXA", "V", "PXA"], "XPVA", [_R, _MOVED, _MOVED, _R]),
     ],
     ids=["XAPV", "XAVP"],
 )
@@ -445,8 +445,7 @@ def _attacks_before_public_awareness_ledger() -> Ledger:
     observed while the public is still unaware: recorded ``V, X, A``.
 
     Each case status is a forward move in the public-state machine on its
-    own, but ``pX`` obliges ``P`` next (CSB-17-003) and no ``P`` is recorded,
-    so there is nothing to place.
+    own, but ``pX`` obliges ``P`` next (CSB-17-003) and no ``P`` is recorded.
     """
     ledger = Ledger()
     ledger.standard_genesis()
@@ -456,19 +455,43 @@ def _attacks_before_public_awareness_ledger() -> Ledger:
     return ledger
 
 
-@pytest.mark.spec("CEH-05-004")
-@pytest.mark.spec("CEH-05-007")
-def test_an_exploit_with_no_public_awareness_and_a_later_event_is_refused():
+@pytest.mark.spec("CEH-05-009")
+def test_an_exploit_with_no_public_awareness_recorded_implies_it():
     history, projected = _projected(_attacks_before_public_awareness_ledger())
-    recorded = [e.kind for e in history.events if isinstance(e.kind, CSEvent)]
-    assert recorded == [CSEvent.V, CSEvent.X, CSEvent.A]
-    assert projected.sequences == []
-    refused = _unprojectable(projected, VENDOR)
-    assert refused.reason is UnprojectableReason.NOT_A_VALID_PREFIX
-    assert refused.detail.startswith(
-        "VXA is not a valid case-state history prefix"
+    recorded = [e for e in history.events if isinstance(e.kind, CSEvent)]
+    assert [e.kind for e in recorded] == [CSEvent.V, CSEvent.X, CSEvent.A]
+    assert not is_valid_cs_history_prefix([e.kind for e in recorded])
+
+    sequence = projected.for_participant(VENDOR)
+    assert _kinds(sequence) == "VXPA"
+    assert sequence is not None
+    assert is_valid_cs_history_prefix(sequence.kinds)
+    assert _placements(sequence) == [_R, _R, _IMPLIED, _R]
+    (implied,) = sequence.placed
+    exploit = recorded[1]
+    assert implied.event.participant is None
+    assert (implied.log_index, implied.event.committed_at) == (
+        exploit.log_index,
+        exploit.committed_at,
     )
-    assert "requires event(s) ['P'] next" in refused.detail
+    assert implied.event.claimed_at == exploit.claimed_at
+    # The history records no P; only the sequence implies one.
+    assert history.of_kind(CSEvent.P) == []
+
+
+@pytest.mark.spec("CEH-05-009")
+def test_an_exploit_recorded_last_implies_nothing():
+    """Nothing has come after ``X`` yet, so the prefix is incomplete, not
+    wrong (CEH-05-005)."""
+    ledger = Ledger()
+    ledger.standard_genesis()
+    _seat_vendor(ledger, VENDOR, "Vf")
+    _publish(ledger, "pXa")
+    _, projected = _projected(ledger)
+    sequence = projected.for_participant(VENDOR)
+    assert _kinds(sequence) == "VX"
+    assert sequence is not None
+    assert sequence.placed == ()
 
 
 def _recordable_orders() -> list[tuple[CSEvent, ...]]:
@@ -517,47 +540,33 @@ def _history_of(order: tuple[CSEvent, ...]) -> CaseEventHistory:
     )
 
 
-def _exploit_without_public_awareness(order: tuple[CSEvent, ...]) -> bool:
-    """Whether *order* records ``X``, never ``P``, and something after ``X``.
-
-    No recorded ``P`` exists to place, and ``pX`` obliges ``P`` next
-    (CSB-17-003), so nothing the layer may move makes it replay.
-    """
-    return (
-        CSEvent.X in order
-        and CSEvent.P not in order
-        and order[-1] is not CSEvent.X
-    )
-
-
 @pytest.mark.spec("CEH-05-009")
 @pytest.mark.spec("CEH-05-004")
-@pytest.mark.spec("CEH-05-007")
-def test_every_recorded_order_projects_unless_an_exploit_has_no_public_awareness():
+def test_every_recorded_order_projects_a_valid_prefix():
     """Over every order one vendor's and the case's events can be recorded
-    in, the two placements leave exactly one shape unprojectable: an exploit
-    published with no public awareness recorded and some event after it."""
+    in, taking each transient state's forced event leaves nothing
+    unprojectable."""
     orders = _recordable_orders()
     assert len(orders) > 100
     unreplayable = [o for o in orders if not is_valid_cs_history_prefix(o)]
-    assert unreplayable, "the placements must have work to do"
-    refused = 0
+    assert unreplayable, "the projection must have work to do"
     for order in orders:
         projected = case_state_sequences(_history_of(order))
-        if _exploit_without_public_awareness(order):
-            refused += 1
-            assert projected.sequences == [], "".join(order)
-            (unprojectable,) = projected.unprojectable
-            assert (
-                unprojectable.reason is UnprojectableReason.NOT_A_VALID_PREFIX
-            )
-            assert "requires event(s) ['P'] next" in unprojectable.detail
-            continue
         assert projected.unprojectable == [], "".join(order)
         (sequence,) = projected.sequences
         assert is_valid_cs_history_prefix(sequence.kinds)
-        assert sorted(sequence.kinds) == sorted(order)
-    assert refused
+        recorded = [
+            m.kind for m in sequence.events if m.placement is not _IMPLIED
+        ]
+        assert sorted(recorded) == sorted(order)
+        implied = [m.kind for m in sequence.placed if m.placement is _IMPLIED]
+        # Only an exploit with no recorded P and something after it needs one.
+        needs_p = (
+            CSEvent.X in order
+            and CSEvent.P not in order
+            and order[-1] is not CSEvent.X
+        )
+        assert implied == ([CSEvent.P] if needs_p else []), "".join(order)
 
 
 @pytest.mark.spec("CEH-05-005")
