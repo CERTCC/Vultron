@@ -812,3 +812,53 @@ def test_a_joined_record_with_no_acceptance_releases_the_held_state():
     assert [(e.kind, e.log_index) for e in events] == [
         (EventKind.REPORT_RECEIVED, later)
     ]
+
+
+@pytest.mark.spec("CEH-04-010")
+def test_with_no_embargo_seen_joining_agrees_to_the_one_the_invite_names():
+    """A merge missing the genesis: the Invite's embargo is the evidence."""
+    ledger = Ledger()
+    ledger.genesis(
+        [
+            participant(
+                CM, [status("cm-r", CM, "RECEIVED")], roles=("CASE_MANAGER",)
+            )
+        ],
+        with_embargo=False,
+    )
+    ledger.add_status(OWNER, status("owner-r", OWNER, "RECEIVED"))
+    accepted = ledger.add(
+        "accept_invite_actor_to_case",
+        "Accept",
+        INVITEE,
+        ledger.stub_invite(INVITEE),
+    )
+    (agreed,) = ledger.history().of_kind(EventKind.CONSENT_AGREED)
+    assert (agreed.participant, agreed.embargo_id, agreed.log_index) == (
+        INVITEE,
+        EMBARGO,
+        accepted,
+    )
+
+
+@pytest.mark.spec("CEH-03-006")
+def test_an_entry_with_no_commit_stamp_is_reported_unreadable():
+    ledger = _vendor_ledger()
+    index = ledger.add_status(VENDOR, status("v-v", VENDOR, "VALID", vf="vf"))
+    del ledger.entries[index]["published"]
+    history = ledger.history()
+    assert [(u.log_index, u.reason) for u in history.unreadable_entries] == [
+        (index, "no commit stamp")
+    ]
+    assert not any(e.log_index == index for e in history.events)
+
+
+def test_an_exit_naming_no_embargo_with_none_in_force_is_unreadable():
+    ledger = Ledger()
+    ledger.genesis([], with_embargo=False)
+    index = ledger.add(
+        "remove_embargo_event_from_case", "Remove", CM, None, content="EARLY"
+    )
+    history = ledger.history()
+    assert history.of_kind(EventKind.EMBARGO_EXIT) == []
+    assert [u.log_index for u in history.unreadable_entries] == [index]

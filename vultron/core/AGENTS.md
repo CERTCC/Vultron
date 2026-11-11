@@ -88,6 +88,8 @@ class CreateReportReceivedUseCase:
   `states/`/`enums/`; MUST NOT import `behaviors/`/`services/`. See [notes/predicates-rule-layer.md](../../notes/predicates-rule-layer.md).
 - **Canonical Case History**: `CaseEvent` and `record_event()` removed in #792;
   history is in `CaseLedgerEntry` hash chain — `notes/case-ledger-authority.md`.
+  The `CaseEvent` in `vultron/measure/history/` is read from that ledger, outside
+  the protocol path, and never stored (CEH-01-001).
 
 ---
 
