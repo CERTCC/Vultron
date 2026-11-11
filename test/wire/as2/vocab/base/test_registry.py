@@ -69,7 +69,7 @@ class TestFindInVocabulary:
         for type_name in [
             "VulnerabilityReport",
             "VulnerabilityCase",
-            "VulnerabilityRecord",
+            "VulnerabilityItem",
             "CaseParticipant",
             # Note: EmbargoEvent is intentionally NOT registered — it
             # inherits type_="Event" from as_Event.  See embargo_event.py.

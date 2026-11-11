@@ -61,6 +61,8 @@
         "attributedTo": "https://vultron.example/users/finndervul"
       }
     ],
+    "vulnerabilityItems": [],
+    "caseReferences": [],
     "caseStatuses": [
       {
         "id": "urn:uuid:14c9dcfe-a058-4a4b-a0da-e55de9630f5d",
@@ -100,6 +102,6 @@
     "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z5hdQf2xeS6t4oWiGvTk1BA7zZvhjU9HckqiEC34svkobxzJdyebivuifbmCf5DZuyxqn2YWt88YgBUNxqx3EVHMN"
+    "proofValue": "z3fA4kp9rN2NQdc7rBDVcBY3y5s2PYhujPmuWpuBcScqWfXVxXuUpqjkfECFdPdUrodb8WRjGWe9qmWcj23V8B6Si"
   }
 }

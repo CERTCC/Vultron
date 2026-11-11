@@ -109,7 +109,7 @@ the splitter's choice:
   acts. Putting an actor into a second case is `Add`.
 
 PR #6262 (issue #5132) proposes ADR-0187 and the CM-34 requirements, which rename
-`VulnerabilityRecord` to `VulnerabilityItem`; this note uses the proposed name
+`VulnerabilityItem` to `VulnerabilityItem`; this note uses the proposed name
 throughout.
 
 **AS2 basis.** VOC Move: "the actor has moved object from origin to target". VOC

@@ -19,6 +19,8 @@
     "caseParticipants": [],
     "actorParticipantIndex": {},
     "vulnerabilityReports": [],
+    "vulnerabilityItems": [],
+    "caseReferences": [],
     "caseStatuses": [
       {
         "id": "urn:uuid:3046e666-a79a-45b5-8a38-f3b5ed0950ed",
@@ -56,6 +58,6 @@
     "verificationMethod": "https://vultron.example/case-actors/vendorco-case-actor#main-key",
     "proofPurpose": "assertionMethod",
     "created": "2026-06-01T19:12:00.000000+00:00",
-    "proofValue": "z39ZryjtZgmZdyRKY7kUN9uCyYA6FABrA58aF6jXnyQ7aumDRiBRxojpwC7Qg91ZdXQ2KXqSR2BXKfYqp2V9ymiVJ"
+    "proofValue": "z3Kv51dgDtj1ELe99o1PwseLntiXKCPjt9kszsaiYMmnzrhJvgmztLYoQoraHeyhBx9Z6EdYYshUWdDwy3mgbMLD9"
   }
 }

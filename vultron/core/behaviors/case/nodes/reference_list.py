@@ -34,7 +34,12 @@ from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 
-ReferenceField = Literal["notes", "vulnerability_reports"]
+ReferenceField = Literal[
+    "notes",
+    "vulnerability_reports",
+    "vulnerability_items",
+    "case_references",
+]
 
 
 class CaseReferenceEditNode(DataLayerActionWithPorts, StateWriteCapable):

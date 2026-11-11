@@ -29,7 +29,7 @@ from vultron.core.models.case_ledger_entry import (
 from vultron.core.models.note import VultronNote
 from vultron.core.models.registry import CORE_TYPE_MAP
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vulnerability_record import VulnerabilityRecord
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 
 # --- Inheritance shape ------------------------------------------------------
 
@@ -391,11 +391,11 @@ def test_vulnerability_report_inherits_core_object():
     assert CORE_VOCABULARY["VulnerabilityReport"] is VulnerabilityReport
 
 
-def test_vulnerability_record_inherits_core_object():
-    """VulnerabilityRecord (new in #727) must be a CoreObject subclass."""
-    assert issubclass(VulnerabilityRecord, CoreObject)
-    assert "VulnerabilityRecord" in CORE_VOCABULARY
-    assert CORE_VOCABULARY["VulnerabilityRecord"] is VulnerabilityRecord
+def test_vulnerability_item_inherits_core_object():
+    """VulnerabilityItem (new in #727) must be a CoreObject subclass."""
+    assert issubclass(VulnerabilityItem, CoreObject)
+    assert "VulnerabilityItem" in CORE_VOCABULARY
+    assert CORE_VOCABULARY["VulnerabilityItem"] is VulnerabilityItem
 
 
 def test_core_case_ledger_entry_inherits_core_object():

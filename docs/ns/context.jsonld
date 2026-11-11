@@ -16,7 +16,7 @@
       "ProcessingFault": "vultron:ProcessingFault",
       "VulnerabilityCase": "vultron:VulnerabilityCase",
       "VulnerabilityCaseStub": "vultron:VulnerabilityCaseStub",
-      "VulnerabilityRecord": "vultron:VulnerabilityRecord",
+      "VulnerabilityItem": "vultron:VulnerabilityItem",
       "VulnerabilityReport": "vultron:VulnerabilityReport",
       "expectedSenderSequence": "vultron:expectedSenderSequence",
       "ledgerPosition": "vultron:ledgerPosition",

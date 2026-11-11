@@ -179,14 +179,14 @@ class TestCaseReference(unittest.TestCase):
         self.assertNotEqual(type(ref), type(report))
         self.assertNotEqual(ref.type_, report.type_)
 
-    def test_case_reference_separate_from_vulnerability_record(self):
-        """Test that CaseReference is distinct from as_VulnerabilityRecord."""
-        from vultron.wire.as2.vocab.objects.vulnerability_record import (
-            as_VulnerabilityRecord,
+    def test_case_reference_separate_from_vulnerability_item(self):
+        """Test that CaseReference is distinct from as_VulnerabilityItem."""
+        from vultron.wire.as2.vocab.objects.vulnerability_item import (
+            as_VulnerabilityItem,
         )
 
         ref = cr.as_CaseReference(url="https://example.org/")
-        record = as_VulnerabilityRecord(name="CVE-2024-1234")
+        record = as_VulnerabilityItem(cve="CVE-2024-1234")
 
         self.assertNotEqual(type(ref), type(record))
         self.assertNotEqual(ref.type_, record.type_)

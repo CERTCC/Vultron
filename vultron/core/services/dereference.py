@@ -261,6 +261,8 @@ def _case_names(case: VulnerabilityCase, object_id: str) -> bool:
         *(entry.embargo_id for entry in case.embargo_register),
         *(_id_of(p) for p in case.case_participants),
         *(_id_of(r) for r in case.vulnerability_reports),
+        *(_id_of(i) for i in case.vulnerability_items),
+        *(_id_of(r) for r in case.case_references),
         *(_id_of(s) for s in case.case_statuses),
         *case.notes,
     ]

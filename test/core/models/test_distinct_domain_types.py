@@ -32,7 +32,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vulnerability_record import VulnerabilityRecord
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 
 _CASE_ID = "https://example.org/cases/c1"
 _VENDOR_ID = "https://example.org/users/vendor"
@@ -48,7 +48,7 @@ def _instances() -> dict[str, CoreObject]:
         "VulnerabilityCase": VulnerabilityCase(
             name="case", attributed_to=_VENDOR_ID
         ),
-        "VulnerabilityRecord": VulnerabilityRecord(name="CVE-2401-0001"),
+        "VulnerabilityItem": VulnerabilityItem(cve="CVE-2401-0001"),
         "CaseReference": CaseReference(url="https://example.org/advisory"),
         "case actor (VultronService)": VultronService(
             id_="https://example.org/actors/case-manager", name="CM"

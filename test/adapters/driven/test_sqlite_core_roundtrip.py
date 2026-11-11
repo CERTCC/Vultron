@@ -55,7 +55,7 @@ from vultron.core.models.participant_status import (
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.vulnerability_record import VulnerabilityRecord
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.object_types import (
@@ -84,8 +84,8 @@ def _make_instance(core_cls):
             inbox="https://example.org/inbox",
             preferred_duration=timedelta(days=90),
         )
-    if core_cls is VulnerabilityRecord:
-        return core_cls(name="CVE-2024-XXXX")
+    if core_cls is VulnerabilityItem:
+        return core_cls(cve="CVE-2024-0001")
     if core_cls is VulnerabilityCase:
         return core_cls(attributed_to=CASE_OWNER_ID)
     return core_cls()
@@ -121,7 +121,7 @@ def dl():
         ParticipantStatus,
         EmbargoEvent,
         EmbargoPolicy,
-        VulnerabilityRecord,
+        VulnerabilityItem,
     ],
 )
 def test_read_returns_core_type(dl, core_cls):
