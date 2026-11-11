@@ -11,7 +11,7 @@ from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
 from test.support.objects import make
 from test.support.received import extract_stamped, stamped
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import URN_UUID_PREFIX, _as_id
 from vultron.core.models.dimensions import (
     VfDimension,
 )
@@ -961,9 +961,10 @@ def _ownership_offer(attributed_to: Any) -> Any:
 
     Goes through the factory (ARCH: tests must not reach into
     ``vultron.wire.as2.vocab.activities`` directly — see
-    ``test_activity_factory_imports.py``).  ``as_Object.attributed_to`` is typed
-    ``Any | None``, so the factory accepts the inline-object and array shapes
-    AS2 permits, which is what lets this exercise a non-URI value.
+    ``test_activity_factory_imports.py``).  ``as_Object.attributed_to`` takes AS2's
+    ``Object | Link`` range, one or many, so the factory accepts the
+    inline-object and array shapes AS2 permits, which is what lets this
+    exercise a non-URI value.
     """
     from vultron.wire.as2.factories import (
         offer_case_ownership_transfer_activity,
@@ -1024,11 +1025,6 @@ def test_activity_snapshot_carries_attributed_to():
             "https://example.org/users/vendor",
             id="array-resolves-to-first-id",
         ),
-        pytest.param(
-            {"type": "Person"},
-            None,
-            id="object-without-id-resolves-to-absent",
-        ),
         pytest.param([], None, id="empty-array-resolves-to-absent"),
     ],
 )
@@ -1047,6 +1043,22 @@ def test_activity_snapshot_never_reprs_a_non_uri_attributed_to(raw, expected):
     assert event.activity.attributed_to == expected
     if event.activity.attributed_to is not None:
         assert not event.activity.attributed_to.startswith(("{", "["))
+
+
+def test_activity_snapshot_carries_the_id_an_id_less_attributed_to_was_given():
+    """An inline ``attributedTo`` with no id is built as an object, so it has one.
+
+    ``attributedTo`` is typed AS2's ``Object | Link`` range (#3894), so an
+    id-less inline object validates into an ``as_Object`` and takes the id the
+    shared minter gives every object built without one.  The snapshot carries
+    that id, never a repr of the mapping (CLP-07-011).
+    """
+    event = extract_stamped(_ownership_offer({"type": "Person"}))
+
+    assert event.activity is not None
+    attributed_to = event.activity.attributed_to
+    assert attributed_to is not None
+    assert attributed_to.startswith(URN_UUID_PREFIX)
 
 
 def test_consent_coercion_helpers_are_retired():

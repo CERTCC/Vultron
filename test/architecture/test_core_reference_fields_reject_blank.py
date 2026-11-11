@@ -164,6 +164,23 @@ def test_the_scan_covers_the_fields_3877_named() -> None:
     assert {"embargo", "replaces"} <= set(
         string_fields(classes["EmbargoRegisterEntry"])
     )
+    # The AS2 reference properties #3894 retyped from ``Any`` on the root.
+    assert {
+        "context",
+        "in_reply_to",
+        "to",
+        "cc",
+        "bto",
+        "bcc",
+        "audience",
+        "tag",
+        "attachment",
+        "generator",
+        "icon",
+        "image",
+        "location",
+        "replies",
+    } <= set(string_fields(classes["CoreObject"]))
 
 
 def test_ratchet_flags_a_bare_str_reference_field() -> None:

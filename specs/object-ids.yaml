@@ -247,6 +247,56 @@ groups:
       spec_id: OID-01-004
     adr:
     - ADR-0185
+  - id: OID-01-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse a received message that embeds an ActivityStreams
+      Object without an `id`, at any depth. A Link carries no such requirement.
+    rationale: >-
+      ActivityPub requires every object it distributes to carry a unique global
+      identifier. Its one exception, an intentionally transient object, does not fit
+      case data that participants replicate and cite. OID-01-001 states the sender's
+      side of that rule, and this states the receiver's. A Link is not an Object: AS2
+      names its resource by `href`.
+    verification: >-
+      Tests marked `OID-01-013` in
+      `test/wire/as2/vocab/base/test_as_object_reference_slots.py` parse an activity
+      that embeds an id-less object in each AS2 reference slot, as its `object`, and
+      in a core class's slot, and assert that each parse is refused. They also parse
+      a received `Link` and `Mention` with no id and assert that each is kept with
+      its `href`.
+    relationships:
+    - rel_type: refines
+      spec_id: OID-01-001
+    stories:
+    - story_2022_029
+    - story_2022_034
+    tags:
+    - activitypub
+  - id: OID-01-014
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT mint an id for a received object or Link.
+    rationale: >-
+      A minted id would present the receiver's own invention as the sender's object,
+      and it would differ on every receiver of the same message. A received Link that
+      omits its id keeps none. An object or Link this process builds is still given a
+      minted id (OID-01-004).
+    verification: >-
+      Tests marked `OID-01-014` in
+      `test/wire/as2/vocab/base/test_as_object_reference_slots.py` assert that an
+      embedded object keeps the id it was received with, and that a received `Link`
+      or `Mention` with no id has none after the parse.
+    relationships:
+    - rel_type: refines
+      spec_id: OID-01-013
+    stories:
+    - story_2022_029
+    - story_2022_034
+    tags:
+    - activitypub
 - id: OID-02
   title: DataLayer Handling
   specs:

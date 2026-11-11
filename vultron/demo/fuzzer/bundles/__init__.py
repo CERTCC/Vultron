@@ -77,6 +77,11 @@ from vultron.demo.fuzzer.bundles.embargo import (
     EMBARGO_STOCHASTIC,
     EmbargoCallOutBundle,
 )
+from vultron.demo.fuzzer.bundles.participant_suggestion import (
+    PARTICIPANT_SUGGESTION_DETERMINISTIC,
+    PARTICIPANT_SUGGESTION_STOCHASTIC,
+    ParticipantSuggestionCallOutBundle,
+)
 from vultron.demo.fuzzer.bundles.prioritization import (
     PRIORITIZATION_DETERMINISTIC,
     PRIORITIZATION_STOCHASTIC,
@@ -111,6 +116,7 @@ __all__ = [
     "DeployFixCallOutBundle",
     "DeployMitigationCallOutBundle",
     "EmbargoCallOutBundle",
+    "ParticipantSuggestionCallOutBundle",
     "PrioritizationCallOutBundle",
     "PublicationCallOutBundle",
     "StatusAuthorizationCallOutBundle",
@@ -125,6 +131,7 @@ __all__ = [
     "CLOSE_REPORT_DETERMINISTIC",
     "DEPLOY_FIX_DETERMINISTIC",
     "EMBARGO_DETERMINISTIC",
+    "PARTICIPANT_SUGGESTION_DETERMINISTIC",
     "PRIORITIZATION_DETERMINISTIC",
     "PUBLICATION_DETERMINISTIC",
     "STATUS_AUTHORIZATION_DETERMINISTIC",
@@ -142,6 +149,7 @@ __all__ = [
     "DEPLOY_MITIGATION_DETERMINISTIC",
     "DEPLOY_MITIGATION_STOCHASTIC",
     "EMBARGO_STOCHASTIC",
+    "PARTICIPANT_SUGGESTION_STOCHASTIC",
     "PRIORITIZATION_STOCHASTIC",
     "PUBLICATION_STOCHASTIC",
     "STATUS_AUTHORIZATION_STOCHASTIC",

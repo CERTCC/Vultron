@@ -8,8 +8,9 @@ refused at the parse edge. Nothing strips a blank on the way out, so a
 serialized wire object can hold no empty-string field (VM-07-005). Before
 #5739 ``as_Object(name="").to_json()`` emitted ``"name":""``.
 
-Blank *references* in ``Any``-typed fields (``to``, ``context``, ...) are a
-separate surface, tracked by #3894; they have no string branch to check here.
+Blank *references* (``to``, ``context``, ...) are the reference ratchet's
+surface (``test/architecture/test_wire_reference_fields_reject_blank.py``,
+#3894), not this file's.
 
 Spec: `specs/vocabulary-model.yaml` VM-07-005; `specs/code-style.yaml`
 CS-08-001, CS-08-002.

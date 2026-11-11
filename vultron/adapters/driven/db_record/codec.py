@@ -32,6 +32,10 @@ from vultron.adapters.driven.db_record.ref_fields import (
     object_ref_fields,
 )
 from vultron.core.models._helpers import STORED_CONTEXT_KEY
+from vultron.core.models.base.core_object import (
+    CoreObject,
+    unmodelled_object_fields,
+)
 from vultron.core.models.protocols import PersistableModel
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -252,3 +256,50 @@ def _retype_inline_object_refs(
         return obj.model_copy(update=updates)
     except (ValidationError, TypeError):
         return obj
+
+
+def _build_unmodelled_item(item: object) -> object:
+    """Build one stored slot value as its own wire class, when core lacks it."""
+    if not isinstance(item, dict):
+        return item
+    type_str = item.get("type") or item.get("type_")
+    if not isinstance(type_str, str):
+        return item
+    try:
+        # Both-branch, as for every stored read (VM-06-014).
+        specific_cls = find_in_vocabulary(type_str, include_core=True)
+    except KeyError:
+        return item
+    if issubclass(specific_cls, CoreObject):
+        return item
+    try:
+        return specific_cls.model_validate(item, context=STORED_ROW_CONTEXT)
+    except ValidationError:
+        # Left as stored: the row's own validation then names the fault.
+        return item
+
+
+def _build_unmodelled_inline(
+    cls: type[BaseModel], data: dict[str, Any]
+) -> dict[str, Any]:
+    """Build each stored object core does not model before *cls* reads *data*.
+
+    A core object's AS2 reference slot may hold a wire object, such as a Link
+    or a Mention, as the parse edge built it.  Stored, it is a mapping that is
+    not a ``CoreObject``, and the slot admits only a built model in its place,
+    so the row would not read back.  Each such mapping is built as the class
+    its ``type`` names first.
+    """
+    if not issubclass(cls, CoreObject):
+        return data
+    fields = unmodelled_object_fields(cls)
+    updates: dict[str, Any] = {}
+    for name in fields & data.keys():
+        raw = data[name]
+        if isinstance(raw, list):
+            built: object = [_build_unmodelled_item(item) for item in raw]
+        else:
+            built = _build_unmodelled_item(raw)
+        if built is not raw:
+            updates[name] = built
+    return {**data, **updates} if updates else data

@@ -142,7 +142,7 @@ def undo_embargo_invite() -> as_Undo:
         invite,
         id_=f"{invite.id_}/undo",
         actor=case_actor().id_,
-        context=invite.context,
+        context=case().id_,
         published=EXAMPLE_TIMESTAMP,
     )
 
@@ -219,7 +219,7 @@ def accept_embargo() -> as_Accept:
     activity = em_accept_embargo_activity(
         proposal,
         actor=_vendor.id_,
-        context=proposal.context,
+        context=case().id_,
         to="https://vultron.example/cases/1/participants",
     )
     return activity
@@ -239,7 +239,7 @@ def abandon_embargo_proposal() -> as_Reject:
         proposal,
         id_=f"{proposal.id_}/abandon",
         actor=case_actor().id_,
-        context=proposal.context,
+        context=case().id_,
         published=EXAMPLE_TIMESTAMP,
     )
 
@@ -250,7 +250,7 @@ def reject_embargo() -> as_Reject:
     activity = em_reject_embargo_activity(
         proposal,
         actor=_vendor.id_,
-        context=proposal.context,
+        context=case().id_,
         to="https://vultron.example/cases/1/participants",
     )
     return activity
@@ -283,7 +283,7 @@ def accept_embargo_revision() -> as_Accept:
     return em_accept_embargo_activity(
         proposal,
         actor=vendor().id_,
-        context=proposal.context,
+        context=case().id_,
         to="https://vultron.example/cases/1/participants",
     )
 
@@ -298,7 +298,7 @@ def reject_embargo_revision() -> as_Reject:
     return em_reject_embargo_activity(
         proposal,
         actor=vendor().id_,
-        context=proposal.context,
+        context=case().id_,
         to="https://vultron.example/cases/1/participants",
     )
 

@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from test.support.objects import make
 from vultron.core.models._helpers import URN_UUID_PREFIX
@@ -152,23 +152,23 @@ def test_as_object_naive_datetime_object_normalized_to_utc():
     assert obj.start_time.tzinfo == UTC
 
 
-def test_as_object_attributed_to_accepts_non_string():
-    """Wire field attributed_to remains Any|None — non-string values must be accepted.
+def test_as_object_attributed_to_accepts_an_inline_object():
+    """``attributedTo`` holds an embedded object, not only an IRI (AS2 4).
 
-    ``CoreObject`` narrows attributed_to to NonEmptyString | None; the wire
-    branch declares it as Any | None so that AS2 payloads carrying nested
-    objects or dicts are accepted without validation errors.  A plain annotation check (looking for NoneType in __args__) would
-    pass even if NonEmptyString | None took over, so we use a runtime round-trip.
+    ``CoreObject`` narrows ``attributed_to`` to ``NonEmptyString | None``; the
+    wire base keeps AS2's whole ``Object | Link`` range, so an inline object
+    validates into an embedded ``as_Object`` carrying its own id.  A value AS2
+    does not allow there, such as a number, is refused rather than carried
+    (CS-08-001, #3894).
     """
-    # dict (inline AS2 object) must not raise
     obj = as_Object.model_validate(
         {"attributed_to": {"id": "https://example.org/alice"}}
     )
-    assert obj.attributed_to == {"id": "https://example.org/alice"}
+    assert isinstance(obj.attributed_to, as_Object)
+    assert obj.attributed_to.id_ == "https://example.org/alice"
 
-    # integer must not raise (fully lenient Any)
-    obj2 = as_Object.model_validate({"attributed_to": 42})
-    assert obj2.attributed_to == 42
+    with pytest.raises(ValidationError):
+        as_Object.model_validate({"attributed_to": 42})
 
 
 def test_as_object_id_uses_wire_default():

@@ -166,10 +166,19 @@ class CaseReferenceLink(ValidatedAssignmentMixin, BaseModel):
         every key this class does not hold (MV-11-003), so a model that still
         carries one was built in-process: that is a bug, refused as
         ``extra="forbid"`` refuses the same key in a dict.
+
+        A field set to ``None`` gives nothing: a received Link that omits its
+        ``id`` is built with the ``id`` explicitly ``None`` so that none is
+        minted for it (OID-01-013, OID-01-014), and that absence is not a key
+        this class must refuse.
         """
         if not isinstance(data, BaseModel) or isinstance(data, cls):
             return data
-        given = data.model_fields_set - _IGNORED_PARSED_LINK_FIELDS
+        given = {
+            name
+            for name in data.model_fields_set
+            if getattr(data, name) is not None
+        } - _IGNORED_PARSED_LINK_FIELDS
         unheld = given - set(cls.model_fields)
         if unheld:
             raise ValueError(
