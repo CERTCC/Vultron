@@ -33,6 +33,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.act_runner import run_in_act, run_tree
+from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
 from test.support.owner_decision import owner_decision_body
 from vultron.adapters.driven.clock import SystemClock
@@ -51,7 +52,6 @@ from vultron.core.behaviors.embargo.nodes import (
     EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.sync import commit_tree
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
@@ -102,7 +102,7 @@ def _propose(net: LedgerNetwork, suffix: str, days: int) -> str:
         id_=f"{net.case_id}/embargo_events/{suffix}",
         content=f"Terms {suffix}",
         context=net.case_id,
-        end_time=days_from_now_utc(days),
+        end_time=days_from_now(days),
     )
     proposal = em_propose_embargo_activity(
         revision,
@@ -448,7 +448,7 @@ def _manager_revises(net: LedgerNetwork, days: int) -> str:
             ProposeEmbargoRevisionTriggerRequest(
                 actor_id=MANAGER,
                 case_id=net.case_id,
-                end_time=days_from_now_utc(days),
+                end_time=days_from_now(days),
             ),
             **_ports(net),
             clock=SystemClock(),

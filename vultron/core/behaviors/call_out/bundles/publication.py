@@ -48,7 +48,7 @@ from vultron.core.behaviors.call_out.answer import (
 )
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed, NoOpActuator
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 from vultron.core.behaviors.report.publication_intent import (
     INTENT_DECISION_KEY,
@@ -136,7 +136,7 @@ class PublicationCallOutBundle(CallOutBundle):
         default=_always_succeed  # type: ignore[assignment]
     )
     submit_advisory_artifact_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=NoOpActuator  # type: ignore[assignment]
     )
 
 

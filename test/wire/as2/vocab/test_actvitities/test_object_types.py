@@ -29,8 +29,8 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.future_dates import days_from_now
 from vultron.adapters.driving.fastapi import outbox_handler as oh
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.errors import VultronOutboxObjectIntegrityError
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -356,7 +356,7 @@ class TestEmProposeEmbargoActivity:
         _assert_accepts_inline(
             self.cls,
             as_EmbargoEvent(
-                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+                context="urn:uuid:case-123", end_time=days_from_now(45)
             ),
         )
 
@@ -385,7 +385,7 @@ class TestActivateEmbargoActivity:
         _assert_accepts_inline(
             self.cls,
             as_EmbargoEvent(
-                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+                context="urn:uuid:case-123", end_time=days_from_now(45)
             ),
             **_OWNER_DECISION_FIELDS,
         )
@@ -408,7 +408,7 @@ class TestRejectEmbargoProposalActivity:
         _assert_accepts_inline(
             self.cls,
             as_EmbargoEvent(
-                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+                context="urn:uuid:case-123", end_time=days_from_now(45)
             ),
             **_OWNER_DECISION_FIELDS,
         )
@@ -431,7 +431,7 @@ class TestAnnounceEmbargoActivity:
         _assert_accepts_inline(
             self.cls,
             as_EmbargoEvent(
-                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+                context="urn:uuid:case-123", end_time=days_from_now(45)
             ),
         )
 
@@ -453,7 +453,7 @@ class TestRemoveEmbargoFromCaseActivity:
         _assert_accepts_inline(
             self.cls,
             as_EmbargoEvent(
-                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+                context="urn:uuid:case-123", end_time=days_from_now(45)
             ),
             content="EARLY",
         )
@@ -478,7 +478,7 @@ class TestRemoveEmbargoFromCaseActivity:
                 self.cls,
                 as_EmbargoEvent(
                     context="urn:uuid:case-123",
-                    end_time=days_from_now_utc(45),
+                    end_time=days_from_now(45),
                 ),
                 content=content,
             )
@@ -486,7 +486,7 @@ class TestRemoveEmbargoFromCaseActivity:
     @pytest.mark.parametrize("content", ["END_TIME_REACHED", "EARLY"])
     def test_accepts_each_termination_reason(self, content):
         embargo = as_EmbargoEvent(
-            context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            context="urn:uuid:case-123", end_time=days_from_now(45)
         )
         _assert_accepts_inline(self.cls, embargo, content=content)
 

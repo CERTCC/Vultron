@@ -9,7 +9,6 @@ edge, so core receives validated values (ADR-0032).
 import logging
 from datetime import UTC, datetime, timedelta
 
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.events import (
     VultronEvent,
@@ -20,7 +19,10 @@ from vultron.core.models.rsvp_deadline import (
     resolve_rsvp_deadline,
 )
 from vultron.primitives import normalise_actor_id
-from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.errors import (
+    VultronParseMissingPublishedError,
+    VultronParseValidationError,
+)
 from vultron.wire.as2.extractor._builders import (
     termination_of,
 )
@@ -217,17 +219,27 @@ def _effective_rsvp_deadline(
     """Return the deadline an inbound embargo invite is held to.
 
     Clamps are applied, never refused (EP-07-004), and each one is logged
-    (EP-07-005).  Windows are measured from the invite's ``published`` time;
-    an activity without one is measured from now.
+    (EP-07-005).  Windows are measured from the invite's ``published`` time,
+    which ``parse_activity`` already requires (CLP-15-008).  No clock is
+    read here: whether the deadline has already passed is the handler's
+    question, asked at the act's instant (ADR-0176).
 
     Every input is already UTC-aware: the activity's fields by
     ``as_Object.validate_datetime`` and the nested embargo's ``end_time`` by
     ``CoreObject`` (CS-13-001, #3784).
+
+    Raises:
+        VultronParseMissingPublishedError: When *activity* carries no
+            ``published``; never measured from a clock instead.
     """
     raw_end_time = getattr(activity, "end_time", None)
     requested = raw_end_time if isinstance(raw_end_time, datetime) else None
-    raw_published = getattr(activity, "published", None)
-    published = raw_published if isinstance(raw_published, datetime) else None
+    published = getattr(activity, "published", None)
+    if not isinstance(published, datetime):
+        raise VultronParseMissingPublishedError(
+            f"Invite(EmbargoEvent) {activity.id_!r} carries no 'published'"
+            " to measure its RSVP deadline from (CLP-15-008)"
+        )
     raw_embargo_end = getattr(embargo, "end_time", None)
     embargo_end = (
         raw_embargo_end if isinstance(raw_embargo_end, datetime) else None
@@ -260,15 +272,5 @@ def _effective_rsvp_deadline(
             deadline.computed.isoformat(),
             source,
             deadline.effective.isoformat(),
-        )
-    if deadline.effective <= now_utc():
-        logger.warning(
-            "extract_intent: activity '%s' from actor '%s' rsvp_deadline %s"
-            " is already past (published %s); the invitation lapses on the"
-            " next check",
-            activity.id_,
-            actor_id,
-            deadline.effective.isoformat(),
-            published.isoformat() if published is not None else "absent",
         )
     return deadline.effective

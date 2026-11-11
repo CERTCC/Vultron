@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import (
     activate,
@@ -46,6 +47,7 @@ from test.support.embargo_register import (
     register,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.received import with_evidence
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -54,7 +56,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import (
@@ -434,7 +435,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         )
         case.vulnerability_reports.append(self.REPORT_ID)
         if pxa is not CS_pxa.pxa:
-            case.append_case_status(pxa=pxa)
+            case.append_case_status(ACT_AT, pxa=pxa)
 
         cm_participant = as_CaseParticipant(
             attributed_to=self.CASE_ACTOR_ID,
@@ -870,7 +871,7 @@ class TestFullValidateReportLedgerChain:
         embargo = EmbargoEvent(
             id_=f"{ca_case.id_}/embargoes/chain-embargo",
             context=ca_case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         case_actor_dl.create(embargo)
         activate(ca_case, embargo.id_)

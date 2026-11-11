@@ -28,6 +28,7 @@ from datetime import timedelta
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
@@ -121,7 +122,12 @@ def _absent(dl, activity_id: str) -> bool:
 @pytest.mark.spec("IO-03-009")
 def test_holding_an_unknown_activity_creates_a_held_record(dl):
     activity_id = _aid("a-1")
-    assert hold_for_replay(dl, activity_id, _body(activity_id)) is True
+    assert (
+        hold_for_replay(
+            dl, activity_id, _body(activity_id), received_at=now_utc()
+        )
+        is True
+    )
 
     record = _stored(dl, activity_id)
     assert record is not None
@@ -134,10 +140,13 @@ def test_holding_an_unknown_activity_creates_a_held_record(dl):
 def test_holding_again_keeps_the_body_first_held(dl):
     """A redelivery of a held activity is not held again (IE-10-001)."""
     activity_id = _aid("a-1")
-    hold_for_replay(dl, activity_id, _body(activity_id))
+    hold_for_replay(dl, activity_id, _body(activity_id), received_at=now_utc())
 
     different = json.dumps({"type": "Create", "id": activity_id, "x": "later"})
-    assert hold_for_replay(dl, activity_id, different) is False
+    assert (
+        hold_for_replay(dl, activity_id, different, received_at=now_utc())
+        is False
+    )
 
     record = _stored(dl, activity_id)
     assert record.received_body == _body(activity_id)
@@ -147,7 +156,7 @@ def test_holding_again_keeps_the_body_first_held(dl):
 def test_releasing_a_never_archived_record_deletes_it(dl):
     """It existed only for this replay, so nothing would read it again."""
     activity_id = _aid("a-1")
-    hold_for_replay(dl, activity_id, _body(activity_id))
+    hold_for_replay(dl, activity_id, _body(activity_id), received_at=now_utc())
 
     released = release_from_holding(dl, activity_id)
     assert released is not None
@@ -158,7 +167,7 @@ def test_releasing_a_never_archived_record_deletes_it(dl):
 @pytest.mark.spec("IO-03-009")
 def test_discarding_a_never_archived_record_deletes_it(dl):
     activity_id = _aid("a-1")
-    hold_for_replay(dl, activity_id, _body(activity_id))
+    hold_for_replay(dl, activity_id, _body(activity_id), received_at=now_utc())
 
     discard_holding(dl, activity_id)
     assert _absent(dl, activity_id)
@@ -176,12 +185,20 @@ def test_holding_over_a_receipt_stub_writes_nothing(dl):
     activity_id = _aid("refused-1")
     _record(dl, activity_id)
     stub = write_receipt_stub(
-        dl, activity_id, sender_id=SENDER, reason="refused for this test"
+        dl,
+        activity_id,
+        sender_id=SENDER,
+        reason="refused for this test",
+        received_at=now_utc(),
     )
 
     assert (
         hold_for_replay(
-            dl, activity_id, _body(activity_id), awaiting_case_id=CASE_ID
+            dl,
+            activity_id,
+            _body(activity_id),
+            awaiting_case_id=CASE_ID,
+            received_at=now_utc(),
         )
         is False
     )
@@ -195,7 +212,12 @@ def test_holding_an_archived_activity_writes_nothing(dl):
     activity_id = _aid("applied-1")
     archived = _archive(dl, activity_id)
 
-    assert hold_for_replay(dl, activity_id, _body(activity_id)) is False
+    assert (
+        hold_for_replay(
+            dl, activity_id, _body(activity_id), received_at=now_utc()
+        )
+        is False
+    )
 
     assert _stored(dl, activity_id) == archived
 
@@ -211,7 +233,12 @@ def test_holding_an_intake_record_keeps_it_held_with_its_body(dl):
     activity_id = _aid("announce-1")
     _record(dl, activity_id)
 
-    assert hold_for_replay(dl, activity_id, _body(activity_id)) is True
+    assert (
+        hold_for_replay(
+            dl, activity_id, _body(activity_id), received_at=now_utc()
+        )
+        is True
+    )
 
     record = _stored(dl, activity_id)
     assert record.stage is ReceivedStage.HELD
@@ -225,7 +252,7 @@ def test_releasing_a_held_intake_record_hands_its_body_to_the_replay(dl):
     """Never archived, so it goes with the release (IO-03-009)."""
     activity_id = _aid("announce-1")
     _record(dl, activity_id)
-    hold_for_replay(dl, activity_id, _body(activity_id))
+    hold_for_replay(dl, activity_id, _body(activity_id), received_at=now_utc())
 
     released = release_from_holding(dl, activity_id)
 
@@ -251,7 +278,7 @@ def test_discarding_a_held_intake_record_drops_it_body_and_all(dl):
     """An evicted Announce is dropped, body and all (SYNC-14-013)."""
     activity_id = _aid("announce-1")
     _record(dl, activity_id)
-    hold_for_replay(dl, activity_id, _body(activity_id))
+    hold_for_replay(dl, activity_id, _body(activity_id), received_at=now_utc())
 
     discard_holding(dl, activity_id)
 
@@ -277,7 +304,7 @@ def test_discarding_leaves_an_outcome_standing(dl):
 @pytest.mark.spec("IO-03-009")
 def test_owes_replay_distinguishes_a_hold_from_an_archive(dl):
     held, archived, absent = _aid("h"), _aid("a"), _aid("none")
-    hold_for_replay(dl, held, _body(held))
+    hold_for_replay(dl, held, _body(held), received_at=now_utc())
     _archive(dl, archived)
 
     assert owes_replay(dl, held) is True
@@ -288,7 +315,7 @@ def test_owes_replay_distinguishes_a_hold_from_an_archive(dl):
 @pytest.mark.spec("IO-03-009")
 def test_held_for_replay_answers_only_a_record_owing_one(dl):
     held, archived = _aid("h"), _aid("a")
-    hold_for_replay(dl, held, _body(held))
+    hold_for_replay(dl, held, _body(held), received_at=now_utc())
     _archive(dl, archived)
 
     owing = held_for_replay(dl, held)
@@ -303,7 +330,11 @@ def test_records_awaiting_a_case_are_in_arrival_order(dl):
     first, second, third = _aid("first"), _aid("second"), _aid("third")
     for activity_id in (first, second, third):
         hold_for_replay(
-            dl, activity_id, _body(activity_id), awaiting_case_id=CASE_ID
+            dl,
+            activity_id,
+            _body(activity_id),
+            awaiting_case_id=CASE_ID,
+            received_at=now_utc(),
         )
     # Arrival order is the record's own receipt time, not insertion order in
     # any list, so set them out of lexical order to prove it is read.
@@ -323,11 +354,19 @@ def test_records_awaiting_a_case_are_in_arrival_order(dl):
 @pytest.mark.spec("IO-03-009")
 def test_records_awaiting_a_case_exclude_other_waits(dl):
     mine, theirs, no_case = _aid("mine"), _aid("theirs"), _aid("nocase")
-    hold_for_replay(dl, mine, _body(mine), awaiting_case_id=CASE_ID)
-    hold_for_replay(dl, theirs, _body(theirs), awaiting_case_id=OTHER_CASE_ID)
+    hold_for_replay(
+        dl, mine, _body(mine), awaiting_case_id=CASE_ID, received_at=now_utc()
+    )
+    hold_for_replay(
+        dl,
+        theirs,
+        _body(theirs),
+        awaiting_case_id=OTHER_CASE_ID,
+        received_at=now_utc(),
+    )
     # A hold with no case named waits on something else (a ledger gap, a
     # fetch, a retry) and is no business of this case's queue.
-    hold_for_replay(dl, no_case, _body(no_case))
+    hold_for_replay(dl, no_case, _body(no_case), received_at=now_utc())
 
     assert [r.activity_id for r in records_awaiting_case(dl, CASE_ID)] == [
         mine
@@ -339,7 +378,11 @@ def test_stopping_the_case_wait_keeps_the_body_held(dl):
     """Queued for the drain: no longer waiting, still held to be replayed."""
     activity_id = _aid("a-1")
     hold_for_replay(
-        dl, activity_id, _body(activity_id), awaiting_case_id=CASE_ID
+        dl,
+        activity_id,
+        _body(activity_id),
+        awaiting_case_id=CASE_ID,
+        received_at=now_utc(),
     )
 
     stop_awaiting_case(dl, activity_id)
@@ -365,13 +408,17 @@ def test_naming_a_case_on_an_existing_hold_records_the_wait(dl):
     """Else the message is held but nothing ever replays it."""
     activity_id = _aid("a-1")
     # Held first with no case: a retry, or a fetch the activity waits on.
-    hold_for_replay(dl, activity_id, _body(activity_id))
+    hold_for_replay(dl, activity_id, _body(activity_id), received_at=now_utc())
     assert records_awaiting_case(dl, CASE_ID) == []
 
     # Then deferred on its case; the body is unchanged, the wait is recorded.
     assert (
         hold_for_replay(
-            dl, activity_id, _body(activity_id), awaiting_case_id=CASE_ID
+            dl,
+            activity_id,
+            _body(activity_id),
+            awaiting_case_id=CASE_ID,
+            received_at=now_utc(),
         )
         is False
     )
@@ -386,7 +433,11 @@ def test_a_second_case_on_one_hold_is_refused(dl):
     """One record cannot wait on two cases; guessing which would lose one."""
     activity_id = _aid("a-1")
     hold_for_replay(
-        dl, activity_id, _body(activity_id), awaiting_case_id=CASE_ID
+        dl,
+        activity_id,
+        _body(activity_id),
+        awaiting_case_id=CASE_ID,
+        received_at=now_utc(),
     )
 
     with pytest.raises(VultronWiringError, match="cannot also wait"):
@@ -395,4 +446,5 @@ def test_a_second_case_on_one_hold_is_refused(dl):
             activity_id,
             _body(activity_id),
             awaiting_case_id=OTHER_CASE_ID,
+            received_at=now_utc(),
         )

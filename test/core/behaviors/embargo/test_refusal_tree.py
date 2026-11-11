@@ -22,6 +22,7 @@ comes last, after the checks that decide whether it can be sent at all.
 
 import pytest
 
+from test.support.future_dates import days_from_now
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     DiversionStage,
 )
@@ -48,7 +49,6 @@ from vultron.core.behaviors.embargo.refusal_tree import (
     pxa_accept_refusal,
     pxa_invite_refusal,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.embargo_event import EmbargoEvent
 
 _CASE = "https://example.org/cases/refusal"
@@ -73,7 +73,7 @@ def test_the_invite_refusal_stores_checks_then_sends_the_reject_last() -> None:
     embargo = EmbargoEvent(
         id_=f"{_CASE}/embargo_events/e1",
         context=_CASE,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     refusal = _invite_refusal(embargo)
 

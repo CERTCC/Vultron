@@ -23,10 +23,10 @@ import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import activate
+from test.support.future_dates import days_from_now
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -95,7 +95,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
         stub_summary="Security issue — active fan-out test",
         attributed_to=MANAGER_ID,
     )
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
     activate(case, embargo.id_)
     participants = {
         MANAGER_ID: _participant(

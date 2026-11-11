@@ -16,8 +16,11 @@
 :class:`CallOutBundle` is the mixin base every ``<Domain>CallOutBundle`` frozen
 dataclass inherits from. Its ``__post_init__`` wraps each call-out factory field
 with :func:`~vultron.core.behaviors.call_out.guard.guard_call_out_factory`, so
-the node any bundle field produces is guarded against a ``Status.RUNNING``
-return (BT-18-011) — whether it is a core DETERMINISTIC default or an
+the node any bundle field produces sits behind the time-bounded seam,
+:class:`~vultron.core.behaviors.call_out.guard.TimeBoundedCallOut`: it is
+guarded against a ``Status.RUNNING`` return (BT-18-011) and against an answer
+that takes longer than the configured call-out time budget (BT-18-015,
+BT-18-027) — whether it is a core DETERMINISTIC default or an
 implementer-injected backend supplied via a bundle field.
 
 Applying the guard here, at the single point where every bundle is constructed,
@@ -37,7 +40,7 @@ from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 
 class CallOutBundle:
-    """Mixin base that guards every call-out factory field (BT-18-011).
+    """Mixin base that guards every call-out factory (BT-18-011, BT-18-015).
 
     Every concrete bundle is a ``@dataclass(frozen=True)`` whose fields are all
     :class:`~vultron.core.behaviors.call_out.protocol.CallOutBackendFactory`

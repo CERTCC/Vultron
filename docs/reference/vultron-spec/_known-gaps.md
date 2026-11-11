@@ -339,15 +339,6 @@ print(requirement_callout(
 ))
 ```
 
-### Tracked by [#5387](https://github.com/CERTCC/Vultron/issues/5387)
-
-```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout
-print(requirement_callout(
-    "SIG-03-002",
-))
-```
-
 ## Requirements no test checks
 
 For each requirement below, no test shows `main` does this.

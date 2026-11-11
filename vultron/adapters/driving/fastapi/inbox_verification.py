@@ -40,6 +40,7 @@ from typing import Any
 
 from starlette.concurrency import run_in_threadpool
 
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
 from vultron.core.services.verification_key import (
     key_owner_id,
@@ -49,6 +50,7 @@ from vultron.errors import (
     VultronProofVerificationError,
     VultronVerificationKeyError,
 )
+from vultron.primitives import normalise_actor_id
 from vultron.wire.as2 import signing
 from vultron.wire.as2.errors import (
     VultronMultikeyError,
@@ -172,8 +174,10 @@ class ProfileKeyProofVerifier:
         self._fetcher = fetcher
         self._receiver_id = receiver_id
 
-    async def verify(self, document: Mapping[str, Any]) -> None:
-        """Return when *document*'s proofs verify; raise when one does not.
+    async def verify(
+        self, document: Mapping[str, Any]
+    ) -> tuple[VerifiedProof, ...]:
+        """Return what verified when *document*'s proofs do; raise if not.
 
         The activity's proof is checked against its ``actor``'s key.  An
         ``Announce(CaseLedgerEntry)`` also needs its snapshot's proof, by the
@@ -181,6 +185,10 @@ class ProfileKeyProofVerifier:
         entry, the author's for a relayed act (SIG-04-002).  A snapshot
         naming no actor is refused.  The entry and its snapshot are found
         under every spelling the parser accepts.
+
+        Returns one :class:`VerifiedProof` per proof checked, the
+        activity's first, naming the key each verified against as fetched,
+        for the delivery's archived record (SIG-03-004).
 
         Raises:
             VultronProofVerificationError: A proof is missing or does not
@@ -190,11 +198,14 @@ class ProfileKeyProofVerifier:
                 canonicalized, such as an integer outside ±(2^53 - 1).
         """
         author = _author(document, "activity")
-        await self._verify_as(document, author)
+        verified = [await self._verify_as(document, author)]
         for snapshot in _ledger_snapshots(document):
-            await self._verify_snapshot(snapshot)
+            verified.append(await self._verify_snapshot(snapshot))
+        return tuple(verified)
 
-    async def _verify_snapshot(self, snapshot: Mapping[str, Any]) -> None:
+    async def _verify_snapshot(
+        self, snapshot: Mapping[str, Any]
+    ) -> VerifiedProof:
         """Verify a relayed snapshot's proof by its own ``actor``'s key.
 
         Every activity names its signer (SIG-05-005), so one check covers
@@ -205,7 +216,7 @@ class ProfileKeyProofVerifier:
         """
         snapshot_author = _author(snapshot, "payloadSnapshot")
         try:
-            await self._verify_as(snapshot, snapshot_author)
+            return await self._verify_as(snapshot, snapshot_author)
         except VultronProofVerificationError as exc:
             raise VultronProofVerificationError(
                 "the ledger entry's payloadSnapshot is not verified as"
@@ -215,8 +226,11 @@ class ProfileKeyProofVerifier:
 
     async def _verify_as(
         self, document: Mapping[str, Any], author: str
-    ) -> None:
-        """Verify *document*'s proof by *author*'s published key."""
+    ) -> VerifiedProof:
+        """Verify *document*'s proof by *author*'s published key.
+
+        Returns the proof's author, its key id and the key as fetched.
+        """
         method = signing.proof_verification_method(document)
         key = await resolve_verification_key(
             method,
@@ -243,6 +257,11 @@ class ProfileKeyProofVerifier:
             document.get("id"),
             author,
             self._receiver_id,
+        )
+        return VerifiedProof(
+            author_id=normalise_actor_id(author),
+            verification_method=method,
+            public_key_multibase=key.public_key_multibase,
         )
 
 

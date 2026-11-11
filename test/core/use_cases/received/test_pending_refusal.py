@@ -21,15 +21,18 @@ manager's ``Reject(Invite(EmbargoEvent))`` closes it; another participant's
 ``Reject`` is an answer, not the refusal, and closes nothing (#3962 AC-4).
 """
 
+from datetime import timedelta
 from typing import cast
 
 import pytest
 
+from test.support.act_clock import recorded_clock_reads
 from test.support.act_runner import run_in_act
+from test.support.future_dates import days_from_now
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.embargo import (
@@ -63,6 +66,7 @@ _PROPOSER = "https://example.org/actors/refusal-finder"
 _MANAGER = "https://example.org/actors/refusal-manager"
 _OTHER = "https://example.org/actors/refusal-other"
 _INVITE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
+_ACCEPT = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
 
 
 def _proposer_with_pending_proposal(
@@ -107,7 +111,7 @@ def _proposer_with_pending_proposal(
     for participant in (manager, *finders):
         dl.create(participant)
 
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(30))
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(30))
     proposal = em_propose_embargo_activity(
         embargo=embargo, context=case.id_, actor=_PROPOSER, to=[_MANAGER]
     )
@@ -252,3 +256,48 @@ def test_a_reject_closes_the_ask_only_from_the_resolved_manager(
     )
 
     assert _pending(case.id_, proposal.id_) is not closes
+
+
+@pytest.mark.spec("CS-13-002")
+@pytest.mark.spec("SYNC-11-005")
+@pytest.mark.spec("EMB-02-004")
+@pytest.mark.parametrize("overdue", [False, True], ids=["pending", "overdue"])
+def test_the_managers_reject_judges_the_pending_accept_at_the_acts_instant(
+    overdue: bool,
+) -> None:
+    """The Reject closes the Accept the participant still waits on at the
+    act's instant, and reads no clock to judge it (ADR-0176).
+
+    The pending Accept times out exactly *timeout* after it was emitted, so
+    an act a microsecond before that clears it and an act at that instant
+    finds it already timed out (SYNC-11-005).  Both act instants are
+    minutes past the wall clock, so a lookup that read the clock would find
+    the Accept still pending and clear it in the overdue arm.
+    """
+    dl, case, proposal = _proposer_with_pending_proposal()
+    store = get_pending_assertion_store(_PROPOSER)
+    record_pending_assertion(
+        _PROPOSER,
+        case.id_,
+        _ACCEPT,
+        f"{case.id_}/activities/pending-accept",
+        subject_id=proposal.id_,
+    )
+    emitted = now_utc()
+    accept = store.pending_for_subject(
+        case.id_, _ACCEPT, proposal.id_, at=emitted
+    )
+    assert accept is not None
+    deadline = accept.emitted_at + timedelta(seconds=store.timeout_seconds)
+    at = deadline if overdue else deadline - timedelta(microseconds=1)
+    event = _reject_event(dl, proposal, case.id_, _MANAGER)
+    use_case = RejectInviteToEmbargoOnCaseReceivedUseCase(
+        dl, event, wire_render_port=As2WireRenderAdapter()
+    )
+
+    with recorded_clock_reads() as clock_reads:
+        run_in_act(use_case, at=at)
+
+    assert clock_reads == []
+    assert accept.status == ("timed_out" if overdue else "cleared")
+    assert not _pending(case.id_, proposal.id_)

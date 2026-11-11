@@ -678,6 +678,7 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
     file and chain tail, and neither ledger records the fault (SYNC-16-002).
     """
     from test.support.embargo_register import propose, write_consent_rows
+    from test.support.future_dates import days_from_now
     from test.support.inbox_replay import held_depth
     from test.support.ledger import chain_tail, ledger_entries
     from vultron.adapters.driven.trigger_activity_adapter import (
@@ -688,7 +689,6 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
         commit_and_apply_embargo_entries,
         consent_row_entry,
     )
-    from vultron.core.models._helpers import days_from_now_utc
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.core.models.embargo_apply import (
@@ -736,7 +736,7 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
     embargo = as_EmbargoEvent(
         id_=f"{case.id_}/embargo_events/e1",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     manager_participant = as_CaseParticipant(
         attributed_to=case_actor_id,

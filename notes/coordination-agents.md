@@ -11,15 +11,14 @@ tracks:
   - "#1943"
   - "#2450"
   - "#3421"
-  - "#3423"
   - "#3426"
   - "#6078"
 description: >
   Design for the capability layer's unbuilt work: core-owned typed-port
-  contracts and renamed shape base classes (#3421), the call-out latency budget
-  (#3423), the participant-suggestion port (#3426), and the Sentinel call-in
-  pattern (#2450). Also routes a design question to a capability, an ask, or a
-  call-in monitor, and says why Sentinel is not a fifth shape; the call-in and
+  contracts and renamed shape base classes (#3421), the participant-suggestion
+  port (#3426), and the Sentinel call-in pattern (#2450). Also states the
+  call-out time budget rule, routes a design question to a capability, an
+  ask, or a call-in monitor, and says why Sentinel is not a fifth shape; the call-in and
   call-out surfaces themselves are defined in call-out-configuration.md.
 related_notes:
   - notes/bt-integration.md
@@ -85,21 +84,14 @@ Target state set by ADR-0097 and BT-18-012; today the mixins are still in
 Why a contract declared outside core fails: `notes/call-out-configuration.md` §
 "A data-producing capability's default must write its outputs".
 
-## A Capability Answers Fast, or It Is Not a Capability (#3423)
+## A Capability Answers Fast, or It Is Not a Capability
 
-A backend answers within one tick (BT-18-011, `SynchronousCallOut`) **and** within
-a bounded time budget (BT-18-015) configured in `ActorConfig`.
-
-- The budget is local configuration because no peer can observe it, so
-  deployments choosing different values do not diverge. An ask deadline differs
-  because it travels on the wire in `endTime` so both parties read one number
-  (ASK-03-004), not because it is less configurable (ASK-03-005).
-- Without a budget, a slow backend blocks a `BackgroundTasks` worker until the
-  bridge hits `max_iterations` and fails without naming the node.
-- A seam guard **detects** an overrun and names the node; interrupting the
-  backend means running it off the ticking thread. The implementation must state
-  which one it provides.
-- Work that cannot meet the budget is an ask or a call-in monitor.
+A backend answers within one tick (BT-18-011) **and** within the local actor's
+`ActorConfig.call_out_time_budget` (BT-18-015). Work that cannot meet the budget
+is an ask or a call-in monitor, not a capability. `TimeBoundedCallOut` in
+`vultron/core/behaviors/call_out/guard.py` detects an overrun after the backend
+returns and names the node; it never interrupts the backend, so a slow backend
+still holds the worker.
 
 ## Fuzzer Nodes Are Call-Out Point Candidates
 

@@ -26,6 +26,7 @@ from py_trees.common import Status
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -41,7 +42,7 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
-from vultron.core.models._helpers import _as_id, days_from_now_utc, now_utc
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -864,7 +865,7 @@ class TestSeedAnnouncedCaseNode:
         decided = EmbargoEvent(
             id_=f"{CASE_ID2}/embargo_events/decided",
             context=CASE_ID2,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         copied = f"{CASE_ID2}/embargo_events/copied"
         unrecorded = f"{CASE_ID2}/embargo_events/unrecorded"
@@ -910,7 +911,7 @@ class TestSeedAnnouncedCaseNode:
         ended = EmbargoEvent(
             id_=f"{CASE_ID2}/embargo_events/ended",
             context=CASE_ID2,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(
             _owned(case).model_copy(
@@ -961,7 +962,7 @@ class TestSeedAnnouncedCaseNode:
         embargo = EmbargoEvent(
             id_=f"{CASE_ID2}/embargo_events/inline",
             context=CASE_ID2,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         case = as_VulnerabilityCase(
             attributed_to=CASE_OWNER_ID,

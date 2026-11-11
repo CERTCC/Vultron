@@ -204,6 +204,7 @@ def test_printed_env_var_sets_its_field(path: tuple[str, ...]) -> None:
                 timedelta(hours=96),
             ),
             "actor.post_close_reply": ("reject", "reject"),
+            "actor.call_out_time_budget": ("PT10S", timedelta(seconds=10)),
             "ledger.position_statement_interval_seconds": ("60", 60),
         }
         raw, expected = overrides[setting.yaml_key]

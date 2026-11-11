@@ -71,6 +71,12 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
         "now_utc",
         "datetime.now",
     ),
+    # The system stopwatch: the call-out time budget's named site (#3423).
+    (
+        "vultron/core/behaviors/stopwatch.py",
+        "SystemStopwatch.seconds",
+        "time.monotonic",
+    ),
     (
         "vultron/demo/helpers/polling/_poll.py",
         "ProgressDeadline.__init__",
@@ -133,36 +139,6 @@ CLOCK_EDGE_EXEMPTIONS: tuple[ClockRead, ...] = (
 # owner: #5758
 KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
     (
-        "vultron/core/behaviors/case/nodes/embargo.py",
-        "CreateEmbargoEventNode.update",
-        "from_now_utc",
-    ),
-    (
-        "vultron/core/behaviors/case/nodes/embargo_revision.py",
-        "ResolveCreationTimeRevisionNode._losing_candidate",
-        "from_now_utc",
-    ),
-    (
-        "vultron/core/behaviors/case_status_snapshot.py",
-        "EmitCaseStatusUpdateNode.update",
-        "now_utc_after",
-    ),
-    (
-        "vultron/core/models/_helpers/clock.py",
-        "days_from_now_utc",
-        "from_now_utc",
-    ),
-    (
-        "vultron/core/models/_helpers/clock.py",
-        "from_now_utc",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/_helpers/clock.py",
-        "now_utc_after",
-        "now_utc",
-    ),
-    (
         "vultron/core/models/_helpers/clock.py",
         "require_future_aware",
         "now_utc",
@@ -186,11 +162,6 @@ KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
         "vultron/core/models/case/_construction.py",
         "_genesis_published",
         "now_utc",
-    ),
-    (
-        "vultron/core/models/case/_statuses.py",
-        "CaseStatusHistoryMixin.append_case_status",
-        "now_utc_after",
     ),
     (
         "vultron/core/models/case_ledger/record.py",
@@ -268,26 +239,6 @@ KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
         "require_future_aware",
     ),
     (
-        "vultron/demo/exchange/embargo_lifecycle.py",
-        "_end_time",
-        "days_from_now_utc",
-    ),
-    (
-        "vultron/demo/exchange/report_with_embargo_demo.py",
-        "_run_negotiated_submission",
-        "from_now_utc",
-    ),
-    (
-        "vultron/demo/exchange/transfer_ownership_demo.py",
-        "demo_transfer_ownership_accept",
-        "from_now_utc",
-    ),
-    (
-        "vultron/demo/helpers/seeding/participants.py",
-        "_seed_active_embargo",
-        "from_now_utc",
-    ),
-    (
         "vultron/wire/as2/vocab/base/objects/base.py",
         "as_Object.published",
         "now_utc",
@@ -299,52 +250,12 @@ KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
     ),
 )
 
-# The parse edge, and the RSVP and pre-bootstrap-queue reads beside it.
-# owner: #5652
-KNOWN_PARSE_EDGE_CLOCK_READS: tuple[ClockRead, ...] = (
-    (
-        "vultron/adapters/driving/fastapi/inbox_pending_queue.py",
-        "_expire_pending_case_activities",
-        "now_utc",
-    ),
-    (
-        "vultron/adapters/driving/fastapi/inbox_pending_queue.py",
-        "_queue_pending_case_activity",
-        "now_utc",
-    ),
-    (
-        "vultron/core/behaviors/embargo/rsvp_stamp.py",
-        "stamp_rsvp_deadline",
-        "now_utc",
-    ),
-    (
-        "vultron/core/models/rsvp_deadline.py",
-        "resolve_rsvp_deadline",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/extractor/_builders/semantic_kwargs.py",
-        "_effective_rsvp_deadline",
-        "now_utc",
-    ),
-    (
-        "vultron/wire/as2/factories/embargo/negotiation.py",
-        "em_propose_embargo_activity",
-        "now_utc",
-    ),
-)
-
 # Reads below an act's edge that no slice names yet: the epic routes each one.
 # owner: #5676
 KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
     (
-        "vultron/core/use_cases/received/embargo/reject.py",
-        "RejectInviteToEmbargoOnCaseReceivedUseCase.execute",
-        "now_utc",
-    ),
-    (
-        "vultron/demo/helpers/embargo.py",
-        "make_embargo_event",
+        "vultron/demo/wall_clock.py",
+        "from_now",
         "now_utc",
     ),
     (
@@ -357,7 +268,6 @@ KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
 _ALL_LISTS: dict[str, tuple[ClockRead, ...]] = {
     "CLOCK_EDGE_EXEMPTIONS": CLOCK_EDGE_EXEMPTIONS,
     "KNOWN_CORE_MODEL_CLOCK_READS": KNOWN_CORE_MODEL_CLOCK_READS,
-    "KNOWN_PARSE_EDGE_CLOCK_READS": KNOWN_PARSE_EDGE_CLOCK_READS,
     "KNOWN_UNSLICED_CLOCK_READS": KNOWN_UNSLICED_CLOCK_READS,
 }
 
@@ -371,10 +281,10 @@ CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(
         # The ports and the system clocks behind them.
         "vultron/core/ports/clock.py",
         "vultron/adapters/driven/clock.py",
-        # open_act: the one place an act reads its clock.
+        # open_act and stamp_arrival: the two places an act reads its clock.
         "vultron/core/behaviors/bridge/act_instant.py",
-        # Act entry points: a delivery, a trigger, a sweep.
-        "vultron/core/behaviors/inbox/_process_payload.py",
+        # Act entry points: a delivery's arrival stamp, a trigger, a sweep.
+        "vultron/adapters/driving/fastapi/routers/actors/_routes/mailbox.py",
         "vultron/core/use_cases/triggers/_base/bt.py",
         "vultron/core/use_cases/triggers/actor/participant_role.py",
         "vultron/core/use_cases/triggers/actor/ownership.py",
@@ -387,8 +297,6 @@ CLOCK_HOLDER_EXEMPTIONS: frozenset[str] = frozenset(
         # Composition roots that hand the clock to an entry point.
         "vultron/core/trigger_dispatcher.py",
         "vultron/adapters/driving/fastapi/deps.py",
-        "vultron/adapters/driving/fastapi/inbox_orchestration/pipeline.py",
-        "vultron/adapters/driving/fastapi/inbox_queue_drain.py",
         "vultron/adapters/driving/fastapi/ledger_position_statements.py",
         "vultron/adapters/driving/cli.py",
         # The bookkeeping clock's one holder.
@@ -492,7 +400,10 @@ def reads(clock):
     _t.perf_counter()
     _when.now()
     _now()
-    from_now_utc(delta)
+    require_future_aware(end)
+    stamp_after(at, latest)
+    deadline_from(at, delta)
+    days_after(at, 30)
 """
 
 
@@ -510,6 +421,6 @@ def test_the_finder_names_each_read_shape_and_not_a_port_read() -> None:
             ("m.py", "reads", "time.time"): 1,
             ("m.py", "reads", "time.monotonic"): 1,
             ("m.py", "reads", "now_utc"): 1,
-            ("m.py", "reads", "from_now_utc"): 1,
+            ("m.py", "reads", "require_future_aware"): 1,
         }
     )

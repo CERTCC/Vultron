@@ -43,12 +43,15 @@ answers the delivery instead.
 """
 
 import logging
+from collections.abc import Sequence
+from datetime import datetime
 
 from vultron.core.models.received_activity_record import (
     HOLDING_STAGES,
     ReceivedActivityRecord,
     ReceivedStage,
 )
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.received_activity import (
     held_received_record,
@@ -78,17 +81,25 @@ def hold_for_replay(
     activity_id: str,
     received_body: str,
     *,
+    received_at: datetime,
     replay_rows_json: str = "[]",
     awaiting_case_id: str | None = None,
+    verified_proofs: Sequence[VerifiedProof] = (),
 ) -> bool:
     """Hold *activity_id*'s body until its replay; return whether this wrote.
+
+    A record created here keeps *verified_proofs*, the proofs the inbox
+    verified on that body, in its first save (SIG-03-004); a record that is
+    already there keeps the ones it has.
 
     The **body** of a record already owing a replay is left as it is, so a
     redelivery of a held activity is not held again (IE-10-001) and the body
     first held is the body replayed.  A record intake recorded, ``HELD`` or
     ``HANDLED``, becomes ``HELD`` and takes the replay flag with the body it
     already holds.  With no record,
-    one ``HELD`` record is created.
+    one ``HELD`` record is created, stamped *received_at*: the message's
+    arrival stamp, which its replay runs at (ADR-0176).  A record already
+    there keeps the stamp it has.
 
     A record that is already at its outcome is not held: an ``ARCHIVED``
     message was applied, and a receipt stub holds no body to replay
@@ -124,6 +135,8 @@ def hold_for_replay(
                 replay_owed=True,
                 awaiting_case_id=awaiting_case_id,
                 replay_rows_json=replay_rows_json,
+                received_at=received_at,
+                verified_proofs=list(verified_proofs),
             )
         )
         return True
@@ -209,6 +222,7 @@ def hold_unjudged_for_replay(dl: CasePersistence, activity_id: str) -> None:
             replay_owed=True,
             received_at=record.received_at,
             replay_rows_json=record.replay_rows_json,
+            verified_proofs=record.verified_proofs,
         )
     )
 

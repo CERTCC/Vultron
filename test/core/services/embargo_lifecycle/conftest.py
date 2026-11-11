@@ -29,11 +29,11 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     CaseParticipant,
@@ -126,7 +126,7 @@ def _make_embargo(
     means.
     """
     embargo = as_EmbargoEvent(
-        context=case_id, end_time=end_time or days_from_now_utc(days)
+        context=case_id, end_time=end_time or days_from_now(days)
     )
     dl.create(embargo)
     return embargo

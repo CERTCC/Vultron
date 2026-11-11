@@ -34,6 +34,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from typing import cast
 
 from vultron.adapters.driven.http_object_fetch import (
@@ -111,15 +112,20 @@ class FastAPIDereferencePort:
         return _fetch_record(self._dl, object_id)
 
     def await_fetches(
-        self, activity_id: str, references: list[ObjectReference]
+        self,
+        activity_id: str,
+        references: list[ObjectReference],
+        *,
+        at: datetime,
     ) -> None:
         """Hold *activity_id* and record it as a waiter of each fetch.
 
         The activity is held before any record names it, so a failed hold
-        records nothing; all of it commits together.
+        records nothing; all of it commits together.  The held record keeps
+        *at*, its arrival stamp, for the replay (ADR-0176).
         """
         with self._dl.transaction():
-            self._staging.hold_for_replay(activity_id)
+            self._staging.hold_for_replay(activity_id, received_at=at)
             for reference in references:
                 record = _fetch_record(
                     self._dl, reference.object_id

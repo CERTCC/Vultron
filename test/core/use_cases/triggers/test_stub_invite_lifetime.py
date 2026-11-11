@@ -51,6 +51,7 @@ from test.support.embargo_register import (
     terminate as terminate_register,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
@@ -69,7 +70,7 @@ from vultron.core.behaviors.case.stub_invite_lifetime import (
     replacement_for,
     stub_invite_expired,
 )
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import OfferActorToCaseReceivedEvent
 from vultron.core.models.events.base import MessageSemantics
@@ -200,7 +201,7 @@ def test_deadline_is_capped_at_the_end_of_the_embargo_it_carries(
         id_=f"{case.id_}/embargo/e1",
         content="Active embargo",
         context=case.id_,
-        end_time=days_from_now_utc(2),
+        end_time=days_from_now(2),
     )
     dl.create(embargo)
     activate(case, embargo.id_)
@@ -235,13 +236,13 @@ def test_a_revise_stub_deadline_is_capped_by_the_embargo_in_force(
         id_=f"{case.id_}/embargo/e1",
         content="Embargo in force",
         context=case.id_,
-        end_time=days_from_now_utc(2),
+        end_time=days_from_now(2),
     )
     revision = as_EmbargoEvent(
         id_=f"{case.id_}/embargo/e2",
         content="Revision",
         context=case.id_,
-        end_time=days_from_now_utc(30),
+        end_time=days_from_now(30),
     )
     dl.create(in_force)
     dl.create(revision)
@@ -769,9 +770,7 @@ def _send_stub_invite_during_revision(
     built, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
     case = dl.read_case(built.id_)
     assert case is not None
-    revision = as_EmbargoEvent(
-        context=case.id_, end_time=days_from_now_utc(90)
-    )
+    revision = as_EmbargoEvent(context=case.id_, end_time=days_from_now(90))
     dl.create(revision)
     propose(case, revision.id_)
     dl.save(case)
@@ -897,7 +896,7 @@ def test_a_failed_replacement_waits_while_a_later_revision_is_open(
 
     stored = dl.read_case(case.id_)
     assert stored is not None
-    later = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(120))
+    later = as_EmbargoEvent(context=case.id_, end_time=days_from_now(120))
     dl.create(later)
     propose(stored, later.id_)
     dl.save(stored)

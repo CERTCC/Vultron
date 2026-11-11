@@ -38,6 +38,7 @@ notice reads the body and the stub replaces it.
 """
 
 import logging
+from datetime import datetime
 
 from vultron.core.models.received_activity_record import (
     HOLDING_STAGES,
@@ -92,6 +93,7 @@ def write_receipt_stub(
     sender_id: str,
     reason: str,
     received_body: str | None = None,
+    received_at: datetime,
 ) -> ReceivedActivityRecord:
     """Replace what is held for *activity_id* with a receipt stub.
 
@@ -102,8 +104,9 @@ def write_receipt_stub(
     (DL-06-006).
 
     A delivery a door refused before intake ran has no record: its stub is
-    written from *received_body*, the delivery's own sealed body, with the
-    time of receipt taken now.
+    written from *received_body*, the delivery's own sealed body, with
+    *received_at*, the delivery's arrival stamp, as the time of receipt
+    (ADR-0176).  A stub that replaces a record keeps the record's stamp.
 
     Idempotent: a stub already written is returned as it stands, so the
     reason recorded is the first refusal's (CLP-10-077).  An archived record
@@ -139,6 +142,7 @@ def write_receipt_stub(
                 sender_id=sender_id,
                 refusal_reason=reason,
                 body_hash=received_body_digest(received_body),
+                received_at=received_at,
             ),
         )
     if record.stage not in HOLDING_STAGES:

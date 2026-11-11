@@ -225,6 +225,13 @@ baseline on the number of participants. An incomplete sequence is scored through
 completions under the same walk (expected, best and worst), and a case reports
 per-vendor scores with their unweighted median and spread.
 
+Score through `vultron.measure.baselines`, never a second walk: its
+`completion_probabilities(prefix)` weights each six-event completion from where the
+case stands, and `frequency` serves any joint-model query. Reason: one walk keeps
+the completions and the baselines under the same chance model (ADR-0182). Its joint
+models obey only enforced rules — a SHOULD never constrains them, because the
+desiderata measure exactly those preferences.
+
 ## Read the Canonical Copy; a Merge Reports Its Holes
 
 Only the CASE_MANAGER's ledger is complete. A participant's replica stops receiving
@@ -237,8 +244,29 @@ ledger file is named for neither its actor nor its role: the committed recording
 `ui/src/recordings/<scenario>/case-actor.jsonl`, while a demo run writes
 `<actor>-case-ledger.jsonl` under a directory named for the actor. A path-derived
 answer misreads the scenario name as the actor name, finds no CASE_MANAGER, and sends
-every recording down the merge path to be reported as holed. The committing actor is
-in each entry, which is the one place the answer is always there.
+every recording down the merge path to be reported as holed.
+
+No entry names the copy's holder: a replica's entry is byte-identical to the
+CASE_MANAGER's (CLP-07-013). So the layer identifies the copy by **completeness**: a
+copy is read alone when it holds one entry at each index from `0` up with no gap
+(CLP-14-010) and every entry hash any other copy of the case holds
+(`vultron/measure/ledger/copies.py`). The CASE_MANAGER's copy always passes.
+
+Completeness is known only relative to the input, so carry the end separately. A
+replica cut off at the tail, as when its report closed, passes when no fuller copy is
+handed over, and the result calls it a complete copy with no holes. `end_confirmed`
+is set only when the entries prove nothing follows the last entry
+(`vultron/measure/ledger/ends.py`). Two things prove it: the last entry is the
+CASE_MANAGER's own closure (`closure_boundary_indices`, CM-23-013), or another copy
+ends on the same entry. A measure that needs the whole case refuses a history whose
+end is unconfirmed. Do not try to name the copy's holder: the entries cannot say it
+(decided for #5779).
+
+Two copies holding different entries at one index, or one entry hash with two
+different bodies, are reported, never resolved: a conforming ledger has none, so a
+history over one is not to be trusted, and keeping either body would pick by file
+order. A bad row that names another case does not make a file's copy incomplete; only
+a row that names no case might be the missing entry.
 
 For the same reason the layer takes its files from the caller and globs for nothing
 itself (CEH-02-003, CEH-02-010). `vultron-demo-report` keeps its own
@@ -283,18 +311,27 @@ cannot tell from a state the case never reached. That tolerance is the requireme
 which states only the boundary that nothing in the protocol path imports the layer
 (CEH-01-001):
 
-- The layer is `vultron/measure/`, outside the protocol path.
-- The JSONL walker and its tolerant field-spelling helpers move there out of
-  `vultron/demo/report/timeline.py`, and the report tool imports them from there. The
-  demo layer sits above the measure package, so that import goes downward.
-- The display-name resolver (`collect_actor_names`, `friendly_actor_name`, in
-  `vultron/demo/report/naming.py`) moves down with it. Leaving it in the demo layer
-  while the report tool imports the reader from `vultron/measure/` would make the two
-  packages import each other, and would put a demo dependency inside the package the
-  boundary exists to keep clean.
-- `vultron/demo/report/` is a package, not a module: #5606 split it into `cli.py`,
-  `naming.py`, `render.py` and `timeline.py`. Only the two modules named above are
-  touched, and `discover_replicas` stays in `timeline.py` with its glob.
+- The layer is `vultron/measure/`, outside the protocol path. Each stage is a
+  subpackage that reads through the one below it; the event history is a later
+  sibling of `ledger/`, never part of it. The chance baselines
+  (`vultron/measure/baselines/`) read only `vultron/core/states/`, never a ledger.
+- `vultron/measure/ledger/` is the reader every measure shares: `fields.py` (the
+  tolerant field accessors and the dimension-state walker), `names.py` (the
+  display-name resolver), `jsonl.py` (the tolerant file reader), `copies.py`
+  (per-case complete-copy selection, merge and holes) and `ends.py` (whether the
+  entries confirm the ledger's end). Its public names are
+  re-exported from `vultron.measure.ledger`; import from there.
+- The walker came out of `vultron/demo/report/`, and the report tool imports it from
+  `vultron.measure.ledger`. The demo layer sits above the measure package, so that
+  import goes downward; nothing in `vultron/measure/` imports `vultron.demo`.
+- The display-name resolver (`collect_actor_names`, `friendly_actor_name`) moved down
+  with it. Left in the demo layer, it would make the two packages import each other.
+  Its URI fallback is `vultron.core.display.friendly_name`, not a second copy.
+- `discover_replicas` stays in `vultron/demo/report/timeline.py` with its glob.
+- Two architecture tests in `test/architecture/test_measure_layer_boundaries.py`
+  hold the layer's boundaries: no protocol-path import (CEH-01-001) and no write
+  (CEH-01-002). A command that writes its own output file is admitted by name in
+  that test's `OUTPUT_FILE_WRITERS`.
 
 `vultron-demo-report` keeps its own module, its per-entry grain and its
 replica-presence matrix: it is a demo-CI forensic artifact, while the event history
@@ -303,14 +340,13 @@ is a research instrument at the event grain.
 ### One tolerant reader, one strict wrapper
 
 The two tools want opposite things from a malformed row. DRPT-01-004 has
-`vultron-demo-report` exit non-zero when a file cannot be parsed, and `_load_jsonl`
-(`vultron/demo/report/timeline.py`) raises on the first bad row to deliver that. The
-measure layer must instead degrade one bad row to one unusable entry and finish the
-rest, reporting the row
-(CEH-02-008) — a single corrupt line in an archived ledger is worth reporting, not
-worth losing every other event to.
+`vultron-demo-report` exit non-zero when a file cannot be parsed. The measure layer
+must instead degrade one bad row to one unusable entry and finish the rest, reporting
+the row (CEH-02-008) — a single corrupt line in an archived ledger is worth reporting,
+not worth losing every other event to.
 
 So the shared reader is the **tolerant** one, and the strictness is a thin wrapper the
-report tool applies: it raises when the tolerant reader reports any unusable row. Put
+report tool applies (`_load_jsonl` in `vultron/demo/report/timeline.py`): it raises
+when `read_ledger_file` reports any unusable row. Put
 the strictness in the shared reader instead and the measure layer cannot read a
 damaged archive at all.

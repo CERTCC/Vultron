@@ -57,6 +57,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
 )
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.actor_profile_fetch import ActorProfileFetchPort
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.proof_verification import ProofVerificationPort
@@ -79,10 +80,14 @@ class VerifiedDelivery:
     Attributes:
         body: The decoded JSON object, as received; the parser reads it next.
         receiver: The addressed actor, found before any key is looked up.
+        proofs: What the verifier checked: each proof's author, its key id
+            and the key as fetched, which the delivery's archived record
+            keeps (SIG-03-004).
     """
 
     body: dict[str, Any]
     receiver: CoreActor
+    proofs: tuple[VerifiedProof, ...] = ()
 
 
 def get_proof_verifier(
@@ -133,7 +138,7 @@ async def verified_delivery(
     raw = await request.body()
     try:
         body = await run_in_threadpool(decode_inbox_body, raw)
-        await verifier.verify(body)
+        proofs = await verifier.verify(body)
     except VultronUnsignableJsonError as exc:
         logger.warning(
             "Refusing a delivery to actor_id=%s: its body cannot be read"
@@ -152,7 +157,7 @@ async def verified_delivery(
             exc,
         )
         raise translate_domain_errors(exc) from exc
-    return VerifiedDelivery(body=body, receiver=receiver)
+    return VerifiedDelivery(body=body, receiver=receiver, proofs=proofs)
 
 
 async def decoded_json_body(request: Request) -> dict[str, Any]:

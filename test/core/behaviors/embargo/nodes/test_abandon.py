@@ -34,6 +34,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 from test.support.act_runner import in_act, run_tree
 from test.support.embargo_register import propose, write_consent_rows
+from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -51,7 +52,6 @@ from vultron.core.behaviors.embargo.trigger_tree import (
     reject_proposed_embargo_bt,
 )
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -91,7 +91,7 @@ def _proposed_case(
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/{d}d",
             context=case.id_,
-            end_time=days_from_now_utc(d),
+            end_time=days_from_now(d),
         )
         invite = em_propose_embargo_activity(
             embargo,
@@ -158,7 +158,7 @@ def _own_proposal_case(
     embargo = as_EmbargoEvent(
         id_=f"{case.id_}/embargo_events/own",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(embargo)
     invite_id, _blob = TriggerActivityAdapter(dl).propose_embargo(

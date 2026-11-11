@@ -427,7 +427,7 @@ class TestEmitCreateVulnerabilityCaseNode:
     @pytest.mark.spec("EMB-18-003")
     def test_the_create_carries_the_active_embargo_inline(self):
         """The Create a recipient seeds from carries the embargo record."""
-        from vultron.core.models._helpers import days_from_now_utc
+        from test.support.future_dates import days_from_now
         from vultron.core.models.embargo_event import EmbargoEvent
 
         dl = self._dl()
@@ -435,7 +435,7 @@ class TestEmitCreateVulnerabilityCaseNode:
         embargo = EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
             context=case_id,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.save(embargo)
         dl.save(

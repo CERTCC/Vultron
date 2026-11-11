@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -26,14 +25,20 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.demo.report.naming import (
     _ACTOR_LIKE_TYPES,
     _WRAPPER_TYPES,
-    _actor_uri,
-    _candidate_dicts,
-    _coerce_int,
-    _dimension_state,
-    _first,
-    collect_actor_names,
-    friendly_actor_name,
     friendly_object_label,
+)
+from vultron.errors import LedgerReadError
+from vultron.measure.ledger import (
+    Dimension,
+    actor_uri,
+    candidate_dicts,
+    coerce_int,
+    collect_actor_names,
+    dimension_state,
+    first_present,
+    friendly_actor_name,
+    payload_of,
+    read_ledger_file,
 )
 from vultron.semantic_registry import lookup_entry
 
@@ -113,11 +118,7 @@ class CaseTimelineEvent(BaseModel):
 
         Tolerates camelCase and snake_case spellings throughout (DRPT-02-003).
         """
-        payload = _first(
-            raw, "payload_snapshot", "payloadSnapshot", default={}
-        )
-        if not isinstance(payload, dict):
-            payload = {}
+        payload = payload_of(raw)
 
         raw_object = payload.get("object") or payload.get("object_")
         # Unwrap AS wrapper activities (Accept, Reject, Offer, Invite) until we
@@ -171,19 +172,22 @@ class CaseTimelineEvent(BaseModel):
         elif isinstance(raw_dest, str):
             activity_target_ref = raw_dest
 
-        candidates = _candidate_dicts(payload)
-        received = _first(raw, "received_at", "receivedAt")
+        candidates = candidate_dicts(payload)
+        received = first_present(raw, "received_at", "receivedAt")
 
         return cls(
-            case_id=str(_first(raw, "case_id", "caseId", default="")),
-            log_index=_coerce_int(
-                _first(raw, "log_index", "logIndex", default=-1), default=-1
+            case_id=str(first_present(raw, "case_id", "caseId", default="")),
+            log_index=coerce_int(
+                first_present(raw, "log_index", "logIndex", default=-1),
+                default=-1,
             ),
-            entry_hash=str(_first(raw, "entry_hash", "entryHash", default="")),
+            entry_hash=str(
+                first_present(raw, "entry_hash", "entryHash", default="")
+            ),
             semantic_type=str(
-                _first(raw, "semantic_type", "semanticType", default="")
+                first_present(raw, "semantic_type", "semanticType", default="")
             ),
-            actor_uri=_actor_uri(payload.get("actor")),
+            actor_uri=actor_uri(payload.get("actor")),
             target_ref=str(target_ref) if target_ref else None,
             target_type=str(target_type) if target_type else None,
             activity_target_ref=(
@@ -193,11 +197,11 @@ class CaseTimelineEvent(BaseModel):
                 str(activity_target_type) if activity_target_type else None
             ),
             received_at=str(received) if received else None,
-            rm_state=_dimension_state(candidates, "rm", "rmState", "rm_state"),
-            em_state=_dimension_state(candidates, "em", "emState"),
-            vf_state=_dimension_state(candidates, "vf", "vfState", "vf_state"),
-            d_state=_dimension_state(candidates, "d", "dState", "d_state"),
-            pxa_state=_dimension_state(candidates, "pxa", "pxaState"),
+            rm_state=dimension_state(candidates, Dimension.RM),
+            em_state=dimension_state(candidates, Dimension.EM),
+            vf_state=dimension_state(candidates, Dimension.VF),
+            d_state=dimension_state(candidates, Dimension.D),
+            pxa_state=dimension_state(candidates, Dimension.PXA),
         )
 
     @property
@@ -293,29 +297,26 @@ class CaseTimelineEvent(BaseModel):
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
-    """Parse a JSONL file into a list of dicts, skipping blank lines.
+    """Read a JSONL file strictly: the report refuses a file with a bad row.
+
+    A thin wrapper over the shared tolerant reader,
+    :func:`vultron.measure.ledger.read_ledger_file`, which degrades a bad row
+    instead (CEH-02-008).  The report tool wants the opposite, so this raises
+    when the tolerant reader reports any unusable row.
 
     Raises:
-        ReportError: if any non-blank line is not valid JSON (DRPT-01-004).
+        ReportError: if the file cannot be read, or any non-blank line is not a
+            JSON object (DRPT-01-004).
     """
-    entries: list[dict[str, Any]] = []
     try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise ReportError(f"Cannot read {path}: {exc}") from exc
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        try:
-            parsed = json.loads(stripped)
-        except json.JSONDecodeError as exc:
-            raise ReportError(
-                f"Parse error in {path} line {lineno}: {exc}"
-            ) from exc
-        if isinstance(parsed, dict):
-            entries.append(parsed)
-    return entries
+        ledger_file = read_ledger_file(path)
+    except LedgerReadError as exc:
+        raise ReportError(str(exc)) from exc
+    if ledger_file.unusable_rows:
+        raise ReportError(
+            "; ".join(row.describe() for row in ledger_file.unusable_rows)
+        )
+    return ledger_file.entries
 
 
 def discover_replicas(input_dir: Path) -> dict[str, list[dict[str, Any]]]:

@@ -141,7 +141,7 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
             dl=dl, actor_id=_BYSTANDER, dispatcher=make_dispatcher()
         ),
         received_outcome_port=FastAPIReceivedOutcomePort(dl),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 

@@ -1,7 +1,8 @@
 {
   "@context": [
     "https://www.w3.org/ns/activitystreams",
-    "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "https://w3id.org/security/data-integrity/v2"
   ],
   "type": "Offer",
   "id": "urn:uuid:e37dd281-a585-442e-b817-23c07e556f20",
@@ -27,5 +28,18 @@
       "type": "VulnerabilityCase",
       "id": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a"
     }
+  },
+  "proof": {
+    "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "https://w3id.org/security/data-integrity/v2"
+    ],
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "verificationMethod": "https://vultron.example/organizations/vendorco#main-key",
+    "proofPurpose": "assertionMethod",
+    "created": "2026-06-01T19:12:00.000000+00:00",
+    "proofValue": "z4oogkCWNJuBGiwpFYz1avDZwTcUZspq4whQLWrQav661XLJBXHqqKwWhnqHo755NWcYmvsZdBShNmbm9C7VbGFYN"
   }
 }

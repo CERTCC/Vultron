@@ -8,14 +8,16 @@ from typing import Any, cast
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.future_dates import days_from_now
 from test.support.received import extract_stamped, stamped
-from vultron.core.models._helpers import _as_id, days_from_now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.dimensions import (
     VfDimension,
 )
 from vultron.core.models.events import AnyReceivedEvent, MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
+    extract_event,
     find_matching_semantics,
 )
 from vultron.wire.as2.extractor import (
@@ -258,7 +260,7 @@ def test_extract_intent_embargo_pass_through_fields():
         context="https://example.org/cases/1",
         published=now,
         updated=now,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     # InviteToEmbargoOnCase pattern: Invite + EVENT + context=VULNERABILITY_CASE
     activity = as_Invite(
@@ -292,7 +294,7 @@ def test_extract_intent_embargo_keeps_its_descriptive_fields():
         context="https://example.org/cases/1",
         content="Terms",
         summary="Thirty days",
-        end_time=days_from_now_utc(30),
+        end_time=days_from_now(30),
     )
     activity = as_Invite(
         actor="https://example.org/alice",
@@ -793,21 +795,43 @@ def test_naive_embargo_end_is_read_as_utc_not_rejected():
     assert cast(Any, event).rsvp_deadline == published + timedelta(days=2)
 
 
-@pytest.mark.spec("EP-07-005")
-def test_deadline_already_past_is_warned(caplog):
-    """A backdated invite yields a past deadline; that is surfaced, not hidden."""
+@pytest.mark.spec("CS-13-002")
+def test_extracting_an_embargo_invite_reads_no_clock(monkeypatch):
+    """Extraction carries the sender's times and reads no clock (ADR-0176).
+
+    A seeded clock steps on every read, so a read during extraction would
+    move it; the next read after extraction must still be its first step.
+    Even a backdated invite, whose deadline is already past, is judged later
+    by the handler at the act's instant, not here.
+    """
+    from vultron.core.models._helpers import clock
+
     published = datetime.now(tz=UTC) - timedelta(days=30)
-    invite = _make_embargo_invite(
-        end_time=published + timedelta(days=5), published=published
+    invite = stamped(
+        _make_embargo_invite(
+            end_time=published + timedelta(days=5), published=published
+        )
+    )
+    start = datetime(2030, 1, 1, tzinfo=UTC)
+    seeded = clock.SteppingClock(start)
+    monkeypatch.setattr(clock, "datetime", seeded)
+
+    extract_event(invite)
+
+    assert seeded.now() == start + timedelta(seconds=1)
+
+
+@pytest.mark.spec("CLP-15-008")
+def test_embargo_invite_without_published_is_refused_at_extraction():
+    """No deadline is measured from a clock in place of ``published``."""
+    from vultron.wire.as2.errors import VultronParseMissingPublishedError
+
+    invite = stamped(_make_embargo_invite()).model_copy(
+        update={"published": None}
     )
 
-    with caplog.at_level(logging.WARNING):
-        extract_stamped(invite)
-
-    assert any(
-        r.levelno == logging.WARNING and "already past" in r.getMessage()
-        for r in caplog.records
-    )
+    with pytest.raises(VultronParseMissingPublishedError):
+        extract_event(invite)
 
 
 # --- discriminated-union return-type narrowing tests (issue #2491) ---

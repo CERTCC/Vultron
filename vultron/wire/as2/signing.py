@@ -27,7 +27,10 @@ prototype actor's key pair from a fixed seed tied to its actor id
 (SIG-05-001), so proofs repeat across runs.  Anyone who knows the scheme can
 compute any actor's private key: never deploy seeded keys.  So the code
 holds the line the keys cannot: an actor's outbox signs only that actor's own
-messages (:func:`sign_as_author`, SIG-05-004).  Verification never
+messages (:func:`sign_as_author`, SIG-05-004).  The one other caller is the
+docs example renderer, which signs a documentation example as that
+example's own ``actor`` (:func:`sign_docs_example`): a body no server sends,
+shown as its actor's outbox would seal it.  Verification never
 derives a key from a seed (SIG-05-002); it takes the published
 ``publicKeyMultibase`` from the author's profile.
 
@@ -156,8 +159,11 @@ def seeded_signing_key(actor_id: str) -> SigningKey:
     anyone who knows it can compute any actor's private key.  The guarantee
     is in the code instead: only the owning actor's outbox signs for that
     actor, through :func:`sign_as_author`, which refuses a document another
-    actor wrote (SIG-05-004).  A verifier reads the published key instead
-    (SIG-05-002).
+    actor wrote (SIG-05-004).  The one other signer is the docs example
+    renderer (:func:`sign_docs_example`), which signs only documentation
+    examples, bodies no server sends, each as its own ``actor``.  The
+    actor's own profile route also computes the key, to publish its public
+    half.  A verifier reads the published key instead (SIG-05-002).
     """
     if not actor_id:
         raise ValueError("a seeded key needs a non-empty actor id")
@@ -447,8 +453,10 @@ def sign_as_author(
     The seed scheme is guessable by design (ADR-0164; real per-actor secret
     keys are #1184), so any code could compute any actor's key.  The
     guarantee is in the code instead: only the owning actor's outbox calls
-    the signer, and only for that actor.  A verifier reads the published
-    key instead (SIG-05-002).
+    the signer, and only for that actor.  The one other caller is the docs
+    example renderer, through :func:`sign_docs_example`, for bodies no
+    server sends; ``test/architecture/test_seeded_signer_callers.py`` lists
+    both.  A verifier reads the published key instead (SIG-05-002).
 
     Raises:
         VultronUnsignableJsonError: *document* names no actor
@@ -457,6 +465,33 @@ def sign_as_author(
     """
     owner = require_own_document(document, owner_id)
     return sign(document, seeded_signing_key(owner), created=created)
+
+
+def sign_docs_example(
+    document: Mapping[str, Any], *, created: datetime
+) -> dict[str, Any]:
+    """A documentation example, signed as its own ``actor`` would sign it.
+
+    For the docs example renderers only
+    (``vultron.wire.as2.vocab.examples._base``): an example shows a reader
+    the body its ``actor``'s outbox would seal, proof included
+    (SIG-01-001).  No server sends it, and its actor is a made-up one no
+    server hosts, so the proof is made with the seeded key of the
+    example's own ``actor``, never with any other actor's
+    (:func:`sign_as_author`, SIG-05-004).  *created* is the examples' fixed
+    moment, so a regeneration writes the same bytes: Ed25519 signatures are
+    deterministic, and the key is seeded from the actor id (SIG-05-001).
+
+    ``test/architecture/test_seeded_signer_callers.py`` keeps every other
+    module from calling this.
+
+    Raises:
+        VultronUnsignableJsonError: *document* names no ``actor``, or
+            :func:`sign` refuses it.
+    """
+    return sign_as_author(
+        document, owner_id=author_of(document), created=created
+    )
 
 
 def require_own_document(document: Mapping[str, Any], owner_id: str) -> str:
@@ -625,6 +660,7 @@ __all__ = [
     "seeded_signing_key",
     "sign",
     "sign_as_author",
+    "sign_docs_example",
     "verify",
     "with_context",
 ]

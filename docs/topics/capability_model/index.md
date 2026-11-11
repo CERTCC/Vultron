@@ -186,12 +186,13 @@ Examples are drafting a security advisory, writing a vulnerability report body, 
 
 ### Actuator
 
-**You receive:** a trigger, a signal that something should happen.
+**You receive:** a trigger, a signal that something should happen, with the one target it acts on and an idempotency id.
 **You return:** *yes* when the side effect is confirmed, *no* when you decided not to act, and *error* when you could not confirm it; never a content artifact.
 **The BT uses it to:** confirm that a side effect was executed.
 
 Actuators fire side effects in external systems.
 Examples are posting an embargo acceptance to a collaboration platform, submitting an advisory to a publication pipeline, and updating a ticket when a report is closed.
+Each call acts on one target, and a re-run of the same act gives the call the same idempotency id, so an Actuator that keys its side effect on that id never repeats it ([Wiring a Capability](../../howto/wire_capability.md#an-actuator-acts-on-one-target-and-is-safe-to-repeat)).
 
 ---
 
@@ -414,6 +415,8 @@ Moving the existing declarations into the core layer is in progress under [#3421
 
 **How a capability implementation is invoked.**
 A backend answers synchronously, within the tick that asks, with *yes*, *no* or *error*, and never returns RUNNING (BT-18-011, [ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md), [ADR-0183](../../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
+It also answers within a time budget that each actor configures (BT-18-015, BT-18-026).
+An answer that takes longer is discarded and reported as an internal error that names the node (BT-18-027).
 A decision that takes days is not a call-out point: it is a request to another actor, or a Sentinel.
 
 **What a deployment that supplies nothing gets.**

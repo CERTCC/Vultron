@@ -15,6 +15,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from datetime import datetime
 from typing import cast
 
 from vultron.adapters.driving.fastapi.inbox_handler import (
@@ -32,6 +33,10 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
+from vultron.core.behaviors.bridge.act_instant import (
+    act_instant_in_tree_run,
+    open_received_act,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import (
     VultronEvent,
@@ -45,6 +50,7 @@ from vultron.core.services.received_activity import (
     held_received_record,
 )
 from vultron.core.services.received_holding import (
+    held_for_replay,
     hold_for_replay as hold_body_for_replay,
 )
 from vultron.errors import (
@@ -109,8 +115,10 @@ def _record_the_wait_for_the_replay(
         queue,
         activity_id,
         held.received_body,
+        received_at=held.received_at,
         replay_rows_json=held.replay_rows_json,
         awaiting_case_id=case_id,
+        verified_proofs=held.verified_proofs,
     )
 
 
@@ -128,11 +136,13 @@ class InboxPipeline:
         queue_dl: DataLayer | None,
         actor_id: str | None,
         staging: InlineObjectStaging,
+        at: datetime,
     ) -> bool:
         """Re-queue *activity_id* unless its retry budget is spent.
 
         The rebuild released the record holding the activity, so a re-queued
-        item is held again first, or the retry would find nothing.
+        item is held again first, stamped *at*, its arrival, or the retry
+        would find nothing.
 
         Returns ``True`` when the item was re-queued, ``False`` when it had
         already been re-queued :data:`MAX_REQUEUE_ATTEMPTS` times and is
@@ -149,7 +159,7 @@ class InboxPipeline:
             )
             return False
         self._requeue_counts[activity_id] = attempts
-        staging.hold_again(activity_id)
+        staging.hold_again(activity_id, received_at=at)
         (queue_dl if queue_dl is not None else self._dl).inbox_append(
             activity_id
         )
@@ -163,7 +173,30 @@ class InboxPipeline:
         return True
 
     def process(self, activity_id: str) -> VultronEvent | None:
-        """Process one queued activity ID.
+        """Process one queued activity ID, as one act at its arrival stamp.
+
+        The act's instant is the arrival stamp the item's held record
+        carries, as in the production queue drain (ADR-0176).  With no
+        record owing the item's replay there is nothing to rebuild, so
+        ``None`` is returned.
+        """
+        held = held_for_replay(cast(CasePersistence, self._dl), activity_id)
+        if held is None:
+            logger.error(
+                "Inbox item %s has no held record owing its replay",
+                activity_id,
+            )
+            # Not re-queued, so a later failure starts with the full budget.
+            self._requeue_counts.pop(activity_id, None)
+            return None
+        with (
+            open_received_act(held.received_at) as at,
+            act_instant_in_tree_run(at),
+        ):
+            return self._process(activity_id, at)
+
+    def _process(self, activity_id: str, at: datetime) -> VultronEvent | None:
+        """Process one queued activity ID within its act, at *at*.
 
         The activity is rebuilt from the record that holds it for the inbox
         replay (its own ``ReceivedActivityRecord``), never read under its own
@@ -214,7 +247,7 @@ class InboxPipeline:
                 and not isinstance(self._dl.read(case_id), VulnerabilityCase)
             ):
                 if _expire_pending_case_activities(
-                    case_id=case_id, queue_dl=queue_dl
+                    case_id=case_id, queue_dl=queue_dl, at=at
                 ):
                     return None
                 # Read before the hold: the hold is what makes this activity
@@ -226,7 +259,9 @@ class InboxPipeline:
                 # the hold is what records the wait, so it must name the case
                 # or nothing will ever replay it (IO-03-009, ADR-0154).
                 staging.hold_for_replay(
-                    event.activity_id, awaiting_case_id=case_id
+                    event.activity_id,
+                    received_at=at,
+                    awaiting_case_id=case_id,
                 )
                 # This harness holds bodies on its own store and keeps the
                 # per-case record on the receiving actor's, which the
@@ -245,6 +280,7 @@ class InboxPipeline:
                     case_id=case_id,
                     case_actor_id=event.actor_id,
                     window_already_open=window_already_open,
+                    at=at,
                 )
                 return None
 
@@ -260,6 +296,7 @@ class InboxPipeline:
                     case_id=case_id,
                     dl=self._dl,
                     queue_dl=queue_dl,
+                    at=at,
                 )
             return event
         except VultronProtocolViolationError:
@@ -276,7 +313,7 @@ class InboxPipeline:
                 exc_info=True,
             )
             requeued = self._requeue(
-                activity_id, queue_dl, receiving_actor_id, staging
+                activity_id, queue_dl, receiving_actor_id, staging, at
             )
             return None
         except Exception:
@@ -285,7 +322,7 @@ class InboxPipeline:
                 activity_id,
             )
             requeued = self._requeue(
-                activity_id, queue_dl, receiving_actor_id, staging
+                activity_id, queue_dl, receiving_actor_id, staging, at
             )
             return None
         finally:

@@ -7,8 +7,9 @@ description: >
   tree builders: the three-mode model and its ceiling/floor default rule, domain
   bundles and singletons, the security-significant gate verdicts, STOCHASTIC
   bundles for production-only domains, why a data-producing capability's
-  default must write its declared outputs, and the yes/no/error answer the seam
-  turns into tree behaviour (ADR-0183).
+  default must write its declared outputs, the yes/no/error answer the seam
+  turns into tree behaviour (ADR-0183), the time budget it holds a backend
+  to (BT-18-027), and the one-target, safe-to-repeat Actuator call.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
@@ -17,6 +18,7 @@ related_specs:
   - specs/case-proposal.yaml
   - specs/prototype-shortcuts.yaml
 related_notes:
+  - notes/as2-vocabulary-alignment.md
   - notes/bt-pitfalls.md
   - notes/bt-integration.md
   - notes/bt-canonical-reference.md
@@ -268,8 +270,6 @@ tree that maps every failure to "declined" makes an outage a permanent decision,
 as the case-proposal gate does today (#3446). Answer *no* only for a decision; an
 unreachable service, a rejected credential or an unconfirmed side effect is
 *error*. Never make a tree read the answer or parse a reason to choose a branch.
-An Actuator acts on one target per call, keyed on an id the tree derives, so a
-re-run repeats no side effect.
 
 **How the answer reaches the seam: a returned value, held in a slot.**
 `CallOutBackend.update()` stores what `answer()` returns, and `SynchronousCallOut`
@@ -281,3 +281,35 @@ ticked anywhere but under the seam raises, so no tree can read an answer
 refusal overwrites; a capability whose reason a tree or record reads names its
 own `refusal_reason_key` (`answer.py`). Tests inject backends from
 `test/support/call_out.py`, never a raw `py_trees.behaviours.Success`.
+
+**A late answer is an error answer.** `TimeBoundedCallOut`, the seam every bundle
+hands out, times each backend on the `StopwatchPort` and, past
+`ActorConfig.call_out_time_budget`, discards the answer and raises
+`CallOutBudgetExceededError`, a `CallOutBackendError` (BT-18-027). Reason: an
+answer that arrives too late is, like *error*, not one the tree may use, so the
+message stays in holding. The seam detects the overrun only after the backend
+returns and never interrupts it. A test that needs an exact overrun injects a fake
+stopwatch the backend advances (`test_time_budget.py`).
+
+## An Actuator Acts on One Target and Is Safe to Repeat
+
+Place every Actuator with `actuator_call(factory, name, target=...)`, one call
+per target, and implement it as an `ActuatorBackend` whose `act(request)` keys
+its side effect on `request.idempotency_id`. Reason: an *error* leaves a message
+in holding, and the re-run asks every call-out point again, so a call that acted
+before the error must see the id of its first run (BT-18-041 to BT-18-044,
+`call_out/actuator.py`). The act's id is the received activity's `activity_id`;
+a trigger run has none, and each call mints one once, as a received note does
+(ID-04-004). An unconfirmed side effect or a rejected credential is *error*
+(BT-18-040). A test that ticks an Actuator outside a tree binds a target first
+(`bind_test_target` in `test/support/call_out.py`); `acting(...)` gives an
+Actuator test backend that records each request.
+
+Two Actuators placed in one tree need distinct node names or targets. Reason: the
+idempotency id derives from the node name, actor, act and target, so two calls
+with the same name and target in one act share an id and the second is a no-op
+(the deploy tree runs both arms' `MonitorDeployment`, hence `deployment_target`;
+`test_no_two_actuators_in_a_tree_share_an_idempotency_id`). Renaming an Actuator
+node or its target changes the ids of messages already in holding, so a re-run
+after the rename repeats their side effects; pre-1.0 this is accepted, with no
+alias for the old name (`actuation_id`).

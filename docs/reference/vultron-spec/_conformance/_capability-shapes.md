@@ -26,7 +26,7 @@ All four are consulted *by* the protocol, and each answers within the single tic
 | **Evaluator** | A situation and a set of options | A structured recommendation | Its result gates downstream execution. |
 | **Retriever** | A query | Structured facts from an external source | A boolean is the simplest structured fact; a yes/no external query is a Retriever. |
 | **Composer** | Context | A new content artifact written to the blackboard | The discriminator vs. Actuator: if a content artifact lands on the blackboard, it is a Composer. |
-| **Actuator** | A trigger | Yes when the side effect is confirmed, no when it decides not to act, error when it cannot confirm | Invokes an external system for a side effect. Produces no content artifact. |
+| **Actuator** | A trigger, with one target and an idempotency id derived from the act and the target | Yes when the side effect is confirmed, no when it decides not to act, error when it cannot confirm | Invokes an external system for a side effect. Produces no content artifact. Never repeats a side effect for an idempotency id it has acted on. |
 
 !!! warning "Distinguishing Composer from Actuator"
     Both shapes call external systems. The discriminator is whether a content

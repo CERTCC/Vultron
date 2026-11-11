@@ -29,11 +29,11 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import activate
+from test.support.future_dates import days_from_now
 from vultron.core.behaviors.case.nodes import invite_inert_participant
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -138,7 +138,7 @@ class TestSeating:
     def test_active_embargo_gives_invited_consent_row(
         self, scenario: BTTestScenario
     ) -> None:
-        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(45))
+        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now(45))
         scenario.dl.create(embargo)
         case = _case(scenario)
         activate(case, embargo.id_)
@@ -237,7 +237,7 @@ class TestIdempotency:
         raise on the duplicate id.
         """
         _seed_existing(scenario, joined=False)
-        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(45))
+        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now(45))
         scenario.dl.create(embargo)
         case = _case(scenario)
         activate(case, embargo.id_)
@@ -265,7 +265,7 @@ class TestIdempotency:
         are left as they were, even under an active embargo.
         """
         _seed_existing(scenario, joined=joined, rm=RM.CLOSED)
-        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(45))
+        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now(45))
         scenario.dl.create(embargo)
         case = _case(scenario)
         activate(case, embargo.id_)

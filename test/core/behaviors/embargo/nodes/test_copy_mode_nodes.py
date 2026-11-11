@@ -30,6 +30,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     OTHER_PARTICIPANT_ACTOR,
     make_case_with_manager,
 )
+from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types
 from vultron.core.behaviors.embargo.decided_entries import EMBARGO_DECISION_KEY
 from vultron.core.behaviors.embargo.nodes import lifecycle, withdrawal
@@ -47,7 +48,6 @@ from vultron.core.behaviors.embargo.nodes.withdrawal import (
     EmbargoWithdrawalAppliesNode,
     RecordParticipantWithdrawalNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.states.em import EM
 from vultron.errors import VultronBTInternalError, VultronEntryRefusedError
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -73,7 +73,7 @@ def test_a_refused_decision_fails_and_leaves_no_decision(
     embargo = as_EmbargoEvent(
         id_=f"{case_id}/embargo_events/late",
         context=case_id,
-        end_time=days_from_now_utc(30),
+        end_time=days_from_now(30),
     )
 
     result = bt_scenario.run(

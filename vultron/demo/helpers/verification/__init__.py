@@ -34,6 +34,7 @@ from vultron.demo.helpers.verification.records import (
     verify_activity_in_inbox,
     verify_case_actor_holds_records,
     verify_receiver_case_state,
+    verify_receiver_verified_sender_key,
 )
 
 __all__ = [
@@ -42,4 +43,5 @@ __all__ = [
     "verify_case_actor_holds_records",
     "verify_participant_status_appended",
     "verify_receiver_case_state",
+    "verify_receiver_verified_sender_key",
 ]

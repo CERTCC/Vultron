@@ -24,12 +24,13 @@ the CASE_MANAGER's (CM-23-016).  Each test runs one store per actor
 
 import json
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 import pytest
 
-from test.support.act_runner import run_in_act, run_tree
+from test.support.act_runner import FixedClock, run_in_act, run_tree
+from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -40,7 +41,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.sync import commit_tree
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent_semantic_types import (
     CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
@@ -174,7 +175,7 @@ def _propose(net: LedgerNetwork, days: int = 30) -> Any:
             request_type(
                 actor_id=MANAGER,
                 case_id=net.case_id,
-                end_time=days_from_now_utc(days),
+                end_time=days_from_now(days),
             ),
             **_ports(net),
             clock=SystemClock(),
@@ -182,13 +183,14 @@ def _propose(net: LedgerNetwork, days: int = 30) -> Any:
     )
 
 
-def _accept(net: LedgerNetwork) -> Any:
+def _accept(net: LedgerNetwork, at: datetime | None = None) -> Any:
+    """The CASE_MANAGER accepts by trigger, as an act at *at* (now if absent)."""
     return run_in_act(
         SvcAcceptEmbargoUseCase(
             net.stores[MANAGER],
             AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
             **_ports(net),
-            clock=SystemClock(),
+            clock=FixedClock(at) if at is not None else SystemClock(),
         )
     )
 
@@ -209,7 +211,7 @@ def _participant_proposes(net: LedgerNetwork, suffix: str, days: int) -> str:
     revision = as_EmbargoEvent(
         id_=f"{net.case_id}/embargo_events/{suffix}",
         context=net.case_id,
-        end_time=days_from_now_utc(days),
+        end_time=days_from_now(days),
     )
     proposal = em_propose_embargo_activity(
         revision,
@@ -658,17 +660,15 @@ def _replacement(net: LedgerNetwork, original_id: str) -> Any:
     return replacement
 
 
-def _later_stamps(patch: pytest.MonkeyPatch) -> None:
-    """Stamp the replacement two minutes after the relayed Invite was.
+def _later() -> datetime:
+    """An act instant two minutes after the relayed Invite was stamped.
 
+    The re-issue's deadline is measured from its act's instant (ADR-0176).
     Deadlines are second-resolution, so a re-issue in the same second as the
     relay would carry the very deadline the row already holds.  Two minutes
     stays inside the ledger's future tolerance (CLP-14-007).
     """
-    from vultron.core.behaviors.embargo import rsvp_stamp
-
-    later = now_utc() + timedelta(minutes=2)
-    patch.setattr(rsvp_stamp, "now_utc", lambda: later)
+    return now_utc() + timedelta(minutes=2)
 
 
 def _invitee_row(net: LedgerNetwork, holder: str, embargo_id: str) -> Any:
@@ -707,9 +707,8 @@ def test_a_re_issued_stub_invites_to_the_embargo_in_force(stub_first):
     assert start is not None
     assert start.state is (_S.INVITED if stub_first else _S.UNINVITED)
 
-    with pytest.MonkeyPatch.context() as patch:
-        _later_stamps(patch)
-        entries = _new_entries(net, lambda: _accept(net))
+    at = _later()
+    entries = _new_entries(net, lambda: _accept(net, at=at))
 
     assert net.case(MANAGER).active_embargo_id == revision_id
     replacement = _replacement(net, original_id)
@@ -797,11 +796,11 @@ def test_an_accept_whose_re_issued_row_did_not_commit_is_not_kept():
     committed_before = committed_semantic_types(dl, net.case_id)
     outbox_before = list(dl.outbox_list())
     row_before = _invitee_row(net, MANAGER, revision_id)
+    at = _later()
     with pytest.MonkeyPatch.context() as patch:
-        _later_stamps(patch)
         failed = fail_commits(patch, commit_tree, when=_is_invitee_row_update)
         with pytest.raises(VultronBTInternalError, match="commit failed"):
-            _accept(net)
+            _accept(net, at=at)
     assert len(failed) == 1
 
     assert net.case(MANAGER).active_embargo_id == in_force
@@ -846,7 +845,7 @@ def test_an_answer_that_records_nothing_is_refused_before_it_is_committed():
     stranger = as_EmbargoEvent(
         id_=f"{net.case_id}/embargo_events/stranger",
         context=net.case_id,
-        end_time=days_from_now_utc(30),
+        end_time=days_from_now(30),
     )
     invite = em_propose_embargo_activity(
         stranger,

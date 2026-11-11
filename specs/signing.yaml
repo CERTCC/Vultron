@@ -235,6 +235,59 @@ groups:
       spec_id: SIG-03-001
     adr:
     - ADR-0164
+  - id: SIG-03-004
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST record on the `ReceivedActivityRecord` of a received activity,
+      from the record's first save through its archive, each proof the inbox verified on
+      the delivery: its author, its key id (`verificationMethod`) and the public key as
+      fetched (`publicKeyMultibase`).
+    rationale: >-
+      A receiver can then say which key a past message verified against, which key
+      rotation needs (#1184), and a demo can check from the receiver's own store that
+      it fetched the sender's key and verified with it, without re-deriving anything.
+      The proofs travel with the received evidence, so intake writes them in the same
+      save as the body and no crash between two writes can leave an archived record
+      without them; a hold and a replay carry them from the record they rebuild from.
+      For an `Announce(CaseLedgerEntry)` the record names both the CASE_MANAGER's proof
+      and the snapshot author's (SIG-04-002). A refusal leaves a receipt stub that keeps
+      none (SIG-03-005).
+    verification: >-
+      `test/adapters/driving/fastapi/test_verified_proofs_archived.py::test_an_archived_delivery_names_the_proof_and_key_it_verified`
+      posts a signed body to a served inbox and reads the archived record;
+      `test_a_reused_id_from_another_sender_leaves_the_first_senders_key` posts a second
+      sender's body under the same id; `test_a_deferred_delivery_keeps_its_proofs_through_its_replay`
+      holds a parsed delivery through the staging and checks that the replayed activity
+      and its event, which intake records, carry them;
+      `test_a_replay_deferred_again_is_held_again_with_its_proofs` holds a released
+      replay again; `test_a_relayed_entry_archives_the_managers_proof_then_the_authors`
+      posts a CASE_MANAGER's relayed entry to a served replica and reads both proofs
+      from its record;
+      `test/adapters/driving/fastapi/test_interrupted_run_restart.py::test_an_interrupted_run_keeps_its_verified_proofs_through_the_rerun`
+      interrupts `run_inbox_pipeline` mid-tree and finishes it with the startup re-run.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SIG-03-001
+    adr:
+    - ADR-0164
+  - id: SIG-03-005
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A receipt stub that a refusal leaves MUST NOT record verified proofs.
+    rationale: >-
+      A refused message was not accepted, so its record must not read as verified;
+      the stub keeps only who sent what, when and why it was refused (CLP-10-018).
+    verification: >-
+      `test/adapters/driving/fastapi/test_verified_proofs_archived.py::test_a_receipt_stub_keeps_no_proofs`
+      refuses a held delivery that carried proofs, and
+      `test_a_stub_carrying_proofs_is_refused_at_construction` builds one.
+    relationships:
+    - rel_type: refines
+      spec_id: SIG-03-004
+    adr:
+    - ADR-0164
 - id: SIG-04
   title: Proofs in the Case Ledger
   specs:
@@ -346,8 +399,11 @@ groups:
       An actor holds only its own private key, so it signs only its own messages. Seeded
       keys (SIG-05-001) are guessable by design, so any code could compute any actor's
       key; the prototype keeps an actor from signing for another in code instead: only
-      the owning actor's outbox calls the signer for that actor. Real per-actor secret
-      keys are ENC-01-001.
+      the owning actor's outbox calls the signer for that actor. The one other caller is
+      the docs example renderer, which signs documentation examples, bodies no server
+      sends, each only as its own `actor` (`signing.sign_docs_example`);
+      `test/architecture/test_seeded_signer_callers.py` lists both callers. Real
+      per-actor secret keys are ENC-01-001.
     verification: >-
       `test/adapters/test_outbox_sealed_body.py::test_seal_refuses_an_activity_another_actor_wrote`
       seals an activity naming another actor and checks nothing is signed or stored.

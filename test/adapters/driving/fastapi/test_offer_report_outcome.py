@@ -115,7 +115,7 @@ def _deliver(dl: SqliteDataLayer, *, to: str, cc: list[str]) -> InboxOutcome:
             dl=dl, actor_id=_VENDOR, dispatcher=make_dispatcher()
         ),
         received_outcome_port=FastAPIReceivedOutcomePort(dl),
-        clock=SystemClock(),
+        arrived_at=SystemClock().now(),
     )
 
 

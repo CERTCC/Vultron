@@ -21,7 +21,8 @@ and holds a deferred activity for replay on the activity's one
 
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from datetime import datetime
 from typing import Any, cast
 
 from pydantic import ValidationError
@@ -38,6 +39,7 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.services.carried_embargo import store_carried_embargo
@@ -207,11 +209,17 @@ class InlineObjectStaging:
         """
 
         return self._rehydrate_with(
-            activity, received_body=activity.received_evidence_json
+            activity,
+            received_body=activity.received_evidence_json,
+            verified_proofs=activity.verified_proofs,
         )
 
     def _rehydrate_with(
-        self, activity: as_Activity, *, received_body: str | None
+        self,
+        activity: as_Activity,
+        *,
+        received_body: str | None,
+        verified_proofs: Sequence[VerifiedProof],
     ) -> as_Activity | None:
         """Rebuild *activity*, holding *received_body* as what arrived."""
 
@@ -220,7 +228,10 @@ class InlineObjectStaging:
             _stage_inline_object(store, activity)
 
         return self._rehydrate(
-            activity.id_, _stage, received_body=received_body
+            activity.id_,
+            _stage,
+            received_body=received_body,
+            verified_proofs=verified_proofs,
         )
 
     def can_hold(self, activity_id: str) -> bool:
@@ -232,17 +243,18 @@ class InlineObjectStaging:
             or activity_id in self._routed_in_place
         )
 
-    def hold_again(self, activity_id: str) -> bool:
+    def hold_again(self, activity_id: str, *, received_at: datetime) -> bool:
         """Hold *activity_id* again before it is re-queued, if this staging
         can (:meth:`can_hold`).
 
         A retry or a dead letter needs the record the rebuild released, or
-        the retry finds nothing to rebuild (DL-06-006).  Returns whether a
-        record was written.
+        the retry finds nothing to rebuild (DL-06-006).  *received_at* is the
+        message's arrival stamp, as :meth:`hold_for_replay` takes it.
+        Returns whether a record was written.
         """
         if not self.can_hold(activity_id):
             return False
-        return self.hold_for_replay(activity_id)
+        return self.hold_for_replay(activity_id, received_at=received_at)
 
     def held(self, activity_id: str) -> ReceivedActivityRecord | None:
         """The record owing a replay of *activity_id*, if one does.
@@ -294,9 +306,14 @@ class InlineObjectStaging:
             return None
         archived = parse_received_body(sealed_body_of(record))
         evidence = archived.received_evidence_json
-        result = self._rehydrate_with(archived, received_body=evidence)
+        result = self._rehydrate_with(
+            archived,
+            received_body=evidence,
+            verified_proofs=record.verified_proofs,
+        )
         if result is not None and evidence is not None:
             result.seal_received_evidence(evidence)
+            result.seal_verified_proofs(record.verified_proofs)
         return result
 
     def rehydrate_deferred(self, activity_id: str) -> as_Activity | None:
@@ -336,10 +353,17 @@ class InlineObjectStaging:
             evidence = parsed.received_evidence_json
             if evidence is not None:
                 result.seal_received_evidence(evidence)
+                # The proofs the inbox verified on the held body, so the
+                # replay's intake records them again (SIG-03-004).
+                result.seal_verified_proofs(pending.verified_proofs)
         return result
 
     def hold_for_replay(
-        self, activity_id: str, *, awaiting_case_id: str | None = None
+        self,
+        activity_id: str,
+        *,
+        received_at: datetime,
+        awaiting_case_id: str | None = None,
     ) -> bool:
         """Hold *activity_id* whole until its deferred replay.
 
@@ -355,7 +379,9 @@ class InlineObjectStaging:
         An activity this staging rebuilt from its record and released
         (:meth:`rehydrate_deferred`) is held again as that record was, so a
         replay deferred again, or re-queued after a failure, keeps the body it
-        was first held with.
+        was first held with, and the arrival stamp too.  Anything else is held
+        stamped *received_at*, the message's arrival stamp, which is the
+        instant of the act that holds it (ADR-0176).
 
         Hold before queueing: the record is the only copy of the activity, so
         an id queued with nothing held would be silently dropped.
@@ -373,8 +399,12 @@ class InlineObjectStaging:
                 self._store,
                 activity_id,
                 sealed_body_of(released),
+                # The first arrival, not this act's: a replay keeps the
+                # stamp it was held with (ADR-0176).
+                received_at=released.received_at,
                 replay_rows_json=released.replay_rows_json,
                 awaiting_case_id=awaiting_case_id or released.awaiting_case_id,
+                verified_proofs=released.verified_proofs,
             )
         staged = self._staged.get(activity_id)
         if staged is None and activity_id in self._routed_in_place:
@@ -400,8 +430,10 @@ class InlineObjectStaging:
             self._store,
             activity_id,
             staged.received_body,
+            received_at=received_at,
             replay_rows_json=json.dumps(staged.inline_rows),
             awaiting_case_id=awaiting_case_id,
+            verified_proofs=staged.verified_proofs,
         )
 
     def _rebuild_from(
@@ -431,6 +463,7 @@ class InlineObjectStaging:
             pending.activity_id,
             _restage,
             received_body=body,
+            verified_proofs=pending.verified_proofs,
         )
         return result, parsed
 
@@ -440,6 +473,7 @@ class InlineObjectStaging:
         stage: Callable[[DataLayer], None],
         *,
         received_body: str | None,
+        verified_proofs: Sequence[VerifiedProof],
     ) -> as_Activity | None:
         with _STAGING_LOCK:
             store = _StagingStore(self._dl, activity_id)
@@ -455,6 +489,7 @@ class InlineObjectStaging:
                 self._staged[activity_id] = _Staged(
                     received_body=received_body,
                     inline_rows=inline_rows,
+                    verified_proofs=tuple(verified_proofs),
                 )
                 result = rehydrate(activity_id, dl=store)
             finally:

@@ -481,7 +481,9 @@ groups:
     statement: >-
       Application code MUST read the current time only at an act's entry point,
       through the act clock port (`ClockPort` in `vultron.core.ports.clock`),
-      once per act and after the act takes the tree lock, except for an
+      once per act: for a trigger or a sweep after the act takes the tree lock,
+      and for a received message once on its arrival at the inbox, before it
+      queues for the tree lock (CS-13-010). Two other reads are permitted: an
       adapter's own bookkeeping times, read through `BookkeepingClockPort`, and
       stopwatch reads at named sites.
     rationale: >-
@@ -490,17 +492,68 @@ groups:
       run's clock (ADR-0176). One read per act, through one injected port, gives
       the act's decisions and stamps one instant. The system clock behind the
       port reads through `now_utc()`, so each time keeps its CS-13-001 form.
+  - id: CS-13-010
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0176
+    verification: >-
+      `test/adapters/driving/fastapi/test_arrival_stamp.py` pins the inbox
+      route's act clock and asserts that a delivery's `/at`, and the
+      `received_at` intake records for it, are the arrival stamp, read once
+      and before the tree lock; that a held message replayed
+      later, retried, or re-run after a restart runs at the stamp its record
+      carries; that a receipt stub written with no record behind it records
+      the stamp; and that a deadline is judged at arrival, not at processing.
+    statement: >-
+      Every act that processes a received message, its replays, retries and
+      restart re-runs included, MUST take as its instant the message's arrival
+      stamp, the `received_at` the receiver records for the message.
+    rationale: >-
+      The receiver's backlog is not the sender's to bear: a message that arrived
+      before a deadline is on time however long it waited for the tree lock
+      (ADR-0176). The stamp is the receiver's own reading, which the sender
+      cannot set as it can set `published`. One stamp, carried on the held
+      record, keeps a replay's verdict the one the message would have had on
+      arrival.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-13-002
   - id: CS-13-004
     priority: MUST
     kind: project
-    verification_debt: '#2575'
-    statement: Embargo deadline datetimes MUST be computed using the `from_now_utc(delta)` / `days_from_now_utc(n)` helpers in `vultron.core.models._helpers` rather than inline arithmetic
+    adr:
+    - ADR-0176
+    verification: >-
+      In `test/core/models/test_helpers.py`,
+      `test_deadline_is_the_act_instant_plus_the_duration` asserts that
+      `deadline_from(at, delta)` and `days_after(at, n)` return the act's
+      instant plus the duration, in UTC whatever offset the instant carries,
+      with the clock replaced by a stand-in that fails on any read, and
+      `test_the_time_helpers_refuse_a_naive_instant` asserts both refuse a naive
+      instant. For the callers,
+      `test_the_default_embargo_ends_the_duration_after_the_act_instant` and
+      `test_the_revision_ends_the_actor_default_after_the_act_instant` in
+      `test/core/behaviors/case/nodes/test_embargo_resolution.py` run the
+      creation-time embargo at an instant a year past the wall clock and
+      assert `end_time` is that instant plus the duration, which a deadline
+      read from the clock would miss. The clock-read ratchet
+      (`test/architecture/test_clock_reads_at_act_edge.py`) fails on a new
+      clock read in core. A deadline computed by inline arithmetic from the
+      act's instant is found by inspection in review: no static check tells
+      it apart from other datetime arithmetic.
+    statement: >-
+      An embargo deadline datetime MUST be computed as the act's instant plus a
+      duration, through the `deadline_from(at, delta)` / `days_after(at, n)`
+      helpers in `vultron.core.models._helpers`, rather than by inline arithmetic
+      or from a clock read.
     rationale: >-
       An embargo deadline is a protocol commitment that every Participant compares
-      with its own clock. The helpers build each deadline from `now_utc()`, so it is
-      timezone-aware and in UTC. Inline arithmetic can start from
-      a naive or local time and give a deadline that peers read as a different
-      instant.
+      with its own clock. The helpers measure each deadline from the act's
+      instant, so the deadline agrees with the act that set it (ADR-0176), and
+      they return it in UTC and refuse a naive instant, so it is timezone-aware.
+      Inline arithmetic can start from a naive or local time and give a deadline
+      that peers read as a different instant.
   - id: CS-13-005
     priority: MUST
     kind: protocol

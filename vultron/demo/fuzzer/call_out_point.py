@@ -26,8 +26,11 @@ class is the :class:`~vultron.core.behaviors.call_out.backend.CallOutBackend`:
 it answers *yes* with a zero value for each output the node's ``contract``
 declares (BT-18-003) and *no* with a reason, and the seam
 (:class:`~vultron.core.behaviors.call_out.guard.SynchronousCallOut`) writes
-them (ADR-0183).  The mixins carry no behaviour of their own; the Actuator
-mixin refuses a subclass that declares outputs (BT-18-028).
+them (ADR-0183).  The Evaluator, Retriever and Composer mixins carry no
+behaviour of their own.  The Actuator mixin is an
+:class:`~vultron.core.behaviors.call_out.actuator.ActuatorBackend`: it takes
+one target and an idempotency id per call, and refuses a subclass that
+declares outputs (BT-18-028, BT-18-041).
 
 There is no Sentinel mixin.  A Sentinel is a call-in integration pattern, not
 a capability shape: it watches a condition and calls a trigger endpoint on its
@@ -45,6 +48,7 @@ References
 
 from __future__ import annotations
 
+from vultron.core.behaviors.call_out.actuator import ActuatorBackend
 from vultron.core.behaviors.call_out_point import (
     CallOutBackendFactory,
 )
@@ -116,7 +120,7 @@ class ComposerCallOutPoint:
     """
 
 
-class ActuatorCallOutPoint:
+class ActuatorCallOutPoint(ActuatorBackend):
     """Mixin for Actuator-shaped call-out points (ADR-0024 amendment 2026-07-07).
 
     An Actuator receives a trigger and context; it invokes an external system
@@ -125,18 +129,14 @@ class ActuatorCallOutPoint:
     *Yes* means the side effect was confirmed; *no* means the backend decided
     not to act.  A side effect it cannot confirm is *error* (ADR-0183).
 
+    The mixin is an
+    :class:`~vultron.core.behaviors.call_out.actuator.ActuatorBackend`, so a
+    fuzzer Actuator acts on the one target its tree binds and takes an
+    idempotency id per call (BT-18-041, BT-18-043).  Its verdict comes from
+    the probability class it is combined with.
+
     Subclasses must:
       - Declare no outputs (see ADR-0024); a subclass that does is refused
         when the class is created (BT-18-028).
       - Document a blackboard contract section in their docstring (BT-18-001).
     """
-
-    def __init_subclass__(cls, **kwargs: object) -> None:
-        super().__init_subclass__(**kwargs)
-        contract = getattr(cls, "contract", None)
-        if contract is not None and contract.outputs:
-            raise TypeError(
-                f"Actuator {cls.__name__} declares outputs "
-                f"{sorted(contract.outputs)}; an Actuator places no artifact "
-                "on the blackboard (BT-18-028)."
-            )

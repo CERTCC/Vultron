@@ -25,7 +25,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
-from vultron.core.models._helpers import days_from_now_utc
+from test.support.future_dates import days_from_now
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
     _RecommendActorActivity,
@@ -143,7 +143,7 @@ _PARTICIPANT_STATUS = as_ParticipantStatus(context=_CASE.id_)
 _EMBARGO = as_EmbargoEvent(
     name="Embargo Event",
     context="urn:uuid:case-123",
-    end_time=days_from_now_utc(45),
+    end_time=days_from_now(45),
 )
 _PARTICIPANT = as_CaseParticipant(attributed_to=_ACTOR.id_)
 _LOG_ENTRY = as_CaseLedgerEntry(
@@ -159,7 +159,7 @@ _LEAVE = _RmCloseCaseActivity(actor=_ACTOR, object_=_CASE)
 _PROPOSE = _EmProposeEmbargoActivity(
     actor=_ACTOR,
     object_=as_EmbargoEvent(
-        name="Embargo Event", context=_CASE.id_, end_time=days_from_now_utc(45)
+        name="Embargo Event", context=_CASE.id_, end_time=days_from_now(45)
     ),
     context=_CASE.id_,
 )

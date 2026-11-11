@@ -28,11 +28,11 @@ from fastapi.testclient import TestClient
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
+from test.support.future_dates import days_from_now
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -440,7 +440,7 @@ def owner_case_under_embargo(dl, actor):
     embargo = as_EmbargoEvent(
         id_=f"{case_obj.id_}/embargo_events/e1",
         context=case_obj.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(embargo)
     activate(case_obj, embargo)
@@ -514,15 +514,15 @@ def test_trigger_leave_case_failing_pre_close_action_returns_422(
     client_triggers, dl, actor, case_with_participant
 ):
     """A failing PreCloseAction backend answers 422 with nothing queued."""
+    from test.support.call_out import declines_to_act
     from vultron.core.behaviors.call_out.bundles.close_report import (
         CloseReportCallOutBundle,
     )
-    from vultron.core.behaviors.call_out.nodes import AlwaysFail
     from vultron.core.use_cases.triggers.case import leave as leave_module
 
     build_tree = leave_module.create_leave_case_trigger_tree
     failing = CloseReportCallOutBundle(
-        pre_close_action_factory=AlwaysFail  # type: ignore[arg-type]
+        pre_close_action_factory=declines_to_act
     )
 
     def _with_failing_call_out(**kwargs):
@@ -1011,7 +1011,7 @@ def test_trigger_add_object_to_case_unknown_case_returns_404(
         ),
         pytest.param(
             lambda case_id: as_EmbargoEvent(
-                context=case_id, end_time=days_from_now_utc(45)
+                context=case_id, end_time=days_from_now(45)
             ),
             id="own-flow-embargo",
         ),

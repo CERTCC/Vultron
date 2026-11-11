@@ -33,11 +33,13 @@ from test.core.services.test_received_holding import (
     _stored,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
     ReceivedStage,
 )
-from vultron.core.services.held_ledger_announces import _received_body
+from vultron.core.services.held_ledger_announces import _record_in_holding
+from vultron.core.services.received_activity import sealed_body_of
 from vultron.core.services.received_holding import (
     discard_holding,
     hold_for_replay,
@@ -74,7 +76,12 @@ def test_holding_a_handled_record_makes_it_held_and_owing(dl):
     activity_id = _aid("handled-hold")
     _handled(dl, activity_id)
 
-    assert hold_for_replay(dl, activity_id, _body(activity_id)) is True
+    assert (
+        hold_for_replay(
+            dl, activity_id, _body(activity_id), received_at=now_utc()
+        )
+        is True
+    )
 
     stored = _stored(dl, activity_id)
     assert (stored.stage, stored.replay_owed) == (ReceivedStage.HELD, True)
@@ -118,7 +125,13 @@ def test_a_refused_rerun_leaves_a_receipt_stub(dl):
     activity_id = _aid("handled-refused")
     _handled(dl, activity_id)
 
-    write_receipt_stub(dl, activity_id, sender_id=SENDER, reason="refused")
+    write_receipt_stub(
+        dl,
+        activity_id,
+        sender_id=SENDER,
+        reason="refused",
+        received_at=now_utc(),
+    )
 
     assert _stored(dl, activity_id).is_receipt_stub
 
@@ -128,7 +141,9 @@ def test_a_handled_announce_still_has_its_body_to_hold(dl):
     activity_id = _aid("handled-announce")
     _handled(dl, activity_id)
 
-    assert _received_body(dl, activity_id) == _body(activity_id)
+    assert sealed_body_of(_record_in_holding(dl, activity_id)) == _body(
+        activity_id
+    )
 
 
 @pytest.mark.spec("CLP-10-074")
@@ -142,13 +157,19 @@ def test_records_left_in_holding_are_the_unsettled_ones_oldest_first(dl):
         )
     )
     _archive(dl, _aid("left-archived"))
-    hold_for_replay(dl, _aid("left-waiting"), _body(_aid("left-waiting")))
+    hold_for_replay(
+        dl,
+        _aid("left-waiting"),
+        _body(_aid("left-waiting")),
+        received_at=now_utc(),
+    )
     write_receipt_stub(
         dl,
         _aid("left-refused"),
         sender_id=SENDER,
         reason="refused",
         received_body=_body(_aid("left-refused")),
+        received_at=now_utc(),
     )
 
     assert [r.activity_id for r in records_left_in_holding(dl)] == [

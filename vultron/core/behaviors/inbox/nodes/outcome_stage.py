@@ -49,11 +49,13 @@ in-memory state an earlier stage left behind (ADR-0154).
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.inbox.models import ReceivedOutcomePort
 from vultron.core.behaviors.inbox.nodes.pipeline import (
     KEY_DISPOSITION,
@@ -75,6 +77,8 @@ def record_received_outcome(
     event: VultronEvent,
     disposition: HandlerDisposition,
     reason: str | None,
+    *,
+    at: datetime,
 ) -> None:
     """Record *disposition* as *event*'s final stage through *port*.
 
@@ -96,6 +100,9 @@ def record_received_outcome(
         sender_id=event.actor_id,
         reason=reason or "refused",
         received_body=event.received_evidence,
+        # The delivery's arrival stamp: a stub written with no record behind
+        # it records the time of receipt (CLP-10-018, ADR-0176).
+        received_at=at,
     )
 
 
@@ -181,7 +188,11 @@ class SettleReceivedOutcome(py_trees.decorators.Decorator):
         if port is None:
             return
         record_received_outcome(
-            port, event, disposition, self._read(KEY_FAILURE_REASON)
+            port,
+            event,
+            disposition,
+            self._read(KEY_FAILURE_REASON),
+            at=read_act_instant(),
         )
 
     def _port(self, event: VultronEvent) -> ReceivedOutcomePort | None:

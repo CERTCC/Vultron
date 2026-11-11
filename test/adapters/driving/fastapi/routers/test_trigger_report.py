@@ -28,11 +28,11 @@ from fastapi.testclient import TestClient
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
+from test.support.future_dates import days_from_now
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_report as trigger_report_router,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -226,7 +226,7 @@ def non_report_object(dl):
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     obj = as_EmbargoEvent(
-        context="urn:uuid:some-case", end_time=days_from_now_utc(45)
+        context="urn:uuid:some-case", end_time=days_from_now(45)
     )
     dl.create(obj)
     return obj
@@ -780,7 +780,7 @@ class TestSubmitReportProposedEmbargo:
     def test_the_offer_in_the_response_carries_the_proposed_terms(
         self, client_triggers, actor
     ):
-        end = days_from_now_utc(10)
+        end = days_from_now(10)
         resp = client_triggers.post(
             f"/actors/{actor.id_}/trigger/submit-report",
             json={**self._BODY, "proposed_embargo_end_time": end.isoformat()},

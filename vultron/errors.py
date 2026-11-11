@@ -726,3 +726,13 @@ class DemoFailureError(VultronError):
         lines = [f"{len(self.failures)} demo failure(s):"]
         lines.extend(f"  {f}" for f in self.failures)
         return "\n".join(lines)
+
+
+class LedgerReadError(VultronError):
+    """Raised when a case-ledger file handed to the measure layer cannot be read.
+
+    Raised by :func:`vultron.measure.ledger.read_ledger_file` for a file that is
+    missing, unreadable or not UTF-8 text.  A malformed *row* is never this
+    error: the reader degrades it to one unusable row and reads the rest
+    (CEH-02-008).
+    """

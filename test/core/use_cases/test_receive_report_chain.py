@@ -21,6 +21,7 @@ import pytest
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -29,7 +30,6 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -118,7 +118,7 @@ def _build_case(
     embargo = EmbargoEvent(
         id_=f"{case.id_}/embargoes/chain-embargo",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(embargo)
     activate(case, embargo.id_)

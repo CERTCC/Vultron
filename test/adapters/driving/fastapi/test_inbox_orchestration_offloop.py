@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
@@ -78,7 +79,9 @@ def test_process_payload_runs_off_the_event_loop(monkeypatch, quiet_pipeline):
     _install_process_payload(monkeypatch, fake_process_payload)
 
     async def _run() -> int:
-        await run_inbox_pipeline({}, quiet_pipeline, _ACTOR_ID, None, None)
+        await run_inbox_pipeline(
+            {}, quiet_pipeline, _ACTOR_ID, None, None, arrived_at=ACT_AT
+        )
         return threading.get_ident()
 
     loop_thread = asyncio.run(_run())
@@ -123,7 +126,9 @@ def test_event_loop_keeps_serving_while_a_payload_is_processed(
 
     async def _run() -> bool:
         pipeline = asyncio.create_task(
-            run_inbox_pipeline({}, quiet_pipeline, _ACTOR_ID, None, None)
+            run_inbox_pipeline(
+                {}, quiet_pipeline, _ACTOR_ID, None, None, arrived_at=ACT_AT
+            )
         )
         while not parked.is_set() and not pipeline.done():
             await asyncio.sleep(0.001)

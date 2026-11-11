@@ -30,21 +30,27 @@ from py_trees.common import Status
 
 from test.conftest import seed_case_owner_participant
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate, propose, terminate
+from test.support.future_dates import from_now
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
 from vultron.core.behaviors.case.nodes import embargo as embargo_nodes_module
 from vultron.core.behaviors.case.nodes.embargo import (
+    CreateEmbargoEventNode,
     creation_time_embargo_id,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseEmbargoAlreadyInitializedNode,
     CaseNotEmbargoEligibleNode,
 )
+from vultron.core.behaviors.case.nodes.embargo_revision import (
+    ResolveCreationTimeRevisionNode,
+)
 from vultron.core.behaviors.embargo.nodes import em_state as em_state_module
-from vultron.core.models._helpers import _as_id, from_now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronOrganization, VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -66,6 +72,7 @@ from vultron.errors import (
     BtNodePreconditionError,
     VultronError,
     VultronInvalidStateTransitionError,
+    VultronMissingActInstantError,
     VultronValidationError,
 )
 
@@ -134,7 +141,7 @@ def _store_policy_record(
 
 def _set_pxa(bt_scenario: BTTestScenario) -> None:
     case = cast(Any, bt_scenario.dl.read(CASE_ID))
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     bt_scenario.dl.save(case)
 
 
@@ -176,19 +183,15 @@ def _run(
             extra.setdefault(
                 "sender_proposed_embargo",
                 EmbargoEvent(
-                    context=REPORT_ID, end_time=from_now_utc(sender_proposal)
+                    context=REPORT_ID, end_time=from_now(sender_proposal)
                 ),
             )
-    result = bt_scenario.run(
-        InitializeDefaultEmbargoNode(
-            actor_config=actor_config
-            or ActorConfig(protocol_default_embargo_duration=PROTOCOL_DEFAULT),
-            report_id=report_id,
-        ),
-        actor_id=ACTOR_ID,
-        case_id=CASE_ID,
-        **extra,
+    node = InitializeDefaultEmbargoNode(
+        actor_config=actor_config
+        or ActorConfig(protocol_default_embargo_duration=PROTOCOL_DEFAULT),
+        report_id=report_id,
     )
+    result = bt_scenario.run(node, actor_id=ACTOR_ID, case_id=CASE_ID, **extra)
     return result.status, before, datetime.now(tz=UTC)
 
 
@@ -564,6 +567,98 @@ def test_a_contest_registers_the_revision_without_indexing_it(
     assert revision_id not in case.pending_embargo_proposal_index
 
 
+@pytest.mark.spec("CS-13-004")
+@pytest.mark.spec("EP-04-010")
+def test_the_default_embargo_ends_the_duration_after_the_act_instant(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """``CreateEmbargoEventNode`` measures the end from the act's instant.
+
+    The instant is a year past the wall clock, so an end measured from a
+    clock read would miss it by that year (ADR-0176).
+    """
+    at = from_now(timedelta(days=365))
+
+    status, _, _ = _run(bt_scenario, at=at)
+
+    assert status == Status.SUCCESS
+    embargo = _active_embargo(bt_scenario)
+    assert embargo is not None
+    assert embargo.end_time == at + PROTOCOL_DEFAULT
+
+
+@pytest.mark.spec("CS-13-004")
+@pytest.mark.spec("EP-04-011")
+def test_the_revision_ends_the_actor_default_after_the_act_instant(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """``ResolveCreationTimeRevisionNode`` measures the losing actor default
+    from the act's instant, a year past the wall clock (ADR-0176)."""
+    at = from_now(timedelta(days=365))
+
+    status, _, _ = _run(
+        bt_scenario,
+        owner_policy=ACTOR_DEFAULT,
+        sender_proposal=SENDER_PROPOSAL,
+        at=at,
+    )
+
+    assert status == Status.SUCCESS
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    (revision_id,) = case.proposed_embargo_ids
+    revision = bt_scenario.dl.read(revision_id)
+    assert isinstance(revision, EmbargoEvent)
+    assert revision.end_time == at + ACTOR_DEFAULT
+
+
+@pytest.mark.spec("CS-13-002")
+@pytest.mark.parametrize(
+    ("node_type", "owner_policy", "sender_proposal"),
+    [
+        pytest.param(CreateEmbargoEventNode, None, None, id="default-embargo"),
+        pytest.param(
+            ResolveCreationTimeRevisionNode,
+            ACTOR_DEFAULT,
+            SENDER_PROPOSAL,
+            id="creation-time-revision",
+        ),
+    ],
+)
+def test_a_missing_act_instant_creates_no_embargo(
+    bt_scenario: BTTestScenario,
+    case_obj: VulnerabilityCase,
+    monkeypatch: pytest.MonkeyPatch,
+    node_type: type,
+    owner_policy: timedelta | None,
+    sender_proposal: timedelta | None,
+) -> None:
+    """Each node takes the end's start from the act's instant, through the
+    one guard, and never from the clock: when the guard finds none, the run
+    fails and writes nothing (ADR-0176, ARCH-10-001).
+
+    On the revision path the sender's own event carries over, so
+    ``CreateEmbargoEventNode`` needs no instant and
+    ``ResolveCreationTimeRevisionNode`` is the node that asks for it.
+    """
+
+    def _missing(_self: object) -> datetime:
+        raise VultronMissingActInstantError("no act instant")
+
+    monkeypatch.setattr(node_type, "_require_act_instant", _missing)
+
+    status, _, _ = _run(
+        bt_scenario, owner_policy=owner_policy, sender_proposal=sender_proposal
+    )
+
+    assert status == Status.FAILURE
+    assert _em_state(bt_scenario) == EM.NONE
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    assert case.active_embargo is None
+    assert case.proposed_embargo_ids == []
+
+
 @pytest.mark.spec("EP-04-003")
 def test_a_crash_inside_the_registration_leaves_the_case_uninitialized(
     bt_scenario: BTTestScenario,
@@ -915,7 +1010,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
         """A rerun of the sender branch adopts the Reporter's own event,
         under the Reporter's id (``persist_creation_time_embargo``)."""
         sender_event = EmbargoEvent(
-            context=REPORT_ID, end_time=from_now_utc(SENDER_PROPOSAL)
+            context=REPORT_ID, end_time=from_now(SENDER_PROPOSAL)
         )
         run_args: dict[str, Any] = {
             "sender_proposal": SENDER_PROPOSAL,
@@ -1003,7 +1098,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
             bt_scenario,
             sender_proposal=SENDER_PROPOSAL,
             sender_proposed_embargo=_sender_event(
-                from_now_utc(SENDER_PROPOSAL), event_id=event_id
+                from_now(SENDER_PROPOSAL), event_id=event_id
             ),
         )
 
@@ -1286,13 +1381,13 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
     def _sender_event(self) -> EmbargoEvent:
         """The sender's terms, built once so a rerun carries the same ones.
 
-        A second ``from_now_utc`` would give the rerun a different
+        A second ``from_now`` would give the rerun a different
         ``end_time``, which the stored twin then refuses (EP-04-004).
         """
         return EmbargoEvent(
             id_=self.SENDER_EVENT_ID,
             context=REPORT_ID,
-            end_time=from_now_utc(SENDER_PROPOSAL),
+            end_time=from_now(SENDER_PROPOSAL),
         )
 
     def _run_contest(self, bt_scenario: BTTestScenario) -> Status:
@@ -1507,7 +1602,7 @@ class TestTheRevisionIsConsentedToByItsProposer:
             owner_profile=_profile(timedelta(days=10)),
             sender_proposed_embargo_duration=SENDER_PROPOSAL,
             sender_proposed_embargo=EmbargoEvent(
-                context=REPORT_ID, end_time=from_now_utc(SENDER_PROPOSAL)
+                context=REPORT_ID, end_time=from_now(SENDER_PROPOSAL)
             ),
         )
 

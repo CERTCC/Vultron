@@ -28,6 +28,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -64,7 +65,7 @@ def _make_case_with_pxa(pxa_state: CS_pxa) -> VulnerabilityCase:
         id_=CASE_ID, name="Invariant Guard Test", attributed_to=ACTOR_ID
     )
     if pxa_state != CS_pxa.pxa:
-        case.append_case_status(pxa=pxa_state)
+        case.append_case_status(ACT_AT, pxa=pxa_state)
     return case
 
 

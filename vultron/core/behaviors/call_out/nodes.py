@@ -15,7 +15,9 @@
 
 This module provides the two **deterministic** call-out point backends used by
 the ``<DOMAIN>_DETERMINISTIC`` bundles: :class:`AlwaysSucceed` (always answers
-*yes*) and :class:`AlwaysFail` (always answers *no*).
+*yes*) and :class:`AlwaysFail` (always answers *no*), and
+:class:`NoOpActuator`, the :class:`AlwaysSucceed` every Actuator field
+defaults to.
 
 These are core-owned, production-usable backends: the DETERMINISTIC bundle is
 the happy-path default a real actor uses when a call-out point has no wired-in
@@ -54,6 +56,7 @@ References
 
 from __future__ import annotations
 
+from vultron.core.behaviors.call_out.actuator import ActuatorBackend
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 
@@ -100,6 +103,17 @@ class AlwaysFail(CallOutBackend):
         return CallOutAnswer.no(DETERMINISTIC_REFUSAL_REASON)
 
 
+class NoOpActuator(ActuatorBackend, AlwaysSucceed):
+    """Deterministic Actuator default: acts on nothing and answers *yes*.
+
+    The ceiling default (an :class:`AlwaysSucceed`, BT-23-002) of every
+    Actuator call-out point a deployment has not wired.  It causes no side
+    effect, so a repeat under the same idempotency id repeats nothing
+    (BT-18-044), and it still refuses a tick with no bound target
+    (BT-18-041).
+    """
+
+
 class RequireCaseOwnerApprovalNode(CallOutBackend):
     """Conservative approval gate: blocking stub pending full round-trip.
 
@@ -134,5 +148,6 @@ __all__ = [
     "AlwaysFail",
     "CASE_OWNER_APPROVAL_REQUIRED_REASON",
     "DETERMINISTIC_REFUSAL_REASON",
+    "NoOpActuator",
     "RequireCaseOwnerApprovalNode",
 ]

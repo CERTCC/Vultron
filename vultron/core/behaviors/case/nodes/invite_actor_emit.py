@@ -20,6 +20,7 @@ reply deadline (CM-11-014); a replacement issued after an embargo change names
 the Invite it supersedes in ``inReplyTo`` (CM-11-044).
 """
 
+from datetime import datetime
 from typing import cast
 
 from py_trees.ports import NoDataAvailable, PortInformation
@@ -59,6 +60,7 @@ def build_stub_invite(
     case_id: str,
     invitee_id: str,
     roles: list[str] | None,
+    published: datetime,
     attributed_to: str | None = None,
     in_reply_to: str | None = None,
     actor_config: ActorConfig | None = None,
@@ -70,8 +72,10 @@ def build_stub_invite(
     CASE_MANAGER stamps the deadline (CM-11-014, CM-28-012) and the stub
     carries the terms of the embargo active now (CM-17-002).  The caller
     queues it and then commits it with :func:`commit_stub_invite` (CM-17-006,
-    ADR-0119).  *activity_id*, when given, is the Invite's id; absent, the
-    factory mints one.  An Invite built under an id the store already holds
+    ADR-0119).  *published* is the sending act's instant (ADR-0176): the
+    Invite's ``published``, which its deadline is measured from.
+    *activity_id*, when given, is the Invite's id; absent, the factory mints
+    one.  An Invite built under an id the store already holds
     is the earlier attempt's Invite: the factory hands back the body sealed
     then, and the outbox and the commit each record it once (OX-06-002).
     Returns ``(activity_id, activity_blob)``.
@@ -93,6 +97,7 @@ def build_stub_invite(
         current_stub_embargo_end(datalayer, case)
         if case is not None
         else None,
+        published,
         actor_config,
     )
     # ``None`` is the manager's own invitation; otherwise the participant who
@@ -218,6 +223,7 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
             case_id=self.case_id,
             invitee_id=self._invitee(),
             roles=roles,
+            published=self._require_act_instant(),
             attributed_to=self.attributed_to,
             in_reply_to=self._in_reply_to_id(),
             actor_config=self._actor_config,

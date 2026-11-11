@@ -48,6 +48,7 @@ from vultron.adapters.driving.fastapi.inbox_queue_drain import (
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.inbox_staging.staging import _stage_inline_object
 from vultron.adapters.inbox_staging.store import _StagingStore
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -135,7 +136,7 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
     queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
     body = _add_note_body()
     routed = _routed(dl, body, staging=staging)
-    queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
+    queue.queue(activity_id=routed.id_, case_id=_CASE_ID, at=now_utc())
     held = dl.read(ReceivedActivityRecord.build_id(routed.id_))
     assert isinstance(held, ReceivedActivityRecord)
     assert held.stage is ReceivedStage.HELD
@@ -149,7 +150,7 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
             attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="arrived"
         )
     )
-    queue.replay(_CASE_ID)
+    queue.replay(_CASE_ID, at=now_utc())
     replay_id = dl.inbox_pop()
     assert replay_id == routed.id_
     replayed = StoredActivityIngressAdapter(dl=dl, staging=staging).parse(
@@ -173,7 +174,7 @@ def test_expired_queue_drops_the_inline_objects_held_for_replay(dl):
     staging = InlineObjectStaging(dl)
     queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
     routed = _routed(dl, _add_note_body(), staging=staging)
-    queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
+    queue.queue(activity_id=routed.id_, case_id=_CASE_ID, at=now_utc())
     pending = dl.read(VultronPendingCaseInbox.build_id(_CASE_ID))
     assert isinstance(pending, VultronPendingCaseInbox)
     dl.save(
@@ -183,9 +184,7 @@ def test_expired_queue_drops_the_inline_objects_held_for_replay(dl):
     )
 
     expired = _expire_pending_case_activities(
-        case_id=_CASE_ID,
-        queue_dl=dl,
-        timeout_seconds=1,
+        case_id=_CASE_ID, queue_dl=dl, timeout_seconds=1, at=now_utc()
     )
 
     assert expired is True
@@ -214,7 +213,12 @@ def test_staging_store_is_emptied_when_the_rebuild_raises(dl):
         raise RuntimeError("rebuild failed")
 
     with pytest.raises(RuntimeError, match="rebuild failed"):
-        staging._rehydrate(parsed.id_, _stage_then_fail, received_body=None)
+        staging._rehydrate(
+            parsed.id_,
+            _stage_then_fail,
+            received_body=None,
+            verified_proofs=(),
+        )
 
     assert _StagingStore(dl, "urn:uuid:next").read(_NOTE_ID) is None
 
@@ -241,7 +245,7 @@ def test_held_rows_are_released_when_the_replay_rebuild_raises(
     staging = InlineObjectStaging(dl)
     queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
     routed = _routed(dl, _add_note_body(), staging=staging)
-    queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
+    queue.queue(activity_id=routed.id_, case_id=_CASE_ID, at=now_utc())
     held_id = ReceivedActivityRecord.build_id(routed.id_)
     assert dl.read(held_id) is not None
 
@@ -623,7 +627,7 @@ def test_deferring_an_activity_with_no_inline_object_holds_it_alone(dl):
     )
     routed = _routed(dl, body, staging=staging)
 
-    queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
+    queue.queue(activity_id=routed.id_, case_id=_CASE_ID, at=now_utc())
 
     held = dl.read(ReceivedActivityRecord.build_id(routed.id_))
     assert isinstance(held, ReceivedActivityRecord)
@@ -666,13 +670,13 @@ def test_a_redelivery_of_a_deferred_activity_is_not_held_again(dl):
     staging = InlineObjectStaging(dl)
     first = _add_note_body(content="first")
     routed = _routed(dl, first, staging=staging)
-    assert staging.hold_for_replay(routed.id_)
+    assert staging.hold_for_replay(routed.id_, received_at=now_utc())
     held_before = staging.held(routed.id_)
 
     again = InlineObjectStaging(dl)
     _routed(dl, json.loads(json.dumps(first)), staging=again)
 
-    assert again.hold_for_replay(routed.id_) is False
+    assert again.hold_for_replay(routed.id_, received_at=now_utc()) is False
     held = staging.held(routed.id_)
     assert held == held_before
     assert held is not None
@@ -685,12 +689,12 @@ def test_a_released_activity_queued_again_is_held_as_first_held(dl):
     staging = InlineObjectStaging(dl)
     body = _add_note_body()
     routed = _routed(dl, body, staging=staging)
-    assert staging.hold_for_replay(routed.id_)
+    assert staging.hold_for_replay(routed.id_, received_at=now_utc())
 
     replaying = InlineObjectStaging(dl)
     assert replaying.rehydrate_deferred(routed.id_) is not None
     assert replaying.held(routed.id_) is None
-    assert replaying.hold_for_replay(routed.id_)
+    assert replaying.hold_for_replay(routed.id_, received_at=now_utc())
 
     held = replaying.held(routed.id_)
     assert held is not None
@@ -708,7 +712,7 @@ def test_an_activity_with_no_sealed_body_cannot_be_held(dl):
     staging.rehydrate_parsed(built)
 
     with pytest.raises(VultronWiringError, match="no sealed body"):
-        staging.hold_for_replay(built.id_)
+        staging.hold_for_replay(built.id_, received_at=now_utc())
     assert staging.held(built.id_) is None
     assert sum(dl.count_all().values()) == 0, "nothing is written"
 
@@ -717,7 +721,10 @@ def test_a_stage_that_stages_no_activity_row_fails_loudly(dl):
     """A rebuild with no row for the activity itself is a wiring fault."""
     with pytest.raises(VultronWiringError, match="staged no row"):
         InlineObjectStaging(dl)._rehydrate(
-            "urn:uuid:unstaged", lambda _store: None, received_body=None
+            "urn:uuid:unstaged",
+            lambda _store: None,
+            received_body=None,
+            verified_proofs=(),
         )
     assert _StagingStore(dl, "urn:uuid:next").read("urn:uuid:unstaged") is None
 
@@ -729,7 +736,7 @@ def test_holding_what_was_never_staged_is_a_wiring_fault(dl):
 
     assert staging.can_hold("urn:uuid:x") is False
     with pytest.raises(VultronWiringError, match="share one"):
-        staging.hold_for_replay("urn:uuid:x")
+        staging.hold_for_replay("urn:uuid:x", received_at=now_utc())
     assert sum(dl.count_all().values()) == 0
 
 
@@ -740,14 +747,14 @@ def test_hold_again_holds_only_what_this_staging_released(dl):
     parsed = parse_activity(_add_note_body())
     holder = InlineObjectStaging(dl)
     holder.rehydrate_parsed(parsed)
-    holder.hold_for_replay(parsed.id_)
+    holder.hold_for_replay(parsed.id_, received_at=now_utc())
     staging = InlineObjectStaging(dl)
 
-    assert staging.hold_again(parsed.id_) is False
+    assert staging.hold_again(parsed.id_, received_at=now_utc()) is False
     assert staging.rehydrate_deferred(parsed.id_) is not None
     assert staging.held(parsed.id_) is None, "precondition: released"
 
-    assert staging.hold_again(parsed.id_) is True
+    assert staging.hold_again(parsed.id_, received_at=now_utc()) is True
     assert staging.held(parsed.id_) is not None
 
 
@@ -762,7 +769,9 @@ def test_a_failed_hold_queues_nothing(dl):
     )
 
     with pytest.raises(VultronWiringError):
-        queue.queue(activity_id="urn:uuid:unstaged", case_id=_CASE_ID)
+        queue.queue(
+            activity_id="urn:uuid:unstaged", case_id=_CASE_ID, at=now_utc()
+        )
 
     assert dl.read(VultronPendingCaseInbox.build_id(_CASE_ID)) is None
 

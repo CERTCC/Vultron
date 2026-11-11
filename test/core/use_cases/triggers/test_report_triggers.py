@@ -32,6 +32,7 @@ from pydantic import ValidationError
 
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate
+from test.support.future_dates import days_from_now
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -41,7 +42,6 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -137,7 +137,7 @@ def _make_case_with_embargo(
     """Build a VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
     an active embargo, and the report linked via vulnerability_reports."""
     embargo = as_EmbargoEvent(
-        context="urn:placeholder", end_time=days_from_now_utc(45)
+        context="urn:placeholder", end_time=days_from_now(45)
     )
     dl.create(embargo)
 
@@ -1125,7 +1125,7 @@ class TestSubmitReportProposedEmbargo:
     def test_the_offer_carries_the_stored_terms_about_the_report(self):
         from vultron.core.models.embargo_event import EmbargoEvent
 
-        end = days_from_now_utc(10)
+        end = days_from_now(10)
         offer = self._submit(proposed_embargo_end_time=end).offer
         assert offer is not None
 

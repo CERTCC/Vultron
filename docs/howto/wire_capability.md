@@ -217,6 +217,26 @@ The factory accepts a single `name: str` argument (the BT node's display name) a
 A `CallOutBackend` subclass is itself a valid factory, and so is a plain function or a lambda that returns one.
 The seam refuses a factory product that is not a `CallOutBackend`, when the tree is built.
 
+### Answer within the time budget
+
+Your backend answers in the same tick it is called, and it must also answer fast.
+Each actor sets a call-out time budget, `call_out_time_budget` in the `actor:` section of its configuration, with a default of 5 seconds.
+The budget is local to the actor and no peer sees it, so two deployments may set different values.
+
+The seam measures how long your backend took to answer.
+When it took longer than the budget, the seam discards the answer, whatever its verdict, and raises `CallOutBudgetExceededError`.
+The error names the node and the budget, and the bridge reports it as an internal error, so the message stays in holding to be tried again.
+
+The seam does not interrupt your backend: it runs on the tree's own thread, so the seam can only measure the time after your backend returns.
+A slow backend still holds the worker for as long as it takes, on every call.
+So never make an unbounded blocking call, such as a network request with no timeout, in your backend.
+Give every outside call a timeout shorter than the budget, and answer *error* when it expires.
+
+Work that cannot finish within the budget is not a call-out point:
+
+- A question that needs another actor in the case to decide is a protocol ask: the tree sends the request, ends, and acts on the reply when it arrives ([ADR-0080](../adr/0080-protocol-asks-not-suspended-behaviors.md)).
+- Work that runs for a long time, or watches for a condition, is a call-in: an outside process does the work and calls Vultron when it has a result (see [the Sentinel call-in pattern](../topics/capability_model/index.md#the-sentinel-call-in-pattern)).
+
 ### What the seam refuses
 
 The seam raises `CallOutContractError`, which the bridge reports as an internal error, when a backend does any of the following:
@@ -226,6 +246,57 @@ The seam raises `CallOutContractError`, which the bridge reports as an internal 
 - gives a *yes* that omits a declared output key, adds an undeclared one, or has a value of the wrong type;
 - gives a *no* with a refusal field that its contract does not declare;
 - is ticked outside the seam, for example placed in a tree by hand.
+
+### An Actuator acts on one target and is safe to repeat
+
+An Actuator causes a side effect in an external system: it submits an advisory, sends a notification, or writes a record.
+Three rules apply to every Actuator backend ([ADR-0183](../adr/0183-a-call-out-backend-answers-yes-no-or-error-and-the-seam-turns-the-answer-into-tree-behaviour.md)).
+
+1. **One target per call.**
+   Each call acts on exactly one target.
+   A tree that acts on several targets makes one call for each target and sees one verdict for each call.
+2. **Safe to repeat.**
+   Each call carries an idempotency id that the tree derives from the act and the target.
+   When a message is re-run from holding, every call gets the same id again.
+   Key your side effect on that id: when the id is one you have already acted on, do not act again, and answer *yes*.
+3. **Answer error when you cannot confirm.**
+   A side effect that you started but cannot confirm is *error*, not *no*.
+   A rejected credential is also *error*, never *no*.
+   Where your credentials live and which systems your Actuator may reach are a deployment matter, outside the protocol.
+
+Subclass `ActuatorBackend` and implement `act()`, not `answer()`.
+`act()` receives an `ActuationRequest` with the call's `target` and `idempotency_id`:
+
+```python
+from vultron.core.behaviors.call_out import (
+    ActuationRequest,
+    ActuatorBackend,
+    CallOutAnswer,
+)
+
+
+class MyAdvisorySubmitter(ActuatorBackend):
+    """Submits a finished advisory to an advisory platform."""
+
+    def act(self, request: ActuationRequest) -> CallOutAnswer:
+        try:
+            receipt = my_advisory_platform.submit(
+                advisory=request.target,
+                idempotency_key=request.idempotency_id,
+            )
+        except my_advisory_platform.CredentialRejected as exc:
+            return CallOutAnswer.error(f"advisory platform: {exc}")
+        except my_advisory_platform.Unavailable as exc:
+            return CallOutAnswer.error(f"advisory platform: {exc}")
+        if not receipt.confirmed:
+            return CallOutAnswer.error("advisory platform: no confirmation")
+        # A receipt for a key the platform already holds is a yes as well.
+        return CallOutAnswer.yes()
+```
+
+An Actuator declares no output keys: its `contract` is an `ActuatorContract`, and the class refuses one that declares outputs.
+The tree places each Actuator on its target with `actuator_call()`, so you do not choose the target yourself.
+The seam refuses an Actuator that is placed without a target, and a backend placed as an Actuator that is not an `ActuatorBackend`.
 
 ---
 
@@ -424,7 +495,7 @@ unchanged.
 
 - **[Capability Model](../topics/capability_model/index.md)** — the four capability shapes and the full catalog of known call-out points
 - **[Reference Implementation Architecture](../topics/reference_architecture.md)** — the hexagonal boundary, inbox pipeline, and behavior-tree model
-- **`vultron/core/behaviors/call_out/`** — `CallOutBackend`, `CallOutAnswer`, `CallOutContract`, the `SynchronousCallOut` seam, the `CallOutBackendFactory` Protocol, `AlwaysSucceed`/`AlwaysFail`, and all domain bundle dataclasses
+- **`vultron/core/behaviors/call_out/`** — `CallOutBackend`, `CallOutAnswer`, `CallOutContract`, the `SynchronousCallOut` seam and its time-bounded form `TimeBoundedCallOut`, the `CallOutBackendFactory` Protocol, `AlwaysSucceed`/`AlwaysFail`, and all domain bundle dataclasses
 - **`vultron/demo/fuzzer/`** — probabilistic fuzzer nodes (one per call-out point) and `STOCHASTIC` bundle singletons
 - **ADR-0024** — capability shape taxonomy
 - **ADR-0025** — call-out point abstraction layer and factory-injection pattern

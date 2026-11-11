@@ -19,11 +19,11 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
@@ -43,7 +43,7 @@ def _embargo() -> EmbargoEvent:
     return EmbargoEvent(
         id_=f"{_CASE}/embargo_events/e1",
         context=_CASE,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
 
 
@@ -95,7 +95,7 @@ def test_an_inline_embargo_of_another_case_is_refused_unstored(
     foreign = EmbargoEvent(
         id_=f"{other_case}/embargo_events/e1",
         context=other_case,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     case = VulnerabilityCase(
         attributed_to=CASE_OWNER_ID,
@@ -321,7 +321,7 @@ def _held_for_other_case(dl: SqliteDataLayer) -> EmbargoEvent:
     foreign = EmbargoEvent(
         id_=_embargo().id_,
         context=_OTHER_CASE,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(foreign)
     return foreign
@@ -383,7 +383,7 @@ def _held_for_report(dl: SqliteDataLayer, report_id: str) -> EmbargoEvent:
     proposal = EmbargoEvent(
         id_=_embargo().id_,
         context=report_id,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(proposal)
     return proposal
@@ -452,7 +452,7 @@ def test_an_inline_embargo_about_another_cases_report_is_refused_unstored(
     foreign = EmbargoEvent(
         id_=f"{_CASE}/embargo_events/e1",
         context=_OTHER_REPORT,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
 
     with pytest.raises(VultronValidationError, match=_OTHER_REPORT):
@@ -498,7 +498,7 @@ def test_an_inline_embargo_about_the_cases_report_is_stored(
 ) -> None:
     """With nothing held, an inline copy about the case's report is stored."""
     carried = EmbargoEvent(
-        id_=_embargo().id_, context=_REPORT, end_time=days_from_now_utc(45)
+        id_=_embargo().id_, context=_REPORT, end_time=days_from_now(45)
     )
 
     store_carried_embargo(_case_with_report(carried), dl)
@@ -573,7 +573,7 @@ def _case_naming(embargo: EmbargoEvent | str) -> VulnerabilityCase:
             EmbargoEvent(
                 id_="https://example.org/cases/other/embargo_events/e1",
                 context="https://example.org/cases/other",
-                end_time=days_from_now_utc(45),
+                end_time=days_from_now(45),
             ),
             VultronValidationError,
             id="inline-of-another-case",

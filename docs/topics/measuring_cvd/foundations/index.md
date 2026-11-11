@@ -50,7 +50,7 @@ The remaining pages use the measure or extend the model.
 - [Benchmarking CVD](../benchmarking.md) — What a reasonable benchmark for the skill coefficient is, and why the naive benchmark of zero is a low bar.
 - [Benchmarking MPCVD](../benchmarking_mpcvd.md) — Extending the measure to a case in which every affected vendor and product has its own history.
 - [State Space Size](../state_space_size.md) — How large the Vultron protocol state space is for each participant role and for a whole case, and why coordination keeps it tractable.
-- [Reward Functions](../reward_functions.md) — Criteria for reward functions over Report Management and Embargo Management histories, and the simulation work they would enable.
+- [Reward Functions](../reward_functions.md) — Path preferences as simple counts and ratios read from a case's event history, the 2022 reward-function criteria they come from, and the simulation work they would enable.
 
 <!-- END GENERATED SECTION CONTENTS -->
 

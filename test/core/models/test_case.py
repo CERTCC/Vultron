@@ -18,9 +18,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import no_clock
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, terminate
-from vultron.core.models._helpers import clock as helpers_clock
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -31,7 +31,6 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.demo.determinism import SteppingClock
 from vultron.errors import VultronValidationError
 
 _ACTOR = "https://example.org/actor"
@@ -551,48 +550,57 @@ def _status_at(case: VulnerabilityCase, index: int) -> CaseStatus:
     return status
 
 
-class TestVulnerabilityCaseAppendCaseStatusClock:
-    """append_case_status stamps via now_utc() and stays ordered (CS-13-002/007)."""
+class TestVulnerabilityCaseAppendCaseStatusAtTheActInstant:
+    """append_case_status stamps from the act's instant, ordered (CM-29-005).
 
-    _PINNED = datetime(2026, 5, 4, 12, 0, 0, 123456, tzinfo=UTC)
+    Each test holds :func:`no_clock`, so a stamp that read the clock fails
+    rather than passing on a clock that happens to agree (ADR-0176).
+    """
 
-    @pytest.fixture
-    def frozen_clock(self, monkeypatch: pytest.MonkeyPatch) -> datetime:
-        monkeypatch.setattr(
-            helpers_clock,
-            "datetime",
-            SteppingClock(self._PINNED, step=timedelta(0)),
-        )
-        return self._PINNED
+    _AT = datetime(2026, 5, 4, 12, 0, 0, 123456, tzinfo=UTC)
 
-    def test_append_case_status_takes_its_time_from_now_utc(
-        self, frozen_clock: datetime
+    @pytest.mark.spec("CS-13-002")
+    def test_append_case_status_takes_its_time_from_the_act_instant(
+        self,
     ) -> None:
         case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
-        case.current_status.published = frozen_clock - timedelta(hours=1)
-        case.append_case_status(pxa=CS_pxa.Pxa)
+        case.current_status.published = self._AT - timedelta(hours=1)
+        with no_clock():
+            case.append_case_status(self._AT, pxa=CS_pxa.Pxa)
         appended = _status_at(case, -1)
-        assert appended.published == frozen_clock
+        assert appended.published == self._AT
         assert appended.updated is None
 
     @pytest.mark.spec("CM-29-005")
-    def test_same_tick_appends_stay_strictly_ordered(
-        self, frozen_clock: datetime
-    ) -> None:
+    def test_two_appends_in_one_act_sort_in_append_order(self) -> None:
         case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
-        case.append_case_status(pxa=CS_pxa.Pxa)
-        case.append_case_status(pxa=CS_pxa.PXa)
+        case.current_status.published = self._AT - timedelta(hours=1)
+        with no_clock():
+            case.append_case_status(self._AT, pxa=CS_pxa.Pxa)
+            case.append_case_status(self._AT, pxa=CS_pxa.PXa)
         first, second = _status_at(case, -2), _status_at(case, -1)
-        assert first.published < second.published
+        assert first.published == self._AT
+        assert second.published == self._AT + timedelta(microseconds=1)
         assert case.current_status is second
 
     @pytest.mark.spec("CM-29-005")
-    def test_bump_from_a_latest_ahead_of_the_clock_sorts_after_it(
-        self, frozen_clock: datetime
+    def test_bump_from_a_latest_ahead_of_the_instant_sorts_after_it(
+        self,
     ) -> None:
         case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
-        latest = frozen_clock + timedelta(microseconds=500)
+        latest = self._AT + timedelta(microseconds=500)
         case.current_status.published = latest
-        case.append_case_status(pxa=CS_pxa.Pxa)
+        with no_clock():
+            case.append_case_status(self._AT, pxa=CS_pxa.Pxa)
         stamp = _status_at(case, -1).published
         assert stamp == latest + timedelta(microseconds=1)
+
+    @pytest.mark.spec("CS-13-001")
+    def test_a_naive_instant_is_refused_and_appends_nothing(self) -> None:
+        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        before = list(case.case_statuses)
+        with pytest.raises(ValueError, match="timezone-aware"):
+            case.append_case_status(
+                self._AT.replace(tzinfo=None), pxa=CS_pxa.Pxa
+            )
+        assert case.case_statuses == before

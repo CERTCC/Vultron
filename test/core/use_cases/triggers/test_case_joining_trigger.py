@@ -51,6 +51,7 @@ from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
 )
+from test.support.future_dates import days_from_now
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -63,7 +64,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -275,7 +275,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
         id_=f"{case.id_}/embargo/e1",
         content="Active embargo",
         context=case.id_,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(embargo)
     activate(case, embargo.id_)
@@ -350,7 +350,7 @@ def test_joined_participant_never_answers_the_original_report_offer(
     )
 
     embargo = as_EmbargoEvent(
-        context="urn:placeholder", end_time=days_from_now_utc(45)
+        context="urn:placeholder", end_time=days_from_now(45)
     )
     dl.create(embargo)
     case = VulnerabilityCase(name="Joined Case", attributed_to=case_actor.id_)

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.embargo.invite_received_tree import (
     EmbargoInviteFault,
     EmbargoInviteSubjects,
@@ -225,6 +226,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         case_id = request.context_id or ""
         # ``activity_id`` is a required ``NonEmptyString`` on every event.
         invite_id = request.activity_id
+        self._warn_if_deadline_past(invite_id)
         subjects = self._subjects(case_id, invite_id)
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
@@ -271,6 +273,28 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         # it stamped at its relay's commit, and a replica records that value
         # from the committed entry (CM-28-024, CM-28-023).
         return verdict
+
+    def _warn_if_deadline_past(self, invite_id: str) -> None:
+        """Warn when the Invite's deadline has passed at the act's instant.
+
+        The extractor measured the deadline and read no clock; this handler
+        holds the act's instant, so it asks whether the deadline has passed
+        (ADR-0176).  A past deadline is surfaced, never refused: the
+        invitation lapses on the next expiry check.
+        """
+        request = self._request
+        at = read_act_instant()
+        if request.rsvp_deadline > at:
+            return
+        logger.warning(
+            "invite_to_embargo_on_case: invite '%s' from actor '%s'"
+            " rsvp_deadline %s is already past at %s; the invitation lapses"
+            " on the next check",
+            invite_id,
+            request.actor_id,
+            request.rsvp_deadline.isoformat(),
+            at.isoformat(),
+        )
 
     def _refusal(
         self,

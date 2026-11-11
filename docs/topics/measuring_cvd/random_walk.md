@@ -168,3 +168,29 @@ PageRank traversals to wrap around naturally and reach the early states
 in the random walk process without needing to rely on teleportation.
 With our modification in place, we are ready to compute the PageRank of
 each node in the graph. Results are shown in the preceding table.
+
+## How the walk is scoped
+
+The PageRank values above estimate how often a walk is in each state.
+The baseline of a desideratum is a different quantity: the frequency ($f_d$) with which the walk's history meets the desideratum.
+The walk gives each baseline exactly, as an absorbing Markov chain, with no simulation.
+
+Each desideratum takes its baseline from the smallest model that holds its events ([ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md)):
+
+- The twelve original desiderata use the six-event CS model of this page.
+- A desideratum about one vendor, the case's shared events, or the embargo uses a model of one vendor, with the vendor's Report Management (RM) state, the shared events, and the embargo.
+- A desideratum that relates two vendors uses the same model with two vendors.
+
+The walk does not cover a whole case with all of its participants.
+The states of such a walk grow combinatorially with the number of participants, and its baselines change with that number.
+Thus a baseline is a one-vendor (or two-vendor) chance baseline, and one table serves every case.
+[Desiderata from the Process Models](./process_model_desiderata.md#chance-baselines) gives the rules of the larger models and their baselines.
+
+Run on the six-event model, the computation gives the baselines below.
+These are the published values of the [event frequency table](./reasoning_over_histories.md), as exact fractions.
+
+```python exec="true" idprefix=""
+from vultron.measure.baselines.render import original_baseline_table
+
+print(original_baseline_table())
+```

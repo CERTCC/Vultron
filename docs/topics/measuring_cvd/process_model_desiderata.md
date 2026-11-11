@@ -159,8 +159,8 @@ A default embargo is a mechanism that makes the case achieve the desideratum mor
 The desideratum of an embargo exit on its own terms before public awareness, a public exploit, and observed attacks is the most useful of these.
 Public awareness and a public exploit each end an active embargo (VP-09-001).
 Thus any $\evEx$ after $\evP$ or $\evX$ is $\evExThreat$.
-Observed attacks SHOULD also end an active embargo (VP-09-003).
-Thus $\evEx$ after $\evA$ is usually, but not always, $\evExThreat$.
+Observed attacks SHOULD also end an active embargo (VP-09-003), and the CASE_MANAGER does not commit an active embargo beside observed attacks (CSB-18-004).
+Thus $\evEx$ after $\evA$ is also $\evExThreat$.
 
 The desideratum $\evExOwn \prec \evP$ shows that the embargo ended as planned.
 Disclosure did not force the end of the embargo.
@@ -292,18 +292,19 @@ Thus a measure sees only the deployers that join, and a case that invites no dep
 Some preferences are not orderings of two events.
 These preferences are about the shape of a history: how many steps the history has, or how the participants reached a decision.
 
-| Preference | Process model |
+| Preference | Measure |
 |---|---|
-| A participant answers an embargo Invite before its RSVP deadline, rather than leaving it to a pocket veto | PEC: `AGREED` or `DECLINED` over `TIMED_OUT`, not counting the Invites the case's close times out (CM-23-014) |
-| A case revises its embargo few times | EM: few passes through Revise |
-| An embargo is as short as the fixes allow | [EM Principles](../process_models/em/principles.md) |
-| A report is judged correctly: a real vul is Valid and a bogus report is Invalid | RM: validation accuracy |
+| A participant answers an embargo Invite before its RSVP deadline, rather than leaving it to a pocket veto | For each participant, the Invites answered before they time out, out of those Invites and the Invites that time out at their RSVP deadline, not counting the Invites the case's close times out before their deadline (CM-23-014) |
+| A case revises its embargo few times | For the case, the number of embargo revisions that the Case Owner activates, not counting the replacement of a default embargo |
+| An embargo is as short as the fixes allow ([EM Principles](../process_models/em/principles.md)) | For the case, the embargo duration divided by the time from embargo start until the last vendor's fix is ready |
+| A report is judged correctly: a real vul is Valid and a bogus report is Invalid | For each participant, the validation decisions known to be correct out of those whose correctness is known |
 
-[Reward Functions](./reward_functions.md) already uses these preferences as criteria for reward functions over RM and EM histories.
-This page lists these preferences to make the list complete, not as new proposals.
+[Reward Functions](./reward_functions.md) defines each measure and the events that it reads.
+Each measure is a simple count or ratio from the event history, and no measure combines them into one reward function ([ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md)).
+The preferences come from the criteria for reward functions over RM and EM histories in the original research, so this page lists them to make the list complete, not as new proposals.
 Order desiderata and path preferences need different measures.
 An order desideratum fits the skill coefficient ($\alpha_d$), which counts how often the order holds.
-A path preference needs a score over the whole history.
+A path preference is not an order of two events, so it has a count or ratio of its own instead.
 
 ---
 
@@ -331,27 +332,64 @@ The case cannot observe information shared by other routes, so a measure of the 
 
 ---
 
+## Chance baselines
+
+The skill coefficient needs a baseline: the frequency ($f_d$) with which each desideratum holds by chance.
+For the twelve original desiderata, the baseline comes from a [random walk](./random_walk.md) over the six-event CS model, in which each permitted next event has the same probability.
+The new events are in the RM, EM, and CS models together, and rules connect these models.
+A walk that ignores the rules gives baselines for histories that cannot occur.
+
+[ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) takes each baseline from the same walk over the smallest model that holds the events of the desideratum.
+Thus each baseline below is a **one-vendor chance baseline**, and the baseline of $\evV_i \prec \evF_j$ is a **two-vendor chance baseline**.
+The baseline measures skill against a case with one vendor (or two) that chance handles, not against a chance version of the case at hand.
+A desideratum that must hold for every vendor is scored for each vendor against the one-vendor baseline.
+Thus one table serves every case, whatever its number of participants.
+
+### The models
+
+The one-vendor model holds one vendor's RM state and fix path, the case's public awareness, exploit, and attack events, and the embargo.
+The two-vendor model holds two vendors with the same shared events and embargo.
+The models do not hold embargo consent or joining, because no ordering desideratum on this page names those events.
+
+The walk obeys every rule that the protocol enforces:
+
+- The RM, CS, and EM transition tables.
+- Vendor awareness and report receipt are one event ([Vendor Notification](../process_models/model_interactions/rm_em_cs.md#vendor-notification)).
+- A fix is ready only after the vendor's report is Accepted, Deferred, or Closed (CSB-18-001).
+- No embargo is active beside public awareness, a public exploit, or observed attacks (CSB-18-002, CSB-18-003, CSB-18-004).
+  Thus each of these events ends an active embargo in the same step, as $\evExThreat$.
+- Each of these events also cancels a pending embargo proposal (EMB-16-001), and after any of them no new embargo is proposed.
+
+An embargo that ends without a threat signal ends either on its own terms or otherwise, with the same probability.
+A preference that the protocol states only as a SHOULD does not constrain the walk, because the desiderata measure exactly those preferences.
+
+The walk is solved exactly, as an absorbing Markov chain, and not by simulation.
+The same computation, run on the six-event model, gives the published baselines of the twelve original desiderata ([A Random Walk through CVD States](./random_walk.md#how-the-walk-is-scoped)).
+
+### The baselines
+
+```python exec="true" idprefix=""
+from vultron.measure.baselines.render import extended_baseline_table
+
+print(extended_baseline_table())
+```
+
+The column "Exact" gives the baseline as a fraction when the fraction is short.
+
+The rules that connect the models change the baselines, and the change can be large.
+For example, $\evF \prec \evP$ has the baseline $1/9$ in the six-event model.
+In the one-vendor model, the fix must wait for the vendor to accept the report, so the baseline of $\evF_i \prec \evP$ is $1/24$.
+
+The baseline of $\evV_i \prec \evF_j$ is near 1.
+By chance, a second vendor seldom has a fix ready before the first vendor learns of the vul.
+Thus a case can show skill on this desideratum only by a small margin, and a case that fails it is notable.
+
+---
+
 ## Open problems
 
 The desiderata on this page are proposals.
-Three problems must be solved before these desiderata can have a measure like the skill coefficient of [Discriminating Skill and Luck](./discriminating_skill_and_luck.md).
-
-### The baseline needs a new walk
-
-The skill coefficient needs a baseline: the frequency ($f_d$) with which each desideratum holds by chance.
-For the twelve original desiderata, the baseline comes from a [random walk](./random_walk.md) over the six-event CS model.
-In that random walk, each permitted next event has the same probability.
-The new events are in a combined state space of RM, EM, PEC, and CS states.
-Thus the baselines of the new desiderata need a random walk over that combined state space.
-
-The rules that connect the models change the baselines, and the change can be large.
-For example, public awareness ends an active embargo.
-Thus $\evP$ and $\evExThreat$ occur together.
-Also, fix readiness requires an RM state of Accepted, Deferred, or Closed.
-Thus $\evF$ can never occur before the vendor reaches one of these RM states.
-
-A random walk that ignores these rules gives baselines for histories that cannot occur.
-No one has calculated the baseline of each new desideratum under the connected random walk.
+The problems below remain before these desiderata can have a measure like the skill coefficient of [Discriminating Skill and Luck](./discriminating_skill_and_luck.md).
 
 ### The desiderata are not independent
 
@@ -368,8 +406,32 @@ A stronger desideratum holds less often by chance than a weaker desideratum that
 Thus the stronger desideratum adds more to the score, and the weaker desideratum adds less.
 The score handles the dependence of the twelve original desiderata in this way, and the same method can apply to the new desiderata.
 
-Whether the method is sufficient for the new desiderata depends on their baselines, which Task [#6067](https://github.com/CERTCC/Vultron/issues/6067){:target="_blank"} computes ([ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md)).
-If a new desideratum and a desideratum that it implies have nearly the same baseline, the score counts nearly the same skill two times.
+The method is not sufficient when a desideratum and a desideratum that it implies have nearly the same baseline.
+Then the score counts nearly the same skill two times.
+The table below lists each pair in which an extended desideratum implies another desideratum in the one-vendor model.
+The walk finds each pair by a search of the model, not by an argument.
+The table leaves out a pair in which the weaker desideratum always holds within the scope of the pair.
+
+The table gives the frequency of each desideratum of the pair in the one-vendor model, among histories in the scope of both desiderata.
+Thus these frequencies can differ from the baselines in the table above, when the two desiderata have different scopes or one of them is an original desideratum.
+The column "Share" is the ratio of the two frequencies.
+It gives the chance that a history that meets the weaker desideratum also meets the stronger desideratum.
+The table flags a pair whose share is 90% or more as counting the same skill twice.
+
+```python exec="true" idprefix=""
+from vultron.measure.baselines.render import implication_table
+
+print(implication_table())
+```
+
+The flagged pairs are equivalent: each desideratum of the pair implies the other.
+No embargo is active beside $\evP$, $\evX$, or $\evA$.
+Thus an embargo can start only before all three events, and it can end on its own terms only before all three events.
+So $\evE \prec \evP$, $\evE \prec \evX$, and $\evE \prec \evA$ are one desideratum, and the three $\evExOwn$ desiderata are one desideratum.
+A score should count each group once.
+
+In the model, $\evExOwn \prec \evP$ holds whenever $\evExOwn$ occurs.
+Thus $\evF_i \prec \evExOwn$ alone implies $\evF_i \prec \evP$.
 
 ### The new events are easier to observe than the original events
 

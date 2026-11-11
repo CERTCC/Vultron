@@ -22,6 +22,7 @@ from typing import cast
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import (
     activate,
     propose,
@@ -123,7 +124,7 @@ def test_owner_rejecting_one_of_two_revisions_with_pxa_set_is_allowed(
     """
     owner, dl = owner_and_dl
     case, r1, r2, active_id = _case_with_two_open(dl, owner.id_, EM.REVISE)
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     dl.save(case)
     write_consent_rows(dl, case)
     lifecycle = EmbargoLifecycle(persistence=dl)

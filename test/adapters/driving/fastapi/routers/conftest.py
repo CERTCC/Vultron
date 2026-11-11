@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from test.support.embargo_register import activate, propose
 from test.support.emitter import RecordingEmitter
+from test.support.future_dates import days_from_now
 from test.support.signing import serve_published_profiles
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -29,7 +30,6 @@ from vultron.adapters.driving.fastapi.routers import (
     datalayer as datalayer_router,
     trigger_embargo as trigger_embargo_router,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.enums.roles import CVDRole
@@ -292,9 +292,7 @@ def case_with_embargo(dl, actor):
     case_obj = VulnerabilityCase(
         name="EMBARGO-CASE-001", attributed_to=actor.id_
     )
-    embargo = as_EmbargoEvent(
-        context=case_obj.id_, end_time=days_from_now_utc(45)
-    )
+    embargo = as_EmbargoEvent(context=case_obj.id_, end_time=days_from_now(45))
     dl.create(embargo)
     activate(case_obj, embargo.id_)
     dl.create(case_obj)
@@ -309,9 +307,7 @@ def case_with_proposal(dl, actor):
         name="PROPOSAL-CASE-001",
         attributed_to=actor.id_,
     )
-    embargo = as_EmbargoEvent(
-        context=case_obj.id_, end_time=days_from_now_utc(45)
-    )
+    embargo = as_EmbargoEvent(context=case_obj.id_, end_time=days_from_now(45))
     dl.create(embargo)
     proposal = em_propose_embargo_activity(
         embargo, context=case_obj.id_, actor=actor.id_

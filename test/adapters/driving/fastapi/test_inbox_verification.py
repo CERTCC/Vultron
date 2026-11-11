@@ -43,6 +43,7 @@ from vultron.adapters.driving.fastapi.inbox_verification import (
     decode_inbox_body,
 )
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.proof_verification import ProofVerificationPort
 from vultron.errors import VultronProofVerificationError
 from vultron.wire.as2 import signing
@@ -113,6 +114,38 @@ def test_a_body_naming_no_actor_has_no_author_to_verify_it():
 @pytest.mark.spec("SIG-04-002")
 def test_a_relayed_entry_needs_both_proofs():
     _verify(_announce(signed_body(_note())))
+
+
+def _published(actor_id: str) -> str:
+    """The key *actor_id*'s profile publishes, as the fetcher serves it."""
+    key = signing.seeded_signing_key(actor_id)
+    return signing.published_multikey(key, actor_id).public_key_multibase
+
+
+@pytest.mark.spec("SIG-03-004")
+def test_the_stage_returns_the_proof_it_verified_and_its_key():
+    verified = asyncio.run(_verifier().verify(signed_body(_note())))
+
+    assert verified == (
+        VerifiedProof(
+            author_id=AUTHOR,
+            verification_method=f"{AUTHOR}#main-key",
+            public_key_multibase=_published(AUTHOR),
+        ),
+    )
+
+
+@pytest.mark.spec("SIG-03-004")
+def test_a_relayed_entry_returns_the_managers_proof_then_the_authors():
+    verified = asyncio.run(_verifier().verify(_announce(signed_body(_note()))))
+
+    assert [
+        (proof.author_id, proof.verification_method) for proof in verified
+    ] == [(MANAGER, f"{MANAGER}#main-key"), (AUTHOR, f"{AUTHOR}#main-key")]
+    assert [proof.public_key_multibase for proof in verified] == [
+        _published(MANAGER),
+        _published(AUTHOR),
+    ]
 
 
 @pytest.mark.spec("SIG-04-002")
