@@ -175,7 +175,6 @@ VERDICT_FIELDS: frozenset[str] = frozenset(
         "summary",
         "systemName",
         "tag",
-        "tags",
         "text",
         "title",
         "units",

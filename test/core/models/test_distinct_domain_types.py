@@ -52,7 +52,7 @@ def _instances() -> dict[str, CoreObject]:
         ),
         "VulnerabilityItem": make(VulnerabilityItem, cve="CVE-2401-0001"),
         "CaseReference": make(
-            CaseReference, url="https://example.org/advisory"
+            CaseReference, url={"href": "https://example.org/advisory"}
         ),
         "case actor (VultronService)": make(
             VultronService,
