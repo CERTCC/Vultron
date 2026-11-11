@@ -3200,7 +3200,6 @@ groups:
       recording adapter and asserts both reach the same port method.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
     relationships:
     - rel_type: refines
       spec_id: BT-20-003
@@ -3220,7 +3219,6 @@ groups:
       suggestion context type, not a case type.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
   - id: BT-24-003
     priority: MUST
     kind: project
@@ -3235,7 +3233,6 @@ groups:
       A test pins which case fields the projection carries.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
     relationships:
     - rel_type: depends_on
       spec_id: BT-24-002
@@ -3253,7 +3250,6 @@ groups:
       that applies the projection.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
     relationships:
     - rel_type: depends_on
       spec_id: BT-24-003
@@ -3275,7 +3271,6 @@ groups:
       nesting level, matches a field of the corresponding case model by name and type.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
     relationships:
     - rel_type: refines
       spec_id: BT-24-003
@@ -3293,7 +3288,6 @@ groups:
       empty answer validates.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
   - id: BT-24-005
     priority: SHOULD
     kind: project
@@ -3305,7 +3299,6 @@ groups:
       approves each suggestion, so an extra one costs a decision, not a disclosure.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
   - id: BT-24-006
     priority: MUST_NOT
     kind: project
@@ -3321,7 +3314,6 @@ groups:
       refuses one at construction.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
   - id: BT-24-007
     priority: MUST
     kind: project
@@ -3337,7 +3329,7 @@ groups:
       second vendor is suggested from the scenario-declared table.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
+    tracking_issue: '#6152'
     relationships:
     - rel_type: uses_definition
       spec_id: BT-23-014

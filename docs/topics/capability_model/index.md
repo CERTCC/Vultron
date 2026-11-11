@@ -34,7 +34,7 @@ The protocol coordinates the case; the judgment, the data, and the side effects 
 | develop or deploy fixes | [CreateFix](#fix-development), [DeployFix](#fix-and-mitigation-deployment) | Composer, Evaluator |
 | know whether an exploit exists | [HaveExploit, FindExploit](#exploit-management) | Retriever |
 | write or publish advisories | [DraftAdvisoryArtifact, ReviewAdvisoryDraft, SubmitAdvisoryArtifact](#publication) | Composer, Evaluator, Actuator |
-| know who else belongs in the case | a [Sentinel](#the-sentinel-call-in-pattern) that calls `suggest-actor-to-case`, or [IdentifyVendors, IdentifyCoordinators, InjectParticipant](#reporting-to-others) in the simulator | Retriever, Actuator |
+| know who else belongs in the case | a participant suggester, asked by [SuggestParticipants](#participant-and-actor-discovery) inside a behavior tree or by a [Sentinel](#the-sentinel-call-in-pattern) that calls `suggest-actor-to-case`, or [IdentifyVendors, IdentifyCoordinators, InjectParticipant](#reporting-to-others) in the simulator | Retriever, Actuator |
 | watch threat feeds | [MonitorAttacks, MonitorExploits, MonitorPublicReports](#threat-monitoring), or a [Sentinel](#the-sentinel-call-in-pattern) that reports what it sees | Retriever |
 | update your ticketing system | [OnAccept, OnDefer](#report-prioritization) and [PreCloseAction](#leaving-a-case) | Actuator |
 
@@ -386,6 +386,7 @@ print(render_capability_table("report_management.close_report"))
 These capabilities find and notify the other parties a report should reach.
 They come from the simulator's report-to-others BT.
 To find who else belongs in a case, use a Sentinel that calls `suggest-actor-to-case` or `invite-actor-to-case` ([ADR-0047](../../adr/0047-report-to-others-sentinel-over-inline-bt.md)).
+The Sentinel asks a [participant suggester](#participant-and-actor-discovery) who is missing.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.docs.capability_catalog import render_capability_table
@@ -396,6 +397,39 @@ print(
         "report_management.report_to_others.injection",
     )
 )
+```
+
+### Participant and Actor Discovery
+
+*See also: [ADR-0186](../../adr/0186-one-participant-suggestion-port-narrowed-by-a-core-projection-serves-both-call-out-and-call-in.md), [#1142](https://github.com/CERTCC/Vultron/issues/1142)*
+
+#### Participant suggestion
+
+Participant suggestion answers one question: given this case, who else should take part, and why?
+Your system answers it by implementing one port, `ParticipantSuggestionPort` in `vultron/core/ports/participant_suggestion.py`, with one method, `suggest_participants`.
+The same adapter serves a BT and a [Sentinel](#the-sentinel-call-in-pattern), because both ask through one core service, `suggest_case_participants` (BT-24-001, BT-24-008).
+
+The port never sees the case.
+It receives a suggestion context, which the core service builds from the case (BT-24-002, BT-24-009).
+The context carries each report's title, summary and body as the evidence, and each participant's actor id and roles as who is already in the case.
+A report can name a vendor or a product that is not yet in the case, and finding that party is the point of the port.
+The participants that hold the VENDOR role are the case's current vendors.
+
+Each answer names an actor id, a suggested CVD role and a reason, and an empty answer is valid (BT-24-004).
+A suggestion carries no timing: the actor that receives it decides when to invite, from the invitee's embargo policy (BT-24-006).
+Prefer suggesting a party that turns out not to be needed over leaving out one that is (BT-24-005).
+
+An adapter that calls a third-party service hands that service the whole suggestion context, report content included, and the case may be under embargo.
+Choosing such an adapter is your trust decision, not one the port can make.
+
+Inside a BT, the `SuggestParticipants` Retriever below wraps the core service, and it answers within the call-out time budget like any other capability (BT-18-015).
+An adapter too slow for that budget is reachable only from a Sentinel.
+With no adapter wired, the default answers with no suggestions, so nobody is suggested.
+
+```python exec="true" idprefix=""
+from vultron.metadata.docs.capability_catalog import render_capability_table
+
+print(render_capability_table("participant_suggestion"))
 ```
 
 ### Threat Monitoring
@@ -471,7 +505,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 | Embargo end date passes | Calls `terminate-embargo` with the reason `END_TIME_REACHED` |
 | Active attack observed in a threat feed | As a case Participant, sends `Add(ParticipantStatus)` recording the attack (the [*A* event](../process_models/cs/cs_model.md#the-attacks-observed-substate-a-a)); no trigger endpoint covers this yet ([#1845](https://github.com/CERTCC/Vultron/issues/1845)) |
 | Fix confirmed deployed | As a case Participant, sends `Add(ParticipantStatus)` recording deployment (the [*D* event](../process_models/cs/cs_model.md#the-fix-deployed-substate-d-d)) |
-| New party identified by a discovery service | Calls `suggest-actor-to-case` or `invite-actor-to-case` |
+| New party named by a [participant suggester](#participant-and-actor-discovery) | Calls `suggest-actor-to-case` or `invite-actor-to-case` |
 
 ---
 
