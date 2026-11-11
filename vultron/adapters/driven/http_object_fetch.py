@@ -55,6 +55,7 @@ from vultron.adapters.driven.http_retry import (
     TerminalAttemptError,
     retry_with_backoff,
 )
+from vultron.adapters.media_types import AS2_CONTENT_TYPE
 from vultron.adapters.utils import strip_id_prefix
 from vultron.config import get_config
 from vultron.core.models.base import CoreObject
@@ -221,7 +222,7 @@ class HttpObjectFetcher:
                     url,
                     headers={
                         REQUESTER_HEADER: requester_id,
-                        "Accept": "application/activity+json",
+                        "Accept": AS2_CONTENT_TYPE,
                     },
                     timeout=self._timeout,
                 ) as response:

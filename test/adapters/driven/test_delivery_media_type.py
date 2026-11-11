@@ -76,8 +76,9 @@ def test_delivery_posts_an_activitystreams_media_type() -> None:
         send.return_value = response
         asyncio.run(adapter.emit(ACTIVITY_ID, BODY, [RECIPIENT_URI]))
 
-    # The preconditions fail with pytest.fail, not AssertionError, so a
-    # delivery that stops going through ``send`` errors instead of xfailing.
+    # The preconditions fail with pytest.fail, not a header assertion, so a
+    # delivery that stops going through ``send`` reports the broken harness
+    # rather than a wrong media type.
     if send.call_count != 1:
         pytest.fail(
             f"expected one AsyncClient.send call, got {send.call_count}"

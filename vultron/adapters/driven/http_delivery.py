@@ -42,7 +42,7 @@ from vultron.adapters.driven.http_retry import (
     TerminalAttemptError,
     retry_with_backoff,
 )
-from vultron.adapters.driving.fastapi.responses import AS2_CONTENT_TYPE
+from vultron.adapters.media_types import AS2_CONTENT_TYPE
 from vultron.core.ports.emitter import (  # noqa: F401 — port reference
     ActivityEmitter,
 )
