@@ -84,6 +84,11 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`selective-disclosure.md`** · `plan`
   Referencing objects without inlining them, and explicit redaction of withheld fields.
   **Load when**: scoping privacy, redaction, or by-reference payload features.
+- **`vulnerability-items.md`** · `plan`
+  A case's CSAF-shaped vulnerability items and references, and the offers that
+  change them (ADR-0187).
+  **Load when**: building the item, the case's item or reference lists, or the
+  item and reference offers.
 
 ---
 

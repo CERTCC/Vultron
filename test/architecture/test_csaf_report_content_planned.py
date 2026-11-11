@@ -43,7 +43,7 @@ import pytest
 from test.architecture import _corpus
 
 _RECORDS = (
-    "Tracked by #6093, which waits on #5132 (vulnerability records on a case)."
+    "Tracked by #6093, which waits on #6235 (vulnerability items on a case)."
 )
 
 
@@ -88,9 +88,9 @@ def _has_behavioral_test(request: pytest.FixtureRequest) -> bool:
 @pytest.mark.spec("CSAF-03-008")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CSAF-03-008: the case has no vulnerability records. {_RECORDS}",
+    reason=f"CSAF-03-008: the case has no vulnerability items. {_RECORDS}",
 )
-def test_each_csaf_vulnerability_becomes_a_vulnerability_record(
+def test_each_csaf_vulnerability_becomes_a_vulnerability_item(
     request: pytest.FixtureRequest,
 ) -> None:
     assert _has_behavioral_test(request)
