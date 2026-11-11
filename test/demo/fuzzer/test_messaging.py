@@ -72,7 +72,7 @@ class TestFollowUpOnErrorMessage:
 
     def test_docstring_has_blackboard_contract(self):
         """Docstring must include BT-18-001 blackboard contract section."""
-        assert (
-            FollowUpOnErrorMessage.__doc__
-            and "Blackboard contract" in FollowUpOnErrorMessage.__doc__
-        )
+        declaration = FollowUpOnErrorMessage.declaration()
+        assert declaration is not None
+        assert declaration.__module__.startswith("vultron.core.")
+        assert "Blackboard contract" in (declaration.__doc__ or "")

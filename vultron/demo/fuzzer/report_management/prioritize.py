@@ -33,10 +33,13 @@ References
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.report_management.prioritize import (
+    EnoughPrioritizationInfoCapability,
+    EvaluateCasePriorityCapability,
+    GatherPrioritizationInfoCapability,
+    NoNewPrioritizationInfoCapability,
+    OnAcceptCapability,
+    OnDeferCapability,
 )
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
@@ -44,16 +47,16 @@ from vultron.demo.fuzzer.base import (
     ProbablySucceed,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import (
-    ActuatorCallOutPoint,
-    EvaluatorCallOutPoint,
-    RetrieverCallOutPoint,
-)
 
 
-class NoNewPrioritizationInfo(RetrieverCallOutPoint, ProbablySucceed):
+class NoNewPrioritizationInfo(
+    NoNewPrioritizationInfoCapability, ProbablySucceed
+):
     """Check whether new information has arrived that should trigger
     re-prioritization of the report.
+
+    Simulates :class:`NoNewPrioritizationInfoCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — ask the sources of prioritization-relevant information
@@ -62,14 +65,6 @@ class NoNewPrioritizationInfo(RetrieverCallOutPoint, ProbablySucceed):
         report.  Succeeds more often than not to avoid redundant re-evaluation
         cycles.  A binary Retriever: the tree asks on its own tick, so this is
         a call-out, not a Sentinel (BT-18-006, BT-18-013).
-
-    Store-held answer (BT-18-039): **cannot** — whether new information
-    reached the outside sources since the last evaluation is not recorded
-    in the case file or the actor's store.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries prioritization-relevant information sources)
-      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 
@@ -80,18 +75,19 @@ class NoNewPrioritizationInfo(RetrieverCallOutPoint, ProbablySucceed):
     """
 
 
-class EnoughPrioritizationInfo(EvaluatorCallOutPoint, UsuallySucceed):
+class EnoughPrioritizationInfo(
+    EnoughPrioritizationInfoCapability, UsuallySucceed
+):
     """Determine whether sufficient context exists to make an accept/defer
     decision.
+
+    Simulates :class:`EnoughPrioritizationInfoCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — determine whether there is enough context to make an
         accept/defer decision.  Insufficient info triggers a gathering
         phase.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates available context from caller's DataLayer)
-      Output keys: enough_prioritization_info_verdict: str  (yes only)
 
     Input category: Human decision / Environmental check.
 
@@ -103,27 +99,20 @@ class EnoughPrioritizationInfo(EvaluatorCallOutPoint, UsuallySucceed):
     involves human analyst review.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"enough_prioritization_info_verdict": str}
-    )
 
-
-class GatherPrioritizationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
+class GatherPrioritizationInfo(
+    GatherPrioritizationInfoCapability, AlmostAlwaysSucceed
+):
     """Collect additional context needed to support a prioritization decision.
+
+    Simulates :class:`GatherPrioritizationInfoCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — collect additional context needed to support a
         prioritization decision (e.g., severity scores, asset inventory,
         threat landscape data).  Succeeds almost always in simulation to
         keep the workflow progressing.
-
-    Store-held answer (BT-18-039): **cannot** — it collects outside
-    context, such as scores and threat data, that the case file does not
-    record.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries external sources directly)
-      Output keys: prioritization_info_gathered: str  (yes only)
 
     Input category: System integration / Human analyst research.
 
@@ -135,22 +124,17 @@ class GatherPrioritizationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
     involvement.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"prioritization_info_gathered": str}
-    )
 
-
-class OnAccept(ActuatorCallOutPoint, AlwaysSucceed):
+class OnAccept(OnAcceptCapability, AlwaysSucceed):
     """Execute site-specific tasks when a report is accepted.
+
+    Simulates :class:`OnAcceptCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action integration hook — trigger notifications, initialize the
         case workflow, assign to a team, and update case status when the
         report is accepted.  Must be idempotent in production.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; case context from construction time)
-      Output keys: (none — side effect: notify stakeholders, initialize workflow)
 
     Input category: System integration.
 
@@ -162,18 +146,17 @@ class OnAccept(ActuatorCallOutPoint, AlwaysSucceed):
     """
 
 
-class EvaluateCasePriority(EvaluatorCallOutPoint, AlwaysSucceed):
+class EvaluateCasePriority(EvaluateCasePriorityCapability, AlwaysSucceed):
     """Evaluate whether to engage or defer a case using prioritization policy.
+
+    Simulates :class:`EvaluateCasePriorityCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Decision — evaluate case priority to determine whether the local
         actor should engage (accept) or defer the case.  This is the SSVC
         integration seam: a production backend replaces this stub with a
         real priority evaluator.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates case context from construction time)
-      Output keys: evaluate_case_priority_verdict: str  (yes only)
 
     Input category: Human decision / Policy engine.
 
@@ -184,22 +167,17 @@ class EvaluateCasePriority(EvaluatorCallOutPoint, AlwaysSucceed):
     and policy-based engage/defer decisions are fully automatable.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"evaluate_case_priority_verdict": str}
-    )
 
-
-class OnDefer(ActuatorCallOutPoint, AlwaysSucceed):
+class OnDefer(OnDeferCapability, AlwaysSucceed):
     """Execute site-specific tasks when a report is deferred.
+
+    Simulates :class:`OnDeferCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action integration hook — notify stakeholders, schedule a
         follow-up, and update the case status when the report is
         deferred.  Must be idempotent in production.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; case context from construction time)
-      Output keys: (none — side effect: notify stakeholders, schedule follow-up)
 
     Input category: System integration.
 

@@ -77,6 +77,10 @@ The changes these rules imply for today's code are tracked in
   `Remove(x, origin=…)`, `Move(x, origin=…, target=…)`, and `Add(x, target=…)` with an
   optional `origin` for a copy. One meaning per slot means a receiver never needs to
   know the verb to read it (VOC Remove, Add, Move).
+- **A `Create` takes no `target`; the case it belongs to goes in `context`.** AS2 Core
+  App. B maps the AS1 "post" verb to `Create` without a target and to `Add` with one,
+  so a `Create` carrying a `target` reads as "added to". Creating a record and seating
+  it in a case are two acts, each with its own verb (#6260).
 - **`result` names what an act caused, set by the actor that caused it** (Primer:
   "changes of state or indirect outcomes"). It is not the created object, which is a
   `Create`'s `object`.

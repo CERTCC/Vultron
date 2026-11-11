@@ -19,13 +19,13 @@ from py_trees.common import Access
 
 from vultron.core.behaviors.call_out.actuator import ActuationRequest
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
+from vultron.core.behaviors.call_out.capabilities.report_management.report_to_others.injection import (
+    InjectParticipantCapability,
+)
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlwaysSucceed,
     UsuallyFail,
-)
-from vultron.demo.fuzzer.call_out_point import (
-    ActuatorCallOutPoint,
 )
 
 
@@ -126,8 +126,11 @@ class MoreOthers(AlmostAlwaysFail):
     """
 
 
-class InjectParticipant(ActuatorCallOutPoint, AlwaysSucceed):
+class InjectParticipant(InjectParticipantCapability, AlwaysSucceed):
     """Add a new participant to the case (generic form).
+
+    Simulates :class:`InjectParticipantCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — pop the first entry from the blackboard list named by
@@ -140,13 +143,9 @@ class InjectParticipant(ActuatorCallOutPoint, AlwaysSucceed):
         effect of this Actuator, standing in for a case-management write; it
         is not a declared output, so it bypasses the seam (BT-18-028).
 
-    Blackboard contract (BT-18-001):
+    Simulated blackboard use (beside the capability's contract):
       Input keys:  <source_key>: list  (READ/WRITE; key may be absent)
       Output keys: potential_participants: list  (WRITE; key may be absent)
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; participant context from construction time)
-      Output keys: (none — side effect: add participant to case management system)
 
     Input category: System integration.
 
@@ -199,13 +198,10 @@ class InjectVendor(InjectParticipant):
         succeeds (no-op); the ``MoreVendors`` guard upstream prevents
         this node from running when the list is already exhausted.
 
-    Blackboard contract (BT-18-001):
+    Simulated blackboard use (beside the capability's contract, which it
+    inherits from :class:`InjectParticipantCapability`, BT-18-021):
       Input keys:  identified_vendors: list  (READ/WRITE; key may be absent)
       Output keys: potential_participants: list  (WRITE; key may be absent)
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; vendor context from construction time)
-      Output keys: (none — side effect: add vendor participant to case management system)
 
     Input category: System integration.
 
@@ -230,13 +226,10 @@ class InjectCoordinator(InjectParticipant):
         prevents this node from running when the list is already
         exhausted.
 
-    Blackboard contract (BT-18-001):
+    Simulated blackboard use (beside the capability's contract, which it
+    inherits from :class:`InjectParticipantCapability`, BT-18-021):
       Input keys:  identified_coordinators: list  (READ/WRITE; key may be absent)
       Output keys: potential_participants: list  (WRITE; key may be absent)
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; coordinator context from construction time)
-      Output keys: (none — side effect: add coordinator participant to case management system)
 
     Input category: System integration.
 
@@ -259,9 +252,8 @@ class InjectOther(InjectParticipant):
         in simulation; in production performs a case management system
         write with other-party role attribution.
 
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; other-party context from construction time)
-      Output keys: (none — side effect: add other-party participant to case management system)
+    Its contract is that of :class:`InjectParticipantCapability`, which it
+    inherits (BT-18-021).
 
     Input category: System integration.
 
