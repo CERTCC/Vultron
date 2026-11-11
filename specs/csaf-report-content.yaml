@@ -429,12 +429,13 @@ groups:
     kind: protocol
     statement: >-
       A receiver that fills case inputs from a CSAF document SHOULD give the case a
-      vulnerability item for each entry in `vulnerabilities[]`, with the entry's `cve`,
-      `ids`, `title`, `notes` and `references`.
+      vulnerability item for each entry in `vulnerabilities[]` that has a `cve` or an
+      `ids` entry, with the entry's `cve`, `ids`, `title`, `notes` and `references`.
     rationale: >-
       A vulnerability item takes the identity fields of a CSAF vulnerability entry
       (CM-05-018), so each entry becomes an item with no translation. The identifiers are
-      what later messages and projections refer to (CM-05-003, ADR-0187).
+      what later messages and projections refer to (CM-05-003, ADR-0187), so an entry
+      with no identifier names no vulnerability and makes no item.
     verification: >-
       `test/core/use_cases/received/test_case_from_csaf_report.py::test_each_csaf_vulnerability_becomes_a_vulnerability_item`
       attaches a document with two vulnerabilities, and checks that the case gets a

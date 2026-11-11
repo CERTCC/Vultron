@@ -224,7 +224,7 @@ def test_a_vulnerability_item_copies_the_identity_fields() -> None:
             ClaimedReference(url="https://example.org/b", summary="Bulletin")
         ],
     )
-    item = vulnerability_item_from_claims(vul)
+    item = vulnerability_item_from_claims(vul, published=_NOW)
     assert (item.cve, item.title) == ("CVE-2026-0001", "Overflow")
     assert [(i.system_name, i.text) for i in item.ids] == [("VU#", "VU#1")]
     [note] = item.notes
@@ -237,12 +237,15 @@ def test_a_vulnerability_item_copies_the_identity_fields() -> None:
     [ref] = item.references
     assert not isinstance(ref, str)
     assert (ref.url.href, ref.name) == ("https://example.org/b", "Bulletin")
+    assert item.published == ref.published == _NOW
 
 
 @pytest.mark.spec("CSAF-03-008")
 def test_a_vulnerability_with_no_identifier_makes_no_item() -> None:
     with pytest.raises(ValueError, match="no cve and no ids"):
-        vulnerability_item_from_claims(VulnerabilityClaims(title="Unnamed"))
+        vulnerability_item_from_claims(
+            VulnerabilityClaims(title="Unnamed"), published=_NOW
+        )
 
 
 @pytest.mark.spec("CSAF-03-009")
@@ -250,7 +253,8 @@ def test_a_case_reference_takes_the_url_and_summary() -> None:
     ref = case_reference_from_claim(
         ClaimedReference(
             url="https://example.org/c", summary="Write-up", category="self"
-        )
+        ),
+        published=_NOW,
     )
     assert (ref.url.href, ref.url.rel, ref.name) == (
         "https://example.org/c",
@@ -259,7 +263,7 @@ def test_a_case_reference_takes_the_url_and_summary() -> None:
     )
     assert (
         case_reference_from_claim(
-            ClaimedReference(url="https://example.org/d")
+            ClaimedReference(url="https://example.org/d"), published=_NOW
         ).name
         is None
     )

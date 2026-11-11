@@ -236,28 +236,35 @@ def makes_vulnerability_item(vul: VulnerabilityClaims) -> bool:
     return vul.cve is not None or bool(vul.ids)
 
 
-def case_reference_from_claim(claim: ClaimedReference) -> CaseReference:
+def case_reference_from_claim(
+    claim: ClaimedReference, *, published: datetime
+) -> CaseReference:
     """The case reference a claimed reference becomes (CSAF-03-009).
 
     The claim's ``url`` is the ``href`` of the reference's ``url`` Link and
     its ``summary`` the reference's ``name``.  The Link carries no ``rel``:
     a CSAF reference says nothing of what kind of resource it names, and
     its ``category`` (``self`` or ``external``) is about the document, not
-    the resource.
+    the resource.  *published* is the instant of the act that creates it
+    (ADR-0176).
     """
     return CaseReference(
-        url=CaseReferenceLink(href=claim.url), name=claim.summary
+        url=CaseReferenceLink(href=claim.url),
+        name=claim.summary,
+        published=published,
     )
 
 
 def vulnerability_item_from_claims(
-    vul: VulnerabilityClaims,
+    vul: VulnerabilityClaims, *, published: datetime
 ) -> VulnerabilityItem:
     """The vulnerability item *vul* becomes, field for field (CSAF-03-008).
 
     Its ``cve``, ``ids``, ``title`` and ``notes`` are copied as claimed, and
     no identifier is interpreted (CM-05-008); each of its references becomes
-    a case reference held inline on the item.
+    a case reference held inline on the item.  The item and its references
+    are stamped *published*, the instant of the act that creates them
+    (ADR-0176).
 
     Raises:
         ValueError: when *vul* names no vulnerability
@@ -278,7 +285,11 @@ def vulnerability_item_from_claims(
         notes=[
             VulnerabilityItemNote(**note.model_dump()) for note in vul.notes
         ],
-        references=[case_reference_from_claim(r) for r in vul.references],
+        references=[
+            case_reference_from_claim(r, published=published)
+            for r in vul.references
+        ],
+        published=published,
     )
 
 

@@ -3,7 +3,6 @@ title: "CSAF Documents in Reports: Implementation Plan"
 status: active
 kind: plan
 tracks:
-  - "#6093"
   - "#6094"
   - "#6101"
   - "#5911"

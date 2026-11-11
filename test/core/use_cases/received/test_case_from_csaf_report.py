@@ -22,6 +22,7 @@ the Offer the proposal carries.
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -536,6 +537,10 @@ def test_each_csaf_vulnerability_becomes_a_vulnerability_item() -> None:
         ("VU#", "VU#123456")
     ]
     assert second.title == "Widget crash"
+    # One act, one instant: no clock is read below its edge (ADR-0176).
+    assert {first.published, second.published, first_ref.published} == {
+        case.published
+    }
     [record] = manager.records()
     for path in (
         "vulnerabilities[0].cve",
@@ -602,3 +607,25 @@ def test_the_case_create_carries_the_items_and_references_inline() -> None:
     assert isinstance(carried, VulnerabilityCase)
     assert carried.vulnerability_items == _items(manager, case)
     assert carried.case_references == _references(manager, case)
+
+
+@pytest.mark.spec("CSAF-03-009")
+def test_a_failed_reference_write_creates_no_case() -> None:
+    """The items and references are written in the creation act, so one
+    that cannot be written leaves no case and no item behind (ADR-0146)."""
+    receipt = Receipt(csaf(_two_vulnerabilities()))
+    receipt.handle()
+    manager = CaseManager()
+    create = manager.dl.create
+
+    def refuse_references(obj: Any) -> None:
+        if obj.type_ == "CaseReference":
+            raise ValueError("refused for the test")
+        create(obj)
+
+    with patch.object(manager.dl, "create", side_effect=refuse_references):
+        result = manager.receive(receipt.proposal_body())
+
+    assert result.disposition is not HandlerDisposition.APPLIED
+    assert manager.cases() == []
+    assert manager.dl.list_objects("VulnerabilityItem") == []
