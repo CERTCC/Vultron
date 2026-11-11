@@ -30,6 +30,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -61,7 +62,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 
 
 def _make_actor(dl: SqliteDataLayer, name: str) -> as_Service:
-    actor = as_Service(name=name)
+    actor = make(as_Service, name=name)
     dl.create(actor)
     return actor
 
@@ -80,12 +81,14 @@ def _make_case(
 
     Returns the case and the list of CaseParticipant objects created.
     """
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         name="Test embargo case",
         attributed_to=owner_id,
     )
 
-    owner_participant = VendorParticipant(
+    owner_participant = make(
+        VendorParticipant,
         attributed_to=owner_id,
         context=case.id_,
     )
@@ -96,7 +99,8 @@ def _make_case(
     case.actor_participant_index = {owner_id: owner_participant.id_}
 
     for pid in extra_participant_ids or []:
-        p = ReporterParticipant(
+        p = make(
+            ReporterParticipant,
             attributed_to=pid,
             context=case.id_,
         )
@@ -125,8 +129,10 @@ def _make_embargo(
     boundary falls between them, which is not the "equal terms" a tie test
     means.
     """
-    embargo = as_EmbargoEvent(
-        context=case_id, end_time=end_time or days_from_now(days)
+    embargo = make(
+        as_EmbargoEvent,
+        context=case_id,
+        end_time=end_time or days_from_now(days),
     )
     dl.create(embargo)
     return embargo
@@ -179,7 +185,9 @@ def _seed_consent(
     """
     participant = cast(CaseParticipant, dl.read(participant_id))
     row = EmbargoConsent(
-        embargo_id=embargo_id, state=state, rsvp_deadline=rsvp_deadline
+        embargo_id=embargo_id,
+        state=state,
+        rsvp_deadline=rsvp_deadline,
     )
     held = [r.embargo_id for r in participant.embargo_consents]
     participant.embargo_consents = (
@@ -274,7 +282,7 @@ def _assert_activation_wrote_nothing(
 def owner_and_dl() -> Generator[
     tuple[as_Service, SqliteDataLayer], None, None
 ]:
-    owner = as_Service(name="Owner Org")
+    owner = make(as_Service, name="Owner Org")
     reset_datalayer(owner.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)
     dl.clear_all()

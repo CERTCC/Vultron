@@ -41,6 +41,7 @@ import py_trees
 import pytest
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -493,8 +494,8 @@ def shared_dl_actors() -> tuple[BTTestScenario, BTTestScenario]:
     vendor_id = "https://example.org/actors/vendor"
     reporter_id = "https://example.org/actors/reporter"
 
-    vendor_actor = VultronService(id_=vendor_id, name="Vendor Co")
-    reporter_actor = VultronService(id_=reporter_id, name="Reporter Co")
+    vendor_actor = make(VultronService, id_=vendor_id, name="Vendor Co")
+    reporter_actor = make(VultronService, id_=reporter_id, name="Reporter Co")
     dl.create(vendor_actor)
     dl.create(reporter_actor)
 

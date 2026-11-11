@@ -34,6 +34,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.failed_teardown import fail_pxa_teardown
+from test.support.objects import make
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -72,7 +73,8 @@ def _set_rm(net: LedgerNetwork, member: str, rm: RM) -> None:
             CaseParticipant, dl.read(case.actor_participant_index[member])
         )
         participant.add_participant_status(
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=net.case_id,
                 attributed_to=member,
                 rm=RmDimension(state=rm),
@@ -91,8 +93,11 @@ def _declare_rm(net: LedgerNetwork, member: str, rm: RM):
         net.case(MANAGER).actor_participant_index[member]
     )
     assert isinstance(participant, CaseParticipant)
-    status = ParticipantStatus(
-        context=net.case_id, attributed_to=member, rm=RmDimension(state=rm)
+    status = make(
+        ParticipantStatus,
+        context=net.case_id,
+        attributed_to=member,
+        rm=RmDimension(state=rm),
     )
     return _to_manager(
         net,

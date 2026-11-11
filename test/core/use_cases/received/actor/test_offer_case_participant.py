@@ -38,6 +38,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import received_event, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -106,8 +107,11 @@ def _case_ref(case_id: str) -> as_VulnerabilityCase:
     The CASE_MANAGER's receipt commit refuses a bare-string ``target``, so a
     test that reaches that commit must send what production sends.
     """
-    return as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=case_id, name="OfferRoundTripTest"
+    return make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=case_id,
+        name="OfferRoundTripTest",
     )
 
 
@@ -121,8 +125,9 @@ def _seed_dl_for_case_owner() -> tuple[SqliteDataLayer, str]:
         "sqlite:///:memory:",
         actor_id=CASE_OWNER_ID,  # the receiving Case Owner's own store
     )
-    owner_actor = as_Actor(id_=CASE_OWNER_ID)
-    case = as_VulnerabilityCase(
+    owner_actor = make(as_Actor, id_=CASE_OWNER_ID)
+    case = make(
+        as_VulnerabilityCase,
         id_=CASE_ID,
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
@@ -146,8 +151,9 @@ def _seed_dl_for_case_actor(
         "sqlite:///:memory:",
         actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
     )
-    case_actor = as_Service(id_=CASE_ACTOR_ID)
-    case = as_VulnerabilityCase(
+    case_actor = make(as_Service, id_=CASE_ACTOR_ID)
+    case = make(
+        as_VulnerabilityCase,
         id_=CASE_ID,
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
@@ -242,7 +248,7 @@ def _build_offer_activity(
     recommended_id: str = RECOMMENDED_ID,
     offer_id: str = OFFER_ID,
 ):
-    recommended = as_Actor(id_=recommended_id)
+    recommended = make(as_Actor, id_=recommended_id)
     extra: dict[str, Any] = {"origin": origin} if origin is not None else {}
     return offer_case_participant_activity(
         recommended,
@@ -316,8 +322,11 @@ class TestOfferCaseParticipantReceivedUseCase:
     def test_bystander_copy_is_refused(self):
         """Neither CASE_MANAGER nor addressee: a misaddressed copy is refused."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=BYSTANDER_ID)
-        case = as_VulnerabilityCase(
-            id_=CASE_ID, name="OfferRoundTripTest", attributed_to=CASE_OWNER_ID
+        case = make(
+            as_VulnerabilityCase,
+            id_=CASE_ID,
+            name="OfferRoundTripTest",
+            attributed_to=CASE_OWNER_ID,
         )
         seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
         dl.create(case)
@@ -806,13 +815,15 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
         dl, _ = _seed_dl_for_case_actor()
         closed_id = f"{CASE_ID}/participants/closed-invitee"
-        closed = CaseParticipant(
+        closed = make(
+            CaseParticipant,
             id_=closed_id,
             attributed_to=RECOMMENDED_ID,
             context=CASE_ID,
             case_roles=[CVDRole.VENDOR],
             participant_statuses=[
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     context=CASE_ID,
                     attributed_to=RECOMMENDED_ID,
                     rm=RmDimension(state=RM.CLOSED),
@@ -923,7 +934,8 @@ class TestAcceptRefusesAnInviteeThatCannotBeInvited:
         assert self._accept(dl).disposition is HandlerDisposition.APPLIED
         record = self._record(dl)
         record.participant_statuses.append(
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=CASE_ID,
                 attributed_to=RECOMMENDED_ID,
                 rm=RmDimension(state=RM.CLOSED),
@@ -1290,8 +1302,9 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
     # This scenario has its own CaseActor (AC1_CASE_ACTOR_ID), so the store is
     # that one's, not the module-level CASE_ACTOR_ID used elsewhere in the file.
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=AC1_CASE_ACTOR_ID)
-    case_actor = as_Service(id_=AC1_CASE_ACTOR_ID, context=AC1_CASE_ID)
-    case = as_VulnerabilityCase(
+    case_actor = make(as_Service, id_=AC1_CASE_ACTOR_ID, context=AC1_CASE_ID)
+    case = make(
+        as_VulnerabilityCase,
         id_=AC1_CASE_ID,
         name="AC1RolesThreading",
         attributed_to=AC1_CASE_OWNER_ID,
@@ -1301,7 +1314,7 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
     # the Accept(Invite) effects are role-gated (BT-17-001, BT-17-005).
     seed_case_manager_participant(dl, case, AC1_CASE_ACTOR_ID)
     seed_case_owner_participant(dl, case, AC1_CASE_OWNER_ID)
-    invitee = as_Organization(id_=AC1_INVITEE_ID)
+    invitee = make(as_Organization, id_=AC1_INVITEE_ID)
     dl.create(case_actor)
     dl.create(case)
     dl.create(invitee)
@@ -1557,7 +1570,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         """The ``Offer(CaseParticipant)`` for the AC1 invitee, by its fixed id."""
         extra: dict[str, Any] = {"roles": roles} if roles else {}
         return offer_case_participant_activity(
-            as_Actor(id_=AC1_INVITEE_ID),
+            make(as_Actor, id_=AC1_INVITEE_ID),
             target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_ACTOR_ID,
             to=[AC1_CASE_OWNER_ID],
@@ -1647,7 +1660,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         # Store an Offer with empty roles so the recorded answer carries
         # none → SeatRecordedInviteeNode refuses (CM-11-049).
         empty_roles_offer = offer_case_participant_activity(
-            as_Actor(id_=AC1_INVITEE_ID),
+            make(as_Actor, id_=AC1_INVITEE_ID),
             target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_ACTOR_ID,
             to=[AC1_CASE_OWNER_ID],
@@ -1881,7 +1894,8 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
         dl, _ = _seed_dl_for_case_actor(manager_id=self.OTHER_MANAGER_ID)
         case = dl.read_case(CASE_ID)
         assert case is not None
-        second = CaseParticipant(
+        second = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/second-manager",
             attributed_to=CASE_ACTOR_ID,
             context=CASE_ID,
@@ -1932,13 +1946,14 @@ class TestOfferCaseParticipantAtACaseWithNoManager:
 
     def _seed_without_a_manager(self) -> SqliteDataLayer:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=CASE_ID,
             name="OfferRoundTripTest",
             attributed_to=CASE_OWNER_ID,
         )
         seed_case_owner_participant(dl, case, CASE_OWNER_ID)
-        dl.create(as_Service(id_=CASE_ACTOR_ID))
+        dl.create(make(as_Service, id_=CASE_ACTOR_ID))
         dl.create(case)
         return dl
 
@@ -1978,7 +1993,7 @@ class TestOfferCaseParticipantAtACaseWithNoManager:
         its own, different reason, pinned by the test above (CM-24-014).
         """
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
-        dl.create(as_Service(id_=CASE_ACTOR_ID))
+        dl.create(make(as_Service, id_=CASE_ACTOR_ID))
         offer = _build_offer_activity()
         event = cast(
             OfferCaseParticipantReceivedEvent, received_event(offer, at=dl)
@@ -2019,16 +2034,19 @@ def _seed_a_recommendation_at_the_case_manager() -> tuple[
     from vultron.wire.as2.factories import recommend_actor_activity
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="OfferRoundTripTest", attributed_to=CASE_OWNER_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="OfferRoundTripTest",
+        attributed_to=CASE_OWNER_ID,
     )
     seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
     seed_case_owner_participant(dl, case, CASE_OWNER_ID)
     seed_case_participant(dl, case, RECOMMENDER_ID)
-    dl.create(as_Service(id_=CASE_ACTOR_ID))
+    dl.create(make(as_Service, id_=CASE_ACTOR_ID))
     dl.create(case)
     recommendation = recommend_actor_activity(
-        as_Actor(id_=RECOMMENDED_ID),
+        make(as_Actor, id_=RECOMMENDED_ID),
         target=_case_ref(CASE_ID),
         actor=RECOMMENDER_ID,
         to=[CASE_ACTOR_ID],

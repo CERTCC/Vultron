@@ -20,6 +20,7 @@ from typing import cast
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.protocols import PersistableModel
@@ -38,7 +39,8 @@ PROTOCOL_DEFAULT = timedelta(hours=72)
 
 
 def _policy(days: int, actor_id: str = ACTOR_ID) -> EmbargoPolicy:
-    return EmbargoPolicy(
+    return make(
+        EmbargoPolicy,
         actor_id=actor_id,
         inbox=f"{actor_id}/inbox",
         preferred_duration=timedelta(days=days),
@@ -61,19 +63,22 @@ class TestActorDefaultDuration:
     @pytest.mark.spec("EP-04-006")
     @pytest.mark.spec("CP-01-010")
     def test_the_profile_policy_is_the_actor_default(self) -> None:
-        profile = VultronOrganization(id_=ACTOR_ID, embargo_policy=_policy(30))
+        profile = make(
+            VultronOrganization, id_=ACTOR_ID, embargo_policy=_policy(30)
+        )
         assert actor_default_duration(profile) == timedelta(days=30)
 
     @pytest.mark.spec("CP-01-010")
     def test_a_profile_without_a_policy_has_no_actor_default(self) -> None:
         assert (
-            actor_default_duration(VultronOrganization(id_=ACTOR_ID)) is None
+            actor_default_duration(make(VultronOrganization, id_=ACTOR_ID))
+            is None
         )
 
 
 class TestStoredActorProfile:
     def test_returns_the_actors_own_record(self) -> None:
-        profile = VultronOrganization(id_=ACTOR_ID)
+        profile = make(VultronOrganization, id_=ACTOR_ID)
         store = _ActorStore({ACTOR_ID: profile})
         assert (
             stored_actor_profile(cast(CasePersistence, store), ACTOR_ID)
@@ -96,8 +101,10 @@ class TestProfilePolicyOwnership:
     @pytest.mark.spec("ARCH-10-001")
     def test_a_profile_cannot_carry_another_actors_policy(self) -> None:
         with pytest.raises(ValueError, match="differs from the profile id"):
-            VultronOrganization(
-                id_=ACTOR_ID, embargo_policy=_policy(5, OTHER_ACTOR_ID)
+            make(
+                VultronOrganization,
+                id_=ACTOR_ID,
+                embargo_policy=_policy(5, OTHER_ACTOR_ID),
             )
 
 

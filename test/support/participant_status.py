@@ -53,6 +53,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     DDimension,
@@ -121,7 +122,8 @@ def advance_participant_rm(
         else None
     )
     participant.add_participant_status(
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             rm=RmDimension(state=rm_state),
             vf=(
                 VfDimension(state=current_vf)

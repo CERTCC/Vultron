@@ -25,6 +25,7 @@ import json
 from typing import Any, cast
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import (
     decided_proposal_id,
     owner_decision_body,
@@ -87,7 +88,8 @@ def _from_body(
 
 def _proposal_body(net: LedgerNetwork, tag: str) -> dict[str, Any]:
     """PROPOSER's revision, sent to the CASE_MANAGER only (EP-09-001)."""
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{net.case_id}/embargo_events/{tag}",
         content=f"Terms {tag}",
         context=net.case_id,
@@ -319,7 +321,8 @@ def announce_embargo_to_a_paused_replica() -> Scenario:
     or sent, so the scenario names the write it checks.
     """
     replica = _Replica(_PAUSED_REPLICA)
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=_PAUSED_REVISION,
         context=_PAUSED_CASE_ID,
         end_time=days_from_now(30),

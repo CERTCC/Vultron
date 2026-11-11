@@ -30,6 +30,7 @@ ran.  See issues #1324, #1447, #1472.
 import pytest
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -64,7 +65,8 @@ def dl() -> SqliteDataLayer:
 
 def _make_announce_body() -> dict:
     """Build the wire body for an Announce(CaseLedgerEntry)."""
-    entry = CaseLedgerEntry(
+    entry = make(
+        CaseLedgerEntry,
         id_=_ENTRY_ID,
         case_id=_CASE_ID,
         log_object_id=_INVITEE_ID,

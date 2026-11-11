@@ -59,6 +59,7 @@ from py_trees.common import Status
 
 from test.architecture import _corpus
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.received_path import (
     ReceivedPath,
     ReceivedPathNode,
@@ -778,7 +779,8 @@ OWNER_ID = "https://example.org/actors/owner"
 
 
 def _participant(suffix: str, actor_id: str, *roles: CVDRole):
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/{suffix}",
         attributed_to=actor_id,
         context=CASE_ID,
@@ -804,7 +806,8 @@ def _stage_at(
     scenario.seed(
         manager,
         vendor,
-        VulnerabilityCase(
+        make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="DECLARED-PATHS",
             attributed_to=OWNER_ID,

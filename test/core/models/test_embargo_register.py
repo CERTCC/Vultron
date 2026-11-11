@@ -21,6 +21,7 @@ from test.support.embargo_register import (
     reject,
     terminate,
 )
+from test.support.objects import make
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -80,7 +81,7 @@ def _statuses(entries: list[EmbargoRegisterEntry]) -> dict[str, S]:
 
 
 def _case(**kw: Any) -> VulnerabilityCase:
-    return VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER, **kw)
+    return make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER, **kw)
 
 
 # ---------------------------------------------------------------------------
@@ -418,8 +419,11 @@ def test_a_proposal_writes_the_rows_of_inline_participants() -> None:
     entry, and that check runs on assignment too, so the step writes the new
     entry's row before the register is assigned (CM-18-001, ADR-0122).
     """
-    participant = CaseParticipant(
-        id_=f"{CASE_ID}/participants/p1", attributed_to=OWNER, context=CASE_ID
+    participant = make(
+        CaseParticipant,
+        id_=f"{CASE_ID}/participants/p1",
+        attributed_to=OWNER,
+        context=CASE_ID,
     )
     case = _case(case_participants=[participant])
     propose(case, A)
@@ -432,8 +436,11 @@ def test_a_proposal_writes_the_rows_of_inline_participants() -> None:
 
 def test_a_refused_step_writes_no_inline_participant_row() -> None:
     """A refused step leaves inline participants without the refused rows."""
-    participant = CaseParticipant(
-        id_=f"{CASE_ID}/participants/p1", attributed_to=OWNER, context=CASE_ID
+    participant = make(
+        CaseParticipant,
+        id_=f"{CASE_ID}/participants/p1",
+        attributed_to=OWNER,
+        context=CASE_ID,
     )
     case = _case(case_participants=[participant])
     activate(case, A)
@@ -490,7 +497,8 @@ def test_construction_relabels_the_stamped_status() -> None:
     case = _case(
         embargo_register=[_entry(A, S.ACTIVE)],
         case_statuses=[
-            CaseStatus(
+            make(
+                CaseStatus,
                 context=CASE_ID,
                 attributed_to=OWNER,
                 em=EmDimension(state=EM.NONE),
@@ -505,7 +513,8 @@ def test_the_em_stamp_keeps_an_explicit_name() -> None:
     case = _case(
         embargo_register=[_entry(A, S.ACTIVE)],
         case_statuses=[
-            CaseStatus(
+            make(
+                CaseStatus,
                 context=CASE_ID,
                 attributed_to=OWNER,
                 name="chosen",
@@ -520,7 +529,8 @@ def test_an_appended_status_cannot_carry_another_em() -> None:
     case = _case()
     propose(case, A)
     case.add_case_status(
-        CaseStatus(
+        make(
+            CaseStatus,
             context=CASE_ID,
             attributed_to=OWNER,
             em=EmDimension(state=EM.EXITED),
@@ -611,7 +621,8 @@ def test_construction_stamps_the_register_em_onto_the_status() -> None:
     case = _case(
         embargo_register=[_entry(A, S.ACTIVE)],
         case_statuses=[
-            CaseStatus(
+            make(
+                CaseStatus,
                 context=CASE_ID,
                 attributed_to=OWNER,
                 em=EmDimension(state=EM.NONE),
@@ -664,8 +675,11 @@ def test_a_former_stored_field_is_refused_as_an_unknown_key() -> None:
 
 
 def test_the_active_view_returns_an_inline_embargo_object() -> None:
-    embargo = EmbargoEvent(
-        id_=A, context=CASE_ID, end_time=now_utc() + timedelta(days=3)
+    embargo = make(
+        EmbargoEvent,
+        id_=A,
+        context=CASE_ID,
+        end_time=now_utc() + timedelta(days=3),
     )
     case = _case()
     propose(case, embargo)
@@ -675,8 +689,11 @@ def test_the_active_view_returns_an_inline_embargo_object() -> None:
 
 
 def test_carry_embargo_inline_swaps_only_the_named_entry() -> None:
-    embargo = EmbargoEvent(
-        id_=A, context=CASE_ID, end_time=now_utc() + timedelta(days=3)
+    embargo = make(
+        EmbargoEvent,
+        id_=A,
+        context=CASE_ID,
+        end_time=now_utc() + timedelta(days=3),
     )
     entries = [_entry(A, S.ACTIVE), _entry(B, S.PROPOSED)]
     carried = carry_embargo_inline(entries, embargo)

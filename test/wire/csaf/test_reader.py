@@ -20,6 +20,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from test.wire.csaf._documents import (
     minimal_csaf_document,
     section,
@@ -50,8 +51,11 @@ _ACTOR_ID = "https://reporter.example.org/actors/reporter"
 def _attachment(
     content: str, document_id: str = _DOCUMENT_ID
 ) -> AttachedDocument:
-    return AttachedDocument(
-        id_=document_id, media_type="application/json", content=content
+    return make(
+        AttachedDocument,
+        id_=document_id,
+        media_type="application/json",
+        content=content,
     )
 
 
@@ -113,7 +117,7 @@ def test_only_the_csaf_attachment_of_a_report_is_read() -> None:
 
 
 def test_an_attachment_without_content_is_passed_over() -> None:
-    assert _read(AttachedDocument(id_=_DOCUMENT_ID)) == []
+    assert _read(make(AttachedDocument, id_=_DOCUMENT_ID)) == []
     assert (
         read_report_attachments(
             None, activity_id=_ACTIVITY_ID, actor_id=_ACTOR_ID

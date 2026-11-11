@@ -40,6 +40,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate
+from test.support.objects import make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -98,16 +99,20 @@ class _Revision:
         self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
         self.dl.clear_all()
         for actor_id in ACTORS:
-            self.dl.create(as_Service(id_=actor_id, name=actor_id))
+            self.dl.create(make(as_Service, id_=actor_id, name=actor_id))
 
-        self.case = VulnerabilityCase(
-            name="Revision consent case", attributed_to=OWNER
+        self.case = make(
+            VulnerabilityCase,
+            name="Revision consent case",
+            attributed_to=OWNER,
         )
-        self.active = as_EmbargoEvent(
+        self.active = make(
+            as_EmbargoEvent,
             context=self.case.id_,
             end_time=now_utc() + timedelta(days=ACTIVE_DAYS),
         )
-        owner_p = VendorParticipant(
+        owner_p = make(
+            VendorParticipant,
             attributed_to=OWNER,
             context=self.case.id_,
             embargo_consents=[
@@ -118,7 +123,8 @@ class _Revision:
             ],
         )
         owner_p.add_role(CVDRole.CASE_MANAGER)
-        proposer_p = ReporterParticipant(
+        proposer_p = make(
+            ReporterParticipant,
             attributed_to=PROPOSER,
             context=self.case.id_,
             embargo_consents=[
@@ -128,7 +134,8 @@ class _Revision:
                 )
             ],
         )
-        third_p = VendorParticipant(
+        third_p = make(
+            VendorParticipant,
             attributed_to=THIRD,
             context=self.case.id_,
             embargo_consents=[
@@ -163,7 +170,9 @@ class _Revision:
         )
         self.proposer_dl.clear_all()
         for actor_id in ACTORS:
-            self.proposer_dl.create(as_Service(id_=actor_id, name=actor_id))
+            self.proposer_dl.create(
+                make(as_Service, id_=actor_id, name=actor_id)
+            )
         for obj in (self.case, self.active, owner_p, proposer_p, third_p):
             self.proposer_dl.create(obj)
 

@@ -68,6 +68,7 @@ from test.demo._helpers import (
     stub_closure_gate,
 )
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
@@ -646,7 +647,8 @@ class TestRccvHandoffLedgerDump:
         self, tmp_path, monkeypatch
     ):
         """Four crossed devlogs names, each keyed on its client's actor id."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rccv-test-case",
         )
@@ -683,7 +685,8 @@ class TestRccvHandoffLedgerDump:
         self, tmp_path, monkeypatch
     ):
         """The CaseActor is not on C1's container (DEMOMA-06-005)."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rccv-with-ca",
             actor_participant_index={

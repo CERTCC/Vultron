@@ -32,6 +32,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes.chosen_cause import (
@@ -90,7 +91,8 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
         (_VENDOR_ID, [CVDRole.CASE_OWNER, CVDRole.VENDOR]),
         (_FINDER_ID, [CVDRole.REPORTER]),
     ):
-        p = CaseParticipant(
+        p = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
             # `attributed_to` is what `add_participant` keys the
             # actor→participant index on.
@@ -99,7 +101,8 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
             case_roles=roles,
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=_EMBARGO_ID, state=EmbargoConsentState.AGREED
+                    embargo_id=_EMBARGO_ID,
+                    state=EmbargoConsentState.AGREED,
                 )
             ],
         )
@@ -107,11 +110,15 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
         parts.append(p)
 
     dl.create(
-        EmbargoEvent(
-            id_=_EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
+        make(
+            EmbargoEvent,
+            id_=_EMBARGO_ID,
+            context=CASE_ID,
+            end_time=days_from_now(45),
         )
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="Teardown ask",
         attributed_to=_VENDOR_ID,

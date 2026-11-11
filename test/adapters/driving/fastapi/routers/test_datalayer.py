@@ -16,6 +16,7 @@ from urllib.parse import quote
 import pytest
 from fastapi import status
 
+from test.support.objects import make
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models._helpers import URN_UUID_PREFIX
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -151,7 +152,7 @@ def test_get_by_http_url_key_returns_stored_record(
     Regression: Starlette decodes %2F to / before routing, so single-segment
     /{key} never matched URL-format IDs.  Fix: use /{key:path} as catch-all.
     """
-    participant = as_CaseParticipant(id_=_HTTP_PARTICIPANT_ID)
+    participant = make(as_CaseParticipant, id_=_HTTP_PARTICIPANT_ID)
     datalayer.create(object_to_record(participant))
 
     encoded = quote(_HTTP_PARTICIPANT_ID, safe="")
@@ -266,7 +267,7 @@ def test_get_actor_outbox_returns_empty_items_when_queue_is_empty(
     from vultron.adapters.driven.db_record import object_to_record
     from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-    actor = as_Service(id_=dl_actor_id, name="test-empty-outbox")
+    actor = make(as_Service, id_=dl_actor_id, name="test-empty-outbox")
     datalayer.create(object_to_record(actor))
 
     response = client_datalayer.get(
@@ -296,7 +297,7 @@ def test_get_actor_outbox_returns_queued_activity_ids(
     from vultron.adapters.driven.db_record import object_to_record
     from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-    actor = as_Service(id_=dl_actor_id, name="test-nonempty-outbox")
+    actor = make(as_Service, id_=dl_actor_id, name="test-nonempty-outbox")
     datalayer.create(object_to_record(actor))
 
     # Persist the activity and record it in the actor's outbox queue.

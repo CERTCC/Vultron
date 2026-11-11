@@ -29,6 +29,7 @@ import pytest
 
 from test.support.act_clock import no_clock
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models._helpers import (
     clock as helpers_clock,
     days_after,
@@ -246,10 +247,13 @@ def test_has_case_statuses_true_when_non_empty():
     from vultron.core.models.case import VulnerabilityCase, has_case_statuses
     from vultron.core.models.case_status import CaseStatus
 
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/x1",
-        case_statuses=[CaseStatus(context="https://example.org/cases/x1")],
+        case_statuses=[
+            make(CaseStatus, context="https://example.org/cases/x1")
+        ],
     )
     assert has_case_statuses(case) is True
 
@@ -257,8 +261,10 @@ def test_has_case_statuses_true_when_non_empty():
 def test_has_case_statuses_false_when_empty():
     from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/x2"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/x2",
     )
     case.case_statuses = []
     assert has_case_statuses(case) is False
@@ -268,8 +274,10 @@ def test_has_case_statuses_true_when_default():
     """A new case is seeded with one status, since it always has an owner."""
     from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/x3"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/x3",
     )
     assert has_case_statuses(case) is True
 

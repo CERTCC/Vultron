@@ -24,6 +24,7 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import register, reject
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.act_transaction import ActTransaction
@@ -69,7 +70,8 @@ REPORTER = "https://example.org/actors/reporter"
 
 
 def participant(actor_id: str, *roles: CVDRole) -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
         context=CASE_ID,
@@ -95,7 +97,8 @@ def seed(
         participant(OWNER, CVDRole.VENDOR),
         participant(REPORTER, CVDRole.REPORTER),
     ]
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="Creation-time revision",
         attributed_to=OWNER,
@@ -109,10 +112,15 @@ def seed(
     )
     if not open_proposal:
         reject(case, EMBARGO_ID)
-    embargo = as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(60)
+    embargo = make(
+        as_EmbargoEvent,
+        id_=EMBARGO_ID,
+        context=CASE_ID,
+        end_time=days_from_now(60),
     )
-    report = VulnerabilityReport(id_=REPORT_ID, attributed_to=report_author)
+    report = make(
+        VulnerabilityReport, id_=REPORT_ID, attributed_to=report_author
+    )
     for record in records:
         # The rows the register's entries gave each participant (ADR-0122).
         record.write_uninvited_rows(
@@ -139,8 +147,11 @@ def candidate(
 ) -> CreationTimeRevisionCandidate:
     """The revision ``ResolveCreationTimeRevisionNode`` publishes."""
     return CreationTimeRevisionCandidate(
-        embargo=as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(60)
+        embargo=make(
+            as_EmbargoEvent,
+            id_=EMBARGO_ID,
+            context=CASE_ID,
+            end_time=days_from_now(60),
         ),
         losing_source=losing_source,
     )

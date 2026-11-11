@@ -25,6 +25,7 @@ from datetime import timedelta
 import pytest
 from fastapi import status
 
+from test.support.objects import make
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -147,7 +148,8 @@ class TestPutEmbargoPolicy:
         """A free-standing record is not the actor's policy: only the profile
         field is, so a publish neither reads nor counts it (#4027)."""
         _store_for(hosted_actor).create(
-            EmbargoPolicy(
+            make(
+                EmbargoPolicy,
                 actor_id=hosted_actor,
                 inbox=f"{hosted_actor}/inbox",
                 preferred_duration=timedelta(days=7),
@@ -294,7 +296,8 @@ class TestGetEmbargoPolicy:
         store = _store_for(hosted_actor)
         for days in (60, 14, 30):
             store.create(
-                EmbargoPolicy(
+                make(
+                    EmbargoPolicy,
                     actor_id=hosted_actor,
                     inbox=f"{hosted_actor}/inbox",
                     preferred_duration=timedelta(days=days),
@@ -310,7 +313,8 @@ class TestGetEmbargoPolicy:
     ):
         """A record naming a different actor never answers for this one (#3753)."""
         _store_for(hosted_actor).create(
-            EmbargoPolicy(
+            make(
+                EmbargoPolicy,
                 actor_id="https://elsewhere.test/actors/other",
                 inbox="https://elsewhere.test/actors/other/inbox",
                 preferred_duration=timedelta(days=3),
@@ -353,7 +357,8 @@ def _rival_publish(store, profile: CoreActor, _n: int) -> None:
         type(profile).model_validate(
             {
                 **dict(profile),
-                "embargo_policy": EmbargoPolicy(
+                "embargo_policy": make(
+                    EmbargoPolicy,
                     id_=EmbargoPolicy.build_id(profile.id_),
                     actor_id=profile.id_,
                     inbox=f"{profile.id_}/inbox",

@@ -35,6 +35,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.ports.datalayer import DataLayer
 from vultron.enums.roles import CVDRole
@@ -110,7 +111,8 @@ class LooselyTypedStoredCase(as_Object):
 @pytest.fixture
 def recorded_activity() -> as_Activity:
     """An activity performed by someone other than the case owner."""
-    return as_Activity(
+    return make(
+        as_Activity,
         id_="https://example.org/activities/act-1",
         actor=OTHER_PARTICIPANT,
         type_="Activity",
@@ -152,7 +154,8 @@ def test_materialise_builds_a_valid_object_from_bare_ids(
     list[as_ParticipantStatus]) as the canonical object-only list slot,
     since VulnerabilityCase.case_activity is now list[str] (ADR-0099 #3487).
     """
-    status = as_ParticipantStatus(
+    status = make(
+        as_ParticipantStatus,
         id_="https://example.org/pstatus/ps-10",
         attributed_to=OTHER_PARTICIPANT,
         context=CASE_ID,
@@ -179,8 +182,10 @@ def test_bare_id_in_scalar_object_slot_is_resolved() -> None:
     """`as_ParticipantStatus.case_status` is scalar and admits no URI."""
     # ``context`` is required on the core class (fail-fast, ARCH-10-001); the
     # deleted wire class allowed it to be absent (ARCH-12-002 leniency).
-    status = as_CaseStatus(
-        id_="https://example.org/case-statuses/cs-1", context=CASE_ID
+    status = make(
+        as_CaseStatus,
+        id_="https://example.org/case-statuses/cs-1",
+        context=CASE_ID,
     )
     dl = FakeDataLayer({status.id_: status})
     out = materialise_object_slots(
@@ -199,7 +204,8 @@ def test_rehydrate_materialises_object_slots(
     After ADR-0099, case_activity holds string IDs — rehydration casts the
     stored object to VulnerabilityCase and preserves activity IDs as strings.
     """
-    stored = LooselyTypedStoredCase(
+    stored = make(
+        LooselyTypedStoredCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         type_="VulnerabilityCase",
@@ -222,7 +228,8 @@ def test_rehydrate_materialises_from_a_bare_case_id(
     resolved into an object; its string reference is preserved.
     """
     dl.add(
-        LooselyTypedStoredCase(
+        make(
+            LooselyTypedStoredCase,
             attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             type_="VulnerabilityCase",
@@ -336,7 +343,8 @@ def test_unresolvable_activity_id_is_kept_as_string(
     VulnerabilityCase.case_activity stores activity URIs as strings; there is
     no object-only slot to refuse, so an unresolvable URI is simply preserved.
     """
-    stored = LooselyTypedStoredCase(
+    stored = make(
+        LooselyTypedStoredCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         type_="VulnerabilityCase",
@@ -425,7 +433,8 @@ def test_absent_and_empty_slots_are_left_alone(dl: FakeDataLayer) -> None:
 
 def test_nested_object_list_slot_is_covered_too() -> None:
     """`as_CaseParticipant.participant_statuses` is the third such slot."""
-    status = as_ParticipantStatus(
+    status = make(
+        as_ParticipantStatus,
         id_="https://example.org/pstatus/ps-3",
         attributed_to=OTHER_PARTICIPANT,
         context=CASE_ID,
@@ -470,8 +479,10 @@ def test_reference_resolving_to_a_core_object_is_materialised() -> None:
     an unresolvable reference (``test_unresolvable_reference_in_object_slot_is_refused``)
     and a resolved object that is neither an AS2 object nor a core object.
     """
-    core_status = CoreCaseStatus(
-        id_="https://example.org/statuses/cs-1", context=CASE_ID
+    core_status = make(
+        CoreCaseStatus,
+        id_="https://example.org/statuses/cs-1",
+        context=CASE_ID,
     )
     dl = FakeDataLayer({core_status.id_: core_status})
 
@@ -541,7 +552,8 @@ def test_slot_supplied_under_its_as2_alias_is_materialised(
     ``model_validate`` then failed on a bare string in a
     ``list[as_ParticipantStatus]`` slot.
     """
-    status = as_ParticipantStatus(
+    status = make(
+        as_ParticipantStatus,
         id_="https://example.org/pstatus/ps-20",
         attributed_to=OTHER_PARTICIPANT,
         context=CASE_ID,
@@ -588,7 +600,7 @@ def test_core_dimension_slots_are_not_treated_as_references() -> None:
     advertises exactly this call shape as the ``from_core`` replacement for
     #3487/#3488.
     """
-    core_status = CoreCaseStatus(context=CASE_ID)
+    core_status = make(CoreCaseStatus, context=CASE_ID)
     dumped = core_status.model_dump(mode="json")
     assert dumped["em"] == "NONE", "precondition: the dimension dumps bare"
 
@@ -647,7 +659,8 @@ def test_rehydrate_keeps_unresolved_nested_object_and_logs_debug(
     WARNING, and raises nothing.  The store's `hydrate()` is the WARNING path
     (`test/adapters/driven/test_sqlite_rehydration.py`).
     """
-    activity = as_Read(
+    activity = make(
+        as_Read,
         id_="https://example.org/activities/act-2",
         actor=OTHER_PARTICIPANT,
         object_=MISSING_ID,

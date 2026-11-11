@@ -28,6 +28,7 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
     CheckNotSoleObserverVfdNode,
@@ -51,7 +52,8 @@ OBSERVER_VENDOR_ACTOR_ID = "https://example.org/actors/observer-vendor"
 
 @pytest.fixture
 def vendor_participant() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-cp-001",
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
@@ -61,7 +63,8 @@ def vendor_participant() -> CaseParticipant:
 
 @pytest.fixture
 def deployer_participant() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_="https://example.org/participants/deployer-cp-001",
         attributed_to=DEPLOYER_ACTOR_ID,
         context=CASE_ID,
@@ -71,7 +74,8 @@ def deployer_participant() -> CaseParticipant:
 
 @pytest.fixture
 def coordinator_participant() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=COORDINATOR_ACTOR_ID,
         context=CASE_ID,
@@ -86,7 +90,8 @@ def case_with_vendor_and_deployer(
     deployer_participant: CaseParticipant,
     coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
@@ -177,7 +182,8 @@ def test_vendor_guard_failure_when_actor_not_in_case(
     vendor_participant: CaseParticipant,
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
@@ -264,7 +270,8 @@ def test_deployer_guard_failure_when_actor_not_in_case(
     deployer_participant: CaseParticipant,
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
@@ -288,7 +295,8 @@ def test_deployer_guard_failure_when_actor_not_in_case(
 
 @pytest.fixture
 def observer_participant() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_="https://example.org/participants/observer-cp-001",
         attributed_to=OBSERVER_ACTOR_ID,
         context=CASE_ID,
@@ -298,7 +306,8 @@ def observer_participant() -> CaseParticipant:
 
 @pytest.fixture
 def observer_vendor_participant() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_="https://example.org/participants/observer-vendor-cp-001",
         attributed_to=OBSERVER_VENDOR_ACTOR_ID,
         context=CASE_ID,
@@ -314,7 +323,8 @@ def case_with_observer_actors(
     vendor_participant: CaseParticipant,
     coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
@@ -450,13 +460,15 @@ def test_deployer_only_blocked_when_no_vendor_at_vfd(
 
 @pytest.fixture
 def vendor_at_vf_participant() -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-at-vf-cp-001",
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 id_="https://example.org/statuses/vendor-vf-status-001",
                 context=CASE_ID,
                 attributed_to=VENDOR_ACTOR_ID,
@@ -473,7 +485,8 @@ def case_with_vendor_at_vf_and_deployer(
     deployer_participant: CaseParticipant,
     coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
@@ -531,7 +544,8 @@ def case_with_vendor_at_vf_in_fallback(
     a bare string ID in case_participants with no corresponding entry in
     actor_participant_index, forcing the fallback DataLayer read.
     """
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
@@ -575,7 +589,8 @@ def test_not_sole_observer_failure_when_actor_not_in_case(
     observer_participant: CaseParticipant,
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",

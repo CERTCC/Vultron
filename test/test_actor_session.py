@@ -22,6 +22,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import FAR_FUTURE
+from test.support.objects import make
 from vultron.demo.actor_session import (
     ActorSession,
     WireActivityResult,
@@ -43,12 +44,14 @@ _CASE_ID = "http://case-actor:7999/api/v2/VulnerabilityCases/abc"
 def _session(base_url: str = _BASE, actor_id: str = _ACTOR_ID) -> ActorSession:
     return ActorSession(
         client=DataLayerClient(base_url=base_url),
-        actor=as_Actor(id_=actor_id),
+        actor=make(as_Actor, id_=actor_id),
     )
 
 
 def _case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+    return make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_ID
+    )
 
 
 # -- construction / authority (DEMOMA-26-002, DEMOMA-26-008) -------------
@@ -64,7 +67,7 @@ def test_post_init_rejects_client_that_does_not_host_actor():
     with pytest.raises(ValueError, match="not hosted by"):
         ActorSession(
             client=DataLayerClient(base_url="http://coordinator:7999/api/v2"),
-            actor=as_Actor(id_=_ACTOR_ID),
+            actor=make(as_Actor, id_=_ACTOR_ID),
         )
 
 
@@ -76,7 +79,7 @@ def test_post_init_accepts_the_actors_own_container():
 def test_post_init_skips_check_for_non_absolute_uris():
     # A bare-slug actor id and a MagicMock client cannot mis-address a
     # container, so the check is skipped rather than raising.
-    ActorSession(client=MagicMock(), actor=as_Actor(id_="vendor"))
+    ActorSession(client=MagicMock(), actor=make(as_Actor, id_="vendor"))
 
 
 # -- immutable copies (DEMOMA-26-003, DEMOMA-26-009) ---------------------

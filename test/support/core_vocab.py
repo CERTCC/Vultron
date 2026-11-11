@@ -34,6 +34,7 @@ from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
 
+from test.support.objects import make
 from vultron.core.models.base import CoreObject
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 
@@ -120,7 +121,7 @@ def build_core_vocab(
         kwargs["id_"] = f"urn:test:{name.lower()}:{id_suffix}"
         kwargs.update(extra or {})
         try:
-            built.append((name, base_cls(**kwargs)))
+            built.append((name, make(base_cls, **kwargs)))
         except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
             unconstructible[name] = f"{type(exc).__name__}: {exc}"
     return built, unconstructible

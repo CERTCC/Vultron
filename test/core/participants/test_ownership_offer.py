@@ -21,6 +21,7 @@ import pytest
 
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.ownership_offer import (
@@ -45,8 +46,11 @@ _T0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 def dl() -> SqliteDataLayer:
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
     store.create(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Ownership offer"
+        make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            name="Ownership offer",
         )
     )
     return store
@@ -66,7 +70,8 @@ def _ledger(
     if target is not None:
         snapshot["target"] = target
     dl.save(
-        CaseLedgerEntry(
+        make(
+            CaseLedgerEntry,
             case_id=_CASE_ID,
             log_index=index,
             log_object_id=object_id,

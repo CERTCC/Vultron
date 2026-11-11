@@ -22,6 +22,7 @@ from test.core.behaviors.case.test_create_case_received_tree import (
     _case,
     _link,
 )
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import _as_id
@@ -136,7 +137,8 @@ def announce_vulnerability_case() -> Scenario:
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER_ID)
     _anchor_expected_authority(dl)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_ANNOUNCED_CASE_ID,
         name="re-run sweep announce",
@@ -158,8 +160,9 @@ def create_case_proposal() -> Scenario:
     """A vendor proposes a case: the case actor creates it and accepts."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
     event = received_event(
-        as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=_make_proposal(),
             to=[_CASE_ACTOR_URI],
         ),

@@ -33,6 +33,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -114,7 +115,7 @@ FUTURE_END_DATETIME = datetime(2099, 12, 1, 0, 0, 0, tzinfo=UTC)
 
 def _make_actor_dl(actor_name: str):
     """Create an as_Service actor and a matching per-actor SqliteDataLayer."""
-    actor = as_Service(name=actor_name)
+    actor = make(as_Service, name=actor_name)
     actor_id = actor.id_
     reset_datalayer(actor_id)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -140,9 +141,10 @@ def _make_case_with_case_manager(
         as_ParticipantStatus as WireParticipantStatus,
     )
 
-    case = VulnerabilityCase(name="Test Case", attributed_to=actor_id)
+    case = make(VulnerabilityCase, name="Test Case", attributed_to=actor_id)
 
-    actor_participant = as_CaseParticipant(
+    actor_participant = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
@@ -150,19 +152,27 @@ def _make_case_with_case_manager(
     # Pre-advance actor to RM.VALID so engage/defer transitions will succeed
 
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(
-            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.RECEIVED),
         )
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.VALID),
+        )
     )
 
-    finder_participant = ReporterParticipant(
+    finder_participant = make(
+        ReporterParticipant,
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -196,14 +206,16 @@ def _make_two_actor_case(
     Use ``_make_case_with_case_manager`` for tests that need PCR-08-001
     routing or an ``EngageCaseTriggerRequest``/``AddParticipantStatusTriggerRequest``.
     """
-    case = VulnerabilityCase(name="Test Case", attributed_to=vendor_id)
-    vendor_participant = CaseParticipant(
+    case = make(VulnerabilityCase, name="Test Case", attributed_to=vendor_id)
+    vendor_participant = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/vendor",
         attributed_to=vendor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
-    finder_participant = CaseParticipant(
+    finder_participant = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/finder",
         attributed_to=finder_id,
         context=case.id_,
@@ -263,8 +275,8 @@ class TestCaseTriggerToField:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
-        self.finder = as_Service(name="Finder Co")
-        self.case_actor = as_Service(name="Case Actor")
+        self.finder = make(as_Service, name="Finder Co")
+        self.case_actor = make(as_Service, name="Case Actor")
         self.dl.create(self.finder)
         self.dl.create(self.case_actor)
         self.case = _make_case_with_case_manager(
@@ -367,8 +379,8 @@ class TestCaseTriggerToField:
 
     def test_engage_case_raises_when_no_case_manager(self):
         """SvcEngageCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
-        case_solo = VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Solo Case"
+        case_solo = make(
+            VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Solo Case"
         )
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"
@@ -404,8 +416,8 @@ class TestEmbargoTriggerToField:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
-        self.finder = as_Service(name="Finder Co")
-        self.case_actor = as_Service(name="Case Actor")
+        self.finder = make(as_Service, name="Finder Co")
+        self.case_actor = make(as_Service, name="Case Actor")
         self.dl.create(self.finder)
         self.dl.create(self.case_actor)
         self.case = _make_case_with_case_manager(
@@ -450,8 +462,8 @@ class TestEmbargoTriggerToField:
 
     def test_evaluate_embargo_to_field_addresses_case_actor_only(self):
         """SvcAcceptEmbargoUseCase queues activity addressed only to Case Actor."""
-        embargo = as_EmbargoEvent(
-            context=self.case.id_, end_time=days_from_now(45)
+        embargo = make(
+            as_EmbargoEvent, context=self.case.id_, end_time=days_from_now(45)
         )
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -494,8 +506,8 @@ class TestEmbargoTriggerToField:
 
     def test_terminate_embargo_to_field_addresses_case_actor_only(self):
         """SvcTerminateEmbargoUseCase queues activity addressed only to Case Actor."""
-        embargo = as_EmbargoEvent(
-            context=self.case.id_, end_time=days_from_now(45)
+        embargo = make(
+            as_EmbargoEvent, context=self.case.id_, end_time=days_from_now(45)
         )
         self.dl.create(embargo)
         activate(self.case, embargo.id_)
@@ -529,8 +541,8 @@ class TestEmbargoTriggerToField:
 
     def test_reject_embargo_to_field_addresses_case_actor_only(self):
         """SvcRejectEmbargoUseCase queues activity addressed only to Case Actor."""
-        embargo = as_EmbargoEvent(
-            context=self.case.id_, end_time=days_from_now(45)
+        embargo = make(
+            as_EmbargoEvent, context=self.case.id_, end_time=days_from_now(45)
         )
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -569,8 +581,8 @@ class TestEmbargoTriggerToField:
 
     def test_propose_embargo_revision_to_field_addresses_case_actor_only(self):
         """SvcProposeEmbargoRevisionUseCase queues activity to only Case Actor."""
-        embargo = as_EmbargoEvent(
-            context=self.case.id_, end_time=days_from_now(45)
+        embargo = make(
+            as_EmbargoEvent, context=self.case.id_, end_time=days_from_now(45)
         )
         self.dl.create(embargo)
         activate(self.case, embargo.id_)
@@ -614,20 +626,25 @@ def _make_case_with_case_owner_and_manager(
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_participant import CaseParticipant
 
-    owner_p = CaseParticipant(
+    owner_p = make(
+        CaseParticipant,
         attributed_to=owner_id,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    finder_p = CaseParticipant(
+    finder_p = make(
+        CaseParticipant,
         attributed_to=finder_id,
         case_roles=[CVDRole.REPORTER],
     )
-    manager_p = CaseParticipant(
+    manager_p = make(
+        CaseParticipant,
         attributed_to=manager_id,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="Owner+Manager Case"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        name="Owner+Manager Case",
     )
     case.actor_participant_index[owner_id] = owner_p.id_
     case.actor_participant_index[finder_id] = finder_p.id_
@@ -652,12 +669,13 @@ class TestReportTriggerToField:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
-        self.finder = as_Service(name="Finder Co")
-        self.case_actor = as_Service(name="Case Actor")
+        self.finder = make(as_Service, name="Finder Co")
+        self.case_actor = make(as_Service, name="Case Actor")
         self.dl.create(self.finder)
         self.dl.create(self.case_actor)
 
-        self.report = as_VulnerabilityReport(
+        self.report = make(
+            as_VulnerabilityReport,
             name="CVE-TEST",
             content="Report content",
             attributed_to=self.finder.id_,

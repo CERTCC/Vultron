@@ -39,6 +39,7 @@ from test.core.behaviors.sync.nodes._embargo_gate_support import (
 from test.core.behaviors.sync.nodes.conftest import CASE_ID, _make_entry
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.ledger_position_stage import (
@@ -482,7 +483,8 @@ def _numbered_note(number: int, position: LedgerPosition) -> Any:
     note = _note(SIGNATORY_ID, position)
     return note.model_copy(
         update={
-            "activity": VultronActivity(
+            "activity": make(
+                VultronActivity,
                 id_=note.activity_id,
                 type_="Add",
                 actor=SIGNATORY_ID,

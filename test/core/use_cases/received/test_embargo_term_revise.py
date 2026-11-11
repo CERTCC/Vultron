@@ -22,6 +22,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -64,12 +65,14 @@ class TestEmbargoTermRevise:
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_COORD)
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_em1",
             name="EM Test Case",
             attributed_to=_OWNER,
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_em1/embargo_events/e1",
             content="Embargo test",
             context=case.id_,
@@ -92,8 +95,8 @@ class TestEmbargoTermRevise:
         activity = activate_embargo_activity(
             embargo,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=case.id_
+            target=make(
+                as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case.id_
             ),
             actor=_OWNER,
             to=[_COORD],
@@ -129,8 +132,8 @@ class TestEmbargoTermRevise:
         activity = activate_embargo_activity(
             embargo,
             in_reply_to=SEEDED_PROPOSAL_ID,
-            target=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=case.id_
+            target=make(
+                as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case.id_
             ),
             actor=_OWNER,
             to=[_COORD],
@@ -170,12 +173,14 @@ class TestEmbargoTermRevise:
             "sqlite:///:memory:",
             actor_id=_CASE_MANAGER,
         )
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_rem1",
             name="Remove Embargo Proposed",
             attributed_to="https://example.org/users/coord",
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_rem1/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -186,8 +191,8 @@ class TestEmbargoTermRevise:
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=case.id_
+            origin=make(
+                as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case.id_
             ),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
@@ -230,12 +235,14 @@ class TestEmbargoTermRevise:
             "sqlite:///:memory:",
             actor_id=_CASE_MANAGER,
         )
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_rem2",
             name="Remove Embargo ACTIVE→EXITED",
             attributed_to="https://example.org/users/coord",
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_rem2/embargo_events/e2",
             context=case.id_,
             end_time=days_from_now(45),
@@ -247,8 +254,8 @@ class TestEmbargoTermRevise:
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=case.id_
+            origin=make(
+                as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case.id_
             ),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
@@ -294,12 +301,14 @@ class TestEmbargoTermRevise:
             "sqlite:///:memory:",
             actor_id=_CASE_MANAGER,
         )
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_="https://example.org/cases/case_rem3",
             name="Remove Embargo unusual state override",
             attributed_to="https://example.org/users/coord",
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_="https://example.org/cases/case_rem3/embargo_events/e3",
             context=case.id_,
             end_time=days_from_now(45),
@@ -314,8 +323,8 @@ class TestEmbargoTermRevise:
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=case.id_
+            origin=make(
+                as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case.id_
             ),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],

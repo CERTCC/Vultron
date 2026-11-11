@@ -2,6 +2,7 @@
 
 from typing import Literal
 
+from test.support.objects import make
 from vultron.core.models.actor import (
     CoreActor,
     VultronApplication,
@@ -37,18 +38,18 @@ def test_retired_vultron_actor_mixin_alias_is_gone():
 
 
 def test_core_actor_has_embargo_policy_field():
-    actor = CoreActor()
+    actor = make(CoreActor)
     assert actor.embargo_policy is None
 
 
 def test_person_org_service_application_and_group_register(
     isolated_core_registries,
 ):
-    assert VultronPerson().type_ == "Person"
-    assert VultronOrganization().type_ == "Organization"
-    assert VultronService().type_ == "Service"
-    assert VultronApplication().type_ == "Application"
-    assert VultronGroup().type_ == "Group"
+    assert make(VultronPerson).type_ == "Person"
+    assert make(VultronOrganization).type_ == "Organization"
+    assert make(VultronService).type_ == "Service"
+    assert make(VultronApplication).type_ == "Application"
+    assert make(VultronGroup).type_ == "Group"
 
     for cls in (
         VultronPerson,

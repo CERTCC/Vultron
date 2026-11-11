@@ -18,6 +18,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -66,10 +67,13 @@ class TestUseCaseExecution:
         that would select an empty scratch store (ARCH-15-001).  The inbox
         adapter always sets this field in production.
         """
-        report = as_VulnerabilityReport(
-            name="TEST-002", content="Test vulnerability report"
+        report = make(
+            as_VulnerabilityReport,
+            name="TEST-002",
+            content="Test vulnerability report",
         )
-        create_activity = as_Create(
+        create_activity = make(
+            as_Create,
             actor="https://example.org/users/tester",
             object_=report,
             to=["https://example.org/actors/receiver"],
@@ -85,12 +89,14 @@ class TestUseCaseExecution:
 
     def test_create_case_executes_with_valid_semantics(self, make_payload):
         """CreateCaseReceivedUseCase executes when semantics match."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             name="TEST-CASE-002",
             content="Test vulnerability case",
         )
-        create_activity = as_Create(
+        create_activity = make(
+            as_Create,
             actor="https://example.org/users/tester",
             object_=case,
             to=["https://test.example/api/v2/actors/test-actor"],
@@ -112,10 +118,13 @@ class TestUseCaseExecution:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        report = as_VulnerabilityReport(
-            name="TEST-003", content="Test report for shim delegation"
+        report = make(
+            as_VulnerabilityReport,
+            name="TEST-003",
+            content="Test report for shim delegation",
         )
-        create_activity = as_Create(
+        create_activity = make(
+            as_Create,
             actor="https://example.org/users/tester",
             object_=report,
             to=[dl.actor_id],
@@ -143,15 +152,19 @@ def _run_create_report(
     """
     if dl is None:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER_ID)
-    activity = VultronActivity(
-        id_=activity_id, type_="Create", actor=sender_id, to=[dl.actor_id]
+    activity = make(
+        VultronActivity,
+        id_=activity_id,
+        type_="Create",
+        actor=sender_id,
+        to=[dl.actor_id],
     )
     event = with_evidence(
         CreateReportReceivedEvent(
             semantic_type=MessageSemantics.CREATE_REPORT,
             activity_id=activity_id,
             actor_id=sender_id,
-            object_=VulnerabilityReport(id_=report_id),
+            object_=make(VulnerabilityReport, id_=report_id),
             activity=activity,
         )
     )
@@ -201,8 +214,10 @@ class TestCreateReportSenderEntitlement:
     def test_sender_outside_the_receivers_case_is_applied(self):
         """A sender in none of the receiver's cases still has its report kept."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER_ID)
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/c-other", attributed_to=_RECEIVER_ID
+        case = make(
+            as_VulnerabilityCase,
+            id_="https://example.org/cases/c-other",
+            attributed_to=_RECEIVER_ID,
         )
         dl.save(case)
         assert self.STRANGER_ID not in case.actor_participant_index
@@ -242,8 +257,9 @@ class TestDuplicateReportHandling:
         activity_id: str,
         vendor_id: str = "https://example.org/actors/vendor",
     ):
-        report = VulnerabilityReport(id_=report_id)
-        activity = VultronActivity(
+        report = make(VulnerabilityReport, id_=report_id)
+        activity = make(
+            VultronActivity,
             id_=activity_id,
             type_="Offer",
             actor="https://example.org/users/finder",
@@ -311,10 +327,12 @@ class TestDuplicateReportHandling:
         """
         import logging
 
-        report = VulnerabilityReport(
-            id_="https://example.org/reports/r-dup-create-1"
+        report = make(
+            VulnerabilityReport,
+            id_="https://example.org/reports/r-dup-create-1",
         )
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_="https://example.org/activities/create-dup-1",
             type_="Create",
             actor="https://example.org/users/finder",
@@ -370,9 +388,13 @@ class TestCreateReportDisposition:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        report = as_VulnerabilityReport(name="TEST-004", content="x")
+        report = make(as_VulnerabilityReport, name="TEST-004", content="x")
         event = make_payload(
-            as_Create(actor="https://example.org/users/tester", object_=report)
+            make(
+                as_Create,
+                actor="https://example.org/users/tester",
+                object_=report,
+            )
         )
         with pytest.raises(
             VultronBTInternalError, match="CreateReportReceivedBT"

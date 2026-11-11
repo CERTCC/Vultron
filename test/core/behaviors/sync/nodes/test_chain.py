@@ -17,6 +17,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -273,7 +274,7 @@ class TestPersistLogEntryNodeLogging:
         # A ledger entry belongs to a stored case, whose position its commit
         # moves (SYNC-16-005); the commit runs in the owner's store.
         owner_store.save(
-            VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+            make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
         )
         return _make_entry(log_index=0, prev_hash=_ZERO_HASH)
 

@@ -27,6 +27,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.objects import make
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
@@ -154,7 +155,8 @@ def _participant(
     Every other register entry gets the ``UNINVITED`` row the case gives a
     participant as it joins (ADR-0122).
     """
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         attributed_to=actor_id,
         context=CASE_ID,
         embargo_consents=[
@@ -175,13 +177,14 @@ def revising_case(datalayer) -> VulnerabilityCase:
     The owner, the participant and the proposer are all signatories of the
     active embargo.
     """
-    active = EmbargoEvent(
+    active = make(
+        EmbargoEvent,
         id_=ACTIVE_EMBARGO_ID,
         context=CASE_ID,
         end_time=now_utc() + timedelta(days=30),
     )
     datalayer.create(active)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     activate(case, ACTIVE_EMBARGO_ID)
     _participant(
         datalayer,

@@ -46,6 +46,7 @@ from test.support import embargo_register
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
@@ -160,7 +161,8 @@ def _record(actor_id: str, roles: list[CVDRole]) -> CaseParticipant:
         if actor_id == DECLINER
         else EmbargoConsentState.AGREED
     )
-    record = CaseParticipant(
+    record = make(
+        CaseParticipant,
         id_=_participant_id(actor_id),
         attributed_to=actor_id,
         context=CASE_ID,
@@ -172,7 +174,8 @@ def _record(actor_id: str, roles: list[CVDRole]) -> CaseParticipant:
     )
     if actor_id != DEPARTED:
         return record
-    closed = ParticipantStatus(
+    closed = make(
+        ParticipantStatus,
         context=CASE_ID,
         attributed_to=actor_id,
         rm=RmDimension(state=RM.CLOSED),
@@ -183,12 +186,15 @@ def _record(actor_id: str, roles: list[CVDRole]) -> CaseParticipant:
 
 def _seed(dl: SqliteDataLayer, *, end_in_days: int = 60) -> None:
     """Seed *dl* with the case, its roster and its active embargo."""
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="CASE-ENDING-NOTICE", attributed_to=OWNER
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="CASE-ENDING-NOTICE",
+        attributed_to=OWNER,
     )
-    dl.create(as_Service(id_=MANAGER, context=CASE_ID))
+    dl.create(make(as_Service, id_=MANAGER, context=CASE_ID))
     for actor_id in (OWNER, *_VENDORS):
-        dl.create(as_Organization(id_=actor_id))
+        dl.create(make(as_Organization, id_=actor_id))
     seed_case_manager_participant(dl, case, MANAGER)
     for actor_id in (OWNER, *_VENDORS):
         roles = [CVDRole.VENDOR]
@@ -199,7 +205,8 @@ def _seed(dl: SqliteDataLayer, *, end_in_days: int = 60) -> None:
         case.case_participants.append(record.id_)
         case.actor_participant_index[actor_id] = record.id_
     dl.create(
-        as_EmbargoEvent(
+        make(
+            as_EmbargoEvent,
             id_=EMBARGO_ID,
             context=CASE_ID,
             end_time=days_from_now(end_in_days),
@@ -274,7 +281,8 @@ class _Manager:
         assert result.disposition is HandlerDisposition.APPLIED
 
     def stage_revision(self, *, end_in_days: int) -> Any:
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=REVISION_ID,
             context=CASE_ID,
             end_time=days_from_now(end_in_days),
@@ -530,8 +538,11 @@ def test_expiry_on_or_after_the_agreed_end_sends_no_unreached_notice() -> None:
     manager = _Manager()
     # The agreed end passes after REMOVED was removed.
     manager.dl.save(
-        as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(-1)
+        make(
+            as_EmbargoEvent,
+            id_=EMBARGO_ID,
+            context=CASE_ID,
+            end_time=days_from_now(-1),
         )
     )
 
@@ -572,8 +583,11 @@ def test_owner_termination_after_the_end_time_sends_no_announce() -> None:
     """The end-time check ends the embargo first, so nothing is announced."""
     manager = _Manager()
     manager.dl.save(
-        as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(-1)
+        make(
+            as_EmbargoEvent,
+            id_=EMBARGO_ID,
+            context=CASE_ID,
+            end_time=days_from_now(-1),
         )
     )
 
@@ -749,7 +763,8 @@ def test_embargo_ending_notice_decision() -> None:
         ("short", sooner),
     ):
         dl.create(
-            as_EmbargoEvent(
+            make(
+                as_EmbargoEvent,
                 id_=f"{CASE_ID}/e/{embargo_id}",
                 context=CASE_ID,
                 end_time=end_time,
@@ -938,7 +953,8 @@ def test_paused_replica_ignores_a_termination_from_a_non_manager() -> None:
 def _shorter_revision_announced_by(
     sender: str, replica: _Replica, *, end_in_days: int = 30
 ) -> HandlerResult:
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=REVISION_ID,
         context=CASE_ID,
         end_time=days_from_now(end_in_days),
@@ -1021,7 +1037,8 @@ def test_paused_replica_ends_a_longer_revision_it_was_not_told_of() -> None:
     terminates it, and a late ``Announce`` of it changes nothing.
     """
     replica = _Replica(REMOVED)
-    longer = as_EmbargoEvent(
+    longer = make(
+        as_EmbargoEvent,
         id_=REVISION_ID,
         context=CASE_ID,
         end_time=days_from_now(90),
@@ -1048,7 +1065,8 @@ def _removed_revision(
     reason: TerminationReason, *, end_in_days: int, to: str = REMOVED
 ) -> Any:
     """The CASE_MANAGER's ``Remove`` of a revision ending in *end_in_days*."""
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=REVISION_ID,
         context=CASE_ID,
         end_time=days_from_now(end_in_days),
@@ -1142,7 +1160,8 @@ def test_paused_replica_refuses_an_expiry_remove_of_another_case() -> None:
     """
     replica = _Replica(REMOVED)
     before = replica.embargo_state()
-    foreign = as_EmbargoEvent(
+    foreign = make(
+        as_EmbargoEvent,
         id_=REVISION_ID,
         context="https://example.org/cases/another-case",
         end_time=days_from_now(-1),
@@ -1170,7 +1189,8 @@ def test_paused_replica_refuses_a_removed_revision_of_another_case() -> None:
     """A ``Remove`` whose inline revision is another case's adopts nothing."""
     replica = _Replica(REMOVED)
     before = replica.embargo_state()
-    foreign = as_EmbargoEvent(
+    foreign = make(
+        as_EmbargoEvent,
         id_=REVISION_ID,
         context="https://example.org/cases/another-case",
         end_time=days_from_now(30),
@@ -1271,7 +1291,8 @@ def _entry_event(
         entry=wire_entry, actor=MANAGER, to=[to]
     )
     event = cast(AnnounceLogEntryReceivedEvent, received_event(announce))
-    event.activity = VultronActivity(
+    event.activity = make(
+        VultronActivity,
         id_=event.activity_id,
         type_="Announce",
         actor=MANAGER,
@@ -1350,7 +1371,8 @@ def test_paused_replica_refuses_an_announced_embargo_of_another_case() -> None:
     """An inline embargo whose context is another case is not stored."""
     replica = _Replica(REMOVED)
     before = replica.embargo_state()
-    foreign = as_EmbargoEvent(
+    foreign = make(
+        as_EmbargoEvent,
         id_=REVISION_ID,
         context="https://example.org/cases/another-case",
         end_time=days_from_now(30),
@@ -1394,7 +1416,8 @@ def test_paused_replica_refuses_a_stored_embargo_of_another_case() -> None:
     """The case check covers an id the replica already holds, not only inline."""
     replica = _Replica(REMOVED)
     replica.dl.create(
-        as_EmbargoEvent(
+        make(
+            as_EmbargoEvent,
             id_=REVISION_ID,
             context="https://example.org/cases/another-case",
             end_time=days_from_now(30),
@@ -1435,7 +1458,8 @@ def test_paused_replica_checks_a_stored_revision_about_a_report(
         )
     )
     replica.dl.create(
-        as_EmbargoEvent(
+        make(
+            as_EmbargoEvent,
             id_=REVISION_ID,
             context=held_context,
             end_time=days_from_now(30),

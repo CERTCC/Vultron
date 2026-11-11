@@ -27,6 +27,7 @@ from py_trees.common import Status
 from test.support.act_runner import run_tree
 from test.support.call_out import acting_as
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -83,17 +84,20 @@ def _make_participant_in_valid_state(
     engage_case and defer_case require the participant to be in VALID state
     (the precondition for VALID → ACCEPTED or VALID → DEFERRED transitions).
     """
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=id_,
         attributed_to=attributed_to,
         context=context,
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=attributed_to,
                 context=context,
                 rm=RmDimension(state=RM.RECEIVED),
             ),
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=attributed_to,
                 context=context,
                 rm=RmDimension(state=RM.VALID),
@@ -111,13 +115,16 @@ def _make_engage_request(
             ledger_position=TEST_SENDER_POSITION,
             activity_id=f"{case.id_}/activities/engage",
             actor_id=actor_id,
-            object_=CoreObject(id_=case.id_),
+            object_=make(CoreObject, id_=case.id_),
             semantic_type=MessageSemantics.ENGAGE_CASE,
-            activity=VultronActivity(
+            activity=make(
+                VultronActivity,
                 type_="Announce",
                 actor=actor_id,
-                object_=VulnerabilityCase(
-                    attributed_to=CASE_OWNER_ID, id_=case.id_
+                object_=make(
+                    VulnerabilityCase,
+                    attributed_to=CASE_OWNER_ID,
+                    id_=case.id_,
                 ),
                 context=case.id_,
                 to=[CASE_MANAGER_ID],
@@ -134,13 +141,16 @@ def _make_defer_request(
             ledger_position=TEST_SENDER_POSITION,
             activity_id=f"{case.id_}/activities/defer",
             actor_id=actor_id,
-            object_=CoreObject(id_=case.id_),
+            object_=make(CoreObject, id_=case.id_),
             semantic_type=MessageSemantics.DEFER_CASE,
-            activity=VultronActivity(
+            activity=make(
+                VultronActivity,
                 type_="Announce",
                 actor=actor_id,
-                object_=VulnerabilityCase(
-                    attributed_to=CASE_OWNER_ID, id_=case.id_
+                object_=make(
+                    VulnerabilityCase,
+                    attributed_to=CASE_OWNER_ID,
+                    id_=case.id_,
                 ),
                 context=case.id_,
                 to=[CASE_MANAGER_ID],
@@ -175,14 +185,15 @@ def case_manager_datalayer(case_manager_actor_id):
 
 @pytest.fixture
 def actor(datalayer, actor_id):
-    obj = VultronService(id_=actor_id, name="Vendor Co")
+    obj = make(VultronService, id_=actor_id, name="Vendor Co")
     datalayer.create(obj)
     return obj
 
 
 @pytest.fixture
 def report(datalayer):
-    obj = VulnerabilityReport(
+    obj = make(
+        VulnerabilityReport,
         id_="https://example.org/reports/CVE-2024-001",
         name="Test Report",
         content="Buffer overflow",
@@ -204,7 +215,8 @@ def case_with_participant(datalayer, actor_id, actor, report):
         context="https://example.org/cases/case-001",
     )
     datalayer.create(participant)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/case-001",
         name="Test Case",
@@ -219,7 +231,8 @@ def case_with_participant(datalayer, actor_id, actor, report):
 @pytest.fixture
 def case_without_participant(datalayer, report):
     """Case with no participants."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/case-002",
         name="Test Case No Participants",
@@ -285,10 +298,13 @@ def case_with_manager(
     )
     datalayer.create(vendor_participant)
 
-    cm_actor = VultronService(id_=case_manager_actor_id, name="Coordinator")
+    cm_actor = make(
+        VultronService, id_=case_manager_actor_id, name="Coordinator"
+    )
     datalayer.create(cm_actor)
 
-    cm_participant = CaseParticipant(
+    cm_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=case_manager_actor_id,
         context="https://example.org/cases/case-manager-001",
@@ -298,7 +314,8 @@ def case_with_manager(
 
     # attributed_to triggers genesis_hash computation (CLP-08-001/002), required
     # for CommitCaseLedgerEntryNode to succeed in tests that run as CaseManager.
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/case-manager-001",
         name="Test Case With Manager",
         attributed_to=case_manager_actor_id,
@@ -331,10 +348,13 @@ def case_with_manager_in_cm_store(
     )
     case_manager_datalayer.create(vendor_participant)
 
-    cm_actor = VultronService(id_=case_manager_actor_id, name="Coordinator")
+    cm_actor = make(
+        VultronService, id_=case_manager_actor_id, name="Coordinator"
+    )
     case_manager_datalayer.create(cm_actor)
 
-    cm_participant = CaseParticipant(
+    cm_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=case_manager_actor_id,
         context="https://example.org/cases/case-manager-001",
@@ -342,7 +362,8 @@ def case_with_manager_in_cm_store(
     )
     case_manager_datalayer.create(cm_participant)
 
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/case-manager-001",
         name="Test Case With Manager",
         attributed_to=case_manager_actor_id,
@@ -614,7 +635,8 @@ def test_engage_case_tree_fails_no_participant(
 @pytest.mark.spec("BT-03-001")
 def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """EngageCaseBT fails when the case does not exist in the datalayer."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/nonexistent",
         name="Missing Case",
@@ -696,7 +718,8 @@ def test_defer_case_tree_fails_no_participant(
 @pytest.mark.spec("BT-03-001")
 def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """DeferCaseBT fails when the case does not exist in the datalayer."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/nonexistent",
         name="Missing Case",
@@ -744,19 +767,23 @@ def test_engage_only_affects_target_actor(
         attributed_to=actor_b,
         context=case_id,
     )
-    cm_participant = CaseParticipant(
+    cm_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/cp-manager",
         attributed_to=case_manager_actor_id,
         context=case_id,
         case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
     )
-    cm_actor = VultronService(id_=case_manager_actor_id, name="Coordinator")
+    cm_actor = make(
+        VultronService, id_=case_manager_actor_id, name="Coordinator"
+    )
     dl.create(cm_actor)
     dl.create(participant_a)
     dl.create(participant_b)
     dl.create(cm_participant)
     dl.create(report)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="Multi-participant case",
         # attributed_to seeds the genesis hash so the guarded commit succeeds.

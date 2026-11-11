@@ -28,6 +28,7 @@ from pydantic import ValidationError
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -45,8 +46,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 
 def _make_actor(name: str) -> as_Service:
-    return as_Service(
-        name=name, url=f"https://example.org/{name.lower().replace(' ', '-')}"
+    return make(
+        as_Service,
+        name=name,
+        url=f"https://example.org/{name.lower().replace(' ', '-')}",
     )
 
 
@@ -94,8 +97,8 @@ class TestSvcSetStubSummaryUseCase:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.actor, self.dl = _make_actor_dl("Reporter")
-        self.case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Test Case"
+        self.case = make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Test Case"
         )
         self.dl.create(self.case)
         yield

@@ -36,6 +36,7 @@ import pytest
 from pydantic import Field, computed_field
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -78,15 +79,17 @@ def fields() -> dict[str, dict[str, export_ledger_types.FieldDef]]:
 
 def _instances() -> dict[str, CoreObject]:
     """One populated instance of each exported model."""
-    case_status = CaseStatus(context=CASE, published=PUBLISHED)
-    status = ParticipantStatus(
+    case_status = make(CaseStatus, context=CASE, published=PUBLISHED)
+    status = make(
+        ParticipantStatus,
         context=CASE,
         attributed_to="http://actor1:7999/api/v2/actors/actor1",
         cvd_role=[CVDRole.VENDOR, CVDRole.DEPLOYER],
         tracking_id="T-1",
         case_status=case_status,
     )
-    entry = CaseLedgerEntry(
+    entry = make(
+        CaseLedgerEntry,
         case_id=CASE,
         log_index=0,
         log_object_id=f"{CASE}/activity/0",
@@ -102,7 +105,8 @@ def _instances() -> dict[str, CoreObject]:
         state=EmbargoConsentState.INVITED,
         rsvp_deadline=PUBLISHED,
     )
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         context=CASE,
         attributed_to="http://actor1:7999/api/v2/actors/actor1",
         case_roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],

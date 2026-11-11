@@ -18,6 +18,7 @@ typed-object return (not raw dicts), and semantic-class coercion for activities.
 Fixtures (dl) come from conftest.
 """
 
+from test.support.objects import make
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 
@@ -40,8 +41,8 @@ class TestListMethod:
             as_VulnerabilityReport,
         )
 
-        r1 = as_VulnerabilityReport(name="CVE-1", content="Body 1")
-        r2 = as_VulnerabilityReport(name="CVE-2", content="Body 2")
+        r1 = make(as_VulnerabilityReport, name="CVE-1", content="Body 1")
+        r2 = make(as_VulnerabilityReport, name="CVE-2", content="Body 2")
         dl.save(r1)
         dl.save(r2)
 
@@ -59,8 +60,10 @@ class TestListMethod:
             as_VulnerabilityReport,
         )
 
-        report = as_VulnerabilityReport(name="CVE-FILTER", content="Body")
-        note = as_Note(content="Unrelated note")
+        report = make(
+            as_VulnerabilityReport, name="CVE-FILTER", content="Body"
+        )
+        note = make(as_Note, content="Unrelated note")
         dl.save(report)
         dl.save(note)
 
@@ -79,7 +82,7 @@ class TestListMethod:
             as_VulnerabilityReport,
         )
 
-        report = as_VulnerabilityReport(name="CVE-TYPED", content="Body")
+        report = make(as_VulnerabilityReport, name="CVE-TYPED", content="Body")
         dl.save(report)
 
         results = dl.list_objects("VulnerabilityReport")
@@ -94,10 +97,10 @@ class TestListMethod:
             as_VulnerabilityCaseStub,
         )
 
-        actor = as_Service(name="Coordinator")
-        invitee = as_Service(name="Vendor")
+        actor = make(as_Service, name="Coordinator")
+        invitee = make(as_Service, name="Vendor")
         stub = as_VulnerabilityCaseStub(
-            case_id="https://example.org/cases/list-test"
+            case_id="https://example.org/cases/list-test",
         )
         invite = rm_invite_to_case_activity(
             invitee,

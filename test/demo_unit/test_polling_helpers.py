@@ -34,6 +34,7 @@ from fastapi import FastAPI, Path as FastAPIPath
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
+from test.support.objects import make
 from test.support.received import archive_received
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -541,7 +542,9 @@ def pending_inbox_store(
     """The served actor's store, empty apart from the actor record."""
     _, dl = _pending_inbox_server
     dl.clear_all()
-    dl.create(as_Service(id_=_PENDING_INBOX_ACTOR, name="Pending Inbox Gate"))
+    dl.create(
+        make(as_Service, id_=_PENDING_INBOX_ACTOR, name="Pending Inbox Gate")
+    )
     return dl
 
 
@@ -702,8 +705,11 @@ def _case_with_index(index: dict[str, str]):
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_="urn:uuid:case-cap", name="Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="urn:uuid:case-cap",
+        name="Case",
     )
     case.actor_participant_index.update(index)
     return case
@@ -889,8 +895,9 @@ def _archived_invite_entry(
 ) -> tuple[str, dict]:
     """A received Invite as the datalayer router serializes its record."""
     invite = rm_invite_to_case_activity(
-        as_Service(id_=invitee_id),
-        target=as_VulnerabilityCase(
+        make(as_Service, id_=invitee_id),
+        target=make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=case_id,
             stub_summary="Security issue for test invite",
@@ -1066,7 +1073,7 @@ class TestFindCpOfferForCase:
 
     def test_returns_the_senders_id_for_the_archived_offer(self):
         offer = offer_case_participant_activity(
-            recommended=as_Service(id_=ACTOR_B),
+            recommended=make(as_Service, id_=ACTOR_B),
             target=CASE_ID,
             actor=_MANAGER,
         )
@@ -1141,7 +1148,8 @@ def _relayed_embargo_invite(
 ) -> tuple[str, dict]:
     """The CASE_MANAGER's relayed Invite as the invitee's store holds it."""
     invite = em_propose_embargo_activity(
-        as_EmbargoEvent(
+        make(
+            as_EmbargoEvent,
             id_=embargo_id,
             context=CASE_ID,
             end_time=datetime.now(UTC) + timedelta(days=90),
@@ -1217,11 +1225,12 @@ def _case_client(em: EM, active_embargo_id: str | None) -> MagicMock:
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.actor_id = ACTOR_B
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         embargo_register=register(active=active_embargo_id or "urn:embargo"),
-        case_statuses=[CaseStatus(context=CASE_ID)],  # type: ignore[call-arg]
+        case_statuses=[make(CaseStatus, context=CASE_ID)],  # type: ignore[call-arg]
     )
     client.get.return_value = case.model_dump(
         mode="json", by_alias=True, exclude_none=True
@@ -1232,7 +1241,8 @@ def _case_client(em: EM, active_embargo_id: str | None) -> MagicMock:
 def _indexed_client(index: dict[str, str]) -> MagicMock:
     client = MagicMock()
     client.base_url = "http://vendor:7999"
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         pending_embargo_proposal_index=index,

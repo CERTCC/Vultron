@@ -26,6 +26,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -64,8 +65,11 @@ def dl():
 
 def _managed_case(dl) -> as_VulnerabilityCase:
     """A case the store's actor manages, owned by ``_OWNER_ID``."""
-    case = as_VulnerabilityCase(
-        id_=_CASE_ID, name="Lifecycle", attributed_to=_OWNER_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=_CASE_ID,
+        name="Lifecycle",
+        attributed_to=_OWNER_ID,
     )
     seed_case_manager_participant(dl, case, _MANAGER_ID)
     seed_case_owner_participant(dl, case, _OWNER_ID)
@@ -134,8 +138,11 @@ def test_report_already_in_case_is_skipped_and_commits_nothing(dl):
 @pytest.mark.spec("HP-01-005")
 def test_report_at_non_manager_is_refused(dl):
     """A receiver that is not the CASE_MANAGER neither attaches nor commits."""
-    case = as_VulnerabilityCase(
-        id_=_CASE_ID, name="Lifecycle", attributed_to=_OWNER_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=_CASE_ID,
+        name="Lifecycle",
+        attributed_to=_OWNER_ID,
     )
     seed_case_manager_participant(dl, case, _OTHER_ID)
     dl.create(case)
@@ -221,8 +228,11 @@ def test_late_joiner_receives_the_added_report_through_backfill(dl):
 
     replica = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
     replica.create(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Lifecycle replica"
+        make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            name="Lifecycle replica",
         )
     )
     activity = SimpleNamespace(
@@ -242,8 +252,11 @@ def test_late_joiner_receives_the_added_report_through_backfill(dl):
 @pytest.mark.spec("CM-30-005")
 def test_report_at_replica_from_non_manager_is_refused(dl):
     """At a replica only the CASE_MANAGER is an entitled sender."""
-    case = as_VulnerabilityCase(
-        id_=_CASE_ID, name="Lifecycle", attributed_to=_OWNER_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=_CASE_ID,
+        name="Lifecycle",
+        attributed_to=_OWNER_ID,
     )
     seed_case_manager_participant(dl, case, _OTHER_ID)
     dl.create(case)
@@ -259,7 +272,8 @@ def test_report_at_replica_from_non_manager_is_refused(dl):
 def test_apply_report_entry_is_idempotent_and_tolerates_a_missing_case(dl):
     """The replica apply node lists a report once and skips an unseeded case."""
     report_id = "https://example.org/reports/replay"
-    entry = CaseLedgerEntry(
+    entry = make(
+        CaseLedgerEntry,
         case_id=_CASE_ID,
         log_index=0,
         log_object_id="https://example.org/activities/add-report",
@@ -282,8 +296,11 @@ def test_apply_report_entry_is_idempotent_and_tolerates_a_missing_case(dl):
 
     assert apply() == Status.SUCCESS  # no case replica yet: a no-op
     dl.create(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Replica"
+        make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            name="Replica",
         )
     )
     assert apply() == Status.SUCCESS

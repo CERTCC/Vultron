@@ -20,6 +20,7 @@ from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.db_record import (
     Record,
     object_to_record,
@@ -61,7 +62,7 @@ def base_object():
 def note_object():
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-    return as_Note(content="Test Content")
+    return make(as_Note, content="Test Content")
 
 
 # Tests (atomic and with descriptive names)
@@ -218,7 +219,8 @@ def test_object_to_record_stores_nested_object_as_id_reference():
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Test CVE",
         content="Details of the vulnerability",
         attributed_to="https://example.org/finder",
@@ -243,7 +245,8 @@ def test_object_to_record_nested_report_not_duplicated_in_offer_data():
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Another CVE",
         content="More vulnerability details",
         attributed_to="https://example.org/finder",
@@ -290,7 +293,8 @@ def test_object_to_record_still_accepts_wire_activities():
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="CVE-2232",
         content="details",
         attributed_to="https://example.org/finder",
@@ -362,7 +366,8 @@ def _make_wire_vulnerability_report():
         as_VulnerabilityReport,
     )
 
-    return as_VulnerabilityReport(
+    return make(
+        as_VulnerabilityReport,
         name="CVE-2401-0001",
         content="details",
         attributed_to=_ACTOR_ID_2401,
@@ -374,19 +379,23 @@ def _make_wire_vulnerability_case():
         as_VulnerabilityCase,
     )
 
-    return as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Case-2401")
+    return make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Case-2401"
+    )
 
 
 def _make_wire_embargo_event():
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    return as_EmbargoEvent(context=_CASE_ID_2401, end_time=days_from_now(45))
+    return make(
+        as_EmbargoEvent, context=_CASE_ID_2401, end_time=days_from_now(45)
+    )
 
 
 def _make_wire_case_status():
     from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
-    return as_CaseStatus(context=_CASE_ID_2401)
+    return make(as_CaseStatus, context=_CASE_ID_2401)
 
 
 def _make_wire_case_ledger_entry():
@@ -394,7 +403,8 @@ def _make_wire_case_ledger_entry():
         as_CaseLedgerEntry,
     )
 
-    return as_CaseLedgerEntry(
+    return make(
+        as_CaseLedgerEntry,
         case_id=_CASE_ID_2401,
         log_object_id=_LOG_OBJ_ID_2401,
         semantic_type="RS",
@@ -406,7 +416,9 @@ def _make_wire_case_ledger_entry():
 def _make_wire_case_reference():
     from vultron.wire.as2.vocab.objects.case_reference import as_CaseReference
 
-    return as_CaseReference(url="https://example.org/cases/ext-case-2401")
+    return make(
+        as_CaseReference, url="https://example.org/cases/ext-case-2401"
+    )
 
 
 def _make_wire_embargo_policy():
@@ -414,7 +426,8 @@ def _make_wire_embargo_policy():
 
     from vultron.wire.as2.vocab.objects.embargo_policy import as_EmbargoPolicy
 
-    return as_EmbargoPolicy(
+    return make(
+        as_EmbargoPolicy,
         actor_id=_ACTOR_ID_2401,
         inbox=_ACTOR_INBOX_2401,
         preferred_duration=timedelta(days=90),
@@ -426,7 +439,7 @@ def _make_wire_vulnerability_record():
         as_VulnerabilityRecord,
     )
 
-    return as_VulnerabilityRecord(name="CVE-2401-0001")
+    return make(as_VulnerabilityRecord, name="CVE-2401-0001")
 
 
 @pytest.mark.parametrize(
@@ -475,8 +488,10 @@ def test_embargo_event_with_context_is_valid():
     """
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    event = as_EmbargoEvent(
-        context="urn:uuid:case-123", end_time=days_from_now(45)
+    event = make(
+        as_EmbargoEvent,
+        context="urn:uuid:case-123",
+        end_time=days_from_now(45),
     )
     assert event.context == "urn:uuid:case-123"
 
@@ -496,13 +511,15 @@ def _inline_proposal():
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         id_="urn:uuid:rpt-cp01004-0000-0000-000000000001",
         name="CP-01-004-REPORT",
         content="the vulnerability being proposed for coordination",
         attributed_to="https://example.org/actors/finder-cp01004",
     )
-    return as_CaseProposal(
+    return make(
+        as_CaseProposal,
         id_="urn:uuid:prop-cp01004-0000-0000-000000000001",
         attributed_to="https://example.org/actors/vendor-cp01004",
         object_=report,
@@ -589,13 +606,15 @@ def _case_carrying_its_embargo():
     # ``context`` names the case the embargo is on; the core model requires it
     # (``EmbargoEvent.context: NonEmptyString``), so an embargo without one is
     # not a projectable domain object in the first place.
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_="urn:uuid:emb-dl08000-0000-0000-000000000001",
         summary="embargo carried with the case",
         context=case_id,
         end_time=days_from_now(45),
     )
-    return as_VulnerabilityCase(
+    return make(
+        as_VulnerabilityCase,
         id_=case_id,
         attributed_to="https://example.org/actors/case-actor-dl08",
         published=datetime(2026, 8, 24, tzinfo=UTC),
@@ -675,7 +694,8 @@ def test_case_passes_through_a_bare_embargo_id():
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_="urn:uuid:case-dl08001-0000-0000-000000000001",
         attributed_to="https://example.org/actors/case-actor-dl08",
         published=datetime(2026, 8, 24, tzinfo=UTC),
@@ -779,8 +799,9 @@ def _role_offer_naming_a_peer():
 
     return offer_case_participant_role_activity(
         role=CVDRole.VENDOR,
-        target_actor=as_Actor(id_=_PEER_ACTOR_ID),
-        case=as_VulnerabilityCase(
+        target_actor=make(as_Actor, id_=_PEER_ACTOR_ID),
+        case=make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="urn:uuid:case-dl08003-0000-0000-000000000001",
         ),
@@ -795,7 +816,8 @@ def _ownership_transfer_case() -> Any:
         as_VulnerabilityCase,
     )
 
-    return as_VulnerabilityCase(
+    return make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="urn:uuid:case-dl08003-0000-0000-000000000001",
     )
@@ -968,7 +990,8 @@ def test_from_obj_emits_wire_identity_keys_no_trailing_underscores():
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="urn:uuid:case-arch23005-0000-0000-000000000001",
     )
@@ -1060,7 +1083,8 @@ def test_from_obj_wire_identity_keys_apply_to_list_items():
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_="urn:uuid:case-arch23005-list-000-000000000001",
         attributed_to="urn:uuid:actor-arch23005-list",
     )
@@ -1122,12 +1146,14 @@ def test_computed_active_participants_is_not_in_the_stored_row() -> None:
     from vultron.core.models.case_participant import CaseParticipant
 
     case_id = "https://example.org/cases/stored-row"
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{case_id}/participants/p1",
         attributed_to="https://example.org/actors/p1",
         context=case_id,
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         attributed_to="https://example.org/actors/p1",
         case_participants=[participant],
@@ -1153,7 +1179,8 @@ def test_a_bare_object_activity_takes_no_inline_contract_from_a_guessed_class():
         as_Announce,
     )
 
-    announce = as_Announce(
+    announce = make(
+        as_Announce,
         actor="https://example.org/actors/owner",
         object_="https://example.org/cases/c1/embargo_events/unheld",
     )

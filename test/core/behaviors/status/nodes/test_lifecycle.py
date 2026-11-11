@@ -30,6 +30,7 @@ from py_trees.common import Status
 from test.support.act_runner import run_tree
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -78,7 +79,8 @@ def dl():
 
 @pytest.fixture
 def participant():
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -88,7 +90,7 @@ def participant():
 
 @pytest.fixture
 def status_obj():
-    return as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+    return make(as_ParticipantStatus, id_=STATUS_ID, context=CASE_ID)
 
 
 @pytest.fixture
@@ -98,19 +100,25 @@ def public_aware_status():
     The branch reads a case's status, never a participant's claim
     (SM-09-003, #6080).
     """
-    return as_CaseStatus(context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa))
+    return make(
+        as_CaseStatus, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+    )
 
 
 @pytest.fixture
 def populated_dl(dl, participant, status_obj):
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = make(
+        CaseParticipant,
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(
-        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+    case = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        name="Test Case",
+        attributed_to=ACTOR_ID,
     )
     case.add_participant(participant)
     case.add_participant(case_manager_participant)
@@ -153,25 +161,33 @@ class TestThreatTerminationBranchNodeProposedEmPath:
     ) -> tuple[SqliteDataLayer, BTBridge, ThreatTerminationBranchNode]:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=store_actor)
 
-        embargo = as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
+        embargo = make(
+            as_EmbargoEvent,
+            id_=EMBARGO_ID,
+            context=CASE_ID,
+            end_time=days_from_now(45),
         )
         invite = em_propose_embargo_activity(
             embargo, context=CASE_ID, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to=ACTOR_ID,
         )
         propose(case, embargo.id_)
         case.pending_embargo_proposal_index = {embargo.id_: invite.id_}
 
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=ACTOR_ID,
             case_roles=[CVDRole.CASE_OWNER],
         )
-        cm_participant = CaseParticipant(
+        cm_participant = make(
+            CaseParticipant,
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,

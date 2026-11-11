@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.participant import rm_closure
 from vultron.core.behaviors.case.nodes.participant.rm_closure import (
     RMClosureWriter,
@@ -48,16 +49,18 @@ def _seed_case(
     bt_scenario: BTTestScenario, states: dict[str, RM]
 ) -> tuple[VulnerabilityCase, dict[str, CaseParticipant]]:
     """Seed a case with one participant per actor, each at its given RM state."""
-    case = VulnerabilityCase(name="closure case", attributed_to=ACTOR_A)
+    case = make(VulnerabilityCase, name="closure case", attributed_to=ACTOR_A)
     participants: dict[str, CaseParticipant] = {}
     for actor_id, rm_state in states.items():
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=f"{case.id_}/participants/{actor_id.rsplit('/', 1)[-1]}",
             attributed_to=actor_id,
             context=case.id_,
             case_roles=[CVDRole.COORDINATOR],
             participant_statuses=[
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     rm=RmDimension(state=rm_state),
                     context=case.id_,
                     attributed_to=actor_id,

@@ -29,6 +29,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from test.support.objects import make
 from vultron.core.behaviors.sender_entitlement import (
     AddresseeSide,
     SenderEntitlementKind,
@@ -234,8 +235,8 @@ def test_field_value_reads_a_dimension_field_as_its_state():
     distinguisher = FieldValue(
         object_type=CaseStatus, field="pxa", value=CS_pxa.PXa
     )
-    status = CaseStatus(
-        context="urn:uuid:case", pxa=PxaDimension(state=CS_pxa.PXa)
+    status = make(
+        CaseStatus, context="urn:uuid:case", pxa=PxaDimension(state=CS_pxa.PXa)
     )
     assert distinguisher.read(status) is CS_pxa.PXa
 
@@ -262,10 +263,13 @@ def test_field_value_reads_a_field_within_an_embedded_model():
         field="pxa",
         value=CS_pxa.Pxa,
     )
-    status = ParticipantStatus(
+    status = make(
+        ParticipantStatus,
         context="urn:uuid:participant",
-        case_status=CaseStatus(
-            context="urn:uuid:case", pxa=PxaDimension(state=CS_pxa.Pxa)
+        case_status=make(
+            CaseStatus,
+            context="urn:uuid:case",
+            pxa=PxaDimension(state=CS_pxa.Pxa),
         ),
     )
     assert distinguisher.read(status) is CS_pxa.Pxa
@@ -279,7 +283,7 @@ def test_field_value_reads_nothing_when_the_model_is_not_embedded():
         field="pxa",
         value=CS_pxa.Pxa,
     )
-    status = ParticipantStatus(context="urn:uuid:participant")
+    status = make(ParticipantStatus, context="urn:uuid:participant")
     assert status.case_status is None
     assert distinguisher.read(status) is None
 

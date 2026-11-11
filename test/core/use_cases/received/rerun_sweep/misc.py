@@ -16,6 +16,7 @@
 import json
 from typing import Any, cast
 
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import (
@@ -82,8 +83,11 @@ def _rm_declaration(net: LedgerNetwork, member: str, rm: RM) -> Scenario:
             net.case(MANAGER).actor_participant_index[member]
         ),
     )
-    status = ParticipantStatus(
-        context=net.case_id, attributed_to=member, rm=RmDimension(state=rm)
+    status = make(
+        ParticipantStatus,
+        context=net.case_id,
+        attributed_to=member,
+        rm=RmDimension(state=rm),
     )
     return deliver(
         net,
@@ -126,7 +130,8 @@ def _dead_letters(dl: SqliteDataLayer) -> str | None:
 @applied(MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT)
 def unresolvable_object() -> Scenario:
     """An Accept of an object nothing resolves: dead-lettered (SE-04-007)."""
-    activity = as_Accept(
+    activity = make(
+        as_Accept,
         actor="https://example.org/users/rerun-sweep-sender",
         to=[_UNMATCHED_RECEIVER],
         object_="urn:uuid:rerun-sweep-unresolvable",
@@ -146,11 +151,14 @@ def unresolvable_object() -> Scenario:
 )
 def unknown() -> Scenario:
     """A ``Like`` of a note: no pattern matches it."""
-    activity = as_Like(
+    activity = make(
+        as_Like,
         actor="https://example.org/users/rerun-sweep-sender",
         to=[_UNMATCHED_RECEIVER],
-        object_=as_Note(
-            id_="https://example.org/notes/rerun-sweep-liked", content="liked"
+        object_=make(
+            as_Note,
+            id_="https://example.org/notes/rerun-sweep-liked",
+            content="liked",
         ),
     )
     return Scenario(
@@ -243,7 +251,8 @@ def add_case_participant_not_removed() -> Scenario:
 
 
 def _note(net: LedgerNetwork, author: str, content: str) -> as_Note:
-    return as_Note(
+    return make(
+        as_Note,
         id_=f"{author}/notes/rerun-sweep",
         content=content,
         attributed_to=author,
@@ -295,7 +304,8 @@ def add_note_conflicting() -> Scenario:
 def _remove_note(net: LedgerNetwork, sender: str) -> Scenario:
     return deliver(
         net,
-        as_Remove(
+        make(
+            as_Remove,
             actor=sender,
             object_=_note(net, BYSTANDER, "first"),
             target=net.case_id,
@@ -328,7 +338,8 @@ def _replica_writes_nothing(dl: SqliteDataLayer) -> str | None:
 def add_case_status_to_case() -> Scenario:
     """The CASE_MANAGER's Add(CaseStatus), at a participant's replica."""
     net = LedgerNetwork(f"{_BASE}/add-case-status", em_state=EM.NONE)
-    status = CaseStatus(
+    status = make(
+        CaseStatus,
         context=net.case_id,
         attributed_to=MANAGER,
         em=EmDimension(state=EM.NONE),

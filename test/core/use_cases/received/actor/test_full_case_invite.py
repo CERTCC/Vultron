@@ -29,6 +29,7 @@ from test.core.use_cases.received.actor.test_case_joining_replies import (  # no
     route_received,
 )
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import now_utc
@@ -141,7 +142,7 @@ def test_full_case_invite_carries_the_position_as_its_ledger_position() -> (
     """The floor is the Invite's ``ledgerPosition``, not its ``content``."""
     position = LedgerPosition(log_index=3, entry_hash=_HASH)
     invite = rm_invite_to_full_case_activity(
-        as_Organization(id_="https://example.org/actors/a"),
+        make(as_Organization, id_="https://example.org/actors/a"),
         "https://example.org/cases/c",
         position,
         actor="https://example.org/actors/m",
@@ -194,7 +195,8 @@ def test_reply_position_check_against_the_floor(joining_case) -> None:  # noqa: 
 def test_empty_ledger_position_is_minus_one_and_the_genesis_hash() -> None:
     owner = "https://example.org/actors/empty-ledger-owner"
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_="https://example.org/cases/empty-ledger",
         name="EMPTY",
         attributed_to=owner,
@@ -443,7 +445,8 @@ def test_stored_invite_floor_is_the_invites_ledger_position() -> None:
 
     good = LedgerPosition(log_index=2, entry_hash=_HASH)
     held = ReceivedActivityView(
-        VultronActivity(
+        make(
+            VultronActivity,
             id_="https://example.org/invitations/held",
             type_="Invite",
             actor="https://example.org/actors/m",
@@ -472,7 +475,7 @@ def test_an_invite_for_another_case_or_invitee_does_not_suppress_the_invite(
     ):
         joining_case.dl.create(
             rm_invite_to_full_case_activity(
-                as_Organization(id_=invitee),
+                make(as_Organization, id_=invitee),
                 case_id,
                 position,
                 id_=f"https://example.org/invitations/unrelated-{n}",
@@ -501,7 +504,7 @@ _IMPOSTOR_ID = "https://example.org/actors/impostor"
 def _full_case_invite_from(joining, sender: str, suffix: str):
     """A full-case Invite to the invitee, claiming to come from *sender*."""
     return rm_invite_to_full_case_activity(
-        as_Organization(id_=joining.invitee_id),
+        make(as_Organization, id_=joining.invitee_id),
         joining.case.id_,
         LedgerPosition(log_index=0, entry_hash=_HASH),
         id_=f"{joining.case.id_}/invitations/full-{suffix}",

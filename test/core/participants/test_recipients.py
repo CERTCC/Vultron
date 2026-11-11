@@ -21,6 +21,7 @@ import pytest
 
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -73,7 +74,8 @@ def _seat(
     store: bool = True,
     roles: tuple[CVDRole, ...] = (),
 ) -> CaseParticipant:
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{_CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
         context=_CASE_ID,
@@ -85,7 +87,8 @@ def _seat(
             else []
         ),
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=_CASE_ID,
                 attributed_to=actor_id,
                 rm=RmDimension(state=rm_state),
@@ -101,7 +104,7 @@ def _seat(
 
 def _embargoed_case(dl: SqliteDataLayer) -> VulnerabilityCase:
     """A case under an active embargo with one participant of each kind."""
-    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_SENDER)
     activate(case, _EMBARGO_ID)
     _seat(dl, case, _SENDER)
     _seat(dl, case, _SIGNATORY)
@@ -128,7 +131,7 @@ def test_case_content_reaches_only_active_open_participants(
 def test_with_no_embargo_every_joined_open_participant_is_active(
     dl: SqliteDataLayer,
 ) -> None:
-    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_SENDER)
     _seat(dl, case, _SIGNATORY, consent=None)
     _seat(dl, case, _INVITED, consent=EmbargoConsentState.DECLINED)
     _seat(dl, case, _UNJOINED, joined=False)
@@ -190,7 +193,7 @@ def test_unresolvable_record_is_withheld_with_a_warning(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Fail closed: a roster entry the case cannot vouch for gets nothing."""
-    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_SENDER)
     _seat(dl, case, _SIGNATORY)
     _seat(dl, case, _INVITED, store=False)
     with caplog.at_level(logging.WARNING):
@@ -209,7 +212,7 @@ def test_stored_record_wins_over_a_stale_inline_copy(
     Participant writes save the stored record, so an inline copy the case
     carries can be stale.
     """
-    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_SENDER)
     stored = _seat(dl, case, _SIGNATORY, joined=False)
     case.case_participants[0] = stored.model_copy(update={"joined": True})
     assert case_content_recipients(case, dl) == []
@@ -219,7 +222,7 @@ def test_inline_copy_is_the_fallback_when_nothing_is_stored(
     dl: SqliteDataLayer,
 ) -> None:
     """During bootstrap the inline copy is all there is, and it is used."""
-    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_SENDER)
     case.case_participants[0] = _seat(dl, case, _SIGNATORY, store=False)
     assert case_content_recipients(case, dl) == [_SIGNATORY]
 
@@ -232,7 +235,7 @@ def test_case_content_participants_pairs_each_recipient_with_its_record(
     A caller that narrows by a record field (the bootstrap reporter filter)
     must not read the record again: an inline-only record would vanish.
     """
-    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_SENDER)
     stored = _seat(dl, case, _SIGNATORY)
     inline = _seat(dl, case, _INVITED, store=False)
     case.case_participants[1] = inline
@@ -258,7 +261,7 @@ def test_removed_participant_gets_no_case_content(
     The removed participant is a signatory and joined; only the removal fact
     makes it inert.  It stays on the roster (CM-19-001).
     """
-    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_SENDER)
     if embargo:
         activate(case, _EMBARGO_ID)
     _seat(dl, case, _SIGNATORY)
@@ -287,7 +290,8 @@ def _entry(
     object_id: str,
     actor: str = _SENDER,
 ) -> CaseLedgerEntry:
-    return CaseLedgerEntry(
+    return make(
+        CaseLedgerEntry,
         case_id=_CASE_ID,
         log_index=log_index,
         log_object_id=object_id,
@@ -455,7 +459,7 @@ def test_reporter_introduction_reaches_only_active_open_reporters(
     An inert reporter, a closed reporter, and a participant holding neither
     role are left out; the excluded receiver and CASE_MANAGER are too.
     """
-    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_SENDER)
     activate(case, _EMBARGO_ID)
     _seat(dl, case, _SENDER, roles=(CVDRole.CASE_OWNER,))
     _seat(dl, case, _SIGNATORY, roles=(CVDRole.REPORTER,))
@@ -526,7 +530,7 @@ def test_the_sender_predicate_matches_the_case_content_selection(
 def test_an_unresolvable_sender_record_may_not_act(
     dl: SqliteDataLayer,
 ) -> None:
-    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    case = make(VulnerabilityCase, id_=_CASE_ID, attributed_to=_SENDER)
     _seat(dl, case, _SIGNATORY, store=False)
     case.case_participants.clear()
     assert not may_act_on_case(case, dl, _SIGNATORY)

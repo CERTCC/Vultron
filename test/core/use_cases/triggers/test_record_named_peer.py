@@ -14,6 +14,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
@@ -89,7 +90,9 @@ def _counting_backend(calls: list[str]) -> type[CallOutBackend]:
 
 @pytest.mark.spec("BT-18-039")
 def test_known_peer_is_not_resolved_again(dl):
-    held = CoreActor(id_=PEER, name="Held Peer", published=None, updated=None)
+    held = make(
+        CoreActor, id_=PEER, name="Held Peer", published=None, updated=None
+    )
     dl.create(held)
     calls: list[str] = []
 

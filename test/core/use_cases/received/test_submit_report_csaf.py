@@ -35,6 +35,7 @@ from test.core.use_cases.received._csaf_receipt import (
     document,
     schema_invalid,
 )
+from test.support.objects import make
 from test.wire.csaf._documents import (
     minimal_csaf_document,
     vulnerability_report_document,
@@ -244,11 +245,11 @@ def test_a_resent_offer_whose_document_has_no_id_keeps_one_record() -> None:
     """The parser mints a fresh id for an id-less Document at every parse."""
     content = json.dumps(vulnerability_report_document())
     first = Receipt(
-        AttachedDocument(media_type="application/json", content=content)
+        make(AttachedDocument, media_type="application/json", content=content)
     )
     first.handle()
     again = Receipt(
-        AttachedDocument(media_type="application/json", content=content)
+        make(AttachedDocument, media_type="application/json", content=content)
     )
     assert (
         again.event.claims_readings[0].document_id
@@ -273,8 +274,8 @@ def test_two_documents_sharing_an_id_each_get_a_record() -> None:
 
 
 def test_an_image_beside_the_csaf_document_is_kept_and_not_read() -> None:
-    image = AttachedImage(
-        id_=OTHER_ID, url="https://finder.example.org/shot.png"
+    image = make(
+        AttachedImage, id_=OTHER_ID, url="https://finder.example.org/shot.png"
     )
     receipt = Receipt(image, csaf(vulnerability_report_document()))
 

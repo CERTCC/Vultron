@@ -36,6 +36,7 @@ from fastapi.testclient import TestClient
 
 from test.demo._helpers import make_client, make_testclient_call
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.demo.helpers.seeding import (
     reset_containers,
     seed_case_actor_identity,
@@ -158,7 +159,8 @@ def _case(with_case_actor: bool = True) -> dict[str, Any]:
 
 
 def _participant(roles: list[CVDRole]) -> as_CaseParticipant:
-    return as_CaseParticipant(
+    return make(
+        as_CaseParticipant,
         id_=_PARTICIPANT_ID,
         attributed_to=_CA_ID,
         context=_CASE_ID,

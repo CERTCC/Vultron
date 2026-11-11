@@ -30,6 +30,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -96,25 +97,29 @@ def case_with_participant(
 ) -> VulnerabilityCase:
     """A case whose one participant (the actor, a vendor and deployer) is in
     RM.VALID."""
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=PARTICIPANT_ID,
         attributed_to=actor.id_,
         context=CASE_ID,
         case_roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=CASE_ID,
                 rm=RmDimension(state=RM.RECEIVED),
             ),
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=CASE_ID,
                 rm=RmDimension(state=RM.VALID),
             ),
         ],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="Axis Scoping Case",
         vulnerability_reports=[report.id_],
@@ -265,12 +270,13 @@ class TestCaseAxesNeverWriteParticipantProgress:
         was."""
         participant = bt_scenario.dl.read(PARTICIPANT_ID)
         assert isinstance(participant, CaseParticipant)
-        report = ParticipantStatus(
+        report = make(
+            ParticipantStatus,
             attributed_to=actor.id_,
             context=CASE_ID,
             rm=RmDimension(state=RM.VALID),
-            case_status=CaseStatus(
-                context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+            case_status=make(
+                CaseStatus, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
             ),
         )
         participant.add_participant_status(report)

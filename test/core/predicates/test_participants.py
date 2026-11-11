@@ -17,6 +17,7 @@
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.case_participant import (
     CaseActorParticipant,
     CaseParticipant,
@@ -41,14 +42,16 @@ def _make_participant(
     actor_id: str = _ACTOR,
 ) -> CaseParticipant:
     """Return a CaseParticipant with one ParticipantStatus at *rm_state*."""
-    p = CaseParticipant(
+    p = make(
+        CaseParticipant,
         attributed_to=actor_id,
         context=_CONTEXT,
         case_roles=roles or [],
     )
     # Clear auto-seeded status and add one at the desired RM state.
     p.participant_statuses = [
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             context=_CONTEXT,
             attributed_to=actor_id,
             rm=RmDimension(state=rm_state),
@@ -131,7 +134,8 @@ class TestAllParticipantsRmClosed:
 
     def test_participant_no_status_returns_false(self):
         """A participant with no status records is treated as not converged."""
-        p = CaseParticipant(
+        p = make(
+            CaseParticipant,
             attributed_to=_ACTOR,
             context=_CONTEXT,
         )
@@ -164,7 +168,8 @@ class TestAllParticipantsRmClosed:
         A freshly constructed one carries no ``RM.CLOSED`` status, so it fails
         convergence on the same no-status/not-closed grounds as anyone else.
         """
-        ca = CaseActorParticipant(
+        ca = make(
+            CaseActorParticipant,
             attributed_to="urn:uuid:case-actor",
             context=_CONTEXT,
         )

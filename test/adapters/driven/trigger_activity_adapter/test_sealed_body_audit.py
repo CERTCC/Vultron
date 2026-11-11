@@ -41,6 +41,7 @@ from typing import Any
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import archive_delivered
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -122,16 +123,19 @@ class _World:
     def __init__(self) -> None:
         self._stores: dict[str, SqliteDataLayer] = {}
         self.case_id: str = "https://example.org/cases/audit-case"
-        self.vendor = as_Service(id_=_PEER, name="Vendor")
-        self.report = as_VulnerabilityReport(name="CVE-2026-1", content="PoC")
-        self.participant = as_CaseParticipant(
-            context=self.case_id, attributed_to=_PEER
+        self.vendor = make(as_Service, id_=_PEER, name="Vendor")
+        self.report = make(
+            as_VulnerabilityReport, name="CVE-2026-1", content="PoC"
+        )
+        self.participant = make(
+            as_CaseParticipant, context=self.case_id, attributed_to=_PEER
         )
         # The case names its participant and report by id, as a stored case
         # does; a case put on the wire carries them inline: the participant
         # because its receiver cannot hold it (CBT-01-007), the report because
         # this prototype carries every report its sender holds (AKM-02-004).
-        self.case = as_VulnerabilityCase(
+        self.case = make(
+            as_VulnerabilityCase,
             id_=self.case_id,
             name="CVE-2026-1",
             stub_summary="Test case — RCE in widget",
@@ -139,9 +143,9 @@ class _World:
             case_participants=[str(self.participant.id_)],
             vulnerability_reports=[str(self.report.id_)],
         )
-        self.status = ParticipantStatus(context=self.case_id)
-        self.embargo = as_EmbargoEvent(
-            context=self.case_id, end_time=days_from_now(45)
+        self.status = make(ParticipantStatus, context=self.case_id)
+        self.embargo = make(
+            as_EmbargoEvent, context=self.case_id, end_time=days_from_now(45)
         )
         self.dl = self.store(_ACTOR)
         self.adapter = self.adapter_as(_ACTOR)
@@ -203,7 +207,9 @@ class _World:
     def consent_row(self, state: EmbargoConsentState) -> EmbargoConsent:
         """The participant's consent row for the seeded embargo."""
         return EmbargoConsent(
-            embargo_id=str(self.embargo.id_), state=state, attributed_to=_PEER
+            embargo_id=str(self.embargo.id_),
+            state=state,
+            attributed_to=_PEER,
         )
 
     # -- prerequisites other recipes build on ----------------------------------
@@ -320,7 +326,8 @@ class _World:
         # The case rides on the activity and the whole graph renders once
         # (VM-10-005, #6046).
         return As2WireRenderAdapter().render(
-            VultronCreateCaseActivity(
+            make(
+                VultronCreateCaseActivity,
                 actor=_CASE_ACTOR,
                 object_=stored.model_copy(
                     update={
@@ -969,7 +976,9 @@ def test_a_uri_only_peer_record_travels_as_a_reference(world):
     """The minimal peer of ``_record_named_peer`` holds only the URI."""
     from vultron.core.models.actor import CoreActor
 
-    world.dl.create(CoreActor(id_=_CASE_ACTOR, published=None, updated=None))
+    world.dl.create(
+        make(CoreActor, id_=_CASE_ACTOR, published=None, updated=None)
+    )
     _, blob = RECIPES["offer_case_participant_role"](world)
     actor = _carried(blob, ("target",))
     actor.pop("@context", None)

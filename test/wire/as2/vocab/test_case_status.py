@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
@@ -51,23 +52,23 @@ class TestCaseStatusContextField(unittest.TestCase):
         and a status belonging to no case cannot be acted on.
         """
         with pytest.raises(ValidationError):
-            as_CaseStatus(context=None)  # type: ignore[arg-type]
+            make(as_CaseStatus, context=None)  # type: ignore[arg-type]
 
     def test_context_non_empty_accepted(self):
         """context with a non-empty string (case ID) is valid."""
-        cs = as_CaseStatus(context=CASE_ID)
+        cs = make(as_CaseStatus, context=CASE_ID)
         self.assertEqual(CASE_ID, cs.context)
 
     def test_context_empty_string_rejected(self):
         """context must not be an empty string (CS-08-001)."""
         with pytest.raises(ValidationError) as exc_info:
-            as_CaseStatus(context="")
+            make(as_CaseStatus, context="")
         assert "must be a non-empty string" in str(exc_info.value)
 
     def test_context_whitespace_only_rejected(self):
         """context must not be whitespace-only (CS-08-001)."""
         with pytest.raises(ValidationError) as exc_info:
-            as_CaseStatus(context="   ")
+            make(as_CaseStatus, context="   ")
         assert "must be a non-empty string" in str(exc_info.value)
 
 
@@ -76,31 +77,43 @@ class TestParticipantStatusTrackingIdField(unittest.TestCase):
 
     def test_tracking_id_none_accepted(self):
         """tracking_id=None is valid (optional field)."""
-        ps = as_ParticipantStatus(
-            attributed_to=ACTOR_ID, context=CASE_ID, tracking_id=None
+        ps = make(
+            as_ParticipantStatus,
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            tracking_id=None,
         )
         self.assertIsNone(ps.tracking_id)
 
     def test_tracking_id_non_empty_accepted(self):
         """tracking_id with a non-empty string is valid."""
-        ps = as_ParticipantStatus(
-            attributed_to=ACTOR_ID, context=CASE_ID, tracking_id="TICKET-123"
+        ps = make(
+            as_ParticipantStatus,
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            tracking_id="TICKET-123",
         )
         self.assertEqual("TICKET-123", ps.tracking_id)
 
     def test_tracking_id_empty_string_rejected(self):
         """tracking_id must not be an empty string (CS-08-001)."""
         with pytest.raises(ValidationError) as exc_info:
-            as_ParticipantStatus(
-                attributed_to=ACTOR_ID, context=CASE_ID, tracking_id=""
+            make(
+                as_ParticipantStatus,
+                attributed_to=ACTOR_ID,
+                context=CASE_ID,
+                tracking_id="",
             )
         assert "must be a non-empty string" in str(exc_info.value)
 
     def test_tracking_id_whitespace_only_rejected(self):
         """tracking_id must not be whitespace-only (CS-08-001)."""
         with pytest.raises(ValidationError) as exc_info:
-            as_ParticipantStatus(
-                attributed_to=ACTOR_ID, context=CASE_ID, tracking_id="   "
+            make(
+                as_ParticipantStatus,
+                attributed_to=ACTOR_ID,
+                context=CASE_ID,
+                tracking_id="   ",
             )
         assert "must be a non-empty string" in str(exc_info.value)
 
@@ -121,7 +134,9 @@ class TestAs2RoundTripPreservesPublished(unittest.TestCase):
     _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_as2_round_trip_preserves_published(self):
-        core = CoreCaseStatus(context=CASE_ID, published=self._FIXED_TIME)
+        core = make(
+            CoreCaseStatus, context=CASE_ID, published=self._FIXED_TIME
+        )
         rebuilt = as_CaseStatus.model_validate(
             core.model_dump(by_alias=True, mode="json")
         )
@@ -139,7 +154,8 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
     def test_vf_state_unknown_raises_validation_error(self):
         """as_ParticipantStatus with bogus vf raises ValidationError."""
         with pytest.raises(ValidationError):
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=ACTOR_ID,
                 context=CASE_ID,
                 vf="BOGUS_VF",  # type: ignore[arg-type]
@@ -148,7 +164,8 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
     def test_d_state_unknown_raises_validation_error(self):
         """as_ParticipantStatus with bogus d raises ValidationError."""
         with pytest.raises(ValidationError):
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=ACTOR_ID,
                 context=CASE_ID,
                 d="BOGUS_D",  # type: ignore[arg-type]
@@ -157,17 +174,18 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
     def test_pxa_state_unknown_raises_validation_error(self):
         """as_CaseStatus with bogus pxa raises ValidationError."""
         with pytest.raises(ValidationError):
-            as_CaseStatus(pxa="BOGUS_PXA")  # type: ignore[arg-type]
+            make(as_CaseStatus, pxa="BOGUS_PXA")  # type: ignore[arg-type]
 
     def test_em_state_unknown_raises_validation_error(self):
         """as_CaseStatus with bogus em raises ValidationError."""
         with pytest.raises(ValidationError):
-            as_CaseStatus(em="BOGUS_EM")  # type: ignore[arg-type]
+            make(as_CaseStatus, em="BOGUS_EM")  # type: ignore[arg-type]
 
     def test_rm_state_unknown_raises_validation_error(self):
         """as_ParticipantStatus with bogus rm raises ValidationError."""
         with pytest.raises(ValidationError):
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=ACTOR_ID,
                 context=CASE_ID,
                 rm="BOGUS_RM",  # type: ignore[arg-type]
@@ -193,7 +211,8 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
     _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_as2_round_trip_preserves_published(self):
-        core = CoreParticipantStatus(
+        core = make(
+            CoreParticipantStatus,
             context=CASE_ID,
             attributed_to=ACTOR_ID,
             published=self._FIXED_TIME,
@@ -205,7 +224,8 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
 
     def test_as2_round_trip_preserves_cvd_role(self):
         expected_roles = [CVDRole.REPORTER, CVDRole.VENDOR]
-        core = CoreParticipantStatus(
+        core = make(
+            CoreParticipantStatus,
             context=CASE_ID,
             attributed_to=ACTOR_ID,
             cvd_role=expected_roles,
@@ -250,7 +270,8 @@ class TestRetiredVfdKeyRejection(unittest.TestCase):
 
     def test_valid_data_without_vfd_state_constructs_normally(self):
         """Sanity check: valid data without vfd_state still constructs OK."""
-        ps = as_ParticipantStatus(
+        ps = make(
+            as_ParticipantStatus,
             context=CASE_ID,
             attributed_to=ACTOR_ID,
         )

@@ -23,6 +23,7 @@ from unittest.mock import MagicMock
 import httpx2 as httpx
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.demo.utils import DataLayerClient
 from vultron.demo.utils.inbox import _stamped_as_in_step
@@ -60,7 +61,7 @@ def _client(stored: dict[str, Any]) -> MagicMock:
 
 def _note():
     return add_note_to_case_activity(
-        as_Note(id_=f"{_CASE}/notes/1", content="n", context=_CASE),
+        make(as_Note, id_=f"{_CASE}/notes/1", content="n", context=_CASE),
         target=_CASE,
         actor="https://example.org/users/finder",
     )

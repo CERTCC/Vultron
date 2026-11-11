@@ -15,6 +15,7 @@
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.attached_document import (
     AttachedAudio,
@@ -97,7 +98,7 @@ def test_a_reports_attachments_survive_save_and_read_unchanged() -> None:
 
 
 def test_a_report_without_attachments_publishes_none() -> None:
-    report = VulnerabilityReport(id_=_REPORT_ID, content="text")
+    report = make(VulnerabilityReport, id_=_REPORT_ID, content="text")
 
     assert report.attachment is None
     assert "attachment" not in report.model_dump(
@@ -156,7 +157,10 @@ def test_a_file_its_own_class_refuses_is_not_kept_untyped() -> None:
     with pytest.raises(
         ValidationError, match="must be a valid AttachedDocument"
     ):
-        VulnerabilityReport(attachment=[{"type": "Document", "content": ""}])
+        make(
+            VulnerabilityReport,
+            attachment=[{"type": "Document", "content": ""}],
+        )
 
 
 @pytest.mark.parametrize(

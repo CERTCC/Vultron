@@ -32,6 +32,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -84,8 +85,9 @@ def _store(
     closure.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
-    dl.save(as_VulnerabilityReport(id_=_REPORT, name="On-case report"))
-    case = as_VulnerabilityCase(
+    dl.save(make(as_VulnerabilityReport, id_=_REPORT, name="On-case report"))
+    case = make(
+        as_VulnerabilityCase,
         id_=_CASE,
         name="Reject(Offer(VulnerabilityReport)) on a case",
         attributed_to=_MANAGER,
@@ -100,7 +102,8 @@ def _store(
             states.append(RM.CLOSED)
         for state in states:
             record.participant_statuses.append(
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     context=_CASE,
                     attributed_to=record.attributed_to,
                     rm=RmDimension(state=state),
@@ -115,7 +118,7 @@ def _close_report(
     sender: str, receiver: str = _MANAGER
 ) -> CloseReportReceivedEvent:
     offer = rm_submit_report_activity(
-        as_VulnerabilityReport(id_=_REPORT, name="r"),
+        make(as_VulnerabilityReport, id_=_REPORT, name="r"),
         to=_OWNER,
         actor=_STRANGER,
     )
@@ -236,7 +239,7 @@ def test_close_report_with_no_case_is_refused_as_before() -> None:
     refusal is the unknown case's.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
-    dl.save(as_VulnerabilityReport(id_=_REPORT, name="Bare report"))
+    dl.save(make(as_VulnerabilityReport, id_=_REPORT, name="Bare report"))
     event = _close_report(_VENDOR)
     assert event.offer_id is not None
     dl.create(
@@ -259,7 +262,7 @@ def test_close_report_with_no_case_is_refused_as_before() -> None:
 def test_close_report_with_no_case_from_a_non_addressee_is_refused() -> None:
     """Before a case, only an addressee of the Offer may close it."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
-    dl.save(as_VulnerabilityReport(id_=_REPORT, name="Bare report"))
+    dl.save(make(as_VulnerabilityReport, id_=_REPORT, name="Bare report"))
 
     result = _run(dl, _STRANGER)
 

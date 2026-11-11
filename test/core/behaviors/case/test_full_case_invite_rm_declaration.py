@@ -40,6 +40,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, write_consent_rows
+from test.support.objects import make
 from test.support.received import received_event
 from test.support.rm_declaration import (
     ACTOR_ID,
@@ -107,7 +108,7 @@ def _seed_with_invite(dl: SqliteDataLayer, current: RM) -> tuple[Any, Any]:
     # Invite floor = genesis position (pre-first-entry).
     tail = ledger_tail_position(CASE_ID, dl)
     invite = rm_invite_to_full_case_activity(
-        as_Organization(id_=ACTOR_ID),
+        make(as_Organization, id_=ACTOR_ID),
         CASE_ID,
         tail,
         id_=_INVITE_ID,

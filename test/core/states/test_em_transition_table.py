@@ -9,6 +9,7 @@ from collections.abc import Iterator, Sequence
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_register import (
@@ -347,11 +348,17 @@ def test_a_refused_em_move_leaves_the_case_unchanged(
     EM, not the relay index, not an inline participant's consent rows."""
     case_id = "https://example.org/cases/c1"
     owner = "https://example.org/actors/owner"
-    participant = CaseParticipant(
-        id_=f"{case_id}/participants/p1", attributed_to=owner, context=case_id
+    participant = make(
+        CaseParticipant,
+        id_=f"{case_id}/participants/p1",
+        attributed_to=owner,
+        context=case_id,
     )
-    case = VulnerabilityCase(
-        id_=case_id, attributed_to=owner, case_participants=[participant]
+    case = make(
+        VulnerabilityCase,
+        id_=case_id,
+        attributed_to=owner,
+        case_participants=[participant],
     )
     case.apply_embargo_register_step(proposal_changes("urn:em:a"))
     case.pending_embargo_proposal_index = {"urn:em:a": "urn:invite:a"}

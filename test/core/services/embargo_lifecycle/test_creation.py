@@ -28,6 +28,7 @@ import pytest
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import activate, propose, terminate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
@@ -75,7 +76,7 @@ def _assert_untouched(dl: SqliteDataLayer, case_id: str) -> None:
 
 def _unstored_embargo(context: str, days: int = 45) -> as_EmbargoEvent:
     """An ``EmbargoEvent`` the store does not hold yet."""
-    return as_EmbargoEvent(context=context, end_time=days_from_now(days))
+    return make(as_EmbargoEvent, context=context, end_time=days_from_now(days))
 
 
 @pytest.mark.spec("DUR-07-005")
@@ -396,8 +397,8 @@ def test_a_different_object_at_the_embargo_id_is_refused_before_any_write(
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     held = _make_embargo(dl, "https://example.org/cases/some-other-case")
-    clash = as_EmbargoEvent(
-        id_=held.id_, context=case.id_, end_time=held.end_time
+    clash = make(
+        as_EmbargoEvent, id_=held.id_, context=case.id_, end_time=held.end_time
     )
 
     with pytest.raises(VultronError, match="already held"):
@@ -570,8 +571,11 @@ def test_a_revision_id_held_by_other_terms_is_refused_unchanged(
     case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
     held = _make_embargo(dl, case.id_, days=10)
-    revision = as_EmbargoEvent(
-        id_=held.id_, context=case.id_, end_time=days_from_now(90)
+    revision = make(
+        as_EmbargoEvent,
+        id_=held.id_,
+        context=case.id_,
+        end_time=days_from_now(90),
     )
 
     with pytest.raises(VultronError, match="already held"):

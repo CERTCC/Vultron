@@ -44,6 +44,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.objects import make
 from test.support.received import delivered_body, intake_received
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -94,7 +95,8 @@ def dl():
 
 def _report_activity(tag: str = "1"):
     return rm_create_report_activity(
-        report=as_VulnerabilityReport(
+        report=make(
+            as_VulnerabilityReport,
             id_=f"https://example.org/reports/r-outcome-{tag}",
             content=f"outcome report {tag}",
         ),

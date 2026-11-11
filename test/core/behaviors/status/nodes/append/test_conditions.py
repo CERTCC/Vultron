@@ -30,6 +30,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from test.support.rm_declaration import RMAnomalyProbe
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.append import (
@@ -162,7 +163,8 @@ class TestValidateRMTransitionNode:
         )
 
         closed_status_id = "https://example.org/cases/case-01/statuses/closed"
-        closed_status = as_ParticipantStatus(
+        closed_status = make(
+            as_ParticipantStatus,
             id_=closed_status_id,
             context=CASE_ID,
             rm=RmDimension(state=RM.CLOSED),
@@ -197,7 +199,8 @@ class TestValidateRMTransitionNode:
         self, populated_dl, caplog
     ):
         """Non-adjacent forward RM jump: SUCCESS + WARNING log + anomaly flag (RSH-06-001, RSH-06-003)."""
-        received_status = as_ParticipantStatus(
+        received_status = make(
+            as_ParticipantStatus,
             id_="https://example.org/cases/case-01/statuses/received",
             context=CASE_ID,
             rm=RmDimension(state=RM.RECEIVED),
@@ -208,7 +211,8 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
 
         # RECEIVED → ACCEPTED is a non-adjacent forward jump (skips VALID)
-        accepted_status = as_ParticipantStatus(
+        accepted_status = make(
+            as_ParticipantStatus,
             id_="https://example.org/cases/case-01/statuses/accepted",
             context=CASE_ID,
             rm=RmDimension(state=RM.ACCEPTED),
@@ -251,7 +255,8 @@ class TestValidateRMTransitionNode:
     @pytest.mark.spec("RSH-06-003")
     def test_backward_regression_sets_anomaly(self, populated_dl):
         """Backward RM regression: FAILURE + anomaly flag set (RSH-06-002, RSH-06-003)."""
-        accepted_status = as_ParticipantStatus(
+        accepted_status = make(
+            as_ParticipantStatus,
             id_="https://example.org/cases/case-01/statuses/accepted",
             context=CASE_ID,
             rm=RmDimension(state=RM.ACCEPTED),
@@ -262,7 +267,8 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
 
         # ACCEPTED → RECEIVED is a backward regression
-        regression_status = as_ParticipantStatus(
+        regression_status = make(
+            as_ParticipantStatus,
             id_="https://example.org/cases/case-01/statuses/regression",
             context=CASE_ID,
             rm=RmDimension(state=RM.RECEIVED),
@@ -296,7 +302,8 @@ class TestValidateRMTransitionNode:
 
     def test_adjacent_transition_clears_anomaly_flag(self, populated_dl):
         """Valid adjacent RM transition: no anomaly flag set (happy path)."""
-        received_status = as_ParticipantStatus(
+        received_status = make(
+            as_ParticipantStatus,
             id_="https://example.org/cases/case-01/statuses/received",
             context=CASE_ID,
             rm=RmDimension(state=RM.RECEIVED),
@@ -307,7 +314,8 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
 
         # RECEIVED → VALID is a valid adjacent transition
-        valid_status = as_ParticipantStatus(
+        valid_status = make(
+            as_ParticipantStatus,
             id_="https://example.org/cases/case-01/statuses/valid",
             context=CASE_ID,
             rm=RmDimension(state=RM.VALID),

@@ -22,6 +22,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -673,7 +674,8 @@ def _make_inert(dl: SqliteDataLayer, participant_id: str, how: str) -> None:
         if how == "unjoined"
         else {
             "participant_statuses": [
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     context=cast(str, participant.context),
                     attributed_to=participant.attributed_to,
                     rm=RmDimension(state=RM.CLOSED),

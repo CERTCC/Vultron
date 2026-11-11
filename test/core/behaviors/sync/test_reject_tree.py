@@ -13,6 +13,7 @@ from py_trees.common import Status
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -86,22 +87,27 @@ def _seed_case(datalayer, *, extra_participants: tuple[str, ...] = ()):
         as_VulnerabilityCase,
     )
 
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         id_=f"{CASE_ID}/participants/owner",
         context=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
     datalayer.create(participant)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Sync Case"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="Sync Case",
     )
     case.case_participants.append(participant.id_)
     case.actor_participant_index[OWNER_ACTOR_ID] = participant.id_
     # The Reject's sender is a joined participant, so the replay and the
     # genesis pre-seed's active-participant gate admit it (CM-10-004).
     for i, actor in enumerate((PEER_ID, *extra_participants)):
-        peer = as_CaseParticipant(
+        peer = make(
+            as_CaseParticipant,
             id_=f"{CASE_ID}/participants/p{i}",
             context=CASE_ID,
             attributed_to=actor,
@@ -173,7 +179,8 @@ def _make_event(
     )
     event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
-    event.activity = VultronActivity(
+    event.activity = make(
+        VultronActivity,
         id_=event.activity_id,
         type_="Reject",
         actor=PEER_ID,
@@ -1055,7 +1062,8 @@ def test_reject_from_stranger_halts_before_any_write(
         ),
     )
 
-    event.activity = VultronActivity(
+    event.activity = make(
+        VultronActivity,
         id_=event.activity_id,
         type_="Reject",
         actor=stranger,

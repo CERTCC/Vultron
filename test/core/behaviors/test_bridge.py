@@ -23,6 +23,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BlackboardKeyProbe
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.bridge.tree_execution import _BridgeExecution
@@ -1121,7 +1122,7 @@ class EmitThroughPort(py_trees.behaviour.Behaviour):
     def update(self) -> Status:
         port = self.blackboard.trigger_activity_factory
         store = self.blackboard.datalayer
-        note = as_Note(content="delegated emit")
+        note = make(as_Note, content="delegated emit")
         port._dl.create(note)
         store.outbox_append(note.id_)
         if store.read(note.id_) is None:

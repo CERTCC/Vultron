@@ -34,6 +34,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import FixedClock, run_in_act
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -97,7 +98,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 
 def _make_actor_dl(actor_name: str) -> tuple[as_Service, SqliteDataLayer]:
-    actor = as_Service(name=actor_name)
+    actor = make(as_Service, name=actor_name)
     actor_id = actor.id_
     reset_datalayer(actor_id)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -137,31 +138,36 @@ def _make_case_with_embargo(
 ) -> VulnerabilityCase:
     """Build a VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
     an active embargo, and the report linked via vulnerability_reports."""
-    embargo = as_EmbargoEvent(
-        context="urn:placeholder", end_time=days_from_now(45)
+    embargo = make(
+        as_EmbargoEvent, context="urn:placeholder", end_time=days_from_now(45)
     )
     dl.create(embargo)
 
-    case = VulnerabilityCase(name="Test Case", attributed_to=vendor_id)
+    case = make(VulnerabilityCase, name="Test Case", attributed_to=vendor_id)
     activate(case, embargo.id_)
     case.vulnerability_reports.append(report_id)
 
-    vendor_participant = as_CaseParticipant(
+    vendor_participant = make(
+        as_CaseParticipant,
         attributed_to=vendor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
     # Seed RM.RECEIVED so the RECEIVED → VALID transition is valid.
     vendor_participant.participant_statuses.append(
-        WireParticipantStatus(
-            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.RECEIVED),
         )
     )
-    finder_participant = ReporterParticipant(
+    finder_participant = make(
+        ReporterParticipant,
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -200,7 +206,8 @@ class TestSvcValidateReportUseCase:
         self.finder, self.finder_dl = _make_actor_dl("Finder Co")
         self.case_actor, self.case_actor_dl = _make_actor_dl("Case Actor")
 
-        self.report = as_VulnerabilityReport(
+        self.report = make(
+            as_VulnerabilityReport,
             name="CVE-TEST",
             content="Vulnerability report content",
             attributed_to=self.finder.id_,
@@ -511,7 +518,8 @@ class _ReportTriggerBase:
         self.finder, self.finder_dl = _make_actor_dl("Finder Co")
         self.case_actor, self.case_actor_dl = _make_actor_dl("Case Actor")
 
-        self.report = as_VulnerabilityReport(
+        self.report = make(
+            as_VulnerabilityReport,
             name="CVE-TEST",
             content="Vulnerability report content",
             attributed_to=self.finder.id_,

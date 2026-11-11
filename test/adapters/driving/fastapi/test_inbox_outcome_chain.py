@@ -37,6 +37,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import delivered_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -85,8 +86,10 @@ def dl():
 
 @pytest.fixture
 def body() -> dict[str, Any]:
-    report = as_VulnerabilityReport(
-        id_="https://example.org/reports/r-chain-1", content="chain report"
+    report = make(
+        as_VulnerabilityReport,
+        id_="https://example.org/reports/r-chain-1",
+        content="chain report",
     )
     activity = rm_create_report_activity(
         report, actor=_SENDER_ID, to=[_RECEIVER_ID]
@@ -178,7 +181,8 @@ def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     remove = remove_embargo_from_case_activity(
-        as_EmbargoEvent(
+        make(
+            as_EmbargoEvent,
             id_="https://example.org/embargoes/e-chain-1",
             context="https://example.org/cases/c-chain-remove",
             end_time=days_from_now(45),
@@ -410,7 +414,8 @@ def test_real_handler_refusal_reaches_inbox_outcome(dl):
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/c-chain-untrusted",
         name="untrusted",
@@ -497,7 +502,8 @@ def test_a_received_case_manager_act_is_recognized_and_unhandled(
     )
 
     dl.create(
-        as_VulnerabilityCase(
+        make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=_MANAGER_ACT_CASE_ID,
             name="original",
@@ -551,8 +557,9 @@ def _retired_create_activities() -> list[Any]:
     participant_id = f"{_RETIRED_CASE_ID}/participants/sender"
     return [
         pytest.param(
-            as_Create(
-                object_=as_CaseStatus(context=_RETIRED_CASE_ID),
+            make(
+                as_Create,
+                object_=make(as_CaseStatus, context=_RETIRED_CASE_ID),
                 context=_RETIRED_CASE_ID,
                 actor=_SENDER_ID,
                 to=[_RECEIVER_ID],
@@ -560,16 +567,19 @@ def _retired_create_activities() -> list[Any]:
             id="case-status",
         ),
         pytest.param(
-            as_Create(
-                object_=as_ParticipantStatus(context=participant_id),
+            make(
+                as_Create,
+                object_=make(as_ParticipantStatus, context=participant_id),
                 actor=_SENDER_ID,
                 to=[_RECEIVER_ID],
             ),
             id="participant-status",
         ),
         pytest.param(
-            as_Create(
-                object_=as_Note(
+            make(
+                as_Create,
+                object_=make(
+                    as_Note,
                     id_=f"{_RETIRED_CASE_ID}/notes/n-ctx",
                     content="a note naming the case",
                     context=_RETIRED_CASE_ID,
@@ -580,8 +590,10 @@ def _retired_create_activities() -> list[Any]:
             id="note-with-case-context",
         ),
         pytest.param(
-            as_Create(
-                object_=as_Note(
+            make(
+                as_Create,
+                object_=make(
+                    as_Note,
                     id_="https://example.org/notes/n-no-case",
                     content="a note outside any case",
                 ),
@@ -591,8 +603,10 @@ def _retired_create_activities() -> list[Any]:
             id="note-without-case-context",
         ),
         pytest.param(
-            as_Create(
-                object_=as_Event(
+            make(
+                as_Create,
+                object_=make(
+                    as_Event,
                     id_=f"{_RETIRED_CASE_ID}/events/plain",
                     name="a plain event, not an embargo",
                     context=_RETIRED_CASE_ID,
@@ -637,8 +651,11 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
     )
 
     dl.create(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_RETIRED_CASE_ID, name="unchanged"
+        make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_RETIRED_CASE_ID,
+            name="unchanged",
         )
     )
     case_before = dl.read(_RETIRED_CASE_ID)
@@ -677,8 +694,12 @@ def _case_with(
     )
 
     fields.setdefault("attributed_to", CASE_OWNER_ID)
-    case = as_VulnerabilityCase(
-        id_=case_id, name=name, case_participants=participants, **fields
+    case = make(
+        as_VulnerabilityCase,
+        id_=case_id,
+        name=name,
+        case_participants=participants,
+        **fields,
     )
     for participant in participants:
         case.actor_participant_index[participant.attributed_to] = (
@@ -692,7 +713,8 @@ def _self_managed_case() -> Any:
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.enums.roles import CVDRole
 
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{_IMPOSTER_CASE_ID}/participants/imposter",
         attributed_to=_SENDER_ID,
         context=_IMPOSTER_CASE_ID,
@@ -749,7 +771,8 @@ def test_add_note_at_case_manager_stores_the_note_from_the_event(dl):
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_="https://example.org/cases/c-chain-note",
         name="note case",
         attributed_to=_RECEIVER_ID,
@@ -757,7 +780,8 @@ def test_add_note_at_case_manager_stores_the_note_from_the_event(dl):
     seed_store_owner_as_case_manager(dl, case)
     seed_case_participant(dl, case, _SENDER_ID)
     dl.create(case)
-    note = as_Note(
+    note = make(
+        as_Note,
         id_="https://example.org/notes/n-chain-1",
         content="a note",
         context=case.id_,
@@ -846,18 +870,21 @@ def _managed_case() -> Any:
     from vultron.core.states.rm import RM
     from vultron.enums.roles import CVDRole
 
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         id_=f"{_LEGIT_CASE_ID}/participants/case-manager",
         attributed_to=_CASE_MANAGER_ID,
         context=_LEGIT_CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    receiver = CaseParticipant(
+    receiver = make(
+        CaseParticipant,
         id_=f"{_LEGIT_CASE_ID}/participants/receiver",
         attributed_to=_RECEIVER_ID,
         context=_LEGIT_CASE_ID,
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=_LEGIT_CASE_ID,
                 attributed_to=_RECEIVER_ID,
                 rm=RmDimension(state=RM.ACCEPTED),
@@ -913,7 +940,11 @@ def test_reporter_after_bootstrap_accepts_case_manager_announce(dl):
     )
 
     dl.create(
-        VulnerabilityReport(id_=_LEGIT_REPORT_ID, attributed_to=_RECEIVER_ID)
+        make(
+            VulnerabilityReport,
+            id_=_LEGIT_REPORT_ID,
+            attributed_to=_RECEIVER_ID,
+        )
     )
     dl.save(
         VultronReportCaseLink(
@@ -943,7 +974,8 @@ def test_reporter_after_bootstrap_accepts_case_manager_announce(dl):
         announced.failure_reason
     )
 
-    imposter = CaseParticipant(
+    imposter = make(
+        CaseParticipant,
         id_=f"{_LEGIT_CASE_ID}/participants/imposter",
         attributed_to=_SENDER_ID,
         context=_LEGIT_CASE_ID,
@@ -992,9 +1024,9 @@ def test_late_joiner_after_accepted_invite_accepts_case_manager_announce(dl):
     from vultron.wire.as2.factories import rm_invite_to_case_activity
     from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-    receiver = as_Actor(id_=_RECEIVER_ID, name="receiver")
+    receiver = make(as_Actor, id_=_RECEIVER_ID, name="receiver")
     dl.create(receiver)
-    dl.create(as_Actor(id_=_CASE_MANAGER_ID, name="case manager"))
+    dl.create(make(as_Actor, id_=_CASE_MANAGER_ID, name="case manager"))
     case = _managed_case()
     case.stub_summary = "A case you are invited to join."
     invite = rm_invite_to_case_activity(

@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from test.support.received import (
     archive_delivered,
     delivered_body,
@@ -49,7 +50,7 @@ def dl() -> Iterator[SqliteDataLayer]:
 
 def _add(note_id: str = "https://example.org/notes/n-1"):
     return add_note_to_case_activity(
-        as_Note(id_=note_id, content="as received", context=_CASE),
+        make(as_Note, id_=note_id, content="as received", context=_CASE),
         target=_CASE,
         context=_CASE,
         actor=_PEER,

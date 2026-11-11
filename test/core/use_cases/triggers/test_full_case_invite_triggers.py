@@ -22,6 +22,7 @@ from collections.abc import Iterator
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import archive_received, case_stub
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -88,12 +89,13 @@ _CASES = [
 @pytest.fixture
 def participant() -> Iterator[tuple[as_Service, SqliteDataLayer, str, str]]:
     """A participant store holding the case (empty ledger) and its genesis."""
-    actor = as_Service(name="Participant")
+    actor = make(as_Service, name="Participant")
     reset_datalayer(actor.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
     dl.clear_all()
     dl.create(actor)
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_="https://example.org/cases/full-invite-trigger",
         name="FULL-INVITE",
         attributed_to=_MANAGER,

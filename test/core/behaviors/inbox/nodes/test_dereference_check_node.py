@@ -21,6 +21,7 @@ import py_trees
 import pytest
 from py_trees.ports import NoDataAvailable
 
+from test.support.objects import make
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.core.behaviors.inbox import InboxOutcomeStatus, process_payload
@@ -225,7 +226,7 @@ def test_an_activity_waits_while_its_fetch_is_open(
 
 @pytest.mark.spec("CP-01-009")
 def test_a_fetched_profile_is_handed_to_the_event_and_released():
-    profile = VultronOrganization(id_=_PROPOSER, name="Vendor")
+    profile = make(VultronOrganization, id_=_PROPOSER, name="Vendor")
     port = _Port([_PROFILE_REF], _record(ObjectFetchState.FETCHED), profile)
 
     outcome, dispatch = _run(port)

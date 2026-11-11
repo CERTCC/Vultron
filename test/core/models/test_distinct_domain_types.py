@@ -25,6 +25,7 @@ from itertools import permutations
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import make
 from vultron.core.models.actor import VultronService
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -40,23 +41,28 @@ _VENDOR_ID = "https://example.org/users/vendor"
 
 def _instances() -> dict[str, CoreObject]:
     return {
-        "VulnerabilityReport": VulnerabilityReport(
+        "VulnerabilityReport": make(
+            VulnerabilityReport,
             name="report",
             content="details",
             attributed_to="https://example.org/users/finder",
         ),
-        "VulnerabilityCase": VulnerabilityCase(
-            name="case", attributed_to=_VENDOR_ID
+        "VulnerabilityCase": make(
+            VulnerabilityCase, name="case", attributed_to=_VENDOR_ID
         ),
-        "VulnerabilityRecord": VulnerabilityRecord(name="CVE-2401-0001"),
-        "CaseReference": CaseReference(url="https://example.org/advisory"),
-        "case actor (VultronService)": VultronService(
-            id_="https://example.org/actors/case-manager", name="CM"
+        "VulnerabilityRecord": make(VulnerabilityRecord, name="CVE-2401-0001"),
+        "CaseReference": make(
+            CaseReference, url="https://example.org/advisory"
         ),
-        "CaseParticipant": CaseParticipant(
-            attributed_to=_VENDOR_ID, context=_CASE_ID
+        "case actor (VultronService)": make(
+            VultronService,
+            id_="https://example.org/actors/case-manager",
+            name="CM",
         ),
-        "ParticipantStatus": ParticipantStatus(context=_CASE_ID),
+        "CaseParticipant": make(
+            CaseParticipant, attributed_to=_VENDOR_ID, context=_CASE_ID
+        ),
+        "ParticipantStatus": make(ParticipantStatus, context=_CASE_ID),
     }
 
 

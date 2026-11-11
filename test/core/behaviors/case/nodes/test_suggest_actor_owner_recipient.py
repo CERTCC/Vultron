@@ -36,6 +36,7 @@ from py_trees.common import Status
 
 from test.support.act_runner import run_tree
 from test.support.note_wire import assert_case_manager_note_recorded
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -85,12 +86,14 @@ def _seed_case_actor_store(
     so the CASE_OWNER participant is the only correct record of who owns the
     case and a node that reads ``attributed_to`` first fails.
     """
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=CASE_ID,
         name="Suggest-actor owner routing",
         attributed_to=attributed_to,
     )
-    case_actor_p = CaseParticipant(
+    case_actor_p = make(
+        CaseParticipant,
         id_=f"{CASE_ID}/participants/case-actor",
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
@@ -101,7 +104,8 @@ def _seed_case_actor_store(
     to_create = [case_actor_p]
 
     if with_owner_participant:
-        owner_p = CaseParticipant(
+        owner_p = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/owner",
             attributed_to=OWNER_ID,
             context=CASE_ID,

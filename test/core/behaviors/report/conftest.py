@@ -10,6 +10,7 @@ raw Document instead of a deserialized domain object.
 
 import pytest
 
+from test.support.objects import make
 from test.support.participant_status import advance_participant_rm
 from test.support.received import received_event
 from vultron.core.models.case import VulnerabilityCase
@@ -35,12 +36,14 @@ def case_with_participant(bt_scenario, report, actor) -> VulnerabilityCase:
     (ISSUE-2548).  ``RM.RECEIVED`` is the state a receiver holds before
     ``validate-report`` runs, making ``RECEIVED → VALID`` a legal move.
     """
-    obj = VulnerabilityCase(
+    obj = make(
+        VulnerabilityCase,
         name="Test Case for TEST-001",
         vulnerability_reports=[report.id_],
         attributed_to=actor.id_,
     )
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{obj.id_}/participants/vendor",
         attributed_to=actor.id_,
         context=obj.id_,

@@ -35,6 +35,7 @@ from pydantic import BaseModel, ValidationError
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import FAR_FUTURE, days_from_now
+from test.support.objects import make
 from test.support.signing import signed_body
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
@@ -97,29 +98,33 @@ _CASE_ACTOR_URI = "https://example.org/actors/case-actor"
 
 @pytest.fixture
 def sample_case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
+    return make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Test Case"
+    )
 
 
 @pytest.fixture
 def sample_report() -> as_VulnerabilityReport:
-    return as_VulnerabilityReport(name="Test Report")
+    return make(as_VulnerabilityReport, name="Test Report")
 
 
 @pytest.fixture
 def sample_status() -> as_CaseStatus:
     # ``context`` is required on the core class (fail-fast, ARCH-10-001); the
     # deleted wire class allowed it absent (ARCH-12-002 leniency).
-    return as_CaseStatus(context="https://example.org/cases/case-factories-01")
+    return make(
+        as_CaseStatus, context="https://example.org/cases/case-factories-01"
+    )
 
 
 @pytest.fixture
 def sample_note() -> as_Note:
-    return as_Note(content="Test note content")
+    return make(as_Note, content="Test note content")
 
 
 @pytest.fixture
 def sample_actor() -> as_Person:
-    return as_Person(name="Alice", id_=_ACTOR_URI)
+    return make(as_Person, name="Alice", id_=_ACTOR_URI)
 
 
 @pytest.fixture
@@ -472,7 +477,7 @@ def test_accept_ownership_transfer_object_is_offer(sample_offer):
 @pytest.mark.spec("AF-04-001")
 def test_accept_ownership_transfer_plain_offer_raises(sample_report):
     """A plain as_Offer (not from offer_case_ownership_transfer_activity) must fail."""
-    plain_offer = as_Offer(actor=_ACTOR_URI, object_=sample_report)
+    plain_offer = make(as_Offer, actor=_ACTOR_URI, object_=sample_report)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         accept_case_ownership_transfer_activity(offer=plain_offer)
     assert exc_info.value.__cause__ is not None
@@ -502,7 +507,7 @@ def test_reject_ownership_transfer_object_is_offer(sample_offer):
 
 @pytest.mark.spec("AF-04-001")
 def test_reject_ownership_transfer_plain_offer_raises(sample_report):
-    plain_offer = as_Offer(actor=_ACTOR_URI, object_=sample_report)
+    plain_offer = make(as_Offer, actor=_ACTOR_URI, object_=sample_report)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         reject_case_ownership_transfer_activity(offer=plain_offer)
     assert exc_info.value.__cause__ is not None
@@ -611,7 +616,8 @@ def test_rm_invite_to_case_wraps_a_case_uri_in_a_stub(sample_actor):
 
 def _invite_stub_wire(sample_actor) -> dict:
     """The serialised stub an Invite carries for a case with no embargo."""
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=_CASE_URI,
         name="CVE-2025-0001 in widget",
         summary="A summary of the case",
@@ -658,7 +664,8 @@ def test_rm_invite_to_case_refuses_when_no_stub_summary():
     the factory raises rather than silently falling back to the case name or
     any other default.
     """
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=_CASE_URI,
         name="CVE-2025-0001 in widget",
         summary="A summary of the case",
@@ -734,7 +741,7 @@ def test_rm_accept_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
 @pytest.mark.spec("AF-04-001")
 def test_rm_accept_invite_to_case_plain_invite_raises(sample_actor):
     """A plain as_Invite (not from rm_invite_to_case_activity) must fail."""
-    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_actor)
+    plain_invite = make(as_Invite, actor=_ACTOR_URI, object_=sample_actor)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         rm_accept_invite_to_case_activity(invite=plain_invite)
     assert exc_info.value.__cause__ is not None
@@ -779,7 +786,8 @@ def test_reply_embeds_an_invite_as_its_sender_sent_it(sample_actor, factory):
         invitee=sample_actor,
         actor=_ACTOR_URI,
         target=as_VulnerabilityCaseStub(
-            case_id="https://example.org/cases/c1", summary="A case"
+            case_id="https://example.org/cases/c1",
+            summary="A case",
         ),
         roles=["vendor"],
     )
@@ -805,7 +813,8 @@ def test_reply_refuses_a_received_activity_that_is_not_an_invite(
 
     offer = recommend_actor_activity(
         sample_actor,
-        target=as_VulnerabilityCase(
+        target=make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/c1",
             name="Case",
@@ -869,7 +878,7 @@ def test_rm_reject_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_reject_invite_to_case_plain_invite_raises(sample_actor):
-    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_actor)
+    plain_invite = make(as_Invite, actor=_ACTOR_URI, object_=sample_actor)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         rm_reject_invite_to_case_activity(invite=plain_invite)
     assert exc_info.value.__cause__ is not None
@@ -956,14 +965,16 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     )
 
     case_id = "https://example.org/cases/inline-embargo"
-    embargo = EmbargoEvent(context=case_id, end_time=days_from_now(30))
-    case = VulnerabilityCase(
+    embargo = make(EmbargoEvent, context=case_id, end_time=days_from_now(30))
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="CVE-2025-010",
         stub_summary="Memory corruption under embargo",
         attributed_to="https://example.org/actors/coordinator",
         case_statuses=[
-            CaseStatus(
+            make(
+                CaseStatus,
                 context=case_id,
                 attributed_to="https://example.org/actors/coordinator",
                 em=EmDimension(state=EM.ACTIVE),
@@ -1011,15 +1022,17 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     from vultron.core.states.em import EM
 
     case_id = "https://example.org/cases/enriched-stub"
-    embargo = EmbargoEvent(context=case_id, end_time=days_from_now(30))
-    case = VulnerabilityCase(
+    embargo = make(EmbargoEvent, context=case_id, end_time=days_from_now(30))
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="CVE-2025-011",
         summary="Case content the invitee must not see",
         stub_summary="Vulnerability under active embargo",
         attributed_to=_ACTOR_URI,
         case_statuses=[
-            CaseStatus(
+            make(
+                CaseStatus,
                 context=case_id,
                 attributed_to=_ACTOR_URI,
                 em=EmDimension(state=EM.ACTIVE),
@@ -1076,15 +1089,17 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     )
 
     case_id = "https://example.org/cases/revise-stub"
-    in_force = EmbargoEvent(context=case_id, end_time=days_from_now(30))
-    revision = EmbargoEvent(context=case_id, end_time=days_from_now(60))
-    case = VulnerabilityCase(
+    in_force = make(EmbargoEvent, context=case_id, end_time=days_from_now(30))
+    revision = make(EmbargoEvent, context=case_id, end_time=days_from_now(60))
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="CVE-2025-013",
         stub_summary="Vulnerability under a revised embargo",
         attributed_to=_ACTOR_URI,
         case_statuses=[
-            CaseStatus(
+            make(
+                CaseStatus,
                 context=case_id,
                 attributed_to=_ACTOR_URI,
                 em=EmDimension(state=EM.REVISE),
@@ -1134,7 +1149,8 @@ def test_no_embargo_in_force_leaves_the_stub_bare(
         if entry == "proposed"
         else register(terminated=embargo)
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="CVE-2025-014",
         stub_summary="Vulnerability with no embargo in force",
@@ -1174,17 +1190,19 @@ def _embargo_active_case(
     """
     em_state = EM.REVISE if revising else EM.ACTIVE
     revisions = (
-        [EmbargoEvent(context=case_id, end_time=days_from_now(90))]
+        [make(EmbargoEvent, context=case_id, end_time=days_from_now(90))]
         if revising
         else []
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="CVE-2025-012",
         stub_summary="Vulnerability under active embargo",
         attributed_to=_ACTOR_URI,
         case_statuses=[
-            CaseStatus(
+            make(
+                CaseStatus,
                 context=case_id,
                 attributed_to=_ACTOR_URI,
                 em=EmDimension(state=em_state),
@@ -1198,7 +1216,8 @@ def _embargo_active_case(
 
 def _full_embargo(case_id: str) -> EmbargoEvent:
     """An embargo carrying every term a sender may set, not just its window."""
-    return EmbargoEvent(
+    return make(
+        EmbargoEvent,
         context=case_id,
         name="Coordinated embargo for widget RCE",
         summary="Disclose together once the vendor ships the fix",
@@ -1339,7 +1358,8 @@ def test_ownership_reply_embeds_the_offer_as_its_sender_sent_it(factory):
     """A received ownership Offer, parsed from its archived body, is
     validated into the Offer class the reply embeds, and embedded as the
     body that arrived: its answer deadline and ``cc`` included (ADR-0149)."""
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/c1",
         name="C",

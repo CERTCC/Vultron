@@ -29,6 +29,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -73,7 +74,8 @@ def _make_embargo_case(
     # and it is the receiving actor for the on-path cases, so this is its store.
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
 
-    case_actor = VultronService(
+    case_actor = make(
+        VultronService,
         id_=case_actor_id,
         name=f"CaseActor for {case_id}",
         attributed_to=author_id,
@@ -81,7 +83,8 @@ def _make_embargo_case(
     )
     dl.create(case_actor)
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=case_id,
         name="Embargo Routing Test",
         attributed_to=author_id,
@@ -89,7 +92,8 @@ def _make_embargo_case(
     p1_id = f"{case_id}/participants/p1"
     case.actor_participant_index[author_id] = p1_id
     # The author owns the case, so it may terminate the embargo (ADR-0115).
-    p1 = as_CaseParticipant(
+    p1 = make(
+        as_CaseParticipant,
         id_=p1_id,
         context=case_id,
         attributed_to=author_id,
@@ -98,7 +102,8 @@ def _make_embargo_case(
     dl.create(p1)
     case.case_participants.append(p1_id)
 
-    cm_participant = as_CaseParticipant(
+    cm_participant = make(
+        as_CaseParticipant,
         id_=f"{case_id}/participants/cm",
         attributed_to=case_actor_id,
         context=case_id,
@@ -109,7 +114,8 @@ def _make_embargo_case(
     case.actor_participant_index[case_actor_id] = cm_participant.id_
     dl.save(case)
 
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/e1",
         content="Routing test embargo",
         context=case_id,

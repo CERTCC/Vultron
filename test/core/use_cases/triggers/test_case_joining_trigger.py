@@ -52,6 +52,7 @@ from test.support.embargo_register import (
     agree_to_active_embargo,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -214,12 +215,14 @@ def _vendor_participant(
     case_id: str, actor_id: str, rm_state: RM
 ) -> CaseParticipant:
     """A VENDOR participant record whose only status is at *rm_state*."""
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         attributed_to=actor_id,
         context=case_id,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=case_id,
                 attributed_to=actor_id,
                 rm=RmDimension(state=rm_state),
@@ -236,7 +239,8 @@ def _case_with_invitee_record(
 
     This is where CM-11-006 leaves a case after an earlier stub Invite.
     """
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=manager_id,
         name="Re-invite",
         content="Content",
@@ -265,13 +269,15 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=manager.id_,
         name="Joining",
         content="Content",
         stub_summary="Joining summary",
     )
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo/e1",
         content="Active embargo",
         context=case.id_,
@@ -330,7 +336,8 @@ def test_joined_participant_never_answers_the_original_report_offer(
     finder, _ = actor_store("Finder")
     case_actor, _ = actor_store("Case Actor")
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="CVE-JOIN",
         content="Vulnerability report content",
         attributed_to=finder.id_,
@@ -349,14 +356,17 @@ def test_joined_participant_never_answers_the_original_report_offer(
         )
     )
 
-    embargo = as_EmbargoEvent(
-        context="urn:placeholder", end_time=days_from_now(45)
+    embargo = make(
+        as_EmbargoEvent, context="urn:placeholder", end_time=days_from_now(45)
     )
     dl.create(embargo)
-    case = VulnerabilityCase(name="Joined Case", attributed_to=case_actor.id_)
+    case = make(
+        VulnerabilityCase, name="Joined Case", attributed_to=case_actor.id_
+    )
     activate(case, embargo.id_)
     case.vulnerability_reports.append(report.id_)
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -423,7 +433,7 @@ def test_on_behalf_assertion_for_absent_target_is_refused(
     """
     manager, dl = actor_store("CaseManager")
     outsider, _ = actor_store("Outsider")
-    case = VulnerabilityCase(name="On-behalf", attributed_to=manager.id_)
+    case = make(VulnerabilityCase, name="On-behalf", attributed_to=manager.id_)
     seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
     roster_before = dict(case.actor_participant_index)
@@ -467,7 +477,8 @@ def test_stub_invite_has_deadline_and_unanswered_invitee_never_blocks_closure(
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=manager.id_,
         name="Unanswered",
         content="Content",
@@ -487,7 +498,8 @@ def test_stub_invite_has_deadline_and_unanswered_invitee_never_blocks_closure(
     closed_manager = manager_record.model_copy(
         update={
             "participant_statuses": [
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     context=case.id_,
                     attributed_to=manager.id_,
                     rm=RmDimension(state=RM.CLOSED),
@@ -600,7 +612,8 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
     assert isinstance(original, as_Invite)
     result = route_received(
         dl,
-        as_Accept(
+        make(
+            as_Accept,
             actor=invitee.id_,
             object_=original,
             in_reply_to=original_id,
@@ -621,7 +634,8 @@ def _accept_stub_invite(
     assert isinstance(invite, as_Invite)
     result = route_received(
         dl,
-        as_Accept(
+        make(
+            as_Accept,
             actor=invitee_id,
             object_=invite,
             in_reply_to=invite_id,
@@ -650,7 +664,8 @@ def test_closure_check_skips_only_participants_that_never_joined(
     joiner, _ = actor_store("Joining Vendor")
     for invitee in (silent, joiner):
         dl.create(invitee)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=manager.id_,
         name="Closure",
         content="Content",
@@ -672,7 +687,8 @@ def test_closure_check_skips_only_participants_that_never_joined(
     closed_manager = manager_record.model_copy(
         update={
             "participant_statuses": [
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     context=case.id_,
                     attributed_to=manager.id_,
                     rm=RmDimension(state=RM.CLOSED),
@@ -730,7 +746,8 @@ def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
     assert isinstance(original, as_Invite)
     result = route_received(
         dl,
-        as_Reject(
+        make(
+            as_Reject,
             actor=invitee.id_,
             object_=original,
             in_reply_to=original_id,
@@ -782,7 +799,8 @@ def test_stub_invite_writes_only_the_invitee_birth_status(
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=manager.id_,
         name="Birth",
         content="Content",

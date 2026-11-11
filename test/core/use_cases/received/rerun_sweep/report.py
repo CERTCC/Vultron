@@ -19,6 +19,7 @@ from typing import Any, cast
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.future_dates import FAR_FUTURE
 from test.support.ledger_rebuild import run_use_case
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.config.app import config_override
@@ -72,8 +73,11 @@ def _intake_recorded(
 
 
 def _report(tag: str) -> as_VulnerabilityReport:
-    return as_VulnerabilityReport(
-        id_=f"{_BASE}/reports/{tag}", name=tag, content=f"report {tag}"
+    return make(
+        as_VulnerabilityReport,
+        id_=f"{_BASE}/reports/{tag}",
+        name=tag,
+        content=f"report {tag}",
     )
 
 
@@ -100,7 +104,7 @@ def submit_report() -> Scenario:
     """A reporter's Offer(Report) to a vendor: it proposes a case (ADR-0041)."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR)
     # The proposal Create carries the vendor's own actor record (CP-01-010).
-    dl.save(VultronService(id_=_VENDOR))
+    dl.save(make(VultronService, id_=_VENDOR))
     event = received_event(
         rm_submit_report_activity(
             _report("submit"), to=_VENDOR, actor=_REPORTER
@@ -175,7 +179,8 @@ def close_report() -> Scenario:
 
 def _with_embargo(dl: SqliteDataLayer) -> None:
     """Put an embargo in force on the case: RM.VALID needs one (DUR-07-004)."""
-    embargo = EmbargoEvent(
+    embargo = make(
+        EmbargoEvent,
         id_=f"{CASE_ID}/embargoes/rerun-sweep",
         context=CASE_ID,
         end_time=FAR_FUTURE,

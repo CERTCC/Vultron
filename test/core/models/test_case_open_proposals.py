@@ -25,6 +25,7 @@ that has been decided (#3470); termination decides them all at once
 import pytest
 
 from test.support.embargo_register import activate, propose, reject, terminate
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.errors import VultronInvalidStateTransitionError
@@ -38,7 +39,7 @@ _P2 = "https://example.org/cases/1/embargo_proposals/2"
 
 
 def _case_with_two_open_proposals() -> VulnerabilityCase:
-    case = VulnerabilityCase(name="c", attributed_to=_OWNER)
+    case = make(VulnerabilityCase, name="c", attributed_to=_OWNER)
     propose(case, _E1, _E2)
     case.pending_embargo_proposal_index.update({_E1: _P1, _E2: _P2})
     return case
@@ -86,7 +87,7 @@ def test_a_step_keeps_an_index_record_the_register_has_not_recorded_yet():
     The record keeps its place until that proposal is decided, so the
     addressee's own Invite is the one it answers.
     """
-    case = VulnerabilityCase(name="c", attributed_to=_OWNER)
+    case = make(VulnerabilityCase, name="c", attributed_to=_OWNER)
     case.pending_embargo_proposal_index[_E1] = _P1  # index only
 
     activate(case, _E2)
@@ -98,7 +99,7 @@ def test_a_step_keeps_an_index_record_the_register_has_not_recorded_yet():
 @pytest.mark.spec("EP-08-003")
 def test_a_step_prunes_an_index_record_for_an_already_decided_proposal():
     """An index record written after its proposal was decided is pruned."""
-    case = VulnerabilityCase(name="c", attributed_to=_OWNER)
+    case = make(VulnerabilityCase, name="c", attributed_to=_OWNER)
     propose(case, _E1)
     reject(case, _E1)
     case.pending_embargo_proposal_index[_E1] = _P1  # late relay record
@@ -113,7 +114,7 @@ def test_a_step_prunes_an_index_record_for_an_already_decided_proposal():
 @pytest.mark.spec("EP-08-004")
 def test_termination_prunes_an_index_record_the_register_never_recorded():
     """After termination nothing can be proposed, so no record survives."""
-    case = VulnerabilityCase(name="c", attributed_to=_OWNER)
+    case = make(VulnerabilityCase, name="c", attributed_to=_OWNER)
     activate(case, _E0)
     case.pending_embargo_proposal_index[_E1] = _P1  # index only
 
@@ -134,7 +135,9 @@ def test_proposing_another_embargo_keeps_every_open_record():
 @pytest.mark.spec("EP-08-004")
 def test_termination_clears_both_records_together():
     """Termination cancels every open proposal; the index leaves with them."""
-    case = VulnerabilityCase(name="Open proposals", attributed_to="urn:o")
+    case = make(
+        VulnerabilityCase, name="Open proposals", attributed_to="urn:o"
+    )
     activate(case, _E0)
     propose(case, _E1, _E2)
     case.pending_embargo_proposal_index = {_E1: _P1, _E2: _P2}

@@ -26,6 +26,7 @@ import pytest
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
 )
@@ -66,7 +67,8 @@ def _participant(
     Every other embargo of the case (the active one, the earlier one) gets
     the ``UNINVITED`` row each register entry writes (ADR-0122).
     """
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=actor_id,
         attributed_to=actor_id,
         embargo_consents=[EmbargoConsent(embargo_id=embargo_id, state=state)],
@@ -90,8 +92,10 @@ _REGISTER = [
 
 def _invitee_case(participant: CaseParticipant) -> VulnerabilityCase:
     """A case holding :data:`_REGISTER` and *participant* on its roster."""
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/pec-chain"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/pec-chain",
     )
     activate(case, _EARLIER_EMBARGO_ID)
     propose(case, _EMBARGO_ID)

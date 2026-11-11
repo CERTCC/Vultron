@@ -20,6 +20,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import (
     TEST_SENDER_POSITION,
     in_step_position,
@@ -60,11 +61,14 @@ def _addressed_activity(
     type_: str, sender_id: str, receiver_id: str, case_id: str
 ) -> VultronActivity:
     """The Join/Ignore an event carries, addressed to its receiver (HP-01-005)."""
-    return VultronActivity(
+    return make(
+        VultronActivity,
         type_=type_,
         actor=sender_id,
         to=[receiver_id],
-        object_=VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id),
+        object_=make(
+            VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id
+        ),
         context=case_id,
     )
 
@@ -92,7 +96,9 @@ class TestEngageDeferCaseBTFailureReason:
             "sqlite:///:memory:",
             actor_id=self._CASE_MANAGER_ID,
         )
-        dl.create(VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id))
+        dl.create(
+            make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id)
+        )
         return dl
 
     @pytest.fixture
@@ -107,7 +113,7 @@ class TestEngageDeferCaseBTFailureReason:
                 ledger_position=TEST_SENDER_POSITION,
                 activity_id="https://example.org/activities/engage-001",
                 actor_id=actor_id,
-                object_=CoreObject(id_=case_id),
+                object_=make(CoreObject, id_=case_id),
                 semantic_type=MessageSemantics.ENGAGE_CASE,
                 activity=_addressed_activity(
                     "Join", actor_id, self._CASE_MANAGER_ID, case_id
@@ -123,7 +129,7 @@ class TestEngageDeferCaseBTFailureReason:
                 ledger_position=TEST_SENDER_POSITION,
                 activity_id="https://example.org/activities/defer-001",
                 actor_id=actor_id,
-                object_=CoreObject(id_=case_id),
+                object_=make(CoreObject, id_=case_id),
                 semantic_type=MessageSemantics.DEFER_CASE,
                 activity=_addressed_activity(
                     "Ignore", actor_id, self._CASE_MANAGER_ID, case_id
@@ -251,14 +257,16 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
     def dl_holding_the_sender(self, dl):
         """The receiver's case, listing the sender's own participant."""
         dl.create(
-            CaseParticipant(
+            make(
+                CaseParticipant,
                 id_=self._PARTICIPANT_ID,
                 attributed_to=self._ACTOR_ID,
                 context=self._CASE_ID,
             )
         )
         dl.create(
-            VulnerabilityCase(
+            make(
+                VulnerabilityCase,
                 attributed_to=CASE_OWNER_ID,
                 id_=self._CASE_ID,
                 case_participants=[self._PARTICIPANT_ID],
@@ -271,19 +279,21 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
         """VulnerabilityCase carrying the sender's and another participant
         inline; the receiver holds no record of the other one."""
         participants = [
-            CaseParticipant(
+            make(
+                CaseParticipant,
                 id_=self._PARTICIPANT_ID,
                 attributed_to=self._ACTOR_ID,
                 context=self._CASE_ID,
             ),
-            CaseParticipant(
+            make(
+                CaseParticipant,
                 id_=self._OTHER_PARTICIPANT_ID,
                 attributed_to=self._OTHER_ACTOR_ID,
                 context=self._CASE_ID,
             ),
         ]
-        case = VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
+        case = make(
+            VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
         )
         object.__setattr__(case, "case_participants", participants)
         return case
@@ -346,8 +356,8 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
         store_embedded_participants is idempotent on strings; no error and
         no false record is created (#573 does not regress bare-string path).
         """
-        case_str_participants = VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
+        case_str_participants = make(
+            VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
         )
         object.__setattr__(
             case_str_participants, "case_participants", [self._PARTICIPANT_ID]
@@ -409,19 +419,22 @@ class TestEngageCaseLedgerCommit:
         """*dl*'s replica of the case: vendor participant plus the CM."""
         from vultron.core.models.actor import VultronService
 
-        dl.create(VultronService(id_=cls._SENDER_ID, name="Vendor"))
+        dl.create(make(VultronService, id_=cls._SENDER_ID, name="Vendor"))
 
-        vendor_p = CaseParticipant(
+        vendor_p = make(
+            CaseParticipant,
             id_=cls._VENDOR_PARTICIPANT_ID,
             attributed_to=cls._SENDER_ID,
             context=cls._CASE_ID,
             participant_statuses=[
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     attributed_to=cls._SENDER_ID,
                     context=cls._CASE_ID,
                     rm=RmDimension(state=RM.RECEIVED),
                 ),
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     attributed_to=cls._SENDER_ID,
                     context=cls._CASE_ID,
                     rm=RmDimension(state=RM.VALID),
@@ -430,9 +443,12 @@ class TestEngageCaseLedgerCommit:
         )
         dl.create(vendor_p)
 
-        dl.create(VultronService(id_=cls._CASE_MANAGER_ID, name="Coordinator"))
+        dl.create(
+            make(VultronService, id_=cls._CASE_MANAGER_ID, name="Coordinator")
+        )
 
-        cm_p = CaseParticipant(
+        cm_p = make(
+            CaseParticipant,
             id_=cls._CM_PARTICIPANT_ID,
             attributed_to=cls._CASE_MANAGER_ID,
             context=cls._CASE_ID,
@@ -441,7 +457,8 @@ class TestEngageCaseLedgerCommit:
         dl.create(cm_p)
 
         # attributed_to triggers genesis_hash computation (CLP-08-001/002).
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=cls._CASE_ID,
             name="Ledger Commit Regression Case #2300",
             attributed_to=cls._CASE_MANAGER_ID,
@@ -467,14 +484,17 @@ class TestEngageCaseLedgerCommit:
                 activity_id=f"{self._CASE_ID}/activities/engage-2300",
                 actor_id=self._SENDER_ID,
                 receiving_actor_id=self._CASE_MANAGER_ID,
-                object_=CoreObject(id_=self._CASE_ID),
+                object_=make(CoreObject, id_=self._CASE_ID),
                 semantic_type=MessageSemantics.ENGAGE_CASE,
-                activity=VultronActivity(
+                activity=make(
+                    VultronActivity,
                     type_="Join",
                     actor=self._SENDER_ID,
                     to=[self._CASE_MANAGER_ID],
-                    object_=VulnerabilityCase(
-                        attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
+                    object_=make(
+                        VulnerabilityCase,
+                        attributed_to=CASE_OWNER_ID,
+                        id_=self._CASE_ID,
                     ),
                     context=self._CASE_ID,
                 ),
@@ -565,7 +585,8 @@ class TestEngageCaseLedgerCommit:
         inert_actor_id = "https://example.org/actors/invitee-2300"
         inert_participant_id = f"{self._CASE_ID}/participants/invitee"
         seeded_dl.create(
-            CaseParticipant(
+            make(
+                CaseParticipant,
                 id_=inert_participant_id,
                 attributed_to=inert_actor_id,
                 context=self._CASE_ID,
@@ -701,7 +722,8 @@ class TestEngageCaseLedgerCommit:
         assert latest_status.rm.state == RM.ACCEPTED
 
     def _carried_embargo(self) -> EmbargoEvent:
-        return EmbargoEvent(
+        return make(
+            EmbargoEvent,
             id_=f"{self._CASE_ID}/embargo_events/carried",
             context=self._CASE_ID,
             end_time=days_from_now(45),
@@ -711,7 +733,8 @@ class TestEngageCaseLedgerCommit:
         self, dl: SqliteDataLayer, embargo: EmbargoEvent
     ) -> EngageCaseReceivedEvent:
         """The Engage, its case snapshot naming *embargo* inline."""
-        snapshot = VulnerabilityCase(
+        snapshot = make(
+            VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=self._CASE_ID,
             embargo_register=register(active=embargo),
@@ -802,18 +825,21 @@ class TestDeferCaseLedgerCommit:
         """*dl*'s replica of the case: vendor participant plus the CM."""
         from vultron.core.models.actor import VultronService
 
-        dl.create(VultronService(id_=cls._SENDER_ID, name="Vendor"))
-        vendor_p = CaseParticipant(
+        dl.create(make(VultronService, id_=cls._SENDER_ID, name="Vendor"))
+        vendor_p = make(
+            CaseParticipant,
             id_=cls._VENDOR_PARTICIPANT_ID,
             attributed_to=cls._SENDER_ID,
             context=cls._CASE_ID,
             participant_statuses=[
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     attributed_to=cls._SENDER_ID,
                     context=cls._CASE_ID,
                     rm=RmDimension(state=RM.RECEIVED),
                 ),
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     attributed_to=cls._SENDER_ID,
                     context=cls._CASE_ID,
                     rm=RmDimension(state=RM.VALID),
@@ -821,15 +847,19 @@ class TestDeferCaseLedgerCommit:
             ],
         )
         dl.create(vendor_p)
-        dl.create(VultronService(id_=cls._CASE_MANAGER_ID, name="Coordinator"))
-        cm_p = CaseParticipant(
+        dl.create(
+            make(VultronService, id_=cls._CASE_MANAGER_ID, name="Coordinator")
+        )
+        cm_p = make(
+            CaseParticipant,
             id_=cls._CM_PARTICIPANT_ID,
             attributed_to=cls._CASE_MANAGER_ID,
             context=cls._CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
         )
         dl.create(cm_p)
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=cls._CASE_ID,
             name="Defer Ledger Commit Regression #2300",
             attributed_to=cls._CASE_MANAGER_ID,
@@ -852,14 +882,17 @@ class TestDeferCaseLedgerCommit:
                 activity_id=f"{self._CASE_ID}/activities/defer-2300",
                 actor_id=self._SENDER_ID,
                 receiving_actor_id=self._CASE_MANAGER_ID,
-                object_=CoreObject(id_=self._CASE_ID),
+                object_=make(CoreObject, id_=self._CASE_ID),
                 semantic_type=MessageSemantics.DEFER_CASE,
-                activity=VultronActivity(
+                activity=make(
+                    VultronActivity,
                     type_="Ignore",
                     actor=self._SENDER_ID,
                     to=[self._CASE_MANAGER_ID],
-                    object_=VulnerabilityCase(
-                        attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
+                    object_=make(
+                        VulnerabilityCase,
+                        attributed_to=CASE_OWNER_ID,
+                        id_=self._CASE_ID,
                     ),
                     context=self._CASE_ID,
                 ),
@@ -1009,8 +1042,10 @@ class TestRegistrySuppliesTheTriggeringActivity:
             as_VulnerabilityCase,
         )
 
-        return as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
+        return make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=self._CASE_ID,
         )
 
     @pytest.mark.parametrize(

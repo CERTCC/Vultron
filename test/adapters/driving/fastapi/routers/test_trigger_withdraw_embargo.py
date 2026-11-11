@@ -25,6 +25,7 @@ from fastapi import status
 
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.participant_embargo_consent import (
@@ -53,13 +54,16 @@ def _case_with_signatory(
     dl, actor_id: str, consent: EmbargoConsentState
 ) -> tuple[VulnerabilityCase, as_EmbargoEvent]:
     """A case another actor owns, with *actor_id* holding *consent*."""
-    case = VulnerabilityCase(name="WITHDRAW-CASE", attributed_to=_OWNER)
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now(45))
+    case = make(VulnerabilityCase, name="WITHDRAW-CASE", attributed_to=_OWNER)
+    embargo = make(
+        as_EmbargoEvent, context=case.id_, end_time=days_from_now(45)
+    )
     dl.create(embargo)
     activate(case, embargo.id_)
     dl.create(case)
     _add_case_manager(case, dl)
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.REPORTER],
@@ -110,10 +114,13 @@ def test_trigger_withdraw_embargo_with_no_embargo_in_force_returns_409(
     client_triggers, actor, dl
 ):
     """EP-09-028: with no embargo in force there is nothing to withdraw from."""
-    case = VulnerabilityCase(name="NO-EMBARGO-CASE", attributed_to=_OWNER)
+    case = make(
+        VulnerabilityCase, name="NO-EMBARGO-CASE", attributed_to=_OWNER
+    )
     dl.create(case)
     _add_case_manager(case, dl)
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case.id_,
         case_roles=[CVDRole.REPORTER],

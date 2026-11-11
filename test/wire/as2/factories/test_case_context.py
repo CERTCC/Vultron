@@ -23,6 +23,7 @@ So the factory, not the emitting node, fills ``context`` in.
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
@@ -69,7 +70,9 @@ def test_case_uri_of_reads_a_string_or_an_object_id():
     assert case_uri_of(_CASE_ID) == _CASE_ID
     assert (
         case_uri_of(
-            as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+            make(
+                as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_ID
+            )
         )
         == _CASE_ID
     )
@@ -91,12 +94,12 @@ def test_with_case_context_fills_only_a_missing_context():
 
 
 def _participant() -> as_CaseParticipant:
-    return as_CaseParticipant(attributed_to=_VENDOR, context=_CASE_ID)
+    return make(as_CaseParticipant, attributed_to=_VENDOR, context=_CASE_ID)
 
 
 def _recommendation():
     return recommend_actor_activity(
-        recommended=as_Actor(id_=_VENDOR), target=_CASE_ID, actor=_ACTOR
+        recommended=make(as_Actor, id_=_VENDOR), target=_CASE_ID, actor=_ACTOR
     )
 
 
@@ -109,9 +112,12 @@ def _cp_offer():
 def _role_offer():
     return offer_case_participant_role_activity(
         role=CVDRole.CASE_MANAGER,
-        target_actor=as_Actor(id_=_VENDOR),
-        case=as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="x"
+        target_actor=make(as_Actor, id_=_VENDOR),
+        case=make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            name="x",
         ),
         actor=_ACTOR,
     )
@@ -125,7 +131,8 @@ def _role_offer():
         pytest.param(
             lambda: rm_invite_to_case_activity(
                 invitee=_VENDOR,
-                target=as_VulnerabilityCase(
+                target=make(
+                    as_VulnerabilityCase,
                     attributed_to=CASE_OWNER_ID,
                     id_=_CASE_ID,
                     name="x",
@@ -143,8 +150,11 @@ def _role_offer():
         ),
         pytest.param(
             lambda: update_case_activity(
-                case=as_VulnerabilityCase(
-                    attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="x"
+                case=make(
+                    as_VulnerabilityCase,
+                    attributed_to=CASE_OWNER_ID,
+                    id_=_CASE_ID,
+                    name="x",
                 ),
                 actor=_ACTOR,
             ),
@@ -184,7 +194,7 @@ def _role_offer():
         ),
         pytest.param(
             lambda: add_note_to_case_activity(
-                note=as_Note(content="x", context=_CASE_ID),
+                note=make(as_Note, content="x", context=_CASE_ID),
                 target=_CASE_ID,
                 actor=_ACTOR,
             ),
@@ -238,8 +248,11 @@ def test_no_case_means_no_context():
 
 
 def test_case_target_ref_reduces_a_full_case_to_its_uri():
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="full"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="full",
     )
     assert case_target_ref(case) == _CASE_ID
 
@@ -255,8 +268,11 @@ def test_case_target_ref_leaves_a_uri_a_stub_and_none_alone():
 @pytest.mark.spec("AKM-02-003")
 @pytest.mark.spec("AKM-02-008")
 def test_factories_given_a_full_case_target_send_its_uri():
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="full"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="full",
     )
     activity = add_participant_to_case_activity(
         participant=_participant(), target=case, actor=_ACTOR
@@ -274,9 +290,9 @@ def test_role_offer_context_is_the_case_uri_not_the_case():
     travel whole (2 KB of participants and reports).  Only the URI goes."""
     activity = offer_case_participant_role_activity(
         role=CVDRole.CASE_MANAGER,
-        target_actor=as_Actor(id_=_VENDOR),
-        case=as_VulnerabilityCase(
-            id_=_CASE_ID, name="x", attributed_to=_ACTOR
+        target_actor=make(as_Actor, id_=_VENDOR),
+        case=make(
+            as_VulnerabilityCase, id_=_CASE_ID, name="x", attributed_to=_ACTOR
         ),
         actor=_ACTOR,
     )
@@ -290,7 +306,7 @@ def test_role_offer_context_is_the_case_uri_not_the_case():
 def test_role_offer_accepts_the_case_uri_directly():
     activity = offer_case_participant_role_activity(
         role=CVDRole.VENDOR,
-        target_actor=as_Actor(id_=_VENDOR),
+        target_actor=make(as_Actor, id_=_VENDOR),
         case=_CASE_ID,
         actor=_ACTOR,
     )

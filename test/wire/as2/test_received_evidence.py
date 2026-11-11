@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.base import CoreObject
 from vultron.errors import VultronWiringError
 from vultron.wire.as2 import parser
@@ -192,7 +193,7 @@ def test_an_activity_built_in_process_carries_no_evidence():
         as_Offer,
     )
 
-    activity = as_Offer(actor=ACTOR, object_=REPORT_ID)
+    activity = make(as_Offer, actor=ACTOR, object_=REPORT_ID)
 
     assert activity.received_evidence is None
     assert activity.received_evidence_json is None
@@ -221,7 +222,7 @@ def test_an_event_from_an_activity_without_evidence_carries_none():
     )
 
     activity = rm_submit_report_activity(
-        as_VulnerabilityReport(id_=REPORT_ID, name="r", content="c"),
+        make(as_VulnerabilityReport, id_=REPORT_ID, name="r", content="c"),
         to="https://example.org/actors/vendor",
         actor=ACTOR,
     )

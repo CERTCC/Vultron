@@ -35,6 +35,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -83,7 +84,8 @@ def _deliver(dl, activity_id: str) -> tuple[str, str, list[str]]:
 @pytest.mark.spec("VM-08-003")
 def test_the_emitter_receives_the_blob_the_adapter_returned_to_core(dl):
     """Port blob == sealed body == delivered body, byte for byte."""
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         name="CVE-2026-0002",
         attributed_to=_ACTOR,
         stub_summary="Security issue — details shared after acceptance",
@@ -117,7 +119,8 @@ def test_the_invite_case_stub_survives_to_the_emitter(dl):
     stub CM-17-002 requires was being lost before delivery.
     """
     _stub_summary = "Security issue — details shared after acceptance"
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         name="CVE-2026-0003",
         attributed_to=_ACTOR,
         stub_summary=_stub_summary,
@@ -170,7 +173,9 @@ def test_the_sync_adapter_seals_the_announce_it_queues(dl):
 @pytest.mark.spec("OX-07-005")
 def test_a_queued_id_with_no_sealed_body_is_dropped_not_delivered(dl, caplog):
     """The activity record alone is not enough: no seal, no delivery."""
-    case = as_VulnerabilityCase(name="CVE-2026-0004", attributed_to=_ACTOR)
+    case = make(
+        as_VulnerabilityCase, name="CVE-2026-0004", attributed_to=_ACTOR
+    )
     dl.create(case)
     emitter = AsyncMock()
     with caplog.at_level("ERROR"):
@@ -190,19 +195,22 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
     between rewrote either side.
     """
     case_id = "urn:uuid:e2e-sealed-ledger"
-    manager = CaseParticipant(
+    manager = make(
+        CaseParticipant,
         id_=f"{case_id}/participants/cm",
         attributed_to=_ACTOR,
         case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
     )
-    embargo = EmbargoEvent(
+    embargo = make(
+        EmbargoEvent,
         id_=f"{case_id}/embargoes/e0",
         context=case_id,
         end_time=days_from_now(45),
     )
     # A participant holds a row for every register entry (ADR-0122).
     manager.write_uninvited_rows([embargo.id_])
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="e2e",
         attributed_to=_ACTOR,
@@ -210,7 +218,8 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
         case_participants=[manager],
         actor_participant_index={_ACTOR: str(manager.id_)},
         case_statuses=[
-            CaseStatus(
+            make(
+                CaseStatus,
                 context=case_id,
                 attributed_to=_ACTOR,
                 em=EmDimension(state=EM.ACTIVE),

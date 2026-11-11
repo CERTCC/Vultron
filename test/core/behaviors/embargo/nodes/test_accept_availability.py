@@ -37,6 +37,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 from test.support.act_runner import run_tree
 from test.support.embargo_register import propose, reject, write_consent_rows
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -118,7 +119,8 @@ def _case(
     for entry in case.embargo_register:
         embargo = entry.embargo
         if not isinstance(embargo, EmbargoEvent):
-            embargo = as_EmbargoEvent(
+            embargo = make(
+                as_EmbargoEvent,
                 id_=embargo,
                 context=case.id_,
                 end_time=_NOW + timedelta(days=90),
@@ -140,7 +142,8 @@ def _with_proposals(
     """
     ids: dict[str, str] = {}
     for suffix, end in ends:
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/{suffix}",
             context=case.id_,
             end_time=end,

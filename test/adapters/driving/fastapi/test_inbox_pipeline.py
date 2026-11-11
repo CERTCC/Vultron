@@ -8,6 +8,7 @@ from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.future_dates import days_from_now
 from test.support.inbox_replay import hold_activity
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_pipeline import (
     MAX_REQUEUE_ATTEMPTS,
@@ -72,15 +73,18 @@ def _patch_execute_with_marker(
     monkeypatch: MonkeyPatch, use_case_class: type, marker_id: str
 ) -> None:
     def _execute(self) -> HandlerResult:
-        self._dl.save(as_Note(id_=marker_id, content=marker_id))
+        self._dl.save(make(as_Note, id_=marker_id, content=marker_id))
         return HandlerResult.applied()
 
     monkeypatch.setattr(use_case_class, "execute", _execute)
 
 
 def _base_case(case_id: str = CASE_ID) -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=case_id, name="CASE-IBP"
+    return make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=case_id,
+        name="CASE-IBP",
     )
 
 
@@ -93,7 +97,7 @@ def _store_note_activity_whole(
     its own id (DL-06-006).
     """
     case = _base_case()
-    note = as_Note(id_=note_id, content=note_id)
+    note = make(as_Note, id_=note_id, content=note_id)
     activity = add_note_to_case_activity(
         note,
         target=case,
@@ -130,7 +134,8 @@ def test_routing_safety_net_report_domain(test_pipeline, monkeypatch):
     _patch_execute_with_marker(
         monkeypatch, CreateReportReceivedUseCase, marker_id
     )
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         id_="https://example.org/reports/r-ibp-1",
         content="report content",
     )
@@ -170,7 +175,8 @@ def test_routing_safety_net_embargo_domain(test_pipeline, monkeypatch):
         monkeypatch, InviteToEmbargoOnCaseReceivedUseCase, marker_id
     )
     case = _base_case()
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_="https://example.org/embargoes/e-ibp-1",
         context=case.id_,
         end_time=days_from_now(45),
@@ -194,7 +200,9 @@ def test_routing_safety_net_note_domain(test_pipeline, monkeypatch):
         monkeypatch, AddNoteToCaseReceivedUseCase, marker_id
     )
     case = _base_case()
-    note = as_Note(id_="https://example.org/notes/n-ibp-1", content="hello")
+    note = make(
+        as_Note, id_="https://example.org/notes/n-ibp-1", content="hello"
+    )
     activity = add_note_to_case_activity(
         note,
         target=case,
@@ -239,8 +247,10 @@ def test_routing_safety_net_status_domain(test_pipeline, monkeypatch):
         monkeypatch, AddCaseStatusToCaseReceivedUseCase, marker_id
     )
     case = _base_case()
-    status = as_CaseStatus(
-        id_="https://example.org/status/cs-ibp-1", context=case.id_
+    status = make(
+        as_CaseStatus,
+        id_="https://example.org/status/cs-ibp-1",
+        context=case.id_,
     )
     # Routing only: ``execute`` is patched, so the sender rule (the
     # CASE_MANAGER alone, RSH-04-005) never runs.
@@ -266,7 +276,8 @@ def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
     _patch_execute_with_marker(
         monkeypatch, AnnounceLedgerEntryReceivedUseCase, marker_id
     )
-    entry = as_CaseLedgerEntry(
+    entry = make(
+        as_CaseLedgerEntry,
         id_="https://example.org/log/entry-ibp-1",
         case_id=CASE_ID,
         log_index=0,
@@ -295,7 +306,9 @@ def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
 
 def test_process_defers_unknown_case_activity(test_pipeline):
     pipeline, dl = test_pipeline
-    note = as_Note(id_="https://example.org/notes/n-ibp-def", content="defer")
+    note = make(
+        as_Note, id_="https://example.org/notes/n-ibp-def", content="defer"
+    )
     activity = add_note_to_case_activity(
         note,
         target=UNKNOWN_CASE_ID,
@@ -332,7 +345,8 @@ def test_stub_invite_for_unknown_case_is_dispatched_not_deferred(
     _patch_execute_with_marker(
         monkeypatch, InviteActorToCaseReceivedUseCase, marker_id
     )
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=UNKNOWN_CASE_ID,
         name="CASE-IBP",
@@ -378,8 +392,11 @@ def test_create_case_with_correct_context_not_deferred(
     )
 
     new_case_id = "https://example.org/cases/case-ac4-new"
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=new_case_id, name="AC4-New"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=new_case_id,
+        name="AC4-New",
     )
     # Build a Create(VulnerabilityCase) whose context = case_uri (ADR-0045).
     activity = create_case_activity(

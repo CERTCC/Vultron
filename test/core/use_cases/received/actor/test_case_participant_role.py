@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.case_participant_role import (
@@ -60,7 +61,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         return offer_case_participant_role_activity(
             role=role,
-            target_actor=as_Actor(id_=self._TARGET_URI),
+            target_actor=make(as_Actor, id_=self._TARGET_URI),
             case=self._CASE_URI,
             actor=self._VENDOR_URI,
             to=[self._CASE_ACTOR_URI],
@@ -72,7 +73,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         return offer_case_participant_role_activity(
             role=CVDRole.COORDINATOR,
-            target_actor=as_Actor(id_=self._TARGET_URI),
+            target_actor=make(as_Actor, id_=self._TARGET_URI),
             case=self._CASE_URI,
             actor=self._CASE_ACTOR_URI,
             attributed_to=self._VENDOR_URI,
@@ -92,7 +93,8 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=self._CASE_URI,
             name="ROLE-TEST",
             attributed_to=self._VENDOR_URI,
@@ -245,7 +247,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         dl = self._store(self._CASE_ACTOR_URI)
         offer = offer_case_participant_role_activity(
             role=CVDRole.COORDINATOR,
-            target_actor=as_Actor(id_=self._TARGET_URI + "/"),
+            target_actor=make(as_Actor, id_=self._TARGET_URI + "/"),
             case=self._CASE_URI,
             actor=self._VENDOR_URI,
             to=[self._CASE_ACTOR_URI],

@@ -26,6 +26,7 @@ from pydantic import ValidationError
 
 from test.architecture import _corpus
 from test.support.core_vocab import build_core_vocab, import_all_core_models
+from test.support.objects import make
 from vultron.core.models.base import CoreObject
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.errors import VultronProtocolViolationError
@@ -330,7 +331,7 @@ def test_json_mode_dump_round_trips_for_non_bool_computed_field(
         def when(self) -> datetime:
             return datetime(2026, 1, 1, tzinfo=UTC)
 
-    obj = _DatetimeComputed()
+    obj = make(_DatetimeComputed)
     assert _DatetimeComputed.model_validate(obj.model_dump(mode="json")) == obj
     assert _DatetimeComputed.model_validate(obj.model_dump()) == obj
 
