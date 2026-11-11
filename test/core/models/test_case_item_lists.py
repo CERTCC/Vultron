@@ -83,3 +83,22 @@ def test_the_lists_ride_the_case_snapshot_to_a_replica():
 def test_a_blank_entry_is_refused():
     with pytest.raises(ValueError):
         VulnerabilityCase(attributed_to=OWNER, vulnerability_items=[" "])
+
+
+@pytest.mark.spec("CM-05-021")
+def test_a_received_case_keeps_both_lists_through_the_extractor():
+    from vultron.wire.as2.extractor._builders.objects import (
+        _build_case_object,
+    )
+
+    item = VulnerabilityItem(cve="CVE-2024-0001")
+    case = VulnerabilityCase(
+        attributed_to=OWNER,
+        vulnerability_items=[item, "urn:uuid:item-2"],
+        case_references=["urn:uuid:ref-1"],
+    )
+
+    built = _build_case_object(case)["object_"]
+
+    assert built.vulnerability_items == [item, "urn:uuid:item-2"]
+    assert built.case_references == ["urn:uuid:ref-1"]
