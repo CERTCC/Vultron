@@ -118,6 +118,7 @@ def _record_the_wait_for_the_replay(
         received_at=held.received_at,
         replay_rows_json=held.replay_rows_json,
         awaiting_case_id=case_id,
+        verified_proofs=held.verified_proofs,
     )
 
 

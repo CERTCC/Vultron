@@ -75,9 +75,18 @@ VENDOR_ID = f"{API_BASE_URL}/actors/{VENDOR_SLUG}"
 VENDOR_NAME = "VendorCo"
 VENDOR_ACTOR_TYPE = "Organization"
 
-#: The reporter and the report they submit.
-FINDER_ID = "https://finder.example/users/finn"
-REPORT_ID = "https://finder.example/reports/report-001"
+#: Short id of the actor that sends the report (a stand-in finder).  The
+#: finder is hosted on the same server as the vendor, so the vendor can fetch
+#: its profile to get the key that verifies its proof (SIG-02-001), and its
+#: own outbox signs what it sends (SIG-01-001, SIG-05-004).
+FINDER_SLUG = "finn"
+#: The finder's actor id, the URL that reaches it, as :data:`VENDOR_ID` is.
+FINDER_ID = f"{API_BASE_URL}/actors/{FINDER_SLUG}"
+FINDER_NAME = "Finn"
+FINDER_ACTOR_TYPE = "Person"
+
+#: The report the finder submits.
+REPORT_ID = "urn:uuid:22222222-2222-2222-2222-222222222222"
 REPORT_NAME = "FDR-0001"
 REPORT_CONTENT = "I found a vulnerability!"
 ACTIVITY_ID = "urn:uuid:11111111-1111-1111-1111-111111111111"
@@ -142,8 +151,13 @@ def actors_path() -> str:
 
 
 def inbox_path(slug: str = VENDOR_SLUG) -> str:
-    """Return the ``POST`` path of *slug*'s inbox."""
+    """Return the path of *slug*'s inbox."""
     return f"{_API_PREFIX}/actors/{slug}/inbox/"
+
+
+def outbox_path(slug: str = FINDER_SLUG) -> str:
+    """Return the ``POST`` path of *slug*'s outbox."""
+    return f"{_API_PREFIX}/actors/{slug}/outbox/"
 
 
 def reports_path(slug: str = VENDOR_SLUG) -> str:
@@ -165,6 +179,15 @@ def vendor_create_body() -> dict[str, str]:
         "name": VENDOR_NAME,
         "actor_type": VENDOR_ACTOR_TYPE,
         "id": VENDOR_SLUG,
+    }
+
+
+def finder_create_body() -> dict[str, str]:
+    """Return the JSON body for ``POST /actors/`` that creates the finder."""
+    return {
+        "name": FINDER_NAME,
+        "actor_type": FINDER_ACTOR_TYPE,
+        "id": FINDER_SLUG,
     }
 
 
@@ -247,10 +270,21 @@ def render_create_actor() -> str:
     return _bash_block(_curl("POST", actors_path(), vendor_create_body()))
 
 
+def render_create_finder() -> str:
+    """Render the command that creates the finder actor."""
+    return _bash_block(_curl("POST", actors_path(), finder_create_body()))
+
+
 def render_submit_report() -> str:
-    """Render the command that submits the report to the vendor's inbox."""
+    """Render the command that hands the report to the finder's outbox.
+
+    The outbox signs the activity as the finder and delivers it to the
+    vendor's inbox, which verifies the proof by the key the finder's
+    profile publishes (SIG-01-001, SIG-02-001).  An unsigned activity
+    posted straight to the inbox is refused (SIG-03-002).
+    """
     return _bash_block(
-        _curl("POST", inbox_path(), create_report_activity_body())
+        _curl("POST", outbox_path(), create_report_activity_body())
     )
 
 
@@ -281,17 +315,25 @@ def render_stored_report() -> str:
 
 
 def run_end_to_end(client: _HttpClient) -> dict[str, Any]:
-    """Run the tutorial flow against *client* and return the three responses.
+    """Run the tutorial flow against *client* and return its responses.
 
-    Mirrors the tutorial exactly: create the vendor actor, submit the report to
-    its inbox, then read the vendor's report store back.  The FastAPI
-    ``TestClient`` runs the inbox background task before ``post`` returns, so the
+    Mirrors the tutorial exactly: create the vendor and the finder, hand the
+    report to the finder's outbox, which signs it and delivers it to the
+    vendor's inbox, then read the vendor's report store back.  The FastAPI
+    ``TestClient`` runs each background task before ``post`` returns, so the
     stored report is visible to the subsequent ``get``.
 
     Returns:
-        A dict with ``create``, ``submit``, and ``reports`` response objects.
+        A dict with ``create``, ``create_finder``, ``submit``, and
+        ``reports`` response objects.
     """
     create = client.post(actors_path(), json=vendor_create_body())
-    submit = client.post(inbox_path(), json=create_report_activity_body())
+    create_finder = client.post(actors_path(), json=finder_create_body())
+    submit = client.post(outbox_path(), json=create_report_activity_body())
     reports = client.get(reports_path())
-    return {"create": create, "submit": submit, "reports": reports}
+    return {
+        "create": create,
+        "create_finder": create_finder,
+        "submit": submit,
+        "reports": reports,
+    }

@@ -1,8 +1,8 @@
 ---
 description: >
   Start the reference implementation, construct a
-  `Create(VulnerabilityReport)` message by hand, post it to an actor's inbox,
-  and confirm the actor received it.
+  `Create(VulnerabilityReport)` message by hand, have the sender's outbox
+  sign it and deliver it to an actor's inbox, and confirm the actor received it.
 stakeholder_type: [platform-developer]
 level: 200
 page_type: tutorial
@@ -13,11 +13,8 @@ subject: protocol
 
 {% include-markdown "../includes/test_bench.md" %}
 
-In this tutorial, we will submit a vulnerability report to a running Vultron
-actor and confirm that the actor received it.
-We will start the reference implementation, create an actor to play the part of
-a vendor, send that actor a `Create(VulnerabilityReport)` message, and read the
-report back out of the actor's store.
+In this tutorial, we will submit a vulnerability report to a running Vultron actor and confirm that the actor received it.
+We will start the reference implementation, create one actor to play the part of a vendor and one to play the part of a finder, have the finder send the vendor a signed `Create(VulnerabilityReport)` message, and read the report back out of the vendor's store.
 This tutorial is for a developer who wants to see, first-hand, what it takes to
 speak to a Vultron actor over the wire.
 
@@ -25,9 +22,7 @@ speak to a Vultron actor over the wire.
 
     Vultron actors exchange [ActivityStreams](../reference/glossary.md) messages
     over HTTP.
-    We will construct one such message, post it to an actor's
-    [Inbox](../reference/glossary.md), and watch the report land in the
-    receiving actor's store.
+    We will construct one such message, have the sending actor's Outbox sign it and deliver it to the receiving actor's [Inbox](../reference/glossary.md), and watch the report land in the receiving actor's store.
     We will not cover the full report-management lifecycle here; the
     [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
     how-to guide takes the story further.
@@ -113,10 +108,9 @@ The server responds with:
 
 ---
 
-## Step 3 — Create an actor to receive the report
+## Step 3 — Create the vendor and the finder
 
-A report has to be sent *to* someone, so we first create an actor to play the
-part of a vendor.
+A report has to be sent *to* someone, so we first create an actor to play the part of a vendor.
 Run this in the second terminal:
 
 ```python exec="true" idprefix=""
@@ -127,72 +121,90 @@ print(render_create_actor())
 The server responds with `201 Created` and the new actor record:
 
 ```json
-{"id":"http://localhost:7999/api/v2/actors/vendorco","type":"Organization","name":"VendorCo","published":"2026-01-01T00:00:00.000000+00:00","updated":"2026-01-01T00:00:00.000000+00:00"}
+{"@context":["https://www.w3.org/ns/activitystreams","https://certcc.github.io/Vultron/ns/context.jsonld"],"id":"http://localhost:7999/api/v2/actors/vendorco","type":"Organization","name":"VendorCo","published":"2026-01-01T00:00:00.000000+00:00","updated":"2026-01-01T00:00:00.000000+00:00","inbox":"http://localhost:7999/api/v2/actors/vendorco/inbox","outbox":"http://localhost:7999/api/v2/actors/vendorco/outbox"}
 ```
 
 Your `published` and `updated` timestamps will differ; everything else matches.
 Notice that the actor's `id` is the URL that reaches it.
-Its Inbox — the endpoint where it receives messages — is that same URL with
-`/inbox/` appended.
+Its Inbox, the endpoint where it receives messages, is that same URL with `/inbox/` appended.
+
+A report also has to come *from* someone.
+Every message a Vultron actor receives must carry a `proof`: a signature made with its sender's key.
+The receiver reads the sender's public key from the sender's actor profile, so the sender has to be an actor that a server hosts.
+Create a second actor to play the part of the finder who reports the vulnerability:
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.submit_report_tutorial import render_create_finder
+print(render_create_finder())
+```
+
+The server again responds with `201 Created` and the actor record, this time for a `Person` named `Finn`.
+Finn's actor profile, with the public key that verifies Finn's messages, is at `http://localhost:7999/api/v2/actors/finn/profile`.
 
 ---
 
 ## Step 4 — Submit the report
 
-!!! warning "This step is out of date"
-
-    The server now refuses an activity that carries no valid `proof` (SIG-03-002), so it answers this unsigned message with `422 Unprocessable Content`, not `202 Accepted`.
-    The tutorial is being updated to send a signed message ([#5387](https://github.com/CERTCC/Vultron/issues/5387)).
-
-Now we send the vendor a `Create(VulnerabilityReport)` message.
-This is an ActivityStreams Vocabulary 2.0 (AS2) activity: a `Create` activity
-whose `object` is the `VulnerabilityReport` we are reporting.
-The `to` field addresses the message to our vendor by its `id`, the URL from Step 3:
+Now Finn sends the vendor a `Create(VulnerabilityReport)` message.
+This is an ActivityStreams Vocabulary 2.0 (AS2) activity: a `Create` activity whose `object` is the `VulnerabilityReport` we are reporting.
+The `actor` field names Finn as the sender, and the `to` field addresses the message to our vendor by its `id`, the URL from Step 3:
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.submit_report_tutorial import render_payload
 print(render_payload())
 ```
 
-Post it to the vendor's Inbox:
+The message carries no `proof` yet.
+We do not sign it ourselves, and we do not post it to the vendor's Inbox directly: the vendor would refuse an unsigned message with `422 Unprocessable Content`.
+Instead, we hand the message to Finn's Outbox, the endpoint where an actor sends messages:
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.submit_report_tutorial import render_submit_report
 print(render_submit_report())
 ```
 
-The server responds with `202 Accepted`:
+The server responds with `200 OK`:
 
 ```text
-HTTP/1.1 202 Accepted
+HTTP/1.1 200 OK
 ```
 
-The `202 Accepted` status is the actor's acknowledgment.
-It means the actor received the message and accepted it for processing.
-Processing then happens in the background, so the response body is empty.
+Finn's Outbox checks that the message's `actor` is Finn, signs the message with Finn's key, and delivers it to the vendor's Inbox in the background.
+The vendor's Inbox fetches Finn's actor profile, reads Finn's public key from it, and verifies the proof before it accepts the message.
+The Inbox answers the delivery with `202 Accepted`, and the vendor processes the report.
 
 Switch to the terminal running the server.
-You should see the actor process the report:
+You should see the delivery, the key lookup and the vendor processing the report:
 
 ```text
+INFO:     Processing outbox item for actor 'http://localhost:7999/api/v2/actors/finn': urn:uuid:11111111-1111-1111-1111-111111111111
+INFO:     Fetched 'http://localhost:7999/api/v2/actors/finn' from http://localhost:7999/api/v2/actors/finn/profile for actor_id=http://localhost:7999/api/v2/actors/vendorco (attempt 1)
+INFO:     Resolved key http://localhost:7999/api/v2/actors/finn#main-key from the fetched profile of http://localhost:7999/api/v2/actors/finn for actor_id=http://localhost:7999/api/v2/actors/vendorco
+INFO:     Delivered activity urn:uuid:11111111-1111-1111-1111-111111111111 to http://localhost:7999/api/v2/actors/vendorco/inbox/ (HTTP 202)
 INFO:     Dispatching activity of type 'VulnerabilityReport' with semantics 'create_report'
-INFO:     BT execution completed: Status.SUCCESS after 1 ticks -
-INFO:     Dispatch: dispatched create_report activity_id=urn:uuid:11111111-1111-1111-1111-111111111111
+INFO:     Dispatch: dispatched create_report activity_id=urn:uuid:11111111-1111-1111-1111-111111111111 disposition=applied
 ```
 
-The following diagram shows the exchange we just completed: a reporter posts the
-report to the vendor's Inbox, and the vendor acknowledges it.
+The following diagram shows the exchange we just completed: we hand the report to Finn's Outbox, Finn's Outbox signs it and delivers it to the vendor's Inbox, and the vendor verifies it by Finn's published key.
 
 ```mermaid
 ---
-title: Submitting a report to a Vultron actor
+title: Submitting a signed report to a Vultron actor
 ---
 sequenceDiagram
     autonumber
-    actor reporter as Reporter (curl)
+    actor reader as Reader (curl)
+    participant outbox as Finn's Outbox
     participant inbox as Vendor Inbox
-    reporter->>inbox: POST /actors/vendorco/inbox/<br/>Create(VulnerabilityReport)
-    inbox-->>reporter: 202 Accepted
+    participant profile as Finn's Profile
+    reader->>outbox: POST /actors/finn/outbox/<br/>Create(VulnerabilityReport)
+    outbox-->>reader: 200 OK
+    Note over outbox: signs as Finn
+    outbox->>inbox: POST /actors/vendorco/inbox/<br/>signed Create(VulnerabilityReport)
+    inbox->>profile: GET /actors/finn/profile
+    profile-->>inbox: Finn's public key
+    Note over inbox: proof verified
+    inbox-->>outbox: 202 Accepted
     Note over inbox: create_report runs<br/>report stored
 ```
 
@@ -200,8 +212,8 @@ sequenceDiagram
 
 ## Step 5 — Confirm the actor received the report
 
-The `202 Accepted` told us the actor accepted the message.
-Let's confirm the vendor actually stored the report by reading its store back:
+The vendor's `202 Accepted` went to Finn's Outbox, not to us.
+Let's confirm the vendor verified and stored the report by reading its store back:
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.submit_report_tutorial import render_verify
@@ -233,10 +245,9 @@ the server.
 We have:
 
 - started the Vultron reference implementation with a single `uv run` command,
-- created an actor to receive a report,
-- constructed a `Create(VulnerabilityReport)` AS2 message and posted it to that
-  actor's Inbox, and
-- confirmed, by reading the actor's store, that the report was received.
+- created an actor to receive a report and an actor to send it,
+- constructed a `Create(VulnerabilityReport)` AS2 message and handed it to the sender's Outbox, which signed it and delivered it to the receiver's Inbox, and
+- confirmed, by reading the receiver's store, that the report was verified and received.
 
 ---
 

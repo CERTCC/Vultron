@@ -131,6 +131,7 @@ from vultron.core.models.base import (
     with_record_id,
 )
 from vultron.core.models.received_body import require_json_object_text
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.primitives import NormalisedActorId
 
 
@@ -214,6 +215,12 @@ class ReceivedActivityRecord(CoreRecord):
             replay of several messages waiting on one case, so the order
             they arrived in is the order they are routed in, and on a receipt
             stub it is the time of receipt the stub records (CLP-10-018).
+        verified_proofs: Every proof the inbox verified on the delivery, with
+            the author, the key id and the public key as fetched from the
+            author's profile (SIG-03-004).  Written by the record's first
+            save, beside the body, and kept by every later one through the
+            archive.  A receipt stub keeps none: a refused message was not
+            accepted (SIG-03-005).
         replay_rows_json: The storage rows staged from the activity's inline
             objects, which the replay stages again for routing (IO-03-009).
             Rows (``id_``, ``type_``, ``data_``), not domain objects, so no
@@ -281,6 +288,15 @@ class ReceivedActivityRecord(CoreRecord):
         description="When this receiver first held the message",
     )
     _serialize_received_at = timestamp_serializer("received_at")
+    # What the receiver did on receipt, not a summary of what arrived: the
+    # key each proof verified against, as fetched (SIG-03-004).
+    verified_proofs: list[VerifiedProof] = Field(
+        default_factory=list,
+        description=(
+            "The proofs the inbox verified on the delivery and the key each"
+            " verified against, as fetched (SIG-03-004)"
+        ),
+    )
     replay_rows_json: NonEmptyString = Field(
         default="[]",
         description=(
@@ -430,6 +446,12 @@ class ReceivedActivityRecord(CoreRecord):
                 f"the receipt stub for activity '{self.activity_id}' owes a"
                 " replay, but the body it would replay is not kept"
                 " (CLP-10-018, IO-03-009)"
+            )
+        if self.verified_proofs:
+            raise ValueError(
+                f"the receipt stub for activity '{self.activity_id}' records"
+                " verified proofs, but a refused message was not accepted:"
+                " only a record holding the body keeps them (SIG-03-005)"
             )
         return self
 

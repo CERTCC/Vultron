@@ -29,7 +29,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.use_cases.received.conftest import make_embargo_case_with_actor
-from test.support.act_clock import clock_at
+from test.support.act_clock import clock_at, recorded_clock_reads
 from test.support.act_runner import run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import activate
@@ -70,7 +70,6 @@ from vultron.core.behaviors.embargo.nodes.terminate import (
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.models import _helpers
-from vultron.core.models._helpers import clock as clock_module
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.pending_assertion import (
@@ -100,22 +99,12 @@ _END_TIME = datetime(2026, 6, 1, 12, tzinfo=UTC)
 
 
 @pytest.fixture
-def clock_reads(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[datetime]]:
+def clock_reads() -> Iterator[list[datetime]]:
     """Every read of the wall clock behind ``now_utc``, in order."""
-    reads: list[datetime] = []
-    real = clock_module.datetime
-
-    class _Counting(real):  # type: ignore[valid-type, misc]
-        @classmethod
-        def now(cls, tz=None):  # type: ignore[override]
-            value = real.now(tz)
-            reads.append(value)
-            return value
-
-    monkeypatch.setattr(clock_module, "datetime", _Counting)
-    assert _helpers.now_utc() is not None
-    reads.clear()
-    yield reads
+    with recorded_clock_reads() as reads:
+        assert _helpers.now_utc() is not None
+        reads.clear()
+        yield reads
 
 
 #: Every builder this slice changed, built as its production caller builds it.

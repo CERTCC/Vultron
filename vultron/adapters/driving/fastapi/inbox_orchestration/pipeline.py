@@ -22,7 +22,7 @@ same way (IO-03-001, IO-03-003, IE-06-004).
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import Any, cast
 
@@ -45,11 +45,16 @@ from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     log_if_rejected,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.adapters.driving.fastapi.verified_proofs import (
+    VerifiedProofs,
+    payload_activity_id,
+)
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
 from vultron.config import get_config
 from vultron.core.behaviors.inbox import process_payload
+from vultron.core.models.verified_proof import VerifiedProof
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
@@ -89,7 +94,12 @@ class _InboxRun:
         self.actor_dl = actor_dl
         self.actor_id = actor_id
         self.staging = InlineObjectStaging(actor_dl)
-        self.ingress = FastAPIIngressAdapter(dl=actor_dl, staging=self.staging)
+        # The proofs the inbox route verified on each delivery, sealed on
+        # the parsed activity so intake records them (SIG-03-004).
+        self.verified = VerifiedProofs()
+        self.ingress = FastAPIIngressAdapter(
+            dl=actor_dl, staging=self.staging, verified_proofs=self.verified
+        )
         self.dispatch = FastAPIDispatchAdapter(
             dl=actor_dl, actor_id=actor_id, dispatcher=dispatcher
         )
@@ -209,6 +219,7 @@ async def run_inbox_pipeline(
     fetcher: ObjectFetcher | None = None,
     *,
     arrived_at: datetime,
+    verified_proofs: Sequence[VerifiedProof] = (),
 ) -> None:
     """Adapter-layer background task: construct adapters and run pipeline.
 
@@ -243,6 +254,8 @@ async def run_inbox_pipeline(
         fetcher: The object fetcher; ``None`` uses the HTTP one.
         arrived_at: The delivery's arrival stamp, read once from the act
             clock when the inbox received it (``stamp_arrival``).
+        verified_proofs: The proofs the route's verification stage checked
+            on *payload*; its received record keeps them (SIG-03-004).
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
 
@@ -252,7 +265,7 @@ async def run_inbox_pipeline(
         Runs on a worker thread (see :func:`_run_serialised`), so it must not
         touch asyncio.
         """
-        _process_one(run, payload, arrived_at)
+        _process_one(run, payload, arrived_at, verified_proofs)
 
         # Replay what this delivery, or an earlier one, queued: activities
         # pushed back by the post-bootstrap replay, and held ledger
@@ -267,8 +280,15 @@ def _process_one(
     run: _InboxRun,
     payload: dict[str, Any],
     arrived_at: datetime,
+    verified_proofs: Sequence[VerifiedProof] = (),
 ) -> None:
-    """Run *payload*, stamped *arrived_at*, through :func:`process_payload`."""
+    """Run *payload*, stamped *arrived_at*, through :func:`process_payload`.
+
+    *verified_proofs* are the ones the inbox verified on *payload*: the
+    parsed activity carries them, and intake records them in the received
+    record's first save (SIG-03-004).
+    """
+    run.verified.note(payload_activity_id(payload), verified_proofs)
     outcome = process_payload(
         payload,
         run.ingress,
@@ -304,7 +324,9 @@ async def run_delivery_without_replay(
     queue replay (IE-06-014); the queue replay that follows them drains the
     queue and makes the fetches.  *arrived_at* is the arrival stamp the
     record carries, so the re-run judges the message when it arrived
-    (ADR-0176).
+    (ADR-0176).  It passes no verified proofs: the held record already
+    keeps them from its first save, and the copy the staging rebuilds from
+    that record carries them again (SIG-03-004).
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
     await _run_serialised(

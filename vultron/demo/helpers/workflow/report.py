@@ -25,6 +25,9 @@ from vultron.demo.helpers.polling import (
     wait_for_report_submission_stored,
     wait_for_reporter_introduction,
 )
+from vultron.demo.helpers.verification import (
+    verify_receiver_verified_sender_key,
+)
 from vultron.demo.helpers.workflow.case_lookup import (
     wait_for_case_for_offer,
 )
@@ -175,6 +178,20 @@ def reporter_submits_report(
     with demo_check("Report and offer stored in receiver's DataLayer"):
         wait_for_report_submission_stored(
             receiver_client, receiver.id_, report.id_, offer.id_
+        )
+    # The receiver fetched the reporter's profile, from the reporter's own
+    # container, for the key that verified the Offer's proof, and recorded
+    # it on the Offer's archived record (SIG-02-001, SIG-03-004).
+    with demo_check(
+        "Receiver verified the Offer by the key the reporter's profile"
+        " publishes"
+    ):
+        verify_receiver_verified_sender_key(
+            receiver_client,
+            receiver.id_,
+            offer.id_,
+            reporter_client,
+            reporter.id_,
         )
     logger.info("Report submitted: %s", ref_id(report))
     return report, offer

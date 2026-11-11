@@ -254,16 +254,6 @@ KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
 # owner: #5676
 KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
     (
-        "vultron/core/use_cases/received/embargo/reject.py",
-        "RejectInviteToEmbargoOnCaseReceivedUseCase.execute",
-        "now_utc",
-    ),
-    (
-        "vultron/demo/helpers/embargo.py",
-        "make_embargo_event",
-        "now_utc",
-    ),
-    (
         "vultron/demo/wall_clock.py",
         "from_now",
         "now_utc",
