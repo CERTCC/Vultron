@@ -1,9 +1,13 @@
 ---
-status: proposed
+status: accepted-provisional
+status_override: >-
+  Edited in place at the user's direction (#5779, 2026-11-11): the copy is
+  identified by completeness relative to the input, and the end is reported
+  as confirmed or not, because no entry names a copy's holder.
 date: 2026-11-04
 created: 2026-11-04
-updated: 2026-11-04
-revision: 1
+updated: 2026-11-11
+revision: 2
 deciders: Allen D. Householder
 consulted: []
 informed: []
@@ -83,8 +87,15 @@ choice and is not fixed by an ADR or a spec requirement.
 **Prefer the CASE_MANAGER's copy; a merge of replicas is the fallback, and it reports
 its holes.** Only the CASE_MANAGER's ledger is complete: a replica stops receiving
 entries while its embargo consent has lapsed and after its report closes, so an event
-in a gap it missed is simply absent. The canonical copy is identified from the
-entries, never from a file or directory name.
+in a gap it missed is simply absent. The copy is identified from the entries, never
+from a file or directory name, and by completeness rather than by holder: a
+replica's entries are byte-identical to the CASE_MANAGER's, so no entry says whose
+copy it is. Completeness can only be judged relative to the input. A copy that holds
+every index without a gap, and every entry any other copy holds, is read alone, but
+a replica cut off at the tail passes too when no fuller copy is handed over. So the
+result also states whether its end is confirmed, which the entries prove only when
+the last entry is the CASE_MANAGER's own closure or another copy ends on the same
+entry.
 
 **Project a case-state sequence per participant that can replay one, keyed on the
 presence of a vendor-awareness event rather than on a role.** This is the decision
