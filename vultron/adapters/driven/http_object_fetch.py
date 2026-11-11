@@ -62,6 +62,11 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.object_fetch import ObjectFetchSource, ObjectReference
 from vultron.errors import VultronValidationError
 from vultron.primitives import same_actor_id
+from vultron.wire.as2.errors import VultronParseError
+from vultron.wire.as2.unknown_keys import (
+    partition_unknown_keys,
+    report_set_aside,
+)
 
 # parse_fetched_object types a body by WIRE_TYPE_MAP, which these packages
 # fill on import.  Without them a fetched ``Person`` is unknown, or parses as
@@ -274,19 +279,52 @@ def default_object_fetcher() -> HttpObjectFetcher:
     )
 
 
+@dataclass(frozen=True)
+class FetchedObject:
+    """A fetched object, and the body it was validated from.
+
+    Attributes:
+        value: The object, typed by its ``type``.
+        declared_body: A copy of the fetched document with every set-aside
+            key removed (MV-11-001).  A hand-off record keeps this body, not
+            the document, so parsing it again reports nothing a second time
+            (MV-11-003).
+    """
+
+    value: CoreObject | as_Base
+    declared_body: dict[str, Any]
+
+
 def parse_fetched_object(
-    document: dict[str, Any], object_id: str
+    document: dict[str, Any], object_id: str, holder_id: str
 ) -> CoreObject | as_Base:
+    """The object a fetch answered with; see :func:`parse_fetched_body`."""
+    return parse_fetched_body(document, object_id, holder_id).value
+
+
+def parse_fetched_body(
+    document: dict[str, Any], object_id: str, holder_id: str
+) -> FetchedObject:
     """The object a fetch answered with, typed by its ``type``.
+
+    *holder_id* is the actor that served *document* (AKM-05-007): the case's
+    CASE_MANAGER for a case object, the actor itself for its profile.  A
+    set-aside key's report names it as the ``actor_id``, as a received
+    activity's names its sender (MV-11-003).
 
     *document* is what the object's holder served, not a received body: the
     receive path's parsed activity stays the authority for what arrived
-    (MV-11-005).
+    (MV-11-005).  It is inbound data all the same, so its keys are
+    partitioned as the parse edge partitions a received activity's, at every
+    depth, before anything validates it (MV-11-001): a near miss refuses the
+    object (MV-11-002), and any other unknown key is set aside and reported
+    (MV-11-003).  The class's ``extra`` configuration never decides a peer's
+    property (MV-11-004).  *document* itself is not modified.
 
     Raises:
         VultronValidationError: When the body names no type the vocabulary
-            knows, does not validate as that type, or is not the object
-            *object_id* names.
+            knows, carries a near miss of a declared spelling, does not
+            validate as its type, or is not the object *object_id* names.
     """
     type_name = document.get("type")
     if not isinstance(type_name, str) or not type_name:
@@ -295,8 +333,17 @@ def parse_fetched_object(
         )
     try:
         cls = find_in_vocabulary(type_name)
-        parsed = cls.model_validate(document)
-    except (KeyError, ValueError) as exc:
+        declared, set_aside = partition_unknown_keys(
+            document,
+            cls,
+            subject="The body",
+            root="the fetched object",
+        )
+        report_set_aside(
+            set_aside, {"object_id": object_id, "actor_id": holder_id}
+        )
+        parsed = cls.model_validate(declared)
+    except (KeyError, ValueError, VultronParseError) as exc:
         raise VultronValidationError(
             f"the fetched body for {object_id!r} is not a valid"
             f" {type_name!r}: {exc}"
@@ -314,7 +361,7 @@ def parse_fetched_object(
             f"the fetched object {parsed_id!r} is not the {object_id!r}"
             " that was asked for"
         )
-    return parsed
+    return FetchedObject(value=parsed, declared_body=declared)
 
 
 def _describe(url: str, exc: Exception) -> str:
@@ -332,7 +379,9 @@ __all__ = [
     "HttpObjectFetcher",
     "ObjectFetchResult",
     "ObjectFetcher",
+    "FetchedObject",
     "default_object_fetcher",
     "fetch_url",
+    "parse_fetched_body",
     "parse_fetched_object",
 ]

@@ -906,3 +906,49 @@ def test_a_handed_off_body_that_is_not_a_core_object_is_unreadable():
 
     with pytest.raises(VultronValidationError, match="not a core object"):
         port.fetched_object(record)
+
+
+@pytest.mark.spec("MV-11-003")
+def test_a_handed_off_bodys_set_aside_key_is_reported_once(
+    caplog: pytest.LogCaptureFixture,
+):
+    """The record keeps the body its settling parse kept, so the hand-off's
+    parse of it sets nothing aside again (MV-11-003)."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR)
+    dl.save(
+        PendingObjectFetch.for_reference(
+            ObjectReference(
+                object_id=_REPLICA,
+                source=ObjectFetchSource.ACTOR_PROFILE,
+                host_actor_id=_REPLICA,
+                use=ObjectFetchUse.HAND_OFF,
+            )
+        )
+    )
+    profile = _body(
+        CoreActor.model_validate(
+            {"type": "Organization", "id": _REPLICA, "name": "Vendor"}
+        )
+    )
+    body = {**profile, "peerExtension": {"rank": 1}}
+    port = FastAPIDereferencePort(dl, _CASE_ACTOR, InlineObjectStaging(dl))
+
+    with caplog.at_level(logging.INFO, logger="vultron.wire.as2.unknown_keys"):
+        settle_fetch(
+            dl, _CASE_ACTOR, _REPLICA, ObjectFetchResult(body, None, 1)
+        )
+        (record,) = _fetches(dl)
+        handed = port.fetched_object(record)
+
+    assert record.fetched_body is not None
+    assert json.loads(record.fetched_body) == profile
+    assert isinstance(handed, CoreActor)
+    reports = [
+        r.getMessage()
+        for r in caplog.records
+        if "Set aside unknown key 'peerExtension'" in r.getMessage()
+    ]
+    assert len(reports) == 1, reports
+    assert body["peerExtension"] == {"rank": 1}, (
+        "the fetched body is unmodified"
+    )
