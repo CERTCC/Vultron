@@ -23,7 +23,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.participant_status import advance_participant_rm
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -657,10 +657,15 @@ def test_create_object_custom_name(bridge, datalayer):
 
 def test_full_crud_workflow(bridge, datalayer):
     """Verify complete CRUD workflow using helper nodes."""
+    # The raw row is read back as a core VulnerabilityReport, which
+    # requires its author's times (ADR-0176).
+    at = authored_at().isoformat()
     initial_object = {
         "id_": "https://example.org/objects/workflow-test",
         "type_": "VulnerabilityReport",
         "name": "Initial Name",
+        "published": at,
+        "updated": at,
     }
 
     tree = py_trees.composites.Sequence(

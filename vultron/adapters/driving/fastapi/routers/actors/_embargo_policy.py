@@ -35,18 +35,20 @@ The routes are included by :mod:`._routes` *ahead of* its ``GET
 """
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from vultron.adapters.driving.fastapi.deps import get_actor_dl
+from vultron.adapters.driving.fastapi.deps import get_act_clock, get_actor_dl
 from vultron.adapters.driving.fastapi.errors import conflict_http_exception
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _resolve_actor_or_404,
 )
+from vultron.core.behaviors.bridge.act_instant import stamp_arrival
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.actor import CoreActor, hosted_endpoints
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.embargo_policy import (
@@ -54,6 +56,7 @@ from vultron.core.models.embargo_policy import (
     EmbargoPolicy,
     parse_duration,
 )
+from vultron.core.ports.clock import ClockPort
 from vultron.core.ports.datalayer import DataLayer
 from vultron.errors import VultronError
 
@@ -112,9 +115,14 @@ class ProfileChangedError(VultronError):
 
 
 def publish_embargo_policy(
-    dl: DataLayer, actor: CoreActor, terms: EmbargoPolicyPublishRequest
+    dl: DataLayer,
+    actor: CoreActor,
+    terms: EmbargoPolicyPublishRequest,
+    at: datetime,
 ) -> tuple[EmbargoPolicy, bool]:
     """Publish *terms* as *actor*'s ``EmbargoPolicy`` on its own profile.
+
+    The policy is authored at *at*, the request's instant (ADR-0176).
 
     ``actor_id`` and ``inbox`` come from the actor's record (EP-01-005).  The
     actor is one this node hosts, so a record that states no ``inbox`` is
@@ -148,6 +156,7 @@ def publish_embargo_policy(
         minimum_duration=terms.minimum_duration,
         maximum_duration=terms.maximum_duration,
         notes=terms.notes,
+        **authored_times(at),
     )
     # Re-validated, not ``model_copy(update=...)``: the profile's own
     # validator is what holds the policy to this actor (EP-01-001).
@@ -163,7 +172,10 @@ def publish_embargo_policy(
 
 
 def _publish_on_a_current_read(
-    dl: DataLayer, actor_id: str, terms: EmbargoPolicyPublishRequest
+    dl: DataLayer,
+    actor_id: str,
+    terms: EmbargoPolicyPublishRequest,
+    at: datetime,
 ) -> tuple[CoreActor, EmbargoPolicy, bool]:
     """Read the profile and publish *terms* on it, re-reading if it went stale.
 
@@ -185,7 +197,7 @@ def _publish_on_a_current_read(
         actor = _resolve_actor_or_404(actor_id, dl)
         resolved_id = actor.id_
         try:
-            policy, replaced = publish_embargo_policy(dl, actor, terms)
+            policy, replaced = publish_embargo_policy(dl, actor, terms, at)
         except ProfileChangedError:
             # A stale read is the designed recovery path: INFO, not WARNING.
             logger.info(
@@ -253,6 +265,7 @@ def put_embargo_policy(
     actor_id: str,
     body: EmbargoPolicyPublishRequest,
     datalayer: DataLayer = Depends(get_actor_dl),
+    clock: ClockPort = Depends(get_act_clock),
 ):
     """Publish *body* as the hosted actor's ``EmbargoPolicy`` (EP-01-004).
 
@@ -261,8 +274,9 @@ def put_embargo_policy(
     :func:`_publish_on_a_current_read` the retry-then-409 on a concurrent
     profile write (EP-02-008, EP-02-009).
     """
+    # One clock read, when the request arrives (ADR-0176).
     actor, policy, replaced = _publish_on_a_current_read(
-        datalayer, actor_id, body
+        datalayer, actor_id, body, stamp_arrival(clock)
     )
     logger.info(
         "Actor %s published embargo policy %s (preferred %s, %s)",

@@ -10,6 +10,7 @@ import datetime
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import with_times
 from vultron.metadata.history.types import HistoryEntryType, LearningSignalType
 
 _UTC = datetime.UTC
@@ -93,31 +94,40 @@ class TestHistoryEntryFrontmatter:
         """HM-06-002: missing timestamp must fail loudly."""
         with pytest.raises(ValidationError):
             model_cls.model_validate(
-                {"title": "T", "type": "idea", "source": "IDEA-004"}
+                with_times(
+                    model_cls,
+                    {"title": "T", "type": "idea", "source": "IDEA-004"},
+                )
             )
 
     def test_legacy_date_field_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
         """date: field is no longer supported; all entries must use timestamp:."""
         with pytest.raises(ValidationError):
             model_cls.model_validate(
-                {
-                    "title": "T",
-                    "type": "idea",
-                    "date": "2026-04-28",
-                    "source": "SRC",
-                }
+                with_times(
+                    model_cls,
+                    {
+                        "title": "T",
+                        "type": "idea",
+                        "date": "2026-04-28",
+                        "source": "SRC",
+                    },
+                )
             )
 
     def test_naive_timestamp_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
         """HM-06-005: naive timestamps (no tz info) must be rejected."""
         with pytest.raises(ValidationError):
             model_cls.model_validate(
-                {
-                    "title": "T",
-                    "type": "idea",
-                    "timestamp": datetime.datetime(2026, 4, 28, 12, 0, 0),  # noqa: DTZ001 — deliberately naive
-                    "source": "IDEA-005",
-                }
+                with_times(
+                    model_cls,
+                    {
+                        "title": "T",
+                        "type": "idea",
+                        "timestamp": datetime.datetime(2026, 4, 28, 12, 0, 0),  # noqa: DTZ001 — deliberately naive
+                        "source": "IDEA-005",
+                    },
+                )
             )
 
     @pytest.mark.spec("BW-02-004")
@@ -132,24 +142,30 @@ class TestHistoryEntryFrontmatter:
         """
         with pytest.raises(ValidationError):
             model_cls.model_validate(
-                {
-                    "title": "T",
-                    "type": "learning",
-                    "timestamp": "2026-09-01",
-                    "source": "ISSUE-2762",
-                }
+                with_times(
+                    model_cls,
+                    {
+                        "title": "T",
+                        "type": "learning",
+                        "timestamp": "2026-09-01",
+                        "source": "ISSUE-2762",
+                    },
+                )
             )
 
     @pytest.mark.spec("BW-02-004")
     def test_tz_aware_string_timestamp_accepted(self, model_cls) -> None:  # type: ignore[no-untyped-def]
         """BW-02-004: the prescribed replacement form validates."""
         m = model_cls.model_validate(
-            {
-                "title": "T",
-                "type": "learning",
-                "timestamp": "2026-09-01T00:00:00Z",
-                "source": "ISSUE-2762",
-            }
+            with_times(
+                model_cls,
+                {
+                    "title": "T",
+                    "type": "learning",
+                    "timestamp": "2026-09-01T00:00:00Z",
+                    "source": "ISSUE-2762",
+                },
+            )
         )
         assert m.timestamp.tzinfo == _UTC
         assert m.timestamp.date() == datetime.date(2026, 9, 1)
@@ -163,12 +179,15 @@ class TestHistoryEntryFrontmatter:
         the per-file ``YYYYMMDD-SLUG`` stem.
         """
         m = model_cls.model_validate(
-            {
-                "title": "T",
-                "type": "learning",
-                "timestamp": "2026-09-02T00:00:00Z",
-                "source": "ISSUE-2762",
-            }
+            with_times(
+                model_cls,
+                {
+                    "title": "T",
+                    "type": "learning",
+                    "timestamp": "2026-09-02T00:00:00Z",
+                    "source": "ISSUE-2762",
+                },
+            )
         )
         assert m.source == "ISSUE-2762"
 
@@ -177,12 +196,15 @@ class TestHistoryEntryFrontmatter:
         plus_two = datetime.timezone(datetime.timedelta(hours=2))
         ts_local = datetime.datetime(2026, 4, 28, 14, 0, 0, tzinfo=plus_two)
         m = model_cls.model_validate(
-            {
-                "title": "T",
-                "type": "idea",
-                "timestamp": ts_local,
-                "source": "IDEA-006",
-            }
+            with_times(
+                model_cls,
+                {
+                    "title": "T",
+                    "type": "idea",
+                    "timestamp": ts_local,
+                    "source": "IDEA-006",
+                },
+            )
         )
         assert m.timestamp.tzinfo == _UTC
         assert m.timestamp.hour == 12  # 14:00+02:00 → 12:00 UTC
@@ -198,7 +220,7 @@ class TestHistoryEntryFrontmatter:
         }
         del data[missing]
         with pytest.raises(ValidationError):
-            model_cls.model_validate(data)
+            model_cls.model_validate(with_times(model_cls, data))
 
     @pytest.mark.parametrize("field", ["title", "source"])
     def test_empty_string_rejected(self, model_cls, field: str) -> None:  # type: ignore[no-untyped-def]
@@ -211,7 +233,7 @@ class TestHistoryEntryFrontmatter:
         }
         data[field] = ""
         with pytest.raises(ValidationError):
-            model_cls.model_validate(data)
+            model_cls.model_validate(with_times(model_cls, data))
 
     @pytest.mark.parametrize("field", ["title", "source"])
     def test_whitespace_only_rejected(self, model_cls, field: str) -> None:  # type: ignore[no-untyped-def]
@@ -224,31 +246,37 @@ class TestHistoryEntryFrontmatter:
         }
         data[field] = "   "
         with pytest.raises(ValidationError):
-            model_cls.model_validate(data)
+            model_cls.model_validate(with_times(model_cls, data))
 
     def test_invalid_type_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
         ts = datetime.datetime(2026, 4, 28, 12, 0, 0, tzinfo=_UTC)
         with pytest.raises(ValidationError):
             model_cls.model_validate(
-                {
-                    "title": "T",
-                    "type": "bogus",
-                    "timestamp": ts,
-                    "source": "SRC-4",
-                }
+                with_times(
+                    model_cls,
+                    {
+                        "title": "T",
+                        "type": "bogus",
+                        "timestamp": ts,
+                        "source": "SRC-4",
+                    },
+                )
             )
 
     def test_signal_field_accepted(self, model_cls) -> None:  # type: ignore[no-untyped-def]
         """Optional signal field is parsed and stored (BW-07-002)."""
         ts = datetime.datetime(2026, 4, 28, 12, 0, 0, tzinfo=_UTC)
         m = model_cls.model_validate(
-            {
-                "title": "T",
-                "type": "learning",
-                "timestamp": ts,
-                "source": "SRC-7",
-                "signal": "spec-gap",
-            }
+            with_times(
+                model_cls,
+                {
+                    "title": "T",
+                    "type": "learning",
+                    "timestamp": ts,
+                    "source": "SRC-7",
+                    "signal": "spec-gap",
+                },
+            )
         )
         assert m.signal == LearningSignalType.spec_gap
 
@@ -256,12 +284,15 @@ class TestHistoryEntryFrontmatter:
         """Entries without signal: are valid; signal defaults to None."""
         ts = datetime.datetime(2026, 4, 28, 12, 0, 0, tzinfo=_UTC)
         m = model_cls.model_validate(
-            {
-                "title": "T",
-                "type": "learning",
-                "timestamp": ts,
-                "source": "SRC-8",
-            }
+            with_times(
+                model_cls,
+                {
+                    "title": "T",
+                    "type": "learning",
+                    "timestamp": ts,
+                    "source": "SRC-8",
+                },
+            )
         )
         assert m.signal is None
 
@@ -270,24 +301,30 @@ class TestHistoryEntryFrontmatter:
         ts = datetime.datetime(2026, 4, 28, 12, 0, 0, tzinfo=_UTC)
         with pytest.raises(ValidationError):
             model_cls.model_validate(
-                {
-                    "title": "T",
-                    "type": "learning",
-                    "timestamp": ts,
-                    "source": "SRC-9",
-                    "signal": "not-a-signal",
-                }
+                with_times(
+                    model_cls,
+                    {
+                        "title": "T",
+                        "type": "learning",
+                        "timestamp": ts,
+                        "source": "SRC-9",
+                        "signal": "not-a-signal",
+                    },
+                )
             )
 
     def test_timestamp_string_coerced(self, model_cls) -> None:  # type: ignore[no-untyped-def]
         """ISO 8601 timestamp strings are accepted and normalised to datetime."""
         m = model_cls.model_validate(
-            {
-                "title": "T",
-                "type": "idea",
-                "timestamp": "2026-04-28T12:00:00+00:00",
-                "source": "SRC-6",
-            }
+            with_times(
+                model_cls,
+                {
+                    "title": "T",
+                    "type": "idea",
+                    "timestamp": "2026-04-28T12:00:00+00:00",
+                    "source": "SRC-6",
+                },
+            )
         )
         assert m.timestamp == datetime.datetime(
             2026, 4, 28, 12, 0, 0, tzinfo=_UTC

@@ -54,6 +54,7 @@ import pytest
 
 from test.support.core_vocab import import_all_core_models
 from test.support.model_keys import accepted_keys, dumped_keys
+from test.support.objects import with_times
 from vultron.core.models.base import CoreObject, CoreRecord
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.subclasses import all_subclasses
@@ -518,7 +519,9 @@ class TestCoreObjectModelConfig:
 
         owner = "https://example.org/actors/owner"
         for spelling in ("attributedTo", "attributed_to"):
-            obj = CoreObject.model_validate({spelling: owner})
+            obj = CoreObject.model_validate(
+                with_times(CoreObject, {spelling: owner})
+            )
             assert obj.attributed_to == owner, (
                 f"CoreObject did not read {spelling!r} as attributed_to"
                 " (ARCH-25-001)"

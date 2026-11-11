@@ -187,7 +187,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         was computed over no longer reproduces its own hash (SYNC-01-003).
         ``published`` is the CASE_MANAGER's commit stamp (CLP-14-002); the
         record is committed at the instant it is stamped, so it takes the
-        same value.
+        same value.  An entry is written once, so it states no ``updated``.
         """
         return CaseLedgerEntry(
             case_id=self.case_id,

@@ -56,7 +56,7 @@ dimension.  Related: #2264 (RM.START substitution sites).
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from test.support.participant_status import advance_participant_rm
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -116,7 +116,9 @@ class TestCaseParticipantReadsWireSpelledKeys:
         data = _core_participant_with_ladder().model_dump(mode="json")
         data["participantStatuses"] = data.pop("participant_statuses")
 
-        rebuilt = CaseParticipant.model_validate(data)
+        rebuilt = CaseParticipant.model_validate(
+            with_times(CaseParticipant, data)
+        )
         assert [s.rm.state.name for s in rebuilt.participant_statuses] == [
             "START",
             "RECEIVED",
@@ -129,14 +131,16 @@ class TestCaseParticipantReadsWireSpelledKeys:
         data = participant.model_dump(mode="json")
         data["caseRoles"] = data.pop("case_roles")
 
-        rebuilt = CaseParticipant.model_validate(data)
+        rebuilt = CaseParticipant.model_validate(
+            with_times(CaseParticipant, data)
+        )
         assert rebuilt.case_roles == [CVDRole.VENDOR]
 
     def test_snake_case_round_trip_is_unaffected(self):
         """The canonical core shape must still round-trip losslessly."""
         original = _core_participant_with_ladder()
         restored = CaseParticipant.model_validate(
-            original.model_dump(mode="json")
+            with_times(CaseParticipant, original.model_dump(mode="json"))
         )
         assert [s.rm.state.name for s in restored.participant_statuses] == [
             "START",
@@ -150,13 +154,16 @@ class TestCaseParticipantReadsWireSpelledKeys:
         not accidental wire spellings, so the guard must not reject them.
         """
         participant = CaseParticipant.model_validate(
-            {
-                "id": "urn:uuid:2232-alias-check",
-                "type": "CaseParticipant",
-                "attributed_to": _ACTOR,
-                "context": _CONTEXT,
-                "inReplyTo": "urn:uuid:2232-parent",
-            }
+            with_times(
+                CaseParticipant,
+                {
+                    "id": "urn:uuid:2232-alias-check",
+                    "type": "CaseParticipant",
+                    "attributed_to": _ACTOR,
+                    "context": _CONTEXT,
+                    "inReplyTo": "urn:uuid:2232-parent",
+                },
+            )
         )
         assert participant.in_reply_to == "urn:uuid:2232-parent"
 
@@ -399,7 +406,9 @@ class TestStatusCarriesNoConsent:
     )
     def test_retired_keys_are_refused(self, key):
         with pytest.raises(ValidationError):
-            ParticipantStatus.model_validate({"context": _CONTEXT, key: "X"})
+            ParticipantStatus.model_validate(
+                with_times(ParticipantStatus, {"context": _CONTEXT, key: "X"})
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +441,9 @@ class TestParticipantStatusCarriesNoFlatShim:
         """A flat key raises through ``extra="forbid"`` (SDO-03-008)."""
         with pytest.raises(ValidationError) as excinfo:
             ParticipantStatus.model_validate(
-                {"context": _CONTEXT, flat: value}
+                with_times(
+                    ParticipantStatus, {"context": _CONTEXT, flat: value}
+                )
             )
         assert [e["type"] for e in excinfo.value.errors()] == [
             "extra_forbidden"
@@ -453,7 +464,7 @@ class TestParticipantStatusCarriesNoFlatShim:
     def test_wire_and_field_spellings_are_accepted(self, key, value, read):
         """The wire key and the field name stay accepted for each dimension."""
         status = ParticipantStatus.model_validate(
-            {"context": _CONTEXT, key: value}
+            with_times(ParticipantStatus, {"context": _CONTEXT, key: value})
         )
         assert read(status).name == value
 
@@ -581,10 +592,13 @@ def test_a_fix_deployed_before_the_fix_is_ready_is_refused() -> None:
     """A ``*fD*`` VFD combination is refused when the status is validated."""
     with pytest.raises(ValidationError):
         ParticipantStatus.model_validate(
-            {
-                "context": _CONTEXT,
-                "vf": "Vf",
-                "d": "D",
-                "cvd_role": ["VENDOR"],
-            }
+            with_times(
+                ParticipantStatus,
+                {
+                    "context": _CONTEXT,
+                    "vf": "Vf",
+                    "d": "D",
+                    "cvd_role": ["VENDOR"],
+                },
+            )
         )

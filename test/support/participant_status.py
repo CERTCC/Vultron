@@ -53,7 +53,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     DDimension,
@@ -223,7 +223,9 @@ def _readable_status(entry: object) -> object | None:
         return entry
     if isinstance(entry, dict):
         try:
-            return ParticipantStatus.model_validate(entry)
+            return ParticipantStatus.model_validate(
+                with_times(ParticipantStatus, entry)
+            )
         except ValidationError:
             return None
     return None

@@ -30,7 +30,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
     get_datalayer,
@@ -301,7 +301,9 @@ def test_camel_case_participant_dump_revalidates_without_minting() -> None:
 
     def rebuild() -> tuple[CaseParticipant, str]:
         with deterministic_run("participant-rebuild"):
-            rebuilt = CaseParticipant.model_validate(dump)
+            rebuilt = CaseParticipant.model_validate(
+                with_times(CaseParticipant, dump)
+            )
             return rebuilt, new_object_id()
 
     def mint_only() -> str:

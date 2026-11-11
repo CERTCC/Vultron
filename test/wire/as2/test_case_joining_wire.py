@@ -87,7 +87,7 @@ _REPLY_CLASSES: dict[str, type[as_TransitiveActivity]] = {
 
 
 def _reply(kind: str, invite: as_Invite) -> as_TransitiveActivity:
-    return _REPLY_CLASSES[kind](actor=_INVITEE_ID, object_=invite)
+    return make(_REPLY_CLASSES[kind], actor=_INVITEE_ID, object_=invite)
 
 
 def _semantics_of(kind: str, invite: as_Invite) -> MessageSemantics:

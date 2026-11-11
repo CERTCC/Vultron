@@ -18,6 +18,7 @@
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import with_times
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant_role import (
     as_CaseParticipantRole,
@@ -27,14 +28,18 @@ from vultron.wire.as2.vocab.objects.case_participant_role import (
 @pytest.mark.parametrize("raw", ["vendor", "VENDOR", CVDRole.VENDOR])
 def test_role_parses_live_values(raw):
     """A live role parses whatever its case, or as the enum member."""
-    role = as_CaseParticipantRole.model_validate({"role": raw}).role
+    role = as_CaseParticipantRole.model_validate(
+        with_times(as_CaseParticipantRole, {"role": raw})
+    ).role
     assert role is CVDRole.VENDOR
 
 
 def test_offering_the_former_finder_role_is_refused():
     """An inbound offer of 'finder' is refused as an invalid value (ADR-0175)."""
     with pytest.raises(ValidationError) as excinfo:
-        as_CaseParticipantRole.model_validate({"role": "finder"})
+        as_CaseParticipantRole.model_validate(
+            with_times(as_CaseParticipantRole, {"role": "finder"})
+        )
     assert [e["msg"] for e in excinfo.value.errors()] == [
         "Value error, 'finder' is not a valid CVDRole"
     ]

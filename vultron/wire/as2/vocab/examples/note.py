@@ -56,4 +56,5 @@ def remove_note_from_case() -> as_Remove:
         actor=finder().id_,
         object_=note(),
         target=case().id_,
+        **_example_stamp(),
     )

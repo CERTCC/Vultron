@@ -39,7 +39,7 @@ from vultron.core.behaviors.report.trigger_report_trees import (
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
-from vultron.core.models._helpers import require_future_aware
+from vultron.core.models._helpers import authored_times, require_future_aware
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
@@ -302,10 +302,16 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
             content=request.report_content,
             attributed_to=self._actor_id,
             attachment=(
-                [request.csaf_document.attachment]
+                # Authored with the report, at this act's instant (ADR-0176).
+                [
+                    request.csaf_document.attachment.model_copy(
+                        update=dict(authored_times(self._at))
+                    )
+                ]
                 if request.csaf_document is not None
                 else None
             ),
+            **authored_times(self._at),
         )
         try:
             self._dl.create(report)
@@ -438,6 +444,8 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
         proposal = EmbargoEvent(
             context=report.id_,
             end_time=end_time,
+            **authored_times(self._at),
+            start_time=self._at,
         )
         self._dl.create(proposal)
         logger.info(

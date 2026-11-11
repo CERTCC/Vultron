@@ -6,7 +6,7 @@ from typing import cast
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import authored_at, make
+from test.support.objects import authored_at, make, with_times
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -90,7 +90,7 @@ def _make_event(
     guard refuses a copy that does not name the replica (HP-01-005).
     """
     wire_entry = WireCaseLedgerEntry.model_validate(
-        entry.model_dump(mode="json")
+        with_times(WireCaseLedgerEntry, entry.model_dump(mode="json"))
     )
     activity = announce_log_entry_activity(
         entry=wire_entry,

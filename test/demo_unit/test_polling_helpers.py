@@ -101,6 +101,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 CASE_ID = "http://example.com/cases/case-123"
 ACTOR_A = "http://example.com/actors/reporter"
 ACTOR_B = "http://example.com/actors/vendor"
+#: The author's time a served case states (ADR-0176).
+_AT = authored_at().isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +172,8 @@ def test_wait_for_case_participants_succeeds_when_actors_present():
     client.get.return_value = {
         "attributedTo": CASE_OWNER_ID,
         "type": "VulnerabilityCase",
+        "published": _AT,
+        "updated": _AT,
         "id": CASE_ID,
         "actor_participant_index": {
             ACTOR_A: "participant-a",
@@ -193,6 +197,8 @@ def test_wait_for_case_participants_subset_check():
     client.get.return_value = {
         "attributedTo": CASE_OWNER_ID,
         "type": "VulnerabilityCase",
+        "published": _AT,
+        "updated": _AT,
         "id": CASE_ID,
         "actor_participant_index": {
             ACTOR_A: "p-a",
@@ -215,6 +221,8 @@ def test_wait_for_case_participants_raises_on_timeout():
     client.get.return_value = {
         "attributedTo": CASE_OWNER_ID,
         "type": "VulnerabilityCase",
+        "published": _AT,
+        "updated": _AT,
         "id": CASE_ID,
         "actor_participant_index": {ACTOR_A: "p-a"},
     }
@@ -814,6 +822,8 @@ class TestCaseActorParticipantIdIn:
             "attributedTo": CASE_OWNER_ID,
             "id": "urn:uuid:case-cap",
             "type": "VulnerabilityCase",
+            "published": _AT,
+            "updated": _AT,
             "name": "Case",
             "actorParticipantIndex": {actor_id: "urn:uuid:p1"},
         }

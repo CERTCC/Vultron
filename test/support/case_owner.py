@@ -22,6 +22,7 @@ case only to exercise something else names this owner rather than inventing
 its own literal (CS-22-001).
 """
 
+from datetime import UTC, datetime
 from typing import Any
 
 from vultron.core.models.ledger_position import (
@@ -34,6 +35,10 @@ CASE_OWNER_ID = "https://example.org/actors/case-owner"
 #: A genesis hash a test case carries when its exact value does not matter.
 #: A receiver keeps a carried hash rather than rederiving it (ADR-0103).
 CASE_GENESIS_HASH = "0" * 64
+
+#: The time a test case built from these keys was authored at: a stored or
+#: constructed case states its time like any other (ADR-0176).
+CASE_PUBLISHED = datetime(2026, 1, 1, tzinfo=UTC)
 
 #: The time the case status in :data:`INBOUND_CASE_OWNERSHIP` claims.
 INBOUND_CASE_STATUS_PUBLISHED = "2026-01-01T00:00:00.000000+00:00"
@@ -66,6 +71,9 @@ INBOUND_CASE_OWNERSHIP: dict[str, object] = {
 #: start the position.
 CONSTRUCTED_CASE_OWNERSHIP: dict[str, Any] = {
     "attributed_to": CASE_OWNER_ID,
+    # The author's times, required since #5758 (ADR-0176).
+    "published": CASE_PUBLISHED,
+    "updated": CASE_PUBLISHED,
     "genesis_hash": CASE_GENESIS_HASH,
     "ledger_position": LedgerPosition(
         log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash=CASE_GENESIS_HASH
@@ -76,6 +84,8 @@ CONSTRUCTED_CASE_OWNERSHIP: dict[str, Any] = {
 #: field names.
 STORED_CASE_OWNERSHIP: dict[str, object] = {
     "attributed_to": CASE_OWNER_ID,
+    "published": CASE_PUBLISHED.isoformat(),
+    "updated": CASE_PUBLISHED.isoformat(),
     "genesis_hash": CASE_GENESIS_HASH,
     "ledger_position": {
         "log_index": EMPTY_LEDGER_LOG_INDEX,

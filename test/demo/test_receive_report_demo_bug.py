@@ -14,7 +14,7 @@ Per ActivityStreams spec, collection items can be:
 The demo code needs to handle all these cases.
 """
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (
@@ -25,11 +25,14 @@ from vultron.wire.as2.vocab.base.objects.collections import (
 def _alice_inbox() -> as_OrderedCollection:
     """The inbox of an actor whose profile states one."""
     actor = as_Actor.model_validate(
-        {
-            "id": "https://example.org/alice",
-            "name": "Alice",
-            "inbox": "https://example.org/alice/inbox",
-        }
+        with_times(
+            as_Actor,
+            {
+                "id": "https://example.org/alice",
+                "name": "Alice",
+                "inbox": "https://example.org/alice/inbox",
+            },
+        )
     )
     assert actor.inbox is not None
     return actor.inbox

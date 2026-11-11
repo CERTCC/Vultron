@@ -43,6 +43,7 @@ from pydantic import ValidationError
 
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
+from test.support.objects import with_times
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_ledger import (
     CaseLedger,
@@ -978,11 +979,14 @@ def test_entry_carries_no_disposition_fields(key: str) -> None:
     )
     with pytest.raises(ValueError, match=key):
         CaseLedgerEntry.model_validate(
-            {
-                "caseId": CASE_ID,
-                "logIndex": 0,
-                "logObjectId": OBJECT_ID,
-                "semanticType": "invite_actor_to_case",
-                key: "refused",
-            }
+            with_times(
+                CaseLedgerEntry,
+                {
+                    "caseId": CASE_ID,
+                    "logIndex": 0,
+                    "logObjectId": OBJECT_ID,
+                    "semanticType": "invite_actor_to_case",
+                    key: "refused",
+                },
+            )
         )

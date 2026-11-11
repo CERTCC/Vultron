@@ -35,7 +35,7 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from test.support.act_runner import run_tree
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.behaviors.case.nodes import ProposeReportCaseToActorNode
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.events.case_proposal import (
@@ -127,19 +127,25 @@ class TestTheRolesSurviveTheWire:
     def test_round_trip(self):
         original = _proposal(proposer_case_roles=[CVDRole.COORDINATOR])
         restored = as_CaseProposal.model_validate(
-            original.model_dump(by_alias=True, mode="json")
+            with_times(
+                as_CaseProposal,
+                original.model_dump(by_alias=True, mode="json"),
+            )
         )
         assert restored.proposer_case_roles == [CVDRole.COORDINATOR]
 
     def test_absent_means_no_role_beyond_case_owner(self):
         restored = as_CaseProposal.model_validate(
-            {
-                "id": _PROPOSAL_URI,
-                "type": "CaseProposal",
-                "attributedTo": _VENDOR_URI,
-                "object": _REPORT_URI,
-                "target": _CASE_ACTOR_URI,
-            }
+            with_times(
+                as_CaseProposal,
+                {
+                    "id": _PROPOSAL_URI,
+                    "type": "CaseProposal",
+                    "attributedTo": _VENDOR_URI,
+                    "object": _REPORT_URI,
+                    "target": _CASE_ACTOR_URI,
+                },
+            )
         )
         assert restored.proposer_case_roles == []
 
@@ -149,14 +155,17 @@ class TestNoProposerClaimsCaseManager:
     def test_a_case_manager_claim_is_refused_at_parse(self):
         with pytest.raises(ValidationError, match="CP-01-012"):
             as_CaseProposal.model_validate(
-                {
-                    "id": _PROPOSAL_URI,
-                    "type": "CaseProposal",
-                    "attributedTo": _VENDOR_URI,
-                    "object": _REPORT_URI,
-                    "target": _CASE_ACTOR_URI,
-                    "proposerCaseRoles": ["vendor", "case_manager"],
-                }
+                with_times(
+                    as_CaseProposal,
+                    {
+                        "id": _PROPOSAL_URI,
+                        "type": "CaseProposal",
+                        "attributedTo": _VENDOR_URI,
+                        "object": _REPORT_URI,
+                        "target": _CASE_ACTOR_URI,
+                        "proposerCaseRoles": ["vendor", "case_manager"],
+                    },
+                )
             )
 
     def test_a_create_carrying_the_claim_is_refused_by_the_inbox_parser(
@@ -185,14 +194,17 @@ class TestNoProposerClaimsCaseManager:
         """A non-string role is never read as "no roles" (CP-01-011)."""
         with pytest.raises(ValidationError, match="proposerCaseRoles items"):
             as_CaseProposal.model_validate(
-                {
-                    "id": _PROPOSAL_URI,
-                    "type": "CaseProposal",
-                    "attributedTo": _VENDOR_URI,
-                    "object": _REPORT_URI,
-                    "target": _CASE_ACTOR_URI,
-                    "proposerCaseRoles": [1, "vendor"],
-                }
+                with_times(
+                    as_CaseProposal,
+                    {
+                        "id": _PROPOSAL_URI,
+                        "type": "CaseProposal",
+                        "attributedTo": _VENDOR_URI,
+                        "object": _REPORT_URI,
+                        "target": _CASE_ACTOR_URI,
+                        "proposerCaseRoles": [1, "vendor"],
+                    },
+                )
             )
 
     def test_the_core_event_refuses_a_case_manager_claim(self):

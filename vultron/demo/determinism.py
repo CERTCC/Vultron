@@ -28,9 +28,9 @@ replaces both:
   its random ids, and adding a tree node moves no object id in a recording.
 - **The clock.**  Every timestamp comes from
   :func:`vultron.core.models._helpers.clock.now_utc`, which reads the ``datetime``
-  name on its module at call time so that it can be replaced.  Replacing that
-  name, not ``now_utc`` itself, also reaches the ``default_factory=now_utc``
-  references that model fields captured at class creation.
+  name on its module at call time so that it can be replaced.  No model field
+  defaults to it (ADR-0176), so an object's time is whatever its act
+  stated.
 
 The seeded ids are still version-4 UUIDs, and the clock still moves forward
 on every read, so nothing that checks their shape or order sees a difference.

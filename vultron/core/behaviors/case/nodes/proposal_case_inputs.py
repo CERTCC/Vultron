@@ -45,6 +45,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.activity_ids import derived_object_id
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report_claims import (
@@ -201,6 +202,7 @@ class ResolveReportCaseInputsNode(DataLayerActionWithPorts):
                 start_time=received_at,
                 end_time=end,
                 context=self._report_id,
+                **authored_times(received_at),
             ),
         )
 

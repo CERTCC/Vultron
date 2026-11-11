@@ -32,7 +32,7 @@ from typing import Any
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     clock as helpers_clock,
@@ -117,7 +117,7 @@ def test_an_addressed_arrival_resolves_to_its_url(
     """A shape naming an address yields a wire collection at that URL."""
     data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
-    actor = actor_cls.model_validate(data)
+    actor = actor_cls.model_validate(with_times(actor_cls, data))
 
     collection = getattr(actor, field_name)
     assert type(collection) is as_OrderedCollection
@@ -138,7 +138,7 @@ def test_a_wire_actor_derives_no_endpoint_it_was_not_given(
     """
     data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
-    actor = actor_cls.model_validate(data)
+    actor = actor_cls.model_validate(with_times(actor_cls, data))
 
     assert getattr(actor, field_name) is None
     assert field_name not in json.loads(actor.to_json())
@@ -157,7 +157,7 @@ def test_core_actor_reduces_an_addressed_arrival_to_the_url(
     """
     data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
-    actor = actor_cls.model_validate(data)
+    actor = actor_cls.model_validate(with_times(actor_cls, data))
 
     assert getattr(actor, field_name) == f"{ACTOR_ID}/{field_name}"
 
@@ -172,7 +172,7 @@ def test_core_actor_derives_no_endpoint_it_was_not_given(
     """A record of a peer holds only what the peer's profile supplied."""
     data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
-    actor = actor_cls.model_validate(data)
+    actor = actor_cls.model_validate(with_times(actor_cls, data))
 
     assert getattr(actor, field_name) is None
     assert field_name not in actor.model_dump(exclude_none=True)
@@ -205,7 +205,7 @@ def test_a_hosted_actor_publishes_the_endpoints_it_states(field_name):
 def test_core_actor_reads_an_empty_endpoint_as_absent(field_name, empty):
     """``None``, ``""`` and blank strings name no address, built or assigned."""
     built = VultronOrganization.model_validate(
-        {"id": ACTOR_ID, field_name: empty}
+        with_times(VultronOrganization, {"id": ACTOR_ID, field_name: empty})
     )
     assert getattr(built, field_name) is None
 
@@ -227,11 +227,19 @@ def test_padded_endpoint_uri_is_stripped(field_name):
     padded = {"id": ACTOR_ID, field_name: " https://example.org/box "}
 
     assert (
-        getattr(VultronOrganization.model_validate(padded), field_name)
+        getattr(
+            VultronOrganization.model_validate(
+                with_times(VultronOrganization, padded)
+            ),
+            field_name,
+        )
         == "https://example.org/box"
     )
     assert (
-        getattr(as_Service.model_validate(padded), field_name).id_
+        getattr(
+            as_Service.model_validate(with_times(as_Service, padded)),
+            field_name,
+        ).id_
         == "https://example.org/box"
     )
 
@@ -277,11 +285,14 @@ def test_serialized_endpoints_carry_only_address_type_and_items():
     both keys before it could make the "nothing else" claim.
     """
     actor = as_Service.model_validate(
-        {
-            "id": ACTOR_ID,
-            "inbox": f"{ACTOR_ID}/inbox",
-            "outbox": f"{ACTOR_ID}/outbox",
-        }
+        with_times(
+            as_Service,
+            {
+                "id": ACTOR_ID,
+                "inbox": f"{ACTOR_ID}/inbox",
+                "outbox": f"{ACTOR_ID}/outbox",
+            },
+        )
     )
 
     dumped = json.loads(actor.to_json())
@@ -314,7 +325,9 @@ def test_endpoint_without_arrived_stamp_carries_no_clock_stamp(
     """
     data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
-    collection = getattr(actor_cls.model_validate(data), field_name)
+    collection = getattr(
+        actor_cls.model_validate(with_times(actor_cls, data)), field_name
+    )
 
     assert collection.published is None
     assert collection.updated is None
@@ -329,7 +342,14 @@ def test_constructed_actor_endpoints_carry_no_clock_stamp(field_name):
     """
     collection = getattr(
         as_Service.model_validate(
-            {"id": ACTOR_ID, "name": "Alice", **hosted_endpoints(ACTOR_ID)}
+            with_times(
+                as_Service,
+                {
+                    "id": ACTOR_ID,
+                    "name": "Alice",
+                    **hosted_endpoints(ACTOR_ID),
+                },
+            )
         ),
         field_name,
     )
@@ -355,7 +375,9 @@ def test_endpoint_collection_keeps_the_time_it_arrived_with(field_name):
     }
 
     endpoint = getattr(
-        as_Service.model_validate({"id": ACTOR_ID, field_name: collection}),
+        as_Service.model_validate(
+            with_times(as_Service, {"id": ACTOR_ID, field_name: collection})
+        ),
         field_name,
     )
 
@@ -407,7 +429,7 @@ def test_actor_round_trips_across_a_clock_tick(actor_cls, dump, monkeypatch):
         SteppingClock(now_utc() + timedelta(hours=1), step=timedelta(0)),
     )
 
-    assert actor_cls.model_validate(as_stored) == actor
+    assert actor_cls.model_validate(with_times(actor_cls, as_stored)) == actor
 
 
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
@@ -445,13 +467,16 @@ def test_unmodelled_actor_collections_are_tolerated_and_not_echoed(actor_cls):
     re-emitted as if Vultron owned them.
     """
     actor = actor_cls.model_validate(
-        {
-            "id": ACTOR_ID,
-            "inbox": f"{ACTOR_ID}/inbox",
-            "followers": f"{ACTOR_ID}/followers",
-            "following": f"{ACTOR_ID}/following",
-            "liked": f"{ACTOR_ID}/liked",
-        }
+        with_times(
+            actor_cls,
+            {
+                "id": ACTOR_ID,
+                "inbox": f"{ACTOR_ID}/inbox",
+                "followers": f"{ACTOR_ID}/followers",
+                "following": f"{ACTOR_ID}/following",
+                "liked": f"{ACTOR_ID}/liked",
+            },
+        )
     )
 
     dumped = json.loads(actor.to_json())

@@ -163,10 +163,18 @@ class CaseParticipant(CoreObject, EmbargoConsentRowsMixin):
         id_val = first_input(data, cls, "id_")
         if not id_val:
             id_val = data["id"] = new_object_id()
+        # Authored with the participant, at its own ``published``
+        # (ADR-0176): the model reads no clock.  A blank time is absence
+        # (CS-08-001), read as ``None`` here as the field validator reads it.
+        published = first_input(data, cls, "published")
+        if isinstance(published, str) and not published.strip():
+            published = None
         data["participant_statuses"] = [
             ParticipantStatus(
                 context=first_input(data, cls, "context") or id_val,
                 attributed_to=first_input(data, cls, "attributed_to"),
+                published=published,
+                updated=published,
                 cvd_role=coerce_cvd_roles(
                     first_input(data, cls, "case_roles") or []
                 ),

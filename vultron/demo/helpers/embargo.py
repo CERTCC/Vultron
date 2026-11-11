@@ -94,8 +94,8 @@ def case_minted_at(
     """
     stored = client.get(client.dl_path(case.id_, actor_id=holder_id))
     # Parsed from the raw stored key, not via ``as_VulnerabilityCase``: the
-    # wire model's clock default would fill an absent ``published`` and hide
-    # exactly the gap this refuses.
+    # wire model would refuse an absent ``published`` with a schema error
+    # rather than name the gap this refuses.
     raw = stored.get("published")
     minted = parse_published(raw)
     if minted is None:

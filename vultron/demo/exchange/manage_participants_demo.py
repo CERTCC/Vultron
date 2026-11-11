@@ -48,6 +48,7 @@ When run as a script, this module will:
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -218,6 +219,7 @@ def demo_manage_participants_accept(
                 rm=RmDimension(state=RM.ACCEPTED),
                 attributed_to=coordinator.id_,
                 cvd_role=[CVDRole.COORDINATOR],
+                **authored_times(wall_clock.now()),
             )
             add_status = add_status_to_participant_activity(
                 participant_status,

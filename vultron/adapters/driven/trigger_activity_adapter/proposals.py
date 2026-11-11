@@ -29,6 +29,7 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from vultron.adapters.received_archive import read_held_as_received
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.actor import CoreActor
@@ -132,6 +133,7 @@ class _ProposalsMixin:
             offer_actor_id=offer_actor_id,
             in_reply_to=offer,
             proposer_case_roles=list(proposer_case_roles),
+            **authored_times(at),
         )
         # Persist the proposal so the outbox expansion path can find it
         # when the as_Create activity is read back from the DataLayer.

@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.embargo_register import activate, propose, terminate
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_register import (
@@ -152,7 +152,9 @@ def test_the_terminated_entry_records_the_termination(termination) -> None:
     assert case.embargo_termination == termination
     assert case.embargo_register_status(B) is S.CANCELLED
     restored = VulnerabilityCase.model_validate(
-        case.model_dump(mode="json", by_alias=True)
+        with_times(
+            VulnerabilityCase, case.model_dump(mode="json", by_alias=True)
+        )
     )
     assert restored.embargo_termination == termination
 

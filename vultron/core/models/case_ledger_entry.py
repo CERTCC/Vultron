@@ -139,6 +139,11 @@ class CaseLedgerEntry(CoreObject):
     # record, whose stamp is the committing act's instant, or parsed from a
     # peer's (ADR-0176).
     published: datetime  # pyright: ignore[reportGeneralTypeIssues]
+    # Absent unless stated, not CoreObject's required time: an entry is
+    # written once and never updated (CLP-04-001), so the one time it has is
+    # its commit stamp; a received entry keeps an ``updated`` its sender
+    # stated, as received (ADR-0103, ADR-0176).
+    updated: datetime | None = None
     received_at: datetime = Field(
         ...,
         description="Server-generated TZ-aware UTC receipt timestamp",

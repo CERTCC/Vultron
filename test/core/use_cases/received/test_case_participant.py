@@ -203,7 +203,8 @@ class TestCaseParticipantUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         event = make_payload(
-            getattr(transitive, activity_name)(
+            make(
+                getattr(transitive, activity_name),
                 actor="https://example.org/users/owner",
                 object_=make(
                     as_CaseParticipant,

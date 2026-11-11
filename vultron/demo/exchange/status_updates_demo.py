@@ -44,6 +44,7 @@ When run as a script, this module will:
 import logging
 from collections.abc import Sequence
 
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.dimensions import (
     PxaDimension,
 )
@@ -144,6 +145,7 @@ def demo_notes_workflow(
             ),
             context=case.id_,
             attributed_to=vendor.id_,
+            **authored_times(wall_clock.now()),
         )
         add_note_activity = add_note_to_case_activity(
             note, actor=vendor.id_, target=case.id_, at=wall_clock.now()
@@ -171,6 +173,7 @@ def demo_notes_workflow(
                 actor=vendor.id_,
                 object_=note,
                 target=case.id_,
+                **authored_times(wall_clock.now()),
             )
             post_to_inbox_and_wait(client, vendor.id_, remove_note_activity)
             with demo_check("Note absent from case"):
@@ -247,7 +250,9 @@ def demo_status_workflow(
                 context=case.id_,
                 em=before.current_status.em,
                 pxa=PxaDimension(state=CS_pxa.Pxa),
+                published=wall_clock.now(),
             ),
+            **authored_times(wall_clock.now()),
         )
         add_pstatus_activity = add_status_to_participant_activity(
             participant_status,

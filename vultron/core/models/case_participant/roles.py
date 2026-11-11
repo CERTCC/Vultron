@@ -47,9 +47,13 @@ def _seed_accepted_status(data: Any) -> Any:
         data["id"] = new_object_id()
     id_val = data.get("id") or data.get("id_")
     data["participant_statuses"] = [
+        # Authored with the participant, at its own ``published``
+        # (ADR-0176): the model reads no clock.
         ParticipantStatus(
             context=data.get("context") or id_val,
             attributed_to=data.get("attributed_to"),
+            published=data.get("published"),
+            updated=data.get("published"),
             rm=RmDimension(state=RM.ACCEPTED),
             cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
         )

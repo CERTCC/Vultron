@@ -19,7 +19,7 @@ from datetime import timedelta
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.base import CoreObject
 from vultron.core.models.embargo_policy import EmbargoPolicy, parse_duration
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -121,11 +121,14 @@ class TestCoreEmbargoPolicyDurationParsing:
 
     def test_iso8601_string_parsed(self):
         p = EmbargoPolicy.model_validate(
-            {
-                "actor_id": ACTOR_ID,
-                "inbox": INBOX,
-                "preferred_duration": "P90D",
-            }
+            with_times(
+                EmbargoPolicy,
+                {
+                    "actor_id": ACTOR_ID,
+                    "inbox": INBOX,
+                    "preferred_duration": "P90D",
+                },
+            )
         )
         assert p.preferred_duration == _P90D
 
@@ -141,31 +144,40 @@ class TestCoreEmbargoPolicyDurationParsing:
     def test_iso8601_week_rejected(self):
         with pytest.raises(ValidationError, match="DUR-02-002"):
             EmbargoPolicy.model_validate(
-                {
-                    "actor_id": ACTOR_ID,
-                    "inbox": INBOX,
-                    "preferred_duration": "P2W",
-                }
+                with_times(
+                    EmbargoPolicy,
+                    {
+                        "actor_id": ACTOR_ID,
+                        "inbox": INBOX,
+                        "preferred_duration": "P2W",
+                    },
+                )
             )
 
     def test_iso8601_calendar_units_rejected(self):
         with pytest.raises(ValidationError, match="calendar units"):
             EmbargoPolicy.model_validate(
-                {
-                    "actor_id": ACTOR_ID,
-                    "inbox": INBOX,
-                    "preferred_duration": "P1Y",
-                }
+                with_times(
+                    EmbargoPolicy,
+                    {
+                        "actor_id": ACTOR_ID,
+                        "inbox": INBOX,
+                        "preferred_duration": "P1Y",
+                    },
+                )
             )
 
     def test_invalid_iso8601_rejected(self):
         with pytest.raises(ValidationError):
             EmbargoPolicy.model_validate(
-                {
-                    "actor_id": ACTOR_ID,
-                    "inbox": INBOX,
-                    "preferred_duration": "not-a-duration",
-                }
+                with_times(
+                    EmbargoPolicy,
+                    {
+                        "actor_id": ACTOR_ID,
+                        "inbox": INBOX,
+                        "preferred_duration": "not-a-duration",
+                    },
+                )
             )
 
     def test_out_of_range_duration_rejected_cleanly(self):
@@ -178,11 +190,14 @@ class TestCoreEmbargoPolicyDurationParsing:
         """
         with pytest.raises(ValidationError):
             EmbargoPolicy.model_validate(
-                {
-                    "actor_id": ACTOR_ID,
-                    "inbox": INBOX,
-                    "preferred_duration": "P999999999999999999999999D",
-                }
+                with_times(
+                    EmbargoPolicy,
+                    {
+                        "actor_id": ACTOR_ID,
+                        "inbox": INBOX,
+                        "preferred_duration": "P999999999999999999999999D",
+                    },
+                )
             )
 
     def test_parse_duration_out_of_range_raises_value_error(self):
@@ -249,7 +264,7 @@ class TestCoreEmbargoPolicySerialization:
             minimum_duration=_P45D,
         )
         data = json.loads(p.model_dump_json())
-        p2 = EmbargoPolicy.model_validate(data)
+        p2 = EmbargoPolicy.model_validate(with_times(EmbargoPolicy, data))
         assert p2.preferred_duration == p.preferred_duration
         assert p2.minimum_duration == p.minimum_duration
         assert p2.actor_id == p.actor_id

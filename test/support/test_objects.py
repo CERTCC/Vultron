@@ -17,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 from pydantic import BaseModel
 
 from test.support.act_clock import ACT_AT, recorded_clock_reads
-from test.support.objects import make, stamped_times
+from test.support.objects import make, stamped_times, with_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -123,4 +123,9 @@ def test_make_builds_a_valid_object() -> None:
 
     assert case.published is not None
     assert case.published.tzinfo is UTC
-    assert VulnerabilityCase.model_validate(case.model_dump()) == case
+    assert (
+        VulnerabilityCase.model_validate(
+            with_times(VulnerabilityCase, case.model_dump())
+        )
+        == case
+    )

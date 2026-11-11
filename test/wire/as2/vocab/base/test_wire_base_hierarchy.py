@@ -26,7 +26,7 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, Field
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models._helpers import URN_UUID_PREFIX
 from vultron.core.models.base import CoreObject, CoreRecord
 from vultron.wire.as2.vocab.base.base import (
@@ -104,7 +104,9 @@ def test_as_base_type_set_from_class_name():
 def test_as_base_context_alias_accepted():
     """@context validation alias still accepted on as_Base."""
     obj = as_Base.model_validate(
-        {"@context": "https://www.w3.org/ns/activitystreams"}
+        with_times(
+            as_Base, {"@context": "https://www.w3.org/ns/activitystreams"}
+        )
     )
     assert obj.context_ == "https://www.w3.org/ns/activitystreams"
 
@@ -124,7 +126,7 @@ def test_as_object_published_defaults_to_now():
 def test_as_object_datetime_roundtrip():
     """as_Object wire datetime validators still accept ISO strings."""
     iso = "2026-01-15T12:00:00+00:00"
-    obj = as_Object.model_validate({"published": iso})
+    obj = as_Object.model_validate(with_times(as_Object, {"published": iso}))
     assert isinstance(obj.published, datetime)
     assert obj.published.tzinfo is not None
 
@@ -133,7 +135,9 @@ def test_as_object_naive_datetime_string_normalized_to_utc():
     """validate_datetime normalizes offset-less ISO strings to UTC (CS-13-001, ADR-0032)."""
 
     naive_iso = "2026-01-15T12:00:00"
-    obj = as_Object.model_validate({"published": naive_iso})
+    obj = as_Object.model_validate(
+        with_times(as_Object, {"published": naive_iso})
+    )
     assert isinstance(obj.published, datetime)
     assert obj.published.tzinfo is not None
     assert obj.published.tzinfo == UTC
@@ -146,7 +150,9 @@ def test_as_object_naive_datetime_object_normalized_to_utc():
 
     naive_dt = datetime(2026, 1, 15, 12, 0, 0)  # noqa: DTZ001 — deliberately naive
     assert naive_dt.tzinfo is None
-    obj = as_Object.model_validate({"start_time": naive_dt})
+    obj = as_Object.model_validate(
+        with_times(as_Object, {"start_time": naive_dt})
+    )
     assert isinstance(obj.start_time, datetime)
     assert obj.start_time.tzinfo is not None
     assert obj.start_time.tzinfo == UTC
@@ -162,12 +168,16 @@ def test_as_object_attributed_to_accepts_non_string():
     """
     # dict (inline AS2 object) must not raise
     obj = as_Object.model_validate(
-        {"attributed_to": {"id": "https://example.org/alice"}}
+        with_times(
+            as_Object, {"attributed_to": {"id": "https://example.org/alice"}}
+        )
     )
     assert obj.attributed_to == {"id": "https://example.org/alice"}
 
     # integer must not raise (fully lenient Any)
-    obj2 = as_Object.model_validate({"attributed_to": 42})
+    obj2 = as_Object.model_validate(
+        with_times(as_Object, {"attributed_to": 42})
+    )
     assert obj2.attributed_to == 42
 
 

@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from test.support.objects import with_times
 from vultron.core.models.use_case_result import (
     ActivityResult,
     CaseResult,
@@ -299,7 +300,7 @@ def test_trigger_result_subtype_declares_exactly_its_body_keys(
 ) -> None:
     """UCORG-05-015: each subtype's field set is its verb's response body."""
     assert issubclass(result_cls, TriggerResult)
-    result = result_cls.model_validate(payload)
+    result = result_cls.model_validate(with_times(result_cls, payload))
     assert set(result_cls.model_fields) == expected_keys
     assert set(result.model_dump()) == expected_keys
     assert result.model_dump() == payload
@@ -317,7 +318,9 @@ def test_trigger_result_subtype_rejects_an_unknown_key(
 ) -> None:
     """UCORG-05-016: a use case that grows a return key fails loudly."""
     with pytest.raises(ValidationError, match=r"extra_forbidden|Extra inputs"):
-        result_cls.model_validate({**payload, "surprise": 1})
+        result_cls.model_validate(
+            with_times(result_cls, {**payload, "surprise": 1})
+        )
 
 
 @pytest.mark.parametrize(
@@ -330,7 +333,7 @@ def test_trigger_result_is_frozen(
     payload: dict[str, Any],
     expected_keys: set[str],
 ) -> None:
-    result = result_cls.model_validate(payload)
+    result = result_cls.model_validate(with_times(result_cls, payload))
     field = next(iter(expected_keys))
     with pytest.raises(ValidationError, match="frozen"):
         setattr(result, field, None)
@@ -356,7 +359,9 @@ def test_optional_payload_keys_are_emitted_when_none(
     ``exclude_none``, so the response body's key set is the subtype's field
     set even when a payload was not captured.
     """
-    dumped = result_cls.model_validate(payload).model_dump()
+    dumped = result_cls.model_validate(
+        with_times(result_cls, payload)
+    ).model_dump()
     assert set(dumped) == set(result_cls.model_fields)
     for key in set(result_cls.model_fields) - set(payload):
         assert dumped[key] is None

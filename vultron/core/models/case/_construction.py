@@ -33,7 +33,6 @@ from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     STORED_CONTEXT_KEY,
     new_object_id,
-    now_utc,
 )
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_status import CaseStatus
@@ -114,19 +113,16 @@ def _start_ledger_position(
     return data
 
 
-def _genesis_published(data: dict[str, Any], inbound: bool) -> datetime | None:
+def _genesis_published(data: dict[str, Any]) -> datetime | None:
     """Return the ``published`` time a genesis hash is computed from.
 
-    Only an *omitted* ``published`` outside the inbound path is this process
-    authoring the case, so only then is one minted (and written into *data*).
-    An explicit ``None`` or blank, or any omission on inbound, is a received
-    case that claimed no time; minting one would give each receiver its own
-    genesis for the same case (ISSUE-3257, ADR-0103).
+    The time is never minted here: a case this process authors states its
+    ``published`` (the act's instant, ADR-0176), and a received case carries
+    the time its sender claimed.  An absent, ``None`` or blank value is a case
+    that claimed no time, and the hash is refused rather than computed from a
+    clock read, which would give each receiver its own genesis for the same
+    case (ISSUE-3257, ADR-0103).
     """
-    if "published" not in data and not inbound:
-        minted = now_utc()
-        data["published"] = minted
-        return minted
     published_val = data.get("published")
     if published_val is None or published_val == "":
         return None
@@ -164,16 +160,14 @@ def compute_genesis_hash_if_missing(data: Any, info: ValidationInfo) -> Any:
 
     Both spellings of each input are read: the class is its own wire class
     (ARCH-25-003, ADR-0099), so an inbound case arrives as ``attributedTo`` and
-    ``genesisHash``.  On the inbound path (ADR-0103) an omitted or blank
-    ``published`` is the sender claiming no time, never a cue to mint one.
+    ``genesisHash``.  An omitted or blank ``published`` is never a cue to
+    mint one: an authored case states it, and a received case that omits it
+    claimed no time (ADR-0103, ADR-0176).
 
     Spec: CLP-08-002, CLP-08-003.
     """
     if not isinstance(data, dict):
         return data
-    inbound = (
-        isinstance(info.context, dict) and INBOUND_CONTEXT_KEY in info.context
-    )
     attributed_to = _owner(data)
     if not attributed_to or _names_blank_id(data):
         return data  # the field checks refuse the case
@@ -185,7 +179,7 @@ def compute_genesis_hash_if_missing(data: Any, info: ValidationInfo) -> Any:
         if data.get("id") is None and data.get("id_") is None:
             data["id"] = new_object_id()
         case_id = data.get("id") or data.get("id_")
-        published_val = _genesis_published(data, inbound)
+        published_val = _genesis_published(data)
         if published_val is not None:
             data[hash_key] = compute_genesis_hash(
                 case_id=case_id,
@@ -241,10 +235,13 @@ def init_case_statuses(data: Any, info: ValidationInfo) -> Any:
         if data.get("id") is None and data.get("id_") is None:
             data["id"] = new_object_id()
         case_id = data.get("id") or data.get("id_")
+        # The first status is authored with the case, at the case's own
+        # ``published`` (ADR-0176): the model reads no clock.
         data[statuses_key] = [
             CaseStatus(
                 context=case_id,
                 attributed_to=attributed_to,
+                published=data.get("published"),
             )
         ]
     return data

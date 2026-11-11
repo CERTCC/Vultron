@@ -26,7 +26,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
@@ -52,7 +52,7 @@ def _options(n: int) -> list[as_Object]:
 def test_question_with_several_options_round_trips(field: str) -> None:
     """Several options survive serialisation and re-validation intact."""
     question = as_Question.model_validate(
-        {"actor": _ACTOR, field: _options(3)}
+        with_times(as_Question, {"actor": _ACTOR, field: _options(3)})
     )
 
     body = json.loads(question.model_dump_json(by_alias=True))
@@ -100,10 +100,18 @@ def test_question_refuses_a_blank_option_reference(
 ) -> None:
     """A URI reference that is present must be non-empty, alone or in a list."""
     with pytest.raises(ValidationError):
-        as_Question.model_validate({"actor": _ACTOR, field: blank})
+        as_Question.model_validate(
+            with_times(as_Question, {"actor": _ACTOR, field: blank})
+        )
     with pytest.raises(ValidationError):
         as_Question.model_validate(
-            {"actor": _ACTOR, field: ["https://example.org/options/0", blank]}
+            with_times(
+                as_Question,
+                {
+                    "actor": _ACTOR,
+                    field: ["https://example.org/options/0", blank],
+                },
+            )
         )
 
 
@@ -111,7 +119,10 @@ def test_question_refuses_both_any_of_and_one_of() -> None:
     """AS2 §4.1: ``anyOf`` and ``oneOf`` are mutually exclusive."""
     with pytest.raises(ValidationError, match="mutually exclusive"):
         as_Question.model_validate(
-            {"actor": _ACTOR, "anyOf": _options(2), "oneOf": _options(1)}
+            with_times(
+                as_Question,
+                {"actor": _ACTOR, "anyOf": _options(2), "oneOf": _options(1)},
+            )
         )
 
     body = {
@@ -121,4 +132,4 @@ def test_question_refuses_both_any_of_and_one_of() -> None:
         "oneOf": ["https://example.org/options/1"],
     }
     with pytest.raises(ValidationError, match="mutually exclusive"):
-        as_Question.model_validate(body)
+        as_Question.model_validate(with_times(as_Question, body))

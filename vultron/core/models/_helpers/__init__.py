@@ -29,7 +29,9 @@ Grouped by concern (CS-18-005):
 # shared id reader, imported from ``vultron.core.models._helpers`` by modules in
 # every layer, including ones other open changes own (CS-18-003).
 from vultron.core.models._helpers.clock import (
+    AuthoredTimes,
     SteppingClock,
+    authored_times,
     days_after,
     deadline_from,
     is_aware,
@@ -65,6 +67,8 @@ from vultron.core.models._helpers.timestamps import (
 )
 
 __all__ = [
+    "AuthoredTimes",
+    "authored_times",
     "DuplicateKeySpellingError",
     "INBOUND_CONTEXT_KEY",
     "IdSource",

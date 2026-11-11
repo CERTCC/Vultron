@@ -23,12 +23,11 @@ class VultronParseValidationError(VultronParseError):
 class VultronParseMissingPublishedError(VultronParseError):
     """Raised when an inbound AS2 activity carries no ``published`` timestamp.
 
-    ``as_Base`` declares ``published`` with ``default_factory=now_utc`` because
-    the same classes are used to *author* outbound activities, where stamping
-    the local clock is correct.  On the inbound path it is not: a defaulted
-    ``published`` is the receiver's clock masquerading as the sender's claim,
-    and every downstream check that reads it then compares that clock against
-    itself (CLP-14-007, CLP-14-008, CLP-15-003).
+    The same classes author outbound activities, which state the act's
+    instant (ADR-0176), and validate inbound ones, where an absent ``published``
+    reads as ``None``.  A top-level activity's ``published`` is the sender's
+    claim every downstream check reads (CLP-14-007, CLP-14-008, CLP-15-003),
+    so its absence is refused here rather than carried as ``None``.
 
     Absence is therefore a message-validity failure, caught at the parse
     threshold rather than corrected downstream (ADR-0032: validate at the edge).

@@ -1,11 +1,11 @@
 """Tests for the core ``CaseStatus`` times (SM-05-003, CM-29-006, CLP-15-010)."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
 
-from test.support.act_clock import ACT_AT
+from test.support.act_clock import ACT_AT, recorded_clock_reads
 from test.support.blank_strings import BLANKS
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.objects import make
@@ -34,10 +34,19 @@ def test_case_status_requires_published():
 
 
 @pytest.mark.spec("SM-05-003")
-def test_authored_case_status_takes_the_local_clock():
-    before = datetime.now(tz=UTC)
-    status = CaseStatus(context=CASE_ID)
-    assert before <= status.published <= datetime.now(tz=UTC)
+@pytest.mark.spec("CS-13-002")
+def test_an_authored_case_status_states_its_time():
+    """A status's ``published`` is required: the model reads no clock.
+
+    Building one without a time is refused, and no clock is read in the
+    attempt (ADR-0176).
+    """
+    with recorded_clock_reads() as reads:
+        with pytest.raises(ValidationError, match="published"):
+            CaseStatus.model_validate({"context": CASE_ID})
+    assert reads == []
+    status = make(CaseStatus, context=CASE_ID, published=ACT_AT)
+    assert status.published == ACT_AT
 
 
 @pytest.mark.spec("CM-29-006")
@@ -105,9 +114,9 @@ def test_inbound_case_status_keeps_the_senders_published():
     assert status.updated is None
 
 
-def test_authored_case_status_outside_inbound_path_is_not_refused():
-    """The refusal is the inbound path's: in-process data takes the default."""
-    status = CaseStatus.model_validate(
-        {"type": "CaseStatus", "context": CASE_ID}
-    )
-    assert status.published is not None
+def test_authored_case_status_outside_inbound_path_is_refused_as_required():
+    """Outside the inbound path a missing time is a required field left out,
+    not a sender's missing claim, and nothing supplies it (ADR-0176)."""
+    with pytest.raises(ValidationError) as info:
+        CaseStatus.model_validate({"type": "CaseStatus", "context": CASE_ID})
+    assert [e["type"] for e in info.value.errors()] == ["missing"]

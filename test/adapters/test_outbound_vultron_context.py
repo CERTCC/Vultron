@@ -30,7 +30,7 @@ from typing import Any
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from test.support.signing import TEST_PROOF_CREATED
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
@@ -212,7 +212,7 @@ def test_the_default_context_round_trips_as_absent():
     report = _report()
 
     again = VulnerabilityReport.model_validate(
-        report.model_dump(by_alias=True)
+        with_times(VulnerabilityReport, report.model_dump(by_alias=True))
     )
 
     assert again.context_ is None

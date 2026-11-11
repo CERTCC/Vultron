@@ -24,7 +24,7 @@ not delivery.
 import pytest
 
 from test.support.future_dates import FAR_FUTURE
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.demo.helpers.workflow import report as workflow_report
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -33,6 +33,8 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 _NODE = "http://vendor:7999/api/v2"
 _REPORTER = make(as_Actor, id_=f"{_NODE}/actors/finndervul", name="Finn")
 _RECEIVER = make(as_Actor, id_=f"{_NODE}/actors/vendorco", name="VendorCo")
+#: The author's time the trigger's answered Offer states (ADR-0176).
+_AT = authored_at().isoformat()
 _END = FAR_FUTURE  # far-future; tests that terms flow to the trigger, not a specific date
 
 
@@ -73,10 +75,14 @@ class TestTriggerArm:
                 report_id = "urn:uuid:11111111-1111-1111-1111-111111111111"
                 offer = {
                     "type": "Offer",
+                    "published": _AT,
+                    "updated": _AT,
                     "actor": _REPORTER.id_,
                     "to": [_RECEIVER.id_],
                     "object": {
                         "type": "VulnerabilityReport",
+                        "published": _AT,
+                        "updated": _AT,
                         "id": report_id,
                         "attributedTo": _REPORTER.id_,
                         "name": "n",
@@ -84,6 +90,9 @@ class TestTriggerArm:
                     },
                     "proposedEmbargo": {
                         "type": "EmbargoEvent",
+                        "published": _AT,
+                        "updated": _AT,
+                        "startTime": _AT,
                         "context": report_id,
                         "endTime": _END.isoformat(),
                     },
@@ -128,10 +137,14 @@ class TestTriggerArmDeliversOnlyThroughTheOutbox:
                 report_id = "urn:uuid:22222222-2222-2222-2222-222222222222"
                 offer = {
                     "type": "Offer",
+                    "published": _AT,
+                    "updated": _AT,
                     "actor": _REPORTER.id_,
                     "to": [_RECEIVER.id_],
                     "object": {
                         "type": "VulnerabilityReport",
+                        "published": _AT,
+                        "updated": _AT,
                         "id": report_id,
                         "attributedTo": _REPORTER.id_,
                         "name": "n",
@@ -195,10 +208,14 @@ class TestReportText:
                 seen.update(kwargs)
                 offer = {
                     "type": "Offer",
+                    "published": _AT,
+                    "updated": _AT,
                     "actor": _REPORTER.id_,
                     "to": [_RECEIVER.id_],
                     "object": {
                         "type": "VulnerabilityReport",
+                        "published": _AT,
+                        "updated": _AT,
                         "id": "urn:uuid:33333333-3333-3333-3333-333333333333",
                         "attributedTo": _REPORTER.id_,
                         "name": kwargs["report_name"],

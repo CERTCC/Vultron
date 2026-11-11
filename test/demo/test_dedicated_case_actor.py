@@ -36,7 +36,7 @@ from fastapi.testclient import TestClient
 
 from test.demo._helpers import make_client, make_testclient_call
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.demo.helpers.seeding import (
     reset_containers,
     seed_case_actor_identity,
@@ -75,7 +75,10 @@ def patch_datalayer_call(client: TestClient, base: str):
 
 
 def _hosted_actor_ids(client: DataLayerClient) -> set[str]:
-    return {as_Actor.model_validate(a).id_ for a in client.get("/actors/")}
+    return {
+        as_Actor.model_validate(with_times(as_Actor, a)).id_
+        for a in client.get("/actors/")
+    }
 
 
 class TestSeedCaseActorIdentity:

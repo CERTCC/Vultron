@@ -21,7 +21,7 @@ from pydantic import ValidationError
 from test.support.act_clock import ACT_AT
 from test.support.embargo_register import register
 from test.support.future_dates import FAR_FUTURE
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -72,7 +72,9 @@ def test_vulnerability_report_round_trips_between_core_and_wire():
     # The wire shape uses the AS2 spellings, not the Python field names.
     assert data["attributedTo"] == core.attributed_to
     assert "attributed_to" not in data and "id_" not in data
-    restored = as_VulnerabilityReport.model_validate(data)
+    restored = as_VulnerabilityReport.model_validate(
+        with_times(as_VulnerabilityReport, data)
+    )
     assert restored.id_ == core.id_
 
 
@@ -86,7 +88,7 @@ def test_case_status_round_trips_between_core_and_wire():
     )
 
     wire = as_CaseStatus.model_validate(
-        core.model_dump(by_alias=True, mode="json")
+        with_times(as_CaseStatus, core.model_dump(by_alias=True, mode="json"))
     )
 
     assert isinstance(wire, as_CaseStatus)
@@ -117,7 +119,9 @@ def test_participant_status_from_core_materializes_case_status_reference():
     )
 
     wire = as_ParticipantStatus.model_validate(
-        core.model_dump(by_alias=True, mode="json")
+        with_times(
+            as_ParticipantStatus, core.model_dump(by_alias=True, mode="json")
+        )
     )
 
     assert isinstance(wire.case_status, as_CaseStatus)
@@ -164,7 +168,9 @@ def test_case_participant_round_trips_between_core_and_wire():
     )
 
     wire_dump = core.model_dump(by_alias=True, mode="json")
-    wire = as_CaseParticipant.model_validate(wire_dump)
+    wire = as_CaseParticipant.model_validate(
+        with_times(as_CaseParticipant, wire_dump)
+    )
 
     assert isinstance(wire, as_CaseParticipant)
     assert wire.id_ == core.id_
@@ -241,7 +247,9 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
     ):
         assert key in data, f"wire dump is missing AS2 key {key!r}"
     assert "case_statuses" not in data and "embargo_register" not in data
-    restored = as_VulnerabilityCase.model_validate(data)
+    restored = as_VulnerabilityCase.model_validate(
+        with_times(as_VulnerabilityCase, data)
+    )
     assert restored.id_ == core.id_
     assert restored.vulnerability_reports == core.vulnerability_reports
     assert restored.notes == core.notes
@@ -295,7 +303,9 @@ def test_vultron_as2_activity_from_core_with_string_fields():
     )
 
     wire = as_VultronActivity.model_validate(
-        core.model_dump(by_alias=True, mode="json")
+        with_times(
+            as_VultronActivity, core.model_dump(by_alias=True, mode="json")
+        )
     )
 
     assert isinstance(wire, as_VultronActivity)
@@ -358,7 +368,9 @@ def test_vultron_as2_activity_from_core_accept_subtype():
     )
 
     wire = as_VultronActivity.model_validate(
-        core.model_dump(by_alias=True, mode="json")
+        with_times(
+            as_VultronActivity, core.model_dump(by_alias=True, mode="json")
+        )
     )
 
     assert isinstance(wire, as_VultronActivity)

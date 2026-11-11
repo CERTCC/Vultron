@@ -30,6 +30,7 @@ import py_trees.behaviour
 
 from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_SEMANTIC_TYPE
 from vultron.core.models._helpers import (
+    authored_times,
     format_timestamp,
     require_future_aware,
 )
@@ -66,7 +67,12 @@ class SvcOfferEmbargoTermsBase(SvcEmbargoTriggerBase):
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
         end_time = require_future_aware(request.end_time, at=self._at)
-        self._embargo = EmbargoEvent(context=self._case.id_, end_time=end_time)
+        self._embargo = EmbargoEvent(
+            context=self._case.id_,
+            end_time=end_time,
+            **authored_times(self._at),
+            start_time=self._at,
+        )
 
     def _assertion_subject(self) -> str:
         # A new EmbargoEvent id is minted per call, so the terms are what a

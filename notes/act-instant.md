@@ -5,7 +5,6 @@ kind: plan
 tracks:
   - "#5676"   # epic: a re-recorded scenario equals the committed one
   - "#5651"   # slice 3: sync rate-limit checks and the replication-state key
-  - "#5758"   # slice 4: core models and time helpers
   - "#5760"   # slice 6: recordings through the port
   - "#5761"   # follow-on: generated ids, decided in ADR-0185
   - "#5848"   # follow-on: drift limit, after the call-out budget (#3423)
@@ -60,6 +59,11 @@ keeps.
 - **Bookkeeping has its own clock.** Adapter bookkeeping times (queued,
   dead-lettered) read a separate bookkeeping port, never the act clock, so the
   recording clock steps once per act and a bookkeeping read moves no recording.
+- **No model defaults a time.** An object's author times are required, and
+  whatever builds it states the act's instant: a node through
+  `_require_act_instant()`, anything else through a required argument; every
+  outbound factory and port method that builds an activity takes `at` (#5758,
+  `notes/datalayer-design.md` § "A Time Is Stated by Its Author").
 - **No fallback to the clock.** A parameter that carries the act's instant is
   required, never `datetime | None` with an `or now_utc()` default, because that
   fallback is the defect being removed (ARCH-10-001).
@@ -117,16 +121,12 @@ keeps.
    and their fallbacks.
 3. **Sync checks** (#5651). Cooldown and resend predicates take the instant; the
    replication-state key is derived without building a stamped model.
-4. **Core models** (#5758). No core model field defaults to the clock; the
-   ordered-stamp and deadline helpers take the instant. The widest change, because
-   test fixtures need an explicit time. Update `notes/datalayer-design.md`
-   § "A Clock-Minted Default Cannot Round-Trip" in the same PR.
-5. **Parse edge** (#5652). The RSVP computation takes `published` as required
+4. **Parse edge** (#5652). The RSVP computation takes `published` as required
    (CLP-15-008 already refuses an inbound activity without it), and the
    past-deadline warning moves to the handler. The pre-bootstrap queue sweep moves
    to the reap trigger (#2887), judging at its own instant; the queue's two clock
    reads already moved to the act's instant (#6191).
-6. **Recordings** (#5760). The recording clock goes through the port and steps
+5. **Recordings** (#5760). The recording clock goes through the port and steps
    once per act; the clock patch in the recording harness is removed; every
    recording is regenerated once. Update the recording-clock paragraph in
    `notes/demo-scenario-tree.md` in the same PR.

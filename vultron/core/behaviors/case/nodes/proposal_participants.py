@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.predicates.addressing import (
     participant_id_for_actor,
@@ -134,6 +135,7 @@ class AddCaseActorParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
             name=f"CaseActor for {case_id}",
             case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
             participant_statuses=[],
+            **authored_times(self._require_act_instant()),
         )
 
         updated_case = _create_and_attach_participant(
@@ -325,6 +327,7 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
             context=case_id,
             case_roles=_effective_case_roles(self._case_roles),
             participant_statuses=[],
+            **authored_times(self._require_act_instant()),
         )
 
         updated_case = _create_and_attach_participant(

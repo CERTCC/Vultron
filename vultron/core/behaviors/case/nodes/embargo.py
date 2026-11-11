@@ -45,7 +45,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import deadline_from
+from vultron.core.models._helpers import authored_times, deadline_from
 from vultron.core.models.activity_ids import derived_object_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -152,6 +152,8 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
                 id_=creation_time_embargo_id(case_id),
                 end_time=deadline_from(self._require_act_instant(), duration),
                 context=case_id,
+                **authored_times(self._require_act_instant()),
+                start_time=self._require_act_instant(),
             )
 
         self._set_output("default_embargo", embargo)

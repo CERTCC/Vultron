@@ -404,17 +404,25 @@ def _field_probe(model: type[BaseModel], name: str, key: str) -> Probe:
     return probe
 
 
+#: The author times a received object may omit (ADR-0103, ADR-0176).
+_AUTHOR_TIMES = frozenset({"published", "updated", "startTime", "start_time"})
+
+
 def _is_required(
     ledger_type: LedgerType, key: str, field: FieldInfo, nullable: bool
 ) -> bool:
     """Whether a line must carry the field, by the model's role (LedgerType)."""
     if ledger_type.role == "written":
         return field.is_required() or not nullable
-    if field.is_required():
-        return True
-    # A received object of a class that reads its sender's time is refused
-    # without one (CLP-15-010), though the model defaults it for local use.
-    return key == "published" and ledger_type.model._inbound_requires_published
+    if key in _AUTHOR_TIMES:
+        # An author time is required where an object is built (ADR-0176), but
+        # a received omission reads as ``None`` (ADR-0103): only a class that
+        # reads its sender's time refuses it (CLP-15-010).
+        return (
+            key == "published"
+            and ledger_type.model._inbound_requires_published
+        )
+    return field.is_required()
 
 
 def _enum_name(model: type[BaseModel], key: str) -> str:

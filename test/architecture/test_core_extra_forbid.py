@@ -26,7 +26,7 @@ from pydantic import ValidationError
 
 from test.architecture import _corpus
 from test.support.core_vocab import build_core_vocab, import_all_core_models
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.base import CoreObject
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.errors import VultronProtocolViolationError
@@ -118,7 +118,10 @@ def test_participant_status_does_not_drop_wire_spelled_rm_state() -> None:
     from vultron.core.states.rm import RM
 
     status = ParticipantStatus.model_validate(
-        {"context": "urn:uuid:case-2232", "rmState": "RECEIVED"}
+        with_times(
+            ParticipantStatus,
+            {"context": "urn:uuid:case-2232", "rmState": "RECEIVED"},
+        )
     )
     assert status.rm.state == RM.RECEIVED, (
         "rmState was dropped instead of interpreted — the #2232 "
@@ -128,13 +131,19 @@ def test_participant_status_does_not_drop_wire_spelled_rm_state() -> None:
     # The retired flat spelling raises rather than being silently dropped.
     with pytest.raises(ValidationError):
         ParticipantStatus.model_validate(
-            {"context": "urn:uuid:case-2232", "rm_state": "RECEIVED"}
+            with_times(
+                ParticipantStatus,
+                {"context": "urn:uuid:case-2232", "rm_state": "RECEIVED"},
+            )
         )
 
     # A non-alias wire spelling has nowhere to land, so forbid rejects it.
     with pytest.raises(ValidationError):
         ParticipantStatus.model_validate(
-            {"context": "urn:uuid:case-2232", "participantStatuses": "x"}
+            with_times(
+                ParticipantStatus,
+                {"context": "urn:uuid:case-2232", "participantStatuses": "x"},
+            )
         )
 
 
@@ -182,18 +191,27 @@ def test_true_computed_bool_round_trips(isolated_core_registries) -> None:
     ``_check_computed_field_inputs`` cannot be an inverted equality that
     passes vacuously.
     """
-    sealed = _sealed_class().model_validate({"sealed_by": "urn:uuid:actor"})
+    cls = _sealed_class()
+    sealed = cls.model_validate(
+        with_times(cls, {"sealed_by": "urn:uuid:actor"})
+    )
     assert sealed.model_dump(by_alias=True)["isSealed"] is True
 
     cls = type(sealed)
-    assert cls.model_validate(sealed.model_dump(mode="json")) == sealed
+    assert (
+        cls.model_validate(with_times(cls, sealed.model_dump(mode="json")))
+        == sealed
+    )
     # The camelCase wire form carries the computed value and parses back into
     # an equal object: the matching value is stripped, and the default
     # ``@context`` reads back as no override.
     wire = sealed.model_dump(mode="json", by_alias=True)
     assert wire["isSealed"] is True
-    assert cls.model_validate(wire) == sealed
-    assert cls.model_validate(sealed.model_dump(by_alias=True)) == sealed
+    assert cls.model_validate(with_times(cls, wire)) == sealed
+    assert (
+        cls.model_validate(with_times(cls, sealed.model_dump(by_alias=True)))
+        == sealed
+    )
 
 
 def test_computed_field_is_published_by_alias_and_never_stored(
@@ -205,7 +223,10 @@ def test_computed_field_is_published_by_alias_and_never_stored(
     field is derived from, never the derived value, so a stored row cannot
     contradict a later derivation.
     """
-    sealed = _sealed_class().model_validate({"sealed_by": "urn:uuid:actor"})
+    cls = _sealed_class()
+    sealed = cls.model_validate(
+        with_times(cls, {"sealed_by": "urn:uuid:actor"})
+    )
 
     assert "is_sealed" not in sealed.model_dump()
     assert "is_sealed" not in sealed.model_dump(mode="json")
@@ -222,7 +243,7 @@ def test_contradicted_computed_bool_raises_protocol_violation(
     cls = _sealed_class()
     for spelling in ("is_sealed", "isSealed"):
         with pytest.raises(ValidationError) as exc_info:
-            cls.model_validate({spelling: True})
+            cls.model_validate(with_times(cls, {spelling: True}))
         msg = str(exc_info.value)
         assert "is_sealed" in msg, (
             f"Error for spelling {spelling!r} did not name the field: {msg}"
@@ -259,8 +280,9 @@ def test_disagreeing_duplicate_spellings_cannot_mask_a_contradiction(
     Keying supplied values by canonical field name let the last-iterated
     spelling win, so one ordering was accepted while the reverse was refused.
     """
+    cls = _sealed_class()
     with pytest.raises(ValidationError) as exc_info:
-        _sealed_class().model_validate(data)
+        cls.model_validate(with_times(cls, data))
     error = _protocol_violation(exc_info.value)
     assert len(error.violations) == 1
     assert repr(expected_spelling) in error.violations[0].message
@@ -295,7 +317,9 @@ def test_all_computed_field_contradictions_named_in_one_error(
             return self.base_val * 3
 
     with pytest.raises(ValidationError) as exc_info:
-        _TwoComputedFields.model_validate({"doubled": 999, "tripled": 888})
+        _TwoComputedFields.model_validate(
+            with_times(_TwoComputedFields, {"doubled": 999, "tripled": 888})
+        )
     msg = str(exc_info.value)
     assert "doubled" in msg, f"First contradicted field not named: {msg}"
     assert "tripled" in msg, f"Second contradicted field not named: {msg}"
@@ -336,7 +360,9 @@ def test_json_mode_dump_round_trips_for_non_bool_computed_field(
     assert _DatetimeComputed.model_validate(obj.model_dump()) == obj
 
     with pytest.raises(ValidationError) as exc_info:
-        _DatetimeComputed.model_validate({"when": "2025-12-31T00:00:00Z"})
+        _DatetimeComputed.model_validate(
+            with_times(_DatetimeComputed, {"when": "2025-12-31T00:00:00Z"})
+        )
     assert [
         v.dimensions for v in _protocol_violation(exc_info.value).violations
     ] == [("when",)]

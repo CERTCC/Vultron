@@ -30,7 +30,7 @@ import pytest
 
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 from vultron.core.models.actor import VultronPerson, VultronService
 from vultron.core.models.base.context import DEFAULT_JSONLD_CONTEXT
@@ -77,7 +77,7 @@ def _assert_wire_dict(result: dict, expected_type: str) -> None:
     assert wire_cls is not None, (
         f"No vocabulary entry for {expected_type!r} — cannot verify reconstitutability"
     )
-    wire_cls.model_validate(result)
+    wire_cls.model_validate(with_times(wire_cls, result))
 
 
 # ---------------------------------------------------------------------------

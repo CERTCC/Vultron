@@ -16,7 +16,7 @@
 import json
 from datetime import UTC, datetime
 
-from test.support.objects import make
+from test.support.objects import make, with_times
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent as WireEmbargoEvent,
@@ -113,7 +113,9 @@ class TestWireEmbargoEventToCore:
             end_time=_FUTURE,
         )
         data = core1.model_dump(by_alias=True, exclude_none=True, mode="json")
-        core2 = CoreEmbargoEvent.model_validate(data)
+        core2 = CoreEmbargoEvent.model_validate(
+            with_times(CoreEmbargoEvent, data)
+        )
         assert core2.context == core1.context
         assert core2.end_time == core1.end_time
         assert core2.start_time == core1.start_time

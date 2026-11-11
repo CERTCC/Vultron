@@ -24,6 +24,7 @@ import logging
 from vultron.config.app import get_config
 from vultron.core.behaviors.case.nodes.embargo import creation_time_embargo_id
 from vultron.core.behaviors.store_scope import store_for_actor
+from vultron.core.models._helpers import authored_times
 from vultron.core.models.activity_ids import derived_object_id
 from vultron.core.models.actor import VultronService, hosted_endpoints
 from vultron.core.models.case import VulnerabilityCase
@@ -39,6 +40,7 @@ from vultron.core.services.embargo_duration import (
 )
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.rm import RM
+from vultron.demo import wall_clock
 from vultron.demo.utils import configured_case_actor_id
 from vultron.demo.wall_clock import from_now
 from vultron.enums.roles import CVDRole
@@ -86,8 +88,10 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
                 rm=RmDimension(state=RM.RECEIVED),
                 context=case_id,
                 attributed_to=vendor_actor_id,
+                **authored_times(wall_clock.now()),
             ),
         ],
+        **authored_times(wall_clock.now()),
     )
     _attach(case_obj, vendor_p, dl)
     logger.debug(
@@ -109,6 +113,7 @@ def _seed_reporter_participant(
         context=case_id,
         name=f"Reporter participant for {case_id}",
         case_roles=[CVDRole.REPORTER],
+        **authored_times(wall_clock.now()),
     )
     _attach(case_obj, reporter_p, dl)
     logger.debug(
@@ -142,7 +147,10 @@ def _seed_case_actor_participant(case_obj, case_actor_id: str, dl) -> None:
     # One actor per container, not per case (ADR-0088): no `context` naming a
     # case and no `attributed_to`.
     actor_obj = VultronService(
-        id_=case_actor_id, name="CaseActor", **hosted_endpoints(case_actor_id)
+        id_=case_actor_id,
+        name="CaseActor",
+        **hosted_endpoints(case_actor_id),
+        **authored_times(wall_clock.now()),
     )
     own_store = store_for_actor(dl, case_actor_id)
     try:
@@ -160,6 +168,7 @@ def _seed_case_actor_participant(case_obj, case_actor_id: str, dl) -> None:
         context=case_id,
         name=f"CaseActor participant for {case_id}",
         case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+        **authored_times(wall_clock.now()),
     )
     _attach(case_obj, manager_p, dl)
     logger.debug(
@@ -198,6 +207,8 @@ def _seed_active_embargo(case_obj, dl) -> None:
         id_=creation_time_embargo_id(case_id),
         context=case_id,
         end_time=from_now(resolved.duration),
+        **authored_times(wall_clock.now()),
+        start_time=wall_clock.now(),
     )
     # The EM write goes through the lifecycle service like the tree's own
     # (EMB-18-001): one save at EM.ACTIVE, with the owner's consent recorded
