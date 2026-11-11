@@ -18,6 +18,7 @@
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import register
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateReceivedOrInvalid,
@@ -269,7 +270,7 @@ def test_ensure_embargo_exists_succeeds_for_ineligible_case_without_embargo(
         vulnerability_reports=[report.id_],
         attributed_to=actor.id_,
     )
-    case.append_case_status(pxa=pxa_state)
+    case.append_case_status(ACT_AT, pxa=pxa_state)
     bt_scenario.seed(case)
 
     result = bt_scenario.run(

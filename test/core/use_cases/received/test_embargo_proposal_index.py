@@ -39,6 +39,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
@@ -49,7 +50,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.embargo import (
     InviteToEmbargoOnCaseReceivedEvent,
@@ -143,7 +143,7 @@ class TestInviteToEmbargoRecordsIndex:
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
 
@@ -197,7 +197,7 @@ class TestInviteToEmbargoRecordsIndex:
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e_idem",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
 
@@ -333,7 +333,7 @@ class TestAcceptRejectFromCoreState:
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -566,7 +566,7 @@ class TestReceivedRejectPrunesOpenProposals:
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -715,7 +715,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         proposal_id = f"{case_id}/proposals/p1"
 
         embargo = as_EmbargoEvent(
-            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+            id_=embargo_id, context=case_id, end_time=days_from_now(45)
         )
         proposal = em_propose_embargo_activity(
             embargo=embargo,
@@ -756,7 +756,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(

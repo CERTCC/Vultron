@@ -22,17 +22,21 @@ use_cases/.
 """
 
 import ast
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
+from test.support.act_clock import no_clock
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models._helpers import (
     clock as helpers_clock,
+    days_after,
+    deadline_from,
     format_timestamp,
     now_utc,
-    now_utc_after,
     require_future_aware,
+    stamp_after,
     timestamp_serializer,
 )
 from vultron.demo.determinism import SteppingClock
@@ -449,38 +453,89 @@ def test_timestamp_serializer_leaves_a_non_datetime_member_alone(
     assert dump(_Closes()) == {"closed": None}
 
 
+def test_no_clock_fails_a_clock_read() -> None:
+    """The stand-in the purity tests below rely on does catch a read."""
+    with no_clock(), pytest.raises(AssertionError, match="read the clock"):
+        now_utc()
+
+
+@pytest.mark.spec("CM-29-005")
 @pytest.mark.parametrize(
     "latest",
     [None, _PINNED - _TICK],
     ids=["no-latest", "latest-earlier"],
 )
-def test_now_utc_after_returns_now_utc_when_the_clock_is_ahead(
-    _frozen_clock: None, latest: datetime | None
+def test_stamp_after_returns_the_act_instant_when_it_is_later(
+    latest: datetime | None,
 ) -> None:
-    assert now_utc_after(latest) == _PINNED
+    with no_clock():
+        assert stamp_after(_PINNED, latest) == _PINNED
 
 
+@pytest.mark.spec("CM-29-005")
 @pytest.mark.parametrize(
     "latest",
     [_PINNED, _PINNED + timedelta(seconds=5, microseconds=400)],
-    ids=["same-tick", "peer-clock-ahead"],
+    ids=["same-act", "peer-clock-ahead"],
 )
-def test_now_utc_after_bumps_one_microsecond_past_latest(
-    _frozen_clock: None, latest: datetime
+def test_stamp_after_bumps_one_microsecond_past_latest(
+    latest: datetime,
 ) -> None:
-    result = now_utc_after(latest)
+    with no_clock():
+        result = stamp_after(_PINNED, latest)
     assert result == latest + _TICK
     assert result > latest
 
 
-def test_now_utc_after_returns_a_bump_in_utc_for_a_peer_offset(
-    _frozen_clock: None,
-) -> None:
+def test_stamp_after_returns_a_bump_in_utc_for_a_peer_offset() -> None:
     plus_five = timezone(timedelta(hours=5))
     latest = (_PINNED + timedelta(seconds=2)).astimezone(plus_five)
-    result = now_utc_after(latest)
+    with no_clock():
+        result = stamp_after(_PINNED, latest)
     assert result == _PINNED + timedelta(seconds=2) + _TICK
     assert result.utcoffset() == timedelta(0)
+
+
+def test_stamp_after_returns_an_offset_instant_in_utc() -> None:
+    plus_five = timezone(timedelta(hours=5))
+    with no_clock():
+        result = stamp_after(_PINNED.astimezone(plus_five), None)
+    assert result == _PINNED
+    assert result.utcoffset() == timedelta(0)
+
+
+@pytest.mark.spec("CS-13-004")
+@pytest.mark.parametrize(
+    "at",
+    [_PINNED, _PINNED.astimezone(timezone(timedelta(hours=-7)))],
+    ids=["utc", "offset"],
+)
+def test_deadline_is_the_act_instant_plus_the_duration(at: datetime) -> None:
+    """The deadline is *at* plus the duration, in UTC, read from no clock."""
+    with no_clock():
+        end = deadline_from(at, timedelta(hours=36))
+        in_days = days_after(at, 30)
+    assert end == _PINNED + timedelta(hours=36)
+    assert in_days == _PINNED + timedelta(days=30)
+    assert end.utcoffset() == timedelta(0)
+    assert in_days.utcoffset() == timedelta(0)
+
+
+@pytest.mark.spec("CS-13-004")
+@pytest.mark.parametrize(
+    "helper",
+    [
+        lambda at: stamp_after(at, None),
+        lambda at: deadline_from(at, timedelta(days=1)),
+        lambda at: days_after(at, 1),
+    ],
+    ids=["stamp_after", "deadline_from", "days_after"],
+)
+def test_the_time_helpers_refuse_a_naive_instant(
+    helper: Callable[[datetime], datetime],
+) -> None:
+    with pytest.raises(ValueError, match="timezone-aware"):
+        helper(_PINNED.replace(tzinfo=None))
 
 
 def test_require_future_aware_compares_against_now_utc(
@@ -499,9 +554,11 @@ def test_require_future_aware_compares_against_now_utc(
 
 
 @pytest.mark.spec("DUR-06-004")
-def test_an_interval_composed_from_now_is_in_utc() -> None:
-    """``days_from_now_utc`` adds the interval to a UTC instant, never to a
-    local-zone one, so the end it returns carries a zero offset."""
-    end = helpers_clock.days_from_now_utc(30)
+def test_an_interval_composed_from_an_instant_is_in_utc() -> None:
+    """``days_after`` adds the interval to a UTC instant, never to a
+    local-zone one, so the end it returns carries a zero offset even from an
+    instant given at another offset."""
+    at = _PINNED.astimezone(timezone(timedelta(hours=5)))
+    end = days_after(at, 30)
     assert end.utcoffset() == timedelta(0)
     assert end.tzinfo is UTC or end.tzinfo == UTC

@@ -41,6 +41,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.received import case_stub
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -48,7 +49,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import _as_id, days_from_now_utc
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -357,7 +358,7 @@ def test_every_open_proposal_is_relayed_to_the_joiner(make_payload):
         id_=f"{case_id}/embargo_events/second",
         content="Even longer terms",
         context=case_id,
-        end_time=days_from_now_utc(120),
+        end_time=days_from_now(120),
     )
     dl.create(second)
     counter = em_propose_embargo_activity(
@@ -575,7 +576,7 @@ def test_a_late_joiner_holds_an_uninvited_row_for_every_final_entry(
             id_=f"{case_id}/embargo_events/{name}",
             content=f"Terms {name}",
             context=case_id,
-            end_time=days_from_now_utc(days),
+            end_time=days_from_now(days),
         )
         for name, days in (("d1", 60), ("d2", 75))
     )

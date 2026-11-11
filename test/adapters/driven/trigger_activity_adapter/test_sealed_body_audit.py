@@ -40,6 +40,7 @@ from typing import Any
 
 import pytest
 
+from test.support.future_dates import days_from_now
 from test.support.received import archive_delivered
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -53,7 +54,6 @@ from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -141,7 +141,7 @@ class _World:
         )
         self.status = ParticipantStatus(context=self.case_id)
         self.embargo = as_EmbargoEvent(
-            context=self.case_id, end_time=days_from_now_utc(45)
+            context=self.case_id, end_time=days_from_now(45)
         )
         self.dl = self.store(_ACTOR)
         self.adapter = self.adapter_as(_ACTOR)

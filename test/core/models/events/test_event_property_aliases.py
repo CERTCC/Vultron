@@ -10,8 +10,8 @@ copy/paste mistake in any property on the same class cannot pass undetected.
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.future_dates import days_from_now
 from test.support.received import TEST_SENDER_POSITION
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -102,7 +102,7 @@ _participant_status = ParticipantStatus(
 _embargo = EmbargoEvent(
     id_="https://example.org/embargoes/e1",
     context=_CASE_URI,
-    end_time=days_from_now_utc(45),
+    end_time=days_from_now(45),
 )
 _activity = VultronActivity(
     id_="https://example.org/activities/offer-1",

@@ -278,11 +278,11 @@ class TestInitializeDefaultEmbargoNode:
         """
         from datetime import timedelta
 
-        from vultron.core.models._helpers import days_from_now_utc
+        from test.support.future_dates import days_from_now
 
         proposal = EmbargoEvent(
             context="https://example.org/reports/r-1",
-            end_time=days_from_now_utc(10),
+            end_time=days_from_now(10),
         )
         # The contest's other party is the reporter (#4152).
         report = VulnerabilityReport(

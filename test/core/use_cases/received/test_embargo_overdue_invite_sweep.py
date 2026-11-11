@@ -35,6 +35,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import activate, propose, reject
+from test.support.future_dates import days_from_now
 from test.support.ledger import is_consent_row_update
 from test.support.owner_decision import (
     seeded_activation,
@@ -55,7 +56,6 @@ from vultron.core.behaviors.embargo.embargo_clock_decisions import (
 from vultron.core.behaviors.embargo.nodes import (
     invitation_expiry as _sweep_module,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -162,7 +162,7 @@ def _store(
         id_=_CASE_ID, name="Overdue sweep", attributed_to=owner
     )
     embargo = as_EmbargoEvent(
-        id_=_PROPOSAL_ID, context=_CASE_ID, end_time=days_from_now_utc(30)
+        id_=_PROPOSAL_ID, context=_CASE_ID, end_time=days_from_now(30)
     )
     propose(case, embargo.id_)
     seed_case_manager_participant(dl, case, _MANAGER)
@@ -332,7 +332,7 @@ class TestDoorGuardsFirst:
         stray = as_EmbargoEvent(
             id_=f"{_CASE_ID}/embargo_events/never-proposed",
             context=_CASE_ID,
-            end_time=days_from_now_utc(30),
+            end_time=days_from_now(30),
         )
         dl.create(stray)
 

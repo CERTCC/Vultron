@@ -30,6 +30,7 @@ from typing import cast
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.future_dates import days_from_now
 from test.support.received import (
     archive_received,
     hold_deferred,
@@ -44,7 +45,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -524,7 +524,7 @@ def test_an_invite_to_an_embargo_not_in_force_is_not_found(
     embargo-in-force check can refuse it.
     """
     other = as_EmbargoEvent(
-        context=in_force.case.id_, end_time=days_from_now_utc(30)
+        context=in_force.case.id_, end_time=days_from_now(30)
     )
     in_force.dl.create(other)
     _set_row(

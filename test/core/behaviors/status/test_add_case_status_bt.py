@@ -51,9 +51,11 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
+from test.support.future_dates import days_from_now
 from test.support.received import TEST_SENDER_POSITION, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -84,7 +86,7 @@ from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
 from vultron.core.behaviors.status.nodes.lifecycle import (
     ThreatTerminationBranchNode,
 )
-from vultron.core.models._helpers import _as_id, days_from_now_utc, now_utc
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -505,7 +507,7 @@ class TestCheckCaseStatusAcceptableNode:
         case = VulnerabilityCase(
             id_=CASE_ID, name="Refused", attributed_to=ACTOR_ID
         )
-        case.append_case_status(pxa=CS_pxa.Pxa)
+        case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
         asserted = as_CaseStatus(
             id_=STATUS_ID,
             context=CASE_ID,
@@ -539,7 +541,7 @@ class TestPxaRegressionRefusedWhole:
         case = VulnerabilityCase(
             id_=CASE_ID, name="2706 Case", attributed_to=CASE_MANAGER_ID
         )
-        case.append_case_status(pxa=CS_pxa.Pxa)
+        case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
         dl = _replica_store(case)
         # Asserted: pxa regression (pxa=pxa instead of Pxa), same EM
         status_obj = as_CaseStatus(
@@ -756,7 +758,7 @@ class TestAddCaseStatusTree:
         )
         # Auto-seeded baseline is pxa; advance to pXa (X exploit published,
         # P still false — the ephemeral state that requires P next).
-        case.append_case_status(pxa=CS_pxa.pXa)
+        case.append_case_status(ACT_AT, pxa=CS_pxa.pXa)
         dl = _replica_store(case)
 
         # Asserted status fires A-event only (pXa → pXA); P is NOT advanced.
@@ -867,7 +869,7 @@ class TestAddCaseStatusTree:
         case = VulnerabilityCase(
             id_=CASE_ID, name="PXA Refusal Log", attributed_to=CASE_MANAGER_ID
         )
-        case.append_case_status(pxa=CS_pxa.Pxa)
+        case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
         dl = _replica_store(case)
 
         # The case's own EM + PXA regression → the status is refused.
@@ -1084,7 +1086,7 @@ class TestThreatTerminationBranchNode:
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1",
             context=CASE_ID,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         activate(case, embargo.id_)
         dl.create(case)
@@ -1421,7 +1423,7 @@ class TestThreatTerminationBranchNodeProposedEm:
         embargo = as_EmbargoEvent(
             id_=PROPOSED_EMBARGO_ID,
             context=CASE_ID,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         invite = em_propose_embargo_activity(
             embargo, context=CASE_ID, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
@@ -1515,7 +1517,7 @@ class TestRegressionCSPTeardownPath:
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1",
             context=CASE_ID,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         case = VulnerabilityCase(
             id_=CASE_ID, name="Regression Case", attributed_to=manager_id
@@ -1773,7 +1775,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         embargo = as_EmbargoEvent(
             id_=f"{DIAG_CASE_ID}/embargo_events/e1",
             context=DIAG_CASE_ID,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         case = VulnerabilityCase(
             id_=DIAG_CASE_ID, name="Replica Case", attributed_to=DIAG_CM_ID

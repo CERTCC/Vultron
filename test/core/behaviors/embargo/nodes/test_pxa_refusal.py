@@ -29,6 +29,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     OTHER_PARTICIPANT_ACTOR,
     make_case_with_manager,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -76,7 +77,7 @@ def _case_with_pxa(suffix: str, pxa: str) -> tuple[str, SqliteDataLayer]:
     case, _, dl = make_case_with_manager(suffix)
     stored = dl.read(case.id_)
     assert isinstance(stored, VulnerabilityCase)
-    stored.append_case_status(pxa=CS_pxa[pxa])
+    stored.append_case_status(ACT_AT, pxa=CS_pxa[pxa])
     dl.save(stored)
     return case.id_, dl
 

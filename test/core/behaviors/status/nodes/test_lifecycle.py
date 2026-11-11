@@ -29,6 +29,7 @@ from py_trees.common import Status
 
 from test.support.act_runner import run_tree
 from test.support.embargo_register import propose
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -40,7 +41,6 @@ from vultron.core.behaviors.status.nodes.lifecycle import EmitCloseCaseNode
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -154,7 +154,7 @@ class TestThreatTerminationBranchNodeProposedEmPath:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=store_actor)
 
         embargo = as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
         )
         invite = em_propose_embargo_activity(
             embargo, context=CASE_ID, actor=ACTOR_ID, to=[CASE_MANAGER_ID]

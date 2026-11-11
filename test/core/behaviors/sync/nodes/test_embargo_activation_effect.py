@@ -36,6 +36,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose
 from vultron.core.behaviors.embargo.nodes import (
@@ -401,7 +402,7 @@ def test_the_rejection_of_the_last_revision_after_disclosure_is_copied(
     carries the ``TERMINATE`` step (MSM-07-032).
     """
     case = _seed(datalayer, EM.REVISE)
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     datalayer.save(case)
 
     assert _apply(bridge, EMBARGO_ID, accept=False).status == Status.SUCCESS
@@ -421,7 +422,7 @@ def test_a_rejection_after_another_open_proposal_with_pxa_set_applies(
     case = _seed(datalayer, EM.REVISE)
     other = f"{CASE_ID}/embargo_events/e2"
     propose(case, other)
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     datalayer.save(case)
 
     assert _apply(bridge, EMBARGO_ID, accept=False).status == Status.SUCCESS
@@ -441,7 +442,7 @@ def _ended_embargo(datalayer, *, reject_first: bool) -> VulnerabilityCase:
     otherwise the termination cancelled it (EP-08-004).
     """
     case = _seed(datalayer, EM.REVISE)
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     if reject_first:
         case.apply_embargo_register_step(rejection_changes(EMBARGO_ID))
     case.apply_embargo_register_step(
@@ -494,7 +495,7 @@ def test_an_abandoned_proposal_refuses_the_rejection(bridge, datalayer):
     """A proposal a threat signal abandoned (no embargo in force) is not one
     the CASE_MANAGER could still reject: the entry is refused."""
     case = _seed(datalayer, EM.PROPOSED)
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     case.apply_embargo_register_step(
         [
             RegisterChange(

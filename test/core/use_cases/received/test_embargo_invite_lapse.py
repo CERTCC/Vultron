@@ -33,6 +33,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from test.support.ledger import (
     committed_semantic_types,
     consent_row_updates,
@@ -63,7 +64,7 @@ from vultron.core.behaviors.embargo.expiry_tree import (
     create_commit_and_record_expiry_tree,
 )
 from vultron.core.behaviors.sync import commit_tree
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -191,7 +192,11 @@ def _run_as_manager(dl: SqliteDataLayer, tree: Any) -> Any:
         ),
         tree=tree,
         actor_id=_COORD,
-        at=_NOW,
+        # Read when the test runs, never at import: the case and its stamps
+        # read the clock until their defaults go (#5758), and the ledger
+        # refuses a stamp more than its tolerance past the act's instant
+        # (CLP-14-007), so an import-time instant drifts out on a slow run.
+        at=now_utc(),
     )
 
 
@@ -230,7 +235,7 @@ def _make_active_embargo_case(
         attributed_to=_COORD,
     )
     embargo = as_EmbargoEvent(
-        id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+        id_=embargo_id, context=case_id, end_time=days_from_now(45)
     )
     if em_active:
         activate(case, embargo_id)
@@ -601,7 +606,7 @@ class TestInviteeIsTheAddressee:
             id_=case_id, name="Addressee Test", attributed_to=_COORD
         )
         embargo = as_EmbargoEvent(
-            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+            id_=embargo_id, context=case_id, end_time=days_from_now(45)
         )
         if embargo_is == "active":
             activate(case, embargo_id)
@@ -1216,7 +1221,7 @@ class TestInviteeIsTheAddressee:
         revision = as_EmbargoEvent(
             id_=f"{case_id}/embargos/revision",
             context=case_id,
-            end_time=days_from_now_utc(90),
+            end_time=days_from_now(90),
         )
         dl.create(revision)
         case_obj = cast(VulnerabilityCase, dl.read(case_id))
@@ -1292,7 +1297,7 @@ class TestInviteeIsTheAddressee:
         revision = as_EmbargoEvent(
             id_=f"{case_id}/embargos/revision",
             context=case_id,
-            end_time=days_from_now_utc(90),
+            end_time=days_from_now(90),
         )
         dl.create(revision)
         case_obj = cast(VulnerabilityCase, dl.read(case_id))
@@ -1574,7 +1579,7 @@ class TestInviteeIdProperty:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/prop/embargos/e1",
             context="https://example.org/cases/prop",
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         invite = em_propose_embargo_activity(
             embargo=embargo,
@@ -1683,7 +1688,7 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
         revision = as_EmbargoEvent(
             id_=f"{case_id}/embargos/e2",
             context=case_id,
-            end_time=days_from_now_utc(90),
+            end_time=days_from_now(90),
         )
         propose(case, revision.id_)
         coord_cp = WireCP(
@@ -2332,7 +2337,7 @@ class TestLateAcceptHandling:
             as_EmbargoEvent(
                 id_=current_embargo_id,
                 context=case_id,
-                end_time=days_from_now_utc(30),
+                end_time=days_from_now(30),
             )
         )
 
@@ -2619,7 +2624,7 @@ class TestLateAcceptHandling:
         revision = as_EmbargoEvent(
             id_=f"{case_id}/embargos/e2",
             context=case_id,
-            end_time=days_from_now_utc(90),
+            end_time=days_from_now(90),
         )
         dl.create(revision)
         propose(case, revision.id_)
@@ -2668,7 +2673,7 @@ class TestLateAcceptHandling:
             id_=case_id, name="Normal Accept", attributed_to=_COORD
         )
         embargo = as_EmbargoEvent(
-            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+            id_=embargo_id, context=case_id, end_time=days_from_now(45)
         )
         propose(case, embargo_id)
 
@@ -2731,7 +2736,7 @@ class TestLateAcceptHandling:
             id_=case_id, name="No Deadline Accept", attributed_to=_COORD
         )
         embargo = as_EmbargoEvent(
-            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+            id_=embargo_id, context=case_id, end_time=days_from_now(45)
         )
         propose(case, embargo_id)
 
@@ -2924,7 +2929,7 @@ class TestLateAcceptHandling:
         stale_embargo = as_EmbargoEvent(
             id_=stale_embargo_id,
             context=case_id,
-            end_time=days_from_now_utc(45),
+            end_time=days_from_now(45),
         )
         dl.create(stale_embargo)
 
@@ -3230,7 +3235,7 @@ class TestOwnerAnswerToRelayedInvite:
         other = as_EmbargoEvent(
             id_=f"{case.id_}/embargos/e-other",
             context=case.id_,
-            end_time=days_from_now_utc(20),
+            end_time=days_from_now(20),
         )
         dl.create(other)
         propose(case, other.id_, embargo.id_)

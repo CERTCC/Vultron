@@ -26,7 +26,9 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import propose
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes import reject_proposed
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
@@ -34,7 +36,6 @@ from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     EmbargoOutlivesDisclosureNode,
     OwnerRejectionAppliesNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
@@ -68,7 +69,7 @@ def _revising_case(
     revision = as_EmbargoEvent(
         id_=f"{case.id_}/embargo_events/revision",
         context=case.id_,
-        end_time=days_from_now_utc(90),
+        end_time=days_from_now(90),
     )
     dl.create(active)
     dl.create(revision)
@@ -184,7 +185,7 @@ def test_ej_with_pxa_set_records_the_reject_step(
     same act; the node itself does not refuse (MSM-07-032).
     """
     case, active_id, revision_id = _revising_case(dl, "pxa")
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     dl.save(case)
     setup_blackboard(dl, actor_id=OWNER)
 
@@ -214,7 +215,7 @@ def test_the_rejection_and_its_termination_apply_and_nothing_is_written(
 ) -> None:
     """The trial passes with or without P/X/A, and writes nothing."""
     case, _, revision_id = _revising_case(dl, f"trial-{pxa.name}")
-    case.append_case_status(pxa=pxa)
+    case.append_case_status(ACT_AT, pxa=pxa)
     dl.save(case)
     before = _case(dl, case.id_).embargo_register
     setup_blackboard(dl, actor_id=OWNER)
@@ -234,7 +235,7 @@ def test_a_termination_that_cannot_be_decided_refuses_the_rejection(
 ) -> None:
     """A refused TERMINATE refuses the act before either entry commits."""
     case, _, revision_id = _revising_case(dl, "trial-refused")
-    case.append_case_status(pxa=CS_pxa.Pxa)
+    case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
     dl.save(case)
 
     def _refuse(*_args: object) -> NoReturn:
@@ -282,7 +283,7 @@ def test_the_embargo_outlives_disclosure_only_once_no_proposal_is_open(
     dl: SqliteDataLayer, pxa: CS_pxa, reject_first: bool, expected: Status
 ) -> None:
     case, _, revision_id = _revising_case(dl, f"outlives-{pxa.name}")
-    case.append_case_status(pxa=pxa)
+    case.append_case_status(ACT_AT, pxa=pxa)
     dl.save(case)
     setup_blackboard(dl, actor_id=OWNER)
     if reject_first:

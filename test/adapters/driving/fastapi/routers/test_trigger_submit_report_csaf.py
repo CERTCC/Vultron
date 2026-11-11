@@ -29,6 +29,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
+from test.support.future_dates import days_from_now
 from test.wire.csaf._documents import (
     minimal_csaf_document,
     section,
@@ -38,7 +39,6 @@ from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_report as trigger_report_router,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.attached_document import AttachedDocument
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_claims import MAX_CSAF_CONTENT_CHARS
@@ -77,7 +77,7 @@ def _report_document(*, days_to_disclosure: int = 30) -> dict[str, Any]:
     del vul["metrics"]
     del vul["first_known_exploitation_dates"]
     vul["disclosure_date"] = (
-        days_from_now_utc(days_to_disclosure)
+        days_from_now(days_to_disclosure)
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")
@@ -318,7 +318,7 @@ def test_a_missing_name_summary_and_embargo_end_come_from_the_document(
 
 @pytest.mark.spec("CSAF-04-010")
 def test_a_stated_name_summary_and_embargo_end_are_kept(client, actor):
-    end = days_from_now_utc(60).replace(microsecond=0)
+    end = days_from_now(60).replace(microsecond=0)
 
     resp = _submit(
         client,
@@ -355,7 +355,7 @@ def test_a_document_that_sets_exploitation_proposes_no_embargo_end(
 def test_a_stated_embargo_end_is_kept_when_the_document_sets_exploitation(
     client, actor
 ):
-    end = days_from_now_utc(20).replace(microsecond=0)
+    end = days_from_now(20).replace(microsecond=0)
 
     resp = _submit(
         client,

@@ -28,13 +28,13 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -113,7 +113,7 @@ def _make_embargo_case(
         id_=f"{case_id}/embargo_events/e1",
         content="Routing test embargo",
         context=case_id,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     dl.create(embargo)
 

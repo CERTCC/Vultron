@@ -19,12 +19,12 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.embargo.rsvp_stamp import (
     stamp_invite_rsvp_deadline,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -40,9 +40,7 @@ def dl() -> SqliteDataLayer:
 
 
 def _embargo(dl: SqliteDataLayer, days: int) -> str:
-    embargo = as_EmbargoEvent(
-        context=CASE_ID, end_time=days_from_now_utc(days)
-    )
+    embargo = as_EmbargoEvent(context=CASE_ID, end_time=days_from_now(days))
     dl.create(embargo)
     return embargo.id_
 

@@ -91,7 +91,7 @@ class TestInviteActorToCaseWithInlineEmbargo:
 
     @pytest.mark.spec("CM-17-002")
     def test_invite_stub_carries_the_inline_embargo(self, adapter, dl):
-        from vultron.core.models._helpers import days_from_now_utc
+        from test.support.future_dates import days_from_now
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_status import CaseStatus
         from vultron.core.models.dimensions import EmDimension
@@ -99,7 +99,7 @@ class TestInviteActorToCaseWithInlineEmbargo:
         from vultron.core.states.em import EM
 
         case_id = "https://example.org/cases/case-inline-embargo"
-        embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+        embargo = EmbargoEvent(context=case_id, end_time=days_from_now(30))
         case = VulnerabilityCase(
             id_=case_id,
             name="CVE-2025-009",
@@ -139,7 +139,7 @@ class TestInviteActorToCaseWithEmbargoHeldById:
 
     @staticmethod
     def _seed_case(dl, case_id: str, *, store_embargo: bool):
-        from vultron.core.models._helpers import days_from_now_utc
+        from test.support.future_dates import days_from_now
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_status import CaseStatus
         from vultron.core.models.dimensions import EmDimension
@@ -150,7 +150,7 @@ class TestInviteActorToCaseWithEmbargoHeldById:
             context=case_id,
             name="Embargo for the stored-by-id case",
             attributed_to=_ACTOR,
-            end_time=days_from_now_utc(30),
+            end_time=days_from_now(30),
         )
         if store_embargo:
             dl.create(embargo)

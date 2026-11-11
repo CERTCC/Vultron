@@ -30,6 +30,7 @@ from py_trees.ports import NoDataAvailable
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.act_runner import run_tree
 from test.support.embargo_register import register
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes.chosen_cause import (
@@ -43,7 +44,7 @@ from vultron.core.behaviors.embargo.nodes.terminate import (
     TeardownAskPendingNode,
     ask_case_manager_to_terminate_once,
 )
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     FixDeployedCause,
@@ -107,7 +108,7 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
 
     dl.create(
         EmbargoEvent(
-            id_=_EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+            id_=_EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
         )
     )
     case = VulnerabilityCase(

@@ -51,6 +51,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
 )
 from test.support.act_runner import run_tree
+from test.support.future_dates import days_from_now
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.received_path import (
@@ -83,7 +84,6 @@ from vultron.core.behaviors.embargo.owner_decision_tree import (
 from vultron.core.behaviors.embargo.withdrawal_tree import (
     withdraw_from_embargo_on_case_tree,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.received.embargo.accept import (
@@ -205,7 +205,7 @@ def _remove(case_id: str, embargo_id: str) -> py_trees.behaviour.Behaviour:
         embargo_id=embargo_id,
         sender_actor_id=CASE_MANAGER_ACTOR,
         termination_reason=TerminationReason.EARLY,
-        terminated_at=days_from_now_utc(0),
+        terminated_at=days_from_now(0),
         sender_rule=RemoveEmbargoEventFromCaseReceivedUseCase.sender_entitlement,
     )
 

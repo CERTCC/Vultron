@@ -39,6 +39,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.failed_teardown import fail_pxa_teardown
@@ -2015,7 +2016,7 @@ def _seed_case_pxa(dl: SqliteDataLayer, pxa: CS_pxa) -> None:
     """
     case = dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    case.append_case_status(pxa=pxa)
+    case.append_case_status(ACT_AT, pxa=pxa)
     dl.save(case)
 
 
@@ -2337,7 +2338,7 @@ def _cm_store_with_embargo(
         propose,
         write_consent_rows,
     )
-    from vultron.core.models._helpers import days_from_now_utc
+    from test.support.future_dates import days_from_now
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
@@ -2370,7 +2371,7 @@ def _cm_store_with_embargo(
     embargo = as_EmbargoEvent(
         id_=f"{CASE_ID}/embargo_events/e1",
         context=CASE_ID,
-        end_time=days_from_now_utc(45),
+        end_time=days_from_now(45),
     )
     embargoes = [embargo]
     if em in (EM.ACTIVE, EM.REVISE):
@@ -2381,7 +2382,7 @@ def _cm_store_with_embargo(
         revision = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e2",
             context=CASE_ID,
-            end_time=days_from_now_utc(90),
+            end_time=days_from_now(90),
         )
         propose(case, revision.id_)
         embargoes.append(revision)

@@ -34,6 +34,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, propose, terminate
+from test.support.future_dates import days_from_now
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes.path_branch import OnPaths
@@ -50,7 +51,6 @@ from vultron.core.behaviors.embargo.nodes.relay import (
     case_manager_admits_proposal_guard,
 )
 from vultron.core.behaviors.helpers import TRIGGER_FACTORY_UNAVAILABLE
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -141,10 +141,10 @@ def _seed_case(
         },
     )
     embargo = as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
+        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(60)
     )
     active = as_EmbargoEvent(
-        id_=ACTIVE_ID, context=CASE_ID, end_time=days_from_now_utc(30)
+        id_=ACTIVE_ID, context=CASE_ID, end_time=days_from_now(30)
     )
     if signatories and em_state not in (EM.ACTIVE, EM.REVISE):
         raise ValueError("signatories need an embargo in force")

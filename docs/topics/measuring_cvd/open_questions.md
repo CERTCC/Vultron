@@ -88,7 +88,7 @@ Each statement shows which data a CVD practice must collect to answer the questi
 
 The same question applies to the extended desiderata on [Desiderata from the Process Models](process_model_desiderata.md).
 [ADR-0182](../../adr/0182-cvd-measures-take-chance-from-the-smallest-model-holding-each-desideratum.md) takes each baseline from the smallest model that holds the desideratum's events, not from a walk over the whole case.
-Task [#6067](https://github.com/CERTCC/Vultron/issues/6067){:target="_blank"} computes these baselines.
+[Chance baselines](process_model_desiderata.md#chance-baselines) gives these baselines, and the walk gives each one exactly.
 
 ---
 
