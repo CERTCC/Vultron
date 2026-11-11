@@ -118,9 +118,12 @@ class DispatchAdapter(Protocol):
         ...  # pragma: no cover
 
     def emit_processing_fault(
-        self, event: VultronEvent, failure_class: str
+        self, event: VultronEvent, failure_class: str, *, at: datetime
     ) -> None:
         """Queue ``Create(ProcessingFault)`` of *failure_class* to the sender.
+
+        The fault is authored at *at*, the instant of the act that processed
+        *event* (ADR-0176).
 
         The receiving actor answers *event*'s sender, ``event.actor_id``,
         about the activity ``event.activity_id`` (ASK-07-001).  The fault id

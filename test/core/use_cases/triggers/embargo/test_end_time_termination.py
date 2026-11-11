@@ -27,7 +27,7 @@ from test.support.embargo_register import (
 )
 from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -200,6 +200,7 @@ class _World:
             actor=sender_id,
             context=self.case_id,
             to=[self.manager.id_],
+            at=authored_at(),
         )
         event = cast(
             AddParticipantStatusToParticipantReceivedEvent,

@@ -260,6 +260,7 @@ class _EmitParticipantStatusActivityBase(_EmitSingleActivityBase):
                     participant_id=participant_id,
                     actor=self._actor_id,
                     to=[case_manager_id],
+                    at=self._require_act_instant(),
                 )
                 # Route through the shared emit seam (OX-14-001, ASK-04-008).
                 # factory.add_participant_status_to_participant returns str

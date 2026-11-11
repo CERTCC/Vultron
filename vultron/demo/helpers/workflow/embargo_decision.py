@@ -15,6 +15,7 @@
 
 import logging
 
+from vultron.demo import wall_clock
 from vultron.demo.utils import (
     DataLayerClient,
     logfmt,
@@ -64,6 +65,7 @@ def _send_owner_embargo_decision(
         context=case.id_,
         to=[case_manager_id],
         summary=summary,
+        at=wall_clock.now(),
     )
     logger.info(
         "Sending the owner's %s: %s",

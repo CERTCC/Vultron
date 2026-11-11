@@ -52,7 +52,7 @@ from test.support.embargo_register import (
     agree_to_active_embargo,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
@@ -344,7 +344,7 @@ def test_joined_participant_never_answers_the_original_report_offer(
     )
     dl.create(report)
     offer = rm_submit_report_activity(
-        report, original_vendor.id_, actor=finder.id_
+        report, original_vendor.id_, actor=finder.id_, at=authored_at()
     )
     dl.create(offer)
     dl.create(

@@ -47,7 +47,7 @@ from test.demo.conftest import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import delivered_body
 from test.support.signing import post_delivered, serve_published_profiles
 from vultron.core.models.dimensions import (
@@ -601,6 +601,7 @@ class TestBootstrapSequence:
             target=case,
             actor=_DIRECT_OWNER_ACTOR_ID,
             context=_DIRECT_CASE_ID,
+            at=authored_at(),
         )
         post_delivered(
             participant_tc,

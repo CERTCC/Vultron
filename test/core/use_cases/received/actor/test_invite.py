@@ -33,7 +33,7 @@ from test.support.broken_ledger_entry import tampered
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
 from test.support.ledger_records import with_ledger_records
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import case_stub, settle_as_the_inbox
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -77,14 +77,20 @@ def _addressed_to_inviter(invite, also_to: tuple[str, ...]) -> list[str]:
 def _accept_invite(invite, *, actor: str, also_to: tuple[str, ...] = ()):
     """``Accept(Invite)`` addressed as the trigger adapter sends it."""
     return rm_accept_invite_to_case_activity(
-        invite, actor=actor, to=_addressed_to_inviter(invite, also_to)
+        invite,
+        actor=actor,
+        to=_addressed_to_inviter(invite, also_to),
+        at=authored_at(),
     )
 
 
 def _reject_invite(invite, *, actor: str, also_to: tuple[str, ...] = ()):
     """``Reject(Invite)`` addressed as the trigger adapter sends it."""
     return rm_reject_invite_to_case_activity(
-        invite, actor=actor, to=_addressed_to_inviter(invite, also_to)
+        invite,
+        actor=actor,
+        to=_addressed_to_inviter(invite, also_to),
+        at=authored_at(),
     )
 
 
@@ -173,6 +179,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
         actor=case_actor_id,
         roles=[CVDRole.VENDOR],
         id_=f"{case.id_}/invitations/1",
+        at=authored_at(),
     )
     dl.create(invitee)
     dl.create(case_actor)
@@ -220,6 +227,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
             actor=kwargs["actor"],
             to=kwargs.get("to"),
             id_=kwargs.get("id_") or f"{case.id_}/invitations/full-case-1",
+            at=authored_at(),
         )
         if dl.read(activity.id_) is None:  # a rebuild keeps the first Invite
             dl.create(activity)
@@ -262,6 +270,7 @@ def _deliver_invite_to_invitee(
         target=target,
         actor=sender,
         id_=invite_id,
+        at=authored_at(),
     )
     run_in_act(
         InviteActorToCaseReceivedUseCase(
@@ -311,6 +320,7 @@ def _seed_pcr708_exchange(*, receiver_id: str) -> tuple[SqliteDataLayer, Any]:
         actor=_PCR708_MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{_PCR708_CASE_ID}/invitations/1",
+        at=authored_at(),
     )
     dl.create(invitee)
     dl.create(case)
@@ -363,6 +373,7 @@ class TestInviteActorUseCases:
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/1",
+            at=authored_at(),
         )
 
         event = make_payload(invite, at=dl)
@@ -407,6 +418,7 @@ class TestInviteActorUseCases:
             target=case_id,
             actor=sender_id,
             id_=f"{case_id}/invitations/narrative-1",
+            at=authored_at(),
         )
         event = make_payload(invite, at=dl)
 
@@ -451,6 +463,7 @@ class TestInviteActorUseCases:
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/narrative-2",
+            at=authored_at(),
         )
         event = make_payload(invite, at=dl)
 
@@ -565,6 +578,7 @@ class TestInviteActorUseCases:
             target=case_stub(case_id),
             actor=first_sender,
             id_=f"{case_id}/invitations/a",
+            at=authored_at(),
         )
         invite2 = rm_invite_to_case_activity(
             make(as_Actor, id_=invitee_id),
@@ -572,6 +586,7 @@ class TestInviteActorUseCases:
             target=case_stub(case_id),
             actor=second_sender,
             id_=f"{case_id}/invitations/b",
+            at=authored_at(),
         )
 
         first_result = run_in_act(
@@ -644,6 +659,7 @@ class TestInviteActorUseCases:
             target=case_id,
             actor="https://example.org/users/owner",
             id_=f"{case_id}/invitations/2",
+            at=authored_at(),
         )
         event = make_payload(invite, at=dl)
 
@@ -700,6 +716,7 @@ class TestInviteActorUseCases:
             target=case_id,
             actor=case_manager_id,
             id_=f"{case_id}/invitations/misaddressed-1",
+            at=authored_at(),
         )
         result = run_in_act(
             InviteActorToCaseReceivedUseCase(
@@ -734,6 +751,7 @@ class TestInviteActorUseCases:
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/missing",
+            at=authored_at(),
         )
         field = "target" if missing == "target" else "object_"
         event = make_payload(invite, at=dl).model_copy(update={field: None})
@@ -767,6 +785,7 @@ class TestInviteActorUseCases:
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/one-tree",
+            at=authored_at(),
         )
         calls: list[dict[str, Any]] = []
         real = BTBridge.execute_with_setup
@@ -841,6 +860,7 @@ class TestInviteActorUseCases:
             target=case_id,
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
+            at=authored_at(),
         )
         event = make_payload(invite, at=dl).model_copy(
             update={"receiving_actor_id": case_actor_id}
@@ -935,6 +955,7 @@ class TestInviteActorUseCases:
             target=case_id,
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
+            at=authored_at(),
         )
 
         # Seed the inert participant record the reject will close (CM-11-018).
@@ -1032,6 +1053,7 @@ class TestInviteActorUseCases:
             actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA1/invitations/1",
+            at=authored_at(),
         )
         dl.create(invitee)
         dl.create(case)
@@ -1104,6 +1126,7 @@ class TestInviteActorUseCases:
             actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA2/invitations/1",
+            at=authored_at(),
         )
         dl.create(invitee)
         dl.create(case)
@@ -1176,6 +1199,7 @@ class TestInviteActorUseCases:
             actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseRM001/invitations/1",
+            at=authored_at(),
         )
         dl.create(invitee)
         dl.create(case)
@@ -1313,6 +1337,7 @@ class TestInviteActorUseCases:
             actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseRM002/invitations/1",
+            at=authored_at(),
         )
         dl.create(invitee)
         dl.create(case_manager_participant)
@@ -1436,6 +1461,7 @@ class TestInviteActorUseCases:
             actor=case_actor_id,
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA3/invitations/1",
+            at=authored_at(),
         )
         dl.create(invitee)
         seed_inert_invitee(dl, case, invitee_id)
@@ -1871,6 +1897,7 @@ class TestInviteActorUseCases:
             actor=case_actor_id,
             roles=[CVDRole.VENDOR],
             id_=f"{case.id_}/invitations/1",
+            at=authored_at(),
         )
         dl.create(invitee)
         dl.create(case_actor)
@@ -2133,6 +2160,7 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
             target=case_id,
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
+            at=authored_at(),
         )
         dl.create(invite)
         ledger_before = [
@@ -2213,6 +2241,7 @@ class TestAcceptInviteRolesAC4:
             actor="https://test.example/api/v2/actors/test-actor",
             id_="https://example.org/cases/ac4-test/invitations/1",
             roles=["vendor"],
+            at=authored_at(),
         )
         dl.create(invitee)
         dl.create(case)
@@ -2276,6 +2305,7 @@ class TestAcceptInviteRolesAC4:
             target=case.id_,
             actor="https://test.example/api/v2/actors/test-actor",
             id_="https://example.org/cases/ac4-neg/invitations/1",
+            at=authored_at(),
         )
         dl.create(invitee)
         dl.create(case)
@@ -2327,6 +2357,7 @@ class TestInviteDispositions:
             actor=issuer or self._OWNER,
             id_=f"{case_id}/invitations/1",
             roles=[CVDRole.VENDOR],
+            at=authored_at(),
         )
 
     def _recorded_invite(self, dl, case_id: str):

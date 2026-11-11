@@ -136,6 +136,7 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
                     proposal=self._proposal_dict,
                     to=[self._proposer_uri],
                     result=case_id,
+                    at=self._require_act_instant(),
                 )
             )
         except VultronError as exc:

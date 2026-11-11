@@ -19,6 +19,8 @@ Activate, refuse a proposal, withdraw, announce and remove an embargo.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+from datetime import datetime
+
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories._construct import build_activity
@@ -51,6 +53,8 @@ def activate_embargo_activity(
     embargo: as_EmbargoEvent,
     in_reply_to: str,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Add:
     """Build an Add(EmbargoEvent)[target=VulnerabilityCase].
@@ -79,6 +83,7 @@ def activate_embargo_activity(
     return build_activity(
         "activate_embargo_activity",
         _ActivateEmbargoActivity,
+        at,
         lambda: {
             "object_": embargo,
             "target": case_target_ref(target),
@@ -92,6 +97,8 @@ def reject_embargo_proposal_activity(
     embargo: as_EmbargoEvent,
     in_reply_to: str,
     target: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(EmbargoEvent)[target=VulnerabilityCase].
@@ -119,6 +126,7 @@ def reject_embargo_proposal_activity(
     return build_activity(
         "reject_embargo_proposal_activity",
         _RejectEmbargoProposalActivity,
+        at,
         lambda: {
             "object_": embargo,
             "target": case_target_ref(target),
@@ -131,6 +139,8 @@ def reject_embargo_proposal_activity(
 def withdraw_from_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Leave:
     """Build a Leave(EmbargoEvent)[context=VulnerabilityCase].
@@ -158,6 +168,7 @@ def withdraw_from_embargo_activity(
     return build_activity(
         "withdraw_from_embargo_activity",
         _WithdrawFromEmbargoActivity,
+        at,
         lambda: {"object_": embargo, "context": context, **kwargs},
     )
 
@@ -165,6 +176,8 @@ def withdraw_from_embargo_activity(
 def announce_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Announce:
     """Build an Announce(EmbargoEvent) — announces an active embargo.
@@ -185,6 +198,7 @@ def announce_embargo_activity(
     return build_activity(
         "announce_embargo_activity",
         _AnnounceEmbargoActivity,
+        at,
         lambda: {"object_": embargo, "context": context, **kwargs},
     )
 
@@ -203,6 +217,7 @@ def remove_embargo_from_case_activity(
     *,
     reason: TerminationReason,
     cause: TerminationCause | None = None,
+    at: datetime,
     **kwargs,
 ) -> as_Remove:
     """Build a Remove(EmbargoEvent), the case in ``origin``.
@@ -243,6 +258,7 @@ def remove_embargo_from_case_activity(
     return build_activity(
         "remove_embargo_from_case_activity",
         _RemoveEmbargoFromCaseActivity,
+        at,
         lambda: {
             "object_": embargo,
             "origin": origin,

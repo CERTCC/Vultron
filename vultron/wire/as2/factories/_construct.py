@@ -13,8 +13,9 @@
 """The one place an outbound factory builds its activity.
 
 Every factory in :mod:`vultron.wire.as2.factories` builds its activity
-through :func:`build_activity`, so the rule each one keeps is written once:
-a validation failure is logged and raised as
+through :func:`build_activity`, so the rules each one keeps are written
+once: the activity is authored at the act's instant, its ``published`` and
+``updated`` (ADR-0176), and a validation failure is logged and raised as
 :class:`~vultron.errors.VultronActivityConstructionError`, chained to its
 cause (AF-04).
 
@@ -27,6 +28,7 @@ must reach the caller as a construction error too.
 
 import logging
 from collections.abc import Callable, Mapping
+from datetime import datetime
 from typing import Any
 
 from pydantic import ValidationError
@@ -36,20 +38,53 @@ from vultron.errors import VultronActivityConstructionError
 logger = logging.getLogger(__name__)
 
 
+def guarded_build[T](
+    label: str,
+    build: Callable[[], T],
+    *,
+    also: tuple[type[Exception], ...] = (),
+) -> T:
+    """Return ``build()``, reporting its validation failure for *label*.
+
+    For a part of an activity that is not itself an activity (a
+    ``LedgerPosition``); an activity is built by :func:`build_activity`.
+
+    Raises:
+        VultronActivityConstructionError: When *build* raises
+            ``ValidationError`` or one of *also*.
+    """
+    caught: tuple[type[Exception], ...] = (ValidationError, *also)
+    try:
+        return build()
+    except caught as exc:
+        logger.warning("%s: invalid arguments: %s", label, exc)
+        raise VultronActivityConstructionError(
+            f"{label}: invalid arguments"
+        ) from exc
+
+
 def build_activity[A](
     label: str,
     cls: Callable[..., A],
+    at: datetime,
     fields: Callable[[], Mapping[str, Any]],
     *,
     also: tuple[type[Exception], ...] = (),
 ) -> A:
-    """Build ``cls(**fields())`` for the factory named *label*.
+    """Build ``cls(**fields())``, authored at *at*, for the factory *label*.
+
+    *at* is the instant of the act that authors the activity (ADR-0176).
+    It is the activity's ``published`` and ``updated``, set here and nowhere
+    else, so every outbound activity carries the time its proof is created
+    at (``signing.authored_time``).  A field mapping that also names
+    ``published`` or ``updated`` is a caller's error (``TypeError``).
 
     Args:
         label: The factory's name, which starts the error message.
         cls: The activity class (or a callable that builds one).
-        fields: Returns the constructor's keyword arguments.  It runs inside
-            the guarded scope, so an argument expression that raises
+        at: The authoring act's instant.
+        fields: Returns the constructor's other keyword arguments.  It runs
+            inside the guarded scope, so an argument expression that raises
             ``ValidationError`` is reported like a constructor failure.
         also: Further exception types to report the same way, for a factory
             whose argument parsing raises another error (``parse_activity``
@@ -59,14 +94,11 @@ def build_activity[A](
         VultronActivityConstructionError: When building the fields or the
             activity raises ``ValidationError`` or one of *also*.
     """
-    caught: tuple[type[Exception], ...] = (ValidationError, *also)
-    try:
-        return cls(**fields())
-    except caught as exc:
-        logger.warning("%s: invalid arguments: %s", label, exc)
-        raise VultronActivityConstructionError(
-            f"{label}: invalid arguments"
-        ) from exc
+    return guarded_build(
+        label,
+        lambda: cls(**fields(), published=at, updated=at),
+        also=also,
+    )
 
 
-__all__ = ["build_activity"]
+__all__ = ["build_activity", "guarded_build"]

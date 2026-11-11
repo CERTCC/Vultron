@@ -32,7 +32,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.inbox_replay import held_depth, ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import ledger_entry_to_wire
@@ -106,6 +106,7 @@ def test_the_wire_vocabulary_carries_the_hash_mismatch_class() -> None:
         failed_activity_id=f"{_CASE_ID}/ledger/entries/0/announce",
         failure_class=_HASH_MISMATCH,
         to=[_CASE_ACTOR_ID],
+        at=authored_at(),
     )
     body = read_sealed_body_dict(dl, fault_id)
     assert body is not None
@@ -272,6 +273,7 @@ def _manager(
         entry=ledger_entry_to_wire(entry),
         actor=_CASE_ACTOR_ID,
         to=[_PARTICIPANT_ID],
+        at=authored_at(),
     )
     dl.save(announce)
     return dl, entry, announce.id_
@@ -290,6 +292,7 @@ def _fault(
             in_reply_to=announce_id,
         ),
         to=[_CASE_ACTOR_ID],
+        at=authored_at(),
     )
     return run_in_act(
         CreateProcessingFaultReceivedUseCase(

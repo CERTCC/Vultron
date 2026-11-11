@@ -20,6 +20,7 @@ participant membership and status.
 
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import cast
 
 from vultron.adapters.received_archive import (
@@ -74,6 +75,8 @@ class _ParticipantsMixin:
         cp_offer_id: str,
         actor: str,
         to: list[str] | None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build, persist and seal the Case Owner's answer to a forwarded Offer.
 
@@ -89,7 +92,9 @@ class _ParticipantsMixin:
             ),
         )
         target = _as_id(getattr(cp_offer, "target", None))
-        activity = build(offer=cp_offer, actor=actor, to=to, target=target)
+        activity = build(
+            offer=cp_offer, actor=actor, to=to, target=target, at=at
+        )
         return _create_and_seal(self._dl, activity, label)
 
     def accept_case_participant_offer(
@@ -97,6 +102,8 @@ class _ParticipantsMixin:
         cp_offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer(CaseParticipant))`` activity.
 
@@ -111,6 +118,7 @@ class _ParticipantsMixin:
             cp_offer_id,
             actor,
             to,
+            at=at,
         )
 
     def reject_case_participant_offer(
@@ -118,6 +126,8 @@ class _ParticipantsMixin:
         cp_offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Offer(CaseParticipant))`` activity.
 
@@ -132,6 +142,7 @@ class _ParticipantsMixin:
             cp_offer_id,
             actor,
             to,
+            at=at,
         )
 
     def suggest_actor_to_case(
@@ -142,6 +153,8 @@ class _ParticipantsMixin:
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Offer(Actor)[target=VulnerabilityCase]``
         recommendation activity."""
@@ -152,6 +165,7 @@ class _ParticipantsMixin:
             target=case_id,
             suggested_roles=roles,
             **extra,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "suggest_actor_to_case")
 
@@ -166,6 +180,8 @@ class _ParticipantsMixin:
         id_: str | None = None,
         roles: list | None = None,
         content: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an Offer(CaseParticipant)[target=VulnerabilityCase].
 
@@ -191,6 +207,7 @@ class _ParticipantsMixin:
             target=case_id,
             roles=roles,
             **extra,
+            at=at,
         )
         # Save the inline CaseParticipant so dl.read() can expand it during
         # outbox delivery (AKM-03-003: dehydration stores object_ as a bare ID).
@@ -207,23 +224,25 @@ class _ParticipantsMixin:
         recommendation_id: str,
         recommended_id: str,
         case_id: str,
+        *,
+        at: datetime,
     ) -> as_Offer:
         """The recommender's ``Offer(Actor)``, rebuilt for the answer to embed.
 
         Built only from what this actor knows: the recommended actor as held
         (:func:`_held_actor`), and no ``published`` or ``updated``, which the
-        recommender stated and this actor would otherwise read from its own
-        clock (AKM-02-006).  So every rebuild under the same ids produces the
-        same body (OX-06-002).
+        recommender stated and this actor does not know (AKM-02-006).  The
+        factory authors it at *at*, and the rebuild drops both times, so
+        every rebuild under the same ids produces the same body (OX-06-002).
         """
-        return recommend_actor_activity(
+        rebuilt = recommend_actor_activity(
             recommended=_held_actor(self._dl, recommended_id),
             target=case_id,
             id_=recommendation_id,
             actor=recommender_id,
-            published=None,
-            updated=None,
+            at=at,
         )
+        return rebuilt.model_copy(update={"published": None, "updated": None})
 
     def emit_accept_actor_recommendation(
         self,
@@ -234,6 +253,8 @@ class _ParticipantsMixin:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an AcceptActorRecommendation activity.
 
@@ -243,7 +264,7 @@ class _ParticipantsMixin:
         the recommendation it answers.
         """
         recommendation = self._rebuilt_recommendation(
-            recommender_id, recommendation_id, recommended_id, case_id
+            recommender_id, recommendation_id, recommended_id, case_id, at=at
         )
         extra = _addressing(actor, to or [recommender_id], id_)
         activity = accept_actor_recommendation_activity(
@@ -251,6 +272,7 @@ class _ParticipantsMixin:
             target=case_id,
             in_reply_to=recommendation_id,
             **extra,
+            at=at,
         )
         return _create_and_seal(
             self._dl, activity, "emit_accept_actor_recommendation"
@@ -265,6 +287,8 @@ class _ParticipantsMixin:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a RejectActorRecommendation activity.
 
@@ -273,7 +297,7 @@ class _ParticipantsMixin:
         names the recommendation it answers.
         """
         recommendation = self._rebuilt_recommendation(
-            recommender_id, recommendation_id, recommended_id, case_id
+            recommender_id, recommendation_id, recommended_id, case_id, at=at
         )
         extra = _addressing(actor, to or [recommender_id], id_)
         activity = reject_actor_recommendation_activity(
@@ -281,6 +305,7 @@ class _ParticipantsMixin:
             target=case_id,
             in_reply_to=recommendation_id,
             **extra,
+            at=at,
         )
         return _create_and_seal(
             self._dl, activity, "emit_reject_actor_recommendation"
@@ -293,6 +318,8 @@ class _ParticipantsMixin:
         actor: str,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(CaseParticipant)[target=VulnerabilityCase]``.
 
@@ -308,6 +335,7 @@ class _ParticipantsMixin:
             actor=actor,
             to=to,
             attributed_to=attributed_to,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "add_participant_to_case")
 
@@ -318,6 +346,8 @@ class _ParticipantsMixin:
         actor: str,
         attributed_to: str,
         to: list[str],
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(CaseParticipant)[target=VulnerabilityCase]``.
 
@@ -335,6 +365,7 @@ class _ParticipantsMixin:
             actor=actor,
             attributed_to=attributed_to,
             to=to,
+            at=at,
         )
         return _create_and_seal(
             self._dl, activity, "remove_participant_from_case"
@@ -346,6 +377,8 @@ class _ParticipantsMixin:
         participant_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> str:
         """Create and persist an ``Add(ParticipantStatus)[target=CaseParticipant]``."""
         raw = self._dl.read(status_id)
@@ -366,6 +399,7 @@ class _ParticipantsMixin:
             target=participant_id,
             actor=actor,
             to=to,
+            at=at,
         )
         return _create_and_seal(
             self._dl, activity, "add_participant_status_to_participant"

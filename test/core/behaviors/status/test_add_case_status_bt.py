@@ -56,7 +56,7 @@ from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import TEST_SENDER_POSITION, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -175,7 +175,11 @@ def _from_manager(
 ):
     """The CASE_MANAGER's ``Add(CaseStatus)``, addressed to *replica_id*."""
     return add_status_to_case_activity(
-        status, target=target, actor=CASE_MANAGER_ID, to=[replica_id]
+        status,
+        target=target,
+        actor=CASE_MANAGER_ID,
+        to=[replica_id],
+        at=authored_at(),
     )
 
 
@@ -614,7 +618,11 @@ class TestAddCaseStatusTreeSenderRule:
         seed_case_participant(populated_dl, case, peer)
         populated_dl.save(case)
         activity = add_status_to_case_activity(
-            status_obj, target=CASE_ID, actor=peer, to=[ACTOR_ID]
+            status_obj,
+            target=CASE_ID,
+            actor=peer,
+            to=[ACTOR_ID],
+            at=authored_at(),
         )
 
         result, tree = _run_at_replica(populated_dl, make_payload(activity))
@@ -654,6 +662,7 @@ class TestAddCaseStatusTreeSenderRule:
             target=CASE_ID,
             actor="https://example.org/actors/stranger",
             to=[ACTOR_ID],
+            at=authored_at(),
         )
 
         result, tree = _run_at_replica(dl, make_payload(activity, at=dl))
@@ -689,7 +698,11 @@ class TestAddCaseStatusTreeSenderRule:
 
         for sender in (ACTOR_ID, CASE_MANAGER_ID):
             activity = add_status_to_case_activity(
-                status_obj, target=CASE_ID, actor=sender, to=[CASE_MANAGER_ID]
+                status_obj,
+                target=CASE_ID,
+                actor=sender,
+                to=[CASE_MANAGER_ID],
+                at=authored_at(),
             )
             result, tree = _run_at_replica(dl, make_payload(activity, at=dl))
 
@@ -1424,6 +1437,7 @@ class TestThreatTerminationBranchNode:
             WireCaseLedgerEntry.model_validate(entry.model_dump(mode="json")),
             actor=CASE_MANAGER_ID,
             to=[ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             AnnounceLogEntryReceivedEvent, received_event(activity, at=dl)
@@ -1512,7 +1526,11 @@ class TestThreatTerminationBranchNodeProposedEm:
             end_time=days_from_now(45),
         )
         invite = em_propose_embargo_activity(
-            embargo, context=CASE_ID, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
+            embargo,
+            context=CASE_ID,
+            actor=ACTOR_ID,
+            to=[CASE_MANAGER_ID],
+            at=authored_at(),
         )
         cm_participant = make(
             CaseParticipant,
@@ -1926,6 +1944,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
                     ),
                     actor=sender,
                     to=[REPLICA_ID],
+                    at=authored_at(),
                 ),
                 at=dl,
             ),

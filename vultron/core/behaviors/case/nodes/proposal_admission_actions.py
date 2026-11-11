@@ -289,6 +289,7 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
             proposal=self._proposal_dict,
             to=[self._proposer_uri],
             summary=reason,
+            at=self._require_act_instant(),
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

@@ -20,6 +20,7 @@ Spec coverage:
 import ast
 import logging
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -41,13 +42,21 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
-from vultron.wire.as2.factories._construct import build_activity
+from vultron.wire.as2.factories._construct import (
+    build_activity,
+    guarded_build,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
 
 class _Thing(BaseModel):
     count: int
+    published: datetime
+    updated: datetime
+
+
+_AT = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
 
 
 def _refuse() -> int:
@@ -57,8 +66,35 @@ def _refuse() -> int:
 
 
 def test_build_activity_returns_the_built_object() -> None:
-    built = build_activity("make_thing", _Thing, lambda: {"count": 3})
-    assert built == _Thing(count=3)
+    built = build_activity("make_thing", _Thing, _AT, lambda: {"count": 3})
+    assert built == _Thing(count=3, published=_AT, updated=_AT)
+
+
+@pytest.mark.spec("CS-13-002")
+def test_the_activity_is_authored_at_the_acts_instant() -> None:
+    """*at* is the activity's ``published`` and ``updated`` (ADR-0176)."""
+    activity = rm_engage_case_activity(
+        "https://example.org/cases/1",
+        actor="https://example.org/actors/a",
+        at=_AT,
+    )
+    assert activity.published == _AT
+    assert activity.updated == _AT
+
+
+def test_fields_naming_published_are_a_callers_error() -> None:
+    """The time comes from *at* alone; a second spelling is refused."""
+    with pytest.raises(TypeError):
+        build_activity(
+            "make_thing", _Thing, _AT, lambda: {"count": 3, "published": _AT}
+        )
+
+
+def test_guarded_build_reports_a_part_that_is_not_an_activity() -> None:
+    with pytest.raises(
+        VultronActivityConstructionError, match=r"^part: invalid arguments$"
+    ):
+        guarded_build("part", lambda: _Thing.model_validate({"count": "x"}))
 
 
 @pytest.mark.spec("AF-04-001")
@@ -71,7 +107,7 @@ def test_constructor_validation_error_becomes_construction_error(
             VultronActivityConstructionError,
             match=r"^make_thing: invalid arguments$",
         ) as info:
-            build_activity("make_thing", _Thing, lambda: {"count": "x"})
+            build_activity("make_thing", _Thing, _AT, lambda: {"count": "x"})
     assert isinstance(info.value.__cause__, ValidationError)
     assert any(
         record.levelno == logging.WARNING
@@ -84,7 +120,7 @@ def test_constructor_validation_error_becomes_construction_error(
 def test_argument_expression_refusal_becomes_construction_error() -> None:
     """The fields run inside the guarded scope, so their refusal is caught."""
     with pytest.raises(VultronActivityConstructionError) as info:
-        build_activity("make_thing", _Thing, lambda: {"count": _refuse()})
+        build_activity("make_thing", _Thing, _AT, lambda: {"count": _refuse()})
     assert isinstance(info.value.__cause__, ValidationError)
 
 
@@ -93,7 +129,7 @@ def test_also_names_further_exception_types() -> None:
         raise KeyError("missing")
 
     with pytest.raises(VultronActivityConstructionError) as info:
-        build_activity("make_thing", _Thing, fields, also=(KeyError,))
+        build_activity("make_thing", _Thing, _AT, fields, also=(KeyError,))
     assert isinstance(info.value.__cause__, KeyError)
 
 
@@ -102,7 +138,7 @@ def test_other_exceptions_propagate_unchanged() -> None:
         raise KeyError("missing")
 
     with pytest.raises(KeyError):
-        build_activity("make_thing", _Thing, fields)
+        build_activity("make_thing", _Thing, _AT, fields)
 
 
 @pytest.mark.spec("AF-04-001")
@@ -112,7 +148,9 @@ def test_named_case_refusal_reaches_the_caller_as_construction_error() -> None:
         VultronActivityConstructionError,
         match=r"^rm_engage_case_activity: invalid arguments$",
     ):
-        rm_engage_case_activity("", actor="https://example.org/actors/a")
+        rm_engage_case_activity(
+            "", actor="https://example.org/actors/a", at=_AT
+        )
 
 
 _REPORT_FACTORIES = (
@@ -139,9 +177,10 @@ def test_report_factories_log_before_raising(
                 factory(
                     cast(Any, "not-a-report"),
                     to="https://example.org/actors/b",
+                    at=_AT,
                 )
             elif factory is rm_create_report_activity:
-                factory(cast(Any, "not-a-report"))
+                factory(cast(Any, "not-a-report"), at=_AT)
             else:
                 # An Offer of something other than a report.
                 factory(
@@ -149,7 +188,8 @@ def test_report_factories_log_before_raising(
                         as_Offer,
                         actor="https://example.org/actors/a",
                         object_="https://example.org/notes/1",
-                    )
+                    ),
+                    at=_AT,
                 )
     assert any(
         f"{factory.__name__}: invalid arguments:" in r.getMessage()
@@ -166,7 +206,7 @@ def test_processing_fault_factory_reports_a_validation_failure() -> None:
         in_reply_to="https://example.org/activities/1",
     )
     with pytest.raises(VultronActivityConstructionError) as info:
-        create_processing_fault_activity(actor="", fault=fault)
+        create_processing_fault_activity(actor="", fault=fault, at=_AT)
     assert isinstance(info.value.__cause__, ValidationError)
 
 
@@ -177,16 +217,14 @@ _FACTORIES = (
 # Pinned exemption set: the scopes in the factory package that catch a
 # validation failure themselves.  The helper is the one place a factory's
 # failure is caught (CS-22-001); the others build no outbound activity: two
-# coerce a held Invite to the class a reply embeds, one parses an Offer, and
-# one parses a ``published`` string (``ValueError``, which ``ValidationError``
-# subclasses); each raises its own message, not "invalid arguments".
-# permanent: AF-04-001, CS-22-001 (build_activity is the one handler)
+# coerce a held Invite to the class a reply embeds, and one parses an Offer;
+# each raises its own message, not "invalid arguments".
+# permanent: AF-04-001, CS-22-001 (the helper is the one handler)
 OWN_VALIDATION_HANDLER_EXEMPTIONS = frozenset(
     {
-        ("_construct.py", "build_activity"),
+        ("_construct.py", "guarded_build"),
         ("case/full_case_invite.py", "_as_full_case_invite"),
         ("case/invite.py", "_as_case_invite"),
-        ("embargo/negotiation.py", "_published_instant"),
         ("report.py", "parse_submit_report_offer"),
     }
 )
@@ -220,7 +258,7 @@ def _may_catch_validation_error(
     A bare ``except``, ``Exception``, ``BaseException``, ``ValidationError``
     under any alias or as an attribute (``pydantic.ValidationError``), and a
     name that is no known exception class (a variable holding a tuple, as
-    ``build_activity``'s does) all can.
+    ``guarded_build``'s does) all can.
     """
     if handler.type is None:
         return True

@@ -20,6 +20,7 @@
 Case Actor / CASE_MANAGER delegation: participant-role offers and answers.
 """
 
+from datetime import datetime
 from typing import Protocol
 
 from vultron.enums.roles import CVDRole
@@ -38,6 +39,8 @@ class TriggerRolesPort(Protocol):
         attributed_to: str | None = None,
         in_reply_to: str | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``.
 
@@ -63,6 +66,8 @@ class TriggerRolesPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
@@ -86,6 +91,8 @@ class TriggerRolesPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 

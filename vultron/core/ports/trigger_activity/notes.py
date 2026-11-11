@@ -20,6 +20,7 @@
 Note creation and attachment.
 """
 
+from datetime import datetime
 from typing import Protocol
 
 
@@ -34,6 +35,8 @@ class TriggerNotesPort(Protocol):
         attributed_to: str,
         in_reply_to: str | None = None,
         note_id: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a Note object; return ``(note_id, note_json)``.
 
@@ -51,6 +54,8 @@ class TriggerNotesPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(Note)[target=VulnerabilityCase]`` activity.
 

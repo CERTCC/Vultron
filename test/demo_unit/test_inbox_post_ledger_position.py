@@ -23,7 +23,7 @@ from unittest.mock import MagicMock
 import httpx2 as httpx
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.demo.utils import DataLayerClient
 from vultron.demo.utils.inbox import _stamped_as_in_step
@@ -64,6 +64,7 @@ def _note():
         make(as_Note, id_=f"{_CASE}/notes/1", content="n", context=_CASE),
         target=_CASE,
         actor="https://example.org/users/finder",
+        at=authored_at(),
     )
 
 

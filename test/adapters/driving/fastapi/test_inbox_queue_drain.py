@@ -32,7 +32,7 @@ import pytest
 from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import (
     inbox_queue_drain as drain,
@@ -128,6 +128,7 @@ def _queued_item(dl: SqliteDataLayer) -> as_Activity:
             context=_CASE,
             actor=_SENDER,
             to=[_RECEIVER],
+            at=authored_at(),
         ),
     )
 
@@ -469,6 +470,7 @@ def test_a_dead_lettered_fault_is_not_answered_with_a_fault(
                 in_reply_to="https://example.org/activities/earlier",
             ),
             to=[_RECEIVER],
+            at=authored_at(),
         ),
     )
     dispatcher = _dispatcher(_raises)

@@ -22,7 +22,7 @@ from pydantic import ValidationError
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, register
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.trigger_activity_adapter import _base
 from vultron.adapters.driven.trigger_activity_adapter._base import (
     _to_wire_object,
@@ -78,6 +78,7 @@ class TestCreateCase:
         activity_id, activity_dict = adapter.create_case(
             case_id=case.id_,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -91,6 +92,7 @@ class TestCreateCase:
             case_id=case.id_,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -103,6 +105,7 @@ class TestEngageCase:
         activity_id, activity_dict = adapter.engage_case(
             case_id=case.id_,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -115,6 +118,7 @@ class TestEngageCase:
             case_id=case.id_,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -127,6 +131,7 @@ class TestDeferCase:
         activity_id, activity_dict = adapter.defer_case(
             case_id=case.id_,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -139,6 +144,7 @@ class TestDeferCase:
             case_id=case.id_,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -155,6 +161,7 @@ class TestAddObjectToCase:
             object_id=note.id_,
             case_id=case.id_,
             to=[_PEER],
+            at=authored_at(),
         )
 
         assert activity_id
@@ -170,6 +177,7 @@ class TestAddObjectToCase:
             object_id=note.id_,
             case_id=case.id_,
             to=[_PEER],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -185,6 +193,7 @@ class TestAddObjectToCase:
             object_id=note.id_,
             case_id=case.id_,
             to=[_PEER],
+            at=authored_at(),
         )
 
         activity = dl.read(activity_id)
@@ -222,7 +231,7 @@ class TestAddObjectToCaseSemantics:
 
         assert (
             adapter.add_object_to_case_semantics(
-                object_id=obj.id_, case_id=case.id_
+                object_id=obj.id_, case_id=case.id_, at=authored_at()
             )
             == semantics
         )
@@ -272,7 +281,7 @@ class TestAddObjectToCaseSemantics:
 
         with pytest.raises(VultronValidationError, match="cannot be added"):
             adapter.add_object_to_case_semantics(
-                object_id=obj.id_, case_id=case.id_
+                object_id=obj.id_, case_id=case.id_, at=authored_at()
             )
 
         assert len(dl.outbox_list()) == before
@@ -283,7 +292,9 @@ class TestAddObjectToCaseSemantics:
 
         with pytest.raises(VultronNotFoundError):
             adapter.add_object_to_case_semantics(
-                object_id=note.id_, case_id="urn:test:absent-case"
+                object_id=note.id_,
+                case_id="urn:test:absent-case",
+                at=authored_at(),
             )
 
 
@@ -322,6 +333,7 @@ class TestAddObjectToCaseConversionBranch:
                 object_id=fake_id,
                 case_id=case.id_,
                 to=[_PEER],
+                at=authored_at(),
             )
 
         assert activity_id
@@ -349,6 +361,7 @@ class TestAddObjectToCaseConversionBranch:
                     object_id=fake_id,
                     case_id=case.id_,
                     to=[_PEER],
+                    at=authored_at(),
                 )
 
     def test_core_record_raises_construction_error(self, adapter, dl):
@@ -381,6 +394,7 @@ class TestAddObjectToCaseConversionBranch:
                     object_id=fake_id,
                     case_id=case.id_,
                     to=[_PEER],
+                    at=authored_at(),
                 )
 
     def test_core_only_class_error_names_its_type(self, adapter, dl):
@@ -410,6 +424,7 @@ class TestAddObjectToCaseConversionBranch:
                     object_id=fake_id,
                     case_id=case.id_,
                     to=[_PEER],
+                    at=authored_at(),
                 )
 
     def test_missing_object_raises_not_found(self, adapter, dl):
@@ -426,6 +441,7 @@ class TestAddObjectToCaseConversionBranch:
                 object_id="urn:test:absent-1",
                 case_id=case.id_,
                 to=[_PEER],
+                at=authored_at(),
             )
 
         assert exc_info.value.resource_id == "urn:test:absent-1"
@@ -452,6 +468,7 @@ class TestAddObjectToCaseConversionBranch:
                     object_id=note.id_,
                     case_id=case.id_,
                     to=[_PEER],
+                    at=authored_at(),
                 )
 
         assert isinstance(exc_info.value.__cause__, ValidationError)
@@ -552,7 +569,11 @@ class TestAnnounceVulnerabilityCase:
 
         with pytest.raises(VultronUnsignableJsonError):
             adapter.announce_vulnerability_case(
-                case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+                case_id=case.id_,
+                actor=_ACTOR,
+                context_id=case.id_,
+                to=[_PEER],
+                at=authored_at(),
             )
 
         assert dl.list_objects("Announce") == []
@@ -565,6 +586,7 @@ class TestAnnounceVulnerabilityCase:
             actor=_ACTOR,
             context_id=_CONTEXT_ID,
             to=[_PEER],
+            at=authored_at(),
         )
 
         assert activity_id
@@ -577,6 +599,7 @@ class TestAnnounceVulnerabilityCase:
             actor=_ACTOR,
             context_id=_CONTEXT_ID,
             to=[_PEER],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -591,7 +614,11 @@ class TestAnnounceVulnerabilityCase:
         case = _make_owned_case(dl)
 
         activity_id = adapter.announce_vulnerability_case(
-            case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+            case_id=case.id_,
+            actor=_ACTOR,
+            context_id=case.id_,
+            to=[_PEER],
+            at=authored_at(),
         )
 
         body = read_sealed_body_dict(dl, activity_id)
@@ -671,7 +698,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
         case, participant_ids, report_id = self._case_with_participant_ids(dl)
 
         activity_id, _ = adapter.create_case(
-            case_id=case.id_, actor=_ACTOR, to=[_PEER]
+            case_id=case.id_, actor=_ACTOR, to=[_PEER], at=authored_at()
         )
 
         wire_case = self._sealed_case(dl, activity_id)
@@ -694,11 +721,15 @@ class TestCaseOnTheWireCarriesItsParticipants:
         case, _, report_id = self._case_with_participant_ids(dl)
         if verb == "create":
             activity_id, _ = adapter.create_case(
-                case_id=case.id_, actor=_ACTOR, to=[_PEER]
+                case_id=case.id_, actor=_ACTOR, to=[_PEER], at=authored_at()
             )
         else:
             activity_id = adapter.announce_vulnerability_case(
-                case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+                case_id=case.id_,
+                actor=_ACTOR,
+                context_id=case.id_,
+                to=[_PEER],
+                at=authored_at(),
             )
 
         from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
@@ -725,7 +756,9 @@ class TestCaseOnTheWireCarriesItsParticipants:
         assert dl.delete("CaseParticipant", sorted(participant_ids)[0])
 
         with pytest.raises(VultronValidationError, match="CBT-01-007"):
-            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+            adapter.create_case(
+                case_id=case.id_, actor=_ACTOR, to=[_PEER], at=authored_at()
+            )
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("CBT-01-007")
@@ -741,7 +774,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
 
         with caplog.at_level("WARNING"):
             activity_id, _ = adapter.create_case(
-                case_id=case.id_, actor=_ACTOR, to=[_PEER]
+                case_id=case.id_, actor=_ACTOR, to=[_PEER], at=authored_at()
             )
 
         wire_case = self._sealed_case(dl, activity_id)
@@ -786,7 +819,11 @@ class TestCaseOnTheWireCarriesItsParticipants:
         dl.create(case)
 
         activity_id = adapter.announce_vulnerability_case(
-            case_id=case_id, actor=_ACTOR, context_id=case_id, to=[_PEER]
+            case_id=case_id,
+            actor=_ACTOR,
+            context_id=case_id,
+            to=[_PEER],
+            at=authored_at(),
         )
 
         [carried] = self._sealed_case(dl, activity_id)["caseParticipants"]
@@ -801,7 +838,11 @@ class TestCaseOnTheWireCarriesItsParticipants:
         case, participant_ids, _ = self._case_with_participant_ids(dl)
 
         activity_id = adapter.announce_vulnerability_case(
-            case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+            case_id=case.id_,
+            actor=_ACTOR,
+            context_id=case.id_,
+            to=[_PEER],
+            at=authored_at(),
         )
 
         carried = self._sealed_case(dl, activity_id)["caseParticipants"]
@@ -812,7 +853,9 @@ class TestCaseOnTheWireCarriesItsParticipants:
         """Carrying is done on a copy: the store keeps its reference shape."""
         case, participant_ids, _ = self._case_with_participant_ids(dl)
 
-        adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+        adapter.create_case(
+            case_id=case.id_, actor=_ACTOR, to=[_PEER], at=authored_at()
+        )
 
         stored = dl.read(case.id_)
         assert {
@@ -836,7 +879,11 @@ class TestCaseOnTheWireCarriesItsParticipants:
 
         with caplog.at_level("WARNING"):
             activity_id = adapter.announce_vulnerability_case(
-                case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+                case_id=case.id_,
+                actor=_ACTOR,
+                context_id=case.id_,
+                to=[_PEER],
+                at=authored_at(),
             )
 
         assert self._sealed_case(dl, activity_id)["caseParticipants"] == [
@@ -862,7 +909,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
         dl.create(case)
 
         activity_id, _ = adapter.create_case(
-            case_id=case.id_, actor=_ACTOR, to=[_PEER]
+            case_id=case.id_, actor=_ACTOR, to=[_PEER], at=authored_at()
         )
 
         (entry,) = self._sealed_case(dl, activity_id)["embargoRegister"]
@@ -882,7 +929,9 @@ class TestCaseOnTheWireCarriesItsParticipants:
         dl.create(case)
 
         with pytest.raises(VultronValidationError, match="EMB-18-003"):
-            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+            adapter.create_case(
+                case_id=case.id_, actor=_ACTOR, to=[_PEER], at=authored_at()
+            )
 
     @pytest.mark.spec("EMB-18-003")
     def test_an_active_embargo_naming_a_non_embargo_record_is_not_sent(
@@ -899,7 +948,9 @@ class TestCaseOnTheWireCarriesItsParticipants:
         dl.create(case)
 
         with pytest.raises(VultronValidationError, match="EMB-18-003"):
-            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+            adapter.create_case(
+                case_id=case.id_, actor=_ACTOR, to=[_PEER], at=authored_at()
+            )
 
     @pytest.mark.spec("EMB-18-003")
     def test_an_active_embargo_that_cannot_be_projected_is_not_sent(
@@ -928,7 +979,9 @@ class TestCaseOnTheWireCarriesItsParticipants:
             patch.object(_base, "_to_wire", side_effect=_refuse_embargo),
             pytest.raises(VultronValidationError, match="wire shape"),
         ):
-            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+            adapter.create_case(
+                case_id=case.id_, actor=_ACTOR, to=[_PEER], at=authored_at()
+            )
 
 
 class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
@@ -958,6 +1011,7 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
                 actor=_ACTOR,
                 context_id=_CONTEXT_ID,
                 to=[_PEER],
+                at=authored_at(),
             )
 
         assert dl.outbox_list() == []
@@ -979,6 +1033,7 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
             actor=_ACTOR,
             context_id=_CONTEXT_ID,
             to=[_PEER],
+            at=authored_at(),
         )
 
         from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
@@ -1015,6 +1070,7 @@ class TestRejectCaseProposal:
             actor=_ACTOR,
             proposal=self._proposal_dict(),
             to=[_PEER],
+            at=authored_at(),
         )
 
         assert activity_id
@@ -1026,7 +1082,7 @@ class TestRejectCaseProposal:
         proposal = self._proposal_dict()
 
         activity_id, _ = adapter.reject_case_proposal(
-            actor=_ACTOR, proposal=proposal, to=[_PEER]
+            actor=_ACTOR, proposal=proposal, to=[_PEER], at=authored_at()
         )
 
         # Storage dehydrates an inline Activity sub-field to its URI, so the
@@ -1038,7 +1094,7 @@ class TestRejectCaseProposal:
         proposal = self._proposal_dict()
 
         activity_id, _ = adapter.reject_case_proposal(
-            actor=_ACTOR, proposal=proposal, to=[_PEER]
+            actor=_ACTOR, proposal=proposal, to=[_PEER], at=authored_at()
         )
 
         stored = dl.read(activity_id)
@@ -1050,7 +1106,7 @@ class TestRejectCaseProposal:
     def test_addresses_the_proposer_when_no_recipients_given(self, adapter):
         """The proposing vendor is the only party owed the refusal."""
         _, activity_json = adapter.reject_case_proposal(
-            actor=_ACTOR, proposal=self._proposal_dict()
+            actor=_ACTOR, proposal=self._proposal_dict(), at=authored_at()
         )
 
         assert json.loads(activity_json)["to"] == [_PEER]
@@ -1075,17 +1131,19 @@ class TestRejectCaseProposal:
         with pytest.raises(
             VultronActivityConstructionError, match="as_CaseProposal"
         ):
-            adapter.reject_case_proposal(actor=_ACTOR, proposal=proposal)
+            adapter.reject_case_proposal(
+                actor=_ACTOR, proposal=proposal, at=authored_at()
+            )
 
     def test_duplicate_proposal_does_not_abort_the_reject(self, adapter, dl):
         """A proposal already in the store is reused, not treated as an error."""
         proposal = self._proposal_dict()
         adapter.reject_case_proposal(
-            actor=_ACTOR, proposal=proposal, to=[_PEER]
+            actor=_ACTOR, proposal=proposal, to=[_PEER], at=authored_at()
         )
 
         second_id, _ = adapter.reject_case_proposal(
-            actor=_ACTOR, proposal=proposal, to=[_PEER]
+            actor=_ACTOR, proposal=proposal, to=[_PEER], at=authored_at()
         )
 
         assert dl.read(second_id) is not None

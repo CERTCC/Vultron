@@ -43,6 +43,11 @@ Operating rules: `vultron/wire/as2/factories/AGENTS.md`. Spec:
   fields as a callable, so an argument that refuses on purpose (`_named_case`,
   `as_answered`) is reported the same way; `test_construct.py` refuses a new
   handler.
+- **The act's instant is a required `at`**: every factory, and every port
+  method that builds an activity, takes it, and `build_activity` alone writes it
+  as `published` and `updated`, so the signer's `authored_time` always has one
+  (ADR-0176). A rebuilt embed that must not carry a time drops it with
+  `model_copy` after the build (`_rebuilt_recommendation`).
 - **Factories build from primitives**, never from a dump of a domain object.
 - **Tests import from `vultron.wire.as2.factories`**, as all external code does.
   Examples: `test/wire/as2/factories/`.

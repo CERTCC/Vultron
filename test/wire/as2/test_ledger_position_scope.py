@@ -26,7 +26,7 @@ from typing import cast, get_args
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import TEST_SENDER_POSITION, stamped
 from vultron.core.models.events import AnyReceivedEvent, MessageSemantics
 from vultron.core.models.events.base import (
@@ -132,6 +132,7 @@ def _note_on_case():
         ),
         target=case_id,
         actor="https://example.org/users/vendor",
+        at=authored_at(),
     )
 
 
@@ -159,7 +160,7 @@ def test_an_out_of_scope_activity_needs_no_position() -> None:
         content="a vul",
     )
     offer = rm_create_report_activity(
-        report, actor="https://example.org/users/finder"
+        report, actor="https://example.org/users/finder", at=authored_at()
     )
 
     event = extract_event(offer)

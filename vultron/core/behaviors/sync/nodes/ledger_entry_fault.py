@@ -44,6 +44,8 @@ like ``Reject(CaseLedgerEntry)``, and nothing here commits it to a case ledger
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
@@ -63,7 +65,11 @@ __all__ = ["EmitLedgerEntryFaultNode", "emit_ledger_entry_fault"]
 
 
 def emit_ledger_entry_fault(
-    node: DataLayerActionWithPorts, activity: object, failure_class: str
+    node: DataLayerActionWithPorts,
+    activity: object,
+    failure_class: str,
+    *,
+    at: datetime,
 ) -> None:
     """Queue *node*'s actor's fault about the ``Announce`` *activity* carried.
 
@@ -121,6 +127,7 @@ def emit_ledger_entry_fault(
             failure_class=failure_class,
             to=[manager_id],
             case_id=entry.case_id,
+            at=at,
         )
     except VultronError as exc:
         raise VultronBTInternalError(
@@ -167,5 +174,10 @@ class EmitLedgerEntryFaultNode(DataLayerActionWithPorts):
         self.activity = self.get_input("activity")
 
     def update(self) -> Status:
-        emit_ledger_entry_fault(self, self.activity, self.failure_class)
+        emit_ledger_entry_fault(
+            self,
+            self.activity,
+            self.failure_class,
+            at=self._require_act_instant(),
+        )
         return Status.FAILURE

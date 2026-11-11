@@ -26,7 +26,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -79,7 +79,11 @@ def _managed_case(dl) -> as_VulnerabilityCase:
 def _add(dl, report, *, sender=_OWNER_ID):
     event = received_event(
         add_report_to_case_activity(
-            report, target=_CASE_ID, actor=sender, to=[_MANAGER_ID]
+            report,
+            target=_CASE_ID,
+            actor=sender,
+            to=[_MANAGER_ID],
+            at=authored_at(),
         ),
         at=dl,
     )

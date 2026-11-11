@@ -57,6 +57,7 @@ class EmitAcceptCaseInviteNode(_EmitSingleActivityBase):
         return self.trigger_activity_factory.accept_case_invite(
             invite_id=self.invite_id,
             actor=self.actor_id,
+            at=self._require_act_instant(),
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
@@ -89,6 +90,7 @@ class EmitRejectCaseInviteNode(_EmitSingleActivityBase):
         return self.trigger_activity_factory.reject_case_invite(
             invite_id=self.invite_id,
             actor=self.actor_id,
+            at=self._require_act_instant(),
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
@@ -131,6 +133,7 @@ class _EmitFullCaseInviteReplyNode(_EmitSingleActivityBase):
                 actor=self.actor_id,
                 ledger_log_index=self.position.log_index,
                 ledger_entry_hash=self.position.entry_hash,
+                at=self._require_act_instant(),
             ),
         )
 

@@ -13,7 +13,7 @@
 
 """The shared emission of a replica's fault about a refused ledger entry."""
 
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 from py_trees.common import Status
@@ -26,7 +26,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
 )
 from test.support.act_runner import run_tree
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
@@ -106,6 +106,7 @@ def test_the_fault_names_the_announce_and_goes_to_the_case_manager(managed):
         failure_class=_CLASS,
         to=[_CASE_MANAGER],
         case_id=CASE_ID,
+        at=ANY,
     )
 
 
@@ -132,7 +133,9 @@ def test_a_sender_that_is_not_the_case_manager_is_not_answered(
     event = _make_event(_make_entry(0), actor_id=_STRANGER)
 
     with caplog.at_level("WARNING", logger="vultron"):
-        emit_ledger_entry_fault(_node(dl, trigger), event, _CLASS)
+        emit_ledger_entry_fault(
+            _node(dl, trigger), event, _CLASS, at=authored_at()
+        )
 
     trigger.emit_processing_fault.assert_not_called()
     assert any(
@@ -152,7 +155,7 @@ def test_a_missing_injection_is_a_wiring_fault(managed, missing):
     event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER)
 
     with pytest.raises(VultronWiringError):
-        emit_ledger_entry_fault(node, event, _CLASS)
+        emit_ledger_entry_fault(node, event, _CLASS, at=authored_at())
 
     trigger.emit_processing_fault.assert_not_called()
 
@@ -180,7 +183,9 @@ def test_an_event_naming_no_activity_is_a_wiring_fault(managed):
     )
 
     with pytest.raises(VultronWiringError):
-        emit_ledger_entry_fault(_node(managed, trigger), event, _CLASS)
+        emit_ledger_entry_fault(
+            _node(managed, trigger), event, _CLASS, at=authored_at()
+        )
 
     trigger.emit_processing_fault.assert_not_called()
 
@@ -193,4 +198,6 @@ def test_a_port_that_fails_to_queue_the_fault_is_an_internal_error(managed):
     event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER)
 
     with pytest.raises(VultronBTInternalError):
-        emit_ledger_entry_fault(_node(managed, trigger), event, _CLASS)
+        emit_ledger_entry_fault(
+            _node(managed, trigger), event, _CLASS, at=authored_at()
+        )

@@ -20,6 +20,7 @@
 Processing faults (NACK) and the CASE_MANAGER's refusal notices.
 """
 
+from datetime import datetime
 from typing import Any, Protocol
 
 
@@ -33,6 +34,8 @@ class TriggerFaultPort(Protocol):
         failure_class: str,
         to: list[str],
         case_id: str | None = None,
+        *,
+        at: datetime,
     ) -> str:
         """Create and persist a ``Create(ProcessingFault)`` NACK activity.
 
@@ -59,6 +62,8 @@ class TriggerFaultPort(Protocol):
         asserter: str,
         reason: str,
         expected_sender_sequence: int | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the CASE_MANAGER's refusal notice.
 

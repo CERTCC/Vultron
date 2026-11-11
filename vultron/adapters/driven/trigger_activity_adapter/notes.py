@@ -16,6 +16,7 @@
 """Note-domain trigger activity construction for TriggerActivityAdapter."""
 
 import logging
+from datetime import datetime
 
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import OUTBOUND_DUMP_KWARGS
@@ -72,8 +73,12 @@ class _NotesMixin:
         attributed_to: str,
         in_reply_to: str | None = None,
         note_id: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a Note object; return ``(note_id, note_dict)``.
+
+        The note is authored at *at*, the act's instant (ADR-0176).
 
         A *note_id* the caller derived names the note a re-run's first run
         stored, so the note stored is handed back as it is and nothing is
@@ -92,6 +97,8 @@ class _NotesMixin:
             context=context_id,
             attributed_to=attributed_to,
             in_reply_to=in_reply_to,
+            published=at,
+            updated=at,
         )
         if note_id is not None:
             note = note.model_copy(update={"id_": note_id})
@@ -109,6 +116,8 @@ class _NotesMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(Note)[target=VulnerabilityCase]`` activity.
 
@@ -131,5 +140,6 @@ class _NotesMixin:
             note=_note_for_wire(self._dl, note_id),
             target=case_id,
             **_addressing(actor, to, activity_id),
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "add_note_to_case")

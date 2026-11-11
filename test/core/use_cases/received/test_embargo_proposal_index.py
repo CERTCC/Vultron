@@ -40,7 +40,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import SEEDED_PROPOSAL_ID
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
@@ -156,6 +156,7 @@ class TestInviteToEmbargoRecordsIndex:
             context=case.id_,
             actor=actor_id,
             to=[actor_id],
+            at=authored_at(),
         )
         raw_event = received_event(proposal, at=dl)
         event = cast(
@@ -211,6 +212,7 @@ class TestInviteToEmbargoRecordsIndex:
             context=case.id_,
             actor=actor_id,
             to=[actor_id],
+            at=authored_at(),
         )
         raw_event = received_event(proposal, at=dl)
         event = cast(
@@ -346,6 +348,7 @@ class TestAcceptRejectFromCoreState:
             embargo,
             context=case.id_,
             actor=actor_id,
+            at=authored_at(),
         )
         dl.create(proposal)
         case_obj = dl.read(case.id_)
@@ -413,7 +416,7 @@ class TestAcceptRejectFromCoreState:
         )
         dl.create(counter)
         counter_proposal = em_propose_embargo_activity(
-            counter, context=case.id_, actor=actor_id
+            counter, context=case.id_, actor=actor_id, at=authored_at()
         )
         dl.create(counter_proposal)
         case_obj = dl.read(case.id_)
@@ -578,7 +581,10 @@ class TestReceivedRejectPrunesOpenProposals:
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
-            embargo=embargo, context=case.id_, actor=self._OWNER
+            embargo=embargo,
+            context=case.id_,
+            actor=self._OWNER,
+            at=authored_at(),
         )
         dl.create(proposal)
         case_obj = cast(VulnerabilityCase, dl.read(case.id_))
@@ -597,6 +603,7 @@ class TestReceivedRejectPrunesOpenProposals:
                 attributed_to=self._OWNER,
                 to=[actor_id],
                 id_=f"{case.id_}/embargo_invites/{actor_id.rsplit('/', 1)[-1]}",
+                at=authored_at(),
             )
             dl.create(relayed)
             reject = em_reject_embargo_activity(
@@ -604,6 +611,7 @@ class TestReceivedRejectPrunesOpenProposals:
                 context=case.id_,
                 actor=actor_id,
                 to=[self._REPLICA],
+                at=authored_at(),
             )
             return cast(
                 RejectInviteToEmbargoOnCaseReceivedEvent,
@@ -631,6 +639,7 @@ class TestReceivedRejectPrunesOpenProposals:
             target=case.id_,
             actor=self._OWNER,
             to=[self._REPLICA],
+            at=authored_at(),
         )
         event = cast(
             RejectEmbargoProposalOnCaseReceivedEvent,
@@ -733,11 +742,13 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
             context=case_id,
             actor=actor_id,
             id_=proposal_id,
+            at=authored_at(),
         )
         reject_activity = em_reject_embargo_activity(
             proposal=proposal,
             context=case_id,
             actor=actor_id,
+            at=authored_at(),
         )
 
         raw_event = received_event(reject_activity)
@@ -772,7 +783,11 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
-            embargo=embargo, context=case.id_, actor=actor_id, to=[actor_id]
+            embargo=embargo,
+            context=case.id_,
+            actor=actor_id,
+            to=[actor_id],
+            at=authored_at(),
         )
         dl.create(proposal)
         # A Reject must name an open proposal (or the active embargo).
@@ -785,6 +800,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
             proposal=proposal,
             context=case.id_,
             actor=actor_id,
+            at=authored_at(),
         )
         raw_event = received_event(reject_activity, at=dl)
         event = cast(

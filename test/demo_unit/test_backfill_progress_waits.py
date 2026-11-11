@@ -31,7 +31,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.routers.datalayer import (
@@ -91,6 +91,7 @@ def _full_case_invite():
         LedgerPosition(log_index=3, entry_hash="ab" * 32),
         actor=MANAGER,
         id_=INVITE_ID,
+        at=authored_at(),
     )
 
 

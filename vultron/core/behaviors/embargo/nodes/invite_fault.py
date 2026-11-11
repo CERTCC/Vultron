@@ -97,6 +97,7 @@ class EmitReceivedEmbargoFaultNode(DataLayerActionWithPorts, EmitCapable):
                 failure_class=self._failure_class,
                 to=[sender_id],
                 case_id=self._case_id or None,
+                at=self._require_act_instant(),
             )
             self.logger.info(
                 "%s: emitted ProcessingFault/%s to '%s' for %s '%s'",

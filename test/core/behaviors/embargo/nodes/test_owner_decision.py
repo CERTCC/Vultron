@@ -23,7 +23,7 @@ node queues the owner's decision to the CASE_MANAGER and fails by raising.
 """
 
 from typing import cast
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import py_trees
 import pytest
@@ -34,7 +34,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     setup_blackboard,
 )
 from test.support.act_clock import ACT_AT
-from test.support.act_runner import run_tree
+from test.support.act_runner import in_act, run_tree
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
 from test.support.objects import make
@@ -75,7 +75,8 @@ MANAGER = "https://example.org/actors/case-manager"
 def _tick(node: py_trees.behaviour.Behaviour) -> Status:
     bt = py_trees.trees.BehaviourTree(root=node)
     bt.setup()
-    bt.tick()
+    with in_act():
+        bt.tick()
     return node.status
 
 
@@ -705,6 +706,7 @@ class TestSendOwnerEmbargoDecisionNode:
             case_id=CASE_ID,
             actor=OWNER,
             to=[MANAGER],
+            at=ANY,
         )
         getattr(factory, not_called).assert_not_called()
         factory.accept_embargo.assert_not_called()

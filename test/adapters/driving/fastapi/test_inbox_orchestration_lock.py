@@ -34,7 +34,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -163,6 +163,7 @@ def _make_announce_body(entry: CaseLedgerEntry) -> dict[str, Any]:
         entry=wire_entry,
         actor=_CASE_ACTOR_ID,
         to=[_PEER_ID],
+        at=authored_at(),
     )
     return signed_body(
         activity.model_dump(mode="json", by_alias=True, exclude_none=True)

@@ -20,7 +20,7 @@ import json
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     rm_accept_full_case_invite_activity,
@@ -45,6 +45,7 @@ def _invite():
         _FLOOR,
         actor=_MANAGER,
         to=[_INVITEE],
+        at=authored_at(),
     )
 
 
@@ -81,7 +82,7 @@ def test_invite_targets_the_plain_case_uri_and_carries_the_floor_as_position():
 def test_replies_carry_the_repliers_position_as_position(build, kind):
     invite = _invite()
 
-    reply = build(invite, _OWN, actor=_INVITEE)
+    reply = build(invite, _OWN, actor=_INVITEE, at=authored_at())
 
     dumped = json.loads(
         reply.model_dump_json(by_alias=True, exclude_none=True)
@@ -104,7 +105,10 @@ def test_a_non_full_case_invite_cannot_be_answered():
         make(as_Organization, id_=_INVITEE),
         target=as_VulnerabilityCaseStub(case_id=_CASE, summary="a case"),
         actor=_MANAGER,
+        at=authored_at(),
     )
 
     with pytest.raises(VultronActivityConstructionError):
-        rm_accept_full_case_invite_activity(stub_invite, _OWN, actor=_INVITEE)
+        rm_accept_full_case_invite_activity(
+            stub_invite, _OWN, actor=_INVITEE, at=authored_at()
+        )

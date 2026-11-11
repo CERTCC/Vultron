@@ -17,7 +17,7 @@ import json
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.note import VultronNote
 from vultron.errors import VultronNotFoundError
@@ -36,6 +36,7 @@ class TestCreateNote:
             content="Detailed findings",
             context_id=_CASE_ID,
             attributed_to=_ACTOR,
+            at=authored_at(),
         )
 
         assert note_id
@@ -50,6 +51,7 @@ class TestCreateNote:
             content="Details",
             context_id=_CASE_ID,
             attributed_to=_ACTOR,
+            at=authored_at(),
         )
 
         assert dl.read(note_id) is not None
@@ -62,6 +64,7 @@ class TestCreateNote:
             context_id=_CASE_ID,
             attributed_to=_ACTOR,
             in_reply_to=parent_id,
+            at=authored_at(),
         )
 
         assert json.loads(note_dict).get("inReplyTo") == parent_id
@@ -91,12 +94,14 @@ class TestAddNoteToCase:
             content="content",
             context_id=_CASE_ID,
             attributed_to=_ACTOR,
+            at=authored_at(),
         )
 
         activity_id, activity_dict = adapter.add_note_to_case(
             note_id=note_id,
             case_id=_CASE_ID,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -109,6 +114,7 @@ class TestAddNoteToCase:
             content="content",
             context_id=_CASE_ID,
             attributed_to=_ACTOR,
+            at=authored_at(),
         )
 
         activity_id, _ = adapter.add_note_to_case(
@@ -116,6 +122,7 @@ class TestAddNoteToCase:
             case_id=_CASE_ID,
             actor=_ACTOR,
             to=[_CASE_ID],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -132,10 +139,11 @@ class TestAddNoteToCase:
             content="content",
             context_id=_CASE_ID,
             attributed_to=_ACTOR,
+            at=authored_at(),
         )
 
         _, body = adapter.add_note_to_case(
-            note_id=note_id, case_id=_CASE_ID, actor=_ACTOR
+            note_id=note_id, case_id=_CASE_ID, actor=_ACTOR, at=authored_at()
         )
 
         activity = json.loads(body)
@@ -154,13 +162,22 @@ class TestAddNoteToCase:
             content="content",
             context_id=_CASE_ID,
             attributed_to=_ACTOR,
+            at=authored_at(),
         )
 
         first = adapter.add_note_to_case(
-            note_id=note_id, case_id=_CASE_ID, actor=_ACTOR, to=[_CASE_ID]
+            note_id=note_id,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_CASE_ID],
+            at=authored_at(),
         )
         second = adapter.add_note_to_case(
-            note_id=note_id, case_id=_CASE_ID, actor=_ACTOR, to=[_CASE_ID]
+            note_id=note_id,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_CASE_ID],
+            at=authored_at(),
         )
 
         assert first == second
@@ -181,11 +198,12 @@ class TestStoredNoteCarriedAsWireNote:
             content="the content",
             context_id=_CASE_ID,
             attributed_to=_ACTOR,
+            at=authored_at(),
         )
         assert isinstance(dl.read(note_id), VultronNote)
 
         _, activity_dict = adapter.add_note_to_case(
-            note_id=note_id, case_id=_CASE_ID, actor=_ACTOR
+            note_id=note_id, case_id=_CASE_ID, actor=_ACTOR, at=authored_at()
         )
 
         carried = json.loads(activity_dict)["object"]
@@ -197,5 +215,8 @@ class TestStoredNoteCarriedAsWireNote:
         missing = "https://example.org/notes/missing"
         with pytest.raises(VultronNotFoundError):
             adapter.add_note_to_case(
-                note_id=missing, case_id=_CASE_ID, actor=_ACTOR
+                note_id=missing,
+                case_id=_CASE_ID,
+                actor=_ACTOR,
+                at=authored_at(),
             )

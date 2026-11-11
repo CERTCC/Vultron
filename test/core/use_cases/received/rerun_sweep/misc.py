@@ -16,7 +16,7 @@
 import json
 from typing import Any, cast
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import (
@@ -92,7 +92,11 @@ def _rm_declaration(net: LedgerNetwork, member: str, rm: RM) -> Scenario:
     return deliver(
         net,
         add_status_to_participant_activity(
-            status, target=participant, actor=member, to=[MANAGER]
+            status,
+            target=participant,
+            actor=member,
+            to=[MANAGER],
+            at=authored_at(),
         ),
     )
 
@@ -197,6 +201,7 @@ def _owner_moves(
             actor=_REMOVAL_OWNER,
             to=[_REMOVAL_MANAGER],
             id_=f"https://example.org/activities/rerun-sweep-{tag}",
+            at=authored_at(),
         ),
     )
 
@@ -269,6 +274,7 @@ def _note_activity(
         actor=author,
         to=[MANAGER],
         id_=f"{author}/adds/rerun-sweep-{tag}",
+        at=authored_at(),
     )
 
 
@@ -345,7 +351,11 @@ def add_case_status_to_case() -> Scenario:
         em=EmDimension(state=EM.NONE),
     )
     activity = add_status_to_case_activity(
-        status, target=net.case_id, actor=MANAGER, to=[BYSTANDER]
+        status,
+        target=net.case_id,
+        actor=MANAGER,
+        to=[BYSTANDER],
+        at=authored_at(),
     )
     return at_replica(
         net,

@@ -273,6 +273,7 @@ class StateLedgerPositionsNode(DataLayerActionWithPorts):
                 ledger_position=position,
                 actor_id=self.actor_id,
                 to=[manager_id],
+                at=self._require_act_instant(),
             )
             self.sent += 1
             self.logger.info(

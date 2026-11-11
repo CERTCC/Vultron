@@ -31,7 +31,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import extract_stamped, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -113,6 +113,7 @@ def _answer(
         case_id=CASE_ID,
         actor=sender_id,
         to=to,
+        at=authored_at(),
     )
     return parse_activity(json.loads(body))
 

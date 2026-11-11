@@ -295,6 +295,7 @@ class EmitInviteActorToFullCaseNode(_EmitSingleActivityBase):
             ledger_log_index=tail.log_index,
             ledger_entry_hash=tail.entry_hash,
             id_=self._invite_id(),
+            at=self._require_act_instant(),
         )
 
     def _record_sent(self, activity_id: str, activity_blob: str) -> None:

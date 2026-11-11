@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import authored_at
 from test.support.signing import resigned, signed_body
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
@@ -68,6 +69,7 @@ class TestEmitProcessingFault:
                 failed_activity_id=_FAILED_ACTIVITY,
                 failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
                 to=[_SENDER],
+                at=authored_at(),
             )
 
         assert dl.read(fault_id) is None
@@ -80,6 +82,7 @@ class TestEmitProcessingFault:
             failed_activity_id=_FAILED_ACTIVITY,
             failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
             to=[_SENDER],
+            at=authored_at(),
         )
 
         assert activity_id
@@ -91,6 +94,7 @@ class TestEmitProcessingFault:
             failed_activity_id=_FAILED_ACTIVITY,
             failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
             to=[_SENDER],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -101,6 +105,7 @@ class TestEmitProcessingFault:
             failed_activity_id=_FAILED_ACTIVITY,
             failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
             to=[_SENDER],
+            at=authored_at(),
         )
 
         assert activity_id in dl.outbox_list()
@@ -112,6 +117,7 @@ class TestEmitProcessingFault:
             failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
             to=[_SENDER],
             case_id="https://example.org/cases/case-001",
+            at=authored_at(),
         )
 
         assert activity_id in dl.outbox_list()
@@ -124,8 +130,8 @@ class TestEmitProcessingFault:
             failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
             to=[_SENDER],
         )
-        first = adapter.emit_processing_fault(**kwargs)
-        second = adapter.emit_processing_fault(**kwargs)
+        first = adapter.emit_processing_fault(**kwargs, at=authored_at())
+        second = adapter.emit_processing_fault(**kwargs, at=authored_at())
 
         assert second == first
         assert dl.outbox_list() == [first]
@@ -140,11 +146,11 @@ class TestEmitProcessingFault:
             failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
             to=[_SENDER],
         )
-        first = adapter.emit_processing_fault(**kwargs)
+        first = adapter.emit_processing_fault(**kwargs, at=authored_at())
         assert dl.outbox_pop() is not None  # the drain took it
 
-        adapter.emit_processing_fault(**kwargs)
-        adapter.emit_processing_fault(**kwargs)
+        adapter.emit_processing_fault(**kwargs, at=authored_at())
+        adapter.emit_processing_fault(**kwargs, at=authored_at())
 
         # Delivered and never-queued look alike, so it is queued again under
         # the same id (the receiver deduplicates) - once, not per redelivery.
@@ -160,13 +166,13 @@ class TestEmitProcessingFault:
             failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
             to=[_SENDER],
         )
-        first = adapter.emit_processing_fault(**kwargs)
+        first = adapter.emit_processing_fault(**kwargs, at=authored_at())
         # Simulate a crash between the create and the seal.
         dl.outbox_pop()
         dl.delete("SealedOutboundBody", sealed_body_id(first))
         assert not is_sealed(dl, first)
 
-        second = adapter.emit_processing_fault(**kwargs)
+        second = adapter.emit_processing_fault(**kwargs, at=authored_at())
 
         assert second == first
         assert is_sealed(dl, first)
@@ -181,6 +187,7 @@ class TestEmitProcessingFault:
                 failed_activity_id=f"{_FAILED_ACTIVITY}-{n}",
                 failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
                 to=[_SENDER],
+                at=authored_at(),
             )
             for n in range(2)
         }
@@ -214,8 +221,8 @@ class TestRefusalNotice:
             reason="refused",
         )
 
-        first, _ = adapter.refusal_notice(**kwargs)
-        second, _ = adapter.refusal_notice(**kwargs)
+        first, _ = adapter.refusal_notice(**kwargs, at=authored_at())
+        second, _ = adapter.refusal_notice(**kwargs, at=authored_at())
 
         assert (
             first
@@ -234,4 +241,5 @@ class TestRefusalNotice:
                 refused_activity=refused,
                 asserter=_SENDER,
                 reason="refused",
+                at=authored_at(),
             )

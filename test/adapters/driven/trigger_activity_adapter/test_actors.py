@@ -24,7 +24,7 @@ import pytest
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import FAR_FUTURE
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     archive_delivered,
     archive_received,
@@ -127,7 +127,11 @@ class TestInviteActorToCaseWithInlineEmbargo:
         )
 
         _, blob = adapter.invite_actor_to_case(
-            invitee_id=_INVITEE, case_id=case_id, actor=_ACTOR, to=[_INVITEE]
+            invitee_id=_INVITEE,
+            case_id=case_id,
+            actor=_ACTOR,
+            to=[_INVITEE],
+            at=authored_at(),
         )
 
         target = json.loads(blob)["target"]
@@ -187,7 +191,11 @@ class TestInviteActorToCaseWithEmbargoHeldById:
         embargo = self._seed_case(dl, case_id, store_embargo=True)
 
         _, blob = adapter.invite_actor_to_case(
-            invitee_id=_INVITEE, case_id=case_id, actor=_ACTOR, to=[_INVITEE]
+            invitee_id=_INVITEE,
+            case_id=case_id,
+            actor=_ACTOR,
+            to=[_INVITEE],
+            at=authored_at(),
         )
 
         expected = json.loads(
@@ -213,6 +221,7 @@ class TestInviteActorToCaseWithEmbargoHeldById:
                 case_id=case_id,
                 actor=_ACTOR,
                 to=[_INVITEE],
+                at=authored_at(),
             )
 
 
@@ -222,6 +231,7 @@ class TestInviteActorToCase:
             invitee_id=_INVITEE,
             case_id=_CASE_ID,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -234,6 +244,7 @@ class TestInviteActorToCase:
             case_id=_CASE_ID,
             actor=_ACTOR,
             to=[_INVITEE],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -246,6 +257,7 @@ class TestInviteActorToCase:
             case_id=_CASE_ID,
             actor=_ACTOR,
             attributed_to=owner,
+            at=authored_at(),
         )
 
         assert json.loads(activity_dict).get("attributedTo") == owner
@@ -263,6 +275,7 @@ class TestAcceptCaseInvite:
             target=_STUB,
             actor=_ACTOR,
             to=[_INVITEE],
+            at=authored_at(),
         )
         # A received Invite that reached its use case is archived by intake
         # as the body that arrived (CLP-10-017, ADR-0149).
@@ -275,6 +288,7 @@ class TestAcceptCaseInvite:
         activity_id, activity_dict = adapter.accept_case_invite(
             invite_id=invite_id,
             actor=_INVITEE,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -286,6 +300,7 @@ class TestAcceptCaseInvite:
         activity_id, _ = adapter.accept_case_invite(
             invite_id=invite_id,
             actor=_INVITEE,
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -301,7 +316,9 @@ class TestAcceptCaseInvite:
         monkeypatch.setattr(_mod, "_as_id", lambda _: None)
 
         with pytest.raises(VultronValidationError):
-            adapter.accept_case_invite(invite_id=invite_id, actor=_INVITEE)
+            adapter.accept_case_invite(
+                invite_id=invite_id, actor=_INVITEE, at=authored_at()
+            )
 
     def test_verbatim_reconstitution_preserves_invite_id(self, adapter, dl):
         """Accept(Invite) must embed the original invite id in in_reply_to.
@@ -316,6 +333,7 @@ class TestAcceptCaseInvite:
         activity_id, _ = adapter.accept_case_invite(
             invite_id=invite_id,
             actor=_INVITEE,
+            at=authored_at(),
         )
 
         accept = dl.read(activity_id)
@@ -336,6 +354,7 @@ class TestAcceptCaseInvite:
         _, activity_dict = adapter.accept_case_invite(
             invite_id=invite_id,
             actor=_INVITEE,
+            at=authored_at(),
         )
 
         obj = json.loads(activity_dict).get("object")
@@ -356,7 +375,7 @@ class TestAcceptCaseInvite:
         invite_id = self._make_invite(dl)
 
         _, activity_dict = adapter.accept_case_invite(
-            invite_id=invite_id, actor=_INVITEE
+            invite_id=invite_id, actor=_INVITEE, at=authored_at()
         )
 
         target = json.loads(activity_dict)["object"]["target"]
@@ -378,18 +397,23 @@ class TestAcceptCaseInvite:
             target=_STUB,
             actor=_ACTOR,
             to=[_INVITEE],
+            at=authored_at(),
         )
         dl.create(invite)
 
         with pytest.raises(VultronNotFoundError):
-            adapter.accept_case_invite(invite_id=invite.id_, actor=_INVITEE)
+            adapter.accept_case_invite(
+                invite_id=invite.id_, actor=_INVITEE, at=authored_at()
+            )
 
     def test_an_invite_this_store_never_received_is_not_found(
         self, adapter, dl
     ):
         with pytest.raises(VultronNotFoundError):
             adapter.accept_case_invite(
-                invite_id="urn:uuid:never-received", actor=_INVITEE
+                invite_id="urn:uuid:never-received",
+                actor=_INVITEE,
+                at=authored_at(),
             )
 
     @pytest.mark.spec("CM-11-038")
@@ -422,7 +446,9 @@ class TestAcceptCaseInvite:
             VultronActivityConstructionError, match="not a case Invite"
         ):
             adapter.accept_case_invite(
-                invite_id="urn:uuid:held-without-a-stub", actor=_INVITEE
+                invite_id="urn:uuid:held-without-a-stub",
+                actor=_INVITEE,
+                at=authored_at(),
             )
 
     def test_an_archived_activity_that_is_not_an_invite_is_refused(
@@ -438,11 +464,14 @@ class TestAcceptCaseInvite:
             ),
             actor=_ACTOR,
             to=[_INVITEE],
+            at=authored_at(),
         )
         archive_received(dl, offer)
 
         with pytest.raises(VultronValidationError, match="not as an Invite"):
-            adapter.accept_case_invite(invite_id=offer.id_, actor=_INVITEE)
+            adapter.accept_case_invite(
+                invite_id=offer.id_, actor=_INVITEE, at=authored_at()
+            )
 
 
 class TestSuggestActorToCase:
@@ -451,6 +480,7 @@ class TestSuggestActorToCase:
             recommended_id=_INVITEE,
             case_id=_CASE_ID,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -462,6 +492,7 @@ class TestSuggestActorToCase:
             case_id=_CASE_ID,
             actor=_ACTOR,
             to=[_ACTOR],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -476,6 +507,7 @@ class TestAddParticipantToCase:
             participant_id=participant.id_,
             case_id=case.id_,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -494,6 +526,7 @@ class TestAddParticipantToCase:
             case_id=case.id_,
             actor=_ACTOR,
             to=[_ACTOR],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -514,6 +547,7 @@ class TestRemoveParticipantFromCase:
             actor=_ACTOR,
             attributed_to=_INVITEE,
             to=[_INVITEE],
+            at=authored_at(),
         )
 
         body = json.loads(blob)
@@ -537,6 +571,7 @@ class TestRemoveParticipantFromCase:
                 actor=_ACTOR,
                 attributed_to=_INVITEE,
                 to=[_INVITEE],
+                at=authored_at(),
             )
 
 
@@ -560,6 +595,7 @@ class TestAnswerCaseParticipantOffer:
             target=_CASE_ID,
             actor=_ACTOR,
             to=[_ACTOR],
+            at=authored_at(),
         )
         # Held as intake archived it, participant inline, never under the
         # sender's id (DL-06-006).
@@ -572,6 +608,7 @@ class TestAnswerCaseParticipantOffer:
         activity_id, activity_dict = getattr(adapter, method)(
             cp_offer_id=cp_offer_id,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         assert activity_id
@@ -591,6 +628,7 @@ class TestAnswerCaseParticipantOffer:
         _, activity_dict = getattr(adapter, method)(
             cp_offer_id=cp_offer_id,
             actor=_ACTOR,
+            at=authored_at(),
         )
 
         obj = json.loads(activity_dict).get("object")
@@ -615,7 +653,11 @@ class TestAnswerCaseParticipantOffer:
         case = _make_case(dl)
         vendor = make(as_Service, id_=_INVITEE, name="Vendor")
         offer = offer_case_participant_activity(
-            recommended=vendor, target=case.id_, actor=_ACTOR, to=[_ACTOR]
+            recommended=vendor,
+            target=case.id_,
+            actor=_ACTOR,
+            to=[_ACTOR],
+            at=authored_at(),
         )
         FastAPIIngressAdapter(dl=dl).parse(
             signed_body(
@@ -628,7 +670,7 @@ class TestAnswerCaseParticipantOffer:
         assert dl.read(participant_id) is None
 
         _, activity_dict = getattr(adapter, method)(
-            cp_offer_id=offer.id_, actor=_ACTOR
+            cp_offer_id=offer.id_, actor=_ACTOR, at=authored_at()
         )
 
         embedded = json.loads(activity_dict)["object"]
@@ -648,7 +690,11 @@ class TestAnswerCaseParticipantOffer:
         """
         vendor = make(as_Service, id_=_INVITEE, name="Vendor")
         offer = offer_case_participant_activity(
-            recommended=vendor, target=_CASE_ID, actor=_ACTOR, to=[_ACTOR]
+            recommended=vendor,
+            target=_CASE_ID,
+            actor=_ACTOR,
+            to=[_ACTOR],
+            at=authored_at(),
         )
         body = resigned(
             delivered_body(offer),
@@ -657,7 +703,7 @@ class TestAnswerCaseParticipantOffer:
         archive_delivered(dl, body)
 
         _, activity_dict = getattr(adapter, method)(
-            cp_offer_id=offer.id_, actor=_ACTOR
+            cp_offer_id=offer.id_, actor=_ACTOR, at=authored_at()
         )
 
         assert json.loads(activity_dict)["object"] == body
@@ -699,6 +745,7 @@ class TestAcceptCaseParticipantRole:
             vendor_id=_VENDOR,
             actor=_CASE_ACTOR,
             to=[_VENDOR],
+            at=authored_at(),
         )
 
         assert activity_id
@@ -717,6 +764,7 @@ class TestAcceptCaseParticipantRole:
             vendor_id=_VENDOR,
             actor=_CASE_ACTOR,
             to=[_VENDOR],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -738,6 +786,7 @@ class TestRejectCaseParticipantRole:
             vendor_id=_VENDOR,
             actor=_CASE_ACTOR,
             to=[_VENDOR],
+            at=authored_at(),
         )
 
         assert activity_id
@@ -755,6 +804,7 @@ class TestRejectCaseParticipantRole:
             vendor_id=_VENDOR,
             actor=_CASE_ACTOR,
             to=[_VENDOR],
+            at=authored_at(),
         )
 
         assert dl.read(activity_id) is not None
@@ -781,6 +831,7 @@ def test_role_offer_answer_keeps_a_caller_supplied_id(adapter, dl, method):
         actor=_CASE_ACTOR,
         to=[_VENDOR],
         id_=given_id,
+        at=authored_at(),
     )
 
     assert activity_id == given_id
@@ -804,6 +855,7 @@ def _received_ownership_forward(dl) -> tuple[str, str]:
         actor=_ACTOR,
         attributed_to=_OWNER,
         to=[_INVITEE],
+        at=authored_at(),
     )
     archive_received(dl, offer)
     assert dl.read(offer.id_) is None
@@ -828,7 +880,9 @@ class TestAnswerReceivedOwnershipOffer:
     ):
         offer_id, case_id = _received_ownership_forward(dl)
 
-        _, blob = getattr(adapter, method)(offer_id=offer_id, actor=_INVITEE)
+        _, blob = getattr(adapter, method)(
+            offer_id=offer_id, actor=_INVITEE, at=authored_at()
+        )
 
         body = json.loads(blob)
         assert body["type"] == verb
@@ -844,7 +898,9 @@ class TestAnswerReceivedOwnershipOffer:
     ):
         with pytest.raises(VultronNotFoundError):
             getattr(adapter, method)(
-                offer_id="urn:uuid:never-received", actor=_INVITEE
+                offer_id="urn:uuid:never-received",
+                actor=_INVITEE,
+                at=authored_at(),
             )
 
     @pytest.mark.spec("DL-06-006")
@@ -860,6 +916,7 @@ class TestAnswerReceivedOwnershipOffer:
             actor=_ACTOR,
             attributed_to=_OWNER,
             to=[_INVITEE],
+            at=authored_at(),
         )
         dl.create(offer)
         assert dl.read(offer.id_) is not None
@@ -867,7 +924,9 @@ class TestAnswerReceivedOwnershipOffer:
         with pytest.raises(
             VultronNotFoundError, match=r"Offer\(VulnerabilityCase\)"
         ):
-            getattr(adapter, method)(offer_id=offer.id_, actor=_INVITEE)
+            getattr(adapter, method)(
+                offer_id=offer.id_, actor=_INVITEE, at=authored_at()
+            )
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("CM-21-015")
@@ -878,11 +937,15 @@ class TestAnswerReceivedOwnershipOffer:
         the Undo names the proposal (ADR-0148)."""
         case = _make_case(dl)
         proposal_id, _ = adapter.propose_case_ownership_transfer(
-            case_id=case.id_, transferee_id=_INVITEE, actor=_OWNER, to=[_ACTOR]
+            case_id=case.id_,
+            transferee_id=_INVITEE,
+            actor=_OWNER,
+            to=[_ACTOR],
+            at=authored_at(),
         )
 
         _, blob = adapter.withdraw_case_ownership_transfer(
-            offer_id=proposal_id, actor=_OWNER, to=[_ACTOR]
+            offer_id=proposal_id, actor=_OWNER, to=[_ACTOR], at=authored_at()
         )
 
         body = json.loads(blob)
@@ -905,6 +968,7 @@ class TestAnswerReceivedOwnershipOffer:
             actor=_OWNER,
             to=[_ACTOR],
             end_time=deadline,
+            at=authored_at(),
         )
 
         body = json.loads(blob)
@@ -931,6 +995,7 @@ class TestAnswerReceivedOwnershipOffer:
             actor=_ACTOR,
             attributed_to=_OWNER,
             id_=given_id,
+            at=authored_at(),
         )
         again = adapter.offer_case_ownership_transfer(
             case_id=case.id_,
@@ -938,6 +1003,7 @@ class TestAnswerReceivedOwnershipOffer:
             actor=_ACTOR,
             attributed_to=_OWNER,
             id_=given_id,
+            at=authored_at(),
         )
 
         assert first == again

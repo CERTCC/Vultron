@@ -25,7 +25,7 @@ import json
 from typing import Any, cast
 
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import (
     decided_proposal_id,
     owner_decision_body,
@@ -101,6 +101,7 @@ def _proposal_body(net: LedgerNetwork, tag: str) -> dict[str, Any]:
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{net.case_id}/embargo_proposals/{tag}",
+        at=authored_at(),
     )
     return cast(dict[str, Any], json.loads(dump_outbound_body(proposal)))
 
@@ -120,6 +121,7 @@ def _remove_body(
         reason=reason,
         cause=OtherCause() if reason is TerminationReason.EARLY else None,
         id_=f"{OWNER}/removes/{tag}",
+        at=authored_at(),
     )
     return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
 
@@ -178,6 +180,7 @@ def _withdraw_body(
         actor=actor,
         to=[MANAGER],
         id_=f"{actor}/withdrawals/{tag}",
+        at=authored_at(),
     )
     return cast(dict[str, Any], json.loads(dump_outbound_body(activity)))
 
@@ -332,6 +335,7 @@ def announce_embargo_to_a_paused_replica() -> Scenario:
         context=_PAUSED_CASE_ID,
         actor=_PAUSED_MANAGER,
         to=[replica.actor_id],
+        at=authored_at(),
     )
     event = received_event(activity, at=replica.dl).model_copy(
         update={"receiving_actor_id": replica.actor_id}

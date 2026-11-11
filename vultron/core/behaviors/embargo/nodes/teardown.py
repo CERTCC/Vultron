@@ -477,6 +477,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
             case_id=self._case_id,
             actor=actor_id,
             to=self._recipients,
+            at=self._require_act_instant(),
         )
 
     def _on_outbox_write_failure(

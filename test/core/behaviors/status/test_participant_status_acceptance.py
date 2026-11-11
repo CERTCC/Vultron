@@ -33,7 +33,7 @@ from py_trees.common import Status
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from test.support.rm_declaration import (
     ACTOR_ID,
@@ -275,6 +275,7 @@ def _run_tree(
             id_=CASE_ID,
             name="Issue 2235 Case",
         ),
+        at=authored_at(),
     )
     event = make_payload(activity, at=dl)
     bridge = BTBridge(
@@ -1046,7 +1047,7 @@ def _announce_event(
         entry.model_dump(mode="json")
     )
     activity = announce_log_entry_activity(
-        entry=wire_entry, actor=CASE_MANAGER_ID
+        entry=wire_entry, actor=CASE_MANAGER_ID, at=authored_at()
     )
     return cast(AnnounceLogEntryReceivedEvent, received_event(activity))
 

@@ -109,6 +109,7 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
             after_index=-1,
             actor_id=self.actor_id,
             peer_id=self.invitee_id,
+            at=self._require_act_instant(),
         )
         self.logger.info(
             "%s: join-time backfill queued %d ledger entries to '%s' in case"
@@ -168,6 +169,7 @@ class EmitAnnounceCaseToInviteeNode(_EmitSingleActivityBase):
                 actor=self.actor_id,
                 context_id=self.case_id,
                 to=[self.invitee_id],
+                at=self._require_act_instant(),
             )
             # Route through the shared emit seam (OX-14-001, ASK-04-008).
             # factory.announce_vulnerability_case returns str only;

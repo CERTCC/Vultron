@@ -29,6 +29,7 @@ from py_trees.common import Status
 
 from test.support.embargo_register import terminate
 from test.support.ledger import consent_row_updates
+from test.support.objects import authored_at
 from test.support.owner_decision import owner_decision_body
 from test.support.received import received_event
 from test.support.refusal_notice import (
@@ -123,7 +124,11 @@ def _reject(net: _Network, actor: str, index: int = 0) -> HandlerResult:
     invite = net.queued(MANAGER, to=actor, type_="Invite")[index]
     net.withdraw_unsent_numbers(actor)
     _, sealed = TriggerActivityAdapter(net.stores[actor]).reject_embargo(
-        proposal_id=invite.id_, case_id=net.case_id, actor=actor, to=[MANAGER]
+        proposal_id=invite.id_,
+        case_id=net.case_id,
+        actor=actor,
+        to=[MANAGER],
+        at=authored_at(),
     )
     return cast(HandlerResult, net.receive(MANAGER, json.loads(sealed)))
 
@@ -315,6 +320,7 @@ def test_a_participant_handed_an_answer_refuses_it_and_writes_nothing(answer):
         case_id=net.case_id,
         actor=OWNER,
         to=[MANAGER],
+        at=authored_at(),
     )
     body = json.loads(sealed)
 

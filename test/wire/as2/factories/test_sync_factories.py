@@ -26,7 +26,7 @@ Spec coverage:
 import pytest
 
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
@@ -66,7 +66,7 @@ def sample_log_entry() -> as_CaseLedgerEntry:
 @pytest.mark.spec("AF-01-002")
 def test_announce_log_entry_returns_announce(sample_log_entry):
     result = announce_log_entry_activity(
-        entry=sample_log_entry, actor=_ACTOR_URI
+        entry=sample_log_entry, actor=_ACTOR_URI, at=authored_at()
     )
     assert isinstance(result, as_Announce)
 
@@ -74,7 +74,7 @@ def test_announce_log_entry_returns_announce(sample_log_entry):
 @pytest.mark.spec("SYNC-02-004")
 def test_announce_log_entry_object_is_entry(sample_log_entry):
     result = announce_log_entry_activity(
-        entry=sample_log_entry, actor=_ACTOR_URI
+        entry=sample_log_entry, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.object_ == sample_log_entry
 
@@ -82,7 +82,7 @@ def test_announce_log_entry_object_is_entry(sample_log_entry):
 @pytest.mark.spec("SYNC-02-002")
 def test_announce_log_entry_kwargs_forwarded(sample_log_entry):
     result = announce_log_entry_activity(
-        entry=sample_log_entry, actor=_ACTOR_URI
+        entry=sample_log_entry, actor=_ACTOR_URI, at=authored_at()
     )
     assert result.actor == _ACTOR_URI
 
@@ -91,7 +91,8 @@ def test_announce_log_entry_kwargs_forwarded(sample_log_entry):
 def test_announce_log_entry_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         announce_log_entry_activity(
-            entry="not-a-log-entry"  # type: ignore[arg-type]
+            entry="not-a-log-entry",
+            at=authored_at(),  # type: ignore[arg-type]
         )
     assert exc_info.value.__cause__ is not None
 
@@ -107,6 +108,7 @@ def test_reject_log_entry_returns_reject(sample_log_entry):
         entry=sample_log_entry,
         actor=_ACTOR_URI,
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     assert isinstance(result, as_Reject)
     assert (
@@ -121,6 +123,7 @@ def test_reject_log_entry_object_is_entry(sample_log_entry):
         entry=sample_log_entry,
         actor=_ACTOR_URI,
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     assert result.object_ == sample_log_entry
 
@@ -136,6 +139,7 @@ def test_reject_log_entry_states_the_tail_as_its_position(sample_log_entry):
         ledger_position=tail,
         actor=_ACTOR_URI,
         in_reply_to="https://example.org/activities/prompting-announce",
+        at=authored_at(),
     )
     assert result.ledger_position == tail
     assert result.context == sample_log_entry.case_id
@@ -147,6 +151,7 @@ def test_reject_log_entry_invalid_raises():
         reject_log_entry_activity(
             entry="not-a-log-entry",  # type: ignore[arg-type]
             in_reply_to="https://example.org/activities/prompting-announce",
+            at=authored_at(),
         )
     assert exc_info.value.__cause__ is not None
 
@@ -176,7 +181,7 @@ _POSITION = LedgerPosition(log_index=4, entry_hash="ab" * 32)
 def test_read_ledger_position_names_the_entry_at_the_position():
     """The Read names the entry by its ledger coordinates and states them."""
     read = read_ledger_position_activity(
-        _CASE_URI, _POSITION, actor=_ACTOR_URI
+        _CASE_URI, _POSITION, actor=_ACTOR_URI, at=authored_at()
     )
 
     assert isinstance(read, as_Read)
@@ -191,7 +196,9 @@ def test_read_ledger_position_refuses_the_empty_ledger():
     empty = LedgerPosition(log_index=-1, entry_hash="cd" * 32)
 
     with pytest.raises(VultronActivityConstructionError, match="no entry"):
-        read_ledger_position_activity(_CASE_URI, empty, actor=_ACTOR_URI)
+        read_ledger_position_activity(
+            _CASE_URI, empty, actor=_ACTOR_URI, at=authored_at()
+        )
 
 
 @pytest.mark.spec("SYNC-17-001")
@@ -208,7 +215,9 @@ def test_read_ledger_entry_is_the_read_of_its_position():
         received_at=ACT_AT,
         published=ACT_AT,
     )
-    by_entry = read_ledger_entry_activity(sample_log_entry, actor=_ACTOR_URI)
+    by_entry = read_ledger_entry_activity(
+        sample_log_entry, actor=_ACTOR_URI, at=authored_at()
+    )
     by_position = read_ledger_position_activity(
         sample_log_entry.case_id,
         LedgerPosition(
@@ -216,6 +225,7 @@ def test_read_ledger_entry_is_the_read_of_its_position():
             entry_hash=sample_log_entry.entry_hash,
         ),
         actor=_ACTOR_URI,
+        at=authored_at(),
     )
 
     assert by_entry.object_ == sample_log_entry.id_ == by_position.object_
@@ -226,4 +236,6 @@ def test_read_ledger_entry_is_the_read_of_its_position():
 def test_read_ledger_entry_without_a_hash_raises(sample_log_entry):
     """An entry whose position cannot be stated is a construction error."""
     with pytest.raises(VultronActivityConstructionError):
-        read_ledger_entry_activity(sample_log_entry, actor=_ACTOR_URI)
+        read_ledger_entry_activity(
+            sample_log_entry, actor=_ACTOR_URI, at=authored_at()
+        )

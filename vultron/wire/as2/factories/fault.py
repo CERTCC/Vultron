@@ -20,6 +20,7 @@ ADR-0141).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from datetime import datetime
 from typing import Any
 
 from vultron.wire.as2.errors import VultronParseError
@@ -39,6 +40,8 @@ def create_processing_fault_activity(
     fault: as_ProcessingFault,
     to: list[str] | None = None,
     id_: str | None = None,
+    *,
+    at: datetime,
 ) -> as_Create:
     """Build a ``Create(ProcessingFault)`` NACK activity.
 
@@ -64,6 +67,7 @@ def create_processing_fault_activity(
     return build_activity(
         "create_processing_fault_activity",
         as_Create,
+        at,
         lambda: {"actor": actor, "object_": fault, "to": to, **id_kwargs},
     )
 
@@ -71,6 +75,8 @@ def create_processing_fault_activity(
 def refusal_notice_activity(
     refused: dict[str, Any],
     reason: str,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build the CASE_MANAGER's refusal notice: a ``Reject`` of *refused*.
@@ -112,6 +118,7 @@ def refusal_notice_activity(
     return build_activity(
         "refusal_notice_activity",
         _RefusalNoticeActivity,
+        at,
         fields,
         also=(VultronParseError,),
     )

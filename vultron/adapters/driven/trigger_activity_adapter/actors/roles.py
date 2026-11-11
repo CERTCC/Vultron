@@ -19,6 +19,7 @@ and their answers.
 """
 
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -60,6 +61,8 @@ class _RolesMixin:
         attributed_to: str | None = None,
         in_reply_to: str | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``.
 
@@ -82,6 +85,7 @@ class _RolesMixin:
             target_actor=target,
             case=case,
             **extra,
+            at=at,
         )
         return _create_and_seal(
             self._dl, activity, "offer_case_participant_role"
@@ -99,6 +103,8 @@ class _RolesMixin:
         actor: str,
         to: list[str] | None,
         id_: str | None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Build, persist and seal one answer to an ``Offer(CaseParticipantRole)``.
 
@@ -115,8 +121,9 @@ class _RolesMixin:
             case=case,
             id_=offer_id,
             actor=vendor_id,
+            at=at,
         )
-        activity = build(offer=offer, **_addressing(actor, to, id_))
+        activity = build(offer=offer, **_addressing(actor, to, id_), at=at)
         return _create_and_seal(self._dl, activity, label)
 
     def accept_case_participant_role(
@@ -129,6 +136,8 @@ class _RolesMixin:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
         return self._answer_case_participant_role(
@@ -142,6 +151,7 @@ class _RolesMixin:
             actor=actor,
             to=to,
             id_=id_,
+            at=at,
         )
 
     def reject_case_participant_role(
@@ -154,6 +164,8 @@ class _RolesMixin:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
         return self._answer_case_participant_role(
@@ -167,4 +179,5 @@ class _RolesMixin:
             actor=actor,
             to=to,
             id_=id_,
+            at=at,
         )

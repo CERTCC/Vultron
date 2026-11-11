@@ -35,6 +35,8 @@ class TriggerOwnershipPort(Protocol):
         content: str | None = None,
         to: list[str] | None = None,
         end_time: datetime | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the Case Owner's ownership-transfer proposal.
 
@@ -58,6 +60,8 @@ class TriggerOwnershipPort(Protocol):
         attributed_to: str | None = None,
         end_time: datetime | None = None,
         id_: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
 
@@ -78,6 +82,8 @@ class TriggerOwnershipPort(Protocol):
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership-transfer activity.
 
@@ -90,6 +96,8 @@ class TriggerOwnershipPort(Protocol):
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Offer(VulnerabilityCase))`` ownership-transfer activity.
 
@@ -102,6 +110,8 @@ class TriggerOwnershipPort(Protocol):
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist the owner's withdrawal of its proposal.
 

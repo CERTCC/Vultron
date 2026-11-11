@@ -27,7 +27,7 @@ from test.conftest import TEST_ACTOR_ID
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
@@ -64,7 +64,11 @@ def event(make_payload) -> Any:
     )
     return make_payload(
         announce_vulnerability_case_activity(
-            case, actor=_CASE_ACTOR_ID, context=_CASE_ID, to=[TEST_ACTOR_ID]
+            case,
+            actor=_CASE_ACTOR_ID,
+            context=_CASE_ID,
+            to=[TEST_ACTOR_ID],
+            at=authored_at(),
         )
     )
 

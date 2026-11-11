@@ -429,6 +429,7 @@ class EmitSequenceRefusalNoticeNode(_EmitSingleActivityBase):
             asserter=self._classify.sender_id,
             reason=self._classify.refusal_reason(),
             expected_sender_sequence=order.next_expected,
+            at=self._require_act_instant(),
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

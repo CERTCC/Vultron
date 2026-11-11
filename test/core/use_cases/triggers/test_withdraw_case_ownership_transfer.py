@@ -32,7 +32,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -92,6 +92,7 @@ def _proposal(case_id: str, name: str, owner_id: str, to: list[str] | None):
         target="https://example.org/actors/coordinator",
         actor=owner_id,
         to=to,
+        at=authored_at(),
     )
 
 
@@ -106,6 +107,7 @@ def _owners_offer(
         target=transferee_id,
         actor=owner_id,
         to=[case_manager_id],
+        at=authored_at(),
     )
     dl.create(proposal)
     return proposal
@@ -250,6 +252,7 @@ def test_naming_the_offer_rather_than_the_proposal_is_refused(owner_world):
         target="https://example.org/actors/coordinator",
         actor=case_manager.id_,
         attributed_to=owner.id_,
+        at=authored_at(),
     )
     dl.create(offer)
 

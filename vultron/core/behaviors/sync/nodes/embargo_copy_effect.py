@@ -214,6 +214,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
                 self,
                 self.activity,
                 VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
+                at=self._require_act_instant(),
             )
         self.refused_into_gap = buffered
         self.feedback_message = (

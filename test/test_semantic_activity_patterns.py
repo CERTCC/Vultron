@@ -5,7 +5,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
@@ -278,6 +278,7 @@ def test_offer_case_ownership_transfer_never_carries_a_bare_string_object():
     offer = offer_case_ownership_transfer_activity(
         "urn:uuid:some-case-id",
         actor="https://example.org/vendor",
+        at=authored_at(),
     )
     assert not isinstance(offer.object_, str)
     assert getattr(offer.object_, "type_", None) == "VulnerabilityCase"
@@ -301,6 +302,7 @@ def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
     offer = offer_case_ownership_transfer_activity(
         case,
         actor="https://example.org/vendor",
+        at=authored_at(),
     )
     result = find_matching_semantics(offer)
     assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
@@ -458,6 +460,7 @@ def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
         target=_make_case(),
         actor=OWNER_URI,
         id_="https://example.org/invitations/1",
+        at=authored_at(),
     )
     result = find_matching_semantics(invite)
     assert result == MessageSemantics.INVITE_ACTOR_TO_CASE, (
@@ -491,10 +494,12 @@ def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
         target=_make_case(),
         actor=OWNER_URI,
         id_="https://example.org/invitations/1",
+        at=authored_at(),
     )
     accept = rm_accept_invite_to_case_activity(
         invite,
         actor=ACTOR_URI,
+        at=authored_at(),
     )
     result = find_matching_semantics(accept)
     assert result == MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE, (
@@ -541,6 +546,7 @@ def test_announce_vulnerability_case_pattern_matches():
     announce = announce_vulnerability_case_activity(
         case,
         actor="https://example.org/actors/owner",
+        at=authored_at(),
     )
     result = find_matching_semantics(announce)
     assert result == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE, (
@@ -610,6 +616,7 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
         actor,
         target=cast(Any, full_case),
         actor=actor.id_,
+        at=authored_at(),
     )
     assert isinstance(activity.target, as_VulnerabilityCaseStub), (
         "DR-10: wire activity target must be as_VulnerabilityCaseStub, not full as_VulnerabilityCase"
@@ -648,6 +655,7 @@ def test_offer_case_manager_role_not_confused_with_ownership_transfer():
     offer = offer_case_ownership_transfer_activity(
         case,
         actor=_VENDOR_URI,
+        at=authored_at(),
     )
     result = find_matching_semantics(offer)
     assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER, (
@@ -681,6 +689,7 @@ def test_offer_case_participant_role_dispatches_correctly():
         target_actor=actor,
         case=case,
         actor=_VENDOR_URI,
+        at=authored_at(),
     )
     result = find_matching_semantics(offer)
     assert result == MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE, (
@@ -705,6 +714,7 @@ def test_offer_case_participant_role_not_confused_with_ownership_transfer():
         target_actor=actor,
         case=case,
         actor=_VENDOR_URI,
+        at=authored_at(),
     )
     result = find_matching_semantics(offer)
     assert result != MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER, (
@@ -724,6 +734,7 @@ def test_offer_case_participant_role_for_coordinator():
         target_actor=actor,
         case=case,
         actor=_VENDOR_URI,
+        at=authored_at(),
     )
     result = find_matching_semantics(offer)
     assert result == MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE
@@ -1077,6 +1088,7 @@ def _make_role_offer():
         target_actor=actor,
         case=case,
         actor=_VENDOR_URI,
+        at=authored_at(),
     )
 
 
@@ -1090,7 +1102,7 @@ def test_accept_case_participant_role_dispatches_correctly():
     """
     offer = _make_role_offer()
     accept = accept_case_participant_role_activity(
-        offer, actor=_CASE_ACTOR_URI
+        offer, actor=_CASE_ACTOR_URI, at=authored_at()
     )
     result = find_matching_semantics(accept)
     assert result == MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE, (
@@ -1108,7 +1120,7 @@ def test_reject_case_participant_role_dispatches_correctly():
     """
     offer = _make_role_offer()
     reject = reject_case_participant_role_activity(
-        offer, actor=_CASE_ACTOR_URI
+        offer, actor=_CASE_ACTOR_URI, at=authored_at()
     )
     result = find_matching_semantics(reject)
     assert result == MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE, (
@@ -1126,7 +1138,7 @@ def test_accept_case_participant_role_not_confused_with_other_accepts():
     """
     offer = _make_role_offer()
     accept = accept_case_participant_role_activity(
-        offer, actor=_CASE_ACTOR_URI
+        offer, actor=_CASE_ACTOR_URI, at=authored_at()
     )
     result = find_matching_semantics(accept)
     assert result not in {
@@ -1263,7 +1275,9 @@ def test_leave_of_the_case_is_not_a_withdrawal_from_the_embargo() -> None:
     from vultron.wire.as2.factories import rm_close_case_activity
     from vultron.wire.as2.vocab.examples._base import case, finder
 
-    leave_case = rm_close_case_activity(case(), actor=finder().id_)
+    leave_case = rm_close_case_activity(
+        case(), actor=finder().id_, at=authored_at()
+    )
 
     assert find_matching_semantics(leave_case) == MessageSemantics.CLOSE_CASE
 
@@ -1317,6 +1331,7 @@ def _proposal():
         target="https://example.org/coordinator",
         actor="https://example.org/vendor",
         to=["https://example.org/case-actor"],
+        at=authored_at(),
     )
 
 
@@ -1324,7 +1339,7 @@ def _proposal():
 @pytest.mark.spec("CM-21-015")
 def test_undo_of_ownership_proposal_matches_the_withdrawal_pattern():
     undo = undo_case_ownership_transfer_activity(
-        _proposal(), actor="https://example.org/vendor"
+        _proposal(), actor="https://example.org/vendor", at=authored_at()
     )
 
     assert (
@@ -1387,7 +1402,9 @@ def test_the_case_managers_offer_and_its_answers_match_their_patterns(
     activity = (
         offer
         if factory is None
-        else factory(offer, actor="https://example.org/coordinator")
+        else factory(
+            offer, actor="https://example.org/coordinator", at=authored_at()
+        )
     )
 
     assert find_matching_semantics(activity) == semantics

@@ -74,6 +74,7 @@ class SvcWithdrawEmbargoUseCase(SvcEmbargoTriggerBase):
                 case_id=self._case.id_,
                 actor=self._actor_id,
                 to=to,
+                at=self._at,
             )
             self._captured["activity"] = json.loads(leave_blob)
             return leave_id, leave_blob

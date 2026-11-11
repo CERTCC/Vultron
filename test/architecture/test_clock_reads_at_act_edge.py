@@ -180,7 +180,7 @@ KNOWN_CORE_MODEL_CLOCK_READS: tuple[ClockRead, ...] = (
 KNOWN_UNSLICED_CLOCK_READS: tuple[ClockRead, ...] = (
     (
         "vultron/demo/wall_clock.py",
-        "from_now",
+        "now",
         "now_utc",
     ),
 )

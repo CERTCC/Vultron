@@ -22,7 +22,7 @@ from test.core.behaviors.case.test_create_case_received_tree import (
     _case,
     _link,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import _as_id
@@ -82,7 +82,13 @@ def _rm_move(tag: str, build, rm: RM) -> Scenario:
     net = LedgerNetwork(f"{_BASE}/{tag}", em_state=EM.NONE)
     _set_rm(net, BYSTANDER, rm)
     return deliver(
-        net, build(net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER])
+        net,
+        build(
+            net.case(BYSTANDER),
+            actor=BYSTANDER,
+            to=[MANAGER],
+            at=authored_at(),
+        ),
     )
 
 
@@ -111,7 +117,11 @@ def add_report_to_case() -> Scenario:
     return deliver(
         net,
         add_report_to_case_activity(
-            gen_report(), target=net.case_id, actor=OWNER, to=[MANAGER]
+            gen_report(),
+            target=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
+            at=authored_at(),
         ),
     )
 
@@ -122,7 +132,10 @@ def create_case() -> Scenario:
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     dl.save(_link())
     event = received_event(
-        create_case_activity(_case(), actor=_CREATOR, to=[_RECEIVER]), at=dl
+        create_case_activity(
+            _case(), actor=_CREATOR, to=[_RECEIVER], at=authored_at()
+        ),
+        at=dl,
     )
     return Scenario(dl=dl, event=event, reached=_stored(_CREATED_CASE_ID))
 
@@ -149,6 +162,7 @@ def announce_vulnerability_case() -> Scenario:
             actor=_CASE_ACTOR_ID,
             to=[_RECEIVER_ID],
             context=_ANNOUNCED_CASE_ID,
+            at=authored_at(),
         ),
         at=dl,
     )

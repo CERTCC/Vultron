@@ -70,6 +70,7 @@ def add_status_to_case() -> as_Add:
         actor=case_actor().id_,
         target=case().id_,
         to=[finder().id_],
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -81,6 +82,7 @@ def _add_case_status(pxa: CS_pxa, number: int) -> as_Add:
         actor=case_actor().id_,
         target=case().id_,
         to=[finder().id_],
+        at=EXAMPLE_TIMESTAMP,
     )
 
 
@@ -150,7 +152,7 @@ def _add_participant_status(
         **_example_stamp(),
     )
     return add_status_to_participant_activity(
-        pstatus, actor=sender_id, target=participant_id
+        pstatus, actor=sender_id, target=participant_id, at=EXAMPLE_TIMESTAMP
     )
 
 
@@ -202,5 +204,6 @@ def add_status_to_participant() -> as_Add:
         pstatus,
         actor=_vendor.id_,
         target="https://vultron.example/cases/1/participants/vendor",
+        at=EXAMPLE_TIMESTAMP,
     )
     return activity

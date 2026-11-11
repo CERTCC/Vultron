@@ -43,7 +43,7 @@ from test.core.use_cases.received.test_joiner_revision_relay import (
 from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import activate, reject
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -116,6 +116,7 @@ def _first_proposal(case_id: str, make_payload) -> tuple[SqliteDataLayer, str]:
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/first",
+        at=authored_at(),
     )
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
     return dl, proposal_event.id_
@@ -132,6 +133,7 @@ def _open_revision(case_id: str, make_payload) -> tuple[SqliteDataLayer, str]:
         actor=PROPOSER,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/revision",
+        at=authored_at(),
     )
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
     return dl, revision.id_
@@ -169,7 +171,7 @@ def _state_position(
     """*sender* states its position at the CASE_MANAGER's tail, in an act at
     *at* (the runner's clock when ``None``)."""
     read = read_ledger_entry_activity(
-        _tail(dl, case_id), actor=sender, to=[MANAGER]
+        _tail(dl, case_id), actor=sender, to=[MANAGER], at=authored_at()
     )
     return run_in_act(
         ReadLedgerEntryReceivedUseCase(
@@ -208,7 +210,11 @@ def _accept_embargo_invite(
 ) -> HandlerResult:
     invite = cast(as_Invite, dl.read(invite_id))
     accept = em_accept_embargo_activity(
-        proposal=invite, context=case_id, actor=JOINER, to=[MANAGER]
+        proposal=invite,
+        context=case_id,
+        actor=JOINER,
+        to=[MANAGER],
+        at=authored_at(),
     )
     return run_in_act(
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
@@ -511,6 +517,7 @@ def test_a_replied_full_case_invite_is_not_resent_and_a_reply_still_counts(
         LedgerPosition(log_index=floor.log_index, entry_hash=floor.entry_hash),
         actor=JOINER,
         to=[MANAGER],
+        at=authored_at(),
     )
     accepted = run_in_act(
         AcceptInviteActorToFullCaseReceivedUseCase(
@@ -845,7 +852,7 @@ def test_an_owed_invite_with_no_sync_port_is_a_wiring_error(make_payload):
     case_id = "https://example.org/cases/resend-no-port"
     dl, _ = _joined(case_id, make_payload)
     read = read_ledger_entry_activity(
-        _tail(dl, case_id), actor=JOINER, to=[MANAGER]
+        _tail(dl, case_id), actor=JOINER, to=[MANAGER], at=authored_at()
     )
 
     result = run_tree(

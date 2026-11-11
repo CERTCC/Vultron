@@ -38,7 +38,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event, settle_as_the_inbox
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -259,6 +259,7 @@ def _build_offer_activity(
         roles=roles,
         id_=offer_id,
         **extra,
+        at=authored_at(),
     )
 
 
@@ -444,6 +445,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         return cast(
             AcceptOfferCaseParticipantReceivedEvent,
@@ -486,6 +488,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         return cast(
             AcceptOfferCaseParticipantReceivedEvent,
@@ -604,6 +607,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             AcceptOfferCaseParticipantReceivedEvent,
@@ -654,6 +658,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             AcceptOfferCaseParticipantReceivedEvent,
@@ -736,6 +741,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             AcceptOfferCaseParticipantReceivedEvent,
@@ -963,6 +969,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         return cast(
             RejectOfferCaseParticipantReceivedEvent,
@@ -1051,6 +1058,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             RejectOfferCaseParticipantReceivedEvent,
@@ -1077,6 +1085,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             RejectOfferCaseParticipantReceivedEvent,
@@ -1203,6 +1212,7 @@ def _answer_to_an_unrecorded_offer(verb: str) -> Any:
         target=_case_ref(CASE_ID),
         actor=CASE_OWNER_ID,
         to=[CASE_ACTOR_ID],
+        at=authored_at(),
     )
 
 
@@ -1356,6 +1366,7 @@ class TestRolesFromStoredOffer:
             to=[AC1_CASE_OWNER_ID],
             origin=RECOMMENDATION_ID,
             roles=roles,
+            at=authored_at(),
         )
         # Build Accept(Offer) using the STORED offer (as Case Owner would).
         stored_offer = dl.read(offer_id)
@@ -1368,6 +1379,7 @@ class TestRolesFromStoredOffer:
             target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_OWNER_ID,
             to=[AC1_CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             AcceptOfferCaseParticipantReceivedEvent,
@@ -1520,7 +1532,7 @@ class TestRolesFromStoredOffer:
         )
 
         accept_invite = rm_accept_invite_to_case_activity(
-            cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID
+            cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID, at=authored_at()
         )
         accept_invite_event = cast(
             AcceptInviteActorToCaseReceivedEvent,
@@ -1579,6 +1591,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             # answers; without it the CASE_MANAGER has nobody to notify.
             origin=RECOMMENDATION_ID,
             **extra,
+            at=authored_at(),
         )
 
     def _build_accept_offer_event(
@@ -1600,6 +1613,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_OWNER_ID,
             to=[AC1_CASE_ACTOR_ID],
+            at=authored_at(),
         )
         return cast(
             AcceptOfferCaseParticipantReceivedEvent,
@@ -1667,6 +1681,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             id_=OFFER_ID,
             origin=RECOMMENDATION_ID,
             roles=[],
+            at=authored_at(),
         )
         dl.create(cast(CaseParticipant, empty_roles_offer.object_))
         dl.create(empty_roles_offer)
@@ -1675,6 +1690,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_OWNER_ID,
             to=[AC1_CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             AcceptOfferCaseParticipantReceivedEvent,
@@ -1754,7 +1770,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         )
 
         accept_invite = rm_accept_invite_to_case_activity(
-            cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID
+            cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID, at=authored_at()
         )
         accept_invite_event = cast(
             AcceptInviteActorToCaseReceivedEvent,
@@ -1814,6 +1830,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             AcceptOfferCaseParticipantReceivedEvent,
@@ -1849,6 +1866,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             RejectOfferCaseParticipantReceivedEvent,
@@ -1910,6 +1928,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
             target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
+            at=authored_at(),
         )
         event = cast(
             AcceptOfferCaseParticipantReceivedEvent,
@@ -2051,6 +2070,7 @@ def _seed_a_recommendation_at_the_case_manager() -> tuple[
         actor=RECOMMENDER_ID,
         to=[CASE_ACTOR_ID],
         suggested_roles=["vendor"],
+        at=authored_at(),
     )
     return dl, received_event(recommendation, at=dl)
 

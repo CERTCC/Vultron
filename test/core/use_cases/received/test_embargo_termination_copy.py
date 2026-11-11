@@ -33,7 +33,7 @@ from test.support.act_runner import run_tree
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.ledger import committed_semantic_types, fail_commits
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -146,6 +146,7 @@ def _trigger(net: LedgerNetwork) -> py_trees.common.Status:
             actor=MANAGER,
             reason=TerminationReason.EARLY,
             to=to,
+            at=authored_at(),
         )
 
     result = run_tree(

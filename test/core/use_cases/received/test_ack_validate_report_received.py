@@ -30,7 +30,7 @@ from test.support.case_owner import (
 )
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -256,7 +256,10 @@ class TestFullReportFlow:
             },
         )
         activity = create_case_activity(
-            case, actor=self.CASE_ACTOR_ID, to=[self.VENDOR_ID]
+            case,
+            actor=self.CASE_ACTOR_ID,
+            to=[self.VENDOR_ID],
+            at=authored_at(),
         )
         run_in_act(
             CreateCaseReceivedUseCase(

@@ -45,6 +45,7 @@ from test.support.ledger import (
     case_snapshot_position_violations,
     ledger_entries,
 )
+from test.support.objects import authored_at
 from test.support.received import received_event
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -276,7 +277,7 @@ def _replay(
             entry.model_dump(mode="json")
         )
         announce = announce_log_entry_activity(
-            entry=wire_entry, actor=manager_id, to=[as_actor]
+            entry=wire_entry, actor=manager_id, to=[as_actor], at=authored_at()
         )
         # Built here, not read from an outbox, so signed here (SIG-01-001).
         body = signed_body(json.loads(dump_outbound_body(announce)))

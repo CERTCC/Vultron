@@ -18,7 +18,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -183,7 +183,7 @@ def _make_event(
         entry.model_dump(mode="json")
     )
     activity = announce_log_entry_activity(
-        entry=wire_entry, actor=actor_id, to=recipients
+        entry=wire_entry, actor=actor_id, to=recipients, at=authored_at()
     )
     event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
@@ -876,6 +876,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
             case_id=CASE_ID,
             actor=case_actor.id_,
             cause_id="invite-expired:https://example.org/activities/invite-0",
+            at=authored_at(),
         )
         _announce(
             _to_persistable_entry(
@@ -1213,6 +1214,7 @@ def _create_entry(
                 target=CASE_ID,
                 actor="https://example.org/actors/manager",
                 context=CASE_ID,
+                at=authored_at(),
             )
         )
     )
@@ -2461,6 +2463,7 @@ def test_seeding_the_case_clears_the_genesis_reject_record(
                 actor=CASE_ACTOR_ACTOR_ID,
                 context=CASE_ID,
                 to=[PARTICIPANT_ACTOR_ID],
+                at=authored_at(),
             )
         ),
     )

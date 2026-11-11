@@ -17,6 +17,7 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import ValidationError
@@ -174,6 +175,8 @@ def rm_invite_to_case_activity(
     target: Any,
     roles: list[str] | None = None,
     embargo_obj: Any = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Invite:
     """Build an Invite(Actor)[target=VulnerabilityCaseStub] — the stub Invite.
@@ -222,7 +225,7 @@ def rm_invite_to_case_activity(
         }
 
     return build_activity(
-        "rm_invite_to_case_activity", _RmInviteToCaseActivity, fields
+        "rm_invite_to_case_activity", _RmInviteToCaseActivity, at, fields
     )
 
 
@@ -276,6 +279,8 @@ def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
 
 def rm_accept_invite_to_case_activity(
     invite: as_Invite,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Accept:
     """Build an Accept(_RmInviteToCaseActivity) — join the case.
@@ -303,12 +308,15 @@ def rm_accept_invite_to_case_activity(
     return build_activity(
         "rm_accept_invite_to_case_activity",
         _RmAcceptInviteToCaseActivity,
+        at,
         lambda: {"object_": _as_case_invite(invite), **kwargs},
     )
 
 
 def rm_reject_invite_to_case_activity(
     invite: as_Invite,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_RmInviteToCaseActivity) — a hard no to joining (RC).
@@ -337,5 +345,6 @@ def rm_reject_invite_to_case_activity(
     return build_activity(
         "rm_reject_invite_to_case_activity",
         _RmRejectInviteToCaseActivity,
+        at,
         lambda: {"object_": _as_case_invite(invite), **kwargs},
     )

@@ -30,7 +30,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -250,6 +250,7 @@ class TestFailedTeardownIsRefused:
             actor=_VENDOR,
             to=[_COORD],
             reason=TerminationReason.EARLY,
+            at=authored_at(),
         )
         event = make_payload(activity, receiving_actor_id=_COORD, at=dl)
 

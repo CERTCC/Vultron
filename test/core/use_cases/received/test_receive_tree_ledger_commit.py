@@ -30,7 +30,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -174,6 +174,7 @@ def _offer():
         make(as_VulnerabilityReport, id_=REPORT_ID, name="r"),
         to=VENDOR_ID,
         actor=FINDER_ID,
+        at=authored_at(),
     )
 
 
@@ -193,7 +194,7 @@ class TestCloseAndInvalidateReportCommit:
             InvalidateReportReceivedEvent,
             received_event(
                 rm_invalidate_report_activity(
-                    _offer(), actor=FINDER_ID, to=[receiver]
+                    _offer(), actor=FINDER_ID, to=[receiver], at=authored_at()
                 ),
                 at=dl,
             ).model_copy(update={"receiving_actor_id": receiver}),
@@ -226,7 +227,7 @@ class TestCloseAndInvalidateReportCommit:
             CloseReportReceivedEvent,
             received_event(
                 rm_close_report_activity(
-                    _offer(), actor=FINDER_ID, to=[receiver]
+                    _offer(), actor=FINDER_ID, to=[receiver], at=authored_at()
                 ),
                 at=dl,
             ).model_copy(update={"receiving_actor_id": receiver}),
@@ -262,7 +263,10 @@ class TestCloseAndInvalidateReportCommit:
         """A refused activity leaves no canonical entry (CLP-10-009)."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER_ID)
         event = received_event(
-            build(_offer(), actor=FINDER_ID, to=[MANAGER_ID]), at=dl
+            build(
+                _offer(), actor=FINDER_ID, to=[MANAGER_ID], at=authored_at()
+            ),
+            at=dl,
         )
         event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
 
@@ -325,7 +329,10 @@ class TestCloseAndInvalidateReportCommit:
         """
         dl = _store(MANAGER_ID, sender_rm, finder_known=finder_known)
         event = received_event(
-            build(_offer(), actor=FINDER_ID, to=[MANAGER_ID]), at=dl
+            build(
+                _offer(), actor=FINDER_ID, to=[MANAGER_ID], at=authored_at()
+            ),
+            at=dl,
         )
         event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
 
@@ -345,7 +352,10 @@ class TestCloseAndInvalidateReportCommit:
             InvalidateReportReceivedEvent,
             received_event(
                 rm_invalidate_report_activity(
-                    _offer(), actor=FINDER_ID, to=[MANAGER_ID]
+                    _offer(),
+                    actor=FINDER_ID,
+                    to=[MANAGER_ID],
+                    at=authored_at(),
                 ),
                 at=dl,
             ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
@@ -410,7 +420,9 @@ def test_announce_case_tree_has_no_commit_stage():
     event = cast(
         AnnounceVulnerabilityCaseReceivedEvent,
         received_event(
-            announce_vulnerability_case_activity(case, actor=MANAGER_ID)
+            announce_vulnerability_case_activity(
+                case, actor=MANAGER_ID, at=authored_at()
+            )
         ),
     )
 

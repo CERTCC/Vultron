@@ -29,7 +29,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import extract_stamped
 from test.support.signing import signed_body
 from vultron.core.models.actor import CoreActor, VultronOrganization
@@ -67,7 +67,7 @@ _BUILDERS: dict[
 ] = {
     "recommend_actor_activity": (
         lambda peer: recommend_actor_activity(
-            peer, target=_CASE, actor=_ACTOR, to=[_ACTOR]
+            peer, target=_CASE, actor=_ACTOR, to=[_ACTOR], at=authored_at()
         ),
         "object",
     ),
@@ -80,6 +80,7 @@ _BUILDERS: dict[
             ),
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         ),
         "object",
     ),
@@ -90,6 +91,7 @@ _BUILDERS: dict[
             LedgerPosition(log_index=0, entry_hash="0" * 64),
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         ),
         "object",
     ),
@@ -104,6 +106,7 @@ _BUILDERS: dict[
             target=peer,
             actor=_ACTOR,
             to=[_PEER],
+            at=authored_at(),
         ),
         "target",
     ),

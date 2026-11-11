@@ -22,7 +22,7 @@ import json
 
 import pytest
 
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import (
     OUTBOUND_DUMP_KWARGS,
@@ -64,7 +64,11 @@ def _invite(actor: str = _ACTOR):
         attributed_to=_ACTOR,
     )
     return rm_invite_to_case_activity(
-        invitee=_INVITEE, target=case, actor=actor, to=[_INVITEE]
+        invitee=_INVITEE,
+        target=case,
+        actor=actor,
+        to=[_INVITEE],
+        at=authored_at(),
     )
 
 

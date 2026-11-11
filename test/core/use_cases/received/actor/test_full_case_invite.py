@@ -29,7 +29,7 @@ from test.core.use_cases.received.actor.test_case_joining_replies import (  # no
     route_received,
 )
 from test.support.act_clock import ACT_AT
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import now_utc
@@ -82,6 +82,7 @@ def test_stub_accept_sends_announce_then_replay_then_full_case_invite(
             joining_case.stub_invite,
             actor=invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
 
@@ -125,6 +126,7 @@ def test_a_resumed_join_does_not_send_a_second_full_case_invite(
         joining_case.stub_invite,
         actor=joining_case.invitee_id,
         to=[joining_case.case_actor_id],
+        at=authored_at(),
     )
     joining_case.route(accept)
     joining_case.route(accept)
@@ -146,6 +148,7 @@ def test_full_case_invite_carries_the_position_as_its_ledger_position() -> (
         "https://example.org/cases/c",
         position,
         actor="https://example.org/actors/m",
+        at=authored_at(),
     )
 
     assert invite.content is None
@@ -336,6 +339,7 @@ def test_a_reply_with_an_unparseable_position_is_refused_at_the_edge(
         invite,
         LedgerPosition(log_index=tail.log_index, entry_hash=tail.entry_hash),
         actor=joining_case.invitee_id,
+        at=authored_at(),
     ).model_dump(
         mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
     )
@@ -481,6 +485,7 @@ def test_an_invite_for_another_case_or_invitee_does_not_suppress_the_invite(
                 id_=f"https://example.org/invitations/unrelated-{n}",
                 actor=joining_case.case_actor_id,
                 to=[invitee],
+                at=authored_at(),
             )
         )
 
@@ -489,6 +494,7 @@ def test_an_invite_for_another_case_or_invitee_does_not_suppress_the_invite(
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
             to=[joining_case.case_actor_id],
+            at=authored_at(),
         )
     )
 
@@ -510,6 +516,7 @@ def _full_case_invite_from(joining, sender: str, suffix: str):
         id_=f"{joining.case.id_}/invitations/full-{suffix}",
         actor=sender,
         to=[joining.invitee_id],
+        at=authored_at(),
     )
 
 

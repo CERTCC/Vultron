@@ -37,7 +37,7 @@ from test.support.act_runner import run_in_act, run_tree
 from test.support.embargo_register import activate, propose, reject
 from test.support.future_dates import days_from_now
 from test.support.ledger import is_consent_row_update
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.owner_decision import (
     seeded_activation,
     seeded_proposal_rejection,
@@ -507,6 +507,7 @@ class TestOtherEmbargoActivity:
             actor=_MANAGER,
             to=[_OTHER],
             id_=f"{_CASE_ID}/invites/other",
+            at=authored_at(),
         )
         dl.create(invite)
         answer = em_reject_embargo_activity(
@@ -514,6 +515,7 @@ class TestOtherEmbargoActivity:
             context=_CASE_ID,
             actor=_OTHER,
             to=[_MANAGER],
+            at=authored_at(),
         )
         event = make_payload(answer, receiving_actor_id=_MANAGER, at=dl)
         return run_in_act(
@@ -613,7 +615,7 @@ class TestOwnerTrigger:
         dl, embargo = _store(owner=_MANAGER)
         dl.create(make(as_Service, id_=_MANAGER, name="Coordinator"))
         proposal = em_propose_embargo_activity(
-            embargo, context=_CASE_ID, actor=_INVITEE
+            embargo, context=_CASE_ID, actor=_INVITEE, at=authored_at()
         )
         dl.create(proposal)
         case = cast(VulnerabilityCase, dl.read(_CASE_ID))

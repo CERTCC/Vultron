@@ -30,7 +30,7 @@ from test.core.use_cases.received._ledger_network import (
     OWNER,
     LedgerNetwork,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.signing import resigned
 from vultron.adapters.driven.sender_sequence_stamp import with_outbound_stamps
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -65,7 +65,11 @@ def _note_body(
     note_id = f"{net.case_id}/notes/{tag}"
     dl.create(make(as_Note, id_=note_id, content=tag, context=net.case_id))
     _activity_id, body = TriggerActivityAdapter(dl).add_note_to_case(
-        note_id=note_id, case_id=net.case_id, actor=actor, to=[to]
+        note_id=note_id,
+        case_id=net.case_id,
+        actor=actor,
+        to=[to],
+        at=authored_at(),
     )
     decoded: dict[str, Any] = json.loads(body)
     return decoded
@@ -103,6 +107,7 @@ def test_a_number_whose_body_is_never_sealed_is_given_back() -> None:
         target=net.case_id,
         actor=OWNER,
         to=[MANAGER],
+        at=authored_at(),
     )
 
     with pytest.raises(_Abort):
@@ -140,6 +145,7 @@ def test_a_refusal_notice_moves_the_count_up_to_the_expected_number() -> None:
         id_=derived_activity_id("refusal-notice", MANAGER, refused["id"]),
         context=net.case_id,
         expected_sender_sequence=7,
+        at=authored_at(),
     )
     body = json.loads(notice.model_dump_json(by_alias=True, exclude_none=True))
     assert body["expectedSenderSequence"] == 7
@@ -166,6 +172,7 @@ def _bare_note(net: LedgerNetwork, tag: str, *, to: object) -> Any:
         target=net.case_id,
         actor=OWNER,
         to=[MANAGER],
+        at=authored_at(),
     ).model_copy(update={"to": to})
 
 
@@ -237,6 +244,7 @@ def _notice_body(
         id_=derived_activity_id("refusal-notice", MANAGER, refused["id"]),
         context=net.case_id,
         expected_sender_sequence=expected,
+        at=authored_at(),
     )
     decoded: dict[str, Any] = json.loads(
         notice.model_dump_json(by_alias=True, exclude_none=True)

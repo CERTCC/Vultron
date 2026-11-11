@@ -33,6 +33,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     setup_blackboard,
 )
+from test.support.act_runner import in_act
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
 from test.support.objects import make
@@ -61,7 +62,8 @@ _ANSWER = SimpleNamespace(activity_id="https://example.org/activities/answer")
 def _tick(node: py_trees.behaviour.Behaviour) -> py_trees.common.Status:
     bt = py_trees.trees.BehaviourTree(root=node)
     bt.setup()
-    bt.tick()
+    with in_act():
+        bt.tick()
     return node.status
 
 

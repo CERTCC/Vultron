@@ -31,7 +31,7 @@ import pytest
 
 from test.support.act_runner import run_in_act
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import (
     archive_received,
     hold_deferred,
@@ -164,6 +164,7 @@ def _store_received_invite(
         context=case_id,
         actor=manager_id,
         to=to if to is not None else [invitee_id],
+        at=authored_at(),
     )
     if deferred:
         hold_deferred(dl, invite)
@@ -406,6 +407,7 @@ def test_a_held_activity_that_is_not_an_invite_is_not_found(
         context=in_force.case.id_,
         actor=in_force.manager_id,
         to=[in_force.finder_id],
+        at=authored_at(),
     )
     data = invite.model_dump(
         mode="json", by_alias=True, exclude_none=True, serialize_as_any=True

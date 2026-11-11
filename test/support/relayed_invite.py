@@ -26,7 +26,7 @@ from typing import Any
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -159,6 +159,7 @@ def deliver_relayed_invite(
         actor=COORD,
         to=[INVITEE],
         **optional,
+        at=authored_at(),
     )
     return run_in_act(
         InviteToEmbargoOnCaseReceivedUseCase(

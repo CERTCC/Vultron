@@ -34,7 +34,7 @@ from test.support.ledger import (
     case_snapshot_position_violations,
     checking_each_commit,
 )
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import STORED_ROW_CONTEXT
 from vultron.core.behaviors.bridge import BTBridge
@@ -140,9 +140,9 @@ def test_an_empty_ledger_position_must_name_the_genesis_hash() -> None:
 @pytest.mark.spec("SYNC-16-018")
 def test_the_position_travels_on_the_wire_form() -> None:
     case = _case(ledger_position={"log_index": 4, "entry_hash": "c" * 64})
-    body = create_case_activity(case, actor=OWNER).model_dump(
-        mode="json", by_alias=True, exclude_none=True
-    )
+    body = create_case_activity(
+        case, actor=OWNER, at=authored_at()
+    ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
     assert body["object"]["ledgerPosition"] == {
         "logIndex": 4,
@@ -158,9 +158,9 @@ def test_the_position_travels_on_the_wire_form() -> None:
 
 @pytest.mark.spec("SYNC-16-019")
 def test_a_received_case_without_a_position_is_refused() -> None:
-    body = create_case_activity(_case(), actor=OWNER).model_dump(
-        mode="json", by_alias=True, exclude_none=True
-    )
+    body = create_case_activity(
+        _case(), actor=OWNER, at=authored_at()
+    ).model_dump(mode="json", by_alias=True, exclude_none=True)
     del body["object"]["ledgerPosition"]
 
     with pytest.raises(VultronParseValidationError, match="ledgerPosition"):

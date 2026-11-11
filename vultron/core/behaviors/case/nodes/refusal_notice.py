@@ -245,6 +245,7 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
             ),
             asserter=event.actor_id,
             reason=reason,
+            at=self._require_act_instant(),
         )
 
     def _refusal_reason(self) -> str:

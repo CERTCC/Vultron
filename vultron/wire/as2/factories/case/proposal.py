@@ -17,6 +17,8 @@
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+from datetime import datetime
+
 from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.factories._construct import build_activity
 from vultron.wire.as2.factories._inline import require_inline
@@ -34,6 +36,8 @@ def create_case_proposal_activity(
     actor: CoreActor | as_Actor,
     proposal: as_CaseProposal,
     to: list[str],
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Create:
     """Build a ``Create(CaseProposal)`` sent by the report receiver.
@@ -74,6 +78,7 @@ def create_case_proposal_activity(
     return build_activity(
         "create_case_proposal_activity",
         as_Create,
+        at,
         lambda: {"actor": actor, "object_": proposal, "to": to, **kwargs},
     )
 
@@ -82,6 +87,8 @@ def accept_case_proposal_activity(
     actor_id: str,
     proposal: as_CaseProposal,
     to: list[str],
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Accept:
     """Build an ``Accept(CaseProposal)`` sent by the case-actor service.
@@ -106,6 +113,7 @@ def accept_case_proposal_activity(
     return build_activity(
         "accept_case_proposal_activity",
         as_Accept,
+        at,
         lambda: {"actor": actor_id, "object_": proposal, "to": to, **kwargs},
     )
 
@@ -114,6 +122,8 @@ def reject_case_proposal_activity(
     actor_id: str,
     proposal: as_CaseProposal,
     to: list[str],
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a ``Reject(CaseProposal)`` sent by the case-actor service.
@@ -138,5 +148,6 @@ def reject_case_proposal_activity(
     return build_activity(
         "reject_case_proposal_activity",
         as_Reject,
+        at,
         lambda: {"actor": actor_id, "object_": proposal, "to": to, **kwargs},
     )

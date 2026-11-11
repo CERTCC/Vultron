@@ -48,7 +48,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
-from test.support.objects import make
+from test.support.objects import authored_at, make
 from test.support.received import settle_as_the_inbox
 from test.support.rm_declaration import (
     ACTOR_ID,
@@ -126,6 +126,7 @@ def _offer() -> Any:
         ),
         to=ACTOR_ID,
         actor="https://example.org/actors/finder",
+        at=authored_at(),
     )
 
 
@@ -152,28 +153,28 @@ _HANDLERS: dict[RM, _Handler] = {
         RM.VALID,
         ValidateReportReceivedUseCase,
         lambda actor: rm_validate_report_activity(
-            _offer(), actor=actor, to=[CASE_MANAGER_ID]
+            _offer(), actor=actor, to=[CASE_MANAGER_ID], at=authored_at()
         ),
     ),
     RM.INVALID: _Handler(
         RM.INVALID,
         InvalidateReportReceivedUseCase,
         lambda actor: rm_invalidate_report_activity(
-            _offer(), actor=actor, to=[CASE_MANAGER_ID]
+            _offer(), actor=actor, to=[CASE_MANAGER_ID], at=authored_at()
         ),
     ),
     RM.ACCEPTED: _Handler(
         RM.ACCEPTED,
         EngageCaseReceivedUseCase,
         lambda actor: rm_engage_case_activity(
-            _case_ref(), actor=actor, to=[CASE_MANAGER_ID]
+            _case_ref(), actor=actor, to=[CASE_MANAGER_ID], at=authored_at()
         ),
     ),
     RM.DEFERRED: _Handler(
         RM.DEFERRED,
         DeferCaseReceivedUseCase,
         lambda actor: rm_defer_case_activity(
-            _case_ref(), actor=actor, to=[CASE_MANAGER_ID]
+            _case_ref(), actor=actor, to=[CASE_MANAGER_ID], at=authored_at()
         ),
     ),
 }
@@ -358,6 +359,7 @@ def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
         actor=ACTOR_ID,
         to=[CASE_MANAGER_ID],
         context=_case_ref(),
+        at=authored_at(),
     )
     event = make_payload(activity, at=dl)
     bridge = BTBridge(
@@ -527,6 +529,7 @@ def _status_declaration(
         actor=sender_id,
         to=[to],
         context=_case_ref(),
+        at=authored_at(),
     )
 
 

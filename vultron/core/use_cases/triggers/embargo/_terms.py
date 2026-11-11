@@ -80,6 +80,7 @@ class SvcOfferEmbargoTermsBase(SvcEmbargoTriggerBase):
                 case_id=self._case.id_,
                 actor=self._actor_id,
                 to=to,
+                at=self._at,
             )
             self._captured["activity"] = json.loads(proposal_blob)
             return proposal_id, proposal_blob

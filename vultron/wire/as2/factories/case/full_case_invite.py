@@ -18,6 +18,7 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any, TypeVar
 
 from pydantic import ValidationError
@@ -52,6 +53,8 @@ def rm_invite_to_full_case_activity(
     invitee: as_Actor | CoreActor | str,
     case: VulnerabilityCase | str,
     ledger_tail: LedgerPosition,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Invite:
     """Build an Invite(Actor)[target=VulnerabilityCase] — the full-case Invite.
@@ -82,6 +85,7 @@ def rm_invite_to_full_case_activity(
     return build_activity(
         "rm_invite_to_full_case_activity",
         _RmInviteToFullCaseActivity,
+        at,
         lambda: {
             "object_": carried_actor(invitee),
             "target": case_id,
@@ -128,10 +132,13 @@ def _full_case_reply(
     invite: as_Invite,
     ledger_tail: LedgerPosition,
     kwargs: dict[str, Any],
+    *,
+    at: datetime,
 ) -> _Reply:
     return build_activity(
         label,
         reply_class,
+        at,
         lambda: {
             "object_": _as_full_case_invite(invite),
             "ledger_position": ledger_tail,
@@ -143,6 +150,8 @@ def _full_case_reply(
 def rm_accept_full_case_invite_activity(
     invite: as_Invite,
     ledger_tail: LedgerPosition,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Accept:
     """Build Accept(full-case Invite) — RV, carrying the replier's position.
@@ -159,12 +168,15 @@ def rm_accept_full_case_invite_activity(
         invite,
         ledger_tail,
         kwargs,
+        at=at,
     )
 
 
 def rm_tentative_reject_full_case_invite_activity(
     invite: as_Invite,
     ledger_tail: LedgerPosition,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build TentativeReject(full-case Invite) — RI, carrying the position.
@@ -180,12 +192,15 @@ def rm_tentative_reject_full_case_invite_activity(
         invite,
         ledger_tail,
         kwargs,
+        at=at,
     )
 
 
 def rm_reject_full_case_invite_activity(
     invite: as_Invite,
     ledger_tail: LedgerPosition,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build Reject(full-case Invite) — RC, carrying the replier's position.
@@ -201,4 +216,5 @@ def rm_reject_full_case_invite_activity(
         invite,
         ledger_tail,
         kwargs,
+        at=at,
     )

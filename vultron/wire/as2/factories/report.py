@@ -22,6 +22,8 @@ imported here and MUST NOT be imported by callers.
 Spec: ``specs/activity-factories.yaml`` AF-01-001, AF-02-001, AF-03-001.
 """
 
+from datetime import datetime
+
 from pydantic import ValidationError
 
 from vultron.wire.as2.factories._construct import build_activity
@@ -55,6 +57,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 def rm_create_report_activity(
     report: as_VulnerabilityReport,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Create:
     """Build a Create(VulnerabilityReport) — the reporter creates a report.
@@ -73,6 +77,7 @@ def rm_create_report_activity(
     return build_activity(
         "rm_create_report_activity",
         _RmCreateReportActivity,
+        at,
         lambda: {"object_": report, **kwargs},
     )
 
@@ -81,6 +86,8 @@ def rm_submit_report_activity(
     report: as_VulnerabilityReport,
     to: as_Actor | str,
     proposed_embargo: as_EmbargoEvent | None = None,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Offer:
     """Build an Offer(VulnerabilityReport) — the RS message when no case exists.
@@ -113,6 +120,7 @@ def rm_submit_report_activity(
     return build_activity(
         "rm_submit_report_activity",
         _RmSubmitReportActivity,
+        at,
         lambda: {
             "object_": report,
             "to": [to],
@@ -142,6 +150,8 @@ def _as_submit_offer(offer: as_Offer) -> _RmSubmitReportActivity:
 
 def rm_read_report_activity(
     offer: as_Offer,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Read:
     """Build a Read(Offer(VulnerabilityReport)) — the RK message when no case exists.
@@ -167,12 +177,15 @@ def rm_read_report_activity(
     return build_activity(
         "rm_read_report_activity",
         _RmReadReportActivity,
+        at,
         lambda: {"object_": _as_submit_offer(offer), **kwargs},
     )
 
 
 def rm_validate_report_activity(
     offer: as_Offer,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Accept:
     """Build an Accept(Offer) — the RV message when no case exists.
@@ -198,12 +211,15 @@ def rm_validate_report_activity(
     return build_activity(
         "rm_validate_report_activity",
         _RmValidateReportActivity,
+        at,
         lambda: {"object_": _as_submit_offer(offer), **kwargs},
     )
 
 
 def rm_invalidate_report_activity(
     offer: as_Offer,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_TentativeReject:
     """Build a TentativeReject(Offer) — the RI message when no case exists.
@@ -229,12 +245,15 @@ def rm_invalidate_report_activity(
     return build_activity(
         "rm_invalidate_report_activity",
         _RmInvalidateReportActivity,
+        at,
         lambda: {"object_": _as_submit_offer(offer), **kwargs},
     )
 
 
 def rm_close_report_activity(
     offer: as_Offer,
+    *,
+    at: datetime,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(Offer) — the RC message when no case exists.
@@ -262,6 +281,7 @@ def rm_close_report_activity(
     return build_activity(
         "rm_close_report_activity",
         _RmCloseReportActivity,
+        at,
         lambda: {"object_": _as_submit_offer(offer), **kwargs},
     )
 

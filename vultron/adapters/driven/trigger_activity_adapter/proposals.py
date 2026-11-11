@@ -23,6 +23,7 @@ Split from ``cases.py`` at the CS-18-001 module-size cap.
 
 import logging
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any, cast
 
 from pydantic import ValidationError
@@ -79,6 +80,8 @@ class _ProposalsMixin:
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
         proposer_case_roles: Sequence[CVDRole] = (),
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Create(CaseProposal)`` activity.
 
@@ -145,6 +148,7 @@ class _ProposalsMixin:
             actor=sender,
             proposal=proposal,
             to=recipients,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "create_case_proposal")
 
@@ -210,6 +214,8 @@ class _ProposalsMixin:
         proposal: dict,
         to: list[str] | None = None,
         summary: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(CaseProposal)`` activity.
 
@@ -264,6 +270,7 @@ class _ProposalsMixin:
             proposal=wire_proposal,
             to=recipients,
             **extra,
+            at=at,
         )
         return _create_and_seal(self._dl, activity, "reject_case_proposal")
 
@@ -273,6 +280,8 @@ class _ProposalsMixin:
         proposal: dict,
         to: list[str],
         result: str | None = None,
+        *,
+        at: datetime,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(CaseProposal)`` activity.
 
@@ -317,6 +326,7 @@ class _ProposalsMixin:
                 "accept-case-proposal", actor, wire_proposal.id_
             ),
             **extra,
+            at=at,
         )
         # One transaction: the sender sequence the stamp allocates is used
         # only when the body carrying it is sealed (SYNC-21-003).
