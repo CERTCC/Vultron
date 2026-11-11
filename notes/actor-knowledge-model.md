@@ -132,15 +132,18 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   AKM-02-006). Reason: a record of another actor under the peer's id is an invented
   value. The DETERMINISTIC default is `always_succeed_as` the declaration: its
   placeholder record names no peer, so it yields the minimal record and logs at INFO.
-  A failing backend logs a WARNING after the bridge's ERROR for a raise.
+  A failing backend logs a WARNING, after the bridge's ERROR for an *error* or a
+  raise.
 - **A source answers through `ActorResolutionPort` (`vultron/core/ports/`).** Give it
   a peer id and it returns that peer's profile, or `None` for *no*.
   `actor_resolution_bundle(port)` builds the bundle. The static adapter returns a
   declared profile and the live one fetches the peer's profile through
   `ActorProfileFetchPort` (`vultron/adapters/driven/actor_resolution.py`). The port
-  is synchronous: the live adapter runs the async fetch on its own loop in a worker
-  thread, with one attempt and a wait of at most the call-out budget. Reason: a
-  call-out answers in one tick within that budget (BT-18-011, BT-18-015).
+  is synchronous: the live adapter runs the async fetch on its own loop in a daemon
+  thread, with one attempt and a wait of 80% of the call-out budget, so a slow
+  peer is its *error*, not a seam overrun. A fetched `inbox`/`outbox` meets the
+  profile-URL rule. Reason: a call-out answers in one tick within that budget
+  (BT-18-011, BT-18-015).
 - **The seam lives in the use case's `_prepare()`, not a BT node.** Recording a
   peer changes no protocol-observable state, so BT-15-001 does not apply. The
   backend still runs as a one-tick tree through `BTBridge`, acting as the acting

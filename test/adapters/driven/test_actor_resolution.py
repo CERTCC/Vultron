@@ -19,8 +19,9 @@ from datetime import timedelta
 
 import pytest
 
-from test.support.objects import make
+from test.support.actor_resolution import BodyFetcher, peer_profile
 from vultron.adapters.driven.actor_resolution import (
+    BUDGET_SHARE,
     HttpActorResolutionAdapter,
     StaticActorResolutionAdapter,
     resolution_profile_fetcher,
@@ -29,9 +30,8 @@ from vultron.adapters.driven.http_actor_profile_fetch import (
     MAX_VERIFICATION_PROFILE_BYTES,
     HttpActorProfileFetchAdapter,
 )
-from vultron.adapters.driven.http_object_fetch import ObjectFetchResult
+from vultron.config.app import load_actor_config
 from vultron.core.models.actor import CoreActor, VultronOrganization
-from vultron.core.models.object_fetch import ObjectReference
 from vultron.core.ports.actor_resolution import ActorResolutionPort
 from vultron.errors import VultronActorProfileFetchError
 
@@ -39,41 +39,25 @@ PEER = "https://peer.example/api/v2/actors/peer"
 REQUESTER = "https://acting.example/api/v2/actors/acting"
 
 
-def _profile(actor_id: str = PEER) -> VultronOrganization:
-    return make(VultronOrganization, id_=actor_id, name="Peer Org")
+class _BlockingProfileFetch:
+    """An ``ActorProfileFetchPort`` that answers only once *release* is set."""
 
-
-class _BodyFetcher:
-    """An ``ObjectFetcher`` answering every fetch with one body."""
-
-    def __init__(self, body: dict | None, failure: str | None = None) -> None:
-        self._body = body
-        self._failure = failure
-        self.asked: list[tuple[ObjectReference, str]] = []
-
-    async def fetch(
-        self, reference: ObjectReference, requester_id: str
-    ) -> ObjectFetchResult:
-        self.asked.append((reference, requester_id))
-        return ObjectFetchResult(self._body, self._failure, 1)
-
-
-class _SlowProfileFetch:
-    """An ``ActorProfileFetchPort`` that answers only after *delay*."""
-
-    def __init__(self, delay: float) -> None:
-        self._delay = delay
+    def __init__(self, release: threading.Event) -> None:
+        self._release = release
 
     async def fetch_profile(
         self, actor_id: str, requester_id: str
     ) -> CoreActor:
-        await asyncio.sleep(self._delay)
-        return _profile(actor_id)
+        while not self._release.is_set():
+            await asyncio.sleep(0.01)
+        return peer_profile(actor_id)
 
 
-def _live(fetcher: object, budget: float = 5.0) -> HttpActorResolutionAdapter:
+def _live(
+    fetcher: BodyFetcher, budget: float = 5.0
+) -> HttpActorResolutionAdapter:
     return HttpActorResolutionAdapter(
-        HttpActorProfileFetchAdapter(fetcher),  # type: ignore[arg-type]
+        HttpActorProfileFetchAdapter(fetcher),
         budget=timedelta(seconds=budget),
     )
 
@@ -90,7 +74,7 @@ def test_both_adapters_implement_the_port():
 
 
 def test_static_adapter_returns_the_declared_profile():
-    declared = _profile()
+    declared = peer_profile(PEER)
     adapter = StaticActorResolutionAdapter([declared])
 
     resolved = adapter.resolve_actor(PEER, REQUESTER)
@@ -100,8 +84,7 @@ def test_static_adapter_returns_the_declared_profile():
 
 
 def test_static_adapter_hands_out_a_copy():
-    declared = _profile()
-    adapter = StaticActorResolutionAdapter([declared])
+    adapter = StaticActorResolutionAdapter([peer_profile(PEER)])
 
     first = adapter.resolve_actor(PEER, REQUESTER)
     assert first is not None
@@ -112,22 +95,21 @@ def test_static_adapter_hands_out_a_copy():
 
 
 def test_static_adapter_answers_none_for_an_id_it_holds_no_profile_for():
-    adapter = StaticActorResolutionAdapter([_profile()])
+    adapter = StaticActorResolutionAdapter([peer_profile(PEER)])
 
     assert adapter.resolve_actor(f"{PEER}-other", REQUESTER) is None
 
 
 def test_static_adapter_refuses_two_profiles_for_one_id():
     with pytest.raises(ValueError, match="two static profiles"):
-        StaticActorResolutionAdapter([_profile(), _profile()])
+        StaticActorResolutionAdapter([peer_profile(PEER), peer_profile(PEER)])
 
 
 # --- live -----------------------------------------------------------------
 
 
 def test_live_adapter_fetches_and_validates_the_peers_profile():
-    body = _profile().model_dump(mode="json", by_alias=True)
-    fetcher = _BodyFetcher(body)
+    fetcher = BodyFetcher.serving(peer_profile(PEER))
 
     resolved = _live(fetcher).resolve_actor(PEER, REQUESTER)
 
@@ -139,50 +121,76 @@ def test_live_adapter_fetches_and_validates_the_peers_profile():
 
 
 def test_live_adapter_raises_when_the_fetch_fails():
-    fetcher = _BodyFetcher(None, failure="HTTP 404")
+    fetcher = BodyFetcher(None, failure="HTTP 404")
 
     with pytest.raises(VultronActorProfileFetchError, match="HTTP 404"):
         _live(fetcher).resolve_actor(PEER, REQUESTER)
 
 
 def test_live_adapter_refuses_a_profile_of_another_actor():
-    body = _profile(f"{PEER}-impostor").model_dump(mode="json", by_alias=True)
+    fetcher = BodyFetcher.serving(peer_profile(f"{PEER}-impostor"))
 
     with pytest.raises(VultronActorProfileFetchError):
-        _live(_BodyFetcher(body)).resolve_actor(PEER, REQUESTER)
+        _live(fetcher).resolve_actor(PEER, REQUESTER)
 
 
 def test_live_adapter_refuses_a_url_it_may_not_fetch():
-    fetcher = _BodyFetcher(_profile().model_dump(mode="json", by_alias=True))
+    fetcher = BodyFetcher.serving(peer_profile(PEER))
 
     with pytest.raises(VultronActorProfileFetchError):
         _live(fetcher).resolve_actor("http://127.0.0.1/actors/x", REQUESTER)
     assert fetcher.asked == []
 
 
-@pytest.mark.spec("BT-18-015")
-def test_live_adapter_gives_up_at_its_budget():
-    adapter = HttpActorResolutionAdapter(
-        _SlowProfileFetch(delay=0.5), budget=timedelta(seconds=0.05)
+@pytest.mark.parametrize("endpoint", ["inbox", "outbox"])
+def test_live_adapter_refuses_a_profile_naming_a_private_endpoint(endpoint):
+    """A stored inbox is where delivery posts, so it meets the URL rule."""
+    profile = peer_profile(PEER, **{endpoint: "http://10.0.0.5/inbox/"})
+
+    with pytest.raises(VultronActorProfileFetchError, match=endpoint):
+        _live(BodyFetcher.serving(profile)).resolve_actor(PEER, REQUESTER)
+
+
+def test_live_adapter_keeps_a_profile_with_public_endpoints():
+    profile = peer_profile(
+        PEER, inbox=f"{PEER}/inbox/", outbox=f"{PEER}/outbox/"
     )
 
-    with pytest.raises(VultronActorProfileFetchError, match="took longer"):
-        adapter.resolve_actor(PEER, REQUESTER)
+    resolved = _live(BodyFetcher.serving(profile)).resolve_actor(
+        PEER, REQUESTER
+    )
+
+    assert resolved.inbox == f"{PEER}/inbox/"
+
+
+@pytest.mark.spec("BT-18-015")
+def test_live_adapter_gives_up_at_its_budget_on_a_daemon_worker():
+    release = threading.Event()
+    adapter = HttpActorResolutionAdapter(
+        _BlockingProfileFetch(release), budget=timedelta(seconds=0.05)
+    )
+    try:
+        with pytest.raises(VultronActorProfileFetchError, match="took longer"):
+            adapter.resolve_actor(PEER, REQUESTER)
+        workers = [
+            t for t in threading.enumerate() if t.name == "actor-resolution"
+        ]
+        # The fetch outlived the wait, and never holds up interpreter exit.
+        assert workers and all(t.daemon for t in workers)
+    finally:
+        release.set()
 
 
 @pytest.mark.spec("BT-18-011")
 def test_live_adapter_answers_synchronously_inside_a_running_loop():
     """A caller on a thread that already runs a loop still gets a record."""
-    body = _profile().model_dump(mode="json", by_alias=True)
-    adapter = _live(_BodyFetcher(body))
+    adapter = _live(BodyFetcher.serving(peer_profile(PEER)))
 
     async def _caller() -> CoreActor:
         record: CoreActor = adapter.resolve_actor(PEER, REQUESTER)
         return record
 
-    resolved = asyncio.run(_caller())
-
-    assert resolved.id_ == PEER
+    assert asyncio.run(_caller()).id_ == PEER
 
 
 def test_live_adapter_runs_the_fetch_off_the_calling_thread():
@@ -193,7 +201,7 @@ def test_live_adapter_runs_the_fetch_off_the_calling_thread():
             self, actor_id: str, requester_id: str
         ) -> CoreActor:
             seen.append(threading.get_ident())
-            return _profile(actor_id)
+            return peer_profile(actor_id)
 
     HttpActorResolutionAdapter(
         _Recording(), budget=timedelta(seconds=5)
@@ -207,15 +215,19 @@ def test_live_adapter_refuses_a_budget_that_is_not_positive():
         HttpActorResolutionAdapter(budget=timedelta(0))
 
 
-def test_live_adapter_budget_defaults_to_the_call_out_budget():
-    from vultron.config.app import load_actor_config
+@pytest.mark.spec("BT-18-026")
+@pytest.mark.spec("BT-18-027")
+def test_live_adapter_waits_less_than_the_call_out_budget_by_default():
+    """The rest of the budget is the seam's, so a late peer is an error."""
+    budget = load_actor_config().call_out_time_budget
 
     adapter = HttpActorResolutionAdapter()
 
-    assert adapter._budget == load_actor_config().call_out_time_budget
+    assert adapter._budget == budget * BUDGET_SHARE
+    assert adapter._budget < budget
 
 
-def test_the_default_live_fetch_makes_one_attempt_within_the_budget():
+def test_the_default_live_fetch_makes_one_attempt_within_the_wait():
     fetcher = resolution_profile_fetcher(timedelta(seconds=3))
 
     inner = fetcher._fetcher
@@ -226,3 +238,15 @@ def test_the_default_live_fetch_makes_one_attempt_within_the_budget():
         inner._max_body_bytes  # type: ignore[attr-defined]
         == MAX_VERIFICATION_PROFILE_BYTES
     )
+
+
+def test_live_adapter_refuses_a_fetch_port_answer_that_is_no_actor():
+    class _Wrong:
+        async def fetch_profile(self, actor_id: str, requester_id: str):
+            return {"id": actor_id}
+
+    with pytest.raises(VultronActorProfileFetchError, match="no actor"):
+        HttpActorResolutionAdapter(
+            _Wrong(),  # type: ignore[arg-type]
+            budget=timedelta(seconds=5),
+        ).resolve_actor(PEER, REQUESTER)

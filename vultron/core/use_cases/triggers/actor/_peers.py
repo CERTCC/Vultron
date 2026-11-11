@@ -35,7 +35,6 @@ from vultron.core.behaviors.call_out.bundles.actor_resolution import (
     ActorResolutionCallOutBundle,
 )
 from vultron.core.behaviors.call_out.capabilities.actor_resolution import (
-    PEER_ACTOR_ID_KEY,
     RESOLVED_ACTOR_KEY,
 )
 from vultron.core.models.actor import CoreActor
@@ -153,12 +152,14 @@ def _record_named_peer(
     # details cannot be resolved, so it degrades the same as any other
     # non-SUCCESS rather than crashing the request; the WARNING below carries
     # the bridge's message, so the offending backend is named there too.
-    run_context: dict[str, Any] = {
-        PEER_ACTOR_ID_KEY: actor_id,
-        RESOLVED_ACTOR_KEY: None,
-    }
+    # The two keywords are the capability's PEER_ACTOR_ID_KEY and
+    # RESOLVED_ACTOR_KEY; the resolution tests fail if they drift apart.
     result = BTBridge(datalayer=dl).execute_with_setup(
-        tree, actor_id=acting_actor_id, max_iterations=1, **run_context
+        tree,
+        actor_id=acting_actor_id,
+        max_iterations=1,
+        peer_actor_id=actor_id,
+        resolved_actor=None,
     )
     status = result.status
     record = kept.get(RESOLVED_ACTOR_KEY)

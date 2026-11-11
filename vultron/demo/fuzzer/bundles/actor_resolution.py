@@ -23,8 +23,9 @@ other's DataLayers so scenarios need no global directory (AC-2).  The
 STOCHASTIC singleton places the named node
 :class:`~vultron.demo.fuzzer.actor_resolution.ResolveActorDetails`, an
 ``AlmostAlwaysSucceed`` (p=0.90) bound to the core declaration, to
-occasionally exercise the FAILURE path during fuzz runs.  The DETERMINISTIC ceiling of p=0.90 is the
-``AlwaysSucceed`` bound to that declaration (BT-23-002, BT-23-013).
+occasionally exercise the FAILURE path during fuzz runs.  The DETERMINISTIC
+ceiling of p=0.90 is the ``AlwaysSucceed`` bound to that declaration
+(BT-23-002, BT-23-013).
 """
 
 from __future__ import annotations

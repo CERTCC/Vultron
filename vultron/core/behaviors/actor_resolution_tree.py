@@ -31,23 +31,25 @@ from typing import Final
 
 import py_trees
 from py_trees.common import Status
-from py_trees.ports import PortInformation
+from py_trees.ports import BehaviourWithPorts, PortInformation
 
 from vultron.core.behaviors.call_out.capabilities.actor_resolution import (
     RESOLVED_ACTOR_KEY,
 )
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-from vultron.core.behaviors.helpers.ports_base import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers.ports_base import _OptionalPortRead
+from vultron.core.behaviors.node_logger import port_wiring_logger
 from vultron.core.models.actor import CoreActor
 
 #: The node name a tree passes to the actor-resolution backend factory.
 RESOLVE_ACTOR_DETAILS: Final[str] = "ResolveActorDetails"
 
 
-class KeepResolvedActorNode(DataLayerActionWithPorts):
+class KeepResolvedActorNode(_OptionalPortRead, BehaviourWithPorts):
     """Copy the record on ``resolved_actor`` into the caller's dict.
 
-    Reads the port as optional: a backend that answers *yes* without writing
+    It reads no store, so it takes only the shared optional-port read, not
+    a DataLayer base.  Reads the port as optional: a backend that answers *yes* without writing
     it (one that binds no declaration) leaves the dict empty.  A value that
     is not a :class:`~vultron.core.models.actor.CoreActor` raises
     ``TypeError`` and fails the whole run (BTND-03-021).
@@ -58,19 +60,21 @@ class KeepResolvedActorNode(DataLayerActionWithPorts):
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
         RESOLVED_ACTOR_KEY: PortInformation(
             data_type=CoreActor, required=False
         ),
     }
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
 
     def __init__(self, kept: dict[str, CoreActor]) -> None:
         super().__init__(name=type(self).__name__)
         self._kept = kept
 
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {RESOLVED_ACTOR_KEY: f"/{RESOLVED_ACTOR_KEY}"}
+    def setup(self, **kwargs: object) -> None:
+        self.setup_ports(
+            port_remappings={RESOLVED_ACTOR_KEY: f"/{RESOLVED_ACTOR_KEY}"},
+            logger=port_wiring_logger(),
+        )
 
     def update(self) -> Status:
         record = self._try_get_input(RESOLVED_ACTOR_KEY)

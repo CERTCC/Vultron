@@ -7,7 +7,9 @@ longer crashes the request: it degrades to a minimal peer, like any other
 non-SUCCESS, and the bridge logs the internal error.
 """
 
+import asyncio
 import logging
+import threading
 from collections.abc import Callable, Iterator
 from datetime import timedelta
 
@@ -15,6 +17,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.actor_resolution import BodyFetcher, peer_profile
 from test.support.objects import make
 from vultron.adapters.driven.actor_resolution import (
     HttpActorResolutionAdapter,
@@ -24,7 +27,10 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_actor_profile_fetch import (
     HttpActorProfileFetchAdapter,
 )
-from vultron.adapters.driven.http_object_fetch import ObjectFetchResult
+from vultron.core.behaviors.actor_resolution_tree import (
+    create_actor_resolution_tree,
+)
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out.answer import CallOutAnswer
 from vultron.core.behaviors.call_out.backend import CallOutBackend
 from vultron.core.behaviors.call_out.bundles.actor_resolution import (
@@ -189,14 +195,7 @@ class _Port:
 
 
 def _peer_profile(actor_id: str = PEER) -> VultronOrganization:
-    return make(
-        VultronOrganization,
-        id_=actor_id,
-        name="Peer Org",
-        inbox=f"{actor_id}/inbox/",
-        published=None,
-        updated=None,
-    )
+    return peer_profile(actor_id, inbox=f"{actor_id}/inbox/")
 
 
 def _record_through(dl: SqliteDataLayer, port: object) -> None:
@@ -313,21 +312,84 @@ def test_a_record_left_by_an_earlier_run_is_never_kept(dl):
     stale.unregister_key(RESOLVED_ACTOR_KEY, clear=True)
 
 
-@pytest.mark.spec("AKM-05-002")
-def test_a_live_adapter_profile_is_stored(dl):
-    body = _peer_profile().model_dump(mode="json", by_alias=True)
-
-    class _Fetcher:
-        async def fetch(self, reference, requester_id):
-            return ObjectFetchResult(body, None, 1)
-
-    live = HttpActorResolutionAdapter(
-        HttpActorProfileFetchAdapter(_Fetcher()),  # type: ignore[arg-type]
-        budget=timedelta(seconds=5),
+def _live(fetcher: object, budget: float = 5.0) -> HttpActorResolutionAdapter:
+    return HttpActorResolutionAdapter(
+        fetcher,  # type: ignore[arg-type]
+        budget=timedelta(seconds=budget),
     )
 
-    _record_through(dl, live)
+
+@pytest.mark.spec("AKM-05-002")
+def test_a_live_adapter_profile_is_stored(dl):
+    fetch = HttpActorProfileFetchAdapter(BodyFetcher.serving(_peer_profile()))
+
+    _record_through(dl, _live(fetch))
 
     stored = dl.read(PEER)
     assert isinstance(stored, VultronOrganization)
     assert stored.name == "Peer Org"
+
+
+@pytest.mark.spec("AKM-05-001")
+@pytest.mark.spec("BT-18-015")
+def test_a_slow_live_peer_is_an_error_answer_not_an_overrun(dl, caplog):
+    """The adapter gives up inside the seam's budget, so the seam sees the
+    adapter's *error*, naming the fetch, not a budget overrun (BT-18-027);
+    the peer is recorded by its URI."""
+    release = threading.Event()
+
+    class _Blocking:
+        async def fetch_profile(self, actor_id, requester_id):
+            while not release.is_set():
+                await asyncio.sleep(0.01)
+            return _peer_profile(actor_id)
+
+    try:
+        with caplog.at_level(logging.WARNING):
+            _record_through(dl, _live(_Blocking(), budget=0.05))
+    finally:
+        release.set()
+
+    assert _is_minimal(dl.read(PEER))
+    assert "CallOutBudgetExceededError" not in caplog.text
+    assert any(
+        "actor resolution returned FAILURE" in r.getMessage()
+        and "CallOutBackendError" in r.getMessage()
+        and "took longer than the resolution budget" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_a_port_that_raises_otherwise_records_the_minimal_peer(dl, caplog):
+    """A raise that is not a fetch error is an adapter fault: the bridge
+    logs it at ERROR, and the peer is still recorded by its URI."""
+    port = _Port(error=RuntimeError("adapter bug"))
+
+    with caplog.at_level(logging.WARNING):
+        _record_through(dl, port)
+
+    assert _is_minimal(dl.read(PEER))
+    errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert any("adapter bug" in r.getMessage() for r in errors)
+    assert "actor resolution returned FAILURE" in caplog.text
+
+
+@pytest.mark.spec("BTND-03-021")
+def test_a_wrong_typed_resolved_actor_fails_the_whole_run(dl):
+    kept: dict[str, CoreActor] = {}
+    bundle = ActorResolutionCallOutBundle(
+        resolve_actor_factory=_counting_backend([])  # type: ignore[arg-type]
+    )
+    tree = create_actor_resolution_tree(bundle.resolve_actor_factory, kept)
+
+    result = BTBridge(datalayer=dl).execute_with_setup(
+        tree,
+        actor_id=ACTING,
+        max_iterations=1,
+        resolved_actor="not an actor",
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "CoreActor" in (result.feedback_message or "")
+    assert kept == {}
