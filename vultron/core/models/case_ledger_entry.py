@@ -138,7 +138,7 @@ class CaseLedgerEntry(CoreObject):
     # Both required, with no clock default: an entry is made from a committed
     # record, whose stamp is the committing act's instant, or parsed from a
     # peer's (ADR-0176).
-    published: datetime
+    published: datetime  # pyright: ignore[reportGeneralTypeIssues]
     received_at: datetime = Field(
         ...,
         description="Server-generated TZ-aware UTC receipt timestamp",

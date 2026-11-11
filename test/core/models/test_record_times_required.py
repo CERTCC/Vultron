@@ -98,7 +98,12 @@ def test_a_record_without_its_time_is_refused(
         with no_clock(), pytest.raises(ValidationError) as caught:
             model(**given)
         field = model.model_fields[omitted]
-        names = {omitted, field.alias, field.validation_alias}
+        # Every alias the field is spelled by here is a plain string.
+        names = {
+            name
+            for name in (omitted, field.alias, field.validation_alias)
+            if isinstance(name, str)
+        }
         [error] = caught.value.errors()
         assert error["loc"][0] in names
         assert error["type"] == "missing"
