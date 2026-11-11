@@ -25,6 +25,7 @@ from vultron.measure.history import CaseEvent, CaseEventKind, EventKind
 from vultron.measure.sequences import (
     CaseStateSequence,
     CaseStateSequences,
+    SequenceEvent,
     UnprojectableParticipant,
     UnprojectableReason,
 )
@@ -50,7 +51,10 @@ def _sequence(*kinds: CaseEventKind, **overrides) -> CaseStateSequence:
     events = [_event(kind, i) for i, kind in enumerate(kinds)]
     return CaseStateSequence(
         participant=overrides.get("participant", VENDOR),
-        events=overrides.get("events", events),
+        events=[
+            SequenceEvent(event=event)
+            for event in overrides.get("events", events)
+        ],
     )
 
 
@@ -162,7 +166,7 @@ def test_for_participant_finds_only_a_projected_vendor():
 def _sequence_of(participant: str, aware_at: int) -> CaseStateSequence:
     return CaseStateSequence(
         participant=participant,
-        events=[_event(CSEvent.V, aware_at, participant)],
+        events=[SequenceEvent(event=_event(CSEvent.V, aware_at, participant))],
     )
 
 
@@ -209,3 +213,65 @@ def test_the_sequences_answer_each_participant_once_in_order(
             sequences=sequences,
             unprojectable=unprojectable,
         )
+
+
+def _placed(*members: tuple[CaseEventKind, int, bool]) -> CaseStateSequence:
+    return CaseStateSequence(
+        participant=VENDOR,
+        events=[
+            SequenceEvent(
+                event=_event(kind, index), placed_at_public_awareness=flag
+            )
+            for kind, index, flag in members
+        ],
+    )
+
+
+@pytest.mark.spec("CEH-05-009")
+def test_a_vendor_awareness_placed_at_public_awareness_is_held():
+    sequence = _placed(
+        (CSEvent.P, 1, False), (CSEvent.V, 5, True), (CSEvent.X, 3, False)
+    )
+    assert sequence.kinds == (CSEvent.P, CSEvent.V, CSEvent.X)
+    assert sequence.awareness_index == 5
+    assert sequence.awareness_placed_at_public_awareness
+
+
+@pytest.mark.spec("CEH-05-009")
+@pytest.mark.parametrize(
+    ("members", "problem"),
+    [
+        (
+            [
+                (CSEvent.V, 0, False),
+                (CSEvent.P, 1, True),
+                (CSEvent.X, 0, False),
+            ],
+            "only a vendor-awareness event is placed",
+        ),
+        (
+            [
+                (CSEvent.X, 1, False),
+                (CSEvent.V, 5, True),
+                (CSEvent.P, 3, False),
+            ],
+            "must follow public awareness",
+        ),
+        (
+            [
+                (CSEvent.P, 1, False),
+                (CSEvent.V, 2, True),
+                (CSEvent.X, 3, False),
+            ],
+            "recorded no later than itself",
+        ),
+        (
+            [(CSEvent.P, 1, False), (CSEvent.V, 2, True)],
+            "recorded no later than itself",
+        ),
+    ],
+    ids=["not-v", "not-after-p", "not-moved", "last"],
+)
+def test_a_misplaced_awareness_is_refused(members, problem):
+    with pytest.raises(ValidationError, match=problem):
+        _placed(*members)

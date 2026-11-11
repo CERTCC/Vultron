@@ -152,7 +152,8 @@ def test_one_sequence_per_vendor_in_log_order():
     for sequence in projected.sequences:
         indices = [e.log_index for e in sequence.events]
         assert indices == sorted(indices)
-        assert all(e in history.events for e in sequence.events)
+        assert all(m.event in history.events for m in sequence.events)
+        assert not sequence.awareness_placed_at_public_awareness
     assert _kinds(projected.for_participant(VENDOR)) == "VFDP"
     assert _kinds(projected.for_participant(VENDOR_2)) == "VP"
 
@@ -217,7 +218,7 @@ def test_a_sequence_combines_the_vendors_own_events_with_the_cases():
     _, projected = _projected(_two_vendor_ledger())
     deploying = projected.for_participant(VENDOR)
     assert deploying is not None
-    by_kind = {e.kind: e for e in deploying.events}
+    by_kind = {m.kind: m.event for m in deploying.events}
     assert by_kind[CSEvent.P].participant is None
     assert {
         by_kind[k].participant for k in (CSEvent.V, CSEvent.F, CSEvent.D)
@@ -243,9 +244,9 @@ def _late_vendor_ledger() -> Ledger:
 
     The CASE_MANAGER admits every entry: the public state moves forward in
     its own machine, and the vendor's first fix-path status has no earlier
-    one to compare a compound against (ADR-0075).  The compound
-    ``P, X, V`` still does not replay, because public awareness without
-    vendor awareness obliges ``V`` next (CSB-17-003).
+    one to compare a compound against (ADR-0075).  As recorded, the compound
+    ``P, X, V`` does not replay, because public awareness without vendor
+    awareness obliges ``V`` next (CSB-17-003).
     """
     ledger = Ledger()
     ledger.standard_genesis()
@@ -256,22 +257,79 @@ def _late_vendor_ledger() -> Ledger:
     return ledger
 
 
+@pytest.mark.spec("CEH-05-009")
 @pytest.mark.spec("CEH-05-004")
-@pytest.mark.spec("CEH-05-005")
-def test_a_compound_that_does_not_replay_is_refused_with_its_reason():
+def test_awareness_recorded_after_publication_is_placed_at_public_awareness():
     history, projected = _projected(_late_vendor_ledger())
-    vendor_kinds = [
-        e.kind for e in history.events if isinstance(e.kind, CSEvent)
+    recorded = [e for e in history.events if isinstance(e.kind, CSEvent)]
+    assert [e.kind for e in recorded] == [CSEvent.P, CSEvent.X, CSEvent.V]
+    assert not is_valid_cs_history_prefix([e.kind for e in recorded])
+
+    sequence = projected.for_participant(VENDOR)
+    assert sequence is not None
+    assert _kinds(sequence) == "PVX"
+    assert is_valid_cs_history_prefix(sequence.kinds)
+    assert sequence.awareness_placed_at_public_awareness
+    assert [m.placed_at_public_awareness for m in sequence.events] == [
+        False,
+        True,
+        False,
     ]
-    assert vendor_kinds == [CSEvent.P, CSEvent.X, CSEvent.V]
-    assert not is_valid_cs_history_prefix(vendor_kinds)
+    # The placed event is the recorded one: same log index, same clocks.
+    placed = sequence.events[1].event
+    assert placed == recorded[2]
+    assert placed.log_index > recorded[1].log_index
+    # The history itself is unchanged.
+    assert history.events[-1].kind is CSEvent.V
+    assert VENDOR not in {u.participant for u in projected.unprojectable}
+
+
+@pytest.mark.spec("CEH-05-009")
+def test_awareness_right_after_publication_is_not_marked_placed():
+    ledger = Ledger()
+    ledger.standard_genesis()
+    _publish(ledger, "Pxa")
+    _seat_vendor(ledger, VENDOR, "vf")
+    ledger.add_status(VENDOR, status("v-V", VENDOR, "RECEIVED", vf="Vf"))
+    _publish(ledger, "PXa")
+    _, projected = _projected(ledger)
+    sequence = projected.for_participant(VENDOR)
+    assert _kinds(sequence) == "PVX"
+    assert sequence is not None
+    assert not sequence.awareness_placed_at_public_awareness
+
+
+def _exploit_first_ledger() -> Ledger:
+    """The exploit is published while the public is unaware, a vendor
+    becomes aware, then the public becomes aware.
+
+    Every entry is admitted on its own, but ``X, V, P`` breaks the other
+    transient state: an exploit public while the public is unaware obliges
+    ``P`` next (CSB-17-003).  Placing awareness at public awareness does not
+    reach it, because ``V`` is recorded before ``P``.
+    """
+    ledger = Ledger()
+    ledger.standard_genesis()
+    _publish(ledger, "pXa")
+    _seat_vendor(ledger, VENDOR, "vf")
+    ledger.add_status(VENDOR, status("v-V", VENDOR, "RECEIVED", vf="Vf"))
+    _publish(ledger, "PXa")
+    return ledger
+
+
+@pytest.mark.spec("CEH-05-004")
+@pytest.mark.spec("CEH-05-007")
+def test_a_compound_that_does_not_replay_is_refused_with_its_reason():
+    history, projected = _projected(_exploit_first_ledger())
+    recorded = [e.kind for e in history.events if isinstance(e.kind, CSEvent)]
+    assert recorded == [CSEvent.X, CSEvent.V, CSEvent.P]
     assert projected.sequences == []
     refused = _unprojectable(projected, VENDOR)
     assert refused.reason is UnprojectableReason.NOT_A_VALID_PREFIX
     assert refused.detail.startswith(
-        "PXV is not a valid case-state history prefix"
+        "XVP is not a valid case-state history prefix"
     )
-    assert "requires event(s) ['V'] next" in refused.detail
+    assert "requires event(s) ['P'] next" in refused.detail
 
 
 @pytest.mark.spec("CEH-05-005")
@@ -298,7 +356,7 @@ def test_two_vendors_expose_two_sequences_and_no_case_wide_one():
         "unprojectable",
     }
     for sequence in projected.sequences:
-        own = {e.participant for e in sequence.events} - {None}
+        own = {m.event.participant for m in sequence.events} - {None}
         assert own == {sequence.participant}
 
 
