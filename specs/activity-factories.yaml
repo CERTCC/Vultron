@@ -201,10 +201,11 @@ groups:
       exception for every construction failure gives callers one type to catch. The
       Pydantic error stays attached as its cause, for diagnosis.
     verification: >-
-      `test/wire/as2/factories/test_construct.py` asserts that `build_activity`, the
-      one helper every factory builds through, raises the construction error with the
-      `ValidationError` as its cause, for a constructor failure and for an argument
-      expression that refuses; and that no factory-package function catches
+      `test/wire/as2/factories/test_construct.py` asserts that `build_activity` raises
+      the construction error with the `ValidationError` as its cause, for a
+      constructor failure and for an argument expression that refuses; that sampled
+      factories (`_named_case`'s refusal, the fault factory, the Offer participant
+      and the Invite stub) raise it; and that no factory-package scope catches
       `ValidationError` itself outside a pinned exemption set.
   - id: AF-04-002
     priority: MUST
