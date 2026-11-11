@@ -34,6 +34,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.clock_decisions import clock_decision_node_ids
 from test.support.refusal_effects import refusal_effect_node_ids
@@ -904,6 +905,7 @@ def _ledger(
                 semantic_type=semantic_type,
                 payload_snapshot=snapshot,
                 prev_log_hash=prev,
+                received_at=ACT_AT,
             )
         )
         dl.save(entry)

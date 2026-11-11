@@ -16,6 +16,8 @@ import json
 
 import pytest
 
+from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.errors import VultronActivityConstructionError
@@ -44,7 +46,7 @@ _EMPTY = LedgerPosition(log_index=-1, entry_hash="cd" * 32)
 
 def _note(*, positioned: bool = True):
     note = add_note_to_case_activity(
-        as_Note(id_=f"{_CASE}/notes/1", content="n", context=_CASE),
+        make(as_Note, id_=f"{_CASE}/notes/1", content="n", context=_CASE),
         target=_CASE,
         actor=_ACTOR,
     )
@@ -52,7 +54,8 @@ def _note(*, positioned: bool = True):
 
 
 def _entry() -> as_CaseLedgerEntry:
-    core = CaseLedgerEntry(
+    core = make(
+        CaseLedgerEntry,
         case_id=_CASE,
         log_index=4,
         log_object_id=f"{_CASE}/activities/4",
@@ -60,6 +63,8 @@ def _entry() -> as_CaseLedgerEntry:
         payload_snapshot={},
         prev_log_hash="00" * 32,
         entry_hash="ab" * 32,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     return as_CaseLedgerEntry.model_validate(core.model_dump(by_alias=True))
 

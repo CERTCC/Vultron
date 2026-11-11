@@ -222,7 +222,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <tr markdown="1">
 <td markdown="span">`vulnerabilities[]` as a structured object</td>
 <td markdown="span">Holds identifiers, dates, notes, references, metrics, threats, and product status for each vulnerability.</td>
-<td markdown="span">**Vultron could** add vulnerability records to the case, with CSAF or Common Vulnerabilities and Exposures (CVE) content. The Vultron object model has not yet reached this depth, and this gap is recognized. See the [concept mapping](concept_mapping.md#content-objects). Issue [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} tracks this change.</td>
+<td markdown="span">The case holds `VulnerabilityItem` objects in the shape of a CSAF vulnerability entry's identity fields. **Vultron could** also let an item carry CSAF or Common Vulnerabilities and Exposures (CVE) content, which is not yet built. See the [concept mapping](concept_mapping.md#content-objects). Issue [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} tracks this change.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`vulnerabilities[].metrics[]`: Common Vulnerability Scoring System (CVSS), Exploit Prediction Scoring System (EPSS), Stakeholder-Specific Vulnerability Categorization (SSVC), and qualitative severity</td>

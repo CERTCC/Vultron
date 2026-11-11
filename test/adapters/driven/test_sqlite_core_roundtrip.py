@@ -31,6 +31,7 @@ from pydantic import Field
 from sqlmodel import Session
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.hydration import (
     core_class_for_row_type,
@@ -55,7 +56,7 @@ from vultron.core.models.participant_status import (
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.vulnerability_record import VulnerabilityRecord
+from vultron.core.models.vulnerability_item import VulnerabilityItem
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.object_types import (
@@ -75,20 +76,21 @@ _NOW = datetime(2026, 1, 1, tzinfo=UTC)
 def _make_instance(core_cls):
     """Build a minimal valid instance for any supported core domain type."""
     if core_cls in (CaseStatus, ParticipantStatus):
-        return core_cls(context=_CASE_CONTEXT)
+        return make(core_cls, context=_CASE_CONTEXT)
     if core_cls is EmbargoEvent:
-        return core_cls(context=_CASE_CONTEXT, end_time=_NOW)
+        return make(core_cls, context=_CASE_CONTEXT, end_time=_NOW)
     if core_cls is EmbargoPolicy:
-        return core_cls(
+        return make(
+            core_cls,
             actor_id="urn:uuid:actor-fixture",
             inbox="https://example.org/inbox",
             preferred_duration=timedelta(days=90),
         )
-    if core_cls is VulnerabilityRecord:
-        return core_cls(name="CVE-2024-XXXX")
+    if core_cls is VulnerabilityItem:
+        return make(core_cls, cve="CVE-2024-0001")
     if core_cls is VulnerabilityCase:
-        return core_cls(attributed_to=CASE_OWNER_ID)
-    return core_cls()
+        return make(core_cls, attributed_to=CASE_OWNER_ID)
+    return make(core_cls)
 
 
 @pytest.fixture
@@ -121,7 +123,7 @@ def dl():
         ParticipantStatus,
         EmbargoEvent,
         EmbargoPolicy,
-        VulnerabilityRecord,
+        VulnerabilityItem,
     ],
 )
 def test_read_returns_core_type(dl, core_cls):
@@ -159,7 +161,7 @@ def test_list_objects_returns_core_type(dl, core_cls):
 
 def test_read_preserves_core_object_id(dl):
     """Round-tripped core object retains its original id_."""
-    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
     original_id = case.id_
     dl.save(case)
     result = dl.read(original_id)
@@ -173,7 +175,7 @@ def test_read_returns_core_type_for_core_entity(dl):
     After ARCH-25-003 (ADR-0099), as_VulnerabilityCase is an alias for VulnerabilityCase,
     so the distinction is between core class identity and wire wrapper identity.
     """
-    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
     dl.save(case)
     result = dl.read(case.id_)
     assert result is not None
@@ -190,7 +192,7 @@ def test_list_objects_returns_core_type_for_core_entity(dl):
 
     After ARCH-25-003 (ADR-0099), as_VulnerabilityReport is an alias for VulnerabilityReport.
     """
-    report = VulnerabilityReport()
+    report = make(VulnerabilityReport)
     dl.save(report)
     results = dl.list_objects("VulnerabilityReport")
     assert len(results) == 1
@@ -209,7 +211,7 @@ def test_list_objects_returns_core_type_for_core_entity(dl):
 
 def test_read_wire_only_type_still_works(dl):
     """A type with no core counterpart (``as_Article``) reconstructs via the wire path."""
-    article = as_Article(content="Hello from wire")
+    article = make(as_Article, content="Hello from wire")
     dl.save(article)
     result = dl.read(article.id_)
     assert result is not None
@@ -223,7 +225,7 @@ def test_saved_core_note_reads_back_as_core_note(dl):
     It stores as ``type: "Note"``, which the class-name-keyed
     ``CORE_VOCABULARY`` never matched (#3647).
     """
-    note = VultronNote(content="Hello from core")
+    note = make(VultronNote, content="Hello from core")
     dl.save(note)
     result = dl.read(note.id_)
     assert type(result) is VultronNote
@@ -237,7 +239,7 @@ def test_stored_wire_note_reads_back_as_core_note(dl):
     The row cannot say which branch wrote it, so a ``"Note"`` row with a
     registered core counterpart reconstructs as that counterpart (DL-05-001).
     """
-    wire_note = as_Note(content="Hello from wire")
+    wire_note = make(as_Note, content="Hello from wire")
     dl.save(wire_note)
     result = dl.read(wire_note.id_)
     assert type(result) is VultronNote
@@ -273,7 +275,7 @@ def test_service_type_value_resolves_to_vultron_service():
 @pytest.mark.spec("DL-05-006")
 def test_saved_core_service_reads_back_as_itself(dl):
     """The ``"Service"`` exclusion does not stop a ``VultronService`` round-trip."""
-    service = VultronService(name="svc")
+    service = make(VultronService, name="svc")
     dl.save(service)
     result = dl.read(service.id_)
     assert type(result) is VultronService
@@ -438,7 +440,7 @@ def test_type_value_index_is_reused_while_the_registry_is_unchanged():
 
 def test_core_entity_type_string_matches_class_name(dl):
     """Stored type_ string matches the core class name (required for CORE_VOCABULARY lookup)."""
-    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID)
     dl.save(case)
     result = dl.read(case.id_)
     assert result is not None
@@ -477,10 +479,13 @@ def _mixed_spelling_case_row(case_id):
     """
     # Build the participant via the wire class (which accepts and produces camelCase)
     # then dump it with aliases to get the camelCase format we want to test.
-    status = as_ParticipantStatus(
-        context=case_id, rm=RmDimension(state=RM.ACCEPTED)
+    status = make(
+        as_ParticipantStatus,
+        context=case_id,
+        rm=RmDimension(state=RM.ACCEPTED),
     )
-    wire_participant = as_CaseParticipant(
+    wire_participant = make(
+        as_CaseParticipant,
         id_="urn:uuid:participant-2232",
         attributed_to="https://example.org/actors/finder",
         context=case_id,
@@ -488,8 +493,11 @@ def _mixed_spelling_case_row(case_id):
         participant_statuses=[status],
     )
     # Build the case without participants first, so we get snake_case at the top level.
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=case_id, name="mixed"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=case_id,
+        name="mixed",
     )
     data = case.model_dump(mode="json")
     # Inject camelCase participant data to simulate a pre-ADR-0099 stored row.
@@ -608,7 +616,7 @@ def test_a_legacy_url_string_policy_row_reads_absent_naming_the_reset(
     leaving only an opaque type error behind a "not found".
     """
     actor_id = "https://test.example/api/v2/actors/legacy-vendor"
-    dl.save(VultronOrganization(id_=actor_id))
+    dl.save(make(VultronOrganization, id_=actor_id))
     with Session(dl._engine) as session:
         row = session.get(VultronObjectRecord, actor_id)
         assert row is not None

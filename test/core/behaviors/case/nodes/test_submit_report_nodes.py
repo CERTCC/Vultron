@@ -23,6 +23,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.submit_report import (
@@ -143,7 +144,9 @@ def test_claims_node_keeps_a_record_it_already_holds(caplog):
 def _offer_event(to: list[str], sender: str = FINDER) -> SimpleNamespace:
     """A received event as the tree sees it: its activity carries ``to``."""
     return SimpleNamespace(
-        activity=VultronActivity(id_=OFFER, type_="Offer", actor=sender, to=to)
+        activity=make(
+            VultronActivity, id_=OFFER, type_="Offer", actor=sender, to=to
+        )
     )
 
 

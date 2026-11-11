@@ -24,15 +24,17 @@ execute() path against a real in-memory DataLayer and asserts:
   3. the documented failure modes the use case is documented to raise.
 """
 
-from datetime import UTC, datetime
+from datetime import datetime, timedelta
 from typing import cast
 
 import pytest
 from pydantic import ValidationError
 
-from test.support.act_runner import run_in_act
+from test.support.act_clock import ACT_AT
+from test.support.act_runner import FixedClock, run_in_act
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -96,7 +98,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 
 def _make_actor_dl(actor_name: str) -> tuple[as_Service, SqliteDataLayer]:
-    actor = as_Service(name=actor_name)
+    actor = make(as_Service, name=actor_name)
     actor_id = actor.id_
     reset_datalayer(actor_id)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -136,31 +138,36 @@ def _make_case_with_embargo(
 ) -> VulnerabilityCase:
     """Build a VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
     an active embargo, and the report linked via vulnerability_reports."""
-    embargo = as_EmbargoEvent(
-        context="urn:placeholder", end_time=days_from_now(45)
+    embargo = make(
+        as_EmbargoEvent, context="urn:placeholder", end_time=days_from_now(45)
     )
     dl.create(embargo)
 
-    case = VulnerabilityCase(name="Test Case", attributed_to=vendor_id)
+    case = make(VulnerabilityCase, name="Test Case", attributed_to=vendor_id)
     activate(case, embargo.id_)
     case.vulnerability_reports.append(report_id)
 
-    vendor_participant = as_CaseParticipant(
+    vendor_participant = make(
+        as_CaseParticipant,
         attributed_to=vendor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
     # Seed RM.RECEIVED so the RECEIVED → VALID transition is valid.
     vendor_participant.participant_statuses.append(
-        WireParticipantStatus(
-            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.RECEIVED),
         )
     )
-    finder_participant = ReporterParticipant(
+    finder_participant = make(
+        ReporterParticipant,
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -199,7 +206,8 @@ class TestSvcValidateReportUseCase:
         self.finder, self.finder_dl = _make_actor_dl("Finder Co")
         self.case_actor, self.case_actor_dl = _make_actor_dl("Case Actor")
 
-        self.report = as_VulnerabilityReport(
+        self.report = make(
+            as_VulnerabilityReport,
             name="CVE-TEST",
             content="Vulnerability report content",
             attributed_to=self.finder.id_,
@@ -510,7 +518,8 @@ class _ReportTriggerBase:
         self.finder, self.finder_dl = _make_actor_dl("Finder Co")
         self.case_actor, self.case_actor_dl = _make_actor_dl("Case Actor")
 
-        self.report = as_VulnerabilityReport(
+        self.report = make(
+            as_VulnerabilityReport,
             name="CVE-TEST",
             content="Vulnerability report content",
             attributed_to=self.finder.id_,
@@ -1145,26 +1154,71 @@ class TestSubmitReportProposedEmbargo:
         assert "proposedEmbargo" not in offer
         assert list(self.dl.list_objects("EmbargoEvent")) == []
 
-    @pytest.mark.parametrize(
-        "bad, message",
-        [
-            (
-                datetime(2030, 1, 1),  # noqa: DTZ001 — deliberately naive
-                "must be timezone-aware",
-            ),
-            (
-                datetime(2020, 1, 1, tzinfo=UTC),  # past
-                "must be in the future",
-            ),
-        ],
-        ids=["naive", "past"],
-    )
-    def test_a_naive_or_past_end_is_refused_at_the_request(self, bad, message):
-        with pytest.raises(ValidationError, match=message):
+    def test_a_naive_end_is_refused_at_the_request(self):
+        with pytest.raises(ValidationError, match="must be timezone-aware"):
             SubmitReportTriggerRequest(
                 actor_id=self.finder.id_,
                 report_name="CVE-TEST",
                 report_content="Vulnerability details",
                 recipient_id=self.vendor.id_,
-                proposed_embargo_end_time=bad,
+                proposed_embargo_end_time=datetime(2030, 1, 1),  # noqa: DTZ001 — deliberately naive
             )
+
+    @pytest.mark.spec("CS-13-002")
+    @pytest.mark.parametrize(
+        "offset",
+        [timedelta(0), -timedelta(days=1)],
+        ids=["at-the-act", "before-the-act"],
+    )
+    def test_an_end_not_after_the_act_is_refused_and_nothing_stored(
+        self, offset
+    ):
+        """Judged at the act's instant, not a clock read (ADR-0176).
+
+        The act runs at :data:`ACT_AT`, months before the wall clock, so an
+        end the wall clock would call past is still in this act's future;
+        only an end at or before the act's own instant is refused.
+        """
+        request = SubmitReportTriggerRequest(
+            actor_id=self.finder.id_,
+            report_name="CVE-TEST",
+            report_content="Vulnerability details",
+            recipient_id=self.vendor.id_,
+            proposed_embargo_end_time=ACT_AT + offset,
+        )
+        with pytest.raises(VultronValidationError, match="in the future"):
+            run_in_act(
+                SvcSubmitReportUseCase(
+                    self.dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(self.dl),
+                    clock=FixedClock(ACT_AT),
+                )
+            )
+
+        assert list(self.dl.list_objects("VulnerabilityReport")) == []
+        assert list(self.dl.list_objects("EmbargoEvent")) == []
+
+    @pytest.mark.spec("CS-13-002")
+    def test_an_end_just_after_the_act_is_kept_though_the_clock_is_past_it(
+        self,
+    ):
+        end = ACT_AT + timedelta(microseconds=1)
+        request = SubmitReportTriggerRequest(
+            actor_id=self.finder.id_,
+            report_name="CVE-TEST",
+            report_content="Vulnerability details",
+            recipient_id=self.vendor.id_,
+            proposed_embargo_end_time=end,
+        )
+        offer = run_in_act(
+            SvcSubmitReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                clock=FixedClock(ACT_AT),
+            )
+        ).offer
+
+        assert offer is not None
+        assert "proposedEmbargo" in offer

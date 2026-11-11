@@ -15,6 +15,7 @@ import py_trees
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 
 # imported for vocabulary registration side-effect
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -223,7 +224,8 @@ def seed_case_manager_participant(
     refusal seeds it as somebody else.  The participant is created in *dl*
     and attached to *case* in memory; the caller persists *case* afterwards.
     """
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/case-manager",
         attributed_to=manager_actor_id,
         context=case.id_,
@@ -248,7 +250,8 @@ def seed_case_owner_participant(
     The participant is created in *dl* and attached to *case* in memory; the
     caller persists *case* afterwards.
     """
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/case-owner",
         attributed_to=owner_actor_id,
         context=case.id_,
@@ -274,7 +277,8 @@ def seed_case_participant(
     The participant is created in *dl* and attached to *case* in memory; the
     caller persists *case* afterwards.
     """
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
         context=case.id_,
@@ -337,13 +341,15 @@ def seed_inert_invitee(
     from vultron.core.models.participant_status import ParticipantStatus
     from vultron.core.states.rm import RM
 
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_=f"{case.id_}/participants/{invitee_id.rstrip('/').split('/')[-1]}",
         attributed_to=invitee_id,
         context=case.id_,
         case_roles=roles or [CVDRole.VENDOR],
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=case.id_,
                 attributed_to=invitee_id,
                 rm=RmDimension(state=RM.RECEIVED),
@@ -395,7 +401,8 @@ def make_embargo_case_with_actor(
     ledger_holder_id = case_manager_actor_id or case_actor_id
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ledger_holder_id)
 
-    case_actor = VultronService(
+    case_actor = make(
+        VultronService,
         id_=case_actor_id,
         name=f"CaseActor for {case_id}",
         attributed_to=author_id,
@@ -403,15 +410,16 @@ def make_embargo_case_with_actor(
     )
     dl.create(case_actor)
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         id_=case_id,
         name="Embargo Cascade Case",
         attributed_to=author_id,
     )
     p1_id = f"{case_id}/participants/p1"
     case.actor_participant_index[author_id] = p1_id
-    p1 = as_CaseParticipant(
-        id_=p1_id, context=case_id, attributed_to=author_id
+    p1 = make(
+        as_CaseParticipant, id_=p1_id, context=case_id, attributed_to=author_id
     )
     dl.create(p1)
     case.case_participants.append(p1_id)
@@ -420,7 +428,9 @@ def make_embargo_case_with_actor(
         short = pid.rsplit("/", 1)[-1]
         pn_id = f"{case_id}/participants/{short}"
         case.actor_participant_index[pid] = pn_id
-        pn = as_CaseParticipant(id_=pn_id, context=case_id, attributed_to=pid)
+        pn = make(
+            as_CaseParticipant, id_=pn_id, context=case_id, attributed_to=pid
+        )
         dl.create(pn)
         case.case_participants.append(pn_id)
 
@@ -433,7 +443,8 @@ def make_embargo_case_with_actor(
         p1.add_role(CVDRole.CASE_MANAGER)
         dl.save(p1)
     else:
-        case_manager_participant = as_CaseParticipant(
+        case_manager_participant = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/case-actor-p",
             attributed_to=manager_actor_id,
             context=case_id,
@@ -446,7 +457,8 @@ def make_embargo_case_with_actor(
         )
     dl.save(case)
 
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo_events/e1",
         content="Cascade test embargo",
         context=case_id,

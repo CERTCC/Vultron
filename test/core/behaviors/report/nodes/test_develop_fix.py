@@ -18,6 +18,7 @@
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
     _CheckParticipantRMStateBase,
@@ -69,29 +70,34 @@ def case_with_accepted_participant(
 ) -> tuple[VulnerabilityCase, CaseParticipant]:
     """Case whose participant is in RM.ACCEPTED."""
     case_id = "https://example.org/cases/case-accepted-001"
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-accepted-001",
         attributed_to=actor.id_,
         context=case_id,
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_id,
                 rm=RmDimension(state=RM.RECEIVED),
             ),
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_id,
                 rm=RmDimension(state=RM.VALID),
             ),
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_id,
                 rm=RmDimension(state=RM.ACCEPTED),
             ),
         ],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="Accepted Participant Case",
         vulnerability_reports=[report.id_],
@@ -111,29 +117,34 @@ def case_with_deferred_participant(
 ) -> tuple[VulnerabilityCase, CaseParticipant]:
     """Case whose participant is in RM.DEFERRED."""
     case_id = "https://example.org/cases/case-deferred-001"
-    participant = CaseParticipant(
+    participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-deferred-001",
         attributed_to=actor.id_,
         context=case_id,
         participant_statuses=[
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_id,
                 rm=RmDimension(state=RM.RECEIVED),
             ),
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_id,
                 rm=RmDimension(state=RM.VALID),
             ),
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_id,
                 rm=RmDimension(state=RM.DEFERRED),
             ),
         ],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=case_id,
         name="Deferred Participant Case",
         vulnerability_reports=[report.id_],
@@ -222,7 +233,8 @@ def test_check_rm_state_accepted_fails_without_participant(
     report: VulnerabilityReport,
 ) -> None:
     """CheckRMStateAccepted returns FAILURE when actor has no participant."""
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_="https://example.org/cases/no-participant",
         name="No Participant Case",
         vulnerability_reports=[report.id_],

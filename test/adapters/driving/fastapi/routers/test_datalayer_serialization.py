@@ -22,6 +22,7 @@ not just base class fields.
 import pytest
 from fastapi.testclient import TestClient
 
+from test.support.objects import make
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
     get_datalayer,
@@ -61,7 +62,7 @@ def datalayer():
     _reset_datalayer(ACTOR_ID)
     dl = get_datalayer(ACTOR_ID, db_url="sqlite:///:memory:")
     dl.clear_all()
-    dl.create(as_Service(id_=ACTOR_ID, name="Test Actor"))
+    dl.create(make(as_Service, id_=ACTOR_ID, name="Test Actor"))
     yield dl
     dl.clear_all()
     _reset_datalayer(ACTOR_ID)
@@ -104,12 +105,15 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(
     excluded subclass-specific fields.
     """
     # Create a report
-    report = as_VulnerabilityReport(
-        name="Test Report", content="Test vulnerability content"
+    report = make(
+        as_VulnerabilityReport,
+        name="Test Report",
+        content="Test vulnerability content",
     )
 
     # Create a case with the report
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         name=f"Case for Report {report.id_}",
         vulnerability_reports=[report.id_],
         attributed_to="https://example.org/actor",
@@ -143,7 +147,8 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
     Ensures subclass-specific fields are not filtered by response_model.
     """
     # Create a case with various fields populated
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         name="Comprehensive Test Case",
         attributed_to="https://example.org/actor",
         case_participants=[],  # Empty but should be included
@@ -185,7 +190,8 @@ def test_get_vulnerability_report_includes_all_fields(client, datalayer):
 
     Verifies the fix works for other subclasses too.
     """
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Test Report",
         content="Test vulnerability content",
         attributed_to="https://example.org/finder",
@@ -268,8 +274,10 @@ def test_datalayer_contents_type_filter_serves_only_those_types(
     the busy container more as the store grew (#4600).  Each object served
     under the filter is byte-for-byte what the whole-store dump serves for it.
     """
-    report = as_VulnerabilityReport(
-        id_="urn:uuid:report-1", content="Test vulnerability content"
+    report = make(
+        as_VulnerabilityReport,
+        id_="urn:uuid:report-1",
+        content="Test vulnerability content",
     )
     datalayer.create(report)
     record = VultronOfferRecord(
@@ -290,7 +298,7 @@ def test_datalayer_contents_type_filter_serves_only_those_types(
 def test_datalayer_contents_type_filter_accepts_several_types(
     client, datalayer
 ):
-    report = as_VulnerabilityReport(id_="urn:uuid:report-1", content="x")
+    report = make(as_VulnerabilityReport, id_="urn:uuid:report-1", content="x")
     datalayer.create(report)
     record = VultronOfferRecord(
         offer_id="urn:uuid:offer-1",

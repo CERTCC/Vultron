@@ -45,6 +45,7 @@ from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register, terminate
 from test.support.ledger import fail_commits
+from test.support.objects import make
 from test.support.received import received_event
 from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -104,10 +105,12 @@ def _vendor_profile(policy_duration: timedelta | None = None) -> CoreActor:
     from vultron.core.models.embargo_policy import EmbargoPolicy
 
     if policy_duration is None:
-        return VultronOrganization(id_=_VENDOR_URI)
-    return VultronOrganization(
+        return make(VultronOrganization, id_=_VENDOR_URI)
+    return make(
+        VultronOrganization,
         id_=_VENDOR_URI,
-        embargo_policy=EmbargoPolicy(
+        embargo_policy=make(
+            EmbargoPolicy,
             actor_id=_VENDOR_URI,
             inbox=f"{_VENDOR_URI}/inbox",
             preferred_duration=policy_duration,
@@ -119,7 +122,8 @@ _PROPOSAL_URI = "https://example.org/proposals/p-001"
 
 
 def _make_proposal() -> as_CaseProposal:
-    return as_CaseProposal(
+    return make(
+        as_CaseProposal,
         id_=_PROPOSAL_URI,
         attributed_to=_VENDOR_URI,
         object_="https://example.org/reports/r-001",
@@ -193,8 +197,9 @@ def _store_announced_create(
     from vultron.core.models.activity import VultronCreateCaseActivity
 
     port = As2WireRenderAdapter()
-    case = VulnerabilityCase(id_=case_id, attributed_to=_VENDOR_URI)
-    create = VultronCreateCaseActivity(
+    case = make(VulnerabilityCase, id_=case_id, attributed_to=_VENDOR_URI)
+    create = make(
+        VultronCreateCaseActivity,
         id_=_CREATE_ID,
         actor=_CASE_ACTOR_URI,
         object_=port.render(case),
@@ -235,7 +240,9 @@ class TestEmitCreateVulnerabilityCaseNode:
 
     def _seed_case(self, dl: SqliteDataLayer, case_id: str) -> None:
         """Seed a minimal VulnerabilityCase so the case object can be built."""
-        dl.save(VulnerabilityCase(id_=case_id, attributed_to=_VENDOR_URI))
+        dl.save(
+            make(VulnerabilityCase, id_=case_id, attributed_to=_VENDOR_URI)
+        )
 
     def _run_node(
         self,
@@ -354,7 +361,9 @@ class TestEmitCreateVulnerabilityCaseNode:
         """Something other than a Create under the derived id announces no
         case; the node fails rather than taking it as announced."""
         dl = self._dl()
-        dl.save(VulnerabilityCase(id_=_CREATE_ID, attributed_to=_VENDOR_URI))
+        dl.save(
+            make(VulnerabilityCase, id_=_CREATE_ID, attributed_to=_VENDOR_URI)
+        )
         assert self._run_node(dl) == py_trees.common.Status.FAILURE
         assert dl.outbox_list() == []
 
@@ -379,7 +388,8 @@ class TestEmitCreateVulnerabilityCaseNode:
         from vultron.core.models.report import VulnerabilityReport
 
         dl = self._dl()
-        report = VulnerabilityReport(
+        report = make(
+            VulnerabilityReport,
             id_="https://example.org/reports/r-001",
             name="FDR-1",
             content="x",
@@ -387,7 +397,8 @@ class TestEmitCreateVulnerabilityCaseNode:
         )
         dl.save(report)
         dl.save(
-            VulnerabilityCase(
+            make(
+                VulnerabilityCase,
                 id_=_CASE_URI,
                 attributed_to=_VENDOR_URI,
                 vulnerability_reports=[report.id_],
@@ -432,14 +443,16 @@ class TestEmitCreateVulnerabilityCaseNode:
 
         dl = self._dl()
         case_id = "https://example.org/cases/c-embargo"
-        embargo = EmbargoEvent(
+        embargo = make(
+            EmbargoEvent,
             id_=f"{case_id}/embargo_events/e1",
             context=case_id,
             end_time=days_from_now(45),
         )
         dl.save(embargo)
         dl.save(
-            VulnerabilityCase(
+            make(
+                VulnerabilityCase,
                 id_=case_id,
                 attributed_to=_CASE_ACTOR_URI,
                 embargo_register=register(active=embargo.id_),
@@ -461,7 +474,8 @@ class TestEmitCreateVulnerabilityCaseNode:
         dl = self._dl()
         case_id = "https://example.org/cases/c-unheld"
         dl.save(
-            VulnerabilityCase(
+            make(
+                VulnerabilityCase,
                 id_=case_id,
                 attributed_to=_CASE_ACTOR_URI,
                 embargo_register=register(
@@ -488,7 +502,8 @@ class TestEmitCreateVulnerabilityCaseNode:
         dl = self._dl()
         case_id = "https://example.org/cases/c-unheld-participant"
         dl.save(
-            VulnerabilityCase(
+            make(
+                VulnerabilityCase,
                 id_=case_id,
                 attributed_to=_CASE_ACTOR_URI,
                 case_participants=[f"{case_id}/participants/unheld"],
@@ -516,7 +531,8 @@ class TestEmitCreateVulnerabilityCaseNode:
         case_id = "https://example.org/cases/c-unheld-report"
         report_id = "https://example.org/reports/unheld"
         dl.save(
-            VulnerabilityCase(
+            make(
+                VulnerabilityCase,
                 id_=case_id,
                 attributed_to=_CASE_ACTOR_URI,
                 vulnerability_reports=[report_id],
@@ -593,9 +609,12 @@ class TestEmitCreateVulnerabilityCaseNode:
 
         dl = self._dl()
         case_id = "https://example.org/cases/c-owner-only"
-        case = VulnerabilityCase(id_=case_id, attributed_to=_CASE_ACTOR_URI)
+        case = make(
+            VulnerabilityCase, id_=case_id, attributed_to=_CASE_ACTOR_URI
+        )
         reporter = "https://example.org/actors/reporter-owner-only"
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=f"{reporter}/participant",
             attributed_to=reporter,
             context=case_id,
@@ -694,7 +713,8 @@ class TestCreateCaseProposalReceivedBTCreateWiring:
         )
 
         proposal = _make_proposal()
-        activity = as_Create(
+        activity = make(
+            as_Create,
             actor=_vendor_profile(),
             object_=proposal,
             to=[_CASE_ACTOR_URI],
@@ -742,7 +762,7 @@ class TestCreateCaseProposalReceivedBTCreateWiring:
         self._execute(dl, make_payload)
         assert _CREATE_ID in dl.outbox_list()
         # The drain resolves the actor whose outbox it is.
-        dl.save(VultronService(id_=_CASE_ACTOR_URI))
+        dl.save(make(VultronService, id_=_CASE_ACTOR_URI))
 
         async def no_sleep(_seconds: float) -> None:
             return None
@@ -806,14 +826,16 @@ def _make_full_event(
         as_Create,
     )
 
-    proposal = as_CaseProposal(
+    proposal = make(
+        as_CaseProposal,
         id_=_PROPOSAL_URI,
         attributed_to=_VENDOR_URI,
         object_=report_id or "https://example.org/reports/none",
         target=_CASE_ACTOR_URI,
         proposer_case_roles=proposer_case_roles or [],
     )
-    activity = as_Create(
+    activity = make(
+        as_Create,
         actor=actor,
         object_=proposal,
         to=[_CASE_ACTOR_URI],
@@ -850,7 +872,9 @@ def _seed_report(dl: SqliteDataLayer) -> None:
         as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(id_=_REPORT_URI, attributed_to=_REPORTER_URI)
+    report = make(
+        VulnerabilityReport, id_=_REPORT_URI, attributed_to=_REPORTER_URI
+    )
     dl.save(report)
 
 
@@ -1105,7 +1129,8 @@ class TestCLP08002GenesisHashAnchoredToTheOwner:
     def test_self_created_and_proposal_created_cases_agree(self, make_payload):
         """Same ``(case_id, created_at, owner)``, same hash, either creator."""
         _, case = _run_proposal_to_case(make_payload)
-        self_created = VulnerabilityCase(
+        self_created = make(
+            VulnerabilityCase,
             id_=case.id_,
             published=case.published,
             attributed_to=_VENDOR_URI,
@@ -1174,7 +1199,8 @@ def test_ownership_transfer_moves_the_owner_of_a_proposal_created_case(
 
     new_owner = "https://example.org/actors/coordinator"
     dl, case = _run_proposal_to_case(make_payload)
-    coordinator = CaseParticipant(
+    coordinator = make(
+        CaseParticipant,
         attributed_to=new_owner,
         context=case.id_,
         case_roles=[CVDRole.COORDINATOR],
@@ -1221,7 +1247,8 @@ def _proposed_case_with_open_revision(
 
     dl, case = _run_proposal_to_case(make_payload)
     assert case.active_embargo is not None
-    revision = EmbargoEvent(
+    revision = make(
+        EmbargoEvent,
         end_time=datetime.now(UTC) + timedelta(days=200),
         context=case.id_,
     )
@@ -1613,9 +1640,11 @@ class TestADR0041EmbargoInit:
 
         policy_duration = timedelta(days=3)
         protocol_default = timedelta(days=5)
-        profile = VultronOrganization(
+        profile = make(
+            VultronOrganization,
             id_=_VENDOR_URI,
-            embargo_policy=EmbargoPolicy(
+            embargo_policy=make(
+                EmbargoPolicy,
                 actor_id=_VENDOR_URI,
                 inbox=f"{_VENDOR_URI}/inbox",
                 preferred_duration=policy_duration,
@@ -1735,7 +1764,11 @@ class TestADR0041EmbargoInit:
         )
         for report_id in report_ids:
             dl.save(
-                VulnerabilityReport(id_=report_id, attributed_to=_REPORTER_URI)
+                make(
+                    VulnerabilityReport,
+                    id_=report_id,
+                    attributed_to=_REPORTER_URI,
+                )
             )
 
         expected: dict[str, timedelta] = {}
@@ -1746,9 +1779,11 @@ class TestADR0041EmbargoInit:
                 strict=True,
             )
         ):
-            activity = as_Create(
+            activity = make(
+                as_Create,
                 actor=_vendor_profile(policy),
-                object_=as_CaseProposal(
+                object_=make(
+                    as_CaseProposal,
                     id_=f"{_PROPOSAL_URI}-{index}",
                     attributed_to=_VENDOR_URI,
                     object_=report_id,
@@ -1926,8 +1961,11 @@ class TestCM14005ReporterSignatory:
             actor_id=_CASE_ACTOR_URI,
         )
         # Build a minimal case with no active embargo and a reporter participant
-        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_URI)
-        reporter_participant = CaseParticipant(
+        case = make(
+            VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE_URI
+        )
+        reporter_participant = make(
+            CaseParticipant,
             id_="https://example.org/participants/reporter",
             attributed_to=_REPORTER_URI,
             context=_CASE_URI,
@@ -1936,8 +1974,8 @@ class TestCM14005ReporterSignatory:
         case.actor_participant_index[_REPORTER_URI] = reporter_participant.id_
         case.case_participants.append(reporter_participant.id_)
         dl.save(case)
-        report = VulnerabilityReport(
-            id_=_REPORT_URI, attributed_to=_REPORTER_URI
+        report = make(
+            VulnerabilityReport, id_=_REPORT_URI, attributed_to=_REPORTER_URI
         )
         dl.save(report)
 
@@ -3064,7 +3102,8 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
         from vultron.enums.roles import CVDRole
 
         def _mk_ps(actor_uri, rm_state):
-            ps = ParticipantStatus(
+            ps = make(
+                ParticipantStatus,
                 context=_CASE_URI,
                 rm=RmDimension(state=rm_state),
                 attributed_to=actor_uri,
@@ -3074,7 +3113,8 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
             return ps
 
         vendor_ps = _mk_ps(_VENDOR_URI, RM.CLOSED)
-        vendor_participant = CaseParticipant(
+        vendor_participant = make(
+            CaseParticipant,
             attributed_to=_VENDOR_URI,
             context=_CASE_URI,
             case_roles=[CVDRole.CASE_OWNER],
@@ -3087,7 +3127,8 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
             _mk_ps(_CASE_ACTOR_URI, RM.VALID),
             _mk_ps(_CASE_ACTOR_URI, RM.ACCEPTED),
         ]
-        case_actor_participant = CaseParticipant(
+        case_actor_participant = make(
+            CaseParticipant,
             attributed_to=_CASE_ACTOR_URI,
             context=_CASE_URI,
             case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
@@ -3095,7 +3136,9 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
         )
         dl.save(case_actor_participant)
 
-        case = VulnerabilityCase(id_=_CASE_URI, attributed_to=_VENDOR_URI)
+        case = make(
+            VulnerabilityCase, id_=_CASE_URI, attributed_to=_VENDOR_URI
+        )
         case.add_participant(vendor_participant)
         case.add_participant(case_actor_participant)
         dl.save(case)
@@ -3154,7 +3197,8 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
         participant = dl.read(participant_id)
         assert isinstance(participant, CaseParticipant)
 
-        closed_ps = ParticipantStatus(
+        closed_ps = make(
+            ParticipantStatus,
             context=_CASE_URI,
             rm=RmDimension(state=RM.CLOSED),
             attributed_to=_CASE_ACTOR_URI,
@@ -3330,13 +3374,15 @@ def _proposal_with_inline_report() -> as_CaseProposal:
         as_VulnerabilityReport,
     )
 
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         id_=_REPORT_URI_2482,
         name="ISSUE-2482",
         content="the vulnerability the proposal is about",
         attributed_to=_REPORTER_URI_2482,
     )
-    return as_CaseProposal(
+    return make(
+        as_CaseProposal,
         id_=_PROPOSAL_URI,
         attributed_to=_VENDOR_URI,
         object_=report,
@@ -3593,11 +3639,15 @@ class TestEP04SenderProposalAtCaseCreation:
             as_VulnerabilityReport,
         )
 
-        report = as_VulnerabilityReport(
-            id_=_REPORT_URI, attributed_to=_REPORTER_URI, content="x"
+        report = make(
+            as_VulnerabilityReport,
+            id_=_REPORT_URI,
+            attributed_to=_REPORTER_URI,
+            content="x",
         )
         if terms is None:
-            terms = EmbargoEvent(
+            terms = make(
+                EmbargoEvent,
                 id_=f"{_REPORT_URI}/embargo_proposals/1",
                 context=terms_context,
                 end_time=datetime.now(tz=UTC) + timedelta(days=sender_days),
@@ -3615,7 +3665,8 @@ class TestEP04SenderProposalAtCaseCreation:
             offer = rm_submit_report_activity(
                 report, to=_VENDOR_URI, actor=_REPORTER_URI
             ).model_copy(update={"proposed_embargo": terms})
-        proposal = as_CaseProposal(
+        proposal = make(
+            as_CaseProposal,
             id_=proposal_id,
             attributed_to=_VENDOR_URI,
             object_=report,
@@ -3624,7 +3675,8 @@ class TestEP04SenderProposalAtCaseCreation:
             offer_actor_id=_REPORTER_URI,
             in_reply_to=offer,
         )
-        activity = as_Create(
+        activity = make(
+            as_Create,
             actor=_vendor_profile(self._owner_policy),
             object_=proposal,
             to=[_CASE_ACTOR_URI],
@@ -3759,9 +3811,11 @@ class TestEP04SenderProposalAtCaseCreation:
         dl = self._store()
         self._publish_owner_policy()
         dl.save(
-            VultronService(
+            make(
+                VultronService,
                 id_=_CASE_ACTOR_URI,
-                embargo_policy=EmbargoPolicy(
+                embargo_policy=make(
+                    EmbargoPolicy,
                     actor_id=_CASE_ACTOR_URI,
                     inbox=f"{_CASE_ACTOR_URI}/inbox",
                     preferred_duration=timedelta(days=5),
@@ -3928,7 +3982,8 @@ class TestEP04SenderProposalAtCaseCreation:
         from vultron.core.models.embargo_event import EmbargoEvent
 
         now = datetime.now(tz=UTC).replace(microsecond=0)
-        terms = EmbargoEvent(
+        terms = make(
+            EmbargoEvent,
             id_=f"{_REPORT_URI}/embargo_proposals/1",
             context=_REPORT_URI,
             end_time=now + self._ACTOR_DEFAULT,

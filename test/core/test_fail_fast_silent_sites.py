@@ -31,6 +31,7 @@ from py_trees.common import Status
 
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
@@ -63,7 +64,7 @@ def datalayer():
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    actor = VultronService(id_=ACTOR_ID, name="Vendor Co")
+    actor = make(VultronService, id_=ACTOR_ID, name="Vendor Co")
     dl.create(actor)
     return dl
 
@@ -138,8 +139,11 @@ class TestResolveCaseManagerIdCallers:
 
         scenario = BTTestScenario(actor_id=ACTOR_ID)
         # Seed case with no participants (empty actor_participant_index)
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="No CM"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="No CM",
         )
         scenario.dl.create(case)
 
@@ -156,8 +160,11 @@ class TestResolveCaseManagerIdCallers:
         )
 
         scenario = BTTestScenario(actor_id=ACTOR_ID)
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="No CM"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="No CM",
         )
         scenario.dl.create(case)
 

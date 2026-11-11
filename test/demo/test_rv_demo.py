@@ -73,6 +73,7 @@ from test.demo._helpers import (
     stub_closure_gate,
 )
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.em import EM
@@ -239,12 +240,14 @@ def _two_party_state(*, roster_confirmed: bool = True):
 
 def _answered_thread(state) -> tuple[as_Note, as_Note]:
     """Keep the two notes the shared opening's thread posts, and return them."""
-    question = as_Note(
+    question = make(
+        as_Note,
         id_="urn:test:note-question",
         name="Question from Reporter",
         content=WORKAROUND_QUESTION,
     )
-    answer = as_Note(
+    answer = make(
+        as_Note,
         id_="urn:test:note-answer",
         name=WORKAROUND_ANSWER_NAME,
         content=WORKAROUND_ANSWER,
@@ -1101,7 +1104,8 @@ class TestRvLedgerDump:
         self, tmp_path, monkeypatch
     ):
         """Three devlogs directories, each keyed on its client's actor id."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rv-test-case",
         )
@@ -1144,7 +1148,8 @@ class TestRvLedgerDump:
         replica, and dumping that as ``case-actor`` would hide exactly the
         topology fault this target exists to expose.
         """
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rv-with-ca",
             actor_participant_index={
@@ -1174,7 +1179,8 @@ class TestRvLedgerDump:
         self, tmp_path, monkeypatch
     ):
         """It is recorded as not captured instead of filled from a replica."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rv-empty-ca",
         )
@@ -1736,7 +1742,7 @@ class TestParticipantAddsNoteToCase:
         )
         case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
         case_data = vendor_client.get(vendor_client.dl_path(case.id_))
-        case = as_VulnerabilityCase(**case_data)
+        case = make(as_VulnerabilityCase, **case_data)
         return reporter_client, vendor_client, case, reporter, vendor
 
     def test_question_note_stored_in_vendor(
@@ -2035,7 +2041,8 @@ class TestActorSessionFixAndPublicationVerbs:
 
         with demo_step("vendor notifies fix ready on a missing case"):
             ActorSession(client=vendor_client, actor=vendor).with_case(
-                as_VulnerabilityCase(
+                make(
+                    as_VulnerabilityCase,
                     attributed_to=CASE_OWNER_ID,
                     id_="https://example.org/does-not-exist",
                 )
@@ -2800,7 +2807,7 @@ def completed_workflow(
     assert case is not None, "Expected a case after trigger/create-case"
     # Refresh the case to get actor_participant_index populated.
     case_data = vendor_client.get(vendor_client.dl_path(case.id_))
-    case = as_VulnerabilityCase(**case_data)
+    case = make(as_VulnerabilityCase, **case_data)
 
     # Engage the case so the Vendor reaches RM.ACCEPTED before any
     # fix-readiness claim.  Without this the fixture went straight from case
@@ -2843,7 +2850,7 @@ def completed_workflow(
 
     # Final refresh to pick up any post-closure case-actor state.
     case_data = vendor_client.get(vendor_client.dl_path(case.id_))
-    case = as_VulnerabilityCase(**case_data)
+    case = make(as_VulnerabilityCase, **case_data)
 
     return vendor_client, case
 

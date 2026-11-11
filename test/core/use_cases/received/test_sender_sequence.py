@@ -35,6 +35,7 @@ from test.support.ledger_rebuild import (
     replay_inbox,
     run_use_case,
 )
+from test.support.objects import make
 from test.support.received import received_event
 from test.support.refusal_notice import (
     assert_no_refusal_notice,
@@ -104,7 +105,9 @@ def _note_body_in(
 ) -> dict[str, Any]:
     """The sealed body *actor*'s adapter builds for a note on *case_id*."""
     if dl.read(note_id) is None:
-        dl.create(as_Note(id_=note_id, content="numbered", context=case_id))
+        dl.create(
+            make(as_Note, id_=note_id, content="numbered", context=case_id)
+        )
     _activity_id, body = TriggerActivityAdapter(dl).add_note_to_case(
         note_id=note_id, case_id=case_id, actor=actor, to=[to]
     )

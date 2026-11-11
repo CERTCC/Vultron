@@ -64,6 +64,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import received_event, stamped
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge.bt_bridge import BTBridge
@@ -232,8 +233,11 @@ def _seed_target_participant(
     target = _as_id(activity.target)
     assert target is not None
     dl.create(
-        CaseParticipant(
-            id_=target, attributed_to=_as_id(activity.actor), context=case_id
+        make(
+            CaseParticipant,
+            id_=target,
+            attributed_to=_as_id(activity.actor),
+            context=case_id,
         )
     )
 

@@ -42,6 +42,7 @@ from test.core.behaviors.test_widened_sender_rules import (
     _store,
     _vendor_record,
 )
+from test.support.objects import make
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -198,7 +199,8 @@ def _closed_owner_store(receiver: str) -> BTTestScenario:
     record = scenario.dl.read(case.actor_participant_index[OWNER])
     assert isinstance(record, CaseParticipant)
     record.participant_statuses.append(
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             context=CASE_ID,
             attributed_to=OWNER,
             rm=RmDimension(state=RM.CLOSED),

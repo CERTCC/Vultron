@@ -26,6 +26,7 @@ from typing import cast, get_args
 
 import pytest
 
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, stamped
 from vultron.core.models.events import AnyReceivedEvent, MessageSemantics
 from vultron.core.models.events.base import (
@@ -126,7 +127,9 @@ def test_a_reject_of_an_entry_may_state_no_position() -> None:
 def _note_on_case():
     case_id = "https://example.org/cases/scope"
     return add_note_to_case_activity(
-        as_Note(id_=f"{case_id}/notes/1", content="scope", context=case_id),
+        make(
+            as_Note, id_=f"{case_id}/notes/1", content="scope", context=case_id
+        ),
         target=case_id,
         actor="https://example.org/users/vendor",
     )
@@ -150,8 +153,10 @@ def test_an_in_scope_activity_extracts_the_position_it_states() -> None:
 
 @pytest.mark.spec("SYNC-18-017")
 def test_an_out_of_scope_activity_needs_no_position() -> None:
-    report = as_VulnerabilityReport(
-        id_="https://example.org/reports/scope", content="a vul"
+    report = make(
+        as_VulnerabilityReport,
+        id_="https://example.org/reports/scope",
+        content="a vul",
     )
     offer = rm_create_report_activity(
         report, actor="https://example.org/users/finder"

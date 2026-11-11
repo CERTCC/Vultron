@@ -33,6 +33,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_in_act
 from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.refusal_notice import (
     assert_no_refusal_notice,
     assert_refusal_notice,
@@ -81,8 +82,11 @@ _UPDATE_CONSENT = UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
 
 
 def _embargo(embargo_id: str, days: int) -> as_EmbargoEvent:
-    return as_EmbargoEvent(
-        id_=embargo_id, context=_CASE_ID, end_time=days_from_now(days)
+    return make(
+        as_EmbargoEvent,
+        id_=embargo_id,
+        context=_CASE_ID,
+        end_time=days_from_now(days),
     )
 
 
@@ -111,8 +115,11 @@ def _store(
     open proposal, which the finder agreed to.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
-    case = VulnerabilityCase(
-        id_=_CASE_ID, name="Withdrawal", attributed_to=_OWNER
+    case = make(
+        VulnerabilityCase,
+        id_=_CASE_ID,
+        name="Withdrawal",
+        attributed_to=_OWNER,
     )
     for embargo_id, days in (
         (_ACTIVE, 60),

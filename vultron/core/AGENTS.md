@@ -140,7 +140,7 @@ object is an error mypy catches only after extraction.
 ### Domain Objects Belong in `core/models/`, Not `wire/as2/vocab/objects/`
 
 `VulnerabilityCase`, `VulnerabilityReport`, `CaseParticipant`,
-`EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry` and `VulnerabilityRecord` are
+`EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry` and `VulnerabilityItem` are
 **domain objects** that still live under `vultron/wire/as2/vocab/objects/`
 because the codebase was built wire-first. The wire layer imports and projects
 from core, never the reverse — which is why `VultronActivity.object_` is typed

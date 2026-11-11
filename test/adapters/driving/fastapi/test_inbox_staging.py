@@ -29,6 +29,7 @@ from typing import Any
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
+from test.support.objects import make
 from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.engine import (
@@ -87,7 +88,7 @@ def dl() -> Iterator[SqliteDataLayer]:
 
 
 def _add_note_body(content: str = "staged") -> dict[str, Any]:
-    note = as_Note(id_=_NOTE_ID, content=content, context=_CASE_ID)
+    note = make(as_Note, id_=_NOTE_ID, content=content, context=_CASE_ID)
     activity = add_note_to_case_activity(
         note,
         target=_CASE_ID,
@@ -122,7 +123,7 @@ def test_rehydrate_routes_the_inline_object_without_storing_it(dl):
 @pytest.mark.spec("IO-03-008")
 def test_rehydrate_routes_the_receivers_own_copy_over_the_inline_one(dl):
     """A held object wins, as it did when ingress skipped a duplicate."""
-    dl.create(as_Note(id_=_NOTE_ID, content="held", context=_CASE_ID))
+    dl.create(make(as_Note, id_=_NOTE_ID, content="held", context=_CASE_ID))
 
     routed = _routed(dl, _add_note_body(content="sender's"))
 
@@ -146,8 +147,11 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
     assert dl.read(routed.id_) is None, "never under the sender's id"
 
     dl.create(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="arrived"
+        make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            name="arrived",
         )
     )
     queue.replay(_CASE_ID, at=now_utc())
@@ -209,7 +213,9 @@ def test_staging_store_is_emptied_when_the_rebuild_raises(dl):
     staging = InlineObjectStaging(dl)
 
     def _stage_then_fail(store: Any) -> None:
-        store.create(as_Note(id_=_NOTE_ID, content="staged", context=_CASE_ID))
+        store.create(
+            make(as_Note, id_=_NOTE_ID, content="staged", context=_CASE_ID)
+        )
         raise RuntimeError("rebuild failed")
 
     with pytest.raises(RuntimeError, match="rebuild failed"):
@@ -510,12 +516,14 @@ def test_stage_inline_object_stages_no_core_class_for_core_only_name(
 
 
 def test_stage_inline_object_stages_inline_case(datalayer):
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="urn:uuid:case-nest-001",
         name="Nested Case",
     )
-    activity = as_Announce(
+    activity = make(
+        as_Announce,
         actor=_ACTOR_URI,
         object_=case,
     )
@@ -530,7 +538,7 @@ def test_stage_inline_object_skips_string_object(datalayer):
         as_Announce,
     )
 
-    activity = as_Announce(actor=_ACTOR_URI, object_="urn:uuid:some-id")
+    activity = make(as_Announce, actor=_ACTOR_URI, object_="urn:uuid:some-id")
     # Should not raise; DL should remain empty
     _stage_inline_object(datalayer, activity)
 
@@ -590,12 +598,13 @@ def test_stage_inline_object_duplicate_stays_at_debug(datalayer, caplog):
     """A genuine duplicate is not an error — it must not be logged as one."""
     import logging
 
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="urn:uuid:case-dup-2232",
         name="Duplicate Case",
     )
-    activity = as_Announce(actor=_ACTOR_URI, object_=case)
+    activity = make(as_Announce, actor=_ACTOR_URI, object_=case)
     _stage_inline_object(datalayer, activity)
 
     with caplog.at_level(logging.DEBUG):
@@ -609,7 +618,9 @@ def test_stage_inline_object_duplicate_stays_at_debug(datalayer, caplog):
 def test_deferring_an_activity_with_no_inline_object_holds_it_alone(dl):
     staging = InlineObjectStaging(dl)
     queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
-    note = as_Note(id_=_NOTE_ID, content="by reference", context=_CASE_ID)
+    note = make(
+        as_Note, id_=_NOTE_ID, content="by reference", context=_CASE_ID
+    )
     activity = add_note_to_case_activity(
         note,
         target=_CASE_ID,

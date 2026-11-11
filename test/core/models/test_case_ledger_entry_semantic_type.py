@@ -19,6 +19,8 @@ Spec: CLP-02-014, CLP-02-015
 
 import pytest
 
+from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
@@ -29,11 +31,14 @@ SEMANTIC_TYPE = "invite_actor_to_case"
 
 @pytest.mark.spec("CLP-02-014")
 def test_entry_serializes_semantic_type_under_semantic_type_key() -> None:
-    entry = CaseLedgerEntry(
+    entry = make(
+        CaseLedgerEntry,
         case_id=CASE_ID,
         log_index=0,
         log_object_id=OBJECT_ID,
         semantic_type=SEMANTIC_TYPE,
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
     dumped = entry.model_dump(by_alias=True)
@@ -49,6 +54,7 @@ def test_chain_record_hashes_semantic_type_under_field_name() -> None:
         case_id=CASE_ID,
         object_id=OBJECT_ID,
         semantic_type=SEMANTIC_TYPE,
+        received_at=ACT_AT,
     )
 
     hashed = record._hashable_dict()

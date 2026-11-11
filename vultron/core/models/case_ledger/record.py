@@ -22,7 +22,6 @@ from pydantic import BaseModel, Field, TypeAdapter, model_validator
 
 from vultron.core.models._helpers import (
     format_timestamp,
-    now_utc,
     timestamp_serializer,
 )
 from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
@@ -101,8 +100,9 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         default="",
         description="SHA-256 hex hash of this entry's canonical content (auto-computed)",
     )
+    # Required: the committing act's instant, never a clock read (ADR-0176).
     received_at: datetime = Field(
-        default_factory=now_utc,
+        ...,
         description="Server-generated TZ-aware UTC timestamp at receipt",
     )
     _serialize_received_at = timestamp_serializer("received_at")
@@ -115,9 +115,11 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
             return data
         if data.get("entry_hash"):
             return data
-        data = dict(data)
         if "received_at" not in data:
-            data["received_at"] = now_utc()
+            # Nothing to hash over: the required field refuses the record,
+            # rather than a clock read supplying a stamp (ADR-0176).
+            return data
+        data = dict(data)
         received_val = data["received_at"]
         received_iso = format_timestamp(
             _RECEIVED_AT.validate_python(received_val)

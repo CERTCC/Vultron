@@ -220,7 +220,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 3)* — partially superseded by 0172-an-active-participant-is-not-closed.md
 - [ADR-0117 The Per-Case Genesis Hash Is Anchored to the Case Owner, Not the CaseActor](0117-genesis-hash-is-anchored-to-the-case-owner.md)
 - [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
-- [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md) *(revision 2)* *(provisional)*
+- [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md) *(revision 2)*
 - [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md) *(revision 2)* *(provisional)*
 - [ADR-0121 A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants](0121-joined-participant-judges-the-case-by-full-case-invite.md) — supersedes 0070-invited-actor-rm-triage-via-ledger-backfill.md, 0084-participant-assertion-authority.md
 - [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 7)* *(provisional)* — partially superseded by 0175-before-1-0-one-protocol-and-storage-version-so-a-former-field-name-is-an-unknown-key.md, 0180-the-case-owner-adds-an-embargo-to-the-case-and-answers-a-proposal-by-pointing-at-it.md; supersedes 0056-embargo-adherence-computed-field.md; partially supersedes 0048-pec-no-embargo-is-absence-not-pre-consent.md, 0091-rename-pec-no-embargo-to-unbound.md, 0093-signatory-declined-pec-transition.md, 0118-pec-expired-and-unbound-exited-states.md
@@ -261,6 +261,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0159 An Actor Known Only by URI Travels as an Id-and-Type Reference, and No One Invents a Value They Do Not Know](0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md) *(provisional)*
 - [ADR-0160 A Requirement That Uses a Term Another Requirement Defines Records `uses_definition`, and a Link No Type Fits Is Not Recorded](0160-a-requirement-that-uses-a-term-another-defines-records-uses-definition.md) *(provisional)*
 - [ADR-0161 Eventual Consistency Is the Protocol's Ordering Guarantee](0161-eventual-consistency-is-the-protocols-ordering-guarantee.md) *(provisional)*
+- [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md) *(provisional)*
 - [ADR-0163 The Case Manager Resends an Unanswered Invite When Its Addressee States a Ledger Position](0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md) *(revision 2)* *(provisional)*
 - [ADR-0164 Actors Sign Content with Object-Level Proofs from Seeded Keys](0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md) *(provisional)*
 - [ADR-0165 A Participant's Act on a Case Names the Case and Never Carries It](0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md) *(provisional)*
@@ -286,7 +287,6 @@ General information about architectural decision records is available at <https:
 
 - [ADR-0130 EM Is Computed From the Embargo Register Under the EM Transition Table](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md) *(revision 2)*
 - [ADR-0156 Every Case Activity States Its Sender's Ledger Position](0156-every-case-activity-states-its-senders-ledger-position.md) *(revision 3)*
-- [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md)
 - [ADR-0169 Case Roles Split Three Ways — Position, Case Authority and Actor Standing — and Every Participant Claims a Position](0169-case-roles-split-into-position-authority-and-standing.md) — partially supersedes 0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md
 - [ADR-0172 An Active Participant Is Not Closed](0172-an-active-participant-is-not-closed.md) — partially supersedes 0114-joining-a-case-stub-invite-inert-participant.md, 0116-removing-a-participant-withdraws-entitlement-not-membership.md
 - [ADR-0178 A Participant Numbers Its Case Activities, and the Case Manager Applies Each Sender's in That Order](0178-a-participant-numbers-its-case-activities-and-the-case-manager-applies-them-in-that-order.md)

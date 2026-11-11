@@ -37,6 +37,7 @@ from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import case_file_differences
+from test.support.objects import make
 from test.support.relayed_invite import (
     COORD,
     INVITEE,
@@ -473,7 +474,8 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
     outcomes = {}
     for announce_first in (True, False):
         replica = notices._Replica(notices.REMOVED)
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=notices.REVISION_ID,
             context=notices.CASE_ID,
             end_time=days_from_now(30),
@@ -596,7 +598,8 @@ def _note_then_leave(
     networks = {}
     for send_order in (True, False):
         net = LedgerNetwork(f"https://example.org/cases/{name}-{send_order}")
-        note = as_Note(
+        note = make(
+            as_Note,
             id_=f"{net.case_id}/notes/before-leave",
             content="Sent before leaving",
             context=net.case_id,

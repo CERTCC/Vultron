@@ -102,6 +102,24 @@ def test_trigger_propose_embargo_revision_missing_end_time_returns_422(
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
+@pytest.mark.spec("CS-13-002")
+def test_trigger_propose_embargo_revision_past_end_time_returns_422(
+    client_triggers, actor, case_with_embargo
+):
+    """A past end_time is refused by the trigger, at its act's instant.
+
+    The body checks only that the end is aware; the revision shares the
+    proposal's ``_prepare``, which judges "in the future" (ADR-0176).
+    """
+    case_obj, _ = case_with_embargo
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo-revision",
+        json={"case_id": case_obj.id_, "end_time": "2020-01-01T00:00:00Z"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert "in the future" in resp.json()["detail"]["message"]
+
+
 def test_trigger_propose_embargo_revision_unknown_actor_returns_404(
     client_triggers,
 ):

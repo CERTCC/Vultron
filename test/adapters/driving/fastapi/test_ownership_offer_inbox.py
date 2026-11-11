@@ -40,6 +40,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.objects import make
 from test.support.signing import signed_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -78,8 +79,11 @@ def clear_actor_locks() -> Iterator[None]:
 
 
 def _case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(
-        id_=_CASE_ID, name="Ownership handoff", attributed_to=_VENDOR_ID
+    return make(
+        as_VulnerabilityCase,
+        id_=_CASE_ID,
+        name="Ownership handoff",
+        attributed_to=_VENDOR_ID,
     )
 
 

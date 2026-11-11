@@ -52,7 +52,7 @@
     "payloadSnapshot": {},
     "prevLogHash": "",
     "published": "2026-01-02T03:04:05.000000+00:00",
-    "receivedAt": "<clock>",
+    "receivedAt": "2026-01-02T03:04:05.000000+00:00",
     "semanticType": "urn:test:semantic_type:1",
     "type": "CaseLedgerEntry",
     "updated": "2026-01-02T03:04:05.000000+00:00"
@@ -176,6 +176,7 @@
     "attributedTo": "urn:test:attributed_to:1",
     "caseActivity": [],
     "caseParticipants": [],
+    "caseReferences": [],
     "caseStatuses": [
       {
         "attributedTo": "urn:test:attributed_to:1",
@@ -203,18 +204,20 @@
     "siblingCases": [],
     "type": "VulnerabilityCase",
     "updated": "2026-01-02T03:04:05.000000+00:00",
+    "vulnerabilityItems": [],
     "vulnerabilityReports": []
   },
-  "VulnerabilityRecord": {
+  "VulnerabilityItem": {
     "@context": [
       "https://www.w3.org/ns/activitystreams",
       "https://certcc.github.io/Vultron/ns/context.jsonld"
     ],
-    "aliases": [],
-    "id": "urn:test:vulnerabilityrecord:golden",
-    "name": "urn:test:name:1",
+    "id": "urn:test:vulnerabilityitem:golden",
+    "ids": [],
+    "notes": [],
     "published": "2026-01-02T03:04:05.000000+00:00",
-    "type": "VulnerabilityRecord",
+    "references": [],
+    "type": "VulnerabilityItem",
     "updated": "2026-01-02T03:04:05.000000+00:00"
   },
   "VulnerabilityReport": {

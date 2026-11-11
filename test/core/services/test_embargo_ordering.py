@@ -19,6 +19,7 @@ from datetime import timedelta
 import pytest
 
 from test.support.future_dates import FAR_FUTURE
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -49,7 +50,8 @@ def dl() -> Generator[SqliteDataLayer]:
 
 
 def _embargo(days: int) -> EmbargoEvent:
-    return EmbargoEvent(
+    return make(
+        EmbargoEvent,
         id_=f"{_CASE}/embargo_events/{days}d",
         context=_CASE,
         start_time=_START,
@@ -106,7 +108,8 @@ def test_earliest_expiring_embargo_id_tie_keeps_the_first_listed(
     is the one place position may decide — and only between equals.
     """
     twin_a = _embargo(30)
-    twin_b = EmbargoEvent(
+    twin_b = make(
+        EmbargoEvent,
         id_=f"{_CASE}/embargo_events/30d-twin",
         context=_CASE,
         start_time=_START,
@@ -139,7 +142,8 @@ def test_earliest_expiring_embargo_id_fails_closed_on_a_missing_record(
 def test_earliest_expiring_embargo_id_refuses_a_record_that_is_not_an_embargo(
     dl: SqliteDataLayer,
 ) -> None:
-    policy = EmbargoPolicy(
+    policy = make(
+        EmbargoPolicy,
         actor_id=_ACTOR,
         inbox=f"{_ACTOR}/inbox",
         preferred_duration=timedelta(days=30),

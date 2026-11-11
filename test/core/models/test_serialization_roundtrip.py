@@ -15,6 +15,7 @@ activity ID.
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.activity import (
     VultronAccept,
     VultronActivity,
@@ -65,7 +66,7 @@ class TestVultronObjectIdAlias:
     """CoreObject inherits from CoreRecord; id_ aliases must propagate."""
 
     def test_model_dump_by_alias_uses_id_key(self):
-        obj = CoreObject(id_="urn:uuid:obj-test")
+        obj = make(CoreObject, id_="urn:uuid:obj-test")
         dumped = obj.model_dump(by_alias=True)
         assert "id" in dumped
         assert dumped["id"] == "urn:uuid:obj-test"
@@ -80,7 +81,8 @@ class TestVultronActivityIdRoundTrip:
     """VultronActivity must preserve id_ through dump → validate cycles."""
 
     def test_id_preserved_in_roundtrip(self):
-        act = VultronActivity(
+        act = make(
+            VultronActivity,
             id_="urn:uuid:act-original",
             type_="Announce",
             actor="https://example.org/actors/test",
@@ -110,7 +112,7 @@ class TestSubclassTypeAlias:
 
     def test_dump_by_alias_uses_type_key(self, cls, expected_type):
         """model_dump(by_alias=True) must emit ``"type"``, not ``"type_"``."""
-        obj = cls(actor="https://example.org/actors/test")
+        obj = make(cls, actor="https://example.org/actors/test")
         dumped = obj.model_dump(by_alias=True)
         assert "type" in dumped, (
             f"{cls.__name__}: expected 'type' key, got {list(dumped.keys())}"
@@ -154,7 +156,8 @@ class TestCrossModelRoundTrip:
 
     def test_vultron_activity_dump_for_http_delivery(self):
         """VultronActivity.model_dump(by_alias=True) must produce valid HTTP payload."""
-        act = VultronActivity(
+        act = make(
+            VultronActivity,
             id_="urn:uuid:delivery-test",
             type_="Create",
             actor="https://vendor.example.org/actors/vendor",

@@ -34,6 +34,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from test.support.signing import signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -91,23 +92,27 @@ def dl():
 @pytest.fixture
 def seeded_dl(dl):
     """DataLayer seeded with a case, genesis hash, and two chained entries."""
-    case = as_VulnerabilityCase(
-        id_=_CASE_ID, name="lock-test-case", attributed_to=_OWNER_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=_CASE_ID,
+        name="lock-test-case",
+        attributed_to=_OWNER_ID,
     )
     genesis_hash = case.genesis_hash
 
-    case_actor_participant = as_CaseParticipant(
-        attributed_to=_CASE_ACTOR_ID, context=_CASE_ID
+    case_actor_participant = make(
+        as_CaseParticipant, attributed_to=_CASE_ACTOR_ID, context=_CASE_ID
     )
-    peer_participant = as_CaseParticipant(
-        attributed_to=_PEER_ID, context=_CASE_ID
+    peer_participant = make(
+        as_CaseParticipant, attributed_to=_PEER_ID, context=_CASE_ID
     )
     case.case_participants.append(case_actor_participant.id_)
     case.case_participants.append(peer_participant.id_)
     case.actor_participant_index[_CASE_ACTOR_ID] = case_actor_participant.id_
     case.actor_participant_index[_PEER_ID] = peer_participant.id_
 
-    case_actor_svc = VultronService(
+    case_actor_svc = make(
+        VultronService,
         id_=f"{_CASE_ACTOR_ID}/case-actor",
         attributed_to=_CASE_ACTOR_ID,
         context=_CASE_ID,
@@ -132,6 +137,7 @@ def seeded_dl(dl):
             semantic_type="test_event_0",
             payload_snapshot=_snapshot,
             prev_log_hash=genesis_hash,
+            received_at=ACT_AT,
         )
     )
     entry1 = _to_persistable_entry(
@@ -142,6 +148,7 @@ def seeded_dl(dl):
             semantic_type="test_event_1",
             payload_snapshot=_snapshot,
             prev_log_hash=entry0.entry_hash,
+            received_at=ACT_AT,
         )
     )
 

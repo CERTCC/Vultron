@@ -20,6 +20,7 @@ import pytest
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -40,7 +41,8 @@ _CASE = "https://example.org/cases/carried"
 
 
 def _embargo() -> EmbargoEvent:
-    return EmbargoEvent(
+    return make(
+        EmbargoEvent,
         id_=f"{_CASE}/embargo_events/e1",
         context=_CASE,
         end_time=days_from_now(45),
@@ -61,7 +63,10 @@ def dl() -> Generator[SqliteDataLayer]:
 
 def test_a_case_with_no_embargo_needs_nothing(dl: SqliteDataLayer) -> None:
     store_carried_embargo(
-        VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE, name="c"), dl
+        make(
+            VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=_CASE, name="c"
+        ),
+        dl,
     )
 
     assert dl.list_objects("EmbargoEvent") == []
@@ -72,7 +77,8 @@ def test_an_inline_embargo_is_stored_as_its_own_record(
     dl: SqliteDataLayer,
 ) -> None:
     embargo = _embargo()
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE,
         name="c",
@@ -92,12 +98,14 @@ def test_an_inline_embargo_of_another_case_is_refused_unstored(
 ) -> None:
     """A sender cannot plant another case's embargo under its id."""
     other_case = "https://example.org/cases/other"
-    foreign = EmbargoEvent(
+    foreign = make(
+        EmbargoEvent,
         id_=f"{other_case}/embargo_events/e1",
         context=other_case,
         end_time=days_from_now(45),
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE,
         name="c",
@@ -114,7 +122,8 @@ def test_an_inline_embargo_of_another_case_is_refused_unstored(
 def test_a_bare_reference_the_store_holds_passes(dl: SqliteDataLayer) -> None:
     embargo = _embargo()
     dl.create(embargo)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE,
         name="c",
@@ -129,7 +138,8 @@ def test_a_bare_reference_the_store_lacks_is_refused(
     dl: SqliteDataLayer,
 ) -> None:
     missing = f"{_CASE}/embargo_events/missing"
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE,
         name="c",
@@ -146,11 +156,15 @@ def test_a_bare_reference_the_store_lacks_is_refused(
 def test_a_reference_to_a_non_embargo_record_is_refused(
     dl: SqliteDataLayer,
 ) -> None:
-    report = VulnerabilityReport(
-        id_="https://example.org/reports/r1", name="r", content="c"
+    report = make(
+        VulnerabilityReport,
+        id_="https://example.org/reports/r1",
+        name="r",
+        content="c",
     )
     dl.create(report)
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE,
         name="c",
@@ -261,8 +275,11 @@ def test_an_entrys_inline_embargo_of_another_case_is_refused(
 def test_an_entry_naming_a_held_non_embargo_record_is_refused(
     dl: SqliteDataLayer,
 ) -> None:
-    report = VulnerabilityReport(
-        id_="https://example.org/reports/r2", name="r", content="c"
+    report = make(
+        VulnerabilityReport,
+        id_="https://example.org/reports/r2",
+        name="r",
+        content="c",
     )
     dl.create(report)
 
@@ -318,7 +335,8 @@ _OTHER_CASE = "https://example.org/cases/other"
 
 def _held_for_other_case(dl: SqliteDataLayer) -> EmbargoEvent:
     """Store, under this case's embargo id, a record of another case."""
-    foreign = EmbargoEvent(
+    foreign = make(
+        EmbargoEvent,
         id_=_embargo().id_,
         context=_OTHER_CASE,
         end_time=days_from_now(45),
@@ -336,7 +354,8 @@ def test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten(
     """A bare id, or an inline copy, whose held record is another case's."""
     foreign = _held_for_other_case(dl)
     active: EmbargoEvent | str = foreign.id_ if as_reference else _embargo()
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE,
         name="c",
@@ -380,7 +399,8 @@ _OTHER_REPORT = "https://example.org/reports/other-report"
 
 def _held_for_report(dl: SqliteDataLayer, report_id: str) -> EmbargoEvent:
     """Store a Reporter's pre-case proposal, about *report_id* (EP-04-009)."""
-    proposal = EmbargoEvent(
+    proposal = make(
+        EmbargoEvent,
         id_=_embargo().id_,
         context=report_id,
         end_time=days_from_now(45),
@@ -394,11 +414,12 @@ def _case_with_report(
 ) -> VulnerabilityCase:
     """This case, holding ``_REPORT`` by id or as an inline report."""
     report: VulnerabilityReport | str = (
-        VulnerabilityReport(id_=_REPORT, name="r", content="c")
+        make(VulnerabilityReport, id_=_REPORT, name="r", content="c")
         if inline_report
         else _REPORT
     )
-    return VulnerabilityCase(
+    return make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE,
         name="c",
@@ -449,7 +470,8 @@ def test_a_held_proposal_about_another_cases_report_is_refused(
 def test_an_inline_embargo_about_another_cases_report_is_refused_unstored(
     dl: SqliteDataLayer,
 ) -> None:
-    foreign = EmbargoEvent(
+    foreign = make(
+        EmbargoEvent,
         id_=f"{_CASE}/embargo_events/e1",
         context=_OTHER_REPORT,
         end_time=days_from_now(45),
@@ -497,8 +519,11 @@ def test_an_inline_embargo_about_the_cases_report_is_stored(
     dl: SqliteDataLayer,
 ) -> None:
     """With nothing held, an inline copy about the case's report is stored."""
-    carried = EmbargoEvent(
-        id_=_embargo().id_, context=_REPORT, end_time=days_from_now(45)
+    carried = make(
+        EmbargoEvent,
+        id_=_embargo().id_,
+        context=_REPORT,
+        end_time=days_from_now(45),
     )
 
     store_carried_embargo(_case_with_report(carried), dl)
@@ -556,7 +581,8 @@ def test_an_entrys_bad_inline_copy_is_refused_though_the_record_is_held(
 
 
 def _case_naming(embargo: EmbargoEvent | str) -> VulnerabilityCase:
-    return VulnerabilityCase(
+    return make(
+        VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_=_CASE,
         name="c",
@@ -570,7 +596,8 @@ def _case_naming(embargo: EmbargoEvent | str) -> VulnerabilityCase:
     ("named", "error"),
     [
         pytest.param(
-            EmbargoEvent(
+            make(
+                EmbargoEvent,
                 id_="https://example.org/cases/other/embargo_events/e1",
                 context="https://example.org/cases/other",
                 end_time=days_from_now(45),

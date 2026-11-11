@@ -4,6 +4,7 @@ import logging
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 
@@ -18,7 +19,8 @@ _CONTEXT = "https://example.org/cases/case-001"
 def _make_participant(
     roles: list[CVDRole] | None = None,
 ) -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         attributed_to=_ACTOR,
         context=_CONTEXT,
         case_roles=roles or [],

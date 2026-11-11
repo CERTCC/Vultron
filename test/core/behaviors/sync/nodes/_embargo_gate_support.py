@@ -28,6 +28,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import SendMissingEntriesNode
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
@@ -69,11 +70,14 @@ def seed_case(datalayer, *, embargo_active: bool) -> None:
     With *embargo_active* false the embargo exists but is not the case's
     active embargo, so the gate has nothing to withhold.
     """
-    embargo = EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
+    embargo = make(
+        EmbargoEvent,
+        id_=EMBARGO_ID,
+        context=CASE_ID,
+        end_time=days_from_now(45),
     )
     datalayer.create(embargo)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=MANAGER_ID)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=MANAGER_ID)
     if embargo_active:
         activate(case, embargo)
     for actor_id, consent, roles in (
@@ -81,7 +85,8 @@ def seed_case(datalayer, *, embargo_active: bool) -> None:
         (SIGNATORY_ID, EmbargoConsentState.AGREED, []),
         (NON_SIGNATORY_ID, EmbargoConsentState.INVITED, []),
     ):
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=f"{actor_id}/participant",
             attributed_to=actor_id,
             context=CASE_ID,
@@ -136,7 +141,8 @@ def close(datalayer, actor_id: str) -> None:
     participant = datalayer.read(f"{actor_id}/participant")
     assert isinstance(participant, CaseParticipant)
     participant.participant_statuses = [
-        ParticipantStatus(
+        make(
+            ParticipantStatus,
             context=CASE_ID,
             attributed_to=actor_id,
             rm=RmDimension(state=RM.CLOSED),

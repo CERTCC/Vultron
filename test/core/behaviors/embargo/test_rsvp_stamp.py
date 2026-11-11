@@ -20,6 +20,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.embargo.rsvp_stamp import (
@@ -40,7 +41,9 @@ def dl() -> SqliteDataLayer:
 
 
 def _embargo(dl: SqliteDataLayer, days: int) -> str:
-    embargo = as_EmbargoEvent(context=CASE_ID, end_time=days_from_now(days))
+    embargo = make(
+        as_EmbargoEvent, context=CASE_ID, end_time=days_from_now(days)
+    )
     dl.create(embargo)
     return embargo.id_
 

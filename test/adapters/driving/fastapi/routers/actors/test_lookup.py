@@ -21,6 +21,7 @@ Tests actor-record lookup helpers in isolation from the HTTP layer.
 import pytest
 from fastapi import HTTPException
 
+from test.support.objects import make
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _ACTOR_RECORD_TYPES,
@@ -105,7 +106,7 @@ def test_actor_class_for_record_prefers_payload_type_json_key():
 
 
 def test_find_actor_record_by_id_returns_record_when_found(datalayer):
-    actor = as_Organization(id_=_ACTOR_URI, name="Alice Org")
+    actor = make(as_Organization, id_=_ACTOR_URI, name="Alice Org")
     datalayer.create(object_to_record(actor))
     result = _find_actor_record_by_id(datalayer, _ACTOR_URI)
     assert result is not None
@@ -123,7 +124,7 @@ def test_find_actor_record_by_id_returns_none_for_missing_actor(datalayer):
 
 
 def test_find_actor_record_returns_by_full_id(datalayer):
-    actor = as_Person(id_=_ACTOR_URI, name="Alice")
+    actor = make(as_Person, id_=_ACTOR_URI, name="Alice")
     datalayer.create(object_to_record(actor))
     result = _find_actor_record(datalayer, _ACTOR_URI)
     assert result is not None
@@ -135,7 +136,7 @@ def test_find_actor_record_resolves_a_path_segment_by_computation(datalayer):
     from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 
     canonical = canonical_actor_uri("alice")
-    actor = as_Organization(id_=canonical, name="Alice Org")
+    actor = make(as_Organization, id_=canonical, name="Alice Org")
     datalayer.create(object_to_record(actor))
 
     result = _find_actor_record(datalayer, "alice")
@@ -157,7 +158,7 @@ def test_find_actor_record_does_not_match_a_foreign_actor_by_suffix(datalayer):
     the node's own base URL, so a foreign id with a colliding last segment is
     correctly invisible.
     """
-    foreign = as_Organization(id_=_ACTOR_URI, name="Alice Org Elsewhere")
+    foreign = make(as_Organization, id_=_ACTOR_URI, name="Alice Org Elsewhere")
     datalayer.create(object_to_record(foreign))
 
     assert _find_actor_record(datalayer, "alice") is None
@@ -174,7 +175,7 @@ def test_find_actor_record_returns_none_when_absent(datalayer):
 
 
 def test_resolve_actor_or_404_returns_actor_when_found(datalayer):
-    actor = as_Organization(id_=_ACTOR_URI, name="Alice Org")
+    actor = make(as_Organization, id_=_ACTOR_URI, name="Alice Org")
     datalayer.create(actor)
     resolved = _resolve_actor_or_404(_ACTOR_URI, datalayer)
     assert resolved is not None
@@ -202,7 +203,7 @@ _URN_ACTOR_ID = f"urn:uuid:{_URN_ACTOR_UUID}"
 def test_find_actor_record_maps_a_bare_uuid_segment_to_the_urn_actor(
     datalayer,
 ):
-    datalayer.create(object_to_record(as_Person(id_=_URN_ACTOR_ID)))
+    datalayer.create(object_to_record(make(as_Person, id_=_URN_ACTOR_ID)))
     result = _find_actor_record(datalayer, _URN_ACTOR_UUID)
     assert result is not None
     assert result.get("id_") == _URN_ACTOR_ID
@@ -212,6 +213,6 @@ def test_find_actor_record_maps_a_bare_uuid_segment_to_the_urn_actor(
 def test_resolve_actor_or_404_maps_a_bare_uuid_segment_to_the_urn_actor(
     datalayer,
 ):
-    datalayer.create(as_Person(id_=_URN_ACTOR_ID))
+    datalayer.create(make(as_Person, id_=_URN_ACTOR_ID))
     resolved = _resolve_actor_or_404(_URN_ACTOR_UUID, datalayer)
     assert resolved.id_ == _URN_ACTOR_ID

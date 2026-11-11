@@ -16,6 +16,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -64,8 +65,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 
 def _make_actor(name: str) -> as_Service:
-    return as_Service(
-        name=name, url=f"https://example.org/{name.lower().replace(' ', '-')}"
+    return make(
+        as_Service,
+        name=name,
+        url=f"https://example.org/{name.lower().replace(' ', '-')}",
     )
 
 
@@ -81,7 +84,8 @@ def _stored_embargo(
     dl: SqliteDataLayer, case: as_VulnerabilityCase, suffix: str
 ) -> as_EmbargoEvent:
     """Persist an embargo for *case*, so a Leave carrying the case can send."""
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case.id_}/embargo_events/{suffix}",
         context=case.id_,
         end_time=days_from_now(45),
@@ -98,31 +102,42 @@ def _make_case_with_case_manager(
     roles: tuple[CVDRole, ...] = (CVDRole.VENDOR,),
     em_state: EM = EM.NONE,
 ) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
-    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Test Case"
+    )
     if em_state in (EM.ACTIVE, EM.REVISE):
         activate(case, _stored_embargo(dl, case, "e1"))
     if em_state == EM.REVISE:
         propose(case, _stored_embargo(dl, case, "e2"))
 
-    actor_participant = as_CaseParticipant(
+    actor_participant = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case.id_,
         case_roles=list(roles),
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(
-            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.RECEIVED),
         )
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
+        make(
+            WireParticipantStatus,
+            context=case.id_,
+            rm=RmDimension(state=RM.VALID),
+        )
     )
 
-    finder_participant = ReporterParticipant(
+    finder_participant = make(
+        ReporterParticipant,
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -257,22 +272,27 @@ class TestLeaveCaseTriggersOutboxActivity:
 
     def test_leave_case_no_case_manager_raises_validation_error(self):
         """VultronValidationError raised when case has no CASE_MANAGER."""
-        case_solo = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="Solo Case"
+        case_solo = make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="Solo Case"
         )
-        vendor_participant = as_CaseParticipant(
+        vendor_participant = make(
+            as_CaseParticipant,
             attributed_to=self.vendor.id_,
             context=case_solo.id_,
             case_roles=[CVDRole.VENDOR],
         )
         vendor_participant.participant_statuses.append(
-            WireParticipantStatus(
-                context=case_solo.id_, rm=RmDimension(state=RM.RECEIVED)
+            make(
+                WireParticipantStatus,
+                context=case_solo.id_,
+                rm=RmDimension(state=RM.RECEIVED),
             )
         )
         vendor_participant.participant_statuses.append(
-            WireParticipantStatus(
-                context=case_solo.id_, rm=RmDimension(state=RM.VALID)
+            make(
+                WireParticipantStatus,
+                context=case_solo.id_,
+                rm=RmDimension(state=RM.VALID),
             )
         )
         case_solo.actor_participant_index[self.vendor.id_] = (

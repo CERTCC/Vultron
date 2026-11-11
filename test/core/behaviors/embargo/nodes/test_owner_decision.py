@@ -37,6 +37,7 @@ from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -98,7 +99,8 @@ def _case_with_owner(
     )
     open_id = first.id_
     if with_revision:
-        revision = as_EmbargoEvent(
+        revision = make(
+            as_EmbargoEvent,
             id_=f"{case.id_}/embargo_events/revision",
             context=case.id_,
             end_time=days_from_now(90),
@@ -108,7 +110,8 @@ def _case_with_owner(
         open_id = revision.id_
     # Every register entry has a row (ADR-0122); the open proposal's is
     # *owner_consent*, the others the never-asked UNINVITED.
-    owner_p = as_CaseParticipant(
+    owner_p = make(
+        as_CaseParticipant,
         attributed_to=OWNER,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
@@ -395,7 +398,7 @@ class TestCommitAndApplyEmbargoActivationNode:
         case, active_id, revision_id, owner_pid = _case_with_owner(
             dl, "act-type", em_state=EM.ACTIVE, store_active=False
         )
-        dl.create(VultronNote(id_=active_id, content="not an embargo"))
+        dl.create(make(VultronNote, id_=active_id, content="not an embargo"))
         setup_blackboard(dl, actor_id=MANAGER)
         result_out: dict[str, object] = {}
 
@@ -602,13 +605,17 @@ def _owner_store(*, with_manager: bool = True) -> SqliteDataLayer:
     """The owner's replica: the case, its CASE_MANAGER and the proposal."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
     dl.create(
-        as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now(45)
+        make(
+            as_EmbargoEvent,
+            id_=EMBARGO_ID,
+            context=CASE_ID,
+            end_time=days_from_now(45),
         )
     )
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER)
+    case = make(VulnerabilityCase, id_=CASE_ID, attributed_to=OWNER)
     if with_manager:
-        manager = as_CaseParticipant(
+        manager = make(
+            as_CaseParticipant,
             id_=f"{CASE_ID}/participants/cm",
             attributed_to=MANAGER,
             context=CASE_ID,

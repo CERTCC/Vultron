@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
     _make_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.received import peer_position, received_event
 from vultron.core.behaviors.bridge import BTBridge
@@ -497,6 +498,7 @@ def _closure_status_entry(datalayer, actor_id: str, log_index: int, prev):
             semantic_type="add_participant_status_to_participant",
             payload_snapshot={"type": "Add", "actor": MANAGER_ID},
             prev_log_hash=prev.entry_hash,
+            received_at=ACT_AT,
         )
     )
 

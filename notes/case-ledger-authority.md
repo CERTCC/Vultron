@@ -346,8 +346,8 @@ Rules:
    because the guarded commit precedes the effects (CLP-10-006). Report at
    `INFO` within the clock-skew tolerance, `WARNING` beyond it.
 3. **A snapshot built on a participant's behalf carries that participant's
-   claimed time** (`claimed_published_iso()`). Stamping `now_utc()` under a
-   participant's URI puts a foreign clock in its stream. A snapshot the
+   claimed time**, from the activity that prompted it. Stamping the manager's
+   clock under a participant's URI puts a foreign clock in its stream. A snapshot the
    CASE_MANAGER genuinely authors (its own URI, such as the `Leave` closure
    status entries) uses its own clock. A decision the CASE_MANAGER takes for
    someone else, such as an invitation expiry, is its own act, never a

@@ -37,6 +37,8 @@ from test.core.behaviors.port_contract import (
     decl_id,
     discover_port_declarations,
 )
+from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.core.behaviors.sync.nodes.chain import (
     PersistLogEntryNode,
     UpdateReplicationStateNode,
@@ -255,16 +257,20 @@ class TestCollectLogEntryRecipientsNodeOutputPorts:
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         case_id = "https://example.org/cases/case-001"
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=case_id,
             name="Test Case",
             attributed_to=ACTOR_ID,
         )
         bt_scenario.seed(case)
-        entry = CaseLedgerEntry(
+        entry = make(
+            CaseLedgerEntry,
             case_id=case_id,
             log_object_id="https://example.org/activities/act-001",
             semantic_type="close_case",
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         result = bt_scenario.run(
             CollectLogEntryRecipientsNode(case_id=case_id),
@@ -302,10 +308,13 @@ class TestFanoutCollectorsRequireCase:
         case_id = "https://example.org/cases/absent-case"
         # log_entry is a required port, so provide one — the failure must come
         # from the unresolved case, not from a missing hand-off value.
-        entry = CaseLedgerEntry(
+        entry = make(
+            CaseLedgerEntry,
             case_id=case_id,
             log_object_id="https://example.org/activities/act-001",
             semantic_type="close_case",
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         result = bt_scenario.run(
             node_cls(case_id=case_id),
@@ -329,10 +338,13 @@ class TestFanoutCollectorsRequireCase:
 
 
 def _make_ledger_entry() -> CaseLedgerEntry:
-    return CaseLedgerEntry(
+    return make(
+        CaseLedgerEntry,
         case_id=LEDGER_CASE_ID,
         log_object_id="https://example.org/activities/act-001",
         semantic_type="close_case",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
 
 

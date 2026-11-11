@@ -29,6 +29,7 @@ from typing import Any
 import py_trees
 import pytest
 
+from test.support.objects import make
 from test.support.received import stamped
 from vultron.adapters.driven.clock import SystemClock
 from vultron.core.behaviors.blackboard_scope import key_aliases
@@ -116,7 +117,8 @@ class _RecordingOutcomePort:
 @pytest.fixture
 def activity():
     return rm_create_report_activity(
-        report=as_VulnerabilityReport(
+        report=make(
+            as_VulnerabilityReport,
             id_="https://example.org/reports/r-stage-1",
             content="stage report",
         ),

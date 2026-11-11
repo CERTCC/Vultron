@@ -24,14 +24,15 @@ not delivery.
 import pytest
 
 from test.support.future_dates import FAR_FUTURE
+from test.support.objects import make
 from vultron.demo.helpers.workflow import report as workflow_report
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _NODE = "http://vendor:7999/api/v2"
-_REPORTER = as_Actor(id_=f"{_NODE}/actors/finndervul", name="Finn")
-_RECEIVER = as_Actor(id_=f"{_NODE}/actors/vendorco", name="VendorCo")
+_REPORTER = make(as_Actor, id_=f"{_NODE}/actors/finndervul", name="Finn")
+_RECEIVER = make(as_Actor, id_=f"{_NODE}/actors/vendorco", name="VendorCo")
 _END = FAR_FUTURE  # far-future; tests that terms flow to the trigger, not a specific date
 
 

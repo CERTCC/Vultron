@@ -56,6 +56,7 @@ from test.support.act_runner import run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from test.support.received import TEST_SENDER_POSITION, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -238,14 +239,17 @@ def bridge(dl):
 def case():
     # ACTOR_ID's replica of a case the CASE_MANAGER holds; attributed_to
     # seeds the CLP-08 genesis.
-    return as_VulnerabilityCase(
-        id_=CASE_ID, name="BT Case", attributed_to=CASE_MANAGER_ID
+    return make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="BT Case",
+        attributed_to=CASE_MANAGER_ID,
     )
 
 
 @pytest.fixture
 def status_obj():
-    return as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+    return make(as_CaseStatus, id_=STATUS_ID, context=CASE_ID)
 
 
 @pytest.fixture
@@ -333,13 +337,15 @@ class TestCheckCaseStatusAcceptableNodeBug2704:
         dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=CASE_MANAGER_ID_2704
         )
-        cm_participant = CaseParticipant(
+        cm_participant = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/cm-2704",
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID_2704,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="2704 Test Case",
             attributed_to=CASE_MANAGER_ID_2704,
@@ -385,12 +391,15 @@ class TestCheckCaseStatusAcceptableNodeBug2704:
         """
         from unittest.mock import PropertyMock, patch
 
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="2704 Case", attributed_to=CASE_MANAGER_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="2704 Case",
+            attributed_to=CASE_MANAGER_ID,
         )
         dl = _replica_store(case)
         # STATUS_ID intentionally NOT written to DL — _resolve_asserted() returns None.
-        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        status_obj = make(as_CaseStatus, id_=STATUS_ID, context=CASE_ID)
         event = make_payload(_from_manager(status_obj), at=dl)
 
         # Patch request.status to None so status_obj_fallback=None in the tree factory.
@@ -458,11 +467,15 @@ class TestCheckCaseStatusAcceptableNode:
         self, bridge, dl
     ):
         """A case holding no status yet has no P/X/A to regress from."""
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="No Status Yet"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="No Status Yet",
         )
         case.case_statuses = []  # drop the status the owner seeded
-        asserted = as_CaseStatus(
+        asserted = make(
+            as_CaseStatus,
             id_=STATUS_ID,
             context=CASE_ID,
             em=EmDimension(state=case.em_state),
@@ -476,13 +489,19 @@ class TestCheckCaseStatusAcceptableNode:
         self, bridge, dl
     ):
         """The EM rule needs no prior status: the register derives it."""
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="No Status Yet"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="No Status Yet",
         )
         case.case_statuses = []  # drop the status the owner seeded
         assert case.em_state == EM.NONE
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
+        asserted = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.ACTIVE),
         )
         status, message = self._run(bridge, dl, case, asserted)
         assert status == Status.FAILURE
@@ -490,10 +509,14 @@ class TestCheckCaseStatusAcceptableNode:
 
     @pytest.mark.spec("RSH-09-005")
     def test_the_cases_em_with_a_forward_pxa_is_accepted(self, bridge, dl):
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Accepted", attributed_to=ACTOR_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Accepted",
+            attributed_to=ACTOR_ID,
         )
-        asserted = as_CaseStatus(
+        asserted = make(
+            as_CaseStatus,
             id_=STATUS_ID,
             context=CASE_ID,
             em=EmDimension(state=EM.NONE),
@@ -504,11 +527,15 @@ class TestCheckCaseStatusAcceptableNode:
 
     @pytest.mark.spec("RSH-09-005", "EH-07-001")
     def test_every_refused_rule_is_named(self, bridge, dl):
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Refused", attributed_to=ACTOR_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Refused",
+            attributed_to=ACTOR_ID,
         )
         case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
-        asserted = as_CaseStatus(
+        asserted = make(
+            as_CaseStatus,
             id_=STATUS_ID,
             context=CASE_ID,
             em=EmDimension(state=EM.ACTIVE),
@@ -538,14 +565,20 @@ class TestPxaRegressionRefusedWhole:
         Runs at a replica, from the CASE_MANAGER (RSH-04-005), so the sender
         guard admits it and CheckCaseStatusAcceptableNode is what refuses it.
         """
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="2706 Case", attributed_to=CASE_MANAGER_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="2706 Case",
+            attributed_to=CASE_MANAGER_ID,
         )
         case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
         dl = _replica_store(case)
         # Asserted: pxa regression (pxa=pxa instead of Pxa), same EM
-        status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pxa)
+        status_obj = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.pxa),
         )
         dl.create(status_obj)
         event = make_payload(_from_manager(status_obj), at=dl)
@@ -600,14 +633,20 @@ class TestAddCaseStatusTreeSenderRule:
         """With no CASE_MANAGER on its case there is nobody to admit it from,
         so even a stranger's public-awareness status is refused by the sender
         guard, with nothing appended, committed or sent."""
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="No manager", attributed_to=ACTOR_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="No manager",
+            attributed_to=ACTOR_ID,
         )
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
         seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
-        status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+        status_obj = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(status_obj)
         activity = add_status_to_case_activity(
@@ -630,15 +669,21 @@ class TestAddCaseStatusTreeSenderRule:
     def test_a_status_sent_to_the_case_manager_is_refused(self, make_payload):
         """Not even the CASE_MANAGER's own: no sender is entitled at the
         CASE_MANAGER, so nothing is appended or committed."""
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="At the manager", attributed_to=CASE_MANAGER_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="At the manager",
+            attributed_to=CASE_MANAGER_ID,
         )
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
         seed_case_manager_participant(dl, case, CASE_MANAGER_ID)
         seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
-        status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+        status_obj = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(status_obj)
 
@@ -664,7 +709,7 @@ class TestAddCaseStatusTreeSenderRule:
             PxaEmInvariantDiagnosticNode,
         )
 
-        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        status_obj = make(as_CaseStatus, id_=STATUS_ID, context=CASE_ID)
         tree = add_case_status_tree(
             sender_rule=_CASE_STATUS_RULE,
             request=make_payload(_from_manager(status_obj)),
@@ -714,10 +759,14 @@ class TestAddCaseStatusTree:
         EM is derived from the embargo register and no status moves it
         (RSH-09-005, ADR-0122).
         """
-        case = as_VulnerabilityCase(
-            id_=CASE_ID, name="EM Guard", attributed_to=CASE_MANAGER_ID
+        case = make(
+            as_VulnerabilityCase,
+            id_=CASE_ID,
+            name="EM Guard",
+            attributed_to=CASE_MANAGER_ID,
         )
-        initial = as_CaseStatus(
+        initial = make(
+            as_CaseStatus,
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
             em=EmDimension(state=EM.NONE),
@@ -725,8 +774,11 @@ class TestAddCaseStatusTree:
         case.case_statuses.append(initial)  # type: ignore[arg-type]
         dl = _replica_store(case)
 
-        bad_status = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
+        bad_status = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.ACTIVE),
         )
         dl.create(bad_status)
 
@@ -751,7 +803,8 @@ class TestAddCaseStatusTree:
         CaseStatus that does not advance P.  The full tree must return FAILURE
         and no CaseStatus entry should be appended to the case.
         """
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="Ephemeral pX Guard",
             attributed_to=CASE_MANAGER_ID,
@@ -762,7 +815,8 @@ class TestAddCaseStatusTree:
         dl = _replica_store(case)
 
         # Asserted status fires A-event only (pXa → pXA); P is NOT advanced.
-        asserted = as_CaseStatus(
+        asserted = make(
+            as_CaseStatus,
             id_=STATUS_ID,
             context=CASE_ID,
             pxa=PxaDimension(state=CS_pxa.pXA),
@@ -787,14 +841,18 @@ class TestAddCaseStatusTree:
         would record a status nobody sent (RSH-09-001), so the forward P/X/A
         is refused with it and nothing is appended or committed.
         """
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="EM PXA Split", attributed_to=CASE_MANAGER_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="EM PXA Split",
+            attributed_to=CASE_MANAGER_ID,
         )
         # Auto-seeded CaseStatus has pxa=pxa and EM NONE.
         dl = _replica_store(case)
 
         # Sender asserts EM NONE→PROPOSED (refused) + PXA pxa→Pxa (valid)
-        asserted = as_CaseStatus(
+        asserted = make(
+            as_CaseStatus,
             id_=STATUS_ID,
             context=CASE_ID,
             em=EmDimension(state=EM.PROPOSED),
@@ -827,13 +885,17 @@ class TestAddCaseStatusTree:
         """An asserted EM identical to the case's is not refused (RSH-09-005)."""
         import logging
 
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="EM Carried", attributed_to=CASE_MANAGER_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="EM Carried",
+            attributed_to=CASE_MANAGER_ID,
         )
         propose(case, f"{CASE_ID}/embargo_events/carried")
         dl = _replica_store(case)
 
-        asserted = as_CaseStatus(
+        asserted = make(
+            as_CaseStatus,
             id_=STATUS_ID,
             context=CASE_ID,
             em=EmDimension(state=EM.PROPOSED),
@@ -866,14 +928,18 @@ class TestAddCaseStatusTree:
         """
         import logging
 
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="PXA Refusal Log", attributed_to=CASE_MANAGER_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="PXA Refusal Log",
+            attributed_to=CASE_MANAGER_ID,
         )
         case.append_case_status(ACT_AT, pxa=CS_pxa.Pxa)
         dl = _replica_store(case)
 
         # The case's own EM + PXA regression → the status is refused.
-        asserted = as_CaseStatus(
+        asserted = make(
+            as_CaseStatus,
             id_=STATUS_ID,
             context=CASE_ID,
             em=EmDimension(state=EM.NONE),
@@ -913,8 +979,11 @@ def _replica_with_status(
     preload: bool = False,
     initial: as_CaseStatus | None = None,
 ) -> SqliteDataLayer:
-    case = as_VulnerabilityCase(
-        id_=CASE_ID, name="UC Case", attributed_to=CASE_MANAGER_ID
+    case = make(
+        as_VulnerabilityCase,
+        id_=CASE_ID,
+        name="UC Case",
+        attributed_to=CASE_MANAGER_ID,
     )
     if initial is not None:
         case.case_statuses.append(initial)  # type: ignore[arg-type]
@@ -933,7 +1002,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
     ):
         """The CASE_MANAGER's status is admitted at a replica, which appends
         nothing: it takes the status from the ledger fan-out."""
-        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        status_obj = make(as_CaseStatus, id_=STATUS_ID, context=CASE_ID)
         dl = _replica_with_status(status_obj)
 
         result = run_in_act(
@@ -953,7 +1022,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         """Duplicate status → SKIPPED; use case logs at INFO not WARNING."""
         import logging
 
-        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        status_obj = make(as_CaseStatus, id_=STATUS_ID, context=CASE_ID)
         dl = _replica_with_status(status_obj, preload=True)
 
         with caplog.at_level(logging.DEBUG):
@@ -984,13 +1053,17 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         """A status moving EM alone → REFUSED by the guards; WARNING logged."""
         import logging
 
-        initial = as_CaseStatus(
+        initial = make(
+            as_CaseStatus,
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
             em=EmDimension(state=EM.NONE),
         )
-        bad_status = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
+        bad_status = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.ACTIVE),
         )
         dl = _replica_with_status(bad_status, initial=initial)
 
@@ -1023,7 +1096,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         import logging
         from unittest.mock import PropertyMock, patch
 
-        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        status_obj = make(as_CaseStatus, id_=STATUS_ID, context=CASE_ID)
         dl = _replica_with_status(status_obj)
         event = make_payload(_from_manager(status_obj), at=dl)
 
@@ -1057,8 +1130,11 @@ class TestThreatTerminationBranchNode:
     """RSH-03-001: fires teardown on P/X/A; RSH-03-002: no sender-role gate."""
 
     def _make_status_with_pxa(self, pxa_state: CS_pxa) -> as_CaseStatus:
-        return as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=pxa_state)
+        return make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=pxa_state),
         )
 
     def _setup_dl_with_embargo(
@@ -1073,17 +1149,22 @@ class TestThreatTerminationBranchNode:
         from vultron.enums.roles import CVDRole
 
         # ResolveCaseManagerNode requires a CASE_MANAGER participant in the case.
-        cm_participant = CaseParticipant(
+        cm_participant = make(
+            CaseParticipant,
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=manager_id,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="ThreatTerm Case", attributed_to=ACTOR_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="ThreatTerm Case",
+            attributed_to=ACTOR_ID,
         )
         case.add_participant(cm_participant)
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{CASE_ID}/embargo_events/e1",
             context=CASE_ID,
             end_time=days_from_now(45),
@@ -1112,8 +1193,11 @@ class TestThreatTerminationBranchNode:
 
     def test_skips_when_no_active_embargo(self, dl):
         """CS.P set but no active embargo → skip teardown → SUCCESS."""
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="No Embargo"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="No Embargo",
         )
         status_obj = self._make_status_with_pxa(CS_pxa.Pxa)
         dl.create(case)
@@ -1333,6 +1417,7 @@ class TestThreatTerminationBranchNode:
             semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             payload_snapshot={"id": ask_id},
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
         entry = record.to_ledger_entry()
         activity = announce_log_entry_activity(
@@ -1420,7 +1505,8 @@ class TestThreatTerminationBranchNodeProposedEm:
         from vultron.wire.as2.factories import em_propose_embargo_activity
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=store_actor)
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=PROPOSED_EMBARGO_ID,
             context=CASE_ID,
             end_time=days_from_now(45),
@@ -1428,20 +1514,27 @@ class TestThreatTerminationBranchNodeProposedEm:
         invite = em_propose_embargo_activity(
             embargo, context=CASE_ID, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
-        cm_participant = CaseParticipant(
+        cm_participant = make(
+            CaseParticipant,
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Proposed Case", attributed_to=ACTOR_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Proposed Case",
+            attributed_to=ACTOR_ID,
         )
         case.add_participant(cm_participant)
         propose(case, embargo.id_)
         case.pending_embargo_proposal_index = {embargo.id_: invite.id_}
-        status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+        status_obj = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         for obj in (embargo, invite, cm_participant, case, status_obj):
             dl.create(obj)
@@ -1508,19 +1601,24 @@ class TestRegressionCSPTeardownPath:
         from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=manager_id)
-        cm_participant = CaseParticipant(
+        cm_participant = make(
+            CaseParticipant,
             id_=f"{CASE_ID}/participants/cm",
             context=CASE_ID,
             attributed_to=manager_id,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{CASE_ID}/embargo_events/e1",
             context=CASE_ID,
             end_time=days_from_now(45),
         )
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Regression Case", attributed_to=manager_id
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Regression Case",
+            attributed_to=manager_id,
         )
         case.add_participant(cm_participant)
         activate(case, embargo.id_)
@@ -1544,8 +1642,11 @@ class TestRegressionCSPTeardownPath:
         from vultron.core.states.em import EM
 
         dl_new = self._build_dl_with_active_embargo()
-        new_status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+        new_status_obj = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl_new.create(new_status_obj)
 
@@ -1599,10 +1700,14 @@ class TestCaseLedgerEntryCreation:
         """An invalid EM transition is rejected in precondition_guards → zero
         CaseLedgerEntries (CLP-10-009: validators run before GuardedCommit).
         """
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Ledger Test Case", attributed_to=CASE_MANAGER_ID
+        case = make(
+            VulnerabilityCase,
+            id_=CASE_ID,
+            name="Ledger Test Case",
+            attributed_to=CASE_MANAGER_ID,
         )
-        initial = as_CaseStatus(
+        initial = make(
+            as_CaseStatus,
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
             em=EmDimension(state=EM.NONE),
@@ -1611,8 +1716,11 @@ class TestCaseLedgerEntryCreation:
         dl = _replica_store(case)
         dl.create(initial)
 
-        bad_status = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
+        bad_status = make(
+            as_CaseStatus,
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.ACTIVE),
         )
         dl.create(bad_status)
 
@@ -1643,13 +1751,15 @@ class TestEmitCaseStatusUpdateNodePromotion:
         from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=EMIT_ACTOR_ID)
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             id_=EMIT_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=EMIT_ACTOR_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        case = VulnerabilityCase(
+        case = make(
+            VulnerabilityCase,
             id_=CASE_ID,
             name="Emit Promotion Test",
             attributed_to=EMIT_ACTOR_ID,
@@ -1672,7 +1782,8 @@ class TestEmitCaseStatusUpdateNodePromotion:
         # transition where the exploit just became public (X fired).
         case_obj = dl.read(CASE_ID)
         assert isinstance(case_obj, VulnerabilityCase)
-        pxa_seed = CaseStatus(
+        pxa_seed = make(
+            CaseStatus,
             context=CASE_ID,
             attributed_to=EMIT_ACTOR_ID,
             em=EmDimension(state=EM.NONE),
@@ -1766,19 +1877,24 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA_ID)
-        cm_participant = CaseParticipant(
+        cm_participant = make(
+            CaseParticipant,
             id_=f"{DIAG_CASE_ID}/participants/cm",
             context=DIAG_CASE_ID,
             attributed_to=DIAG_CM_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        embargo = as_EmbargoEvent(
+        embargo = make(
+            as_EmbargoEvent,
             id_=f"{DIAG_CASE_ID}/embargo_events/e1",
             context=DIAG_CASE_ID,
             end_time=days_from_now(45),
         )
-        case = VulnerabilityCase(
-            id_=DIAG_CASE_ID, name="Replica Case", attributed_to=DIAG_CM_ID
+        case = make(
+            VulnerabilityCase,
+            id_=DIAG_CASE_ID,
+            name="Replica Case",
+            attributed_to=DIAG_CM_ID,
         )
         case.add_participant(cm_participant)
         activate(case, embargo.id_)
@@ -1786,7 +1902,8 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
             seed_case_participant(dl, case, actor)
         # The status carries the case's EM: a status never moves EM, so one
         # that differs is refused whole (RSH-09-005).
-        status_obj = as_CaseStatus(
+        status_obj = make(
+            as_CaseStatus,
             id_=DIAG_STATUS_ID,
             context=DIAG_CASE_ID,
             em=EmDimension(state=EM.ACTIVE),
@@ -1802,8 +1919,10 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
             received_event(
                 add_status_to_case_activity(
                     status_obj,
-                    target=as_VulnerabilityCase(
-                        attributed_to=CASE_OWNER_ID, id_=DIAG_CASE_ID
+                    target=make(
+                        as_VulnerabilityCase,
+                        attributed_to=CASE_OWNER_ID,
+                        id_=DIAG_CASE_ID,
                     ),
                     actor=sender,
                     to=[REPLICA_ID],

@@ -14,6 +14,7 @@ Per ActivityStreams spec, collection items can be:
 The demo code needs to handle all these cases.
 """
 
+from test.support.objects import make
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (
@@ -60,7 +61,8 @@ def test_inbox_items_can_be_objects():
     inbox = _alice_inbox()
 
     # Add a full activity object to inbox
-    activity = as_Activity(
+    activity = make(
+        as_Activity,
         id_="https://example.org/activities/123",
         actor="https://example.org/bob",
     )
@@ -78,7 +80,8 @@ def test_inbox_items_mixed_types():
 
     # Add both strings and objects
     uri1 = "https://example.org/activities/123"
-    activity2 = as_Activity(
+    activity2 = make(
+        as_Activity,
         id_="https://example.org/activities/456",
         actor="https://example.org/bob",
     )

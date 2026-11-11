@@ -17,6 +17,7 @@ from typing import Any
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.core.behaviors.embargo.proposer import embargo_proposer_id
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -39,6 +40,7 @@ def _entry(
             semantic_type=semantic_type,
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
 

@@ -25,6 +25,7 @@ import json
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driving.fastapi.responses import (
     AS2_CONTENT_TYPE,
     AS2JSONResponse,
@@ -41,7 +42,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 def test_content_type_is_as2():
     """AS2JSONResponse must set Content-Type: application/activity+json."""
-    report = as_VulnerabilityReport(name="test")
+    report = make(as_VulnerabilityReport, name="test")
     response = AS2JSONResponse(report)
     assert response.media_type == AS2_CONTENT_TYPE
     assert AS2_CONTENT_TYPE in response.headers["content-type"]
@@ -50,7 +51,8 @@ def test_content_type_is_as2():
 @pytest.mark.spec("VM-07-002")
 def test_camelcase_keys():
     """AS2JSONResponse must serialize with by_alias=True (camelCase keys)."""
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         name="Test Case",
         attributed_to="https://example.org/actor",
         vulnerability_reports=[],
@@ -72,12 +74,14 @@ def test_subclass_fields_not_stripped():
     FastAPI's response_model filtering strips fields not declared on the base
     class. AS2JSONResponse bypasses that filtering entirely.
     """
-    report = as_VulnerabilityReport(
+    report = make(
+        as_VulnerabilityReport,
         name="Test Report",
         content="Test vulnerability content",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         name="Test Case",
         attributed_to="https://example.org/actor",
         vulnerability_reports=[report.id_],
@@ -103,7 +107,7 @@ def test_subclass_fields_not_stripped():
 
 def test_exclude_none_true():
     """None-valued fields must be omitted from the serialized body."""
-    report = as_VulnerabilityReport(name="Minimal Report")
+    report = make(as_VulnerabilityReport, name="Minimal Report")
     response = AS2JSONResponse(report)
     body = json.loads(bytes(response.body))
 
@@ -131,7 +135,7 @@ def test_core_object_renders_as_its_own_as2_form():
     for a domain type, so an HTTP route serves the core object's own
     ``by_alias`` dump.
     """
-    actor = VultronPerson(name="Finder")
+    actor = make(VultronPerson, name="Finder")
     body = json.loads(bytes(AS2JSONResponse(actor).body))
 
     assert body["type"] == "Person"
@@ -161,13 +165,13 @@ def test_model_with_no_as2_form_is_refused():
 
 def test_status_code_default():
     """Default status code is 200."""
-    report = as_VulnerabilityReport(name="Test")
+    report = make(as_VulnerabilityReport, name="Test")
     response = AS2JSONResponse(report)
     assert response.status_code == 200
 
 
 def test_status_code_override():
     """Custom status codes are forwarded correctly."""
-    report = as_VulnerabilityReport(name="Created")
+    report = make(as_VulnerabilityReport, name="Created")
     response = AS2JSONResponse(report, status_code=201)
     assert response.status_code == 201

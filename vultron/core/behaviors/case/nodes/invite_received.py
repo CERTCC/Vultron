@@ -32,6 +32,7 @@ import logging
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge.act_instant import read_act_instant
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.narrative_log import log_invite_received
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
@@ -145,6 +146,7 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                     case_actor_id=self.case_actor_id,
                     invite_anchored=True,
                     anchor_invite_id=self.invite_id,
+                    queued_at=read_act_instant(),
                 )
             )
             self.logger.info(

@@ -33,10 +33,15 @@ References
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.report_management.deploy_fix import (
+    DeployFixCapability,
+    DeployMitigationCapability,
+    MitigationAvailableCapability,
+    MitigationDeployedCapability,
+    MonitorDeploymentCapability,
+    MonitoringRequirementCapability,
+    NoNewDeploymentInfoCapability,
+    PrioritizeDeploymentCapability,
 )
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
@@ -46,15 +51,13 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import (
-    ActuatorCallOutPoint,
-    EvaluatorCallOutPoint,
-    RetrieverCallOutPoint,
-)
 
 
-class NoNewDeploymentInfo(RetrieverCallOutPoint, UsuallySucceed):
+class NoNewDeploymentInfo(NoNewDeploymentInfoCapability, UsuallySucceed):
     """Check whether any new deployment information has arrived.
+
+    Simulates :class:`NoNewDeploymentInfoCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — ask the deployment-relevant data sources (patch
@@ -64,14 +67,6 @@ class NoNewDeploymentInfo(RetrieverCallOutPoint, UsuallySucceed):
         information, so this condition succeeds, avoiding unnecessary
         re-evaluation.  A binary Retriever: the tree asks on its own tick, so
         this is a call-out, not a Sentinel (BT-18-006, BT-18-013).
-
-    Store-held answer (BT-18-039): **cannot** — whether new information
-    reached the deployer's own systems since the last evaluation is not
-    recorded in the case file or the actor's store.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries deployment-relevant data sources)
-      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 
@@ -83,8 +78,13 @@ class NoNewDeploymentInfo(RetrieverCallOutPoint, UsuallySucceed):
     """
 
 
-class PrioritizeDeployment(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
+class PrioritizeDeployment(
+    PrioritizeDeploymentCapability, AlmostAlwaysSucceed
+):
     """Assign priority to deploying the available fix or mitigation.
+
+    Simulates :class:`PrioritizeDeploymentCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — prompt a human or invoke a policy engine to assign a
@@ -92,10 +92,6 @@ class PrioritizeDeployment(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
         production this would typically involve a change-management system
         or SSVC-based prioritization workflow.  The fuzzer models the
         overwhelmingly common case where prioritization succeeds.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates case context from caller's DataLayer)
-      Output keys: deployment_priority_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -106,13 +102,12 @@ class PrioritizeDeployment(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     final approval for high-impact changes typically requires human sign-off.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"deployment_priority_verdict": str}
-    )
 
-
-class MitigationDeployed(RetrieverCallOutPoint, UsuallyFail):
+class MitigationDeployed(MitigationDeployedCapability, UsuallyFail):
     """Check whether a mitigation has already been deployed.
+
+    Simulates :class:`MitigationDeployedCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — check whether an interim mitigation (workaround, network
@@ -121,14 +116,6 @@ class MitigationDeployed(RetrieverCallOutPoint, UsuallyFail):
         a configuration-management database.  Fails most of the time to
         reflect that mitigations are not yet deployed in the typical workflow
         step.
-
-    Store-held answer (BT-18-039): **cannot** — mitigation has no case state
-    bit, so no read-first guard precedes it (see
-    ``DeployMitigationCallOutBundle.mitigation_deployed_factory``).
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries a CMDB for mitigation status)
-      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 
@@ -140,22 +127,17 @@ class MitigationDeployed(RetrieverCallOutPoint, UsuallyFail):
     """
 
 
-class MitigationAvailable(RetrieverCallOutPoint, OftenSucceed):
+class MitigationAvailable(MitigationAvailableCapability, OftenSucceed):
     """Check whether a mitigation option is available to deploy.
+
+    Simulates :class:`MitigationAvailableCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — check whether an interim mitigation (e.g., a workaround,
         firewall rule, or configuration change) has been identified and is
         ready to be applied.  Succeeds more often than not to reflect that
         mitigations are typically available when this node is reached.
-
-    Store-held answer (BT-18-039): **cannot** — the case file records no
-    mitigation, so no read-first guard precedes it (see
-    ``DeployMitigationCallOutBundle.mitigation_available_factory``).
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries a mitigation catalogue)
-      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 
@@ -167,8 +149,11 @@ class MitigationAvailable(RetrieverCallOutPoint, OftenSucceed):
     """
 
 
-class DeployMitigation(EvaluatorCallOutPoint, UsuallySucceed):
+class DeployMitigation(DeployMitigationCapability, UsuallySucceed):
     """Deploy the available mitigation for the vulnerability.
+
+    Simulates :class:`DeployMitigationCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — apply the identified mitigation to the affected system or
@@ -177,10 +162,6 @@ class DeployMitigation(EvaluatorCallOutPoint, UsuallySucceed):
         (e.g., applying a firewall rule via an API).  Succeeds most of
         the time to model the common case where mitigation deployment
         proceeds without issues.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates mitigation context from caller's DataLayer)
-      Output keys: deploy_mitigation_verdict: str  (yes only)
 
     Input category: System integration / Human decision.
 
@@ -192,13 +173,12 @@ class DeployMitigation(EvaluatorCallOutPoint, UsuallySucceed):
         mitigations typically require human coordination.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"deploy_mitigation_verdict": str}
-    )
 
-
-class MonitoringRequirement(EvaluatorCallOutPoint, OftenSucceed):
+class MonitoringRequirement(MonitoringRequirementCapability, OftenSucceed):
     """Determine whether deployment monitoring is required by policy.
+
+    Simulates :class:`MonitoringRequirementCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — evaluate whether it is necessary to actively monitor
@@ -206,10 +186,6 @@ class MonitoringRequirement(EvaluatorCallOutPoint, OftenSucceed):
         policy.  In production this is typically a policy lookup or a
         configuration check.  Succeeds about 70 % of the time to reflect
         that monitoring is commonly required but not universal.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates case and policy context from caller's DataLayer)
-      Output keys: monitoring_requirement_verdict: str  (yes only)
 
     Input category: Environmental check / Policy.
 
@@ -220,13 +196,12 @@ class MonitoringRequirement(EvaluatorCallOutPoint, OftenSucceed):
     policy engines can evaluate this condition without human input.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"monitoring_requirement_verdict": str}
-    )
 
-
-class MonitorDeployment(ActuatorCallOutPoint, AlwaysSucceed):
+class MonitorDeployment(MonitorDeploymentCapability, AlwaysSucceed):
     """Monitor the ongoing deployment of the fix or mitigation.
+
+    Simulates :class:`MonitorDeploymentCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — perform active monitoring of the deployment process to
@@ -235,10 +210,6 @@ class MonitorDeployment(ActuatorCallOutPoint, AlwaysSucceed):
         human operator or an automated monitoring hook (e.g., a deployment
         pipeline status poll).  Always succeeds in simulation to model the
         assumption that monitoring itself does not fail.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — trigger only; deployment context from construction time)
-      Output keys: (none — side effect: trigger monitoring hooks, alert on anomalies)
 
     Input category: System integration.
 
@@ -250,8 +221,11 @@ class MonitorDeployment(ActuatorCallOutPoint, AlwaysSucceed):
     """
 
 
-class DeployFix(EvaluatorCallOutPoint, AlmostAlwaysFail):
+class DeployFix(DeployFixCapability, AlmostAlwaysFail):
     """Deploy the vendor fix to the affected environment.
+
+    Simulates :class:`DeployFixCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — apply the vendor-provided fix (patch, updated package, or
@@ -260,10 +234,6 @@ class DeployFix(EvaluatorCallOutPoint, AlmostAlwaysFail):
         the point this node is evaluated — the workflow must fall back to
         mitigation or monitoring paths.  Infrequent successes allow the
         rest of the post-deployment workflow to be exercised.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates deployment context from caller's DataLayer)
-      Output keys: deploy_fix_verdict: str  (yes only)
 
     Input category: System integration / Human decision.
 
@@ -274,7 +244,3 @@ class DeployFix(EvaluatorCallOutPoint, AlmostAlwaysFail):
     types; complex or high-risk changes in regulated environments typically
     require human approval and change-management controls.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"deploy_fix_verdict": str}
-    )

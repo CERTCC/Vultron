@@ -21,7 +21,7 @@ from datetime import datetime
 from pydantic import field_validator, model_validator
 
 from vultron.core.models._helpers import (
-    require_future_aware,
+    require_aware,
     timestamp_serializer,
 )
 from vultron.core.models.base import NonEmptyString
@@ -42,7 +42,8 @@ class ProposeEmbargoRequest(CaseTriggerRequest):
     TRIG-03-001: Must include case_id to identify the target case.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     TRIG-03-003: Optional note field may be included.
-    end_time is required and must be timezone-aware and in the future.
+    end_time is required and must be timezone-aware and in the future: the
+    body checks it is aware, the trigger that it is after its act's instant.
     """
 
     note: NonEmptyString | None = None
@@ -51,8 +52,10 @@ class ProposeEmbargoRequest(CaseTriggerRequest):
 
     @field_validator("end_time")
     @classmethod
-    def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
-        return require_future_aware(v)
+    def end_time_must_be_tz_aware(cls, v: datetime) -> datetime:
+        # Whether it is in the future is the trigger's to judge, against its
+        # act's instant (ADR-0176).
+        return require_aware(v)
 
 
 class AcceptEmbargoRequest(CaseTriggerRequest):

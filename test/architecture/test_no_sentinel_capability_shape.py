@@ -23,7 +23,8 @@ and fuzzer nodes in ``vultron/demo/fuzzer/`` and the bundles and backends in
 ``vultron/core/behaviors/call_out/`` — and fails when:
 
 - a class there is a Sentinel shape base, or subclasses one.  A shape base is
-  a py_trees ``Behaviour`` or a ``*CallOutPoint`` mixin, so a programming-sense
+  a py_trees ``Behaviour``, a ``*Capability`` shape or a ``*CallOutPoint``
+  re-export, so a programming-sense
   marker class such as ``_MissingSentinel`` does not count (AC-6 of #3424);
 - a call-out bundle exposes a Sentinel factory field; or
 - a docstring anywhere under ``vultron/``, or a sentence in a
@@ -48,16 +49,21 @@ import vultron.core.behaviors.call_out as core_call_out
 import vultron.demo.fuzzer as demo_fuzzer
 from test.architecture import _corpus
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
-from vultron.demo.fuzzer import call_out_point
+from vultron.core.behaviors.call_out.capability import (
+    ActuatorCapability,
+    ComposerCapability,
+    EvaluatorCapability,
+    RetrieverCapability,
+)
 
 _TAXONOMY_PACKAGES = (core_call_out, demo_fuzzer)
 
-#: The four call-out shape mixins (BT-18-013).
+#: The four call-out capability shapes (BT-18-013), in core.
 _SHAPE_BASES: tuple[type, ...] = (
-    call_out_point.EvaluatorCallOutPoint,
-    call_out_point.RetrieverCallOutPoint,
-    call_out_point.ComposerCallOutPoint,
-    call_out_point.ActuatorCallOutPoint,
+    EvaluatorCapability,
+    RetrieverCapability,
+    ComposerCapability,
+    ActuatorCapability,
 )
 
 
@@ -69,7 +75,7 @@ def _is_shape_like(cls: type) -> bool:
     """A class that could serve as a call-out shape: a BT node or a mixin."""
     return issubclass(
         cls, py_trees.behaviour.Behaviour
-    ) or cls.__name__.endswith("CallOutPoint")
+    ) or cls.__name__.endswith(("CallOutPoint", "Capability"))
 
 
 def _taxonomy_modules() -> list[ModuleType]:

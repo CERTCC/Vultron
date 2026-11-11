@@ -24,12 +24,15 @@ instant.
 import pytest
 
 from test.support.future_dates import FAR_FUTURE
+from test.support.objects import make
 from vultron.demo.actor_session import ActorSession, binding as session_module
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 _NODE = "http://vendor:7999/api/v2"
-_REPORTER = as_Actor(id_=f"{_NODE}/actors/finndervul", name="Finn der Vul")
+_REPORTER = make(
+    as_Actor, id_=f"{_NODE}/actors/finndervul", name="Finn der Vul"
+)
 
 
 @pytest.fixture

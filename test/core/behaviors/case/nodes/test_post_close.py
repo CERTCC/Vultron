@@ -27,6 +27,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.act_runner import run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.ledger import commit_case_manager_closure
+from test.support.objects import make
 from test.support.received import extract_stamped
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -47,8 +48,11 @@ CASE_ID = "https://example.org/cases/pc-case"
 
 def _store(actor_id: str, closed: bool) -> SqliteDataLayer:
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="post-close"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="post-close",
     )
     seed_case_manager_participant(dl, case, MANAGER)
     dl.create(case)
@@ -58,10 +62,12 @@ def _store(actor_id: str, closed: bool) -> SqliteDataLayer:
 
 
 def _late_note_event():
-    note = as_Note(id_="https://example.org/notes/pc", content="late")
+    note = make(as_Note, id_="https://example.org/notes/pc", content="late")
     activity = add_note_to_case_activity(
         note,
-        target=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID),
+        target=make(
+            as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        ),
         actor=OTHER,
     )
     return extract_stamped(activity)
@@ -136,7 +142,8 @@ def test_case_is_fully_closed_reads_only_the_named_case() -> None:
     case = dl.read_case(CASE_ID)
     assert case is not None
     assert case_is_fully_closed(dl, case)
-    other = as_VulnerabilityCase(
+    other = make(
+        as_VulnerabilityCase,
         attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/other",
         name="other",

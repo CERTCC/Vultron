@@ -36,6 +36,7 @@ from pydantic import ValidationError
 from test.support.act_runner import run_in_act, run_tree
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
+from test.support.objects import make
 from test.support.received import (
     delivered_body,
     extract_stamped,
@@ -362,7 +363,8 @@ def test_a_rerun_of_a_refused_rm_regression_records_no_second_note():
         json.loads(
             dump_outbound_body(
                 add_status_to_participant_activity(
-                    ParticipantStatus(
+                    make(
+                        ParticipantStatus,
                         context=net.case_id,
                         attributed_to=BYSTANDER,
                         rm=RmDimension(state=RM.VALID),
@@ -554,7 +556,11 @@ def _refused_and_delivered(tag: str, *, pending: bool) -> tuple[Any, Any]:
     event = _accept_event(net, invite_id)
     if pending:
         record_pending_assertion(
-            BYSTANDER, net.case_id, ACCEPT_EVENT, event.activity_id
+            BYSTANDER,
+            net.case_id,
+            ACCEPT_EVENT,
+            event.activity_id,
+            at=now_utc(),
         )
     _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
     verdicts = net.deliver(MANAGER, to=BYSTANDER, type_="Reject")
@@ -613,7 +619,7 @@ def test_a_notice_from_anyone_but_the_case_manager_is_refused():
     )
     forged = {**body, "actor": OWNER, "id": f"{OWNER}/forged-notice"}
     record_pending_assertion(
-        BYSTANDER, net.case_id, ACCEPT_EVENT, event.activity_id
+        BYSTANDER, net.case_id, ACCEPT_EVENT, event.activity_id, at=now_utc()
     )
 
     verdict = net.receive(BYSTANDER, forged)
@@ -712,7 +718,9 @@ def test_a_declined_leave_closes_the_owners_pending_leave():
     """CM-23-011's ``Reject(Leave(VulnerabilityCase))`` is read here now."""
     net, _, _ = _network("declined-leave")
     leave_id = f"{OWNER}/leaves/1"
-    record_pending_assertion(OWNER, net.case_id, "close_case", leave_id)
+    record_pending_assertion(
+        OWNER, net.case_id, "close_case", leave_id, at=now_utc()
+    )
     _, blob = TriggerActivityAdapter(net.stores[MANAGER]).reject_close_case(
         case_id=net.case_id,
         actor=MANAGER,
@@ -816,7 +824,8 @@ def test_a_refused_add_note_gets_the_notice_with_the_guards_reason():
 
     def _add(content: str, tag: str) -> Any:
         activity = add_note_to_case_activity(
-            as_Note(
+            make(
+                as_Note,
                 id_=note_id,
                 content=content,
                 attributed_to=BYSTANDER,
@@ -856,7 +865,8 @@ def test_a_participants_case_status_gets_no_notice_and_no_fault():
         "https://example.org/cases/refusal-notice-case-status",
         em_state=EM.NONE,
     )
-    status = CaseStatus(
+    status = make(
+        CaseStatus,
         context=net.case_id,
         attributed_to=BYSTANDER,
         em=EmDimension(state=EM.ACTIVE),

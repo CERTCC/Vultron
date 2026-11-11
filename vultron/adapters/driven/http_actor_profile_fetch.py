@@ -241,7 +241,7 @@ class HttpActorProfileFetchAdapter:
                 " type, such as 'Person' or 'Organization', to publish a key"
             )
         try:
-            parsed = parse_fetched_object(result.body, actor_id)
+            parsed = parse_fetched_object(result.body, actor_id, actor_id)
         except VultronValidationError as exc:
             raise VultronActorProfileFetchError(str(exc)) from exc
         if not isinstance(parsed, CoreActor):

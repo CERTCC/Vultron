@@ -44,6 +44,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.future_dates import FAR_FUTURE
+from test.support.objects import make
 from test.support.received import archive_received, case_stub
 from test.support.transferee import (
     INACTIVE_STANDINGS,
@@ -108,7 +109,7 @@ _CASE_MANAGER_ID = "https://example.org/actors/case-manager"
 
 def _make_actor_dl(actor_name: str):
     """Create an as_Service actor and a per-actor SqliteDataLayer."""
-    actor = as_Service(name=actor_name)
+    actor = make(as_Service, name=actor_name)
     actor_id = actor.id_
     reset_datalayer(actor_id)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -120,7 +121,7 @@ def _make_actor_dl(actor_name: str):
 
 def _make_actor_dl_with_http_id(actor_name: str, actor_id: str):
     """Create an actor with an explicit HTTP-style ID (for short-UUID tests)."""
-    actor = as_Service(name=actor_name, id_=actor_id)
+    actor = make(as_Service, name=actor_name, id_=actor_id)
     reset_datalayer(actor_id)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     dl.clear_all()
@@ -140,18 +141,21 @@ def _cleanup_created_dls():
 def _make_case_with_case_manager(
     dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
 ) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=owner_actor_id,
         name="Test Case",
         content="Content",
         stub_summary="Security issue — details shared after acceptance",
     )
-    owner_participant = as_CaseParticipant(
+    owner_participant = make(
+        as_CaseParticipant,
         attributed_to=owner_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -174,18 +178,21 @@ def _shared_case_with_case_manager(
     The owner and the CASE_MANAGER are distinct actors with their own stores
     (ADR-0073); each holds its replica of the same case.
     """
-    case = as_VulnerabilityCase(
+    case = make(
+        as_VulnerabilityCase,
         attributed_to=owner_actor_id,
         name="Test Case",
         content="Content",
         stub_summary="Security issue — details shared after acceptance",
     )
-    owner_participant = as_CaseParticipant(
+    owner_participant = make(
+        as_CaseParticipant,
         attributed_to=owner_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -211,7 +218,8 @@ def _activate_embargo(
     """
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo/e1",
         content="Active embargo",
         end_time=FAR_FUTURE,
@@ -234,7 +242,8 @@ def _open_revision(dl: SqliteDataLayer, case_id: str) -> str:
     """
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{case_id}/embargo/e2",
         content="Revised embargo",
         # Derived from the end `_activate_embargo` gives the embargo in force,
@@ -412,8 +421,11 @@ class TestSvcInviteActorToCaseUseCase:
         actor, dl = _make_actor_dl("Coordinator")
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=actor.id_,
+            name="Test Case",
+            content="Content",
         )
         dl.create(case)
         request = InviteActorToCaseTriggerRequest(
@@ -498,8 +510,11 @@ class TestSvcInviteActorToCaseUseCase:
         deliverable is refused by the use case.
         """
         actor, dl = _make_actor_dl("Coordinator")
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=actor.id_,
+            name="Test Case",
+            content="Content",
         )
         dl.create(case)
 
@@ -1153,8 +1168,11 @@ class TestSvcSuggestActorToCaseUseCase:
         actor, dl = _make_actor_dl("Coordinator")
         suggested, _ = _make_actor_dl("Vendor")
         dl.create(suggested)
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=actor.id_,
+            name="Test Case",
+            content="Content",
         )
         dl.create(case)
         request = SuggestActorToCaseTriggerRequest(
@@ -1186,8 +1204,11 @@ class TestSvcAcceptCaseInviteUseCase:
         invitee, dl_invitee = _make_actor_dl("Finder")
         dl_inviter.create(invitee)
 
-        case = as_VulnerabilityCase(
-            attributed_to=inviter.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=inviter.id_,
+            name="Test Case",
+            content="Content",
         )
         dl_inviter.create(case)
 
@@ -1228,8 +1249,11 @@ class TestSvcAcceptCaseInviteUseCase:
         case_manager, _ = _make_actor_dl("CaseActor")
         invitee, dl_invitee = _make_actor_dl("Finder")
 
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=owner.id_,
+            name="Test Case",
+            content="Content",
         )
         invite = rm_invite_to_case_activity(
             invitee,
@@ -1266,7 +1290,7 @@ class TestSvcAcceptCaseInviteUseCase:
             invite_id="https://example.org/activities/no-such-invite",
         )
         # Need an actor in the DL first
-        actor = as_Service(name="Finder", id_=_HTTP_ACTOR_ID)
+        actor = make(as_Service, name="Finder", id_=_HTTP_ACTOR_ID)
         dl.create(actor)
 
         with pytest.raises(VultronNotFoundError):
@@ -1296,8 +1320,11 @@ class TestSvcAcceptCaseInviteUseCase:
         invitee, dl_invitee = _make_actor_dl("Finder")
         dl_inviter.create(invitee)
 
-        case = as_VulnerabilityCase(
-            attributed_to=inviter.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=inviter.id_,
+            name="Test Case",
+            content="Content",
         )
         dl_inviter.create(case)
 
@@ -1335,8 +1362,11 @@ class TestSvcAcceptCaseInviteUseCase:
         )
         dl_inviter.create(invitee)
 
-        case = as_VulnerabilityCase(
-            attributed_to=inviter.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=inviter.id_,
+            name="Test Case",
+            content="Content",
         )
         dl_inviter.create(case)
 
@@ -1376,8 +1406,11 @@ class TestSvcRejectCaseInviteUseCase:
         invitee, dl_invitee = _make_actor_dl("Vendor")
         dl_inviter.create(invitee)
 
-        case = as_VulnerabilityCase(
-            attributed_to=inviter.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=inviter.id_,
+            name="Test Case",
+            content="Content",
         )
         dl_inviter.create(case)
 
@@ -1415,7 +1448,7 @@ class TestSvcRejectCaseInviteUseCase:
             actor_id=_HTTP_ACTOR_ID,
             invite_id="https://example.org/activities/no-such-invite",
         )
-        actor = as_Service(name="Vendor", id_=_HTTP_ACTOR_ID)
+        actor = make(as_Service, name="Vendor", id_=_HTTP_ACTOR_ID)
         dl.create(actor)
 
         with pytest.raises(VultronNotFoundError):
@@ -1438,8 +1471,11 @@ class TestSvcRejectCaseInviteUseCase:
         )
         dl_inviter.create(invitee)
 
-        case = as_VulnerabilityCase(
-            attributed_to=inviter.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=inviter.id_,
+            name="Test Case",
+            content="Content",
         )
         dl_inviter.create(case)
 
@@ -1501,7 +1537,7 @@ class TestSvcActorRecommendationAnswerUseCases:
     def _make_cp_offer(
         self, dl: SqliteDataLayer, vendor_id: str, case_actor_id: str
     ):
-        vendor = as_Service(id_=vendor_id, name="Vendor")
+        vendor = make(as_Service, id_=vendor_id, name="Vendor")
         offer = offer_case_participant_activity(
             recommended=vendor,
             target=self._CASE_ID,
@@ -1533,8 +1569,8 @@ class TestSvcActorRecommendationAnswerUseCases:
         The CASE_MANAGER refuses an answer that names no case (#5459).
         """
         owner, dl = _make_actor_dl("Owner")
-        case_actor = as_Service(name="CaseActor")
-        vendor = as_Service(name="Vendor")
+        case_actor = make(as_Service, name="CaseActor")
+        vendor = make(as_Service, name="Vendor")
         dl.create(case_actor)
         dl.create(vendor)
 
@@ -1558,7 +1594,7 @@ class TestSvcActorRecommendationAnswerUseCases:
         self, use_case_cls, request_cls, wire_type
     ):
         owner, dl = _make_actor_dl("Owner")
-        case_actor = as_Service(name="CaseActor")
+        case_actor = make(as_Service, name="CaseActor")
         dl.create(case_actor)
 
         request = request_cls(
@@ -1573,8 +1609,8 @@ class TestSvcActorRecommendationAnswerUseCases:
         self, use_case_cls, request_cls, wire_type
     ):
         _, dl = _make_actor_dl("Owner")
-        case_actor = as_Service(name="CaseActor")
-        vendor = as_Service(name="Vendor")
+        case_actor = make(as_Service, name="CaseActor")
+        vendor = make(as_Service, name="Vendor")
         dl.create(case_actor)
         dl.create(vendor)
         offer = self._make_cp_offer(dl, vendor.id_, case_actor.id_)
@@ -1598,14 +1634,18 @@ def _seed_managed_case(owner, dl, *peers, participant_ids=()):
     holds no record of), is seated as an active participant: only one may
     be offered the case (CM-21-021).
     """
-    case = as_VulnerabilityCase(
-        attributed_to=owner.id_, name="Test Case", content="Content"
+    case = make(
+        as_VulnerabilityCase,
+        attributed_to=owner.id_,
+        name="Test Case",
+        content="Content",
     )
-    case_actor = as_Service(
-        id_=f"{owner.id_}/case-actor", name="CaseActorService"
+    case_actor = make(
+        as_Service, id_=f"{owner.id_}/case-actor", name="CaseActorService"
     )
     dl.create(case_actor)
-    manager = as_CaseParticipant(
+    manager = make(
+        as_CaseParticipant,
         id_=f"{case.id_}/participants/case-manager",
         context=case.id_,
         attributed_to=case_actor.id_,
@@ -1834,9 +1874,8 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         assert activity_of(result)["object"].get("endTime") is None
 
     @pytest.mark.spec("TRIG-11-007")
-    @pytest.mark.parametrize("hours, aware", [(-1, True), (1, False)])
-    def test_offer_end_time_must_be_aware_and_future(self, hours, aware):
-        from datetime import UTC, datetime, timedelta
+    def test_offer_end_time_must_be_aware(self):
+        from datetime import datetime
 
         from pydantic import ValidationError
 
@@ -1844,13 +1883,70 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             OfferCaseOwnershipTransferRequest,
         )
 
-        end_time = datetime.now(UTC) + timedelta(hours=hours)
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match="timezone-aware"):
             OfferCaseOwnershipTransferRequest(
                 case_id="https://example.org/cases/c",
                 transferee_id="https://example.org/actors/t",
-                end_time=end_time if aware else end_time.replace(tzinfo=None),
+                end_time=datetime(2099, 1, 1),  # noqa: DTZ001 — deliberately naive
             )
+
+    @pytest.mark.spec("TRIG-11-007")
+    @pytest.mark.spec("CS-13-002")
+    @pytest.mark.parametrize(
+        "offset_us, refused",
+        [(-1, True), (0, True), (1, False)],
+        ids=["before-the-act", "at-the-act", "just-after-the-act"],
+    )
+    def test_offer_end_time_is_judged_at_the_acts_instant(
+        self, offset_us, refused
+    ):
+        """The deadline must be after the act's instant, not the clock's.
+
+        One microsecond after the act's instant is taken, though the wall
+        clock has passed it by the time the trigger runs (ADR-0176).  A
+        refused offer queues nothing and records no peer: the transferee is
+        on the roster but not in this store, so the deadline is judged
+        before the peer record is written.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        from test.support.act_runner import FixedClock
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        owner, dl = _make_actor_dl("Vendor")
+        transferee_id = "https://example.org/actors/unstored-transferee"
+        case, _ = _seed_managed_case(
+            owner, dl, participant_ids=[transferee_id]
+        )
+        assert dl.read(transferee_id) is None
+        at = datetime.now(UTC)
+        use_case = SvcOfferCaseOwnershipTransferUseCase(
+            dl,
+            OfferCaseOwnershipTransferTriggerRequest(
+                actor_id=owner.id_,
+                case_id=case.id_,
+                transferee_id=transferee_id,
+                end_time=at + timedelta(microseconds=offset_us),
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=FixedClock(at),
+        )
+
+        if refused:
+            with pytest.raises(VultronValidationError, match="in the future"):
+                run_in_act(use_case)
+            assert dl.outbox_list() == []
+            assert dl.read(transferee_id) is None
+        else:
+            assert run_in_act(use_case).activity is not None
+            assert dl.read(transferee_id) is not None
 
     @pytest.mark.spec("CM-24-004", "CLP-10-072")
     @pytest.mark.spec("CM-24-010")
@@ -2081,8 +2177,11 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         owner, _ = _make_actor_dl("Vendor")
         transferee, dl = _make_actor_dl("Coordinator")
         dl.create(owner)
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=owner.id_,
+            name="Test Case",
+            content="Content",
         )
         dl.create(case)
         offer = self._make_ownership_offer(dl, owner.id_, transferee.id_, case)
@@ -2124,8 +2223,11 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         owner, _ = _make_actor_dl("Vendor")
         transferee, dl = _make_actor_dl("Coordinator")
         dl.create(owner)
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=owner.id_,
+            name="Test Case",
+            content="Content",
         )
         dl.create(case)
         offer = self._make_ownership_offer(dl, owner.id_, transferee.id_, case)
@@ -2186,8 +2288,11 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
 
     def test_accept_raises_when_actor_not_found(self):
         owner, dl = _make_actor_dl("Vendor")
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Test Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=owner.id_,
+            name="Test Case",
+            content="Content",
         )
         dl.create(case)
         transferee_id = "https://example.org/actors/coordinator"
@@ -2305,7 +2410,12 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             actor_triggers,
             "read_received_activity",
             lambda *_args: ReceivedActivityView(
-                VultronActivity(type_="Offer", actor=actor_id, object_=None)
+                make(
+                    VultronActivity,
+                    type_="Offer",
+                    actor=actor_id,
+                    object_=None,
+                )
             ),
         )
 
@@ -2485,8 +2595,11 @@ class TestSvcOfferCaseParticipantRoleUseCase:
     def test_raises_before_sending_when_no_case_manager_resolves(self):
         actor, dl = _make_actor_dl("Vendor")
         target, _ = _make_actor_dl("Coordinator")
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="No CM Case", content="Content"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=actor.id_,
+            name="No CM Case",
+            content="Content",
         )
         dl.create(case)
 
@@ -2497,7 +2610,9 @@ class TestSvcOfferCaseParticipantRoleUseCase:
     def test_raises_when_the_case_is_not_held(self):
         actor, dl = _make_actor_dl("Vendor")
         target, _ = _make_actor_dl("Coordinator")
-        case = as_VulnerabilityCase(attributed_to=actor.id_, name="Unheld")
+        case = make(
+            as_VulnerabilityCase, attributed_to=actor.id_, name="Unheld"
+        )
 
         with pytest.raises(VultronNotFoundError):
             self._execute(actor, target, dl, case)

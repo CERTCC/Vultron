@@ -27,6 +27,7 @@ import pytest
 from test.support.act_runner import run_in_act
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types
+from test.support.objects import make
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -193,7 +194,7 @@ def test_a_manager_counter_proposal_of_the_in_force_terms_is_committed(
 def test_the_trigger_and_received_paths_share_one_terms_comparison() -> None:
     """Both paths compose ``EmbargoTermsNotHeldNode`` (AC-3, CS-22-001)."""
     case_id = "https://example.org/cases/c"
-    embargo = EmbargoEvent(context=case_id, end_time=days_from_now(30))
+    embargo = make(EmbargoEvent, context=case_id, end_time=days_from_now(30))
     result_out: dict[str, object] = {}
     trigger = propose_embargo_trigger_bt(
         case_id=case_id,

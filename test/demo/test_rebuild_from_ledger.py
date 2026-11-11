@@ -33,6 +33,7 @@ import pytest
 
 import test.demo._helpers as helpers
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 
 
@@ -165,7 +166,7 @@ class _Store:
 
 
 def _seating(case_id, *actors):
-    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id)
+    case = make(VulnerabilityCase, attributed_to=CASE_OWNER_ID, id_=case_id)
     for n, actor in enumerate(actors):
         case.actor_participant_index[actor] = f"{case_id}/participants/{n}"
     return case

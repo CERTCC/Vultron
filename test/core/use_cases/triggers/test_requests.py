@@ -28,12 +28,13 @@
 import importlib
 import inspect
 import pkgutil
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import assert_type
 
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from test.support.act_clock import no_clock
 from vultron.core.models.use_case_result import (
     ActivityResult,
     CaseResult,
@@ -318,16 +319,14 @@ def _end_time_payload(model: type[BaseModel], end_time: datetime) -> dict:
 
 def test_end_time_validator_is_declared_once() -> None:
     """CS-22-001: one function object serves the proposal and the revision."""
-    owner = ProposeEmbargoRequest.__dict__[
-        "end_time_must_be_tz_aware_and_future"
-    ]
-    assert "end_time_must_be_tz_aware_and_future" not in (
+    owner = ProposeEmbargoRequest.__dict__["end_time_must_be_tz_aware"]
+    assert "end_time_must_be_tz_aware" not in (
         ProposeEmbargoRevisionRequest.__dict__
     )
     for model in _END_TIME_MODELS:
         assert (
             # Typed ``type[BaseModel]``; getattr keeps the type checker out.
-            getattr(model, "end_time_must_be_tz_aware_and_future").__func__  # noqa: B009
+            getattr(model, "end_time_must_be_tz_aware").__func__  # noqa: B009
             is owner.__func__
         )
 
@@ -339,11 +338,24 @@ def test_end_time_rejects_a_naive_datetime(model: type[BaseModel]) -> None:
         model.model_validate(_end_time_payload(model, naive))
 
 
+@pytest.mark.spec("CS-13-002")
 @pytest.mark.parametrize("model", _END_TIME_MODELS, ids=lambda m: m.__name__)
-def test_end_time_rejects_a_past_datetime(model: type[BaseModel]) -> None:
-    past = datetime.now(tz=UTC) - timedelta(days=1)
-    with pytest.raises(ValidationError, match="in the future"):
-        model.model_validate(_end_time_payload(model, past))
+def test_end_time_leaves_the_future_check_to_the_trigger(
+    model: type[BaseModel],
+) -> None:
+    """A body reads no clock: "in the future" is judged at the act's instant.
+
+    The trigger that runs the request refuses an end before its act's
+    instant (``test_propose_embargo_refuses_an_end_not_after_the_act``);
+    the body checks only that the end is aware (ADR-0176).
+    """
+    past = datetime(
+        2020, 1, 1, tzinfo=UTC
+    )  # idiom 3: a deliberately past date
+    with no_clock():
+        built = model.model_validate(_end_time_payload(model, past))
+    # Typed ``BaseModel``; getattr keeps the type checker out.
+    assert getattr(built, "end_time") == past  # noqa: B009
 
 
 @pytest.mark.parametrize("model", _END_TIME_MODELS, ids=lambda m: m.__name__)

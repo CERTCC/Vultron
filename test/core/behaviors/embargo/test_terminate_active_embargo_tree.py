@@ -35,6 +35,7 @@ from test.support.embargo_register import (
 )
 from test.support.future_dates import days_from_now
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -482,19 +483,21 @@ class _World:
         vendor_fix_ready: bool = False,
         vendor_agrees: bool = True,
     ) -> None:
-        self.manager = as_Service(name="Vendor Co")
-        self.vendor = as_Service(name="Other Vendor")
-        self.finder = as_Service(name="Finder Co")
+        self.manager = make(as_Service, name="Vendor Co")
+        self.vendor = make(as_Service, name="Other Vendor")
+        self.finder = make(as_Service, name="Finder Co")
         self.dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=self.manager.id_
         )
         for actor in (self.manager, self.vendor, self.finder):
             self.dl.create(actor)
-        case = VulnerabilityCase(
-            name="Voluntary termination", attributed_to=self.manager.id_
+        case = make(
+            VulnerabilityCase,
+            name="Voluntary termination",
+            attributed_to=self.manager.id_,
         )
-        self.embargo = as_EmbargoEvent(
-            context=case.id_, end_time=days_from_now(10)
+        self.embargo = make(
+            as_EmbargoEvent, context=case.id_, end_time=days_from_now(10)
         )
         owner = self._vendor(
             self.manager.id_, case.id_, fix_ready=manager_fix_ready
@@ -503,8 +506,10 @@ class _World:
         vendor = self._vendor(
             self.vendor.id_, case.id_, fix_ready=vendor_fix_ready
         )
-        finder = ReporterParticipant(
-            attributed_to=self.finder.id_, context=case.id_
+        finder = make(
+            ReporterParticipant,
+            attributed_to=self.finder.id_,
+            context=case.id_,
         )
         participants = (
             (self.manager.id_, owner),
@@ -530,11 +535,13 @@ class _World:
     def _vendor(
         actor_id: str, case_id: str, *, fix_ready: bool
     ) -> VendorParticipant:
-        return VendorParticipant(
+        return make(
+            VendorParticipant,
             attributed_to=actor_id,
             context=case_id,
             participant_statuses=[
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     attributed_to=actor_id,
                     context=case_id,
                     rm=RmDimension(state=RM.ACCEPTED),

@@ -34,7 +34,7 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `ProcessingFault` | Negative acknowledgment returned when a received activity could not be processed |
 | `VulnerabilityCase` | Coordination container for a vulnerability disclosure case |
 | `VulnerabilityCaseStub` | Minimal stand-in for a case, sent as the target of a case Invite so the invitee can give informed consent before it holds the case |
-| `VulnerabilityRecord` | Persistent identifier record for a confirmed vulnerability |
+| `VulnerabilityItem` | The case's entry for one vulnerability, in the identity fields of a CSAF 2.1 vulnerability entry |
 | `VulnerabilityReport` | Initial report artifact submitted to a case |
 
 This table must list exactly the terms `context.jsonld` declares.

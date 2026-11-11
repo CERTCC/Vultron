@@ -22,6 +22,7 @@ import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import propose
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes import _create_and_attach_participant
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -40,7 +41,8 @@ class TestCreateAndAttachParticipant:
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -61,7 +63,8 @@ class TestCreateAndAttachParticipant:
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -83,7 +86,8 @@ class TestCreateAndAttachParticipant:
         case_obj: VulnerabilityCase,
         actor_id: str,
     ) -> None:
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -105,7 +109,8 @@ class TestCreateAndAttachParticipant:
         actor_id: str,
     ) -> None:
         """The returned case is unsaved; the caller controls the final save."""
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -128,7 +133,8 @@ class TestCreateAndAttachParticipant:
         actor_id: str,
     ) -> None:
         """Calling twice does not create a duplicate participant."""
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -148,7 +154,8 @@ class TestCreateAndAttachParticipant:
     def test_returns_none_when_case_not_found(
         self, bt_scenario: BTTestScenario, actor_id: str
     ) -> None:
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             attributed_to=actor_id,
             context="https://example.org/cases/missing",
             case_roles=[CVDRole.VENDOR],
@@ -175,7 +182,8 @@ class TestCreateAndAttachParticipant:
         embargo_id = f"{case_obj.id_}/embargoes/e1"
         propose(case_obj, embargo_id)
         bt_scenario.dl.save(case_obj)
-        participant = CaseParticipant(
+        participant = make(
+            CaseParticipant,
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -203,7 +211,8 @@ class TestCreateAndAttachParticipant:
     ) -> None:
         """A registered actor's record gains rows for later entries; no second record is stored."""
         node_logger = logging.getLogger("test")
-        first = CaseParticipant(
+        first = make(
+            CaseParticipant,
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -216,7 +225,8 @@ class TestCreateAndAttachParticipant:
         propose(case, embargo_id)
         bt_scenario.dl.save(case)
 
-        second = CaseParticipant(
+        second = make(
+            CaseParticipant,
             attributed_to=actor_id,
             context=case_obj.id_,
             case_roles=[CVDRole.VENDOR],
@@ -260,8 +270,8 @@ class TestResolveParticipantStateShapeGuard:
         from vultron.core.states.rm import RM
 
         actor = "https://example.org/actors/alice"
-        participant = CaseParticipant(
-            attributed_to=actor, context=self._CONTEXT
+        participant = make(
+            CaseParticipant, attributed_to=actor, context=self._CONTEXT
         )
         advance_participant_rm(
             participant, RM.RECEIVED, actor=actor, context=self._CONTEXT
@@ -283,7 +293,8 @@ class TestResolveParticipantStateShapeGuard:
         # ``as_CaseParticipant`` *is* ``CaseParticipant`` (ARCH-25-003, ADR-0099), so
         # the DataLayer hands back exactly the shape this resolver wants and the
         # state is readable.  There is no wire-shaped participant left to refuse.
-        wire_participant = as_CaseParticipant(
+        wire_participant = make(
+            as_CaseParticipant,
             attributed_to="https://example.org/actors/vendor",
             context=self._CONTEXT,
         )

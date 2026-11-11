@@ -25,6 +25,7 @@ from typing import Any
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.db_record import Record
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_proposal_admission import (
@@ -148,8 +149,11 @@ def test_a_case_row_carrying_the_moved_recommender_index_reads_absent(
     the old case row is not converted, and reading it names the unknown key
     rather than reporting a bare "not found".
     """
-    case = VulnerabilityCase(
-        id_=CASE_ID, attributed_to=OWNER_ID, name="Legacy case"
+    case = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        attributed_to=OWNER_ID,
+        name="Legacy case",
     )
     data = case.model_dump(mode="json", by_alias=True)
     data["recommendationRecommenderIndex"] = {
@@ -166,8 +170,11 @@ def test_a_case_row_carrying_the_moved_recommender_index_reads_absent(
 
 @pytest.mark.spec("CLP-07-014")
 def test_a_case_row_without_the_index_reads_back(dl) -> None:
-    case = VulnerabilityCase(
-        id_=CASE_ID, attributed_to=OWNER_ID, name="Current case"
+    case = make(
+        VulnerabilityCase,
+        id_=CASE_ID,
+        attributed_to=OWNER_ID,
+        name="Current case",
     )
     dl.create(case)
 

@@ -29,6 +29,7 @@
 import pytest
 
 import vultron.adapters.driving.fastapi.inbox_port_factories as port_factories
+from test.support.objects import make
 from test.support.received import delivered_body
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.clock import SystemClock
@@ -71,7 +72,7 @@ def _vendor_store(monkeypatch, *, auto_create_case: bool):
         lambda: ActorConfig(auto_create_case=auto_create_case),
     )
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR)
-    dl.save(VultronService(id_=_VENDOR))
+    dl.save(make(VultronService, id_=_VENDOR))
     return dl
 
 
@@ -102,7 +103,7 @@ def proposing_vendor_dl(monkeypatch):
 
 def _deliver(dl: SqliteDataLayer, *, to: str, cc: list[str]) -> InboxOutcome:
     offer = rm_submit_report_activity(
-        as_VulnerabilityReport(id_=_REPORT_ID, name="r", content="c"),
+        make(as_VulnerabilityReport, id_=_REPORT_ID, name="r", content="c"),
         to=to,
         actor=_FINDER,
         cc=cc,

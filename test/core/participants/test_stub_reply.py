@@ -26,6 +26,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
+from test.support.objects import make
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -55,8 +56,11 @@ _RECORD_ID = f"{CASE_ID}/participants/invitee"
 
 def _case(*, in_force: bool = True) -> VulnerabilityCase:
     """A case seating the invitee's record, as the stub Invite left it."""
-    case = VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Stub reply"
+    case = make(
+        VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="Stub reply",
     )
     if in_force:
         activate(case, EMBARGO)
@@ -65,7 +69,8 @@ def _case(*, in_force: bool = True) -> VulnerabilityCase:
 
 
 def _record(state: EmbargoConsentState) -> CaseParticipant:
-    return CaseParticipant(
+    return make(
+        CaseParticipant,
         id_=_RECORD_ID,
         attributed_to=INVITEE,
         context=CASE_ID,

@@ -16,6 +16,7 @@ import uuid
 
 import pytest
 
+from test.support.objects import make
 from vultron.core.models._helpers import (
     URN_UUID_PREFIX,
     IdSource,
@@ -82,7 +83,7 @@ def test_the_minter_draws_from_the_installed_source(counting):
 def test_both_id_default_factories_draw_from_the_installed_source(counting):
     with install_id_source(counting):
         record = _Record()
-        wire = as_Object()
+        wire = make(as_Object)
     assert record.id_ == counting.id_of(1)
     assert wire.id_ == counting.id_of(2)
     assert counting.drawn == 2

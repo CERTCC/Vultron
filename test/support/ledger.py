@@ -22,6 +22,7 @@ from typing import Any, cast
 import py_trees
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -262,6 +263,7 @@ def commit_case_manager_closure(dl: DataLayer, case_id: str) -> None:
                     },
                 },
                 prev_log_hash=entries[-1].entry_hash if entries else "0" * 64,
+                received_at=ACT_AT,
             )
         )
     )

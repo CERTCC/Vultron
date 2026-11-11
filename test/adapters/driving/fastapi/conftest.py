@@ -20,6 +20,7 @@ from collections.abc import Generator
 import pytest
 from fastapi.testclient import TestClient
 
+from test.support.objects import make
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.app import app_v2 as app
@@ -97,7 +98,7 @@ def hosted_actor(datalayer, dl_actor_id):
     """
     from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-    actor = as_Service(id_=dl_actor_id, name="Hosted Test Actor")
+    actor = make(as_Service, id_=dl_actor_id, name="Hosted Test Actor")
     datalayer.create(actor)
     return actor
 

@@ -35,6 +35,7 @@ import pytest
 from test.support.act_runner import run_in_act, run_tree
 from test.support.future_dates import days_from_now
 from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.objects import make
 from test.support.owner_decision import owner_decision_body
 from vultron.adapters.driven.clock import SystemClock
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -98,7 +99,8 @@ _EMBARGO_ENTRY_TYPES = {
 
 def _propose(net: LedgerNetwork, suffix: str, days: int) -> str:
     """PROPOSER sends a revision to the CASE_MANAGER (EP-09-001)."""
-    revision = as_EmbargoEvent(
+    revision = make(
+        as_EmbargoEvent,
         id_=f"{net.case_id}/embargo_events/{suffix}",
         content=f"Terms {suffix}",
         context=net.case_id,
@@ -428,7 +430,9 @@ class TestReceivedRejection:
 
 def _managing_owner(case_id: str) -> LedgerNetwork:
     net = LedgerNetwork(case_id, owner=MANAGER)
-    net.stores[MANAGER].create(as_Service(id_=MANAGER, name="Coordinator"))
+    net.stores[MANAGER].create(
+        make(as_Service, id_=MANAGER, name="Coordinator")
+    )
     return net
 
 

@@ -34,6 +34,7 @@ from test.adapters.driving.fastapi.sse_helpers import (
     save_ledger_entry,
 )
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import (
     get_ledger_stream_shutdown,
@@ -60,9 +61,10 @@ def _route_key(object_id: str) -> str:
 
 def _add_case_manager(case: as_VulnerabilityCase, dl) -> as_Service:
     """Add a CASE_MANAGER participant to *case* and return the case actor."""
-    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    case_actor = make(as_Service, name=f"Case Actor for {case.name}")
     dl.create(case_actor)
-    cm_participant = as_CaseParticipant(
+    cm_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -86,7 +88,7 @@ def actor_and_dl():
         reset_datalayer,
     )
 
-    actor_obj = as_Service(name="Demo Actor Co")
+    actor_obj = make(as_Service, name="Demo Actor Co")
     actor_id = actor_obj.id_
     reset_datalayer(actor_id)
     actor_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
@@ -152,10 +154,13 @@ def client_trigger_only(dl):
 @pytest.fixture
 def case_with_actor(dl, actor):
     """Create a as_VulnerabilityCase listing the actor as a participant."""
-    case_obj = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="TEST-DEMO-CASE-001"
+    case_obj = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        name="TEST-DEMO-CASE-001",
     )
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case_obj.id_,
     )
@@ -181,15 +186,19 @@ def _make_vendor_case(dl, actor, vf=None) -> as_VulnerabilityCase:
         as_ParticipantStatus,
     )
 
-    case_obj = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="TEST-DEMO-VENDOR-CASE"
+    case_obj = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        name="TEST-DEMO-VENDOR-CASE",
     )
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case_obj.id_,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_obj.id_,
                 rm=RmDimension(state=RM.ACCEPTED),
@@ -453,8 +462,11 @@ def managed_case(dl, actor):
     ``attributed_to`` mints the per-case genesis hash the first commit anchors
     on (CLP-08-005).
     """
-    case = as_VulnerabilityCase(name="Sync Demo Case", attributed_to=actor.id_)
-    cm = as_CaseParticipant(
+    case = make(
+        as_VulnerabilityCase, name="Sync Demo Case", attributed_to=actor.id_
+    )
+    cm = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -548,21 +560,25 @@ class TestDemoSyncLogEntry:
         the flush the route schedules drains *that* actor's outbox."""
         from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 
-        cm_actor = as_Service(name="Hosted Case Manager")
+        cm_actor = make(as_Service, name="Hosted Case Manager")
         reset_datalayer(cm_actor.id_)
         cm_dl = dl.clone_for_actor(cm_actor.id_)
         cm_dl.clear_all()
         try:
             cm_dl.create(cm_actor)
-            case = as_VulnerabilityCase(
-                name="Managed Elsewhere", attributed_to=cm_actor.id_
+            case = make(
+                as_VulnerabilityCase,
+                name="Managed Elsewhere",
+                attributed_to=cm_actor.id_,
             )
-            cm = as_CaseParticipant(
+            cm = make(
+                as_CaseParticipant,
                 attributed_to=cm_actor.id_,
                 context=case.id_,
                 case_roles=[CVDRole.CASE_MANAGER],
             )
-            me = as_CaseParticipant(
+            me = make(
+                as_CaseParticipant,
                 attributed_to=actor.id_,
                 context=case.id_,
                 case_roles=[CVDRole.REPORTER],
@@ -606,10 +622,11 @@ class TestDemoSyncLogEntry:
         """The case's CASE_MANAGER is elsewhere, so the ledger-authority guard
         declines the mint and the route keeps its historical 500."""
         foreign_cm = "https://elsewhere.example/actors/other-cm"
-        case = as_VulnerabilityCase(
-            name="Foreign Case", attributed_to=foreign_cm
+        case = make(
+            as_VulnerabilityCase, name="Foreign Case", attributed_to=foreign_cm
         )
-        cm = as_CaseParticipant(
+        cm = make(
+            as_CaseParticipant,
             attributed_to=foreign_cm,
             context=case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -682,8 +699,10 @@ class TestDemoGetCaseLedger:
             as_VulnerabilityCase,
         )
 
-        other_case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="OTHER-CASE"
+        other_case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="OTHER-CASE",
         )
         dl.create(other_case)
         _make_log_entry(dl, case_with_actor.id_, log_index=0)
@@ -746,8 +765,11 @@ class TestDemoGetCaseLedger:
     ):
         """Resolves HTTP URL case IDs through their surrogate key."""
         http_case_id = "https://example.org/cases/demo/123"
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=http_case_id, name="HTTP Case"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=http_case_id,
+            name="HTTP Case",
         )
         dl.create(case)
         _make_log_entry(dl, http_case_id, log_index=0)
@@ -813,8 +835,11 @@ class TestDemoGetCaseLedgerEntry:
     ):
         """Resolves HTTP URL case IDs through their surrogate key."""
         http_case_id = "https://example.org/cases/demo/456"
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=http_case_id, name="HTTP Case"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            id_=http_case_id,
+            name="HTTP Case",
         )
         dl.create(case)
         _make_log_entry(dl, http_case_id, log_index=0)
@@ -899,8 +924,10 @@ class TestDemoStreamCaseLedger:
     def test_only_streams_the_requested_case(
         self, client_demo: TestClient, actor, case_with_actor, dl
     ):
-        other = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="OTHER-STREAM-CASE"
+        other = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="OTHER-STREAM-CASE",
         )
         dl.create(other)
         _make_log_entry(dl, case_with_actor.id_, log_index=0)
@@ -956,8 +983,11 @@ class TestDemoStreamCaseLedger:
     ):
         http_case_id = "https://example.org/cases/demo/stream"
         dl.create(
-            as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=http_case_id, name="HTTP Case"
+            make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=http_case_id,
+                name="HTTP Case",
             )
         )
         _make_log_entry(dl, http_case_id, log_index=0)

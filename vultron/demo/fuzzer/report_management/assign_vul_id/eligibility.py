@@ -15,25 +15,23 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
-)
-from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
-    CVE_ELIGIBILITY_CONTRACT,
+from vultron.core.behaviors.call_out.capabilities.report_management.assign_vul_id.eligibility import (
+    EvaluateCveEligibilityCapability,
+    InScopeCapability,
+    IsMostAppropriateCNACapability,
+    ProductInCNAScopeCapability,
 )
 from vultron.demo.fuzzer.base import (
     ProbablySucceed,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import (
-    EvaluatorCallOutPoint,
-)
 
 
-class InScope(EvaluatorCallOutPoint, UsuallySucceed):
+class InScope(InScopeCapability, UsuallySucceed):
     """Check whether the vulnerability is within scope for an ID assignment.
+
+    Simulates :class:`InScopeCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Environmental condition / policy — evaluate whether the vulnerability
@@ -42,10 +40,6 @@ class InScope(EvaluatorCallOutPoint, UsuallySucceed):
         spaces may have different scope definitions.  An ID space that allows
         rapid assignment may have a very broad scope requiring little or no
         explicit scope checking.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates vulnerability attributes from caller's DataLayer)
-      Output keys: in_scope_verdict: str  (yes only)
 
     Input category: Environmental check / policy.
 
@@ -57,24 +51,18 @@ class InScope(EvaluatorCallOutPoint, UsuallySucceed):
     judgment.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"in_scope_verdict": str}
-    )
 
-
-class ProductInCNAScope(EvaluatorCallOutPoint, UsuallySucceed):
+class ProductInCNAScope(ProductInCNAScopeCapability, UsuallySucceed):
     """Evaluate whether the affected product is within this CNA's scope.
+
+    Simulates :class:`ProductInCNAScopeCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Policy evaluation — check whether the affected product or component
         is listed in this CNA's declared scope (CNA Operational Rules §3.1,
         §4.2.16.1).  Returns SUCCESS when the product falls within scope,
         FAILURE when it does not.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates product attributes from caller's DataLayer)
-      Output keys: product_in_cna_scope: bool  (yes only)
-                   product_in_cna_scope_rationale: str  (yes only)
 
     Input category: Environmental check / policy.
 
@@ -84,27 +72,18 @@ class ProductInCNAScope(EvaluatorCallOutPoint, UsuallySucceed):
     (e.g., CVE CNA scope registry); fully automatable via a policy lookup.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={
-            "product_in_cna_scope": bool,
-            "product_in_cna_scope_rationale": str,
-        }
-    )
 
-
-class IsMostAppropriateCNA(EvaluatorCallOutPoint, UsuallySucceed):
+class IsMostAppropriateCNA(IsMostAppropriateCNACapability, UsuallySucceed):
     """Evaluate whether this CNA has first-refusal authority for the product.
+
+    Simulates :class:`IsMostAppropriateCNACapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Policy evaluation — check whether this CNA has first-refusal
         authority for the affected product (CNA Operational Rules §4.2.1.1,
         §4.2.16.6).  Returns SUCCESS when this is the most appropriate CNA,
         FAILURE when a more appropriate (e.g., product-vendor) CNA exists.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates CNA registry from caller's DataLayer)
-      Output keys: is_most_appropriate_cna: bool  (yes only)
-                   is_most_appropriate_cna_rationale: str  (yes only)
 
     Input category: Environmental check / policy.
 
@@ -114,16 +93,14 @@ class IsMostAppropriateCNA(EvaluatorCallOutPoint, UsuallySucceed):
     machine-readable; fully automatable via a CNA hierarchy lookup.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={
-            "is_most_appropriate_cna": bool,
-            "is_most_appropriate_cna_rationale": str,
-        }
-    )
 
-
-class EvaluateCveEligibility(EvaluatorCallOutPoint, ProbablySucceed):
+class EvaluateCveEligibility(
+    EvaluateCveEligibilityCapability, ProbablySucceed
+):
     """Evaluate whether the vulnerability is eligible for a CVE ID.
+
+    Simulates :class:`EvaluateCveEligibilityCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Policy evaluation — apply every eligibility criterion of the CNA
@@ -145,11 +122,6 @@ class EvaluateCveEligibility(EvaluatorCallOutPoint, ProbablySucceed):
     BTND-05-008).  Adopting a newer edition replaces this capability's
     implementation as a whole; the surrounding tree does not change.
 
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates the report and product from caller's DataLayer)
-      Output keys: cve_eligibility_verdict: bool  (yes only)
-                   cve_eligibility_rationale: str  (yes only)
-
     Input category: Environmental check / policy.
 
     Success probability: 0.6667 (``ProbablySucceed``).
@@ -159,5 +131,3 @@ class EvaluateCveEligibility(EvaluatorCallOutPoint, ProbablySucceed):
     real vulnerability" judgment can still need a human for a novel or
     ambiguous report.
     """
-
-    contract: ClassVar[CallOutContract] = CVE_ELIGIBILITY_CONTRACT

@@ -29,6 +29,7 @@ from fastapi.testclient import TestClient
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
@@ -62,9 +63,10 @@ _FLUSH = "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler"
 
 def _add_case_manager(case: as_VulnerabilityCase, dl) -> as_Service:
     """Add a CASE_MANAGER participant to *case* and return the case actor."""
-    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    case_actor = make(as_Service, name=f"Case Actor for {case.name}")
     dl.create(case_actor)
-    cm_participant = as_CaseParticipant(
+    cm_participant = make(
+        as_CaseParticipant,
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -121,14 +123,16 @@ def case_with_participant(dl, actor):
     The participant is pre-seeded to RM.VALID so that engage/defer triggers
     can apply valid VALID → ACCEPTED / VALID → DEFERRED transitions.
     """
-    case_obj = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="TEST-CASE-001"
+    case_obj = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="TEST-CASE-001"
     )
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case_obj.id_,
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=actor.id_,
                 context=case_obj.id_,
                 rm=RmDimension(state=RM.VALID),
@@ -146,8 +150,10 @@ def case_with_participant(dl, actor):
 @pytest.fixture
 def case_without_participant(dl):
     """Create a as_VulnerabilityCase with a Case Manager but no participant for the actor."""
-    case_obj = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="TEST-CASE-NO-PARTICIPANT"
+    case_obj = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        name="TEST-CASE-NO-PARTICIPANT",
     )
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
@@ -434,17 +440,21 @@ def test_trigger_defer_case_leaves_the_participant_to_the_case_manager(
 @pytest.fixture
 def owner_case_under_embargo(dl, actor):
     """A case whose CASE_OWNER is *actor*, with an embargo in force."""
-    case_obj = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="TEST-CASE-OWNER-EMBARGOED"
+    case_obj = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        name="TEST-CASE-OWNER-EMBARGOED",
     )
-    embargo = as_EmbargoEvent(
+    embargo = make(
+        as_EmbargoEvent,
         id_=f"{case_obj.id_}/embargo_events/e1",
         context=case_obj.id_,
         end_time=days_from_now(45),
     )
     dl.create(embargo)
     activate(case_obj, embargo)
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=actor.id_,
         context=case_obj.id_,
         case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
@@ -632,7 +642,8 @@ def report(dl):
         as_VulnerabilityReport,
     )
 
-    report_obj = as_VulnerabilityReport(
+    report_obj = make(
+        as_VulnerabilityReport,
         name="TEST-REPORT-001",
         content="Vulnerability description",
     )
@@ -687,18 +698,22 @@ def short_id_env(report):
 
     store = get_datalayer(actor_id, db_url="sqlite:///:memory:")
     store.clear_all()
-    actor_obj = as_Service(id_=actor_id, name="Vendor Co HTTP")
+    actor_obj = make(as_Service, id_=actor_id, name="Vendor Co HTTP")
     store.create(actor_obj)
     store.create(report)
 
-    case_obj = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="TEST-CASE-SHORT-ID"
+    case_obj = make(
+        as_VulnerabilityCase,
+        attributed_to=CASE_OWNER_ID,
+        name="TEST-CASE-SHORT-ID",
     )
-    participant = as_CaseParticipant(
+    participant = make(
+        as_CaseParticipant,
         attributed_to=actor_id,
         context=case_obj.id_,
         participant_statuses=[
-            as_ParticipantStatus(
+            make(
+                as_ParticipantStatus,
                 attributed_to=actor_id,
                 context=case_obj.id_,
                 rm=RmDimension(state=RM.VALID),
@@ -1004,26 +1019,27 @@ def test_trigger_add_object_to_case_unknown_case_returns_404(
     "make_object",
     [
         pytest.param(
-            lambda case_id: as_Article(
-                name="Unroutable", content="no pattern"
+            lambda case_id: make(
+                as_Article, name="Unroutable", content="no pattern"
             ),
             id="no-add-pattern",
         ),
         pytest.param(
-            lambda case_id: as_EmbargoEvent(
-                context=case_id, end_time=days_from_now(45)
+            lambda case_id: make(
+                as_EmbargoEvent, context=case_id, end_time=days_from_now(45)
             ),
             id="own-flow-embargo",
         ),
         pytest.param(
-            lambda case_id: as_CaseParticipant(
+            lambda case_id: make(
+                as_CaseParticipant,
                 attributed_to="https://example.org/actors/other",
                 context=case_id,
             ),
             id="own-flow-participant",
         ),
         pytest.param(
-            lambda case_id: as_CaseStatus(context=case_id),
+            lambda case_id: make(as_CaseStatus, context=case_id),
             id="own-flow-case-status",
         ),
     ],

@@ -28,6 +28,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.objects import make
 from test.support.received import delivered_body, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -101,12 +102,14 @@ class TestStatusUseCases:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_cs3",
             name="Add Status Case",
             attributed_to=_CASE_MANAGER_ID,
         )
-        status = as_CaseStatus(
+        status = make(
+            as_CaseStatus,
             id_="https://example.org/cases/case_cs3/statuses/s3",
             context=case.id_,
         )
@@ -172,7 +175,8 @@ class TestStatusUseCases:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_cs3x",
             name="Add Status Case",
             attributed_to="https://test.example/api/v2/actors/test-actor",
@@ -184,8 +188,11 @@ class TestStatusUseCases:
         _seed_replica(dl, case)
         dl.create(case)
         if stored_for_other_case:
-            dl.create(as_CaseStatus(id_=status_id, context=other_case_id))
-        carried = as_CaseStatus(
+            dl.create(
+                make(as_CaseStatus, id_=status_id, context=other_case_id)
+            )
+        carried = make(
+            as_CaseStatus,
             id_=status_id,
             context=case.id_ if stored_for_other_case else other_case_id,
         )
@@ -225,13 +232,15 @@ class TestStatusUseCases:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_em_guard",
             name="EM Guard Test Case",
         )
         # Seed an existing status with EM.NONE (the initial embargo state)
-        initial_status = as_CaseStatus(
+        initial_status = make(
+            as_CaseStatus,
             id_="https://example.org/cases/case_em_guard/statuses/s_init",
             context=case.id_,
             em=EmDimension(state=EM.NONE),
@@ -242,7 +251,8 @@ class TestStatusUseCases:
 
         # Try to add a status with EM.ACTIVE — invalid: NONE → ACTIVE
         # skips the required PROPOSED intermediate state
-        bad_status = as_CaseStatus(
+        bad_status = make(
+            as_CaseStatus,
             id_="https://example.org/cases/case_em_guard/statuses/s_bad",
             context=case.id_,
             em=EmDimension(state=EM.ACTIVE),
@@ -291,12 +301,14 @@ class TestStatusUseCases:
             "sqlite:///:memory:",
             actor_id=receiver_id,
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_fault_cs",
             name="Fault Test Case",
         )
-        initial_status = as_CaseStatus(
+        initial_status = make(
+            as_CaseStatus,
             id_="https://example.org/cases/case_fault_cs/statuses/s_init",
             context=case.id_,
             em=EmDimension(state=EM.NONE),
@@ -306,7 +318,8 @@ class TestStatusUseCases:
         _seed_replica(dl, case)
         dl.create(case)
 
-        bad_status = as_CaseStatus(
+        bad_status = make(
+            as_CaseStatus,
             id_="https://example.org/cases/case_fault_cs/statuses/s_bad",
             context=case.id_,
             em=EmDimension(state=EM.ACTIVE),
@@ -345,12 +358,14 @@ class TestStatusUseCases:
             "sqlite:///:memory:",
             actor_id=receiver_id,
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_fault_cs2",
             name="Fault No-Trigger Case",
         )
-        initial_status = as_CaseStatus(
+        initial_status = make(
+            as_CaseStatus,
             id_="https://example.org/cases/case_fault_cs2/statuses/s_init",
             context=case.id_,
             em=EmDimension(state=EM.NONE),
@@ -359,7 +374,8 @@ class TestStatusUseCases:
         _seed_replica(dl, case)
         dl.create(case)
 
-        bad_status = as_CaseStatus(
+        bad_status = make(
+            as_CaseStatus,
             id_="https://example.org/cases/case_fault_cs2/statuses/s_bad",
             context=case.id_,
             em=EmDimension(state=EM.ACTIVE),
@@ -407,12 +423,14 @@ class TestStatusUseCases:
         )
 
         case_id = "https://example.org/cases/case_ps_fault"
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/p",
             context=case_id,
             attributed_to=sender_id,
         )
-        pstatus = as_ParticipantStatus(
+        pstatus = make(
+            as_ParticipantStatus,
             id_=f"{case_id}/participants/p/statuses/s1",
             context=case_id,
             rm=RmDimension(state=RM.ACCEPTED),
@@ -421,7 +439,8 @@ class TestStatusUseCases:
         dl.create(participant)
         dl.create(pstatus)
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=case_id,
             name="PS Fault Test Case",
@@ -430,7 +449,8 @@ class TestStatusUseCases:
         case.actor_participant_index[sender_id] = participant.id_
         dl.create(case)
 
-        dup_status = as_ParticipantStatus(
+        dup_status = make(
+            as_ParticipantStatus,
             id_=f"{case_id}/participants/p/statuses/s_dup_closed",
             context=case_id,
             rm=RmDimension(state=RM.VALID),
@@ -481,13 +501,15 @@ class TestStatusUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
 
         case_id = "https://example.org/cases/case_ps_ac2"
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/p",
             context=case_id,
             attributed_to=sender_id,
         )
         # Seed participant at RM.ACCEPTED: a backward VALID is refused
-        pstatus = as_ParticipantStatus(
+        pstatus = make(
+            as_ParticipantStatus,
             id_=f"{case_id}/participants/p/statuses/s1",
             context=case_id,
             rm=RmDimension(state=RM.ACCEPTED),
@@ -496,7 +518,8 @@ class TestStatusUseCases:
         dl.create(participant)
         dl.create(pstatus)
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_=case_id,
             name="AC-2 Rejection Test Case",
@@ -507,7 +530,8 @@ class TestStatusUseCases:
         dl.create(case)
 
         # A backward RM — the guard refuses the whole status
-        dup_status = as_ParticipantStatus(
+        dup_status = make(
+            as_ParticipantStatus,
             id_=f"{case_id}/participants/p/statuses/s_dup",
             context=case_id,
             rm=RmDimension(state=RM.VALID),
@@ -550,12 +574,14 @@ class TestStatusUseCases:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_em_valid",
             name="EM Valid Transition Case",
         )
-        initial_status = as_CaseStatus(
+        initial_status = make(
+            as_CaseStatus,
             id_="https://example.org/cases/case_em_valid/statuses/s_init",
             context=case.id_,
             em=EmDimension(state=EM.NONE),
@@ -565,7 +591,8 @@ class TestStatusUseCases:
         dl.create(case)
 
         # NONE → PROPOSED with no proposal in the register
-        asserted_status = as_CaseStatus(
+        asserted_status = make(
+            as_CaseStatus,
             id_="https://example.org/cases/case_em_valid/statuses/s_asserted",
             context=case.id_,
             em=EmDimension(state=EM.PROPOSED),
@@ -609,17 +636,20 @@ class TestStatusUseCases:
         # participant is the store's own actor, so holding CASE_MANAGER lets
         # the gated write run while leaving it a non-owner (so the adoption
         # call-out still withholds, keeping the SKIPPED assertion below).
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_="https://example.org/cases/case_ps2/participants/p2",
             context="https://example.org/cases/case_ps2",
             attributed_to="https://example.org/users/vendor",
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        pstatus = as_ParticipantStatus(
+        pstatus = make(
+            as_ParticipantStatus,
             id_="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
             context="https://example.org/cases/case_ps2",
         )
-        case_ps2 = as_VulnerabilityCase(
+        case_ps2 = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_ps2",
             name="PS Case 2",
             # Genesis anchor for the gated commit (CLP-08-005).
@@ -687,12 +717,14 @@ class TestStatusUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         sender = "https://example.org/users/vendor"
-        case_a = as_VulnerabilityCase(
+        case_a = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_ps4a",
             name="Case A",
             attributed_to=dl.actor_id,
         )
-        case_b = as_VulnerabilityCase(
+        case_b = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_ps4b",
             name="Case B",
             attributed_to=dl.actor_id,
@@ -707,7 +739,7 @@ class TestStatusUseCases:
         entries_before = len(dl.list_objects("CaseLedgerEntry"))
 
         activity = add_status_to_participant_activity(
-            as_ParticipantStatus(id_=status_id, context=case_b.id_),
+            make(as_ParticipantStatus, id_=status_id, context=case_b.id_),
             target=as_CaseParticipant.model_validate(
                 target.model_dump(by_alias=True, mode="json")
             ),
@@ -758,7 +790,8 @@ class TestStatusUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         sender = "https://example.org/users/vendor"
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_ps5",
             name="Case",
             attributed_to=dl.actor_id,
@@ -766,7 +799,8 @@ class TestStatusUseCases:
         seed_store_owner_as_case_manager(dl, case)
         seed_case_participant(dl, case, sender)
         dl.create(case)
-        unheld = as_CaseParticipant(
+        unheld = make(
+            as_CaseParticipant,
             id_=f"{case.id_}/participants/unheld",
             context=case.id_,
             attributed_to=sender,
@@ -778,8 +812,10 @@ class TestStatusUseCases:
                 dl,
                 make_payload(
                     add_status_to_participant_activity(
-                        as_ParticipantStatus(
-                            id_=f"{unheld.id_}/statuses/s1", context=case.id_
+                        make(
+                            as_ParticipantStatus,
+                            id_=f"{unheld.id_}/statuses/s1",
+                            context=case.id_,
                         ),
                         target=unheld,
                         actor=sender,
@@ -816,7 +852,8 @@ class TestStatusUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         sender = "https://example.org/users/vendor"
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_ps6",
             name="Case",
             attributed_to=dl.actor_id,
@@ -834,7 +871,11 @@ class TestStatusUseCases:
                 dl,
                 make_payload(
                     add_status_to_participant_activity(
-                        as_ParticipantStatus(id_=status_id, context=case.id_),
+                        make(
+                            as_ParticipantStatus,
+                            id_=status_id,
+                            context=case.id_,
+                        ),
                         target=as_CaseParticipant.model_validate(
                             target.model_dump(by_alias=True, mode="json")
                         ),
@@ -876,20 +917,23 @@ class TestStatusUseCases:
 
         # RSH-08-003/#3814: the append is CASE_MANAGER-gated; the store owner
         # (also the subject) holds the role so the gated write runs.
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_="https://example.org/cases/case_ps_nostamp/participants/p",
             context="https://example.org/cases/case_ps_nostamp",
             attributed_to=vendor_id,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        pstatus = as_ParticipantStatus(
+        pstatus = make(
+            as_ParticipantStatus,
             id_=(
                 "https://example.org/cases/case_ps_nostamp"
                 "/participants/p/statuses/s"
             ),
             context="https://example.org/cases/case_ps_nostamp",
         )
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/case_ps_nostamp",
             name="PS No-Stamp Test",
             # Genesis anchor for the gated commit (CLP-08-005).
@@ -1007,7 +1051,8 @@ class TestParticipantStatusLogEntryCascade:
         dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=store_owner or case_actor_id
         )
-        case_actor = VultronService(
+        case_actor = make(
+            VultronService,
             id_=case_actor_id,
             name=f"CaseActor for {case_id}",
             attributed_to=actor_id,
@@ -1019,7 +1064,8 @@ class TestParticipantStatusLogEntryCascade:
             as_VulnerabilityCase,
         )
 
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=case_id,
             name="Status Cascade Case",
             attributed_to=actor_id,
@@ -1037,7 +1083,8 @@ class TestParticipantStatusLogEntryCascade:
         case.actor_participant_index[case_actor_id] = cm_participant_id
         dl.create(case)
 
-        case_manager_participant = as_CaseParticipant(
+        case_manager_participant = make(
+            as_CaseParticipant,
             id_=case_manager_participant_id,
             context=case_id,
             attributed_to=case_actor_id,
@@ -1045,14 +1092,16 @@ class TestParticipantStatusLogEntryCascade:
         )
         dl.create(case_manager_participant)
 
-        participant = as_CaseParticipant(
+        participant = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/p1",
             context=case_id,
             attributed_to=actor_id,
         )
         dl.create(participant)
 
-        cm_participant = as_CaseParticipant(
+        cm_participant = make(
+            as_CaseParticipant,
             id_=cm_participant_id,
             context=case_id,
             attributed_to=case_actor_id,
@@ -1060,7 +1109,8 @@ class TestParticipantStatusLogEntryCascade:
         )
         dl.create(cm_participant)
 
-        pstatus = as_ParticipantStatus(
+        pstatus = make(
+            as_ParticipantStatus,
             id_=f"{case_id}/participants/p1/statuses/s1",
             context=case_id,
         )
@@ -1189,7 +1239,8 @@ class TestParticipantStatusLogEntryCascade:
         case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
 
-        closed_status = as_ParticipantStatus(
+        closed_status = make(
+            as_ParticipantStatus,
             id_=f"{case_id}/participants/p1/statuses/closed-existing",
             context=case_id,
             rm=RmDimension(state=RM.CLOSED),
@@ -1198,7 +1249,8 @@ class TestParticipantStatusLogEntryCascade:
         dl.save(participant)
         dl.create(closed_status)
 
-        duplicate_closed_status = as_ParticipantStatus(
+        duplicate_closed_status = make(
+            as_ParticipantStatus,
             id_=f"{case_id}/participants/p1/statuses/closed-duplicate",
             context=case_id,
             rm=RmDimension(state=RM.CLOSED),
@@ -1261,7 +1313,8 @@ class TestParticipantStatusLogEntryCascade:
         )
         case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
-        closed_status = as_ParticipantStatus(
+        closed_status = make(
+            as_ParticipantStatus,
             id_=f"{case_id}/participants/p1/statuses/closed",
             context=case_id,
             rm=RmDimension(state=RM.CLOSED),
@@ -1366,7 +1419,8 @@ class TestParticipantStatusLogEntryCascade:
         case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
 
-        peer = as_CaseParticipant(
+        peer = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/p2",
             context=case_id,
             attributed_to=non_case_actor_id,
@@ -1428,7 +1482,8 @@ class TestParticipantStatusLogEntryCascade:
         case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
 
-        finder_participant = as_CaseParticipant(
+        finder_participant = make(
+            as_CaseParticipant,
             id_=f"{case_id}/participants/finder",
             context=case_id,
             attributed_to=finder_actor_id,
@@ -1601,8 +1656,11 @@ class TestParticipantStatusSubjectIsTheSender:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/case-manager",
         )
-        case = as_VulnerabilityCase(
-            id_=_SUBJ_CASE_ID, name="Subject", attributed_to=dl.actor_id
+        case = make(
+            as_VulnerabilityCase,
+            id_=_SUBJ_CASE_ID,
+            name="Subject",
+            attributed_to=dl.actor_id,
         )
         seed_store_owner_as_case_manager(dl, case)
         seeded: dict[str, str] = {}
@@ -1622,7 +1680,8 @@ class TestParticipantStatusSubjectIsTheSender:
         ):
             participant = seed_case_participant(dl, case, actor_id, roles)
             participant.participant_statuses = [
-                ParticipantStatus(
+                make(
+                    ParticipantStatus,
                     context=case.id_,
                     attributed_to=actor_id,
                     rm=RmDimension(state=rm),
@@ -1676,7 +1735,8 @@ class TestParticipantStatusSubjectIsTheSender:
     def _status(
         target_actor: str, roles: list[CVDRole], rm: RM, **dims
     ) -> as_ParticipantStatus:
-        return as_ParticipantStatus(
+        return make(
+            as_ParticipantStatus,
             id_=f"{_SUBJ_CASE_ID}/statuses/{target_actor.rsplit('/', 1)[-1]}"
             f"-{len(dims)}-{rm.value}-{sorted(dims)}",
             context=_SUBJ_CASE_ID,
@@ -1898,7 +1958,8 @@ class TestParticipantStatusSubjectIsTheSender:
             [CVDRole.VENDOR],
             RM.RECEIVED,
             vf=VfDimension(state=CS_vf.Vf),
-            case_status=CaseStatus(
+            case_status=make(
+                CaseStatus,
                 context=_SUBJ_CASE_ID,
                 pxa=PxaDimension(state=CS_pxa.Pxa),
             ),
@@ -1926,7 +1987,8 @@ class TestParticipantStatusSubjectIsTheSender:
         vendor = cast(as_CaseParticipant, dl.read(ids[_SUBJ_VENDOR]))
         vendor.participant_statuses = [
             *vendor.participant_statuses,
-            ParticipantStatus(
+            make(
+                ParticipantStatus,
                 context=_SUBJ_CASE_ID,
                 attributed_to=_SUBJ_VENDOR,
                 rm=RmDimension(state=RM.RECEIVED),
@@ -1962,7 +2024,8 @@ class TestParticipantStatusSubjectIsTheSender:
         from vultron.core.states.cs import CS_vf
 
         dl, ids = self._case_manager_store()
-        stored = ParticipantStatus(
+        stored = make(
+            ParticipantStatus,
             id_=f"{_SUBJ_CASE_ID}/statuses/by-reference",
             context=_SUBJ_CASE_ID,
             attributed_to=_SUBJ_VENDOR,

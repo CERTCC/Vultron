@@ -24,6 +24,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
@@ -63,7 +64,9 @@ def _body(activity_id: str = ACTIVITY_ID) -> str:
 
 def _record(activity_id: str = ACTIVITY_ID) -> ReceivedActivityRecord:
     return ReceivedActivityRecord(
-        activity_id=activity_id, received_body=_body(activity_id)
+        activity_id=activity_id,
+        received_body=_body(activity_id),
+        received_at=ACT_AT,
     )
 
 
@@ -114,7 +117,9 @@ def test_round_trips_the_body_through_the_datalayer_unchanged(dl):
 @pytest.mark.parametrize("body", ["not json", "[1, 2]", '"text"'])
 def test_a_body_that_is_not_a_json_object_is_refused(body):
     with pytest.raises(ValueError, match="received_body"):
-        ReceivedActivityRecord(activity_id=ACTIVITY_ID, received_body=body)
+        ReceivedActivityRecord(
+            activity_id=ACTIVITY_ID, received_body=body, received_at=ACT_AT
+        )
 
 
 def test_a_stored_core_summary_is_refused_as_an_unknown_key():
@@ -143,7 +148,11 @@ def test_sender_cannot_occupy_a_receiver_derived_id(dl):
     dl.create(_record(marker_id))
 
     assert dl.read(marker_id) is None
-    dl.create(VultronPendingCaseInbox(case_id=CASE_ID, case_actor_id=RECEIVER))
+    dl.create(
+        VultronPendingCaseInbox(
+            case_id=CASE_ID, case_actor_id=RECEIVER, queued_at=ACT_AT
+        )
+    )
     assert isinstance(dl.read(marker_id), VultronPendingCaseInbox)
 
 
@@ -183,6 +192,7 @@ def test_the_four_reachable_stage_and_replay_pairings_are_accepted(
         received_body=_body(),
         stage=stage,
         replay_owed=replay_owed,
+        received_at=ACT_AT,
     )
     assert record.stage is stage
     assert record.replay_owed is replay_owed
@@ -198,6 +208,7 @@ def test_an_archive_owing_a_replay_is_refused():
             received_body=_body(),
             stage=ReceivedStage.ARCHIVED,
             replay_owed=True,
+            received_at=ACT_AT,
         )
     assert "ARCHIVED and owes a replay" in str(caught.value)
 
@@ -211,6 +222,7 @@ def test_a_handled_record_owing_a_replay_is_refused():
             received_body=_body(),
             stage=ReceivedStage.HANDLED,
             replay_owed=True,
+            received_at=ACT_AT,
         )
     assert "HANDLED and owes a replay" in str(caught.value)
 
@@ -224,7 +236,9 @@ def test_a_handled_record_with_no_body_is_refused():
     """
     with pytest.raises(ValidationError) as caught:
         ReceivedActivityRecord(
-            activity_id=ACTIVITY_ID, stage=ReceivedStage.HANDLED
+            activity_id=ACTIVITY_ID,
+            stage=ReceivedStage.HANDLED,
+            received_at=ACT_AT,
         )
     assert "no received body" in str(caught.value)
 
@@ -238,6 +252,7 @@ def test_a_handled_record_carrying_a_stubs_field_is_refused():
             received_body=_body(),
             stage=ReceivedStage.HANDLED,
             refusal_reason="x",
+            received_at=ACT_AT,
         )
     assert "only a receipt stub keeps" in str(caught.value)
 
@@ -248,6 +263,7 @@ def test_the_handled_invariant_survives_assignment():
         activity_id=ACTIVITY_ID,
         received_body=_body(),
         stage=ReceivedStage.HANDLED,
+        received_at=ACT_AT,
     )
     with pytest.raises(ValidationError):
         record.replay_owed = True
@@ -269,6 +285,7 @@ def test_awaiting_a_case_with_no_replay_owed_is_refused():
             stage=ReceivedStage.ARCHIVED,
             replay_owed=False,
             awaiting_case_id=CASE_ID,
+            received_at=ACT_AT,
         )
     assert "could never end" in str(caught.value)
 
@@ -282,6 +299,7 @@ def test_awaiting_a_case_is_accepted_when_a_replay_is_owed():
         stage=ReceivedStage.HELD,
         replay_owed=True,
         awaiting_case_id=CASE_ID,
+        received_at=ACT_AT,
     )
     assert record.awaiting_case_id == CASE_ID
 
@@ -315,6 +333,7 @@ def test_the_replay_rows_round_trip_through_the_datalayer(dl):
             stage=ReceivedStage.HELD,
             replay_owed=True,
             replay_rows_json=rows,
+            received_at=ACT_AT,
         )
     )
     stored = dl.read(ReceivedActivityRecord.build_id(ACTIVITY_ID))
@@ -344,6 +363,7 @@ def _stub(**overrides: Any) -> ReceivedActivityRecord:
         "sender_id": SENDER,
         "refusal_reason": "not a to recipient (HP-01-005)",
         "body_hash": _DIGEST,
+        "received_at": ACT_AT,
     }
     fields.update(overrides)
     return ReceivedActivityRecord(**fields)
@@ -381,6 +401,7 @@ def test_a_body_bearing_stage_with_no_body_is_refused(stage):
             activity_id=ACTIVITY_ID,
             stage=stage,
             replay_owed=stage is ReceivedStage.HELD,
+            received_at=ACT_AT,
         )
     assert "no received body" in str(caught.value)
 
@@ -392,7 +413,10 @@ def test_a_body_bearing_record_carrying_a_stubs_field_is_refused(field):
     carried: dict[str, Any] = {field: SENDER if field == "sender_id" else "x"}
     with pytest.raises(ValidationError) as caught:
         ReceivedActivityRecord(
-            activity_id=ACTIVITY_ID, received_body=_body(), **carried
+            activity_id=ACTIVITY_ID,
+            received_body=_body(),
+            received_at=ACT_AT,
+            **carried,
         )
     assert field in str(caught.value)
     assert "only a receipt stub keeps" in str(caught.value)

@@ -19,6 +19,7 @@ Instead it writes a pending VultronReportCaseLink and sends Create(CaseProposal)
 import pytest
 
 from test.support.act_runner import run_in_act
+from test.support.objects import make
 from test.support.received import (
     assert_held_only_as_received,
     received_record,
@@ -59,8 +60,11 @@ class TestSubmitReportLogMessages:
 
         from vultron.core.models.actor import VultronService
 
-        report = VulnerabilityReport(id_="https://example.org/reports/r-log-1")
-        activity = VultronActivity(
+        report = make(
+            VulnerabilityReport, id_="https://example.org/reports/r-log-1"
+        )
+        activity = make(
+            VultronActivity,
             id_="https://example.org/activities/submit-log-1",
             type_="Offer",
             actor="https://example.org/users/finder",
@@ -83,7 +87,7 @@ class TestSubmitReportLogMessages:
         )
         # ProposeReportCaseToActorNode sends the vendor's own actor record
         # inline as the proposal Create's actor (CP-01-010).
-        dl.save(VultronService(id_="https://example.org/actors/vendor"))
+        dl.save(make(VultronService, id_="https://example.org/actors/vendor"))
 
         with caplog.at_level(logging.INFO):
             run_in_act(
@@ -123,8 +127,9 @@ class TestSubmitReportCreatesCase:
     ):
         from vultron.core.models.actor import VultronService
 
-        report = VulnerabilityReport(id_=report_id)
-        activity = VultronActivity(
+        report = make(VulnerabilityReport, id_=report_id)
+        activity = make(
+            VultronActivity,
             id_=offer_id,
             type_="Offer",
             actor=finder_id,
@@ -145,7 +150,7 @@ class TestSubmitReportCreatesCase:
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
         dl.save(report)
-        vendor_actor = VultronService(id_=vendor_id)
+        vendor_actor = make(VultronService, id_=vendor_id)
         dl.save(vendor_actor)
         return event, dl
 
@@ -262,10 +267,11 @@ class TestSubmitReportCreatesCase:
         the submission being dropped.
         """
 
-        report = VulnerabilityReport(
-            id_="https://example.org/reports/r-nostamp-1"
+        report = make(
+            VulnerabilityReport, id_="https://example.org/reports/r-nostamp-1"
         )
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_="https://example.org/activities/offer-nostamp-1",
             type_="Offer",
             actor=self.FINDER_ID,
@@ -285,7 +291,7 @@ class TestSubmitReportCreatesCase:
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
         dl.save(report)
-        dl.save(VultronService(id_=self.VENDOR_ID))
+        dl.save(make(VultronService, id_=self.VENDOR_ID))
 
         run_in_act(
             SubmitReportReceivedUseCase(
@@ -311,10 +317,11 @@ class TestSubmitReportCreatesCase:
         The addressee door refuses it before anything is stored, with a
         WARNING (HP-01-005, HP-09-001).
         """
-        report = VulnerabilityReport(
-            id_="https://example.org/reports/r-no-to-1"
+        report = make(
+            VulnerabilityReport, id_="https://example.org/reports/r-no-to-1"
         )
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_="https://example.org/activities/offer-no-to-1",
             type_="Offer",
             actor=self.FINDER_ID,
@@ -357,8 +364,9 @@ class TestSubmitReportAutoCreateCasePolicy:
     def _make_event_and_dl(self):
         from vultron.core.models.actor import VultronService
 
-        report = VulnerabilityReport(id_=self.REPORT_ID)
-        activity = VultronActivity(
+        report = make(VulnerabilityReport, id_=self.REPORT_ID)
+        activity = make(
+            VultronActivity,
             id_=self.OFFER_ID,
             type_="Offer",
             actor=self.FINDER_ID,
@@ -378,7 +386,7 @@ class TestSubmitReportAutoCreateCasePolicy:
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
-        dl.save(VultronService(id_=self.VENDOR_ID))
+        dl.save(make(VultronService, id_=self.VENDOR_ID))
         return event, dl
 
     @pytest.mark.spec("DL-06-006")
@@ -429,7 +437,7 @@ class TestSubmitReportAutoCreateCasePolicy:
         from vultron.config.actor import ActorConfig
 
         event, dl = self._make_event_and_dl()
-        dl.save(VulnerabilityReport(id_=self.REPORT_ID))
+        dl.save(make(VulnerabilityReport, id_=self.REPORT_ID))
         run_in_act(
             SubmitReportReceivedUseCase(
                 dl,
@@ -445,7 +453,7 @@ class TestSubmitReportAutoCreateCasePolicy:
     def test_no_actor_config_creates_case(self):
         """AC-1: absent ActorConfig preserves always-send-proposal behavior (ADR-0041)."""
         event, dl = self._make_event_and_dl()
-        dl.save(VulnerabilityReport(id_=self.REPORT_ID))
+        dl.save(make(VulnerabilityReport, id_=self.REPORT_ID))
         run_in_act(
             SubmitReportReceivedUseCase(
                 dl, event, trigger_activity=TriggerActivityAdapter(dl)
@@ -473,8 +481,9 @@ class TestOfferAddressingSemantics:
         target: str | None = None,
         receiving_actor_id: str | None = None,
     ) -> SubmitReportReceivedEvent:
-        report = VulnerabilityReport(id_=self.REPORT_ID)
-        activity = VultronActivity(
+        report = make(VulnerabilityReport, id_=self.REPORT_ID)
+        activity = make(
+            VultronActivity,
             id_=self.OFFER_ID,
             type_="Offer",
             actor=self.FINDER_ID,
@@ -499,8 +508,8 @@ class TestOfferAddressingSemantics:
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
-        dl.save(VulnerabilityReport(id_=self.REPORT_ID))
-        dl.save(VultronService(id_=self.VENDOR_ID))
+        dl.save(make(VulnerabilityReport, id_=self.REPORT_ID))
+        dl.save(make(VultronService, id_=self.VENDOR_ID))
         return dl
 
     def test_receiving_actor_in_to_creates_case(self):
@@ -579,7 +588,12 @@ class TestOfferAddressingSemantics:
         )
 
         offer = rm_submit_report_activity(
-            as_VulnerabilityReport(id_=self.REPORT_ID, name="r", content="c"),
+            make(
+                as_VulnerabilityReport,
+                id_=self.REPORT_ID,
+                name="r",
+                content="c",
+            ),
             to=to,
             actor=self.FINDER_ID,
             cc=cc,
@@ -724,8 +738,9 @@ class TestSubmitReportStoresOfferRecord:
     def _make_event_and_dl(self):
         from vultron.core.models.actor import VultronService
 
-        report = VulnerabilityReport(id_=self.REPORT_ID)
-        activity = VultronActivity(
+        report = make(VulnerabilityReport, id_=self.REPORT_ID)
+        activity = make(
+            VultronActivity,
             id_=self.OFFER_ID,
             type_="Offer",
             actor=self.FINDER_ID,
@@ -745,7 +760,7 @@ class TestSubmitReportStoresOfferRecord:
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
-        dl.save(VultronService(id_=self.VENDOR_ID))
+        dl.save(make(VultronService, id_=self.VENDOR_ID))
         return event, dl
 
     def test_stores_offer_record_on_received(self):
@@ -812,7 +827,8 @@ class TestSubmitReportUnresolvableReceiver:
         from vultron.core.models.offer_record import VultronOfferRecord
         from vultron.errors import VultronValidationError
 
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_=self.OFFER_ID,
             type_="Offer",
             actor=self.FINDER_ID,
@@ -823,7 +839,7 @@ class TestSubmitReportUnresolvableReceiver:
                 semantic_type=MessageSemantics.SUBMIT_REPORT,
                 activity_id=self.OFFER_ID,
                 actor_id=self.FINDER_ID,
-                object_=VulnerabilityReport(id_=self.REPORT_ID),
+                object_=make(VulnerabilityReport, id_=self.REPORT_ID),
                 activity=activity,
                 receiving_actor_id=None,
             )
@@ -853,9 +869,10 @@ class TestSubmitReportDisposition:
         from vultron.core.models.actor import VultronService
 
         report_obj = (
-            VulnerabilityReport(id_=self.REPORT_ID) if report else None
+            make(VulnerabilityReport, id_=self.REPORT_ID) if report else None
         )
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_=self.OFFER_ID,
             type_="Offer",
             actor=self.FINDER_ID,
@@ -873,7 +890,7 @@ class TestSubmitReportDisposition:
         )
         if dl is None:
             dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
-            dl.save(VultronService(id_=self.VENDOR_ID))
+            dl.save(make(VultronService, id_=self.VENDOR_ID))
         result = run_in_act(
             SubmitReportReceivedUseCase(
                 dl,
@@ -913,8 +930,9 @@ class TestSubmitReportDisposition:
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
-        dl.save(VultronService(id_=self.VENDOR_ID))
-        case = as_VulnerabilityCase(
+        dl.save(make(VultronService, id_=self.VENDOR_ID))
+        case = make(
+            as_VulnerabilityCase,
             id_="https://example.org/cases/c-other",
             attributed_to=self.VENDOR_ID,
         )
@@ -1043,7 +1061,8 @@ class TestSubmitReportKeepsWhatArrived:
         from vultron.core.models.actor import VultronService
 
         sender = sender or self.FINDER_ID
-        activity = VultronActivity(
+        activity = make(
+            VultronActivity,
             id_=self.OFFER_ID,
             type_="Offer",
             actor=sender,
@@ -1054,7 +1073,7 @@ class TestSubmitReportKeepsWhatArrived:
                 semantic_type=MessageSemantics.SUBMIT_REPORT,
                 activity_id=self.OFFER_ID,
                 actor_id=sender,
-                object_=VulnerabilityReport(id_=self.REPORT_ID)
+                object_=make(VulnerabilityReport, id_=self.REPORT_ID)
                 if report
                 else None,
                 activity=activity,
@@ -1062,7 +1081,7 @@ class TestSubmitReportKeepsWhatArrived:
             )
         )
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
-        dl.save(VultronService(id_=self.VENDOR_ID))
+        dl.save(make(VultronService, id_=self.VENDOR_ID))
         result = run_in_act(
             SubmitReportReceivedUseCase(
                 dl,

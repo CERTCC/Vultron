@@ -19,6 +19,8 @@ Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005, CLP-08-004, CLP-08-005.
 
 import pytest
 
+from test.support.act_clock import ACT_AT
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case import VulnerabilityCase
@@ -61,7 +63,7 @@ def _make_case(
     case_id: str = CASE_ID, case_actor_id: str = CASE_ACTOR_ID
 ) -> VulnerabilityCase:
     """Create a VulnerabilityCase with computed genesis_hash."""
-    return VulnerabilityCase(id_=case_id, attributed_to=case_actor_id)
+    return make(VulnerabilityCase, id_=case_id, attributed_to=case_actor_id)
 
 
 def _entry(
@@ -75,6 +77,7 @@ def _entry(
             semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -189,7 +192,8 @@ class TestMissingGenesisEntry:
         e0 = _store(dl, _entry(0, case.genesis_hash))
         # e2 points to a hash that isn't e0.entry_hash — real missing entry
         missing_e1_hash = "f" * 64
-        e2 = CaseLedgerEntry(
+        e2 = make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",
@@ -197,6 +201,8 @@ class TestMissingGenesisEntry:
             payload_snapshot={"log_index": 2},
             prev_log_hash=missing_e1_hash,
             entry_hash="a" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(e2)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
@@ -218,7 +224,8 @@ class TestMissingGenesisEntry:
     def test_non_zero_first_index_is_stale(self, dl):
         """Actor has no genesis entry; its first stored entry has index > 0."""
         # Create a single entry at index 1 (skipping genesis)
-        e = CaseLedgerEntry(
+        e = make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_index=1,
             log_object_id="https://example.org/activities/orphan",
@@ -226,6 +233,8 @@ class TestMissingGenesisEntry:
             payload_snapshot={"note": "no genesis"},
             prev_log_hash=_ZERO_HASH,
             entry_hash="0" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(e)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
@@ -242,7 +251,8 @@ class TestHashMismatch:
         _store(dl, _entry(0, case.genesis_hash))
         # Build e1 with a deliberately wrong prev_log_hash
         bad_prev = "a" * 64
-        bad_e1 = CaseLedgerEntry(
+        bad_e1 = make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_index=1,
             log_object_id="https://example.org/activities/log-1",
@@ -250,6 +260,8 @@ class TestHashMismatch:
             payload_snapshot={"log_index": 1},
             prev_log_hash=bad_prev,
             entry_hash="b" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(bad_e1)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
@@ -260,7 +272,8 @@ class TestHashMismatch:
         """Genesis entry prev_log_hash must match the per-case genesis hash."""
         case = _make_case()
         dl.save(case)
-        bad_genesis = CaseLedgerEntry(
+        bad_genesis = make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_index=0,
             log_object_id="https://example.org/activities/log-0",
@@ -268,6 +281,8 @@ class TestHashMismatch:
             payload_snapshot={"log_index": 0},
             prev_log_hash="c" * 64,  # not the per-case genesis hash
             entry_hash="d" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(bad_genesis)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
@@ -289,7 +304,8 @@ class TestIndexGap:
         e1 = _store(dl, _entry(1, e0.entry_hash))
         # Entry 3 points to a missing entry at index 2, not to e1
         missing_e2_hash = "c" * 64
-        e3 = CaseLedgerEntry(
+        e3 = make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_index=3,
             log_object_id="https://example.org/activities/log-3",
@@ -297,6 +313,8 @@ class TestIndexGap:
             payload_snapshot={"log_index": 3},
             prev_log_hash=missing_e2_hash,
             entry_hash="e" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(e3)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
@@ -377,7 +395,8 @@ class TestEquivalentRecordedEntry:
         }
 
     def _record(self, dl, snapshot: dict) -> CaseLedgerEntry:
-        entry = CaseLedgerEntry(
+        entry = make(
+            CaseLedgerEntry,
             case_id=CASE_ID,
             log_index=0,
             log_object_id=self._OBJECT_ID,
@@ -385,6 +404,8 @@ class TestEquivalentRecordedEntry:
             payload_snapshot=snapshot,
             prev_log_hash=_ZERO_HASH,
             entry_hash="a" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(entry)
         return entry
@@ -467,6 +488,7 @@ def _asserted(
                 "published": published,
             },
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
     )
 

@@ -475,6 +475,9 @@ groups:
       `TypeError` locally. `TestLedgerPortTickLevelEnforcement` in
       `test/core/behaviors/sync/nodes/test_typed_ports.py` checks the same outcome
       on the ledger ports, which call `get_input()` directly.
+      `test/core/behaviors/call_out/test_capability.py` checks it on a capability's
+      ports: a wrong-typed input read and a wrong-typed output answer each end a tree
+      run as an internal error, even beside a Selector fallback that succeeds.
     relationships:
     - rel_type: refines
       spec_id: BTND-03-011

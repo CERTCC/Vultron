@@ -22,6 +22,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.objects import make
 from test.support.received import with_evidence
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
@@ -43,19 +44,22 @@ ACTIVITY_ID = "https://example.org/activities/act-001"
 
 
 def _seed_case_with_manager(bt_scenario: BTTestScenario) -> None:
-    manager_participant = CaseParticipant(
+    manager_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=MANAGER_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
     )
-    vendor_participant = CaseParticipant(
+    vendor_participant = make(
+        CaseParticipant,
         id_="https://example.org/participants/vendor-cp-001",
         attributed_to=NON_MANAGER_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.VENDOR],
     )
-    case = VulnerabilityCase(
+    case = make(
+        VulnerabilityCase,
         id_=CASE_ID,
         name="Test Case",
         attributed_to=MANAGER_ACTOR_ID,
@@ -117,7 +121,8 @@ def _FakeActivity(
             semantic_type=semantic_type,
             activity_id=activity_id,
             actor_id=MANAGER_ACTOR_ID,
-            activity=VultronActivity(
+            activity=make(
+                VultronActivity,
                 id_=activity_id,
                 type_="Create",
                 actor=MANAGER_ACTOR_ID,

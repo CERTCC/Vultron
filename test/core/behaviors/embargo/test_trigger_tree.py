@@ -26,6 +26,7 @@ import py_trees
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
@@ -87,7 +88,8 @@ def _top_level_children(
 
 @pytest.fixture
 def dummy_embargo() -> "as_EmbargoEvent":
-    return as_EmbargoEvent(
+    return make(
+        as_EmbargoEvent,
         id_=EMBARGO_ID,
         context=CASE_ID,
         end_time=days_from_now(45),

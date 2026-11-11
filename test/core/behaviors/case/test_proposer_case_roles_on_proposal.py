@@ -35,6 +35,7 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from test.support.act_runner import run_tree
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes import ProposeReportCaseToActorNode
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.events.case_proposal import (
@@ -74,7 +75,8 @@ def configured_roles(monkeypatch):
 
 
 def _proposal(**kwargs) -> as_CaseProposal:
-    return as_CaseProposal(
+    return make(
+        as_CaseProposal,
         id_=_PROPOSAL_URI,
         attributed_to=_VENDOR_URI,
         object_=_REPORT_URI,
@@ -168,8 +170,9 @@ class TestNoProposerClaimsCaseManager:
         from vultron.wire.as2.errors import VultronParseValidationError
         from vultron.wire.as2.parser import parse_activity
 
-        body = as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        body = make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=_proposal(proposer_case_roles=[CVDRole.VENDOR]),
             to=[_CASE_ACTOR_URI],
         ).model_dump(by_alias=True, mode="json", exclude_none=True)
@@ -198,7 +201,7 @@ class TestNoProposerClaimsCaseManager:
             CreateCaseProposalReceivedEvent(
                 activity_id="https://example.org/activities/create-p",
                 actor_id=_VENDOR_URI,
-                proposer_profile=VultronOrganization(id_=_VENDOR_URI),
+                proposer_profile=make(VultronOrganization, id_=_VENDOR_URI),
                 proposer_case_roles=[CVDRole.CASE_MANAGER],
             )
 
@@ -208,8 +211,9 @@ class TestTheCaseActorReceivesThem:
     """The extractor puts the stated roles on the received event."""
 
     def _event(self, roles: list[CVDRole]) -> CreateCaseProposalReceivedEvent:
-        activity = as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        activity = make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=_proposal(proposer_case_roles=roles),
             to=[_CASE_ACTOR_URI],
         )
@@ -231,8 +235,9 @@ class TestTheCaseActorReceivesThem:
         from vultron.wire.as2.errors import VultronParseValidationError
         from vultron.wire.as2.extractor._extract import extract_intent
 
-        activity = as_Create(
-            actor=VultronOrganization(id_=_VENDOR_URI),
+        activity = make(
+            as_Create,
+            actor=make(VultronOrganization, id_=_VENDOR_URI),
             object_=_REPORT_URI,
             to=[_CASE_ACTOR_URI],
         )

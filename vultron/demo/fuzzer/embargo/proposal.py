@@ -15,10 +15,12 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
+from vultron.core.behaviors.call_out.capabilities.embargo.proposal import (
+    ReasonToProposeEmbargoWhenDeployedCapability,
+    SelectEmbargoOfferTermsCapability,
+    StopProposingEmbargoCapability,
+    WantToProposeEmbargoCapability,
+    WillingToCounterEmbargoProposalCapability,
 )
 from vultron.demo.fuzzer.base import (
     AlmostCertainlyFail,
@@ -27,27 +29,23 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import (
-    EvaluatorCallOutPoint,
-)
 
 # ---------------------------------------------------------------------------
 # Embargo negotiation / proposal nodes
 # ---------------------------------------------------------------------------
 
 
-class StopProposingEmbargo(EvaluatorCallOutPoint, UsuallyFail):
+class StopProposingEmbargo(StopProposingEmbargoCapability, UsuallyFail):
     """Decide whether to abandon an ongoing embargo negotiation.
+
+    Simulates :class:`StopProposingEmbargoCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — human or policy decision to give up on negotiating an
         embargo (e.g., too many counter-proposals, time pressure).
         Modeled as uncommon; parties are usually willing to keep
         negotiating.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates negotiation context from caller's DataLayer)
-      Output keys: stop_proposing_embargo_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -58,22 +56,19 @@ class StopProposingEmbargo(EvaluatorCallOutPoint, UsuallyFail):
     prospects; requires human decision.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"stop_proposing_embargo_verdict": str}
-    )
 
-
-class SelectEmbargoOfferTerms(EvaluatorCallOutPoint, AlwaysSucceed):
+class SelectEmbargoOfferTerms(
+    SelectEmbargoOfferTermsCapability, AlwaysSucceed
+):
     """Select the specific terms to include in an embargo proposal.
+
+    Simulates :class:`SelectEmbargoOfferTermsCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — choose duration, conditions, and other terms for a new
         embargo proposal or counter-proposal.  In production may involve
         negotiation-support tooling or organizational policy lookup.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — selects terms based on case context from DataLayer)
-      Output keys: selected_embargo_terms_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -84,23 +79,18 @@ class SelectEmbargoOfferTerms(EvaluatorCallOutPoint, AlwaysSucceed):
     need human review.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"selected_embargo_terms_verdict": str}
-    )
 
-
-class WantToProposeEmbargo(EvaluatorCallOutPoint, RandomSucceedFail):
+class WantToProposeEmbargo(WantToProposeEmbargoCapability, RandomSucceedFail):
     """Decide whether to initiate an embargo negotiation.
+
+    Simulates :class:`WantToProposeEmbargoCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — does the participant currently wish to propose an
         embargo?  Depends on case context, role, and organizational
         policy.  The fuzzer exercises both paths equally; in production
         the recommended default is to propose an embargo.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates case and role context from caller's DataLayer)
-      Output keys: want_to_propose_embargo_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -112,13 +102,14 @@ class WantToProposeEmbargo(EvaluatorCallOutPoint, RandomSucceedFail):
     override.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"want_to_propose_embargo_verdict": str}
-    )
 
-
-class WillingToCounterEmbargoProposal(EvaluatorCallOutPoint, UsuallyFail):
+class WillingToCounterEmbargoProposal(
+    WillingToCounterEmbargoProposalCapability, UsuallyFail
+):
     """Decide whether to counter an incoming embargo proposal.
+
+    Simulates :class:`WillingToCounterEmbargoProposalCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — is the participant willing to respond to an incoming
@@ -126,10 +117,6 @@ class WillingToCounterEmbargoProposal(EvaluatorCallOutPoint, UsuallyFail):
         rejecting outright?  The recommended behavior is to accept the
         current proposal and negotiate revisions separately; countering is
         intentionally modeled as uncommon.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates proposal context from caller's DataLayer)
-      Output keys: willing_to_counter_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -139,10 +126,6 @@ class WillingToCounterEmbargoProposal(EvaluatorCallOutPoint, UsuallyFail):
     whether countering is strategically preferable to accepting and
     revising; best left to human discretion.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"willing_to_counter_verdict": str}
-    )
 
 
 class AvoidEmbargoCounterProposal(UsuallySucceed):
@@ -167,18 +150,17 @@ class AvoidEmbargoCounterProposal(UsuallySucceed):
 
 
 class ReasonToProposeEmbargoWhenDeployed(
-    EvaluatorCallOutPoint, AlmostCertainlyFail
+    ReasonToProposeEmbargoWhenDeployedCapability, AlmostCertainlyFail
 ):
     """Decide whether to start a new embargo after the fix is already deployed.
+
+    Simulates :class:`ReasonToProposeEmbargoWhenDeployedCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Condition — is there an unusual reason to propose an embargo even
         though the fix has already been deployed?  Post-deployment embargo
         proposals are exceptional and very rare.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — evaluates case context from caller's DataLayer)
-      Output keys: reason_to_propose_when_deployed_verdict: str  (yes only)
 
     Input category: Human decision.
 
@@ -188,7 +170,3 @@ class ReasonToProposeEmbargoWhenDeployed(
     general rule can anticipate valid reasons, so human judgment is
     required.
     """
-
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"reason_to_propose_when_deployed_verdict": str}
-    )

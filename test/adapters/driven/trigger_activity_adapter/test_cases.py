@@ -22,6 +22,7 @@ from pydantic import ValidationError
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, register
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.adapters.driven.trigger_activity_adapter import _base
 from vultron.adapters.driven.trigger_activity_adapter._base import (
     _to_wire_object,
@@ -63,8 +64,8 @@ _CONTEXT_ID = "https://example.org/contexts/ctx-001"
 
 
 def _make_case(dl) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="CVE-2025-001"
+    case = make(
+        as_VulnerabilityCase, attributed_to=CASE_OWNER_ID, name="CVE-2025-001"
     )
     dl.create(case)
     return case
@@ -146,7 +147,7 @@ class TestDeferCase:
 class TestAddObjectToCase:
     def test_returns_id_and_dict(self, adapter, dl):
         case = _make_case(dl)
-        note = as_Note(name="Finding", content="details")
+        note = make(as_Note, name="Finding", content="details")
         dl.create(note)
 
         activity_id, activity_dict = adapter.add_object_to_case(
@@ -161,7 +162,7 @@ class TestAddObjectToCase:
 
     def test_persists_add_activity(self, adapter, dl):
         case = _make_case(dl)
-        note = as_Note(name="Finding", content="details")
+        note = make(as_Note, name="Finding", content="details")
         dl.create(note)
 
         activity_id, _ = adapter.add_object_to_case(
@@ -176,7 +177,7 @@ class TestAddObjectToCase:
     @pytest.mark.spec("PCR-08-005")
     def test_addresses_add_to_given_recipients(self, adapter, dl):
         case = _make_case(dl)
-        note = as_Note(name="Finding", content="details")
+        note = make(as_Note, name="Finding", content="details")
         dl.create(note)
 
         activity_id, _ = adapter.add_object_to_case(
@@ -198,12 +199,14 @@ class TestAddObjectToCaseSemantics:
         ("make_object", "semantics"),
         [
             pytest.param(
-                lambda case_id: as_Note(name="N", content="c"),
+                lambda case_id: make(as_Note, name="N", content="c"),
                 MessageSemantics.ADD_NOTE_TO_CASE,
                 id="note",
             ),
             pytest.param(
-                lambda case_id: as_VulnerabilityReport(name="R", content="c"),
+                lambda case_id: make(
+                    as_VulnerabilityReport, name="R", content="c"
+                ),
                 MessageSemantics.ADD_REPORT_TO_CASE,
                 id="report",
             ),
@@ -228,30 +231,32 @@ class TestAddObjectToCaseSemantics:
         "make_object",
         [
             pytest.param(
-                lambda case_id: as_Article(name="A", content="c"),
+                lambda case_id: make(as_Article, name="A", content="c"),
                 id="no-add-pattern",
             ),
             pytest.param(
-                lambda case_id: as_EmbargoEvent(
-                    context=case_id, end_time=days_from_now(45)
+                lambda case_id: make(
+                    as_EmbargoEvent,
+                    context=case_id,
+                    end_time=days_from_now(45),
                 ),
                 id="embargo-event",
             ),
             pytest.param(
-                lambda case_id: as_CaseParticipant(
-                    attributed_to=_PEER, context=case_id
+                lambda case_id: make(
+                    as_CaseParticipant, attributed_to=_PEER, context=case_id
                 ),
                 id="case-participant",
             ),
             pytest.param(
-                lambda case_id: as_CaseStatus(context=case_id),
+                lambda case_id: make(as_CaseStatus, context=case_id),
                 id="case-status",
             ),
             pytest.param(
                 # An Add(ParticipantStatus) targeting a case URI matches the
                 # participant-status pattern, whose target is permissive;
                 # it is still not an addition to the case.
-                lambda case_id: as_ParticipantStatus(context=case_id),
+                lambda case_id: make(as_ParticipantStatus, context=case_id),
                 id="participant-status",
             ),
         ],
@@ -273,7 +278,7 @@ class TestAddObjectToCaseSemantics:
         assert len(dl.outbox_list()) == before
 
     def test_missing_case_raises_not_found(self, adapter, dl):
-        note = as_Note(name="N", content="c")
+        note = make(as_Note, name="N", content="c")
         dl.create(note)
 
         with pytest.raises(VultronNotFoundError):
@@ -307,7 +312,7 @@ class TestAddObjectToCaseConversionBranch:
 
         case = _make_case(dl)
         fake_id = "urn:test:core-vuln-case-1"
-        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
+        core_obj = make(VulnerabilityCase, attributed_to=_ACTOR)
 
         with patch.object(
             dl, "read", side_effect=self._patched_read(dl, fake_id, core_obj)
@@ -389,7 +394,7 @@ class TestAddObjectToCaseConversionBranch:
 
         case = _make_case(dl)
         fake_id = "urn:test:core-actor-1"
-        core_actor = CoreActor(id_=fake_id, name="Some Actor")
+        core_actor = make(CoreActor, id_=fake_id, name="Some Actor")
 
         with patch.object(
             dl,
@@ -431,7 +436,7 @@ class TestAddObjectToCaseConversionBranch:
     ):
         """A ValidationError from as_Add crosses the port as a VultronError."""
         case = _make_case(dl)
-        note = as_Note(name="Finding", content="details")
+        note = make(as_Note, name="Finding", content="details")
         dl.create(note)
 
         class _NotAnAS2Object:
@@ -460,7 +465,7 @@ class TestToWireObject:
             _to_wire_object(None, "urn:test:absent-2")
 
     def test_as_object_returned_unchanged(self):
-        note = as_Note(name="Finding", content="details")
+        note = make(as_Note, name="Finding", content="details")
 
         assert _to_wire_object(note, note.id_) is note
 
@@ -469,15 +474,15 @@ class TestToWireObject:
         "core_obj",
         [
             pytest.param(
-                VulnerabilityCase(attributed_to=_ACTOR),
+                make(VulnerabilityCase, attributed_to=_ACTOR),
                 id="paired-VulnerabilityCase",
             ),
             pytest.param(
-                VultronPerson(name="Pat"),
+                make(VultronPerson, name="Pat"),
                 id="class-name-differs-from-type-VultronPerson",
             ),
             pytest.param(
-                VultronNote(content="details"), id="unpaired-VultronNote"
+                make(VultronNote, content="details"), id="unpaired-VultronNote"
             ),
         ],
     )
@@ -521,7 +526,9 @@ class TestToWireObject:
 
 def _make_owned_case(dl) -> as_VulnerabilityCase:
     """A case with an owner, so it has a genesis hash to anchor its ledger."""
-    case = as_VulnerabilityCase(name="CVE-2025-001", attributed_to=_ACTOR)
+    case = make(
+        as_VulnerabilityCase, name="CVE-2025-001", attributed_to=_ACTOR
+    )
     dl.create(case)
     return case
 
@@ -617,18 +624,25 @@ class TestCaseOnTheWireCarriesItsParticipants:
         )
 
         case_id = "https://example.org/cases/wire-participants"
-        manager = CaseParticipant(
+        manager = make(
+            CaseParticipant,
             context=case_id,
             attributed_to=_ACTOR,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        vendor = CaseParticipant(
-            context=case_id, attributed_to=_PEER, case_roles=[CVDRole.VENDOR]
+        vendor = make(
+            CaseParticipant,
+            context=case_id,
+            attributed_to=_PEER,
+            case_roles=[CVDRole.VENDOR],
         )
-        report = as_VulnerabilityReport(name="CVE-2025-030", content="PoC")
+        report = make(
+            as_VulnerabilityReport, name="CVE-2025-030", content="PoC"
+        )
         for obj in (manager, vendor, report):
             dl.create(obj)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=case_id,
             name="CVE-2025-030",
             attributed_to=_ACTOR,
@@ -752,14 +766,18 @@ class TestCaseOnTheWireCarriesItsParticipants:
         from vultron.enums.roles import CVDRole
 
         case_id = "https://example.org/cases/wire-inline-participant"
-        snapshot = CaseParticipant(
-            context=case_id, attributed_to=_PEER, case_roles=[CVDRole.VENDOR]
+        snapshot = make(
+            CaseParticipant,
+            context=case_id,
+            attributed_to=_PEER,
+            case_roles=[CVDRole.VENDOR],
         )
         current = snapshot.model_copy(
             update={"case_roles": [CVDRole.VENDOR, CVDRole.COORDINATOR]}
         )
         dl.create(current)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             id_=case_id,
             name="CVE-2025-031",
             attributed_to=_ACTOR,
@@ -808,7 +826,8 @@ class TestCaseOnTheWireCarriesItsParticipants:
         """Outside the bootstrap a sender-side gap is carried as it stands,
         with a WARNING; the bootstrap ``Create`` refuses it instead
         (``test_create_case_refuses_a_participant_the_sender_cannot_read``)."""
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             name="CVE-2025-031",
             attributed_to=_ACTOR,
             case_participants=["https://example.org/participants/absent"],
@@ -829,8 +848,11 @@ class TestCaseOnTheWireCarriesItsParticipants:
 
     @pytest.mark.spec("EMB-18-003")
     def test_the_active_embargo_is_carried_inline(self, adapter, dl):
-        case = as_VulnerabilityCase(name="CVE-2025-032", attributed_to=_ACTOR)
-        embargo = EmbargoEvent(
+        case = make(
+            as_VulnerabilityCase, name="CVE-2025-032", attributed_to=_ACTOR
+        )
+        embargo = make(
+            EmbargoEvent,
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -849,7 +871,8 @@ class TestCaseOnTheWireCarriesItsParticipants:
 
     @pytest.mark.spec("EMB-18-003")
     def test_an_active_embargo_the_store_lacks_is_not_sent(self, adapter, dl):
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             name="CVE-2025-033",
             attributed_to=_ACTOR,
             embargo_register=register(
@@ -865,9 +888,10 @@ class TestCaseOnTheWireCarriesItsParticipants:
     def test_an_active_embargo_naming_a_non_embargo_record_is_not_sent(
         self, adapter, dl
     ):
-        note = VultronNote(content="not an embargo")
+        note = make(VultronNote, content="not an embargo")
         dl.create(note)
-        case = as_VulnerabilityCase(
+        case = make(
+            as_VulnerabilityCase,
             name="CVE-2025-034",
             attributed_to=_ACTOR,
             embargo_register=register(active=note.id_),
@@ -881,8 +905,11 @@ class TestCaseOnTheWireCarriesItsParticipants:
     def test_an_active_embargo_that_cannot_be_projected_is_not_sent(
         self, adapter, dl
     ):
-        case = as_VulnerabilityCase(name="CVE-2025-035", attributed_to=_ACTOR)
-        embargo = EmbargoEvent(
+        case = make(
+            as_VulnerabilityCase, name="CVE-2025-035", attributed_to=_ACTOR
+        )
+        embargo = make(
+            EmbargoEvent,
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
             end_time=days_from_now(45),
@@ -910,8 +937,10 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
     would reach a recipient that cannot resolve it."""
 
     def _case_naming(self, dl, report_ids):
-        case = as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, name="CVE-2025-020"
+        case = make(
+            as_VulnerabilityCase,
+            attributed_to=CASE_OWNER_ID,
+            name="CVE-2025-020",
         )
         case.vulnerability_reports.extend(report_ids)
         dl.create(case)
@@ -939,7 +968,9 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
             as_VulnerabilityReport,
         )
 
-        report = as_VulnerabilityReport(name="CVE-2025-020", content="PoC")
+        report = make(
+            as_VulnerabilityReport, name="CVE-2025-020", content="PoC"
+        )
         dl.create(report)
         case = self._case_naming(dl, [report.id_])
 
@@ -971,9 +1002,10 @@ class TestRejectCaseProposal:
             as_VulnerabilityReport,
         )
 
-        proposal = as_CaseProposal(
+        proposal = make(
+            as_CaseProposal,
             attributed_to=attributed_to,
-            object_=as_VulnerabilityReport(attributed_to=_PEER),
+            object_=make(as_VulnerabilityReport, attributed_to=_PEER),
             target=_ACTOR,
         )
         return proposal.model_dump(by_alias=True, serialize_as_any=True)

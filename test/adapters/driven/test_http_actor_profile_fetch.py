@@ -22,6 +22,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from test.adapters.driving.fastapi._redelivery import served_store
+from test.support.objects import make
 from test.support.signing import TEST_PROOF_CREATED
 from vultron.adapters.driven import http_actor_profile_fetch as apf
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
@@ -104,7 +105,7 @@ def test_a_served_profile_yields_the_key_that_verifies_the_actors_proof(
         signing.seeded_signing_key(author),
         created=TEST_PROOF_CREATED,
     )
-    actor = VultronOrganization(id_=author, name=segment)
+    actor = make(VultronOrganization, id_=author, name=segment)
 
     with served_store(dl, author, segment, actor) as (client, _emitter):
         adapter = apf.HttpActorProfileFetchAdapter(_ClientFetcher(client))
@@ -122,7 +123,7 @@ def test_a_served_profile_yields_the_key_that_verifies_the_actors_proof(
 
 @pytest.mark.spec("SIG-02-002")
 def test_the_fetch_is_a_profile_fetch_of_the_actor():
-    profile = VultronOrganization(id_=AUTHOR, name="Author")
+    profile = make(VultronOrganization, id_=AUTHOR, name="Author")
     fetcher = _TableFetcher(
         _fetched(profile.model_dump(mode="json", by_alias=True))
     )
@@ -177,8 +178,10 @@ def test_a_profile_typed_actor_is_refused_by_its_generic_type():
 
 
 def test_a_profile_of_another_actor_is_refused():
-    other = VultronOrganization(
-        id_="https://other.example/api/v2/actors/other", name="Other"
+    other = make(
+        VultronOrganization,
+        id_="https://other.example/api/v2/actors/other",
+        name="Other",
     )
     fetcher = _TableFetcher(
         _fetched(other.model_dump(mode="json", by_alias=True))
@@ -209,7 +212,7 @@ def test_a_body_of_no_known_type_is_refused():
 def test_the_configured_fetcher_is_built_on_first_use(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    profile = VultronOrganization(id_=AUTHOR, name="Author")
+    profile = make(VultronOrganization, id_=AUTHOR, name="Author")
     fetcher = _TableFetcher(
         _fetched(profile.model_dump(mode="json", by_alias=True))
     )

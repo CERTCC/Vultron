@@ -35,12 +35,13 @@ import json
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 
 from vultron.adapters.driven.http_object_fetch import (
     ObjectFetcher,
     ObjectFetchResult,
     default_object_fetcher,
+    parse_fetched_body,
     parse_fetched_object,
 )
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
@@ -150,13 +151,19 @@ class FastAPIDereferencePort:
                 )
 
     def fetched_object(self, fetch: PendingObjectFetch) -> CoreObject:
-        """The handed-off object a ``FETCHED`` record holds."""
+        """The handed-off object a ``FETCHED`` record holds.
+
+        The record holds the body :func:`settle_fetch` kept, so its set-aside
+        keys are already gone and this parse reports none (MV-11-003).
+        """
         if fetch.fetched_body is None:
             raise VultronValidationError(
                 f"the fetch of {fetch.object_id!r} holds no fetched body"
             )
         parsed = parse_fetched_object(
-            json.loads(fetch.fetched_body), fetch.object_id
+            json.loads(fetch.fetched_body),
+            fetch.object_id,
+            fetch.host_actor_id,
         )
         if not isinstance(parsed, CoreObject):
             raise VultronValidationError(
@@ -212,7 +219,8 @@ def settle_fetch(
     """Record what the fetch of *object_id* came to, and queue its waiters.
 
     A fetched ``STORE`` object is stored and its record removed; a fetched
-    ``HAND_OFF`` object is kept on the record for its waiters.  A failed
+    ``HAND_OFF`` object's body is kept on the record for its waiters, without
+    the keys its parse set aside and reported (MV-11-003).  A failed
     fetch, or a body that is not the object asked for, is logged at
     WARNING and the record marked ``FAILED`` (AKM-05-008).  Each waiter
     that waits on no other open fetch is queued for its replay.  All of it
@@ -228,11 +236,17 @@ def settle_fetch(
         attempts = fetch.attempts + result.attempts
         failure = result.failure
         fetched: CoreObject | as_Base | None = None
+        declared_body: dict[str, Any] | None = None
         if result.body is not None:
             try:
-                fetched = parse_fetched_object(result.body, object_id)
+                parsed = parse_fetched_body(
+                    result.body, object_id, fetch.host_actor_id
+                )
             except VultronError as exc:
                 failure = str(exc)
+            else:
+                fetched = parsed.value
+                declared_body = parsed.declared_body
         if isinstance(fetched, (as_Activity, VultronActivity)):
             # A receiver keeps no activity under the id its sender chose: a
             # record of an activity type stored under its own id is always
@@ -273,7 +287,10 @@ def settle_fetch(
                 update={
                     "state": ObjectFetchState.FETCHED,
                     "attempts": attempts,
-                    "fetched_body": json.dumps(result.body),
+                    # The body its parse kept: the set-aside keys were
+                    # reported once, here, and the hand-off's parse of the
+                    # record must not report them again (MV-11-003).
+                    "fetched_body": json.dumps(declared_body),
                 }
             )
             dl.save(settled)

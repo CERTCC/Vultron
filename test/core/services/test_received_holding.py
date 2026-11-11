@@ -27,6 +27,7 @@ from datetime import timedelta
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.received_activity_record import (
@@ -78,6 +79,7 @@ def _record(dl, activity_id: str) -> ReceivedActivityRecord:
         received_body=_body(activity_id),
         stage=ReceivedStage.HELD,
         replay_owed=False,
+        received_at=ACT_AT,
     )
     dl.create(record)
     return record
@@ -90,6 +92,7 @@ def _archive(dl, activity_id: str) -> ReceivedActivityRecord:
         received_body=_body(activity_id),
         stage=ReceivedStage.ARCHIVED,
         replay_owed=False,
+        received_at=ACT_AT,
     )
     dl.create(record)
     return record

@@ -15,22 +15,15 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from vultron.core.behaviors.call_out.answer import (
-    CallOutContract,
-)
-from vultron.core.behaviors.report.publish_artifact_tree import (
-    AdvisoryReviewDecision,
+from vultron.core.behaviors.call_out.capabilities.report_management.publication.advisory import (
+    DraftAdvisoryArtifactCapability,
+    ReviewAdvisoryDraftCapability,
+    ReviseAdvisoryDraftCapability,
+    SubmitAdvisoryArtifactCapability,
 )
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     AlwaysSucceed,
-)
-from vultron.demo.fuzzer.call_out_point import (
-    ActuatorCallOutPoint,
-    ComposerCallOutPoint,
-    EvaluatorCallOutPoint,
 )
 
 # ---------------------------------------------------------------------------
@@ -38,8 +31,13 @@ from vultron.demo.fuzzer.call_out_point import (
 # ---------------------------------------------------------------------------
 
 
-class DraftAdvisoryArtifact(ComposerCallOutPoint, AlmostAlwaysSucceed):
+class DraftAdvisoryArtifact(
+    DraftAdvisoryArtifactCapability, AlmostAlwaysSucceed
+):
     """Draft the advisory artifact from case data.
+
+    Simulates :class:`DraftAdvisoryArtifactCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — generate a draft advisory artifact (CSAF JSON, CVE record,
@@ -48,10 +46,6 @@ class DraftAdvisoryArtifact(ComposerCallOutPoint, AlmostAlwaysSucceed):
         that pulls vulnerability details, fix information, and affected
         product data from the case record.  The fuzzer succeeds almost
         always, allowing the rest of the pipeline to be exercised.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — reads case context from caller's DataLayer)
-      Output keys: draft_advisory_artifact: str  (yes only)
 
     Input category: System integration / Composer.
 
@@ -62,13 +56,12 @@ class DraftAdvisoryArtifact(ComposerCallOutPoint, AlmostAlwaysSucceed):
     automatable; narrative advisory text may benefit from human review.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"draft_advisory_artifact": str}
-    )
 
-
-class ReviewAdvisoryDraft(EvaluatorCallOutPoint, AlwaysSucceed):
+class ReviewAdvisoryDraft(ReviewAdvisoryDraftCapability, AlwaysSucceed):
     """Review and approve the advisory draft.
+
+    Simulates :class:`ReviewAdvisoryDraftCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — review the drafted advisory artifact and produce an
@@ -81,11 +74,6 @@ class ReviewAdvisoryDraft(EvaluatorCallOutPoint, AlwaysSucceed):
         both; to block submission for any decision it MUST answer *no*
         (BT-18-007), and *error* when it cannot decide (ADR-0183).
 
-    Blackboard contract (BT-18-001):
-      Input keys:  draft_advisory_artifact: str  (reads the Composer output)
-      Output keys: advisory_review_decision: AdvisoryReviewDecision
-        (yes only; default instance written by fuzzer backend)
-
     Input category: Human decision / QA integration.
 
     Success probability: 1.00 (``AlwaysSucceed``).
@@ -95,13 +83,12 @@ class ReviewAdvisoryDraft(EvaluatorCallOutPoint, AlwaysSucceed):
     typically require human judgment.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"advisory_review_decision": AdvisoryReviewDecision}
-    )
 
-
-class ReviseAdvisoryDraft(ComposerCallOutPoint, AlmostAlwaysSucceed):
+class ReviseAdvisoryDraft(ReviseAdvisoryDraftCapability, AlmostAlwaysSucceed):
     """Revise the advisory draft based on review feedback.
+
+    Simulates :class:`ReviseAdvisoryDraftCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — incorporate feedback from ``ReviewAdvisoryDraft`` and
@@ -109,11 +96,6 @@ class ReviseAdvisoryDraft(ComposerCallOutPoint, AlmostAlwaysSucceed):
         Evaluator sets ``needs_revision=True``; when the Evaluator approves
         without requesting changes the revision arm is a graceful no-op.
         The fuzzer succeeds almost always.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  advisory_review_decision: AdvisoryReviewDecision
-        (reads the Evaluator output for feedback guidance)
-      Output keys: draft_advisory_artifact: str  (overwrites on yes)
 
     Input category: Human decision / Composer.
 
@@ -124,13 +106,14 @@ class ReviseAdvisoryDraft(ComposerCallOutPoint, AlmostAlwaysSucceed):
     typically require human involvement.
     """
 
-    contract: ClassVar[CallOutContract] = CallOutContract(
-        outputs={"draft_advisory_artifact": str}
-    )
 
-
-class SubmitAdvisoryArtifact(ActuatorCallOutPoint, AlmostAlwaysSucceed):
+class SubmitAdvisoryArtifact(
+    SubmitAdvisoryArtifactCapability, AlmostAlwaysSucceed
+):
     """Submit the finalized advisory artifact to the external advisory platform.
+
+    Simulates :class:`SubmitAdvisoryArtifactCapability`,
+    whose ports are its blackboard contract (BT-18-021).
 
     Semantic function:
         Action — submit the reviewed (and optionally revised) advisory
@@ -138,10 +121,6 @@ class SubmitAdvisoryArtifact(ActuatorCallOutPoint, AlmostAlwaysSucceed):
         package repository, or equivalent) via an API call.  In production
         this is the final side-effecting step; the fuzzer succeeds almost
         always, matching the original ``Publish`` Actuator probability.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — artifact context from construction time)
-      Output keys: (none — side effect: publish artifact to advisory platform)
 
     Input category: System integration / Actuator.
 

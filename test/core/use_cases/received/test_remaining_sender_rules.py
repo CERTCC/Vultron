@@ -40,6 +40,7 @@ from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.ledger import ledger_entries
+from test.support.objects import make
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -123,11 +124,11 @@ class _World:
     def __init__(
         self, end_time: datetime | None = None, store_owner: str = "manager"
     ) -> None:
-        self.manager = as_Service(name="Vendor Co")
-        self.finder = as_Service(name="Finder Co")
-        self.deployer = as_Service(name="Deployer Co")
-        self.stranger = as_Service(name="Stranger Co")
-        self.invitee = as_Service(name="Invitee Co")
+        self.manager = make(as_Service, name="Vendor Co")
+        self.finder = make(as_Service, name="Finder Co")
+        self.deployer = make(as_Service, name="Deployer Co")
+        self.stranger = make(as_Service, name="Stranger Co")
+        self.invitee = make(as_Service, name="Invitee Co")
         owner_id = (
             self.manager.id_ if store_owner == "manager" else self.finder.id_
         )
@@ -141,21 +142,27 @@ class _World:
             self.invitee,
         ):
             self.dl.create(actor)
-        case = VulnerabilityCase(
-            name="Sender rule case", attributed_to=self.manager.id_
+        case = make(
+            VulnerabilityCase,
+            name="Sender rule case",
+            attributed_to=self.manager.id_,
         )
-        self.embargo = as_EmbargoEvent(
+        self.embargo = make(
+            as_EmbargoEvent,
             context=case.id_,
             end_time=end_time or now_utc() + timedelta(days=30),
         )
-        manager_p = VendorParticipant(
-            attributed_to=self.manager.id_, context=case.id_
+        manager_p = make(
+            VendorParticipant, attributed_to=self.manager.id_, context=case.id_
         )
         manager_p.add_role(CVDRole.CASE_MANAGER)
-        finder_p = ReporterParticipant(
-            attributed_to=self.finder.id_, context=case.id_
+        finder_p = make(
+            ReporterParticipant,
+            attributed_to=self.finder.id_,
+            context=case.id_,
         )
-        deployer_p = CaseParticipant(
+        deployer_p = make(
+            CaseParticipant,
             attributed_to=self.deployer.id_,
             context=case.id_,
             case_roles=[CVDRole.DEPLOYER],
@@ -207,7 +214,8 @@ class _World:
     ) -> HandlerResult:
         # The status carries the case's EM: a status never moves EM, so one
         # that differs is refused whole (RSH-09-005).
-        status = as_CaseStatus(
+        status = make(
+            as_CaseStatus,
             context=self.case_id,
             em=EmDimension(state=self.case().em_state),
             pxa=PxaDimension(state=pxa),
@@ -227,12 +235,15 @@ class _World:
 
     def finder_status(self) -> HandlerResult:
         """The finder's own status, at the RM state it was seated with."""
-        status = as_ParticipantStatus(
-            context=self.case_id, attributed_to=self.finder.id_
+        status = make(
+            as_ParticipantStatus,
+            context=self.case_id,
+            attributed_to=self.finder.id_,
         )
         activity = add_status_to_participant_activity(
             status,
-            target=as_CaseParticipant(
+            target=make(
+                as_CaseParticipant,
                 id_=self.finder_participant_id,
                 context=self.case_id,
                 attributed_to=self.finder.id_,
@@ -248,8 +259,10 @@ class _World:
 
     def leave_from(self, sender_id: str, suffix: str = "1") -> HandlerResult:
         activity = rm_close_case_activity(
-            as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=self.case_id
+            make(
+                as_VulnerabilityCase,
+                attributed_to=CASE_OWNER_ID,
+                id_=self.case_id,
             ),
             actor=sender_id,
             # Addressed to the manager and, at a replica, to the replica too.
@@ -271,7 +284,7 @@ class _World:
             else self.receiver_id
         )
         activity = rm_invite_to_case_activity(
-            as_Actor(id_=invitee),
+            make(as_Actor, id_=invitee),
             target=self.case_id,
             actor=sender_id,
             to=[invitee],

@@ -34,6 +34,7 @@ import pytest
 import vultron.wire.as2.vocab.activities as _act_pkg
 import vultron.wire.as2.vocab.objects as _obj_pkg
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.wire.as2.enums import as_AllObjectTypes
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
@@ -71,14 +72,14 @@ _AS2_VOCAB_TERMS = frozenset({m.value for m in as_AllObjectTypes}) | {
 @pytest.mark.spec("VM-10-002")
 def test_as_vultron_object_context_defaults_to_the_list():
     """AC-1: as_VultronObject.context_ defaults to the AS2-then-Vultron list."""
-    obj = as_VultronObject()
+    obj = make(as_VultronObject)
     assert obj.context_ == _DEFAULT_CONTEXT
 
 
 @pytest.mark.spec("VM-10-002")
 def test_as_vultron_object_context_is_not_as2_namespace():
     """AC-1: as_VultronObject.context_ does NOT default to the AS2 namespace."""
-    obj = as_VultronObject()
+    obj = make(as_VultronObject)
     assert obj.context_ != ACTIVITY_STREAMS_NS
 
 
@@ -89,7 +90,7 @@ def test_as_vultron_object_context_is_not_as2_namespace():
 @pytest.mark.spec("VM-10-002")
 def test_vultron_subclass_serializes_the_context_list():
     """AC-3: A as_VultronObject subclass serializes @context as the list."""
-    obj = as_VultronObject()
+    obj = make(as_VultronObject)
     data = json.loads(obj.to_json())
     assert data["@context"] == _DEFAULT_CONTEXT
 
@@ -105,8 +106,10 @@ def test_embargo_event_serializes_vultron_context():
     from vultron.core.models.embargo_event import EmbargoEvent
 
     assert as_EmbargoEvent is EmbargoEvent
-    obj = as_EmbargoEvent(
-        context="urn:uuid:case-123", end_time=days_from_now(45)
+    obj = make(
+        as_EmbargoEvent,
+        context="urn:uuid:case-123",
+        end_time=days_from_now(45),
     )
     data = json.loads(obj.model_dump_json(exclude_none=True, by_alias=True))
     assert data["type"] == "EmbargoEvent"
@@ -134,7 +137,7 @@ def test_plain_as_base_serializes_the_context_list():
 @pytest.mark.spec("VM-10-002")
 def test_as_vultron_object_roundtrip_preserves_context():
     """AC-4: from_json(obj.to_json()) preserves the @context list."""
-    obj = as_VultronObject()
+    obj = make(as_VultronObject)
     restored = as_VultronObject.from_json(obj.to_json())
     assert restored.context_ == _DEFAULT_CONTEXT
 
@@ -146,8 +149,10 @@ def test_embargo_event_roundtrip_preserves_context():
     Round-trip via model_dump/model_validate preserves the context field.
     (Core ``context`` stores the case URI, not a @context namespace URI.)
     """
-    obj = as_EmbargoEvent(
-        context="urn:uuid:case-123", end_time=days_from_now(45)
+    obj = make(
+        as_EmbargoEvent,
+        context="urn:uuid:case-123",
+        end_time=days_from_now(45),
     )
     data = obj.model_dump(mode="json", by_alias=True, exclude_none=True)
     restored = as_EmbargoEvent.model_validate(data)

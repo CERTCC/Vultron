@@ -29,6 +29,7 @@ from typing import cast
 
 import pytest
 
+from test.support.objects import make
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -49,7 +50,7 @@ _TOLERANCE = timedelta(seconds=2)
 
 @pytest.fixture()
 def owner_and_dl() -> Generator[tuple[VultronService, SqliteDataLayer]]:
-    owner = VultronService(name="Seeded Vendor")
+    owner = make(VultronService, name="Seeded Vendor")
     reset_datalayer(owner.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)
     dl.clear_all()
@@ -62,7 +63,7 @@ def owner_and_dl() -> Generator[tuple[VultronService, SqliteDataLayer]]:
 
 
 def _seed(owner: VultronService, dl: SqliteDataLayer) -> EmbargoEvent:
-    case = VulnerabilityCase(name="Seeded case", attributed_to=owner.id_)
+    case = make(VulnerabilityCase, name="Seeded case", attributed_to=owner.id_)
     dl.create(case)
     seed_case_participants_for_demo(
         case_id=case.id_,
@@ -101,7 +102,8 @@ def test_seeded_embargo_without_policies_uses_the_protocol_default(
 def _with_policy(owner: VultronService, days: int) -> VultronService:
     return owner.model_copy(
         update={
-            "embargo_policy": EmbargoPolicy(
+            "embargo_policy": make(
+                EmbargoPolicy,
                 actor_id=owner.id_,
                 inbox=f"{owner.id_}/inbox",
                 preferred_duration=timedelta(days=days),
@@ -134,7 +136,8 @@ def test_a_policy_record_beside_the_profile_is_not_the_actor_default(
     """
     owner, dl = owner_and_dl
     dl.create(
-        EmbargoPolicy(
+        make(
+            EmbargoPolicy,
             actor_id=owner.id_,
             inbox=f"{owner.id_}/inbox",
             preferred_duration=timedelta(days=30),
@@ -154,8 +157,8 @@ def test_seeded_embargo_uses_the_owners_policy_not_the_store_actors() -> None:
     The case is attributed to the vendor (CP-09-001), so the vendor's profile
     policy is the actor default and the store actor's own is not.
     """
-    store_actor = VultronService(name="Case Actor")
-    vendor = VultronService(name="Seeded Vendor")
+    store_actor = make(VultronService, name="Case Actor")
+    vendor = make(VultronService, name="Seeded Vendor")
     reset_datalayer(store_actor.id_)
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=store_actor.id_)
     dl.clear_all()
@@ -175,7 +178,7 @@ def test_seeding_without_the_owners_profile_raises(
 ) -> None:
     """No owner record means no profile to read the default from: raise."""
     _, dl = owner_and_dl
-    stranger = VultronService(name="Not stored")
+    stranger = make(VultronService, name="Not stored")
     with pytest.raises(VultronNotFoundError):
         _seed(stranger, dl)
 

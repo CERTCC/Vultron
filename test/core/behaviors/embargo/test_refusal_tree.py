@@ -23,6 +23,7 @@ comes last, after the checks that decide whether it can be sent at all.
 import pytest
 
 from test.support.future_dates import days_from_now
+from test.support.objects import make
 from vultron.core.behaviors.case.nodes.diversion_stage import (
     DiversionStage,
 )
@@ -70,7 +71,8 @@ def _invite_refusal(embargo: EmbargoEvent | None = None):
 @pytest.mark.spec("BT-17-008")
 @pytest.mark.spec("CLP-10-026")
 def test_the_invite_refusal_stores_checks_then_sends_the_reject_last() -> None:
-    embargo = EmbargoEvent(
+    embargo = make(
+        EmbargoEvent,
         id_=f"{_CASE}/embargo_events/e1",
         context=_CASE,
         end_time=days_from_now(45),
