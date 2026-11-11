@@ -83,7 +83,11 @@ def test_a_reports_attachments_survive_save_and_read_unchanged() -> None:
                 "mediaType": "application/json",
                 "content": '{"document": {}}',
             },
-            {"type": "Document", "content": "a second document, no id"},
+            {
+                "type": "Document",
+                "id": f"{_REPORT_ID}/notes",
+                "content": "a second document",
+            },
         ]
     )
 
@@ -117,7 +121,11 @@ _CSAF_ATTACHMENT = {
 @pytest.mark.parametrize(
     "other",
     [
-        {"type": "Note", "content": "Steps to reproduce."},
+        {
+            "type": "Note",
+            "id": "https://x.example/notes/1",
+            "content": "Steps to reproduce.",
+        },
         {"type": "Link", "href": "https://x.example/advisory"},
         "https://x.example/advisory",
     ],
@@ -171,7 +179,14 @@ def test_a_report_keeps_a_file_attached_beside_its_documents(
     type_, cls
 ) -> None:
     report = _parsed_report(
-        [{"type": type_, "url": "https://x.example/f", "mediaType": "a/b"}]
+        [
+            {
+                "type": type_,
+                "id": "https://x.example/files/1",
+                "url": "https://x.example/f",
+                "mediaType": "a/b",
+            }
+        ]
     )
 
     assert report.attachment is not None

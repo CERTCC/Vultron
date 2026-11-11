@@ -21,7 +21,14 @@ ARCH-25-004 (ADR-0099): the core classes *are* the AS2 objects.
 import inspect
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Annotated, Any, ClassVar, TypeAlias
+from typing import (
+    Annotated,
+    Any,
+    ClassVar,
+    TypeAlias,
+    get_args,
+    get_origin,
+)
 
 from pydantic import (
     BaseModel,
@@ -47,6 +54,7 @@ from vultron.core.models._helpers import (
     blank_times_as_none,
     format_timestamp,
     now_utc,
+    refuse_absent_id,
     refuse_absent_published,
 )
 from vultron.core.models.base._computed import (
@@ -274,7 +282,9 @@ class CoreObject(CoreRecord):
         A class whose ``published`` a decision reads sets
         ``_inbound_requires_published``, and a received instance without one
         is refused here with :class:`MissingClaimedTimeError` rather than
-        read as ``None`` (CLP-15-007, CLP-15-010).
+        read as ``None`` (CLP-15-007, CLP-15-010).  A received instance
+        without an ``id`` is refused too, never given a minted one
+        (OID-01-013, OID-01-014).
         """
         if not isinstance(data, dict):
             return data
@@ -285,6 +295,7 @@ class CoreObject(CoreRecord):
             return data
         if cls._inbound_requires_published:
             refuse_absent_published(cls, data)
+        refuse_absent_id(cls, data)
         return absent_times_as_none(cls, blank_times_as_none(cls, dict(data)))
 
     @field_validator("context_")
@@ -518,3 +529,27 @@ CoreObjectOrIriValues: TypeAlias = (
 # The fields above name these aliases, which name the class, so the schema is
 # completed here, before any subclass is declared.
 CoreObject.model_rebuild()
+
+
+def _holds_unmodelled_object(annotation: object) -> bool:
+    """Return whether *annotation* admits an :data:`UnmodelledObject`."""
+    if get_origin(annotation) is Annotated and any(
+        isinstance(meta, PlainValidator) and meta.func is _require_built_object
+        for meta in getattr(annotation, "__metadata__", ())
+    ):
+        return True
+    return any(_holds_unmodelled_object(arg) for arg in get_args(annotation))
+
+
+def unmodelled_object_fields(cls: type[BaseModel]) -> frozenset[str]:
+    """Fields of *cls* that may hold an object core does not model.
+
+    A reader that rebuilds a stored row must build such a value as its own
+    class first: its stored mapping (a Link's ``href``, say) is not a
+    ``CoreObject``, and the slot admits only a built model.
+    """
+    return frozenset(
+        name
+        for name, field in cls.model_fields.items()
+        if _holds_unmodelled_object(field.annotation)
+    )

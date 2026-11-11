@@ -218,3 +218,168 @@ def test_actor_endpoints_refuse_a_blank(
         root.model_validate(
             {"id": "https://example.org/actors/a", "endpoints": endpoints}
         )
+
+
+def _offer(**extra: Any) -> dict[str, Any]:
+    """A received Offer body, with *extra* keys set on it."""
+    return {
+        "type": "Offer",
+        "id": "https://example.org/activities/1",
+        "actor": "https://example.org/actors/alice",
+        "published": "2026-03-04T05:06:07+00:00",
+        "object": "https://example.org/objects/1",
+        **extra,
+    }
+
+
+def _id_less_probes() -> list[tuple[str, Any]]:
+    """``(wire key, value)``: an id-less Object, bare and listed, in each slot.
+
+    ``url`` admits no Object (AS2 4), so it has no such probe.
+    """
+    probes: list[tuple[str, Any]] = []
+    for slot in WIRE_SLOTS:
+        if slot == "url":
+            continue
+        key = to_camel(slot)
+        probes.append((key, {"type": "Note", "content": "no id"}))
+        if slot not in SINGLE_VALUED:
+            probes.append((key, [{"type": "Person"}]))
+            probes.append((key, [{}]))
+    return probes
+
+
+@pytest.mark.spec("OID-01-013")
+@pytest.mark.parametrize("key,value", _id_less_probes())
+def test_parse_edge_refuses_an_id_less_object_in_a_reference_slot(
+    key: str, value: Any
+) -> None:
+    """An embedded Object with no id is refused, never given a minted one."""
+    with pytest.raises(VultronParseValidationError):
+        parse_activity(_offer(**{key: value}))
+
+
+@pytest.mark.spec("OID-01-013")
+def test_parse_edge_refuses_an_id_less_object_as_the_activity_object() -> None:
+    """The rule holds outside the reference slots, at any depth."""
+    with pytest.raises(VultronParseValidationError):
+        parse_activity(_offer(object={"type": "Note", "content": "no id"}))
+
+
+@pytest.mark.spec("OID-01-013")
+def test_parse_edge_refuses_an_id_less_object_in_a_core_slot() -> None:
+    """A core class's slot refuses the id-less Object the wire slot refuses."""
+    report = {
+        "type": "VulnerabilityReport",
+        "id": "https://example.org/reports/1",
+        "name": "r",
+        "content": "c",
+        "attributedTo": "https://example.org/actors/alice",
+        "published": "2026-03-04T05:06:07+00:00",
+        "context": {"type": "Note", "content": "no id"},
+    }
+    body = _offer(type="Create", object=report)
+    with pytest.raises(VultronParseValidationError):
+        parse_activity(body)
+
+
+@pytest.mark.spec("OID-01-014")
+def test_parse_edge_keeps_a_received_object_id() -> None:
+    """An embedded Object that carries its id keeps exactly that id."""
+    note_id = "https://example.org/notes/1"
+    activity = parse_activity(
+        _offer(tag=[{"type": "Note", "id": note_id, "content": "x"}])
+    )
+    assert isinstance(activity.tag, list)
+    assert getattr(activity.tag[0], "id_", None) == note_id
+
+
+@pytest.mark.spec("OID-01-013")
+@pytest.mark.spec("OID-01-014")
+@pytest.mark.parametrize("link_type", ["Link", "Mention"])
+def test_parse_edge_keeps_an_id_less_link_with_its_href(
+    link_type: str,
+) -> None:
+    """A Link is not an Object: it needs no id, keeps its href, gets no id."""
+    href = "https://example.org/actors/bob"
+    activity = parse_activity(_offer(tag=[{"type": link_type, "href": href}]))
+    assert isinstance(activity.tag, list)
+    (link,) = activity.tag
+    assert isinstance(link, as_Link)
+    assert link.type_ == link_type
+    assert link.href == href
+    assert link.id_ is None
+
+
+@pytest.mark.spec("OID-01-013")
+def test_parse_edge_keeps_a_mention_in_a_core_slot() -> None:
+    """A core class's ``tag`` holds a received Mention as the Link it is."""
+    href = "https://example.org/actors/bob"
+    report = {
+        "type": "VulnerabilityReport",
+        "id": "https://example.org/reports/1",
+        "name": "r",
+        "content": "c",
+        "attributedTo": "https://example.org/actors/alice",
+        "published": "2026-03-04T05:06:07+00:00",
+        "tag": [{"type": "Mention", "href": href}],
+    }
+    activity = parse_activity(_offer(type="Create", object=report))
+    tag = getattr(getattr(activity, "object_", None), "tag", None)
+    assert isinstance(tag, list)
+    assert isinstance(tag[0], as_Link)
+    assert tag[0].href == href
+
+
+def test_parse_edge_refuses_a_link_that_names_no_href() -> None:
+    """A Link without an ``href`` names no resource (CS-08-001)."""
+    with pytest.raises(VultronParseValidationError):
+        parse_activity(_offer(tag=[{"type": "Link"}]))
+
+
+def test_an_unmodelled_link_extension_type_is_refused() -> None:
+    """``Hashtag`` is no AS2 type: its parent slot decides, and none admits it.
+
+    MV-04-004 leaves an inline object whose ``type`` the vocabulary lacks for its
+    field to validate.  No branch of a reference slot admits a ``Hashtag``: it is
+    no ``Link`` by ``type``, and as an Object it carries no id (OID-01-013).
+    """
+    with pytest.raises(VultronParseValidationError):
+        parse_activity(
+            _offer(tag=[{"type": "Hashtag", "href": "https://ex.org/t/x"}])
+        )
+
+
+def test_an_object_this_process_builds_still_takes_a_minted_id() -> None:
+    """Minting stays the default for an object built here, Link included."""
+    assert as_Note(content="x").id_
+    assert as_Link(href="https://example.org/x").id_
+
+
+def _recipient_readers() -> list[Any]:
+    from vultron.adapters.driven.sender_sequence_stamp import (
+        _recipient_ids as stamp_recipient_ids,
+    )
+    from vultron.core.behaviors.sync.nodes.sender_sequence import (
+        _recipient_ids as node_recipient_ids,
+    )
+    from vultron.demo.helpers.verification.records import recipient_ids
+    from vultron.wire.as2.extractor._builders.fields import _get_id_list
+
+    return [
+        _get_id_list,
+        stamp_recipient_ids,
+        node_recipient_ids,
+        recipient_ids,
+    ]
+
+
+@pytest.mark.parametrize("reader", _recipient_readers())
+def test_recipient_readers_read_every_recipient_of_a_tuple(
+    reader: Any,
+) -> None:
+    """A ``Sequence`` slot keeps a tuple as given; every recipient is read."""
+    recipients = ("https://example.org/a", "https://example.org/b")
+    obj = as_Object(to=recipients)
+    assert isinstance(obj.to, tuple)
+    assert reader(obj.to) == list(recipients)

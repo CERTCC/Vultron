@@ -304,8 +304,20 @@ _PUBLISHED = "2026-01-02T03:04:05+00:00"
                 "type": "Question",
                 "id": "https://example.org/activities/two-answer-forms",
                 "published": _PUBLISHED,
-                "anyOf": [{"type": "Note", "name": "yes"}],
-                "oneOf": [{"type": "Note", "name": "no"}],
+                "anyOf": [
+                    {
+                        "type": "Note",
+                        "id": "https://example.org/notes/yes",
+                        "name": "yes",
+                    }
+                ],
+                "oneOf": [
+                    {
+                        "type": "Note",
+                        "id": "https://example.org/notes/no",
+                        "name": "no",
+                    }
+                ],
             },
             "mutually exclusive",
             id="question-with-both-answer-forms",

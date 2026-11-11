@@ -48,6 +48,9 @@ FOREIGN_KEY = "fooBar"
 # (AKM-05-017); only then may its target be a case stub (MV-10-002).
 INVITEE = {"type": "Person", "id": "https://example.org/actors/bob"}
 
+#: The id every inline Note here carries: a received Object has one (OID-01-013).
+NOTE_ID = "https://example.org/notes/inline"
+
 
 def _envelope(**extra: Any) -> dict[str, Any]:
     body: dict[str, Any] = {
@@ -71,7 +74,9 @@ FOREIGN_KEY_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
     ("envelope", _envelope(**{FOREIGN_KEY: 1}), ""),
     (
         "inline generic AS2 object",
-        _with_inline_object({"type": "Note", "content": "hi", FOREIGN_KEY: 1}),
+        _with_inline_object(
+            {"type": "Note", "id": NOTE_ID, "content": "hi", FOREIGN_KEY: 1}
+        ),
         "object",
     ),
     (
@@ -115,7 +120,7 @@ NEAR_MISS_POSITIONS: list[tuple[str, dict[str, Any], str, str]] = [
     ),
     (
         "inline generic AS2 object case variant",
-        _with_inline_object({"type": "Note", "Content": "hi"}),
+        _with_inline_object({"type": "Note", "id": NOTE_ID, "Content": "hi"}),
         "Content",
         "content",
     ),
@@ -542,6 +547,7 @@ def test_untyped_dict_in_a_core_slot_is_partitioned_by_the_slot(
             "id": "https://example.org/cases/1",
             "caseStatuses": [
                 {
+                    "id": "https://example.org/cases/1/statuses/1",
                     "context": "https://example.org/cases/1",
                     "published": "2026-01-01T00:00:00+00:00",
                     FOREIGN_KEY: 2,
@@ -677,7 +683,7 @@ def test_foreign_key_is_reported_at_info_only(
 def test_set_aside_key_survives_only_in_the_received_evidence() -> None:
     """The evidence is the only copy of a set-aside key; the body is untouched."""
     body = _with_inline_object(
-        {"type": "Note", "content": "hi", FOREIGN_KEY: 1}
+        {"type": "Note", "id": NOTE_ID, "content": "hi", FOREIGN_KEY: 1}
     )
     activity = parse_activity(body)
 
@@ -990,7 +996,7 @@ JSONLD_KEYWORDS: list[tuple[str, str]] = [("@id", "id"), ("@type", "type")]
 _KEYWORD_VALUE = {"@id": "https://example.org/objects/2", "@type": "Unrelated"}
 _AS2_CONTEXT = "https://www.w3.org/ns/activitystreams"
 
-_NOTE: dict[str, Any] = {"type": "Note", "content": "hi"}
+_NOTE: dict[str, Any] = {"type": "Note", "id": NOTE_ID, "content": "hi"}
 _CASE: dict[str, Any] = {
     **INBOUND_CASE_OWNERSHIP,
     "type": "VulnerabilityCase",

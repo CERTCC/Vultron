@@ -27,9 +27,11 @@ Every Activity carries these fields:
 
 The fields that tell occasions apart, such as `target` and `context`, are the bracketed fields of the [Wire Activity Notation](annex-c-notation.md#wire-activity-notation).
 Vultron's own types are declared in the vocabulary namespace `https://certcc.github.io/Vultron/ns`.
+Every object an Activity embeds carries its own `id` too, at any depth, and a receiver refuses a message that embeds one without it.
+A Link, such as a `Mention` in `tag`, is not an object: it needs no `id` and names its resource by `href`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-01-001", "OX-02-002", "OID-01-001", "CLP-15-006", "CLP-15-008"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-01-001", "OX-02-002", "OID-01-001", "OID-01-013", "OID-01-014", "CLP-15-006", "CLP-15-008"))
 ```
 
 Vultron uses AS2 verbs rather than defining its own:

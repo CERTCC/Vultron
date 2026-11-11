@@ -19,6 +19,7 @@ related_specs:
   - specs/status-dimension-objects.yaml (SDO-03-003)
   - specs/message-validation.yaml (MV-01-001, MV-02-002, MV-04-003, MV-10-002,
     MV-11-001 through MV-11-005, MV-11-012)
+  - specs/object-ids.yaml (OID-01-013)
   - specs/vocabulary-model.yaml (VM-06-008, VM-07-005)
 related_notes:
   - notes/vocabulary-registry.md
@@ -130,7 +131,12 @@ ratchets and a blank passes unseen (#3894, `test_no_object_root_field_is_typed_a
 - Core cannot name the wire `Link`, case stub or case reference (ARCH-01-001), yet
   the parse edge puts them in core objects' slots before its placement checks run
   (MV-10-002, AKM-03-004). The core union therefore admits any already-built model
-  (`UnmodelledObject`); a raw mapping must still validate as `CoreObject`.
+  (`UnmodelledObject`); a raw mapping must still validate as `CoreObject`. A stored
+  row therefore builds such a value as its own class before the core class reads it
+  (`_build_unmodelled_inline`), or a Link in `tag` would not read back.
+- A received Object without an `id` is refused at any depth, and none is minted for
+  it; a Link needs no id but must name an `href` (OID-01-013). Minting belongs to
+  objects this process builds.
 
 Text fields are held to the same rule: every string field a wire class declares
 (`name`, `summary`, `content`, `mediaType`, …) is `NonEmptyString`, so a blank is
@@ -235,8 +241,10 @@ after the received evidence is sealed and before anything validates:
   sequences. Several model classes: the union of their spellings. A field that
   also admits `Any` or plain `dict`: no class decides and the dict is carried
   unexamined (its typed children are still partitioned), which is one more reason
-  an AS2 slot is never `Any`. An untyped object in `to` or `context` is judged
-  against `as_Object`, `as_Link` and `CoreObject` (#3894).
+  an AS2 slot is never `Any`. An untyped object in a wire root's `to` or `context`
+  is judged against `as_Object`, `as_Link` and `CoreObject`; on a core class's slot
+  only `CoreObject` decides, since `UnmodelledObject` strips to a bare `BaseModel`
+  that names no fields (#3894).
 - **The case stub** is chosen by its `type`, `VulnerabilityCaseStub` (CM-11-038),
   never by key-set guessing.
 - **One refusal names every near miss** at every depth, with dotted paths

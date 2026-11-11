@@ -48,10 +48,12 @@ from vultron.core.models._helpers.inbound import (
     INBOUND_CONTEXT_KEY,
     STORED_CONTEXT_KEY,
     DuplicateKeySpellingError,
+    MissingReceivedIdError,
     absent_times_as_none,
     blank_times_as_none,
     collapse_duplicate_spellings,
     project_wire_snapshot_to_core,
+    refuse_absent_id,
     strip_annotated,
 )
 from vultron.core.models._helpers.timestamps import (
@@ -69,6 +71,7 @@ __all__ = [
     "INBOUND_CONTEXT_KEY",
     "IdSource",
     "MissingClaimedTimeError",
+    "MissingReceivedIdError",
     "STORED_CONTEXT_KEY",
     "SteppingClock",
     "URN_UUID_PREFIX",
@@ -86,6 +89,7 @@ __all__ = [
     "now_utc",
     "parse_published",
     "project_wire_snapshot_to_core",
+    "refuse_absent_id",
     "refuse_absent_published",
     "require_future_aware",
     "stamp_after",

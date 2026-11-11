@@ -242,3 +242,34 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
         remap.get(key, key): value for key, value in collapsed.items()
     }
     return absent_times_as_none(cls, projected)
+
+
+class MissingReceivedIdError(ValueError):
+    """A received ActivityStreams Object carries no ``id`` (OID-01-013).
+
+    A :class:`ValueError` subclass so pydantic turns it into a
+    ``ValidationError`` and a union tries its next branch, as
+    :class:`DuplicateKeySpellingError` explains.
+    """
+
+
+#: The keys an object's id may arrive under: the AS2 term, and the field name
+#: a stored or by-name dump uses.
+_ID_KEYS = ("id", "id_")
+
+
+def refuse_absent_id(cls: type[BaseModel], data: dict[str, Any]) -> None:
+    """Raise :class:`MissingReceivedIdError` when *data* names no ``id``.
+
+    ActivityPub gives every object it distributes a global id, and a receiver
+    that minted one would present its own invention as the sender's object
+    (OID-01-013).  For the inbound path only: an object this process builds
+    takes the minting default.  A blank id is refused by ``NonEmptyString``
+    itself; absent and ``None`` are refused here.
+    """
+    if all(data.get(key) is None for key in _ID_KEYS):
+        raise MissingReceivedIdError(
+            f"a received {cls.__name__} carries no 'id'; every object a"
+            " sender distributes carries its own id, and the receiver mints"
+            " none for it (OID-01-013, OID-01-014)"
+        )

@@ -54,7 +54,7 @@ def _get_id_list(field: object) -> list[str] | None:
         return None
     if isinstance(field, str):
         return [field] if field else None
-    if isinstance(field, list):
+    if isinstance(field, (list, tuple)):
         ids = [_get_id(x) for x in field]
         result = [r for r in ids if r]
         return result or None
