@@ -572,7 +572,7 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">One to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">Partly built ([ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)). The report carries the CSAF document as an attached `Document` with the media type `application/json`, and the receiver identifies it by its `$schema` and `document.csaf_version` and records whether it passes the CSAF 2.1 schema and what it claims. When the report is first offered, the receiver can fill the inputs of the new case from it: a future `disclosure_date` proposes the embargo end, and a past one or an SSVC exploitation value sets P, X or A. A Vultron field always counts before the CSAF value. Epic [#5911](https://github.com/CERTCC/Vultron/issues/5911){:target="_blank"} tracks the implementation.</td>
+<td markdown="span">Partly built ([ADR-0184](../../adr/0184-a-csaf-document-travels-as-a-report-attachment-and-speaks-for-the-sender-only-at-the-first-report.md)). The report carries the CSAF document as an attached `Document` with the media type `application/json`, and the receiver identifies it by its `$schema` and `document.csaf_version` and records whether it passes the CSAF 2.1 schema and what it claims. When the report is first offered, the receiver can fill the inputs of the new case from it: a future `disclosure_date` proposes the embargo end, and a past one or an SSVC exploitation value sets P, X or A. Each vulnerability with a `cve` or an `ids` entry becomes a `VulnerabilityItem`, and each `document.references[]` entry a `CaseReference`. A Vultron field always counts before the CSAF value. Epic [#5911](https://github.com/CERTCC/Vultron/issues/5911){:target="_blank"} tracks the implementation.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`VulnerabilityItem` on a case</td>
@@ -596,7 +596,7 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">Many to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">The case holds a list of `CaseReference` objects (`case_references`), which CM-05-004 allows (CM-05-021, [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"}). A CSAF entry's `url` is the `href` of the reference's `url` Link. A projection puts a reference's `rel` values in its `summary`, because CSAF has no field for them.</td>
+<td markdown="span">The case holds a list of `CaseReference` objects (`case_references`), which CM-05-004 allows (CM-05-021, [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"}). A CSAF entry's `url` is the `href` of the reference's `url` Link, and its `summary` is the reference's `name`. A case created from a CSAF report takes a reference for each `document.references[]` entry, and a vulnerability's own references go on its item (CSAF-03-009). A projection puts a reference's `rel` values in its `summary`, because CSAF has no field for them.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Note, with no category</td>

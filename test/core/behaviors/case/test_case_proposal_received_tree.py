@@ -409,7 +409,7 @@ class TestEmitCreateVulnerabilityCaseNode:
         assert isinstance(body["object"], dict), body["object"]
         return body
 
-    @pytest.mark.spec("CSAF-03-008", "CSAF-03-009", "CLP-07-013")
+    @pytest.mark.spec("CSAF-03-008", "CSAF-03-009", "CLP-07-013", "VM-10-005")
     def test_the_items_and_references_travel_inline(self):
         """The Create carries each item and reference the case lists by id
         in full, so the owner's replica can read them (CLP-07-013)."""
@@ -439,6 +439,9 @@ class TestEmitCreateVulnerabilityCaseNode:
             "CVE-2026-0001",
         )
         assert carried_ref["url"]["href"] == "https://example.org/a"
+        # Rendered inside the Create, under its one @context (VM-10-005).
+        assert "@context" not in carried_item
+        assert "@context" not in carried_ref
 
     @pytest.mark.parametrize(
         "field", ["vulnerability_items", "case_references"]
