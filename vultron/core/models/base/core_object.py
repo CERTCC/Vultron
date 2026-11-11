@@ -500,7 +500,7 @@ def _require_built_object(value: object) -> BaseModel:
 #: Only a built model passes; a raw mapping must validate as a ``CoreObject``.
 #: ``SerializeAsAny`` dumps it by its own class, not as a bare ``BaseModel``.
 UnmodelledObject: TypeAlias = Annotated[
-    BaseModel, PlainValidator(_require_built_object), SerializeAsAny()
+    SerializeAsAny[BaseModel], PlainValidator(_require_built_object)
 ]
 
 #: One value of an AS2 reference property as core holds it: an embedded
