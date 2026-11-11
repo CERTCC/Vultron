@@ -40,6 +40,7 @@ from test.demo._helpers import mock_case, story_state
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.coordinated_story import REPORTER
 from vultron.demo.helpers.csaf_report import (
+    CSAF_REPORT_CONTENT,
     CSAF_REPORT_SUMMARY,
     CSAF_REPORT_TITLE,
     VENDOR_DEFAULT_EMBARGO,
@@ -109,11 +110,13 @@ def _canonical_case(
     return case
 
 
-def _proposal(context: str = "urn:test:report") -> as_EmbargoEvent:
+def _proposal(
+    context: str = "urn:test:report", end_time: datetime = _DISCLOSURE
+) -> as_EmbargoEvent:
     return as_EmbargoEvent(
         id_="urn:test:csaf-proposal",
         context=context,
-        end_time=_DISCLOSURE,
+        end_time=end_time,
     )
 
 
@@ -187,6 +190,7 @@ class TestTheReporterSendsACsafReport:
         )
         document: dict[str, Any] = submit.call_args.kwargs["csaf_document"]
         assert document["document"]["title"] == CSAF_REPORT_TITLE
+        assert submit.call_args.kwargs["report_content"] == CSAF_REPORT_CONTENT
         assert state.kept(demo.THE_CSAF_DISCLOSURE_DATE) == _DISCLOSURE
         assert set(outcomes.values()) == {CheckOutcome.PASSED}
 
@@ -267,12 +271,14 @@ class TestTheReporterSendsACsafReport:
         submits.assert_called_once()
         kwargs = submits.call_args.kwargs
         assert kwargs["csaf_document"] is document
+        assert kwargs["report_content"] is None
         assert set(kwargs) == {
             "receiver_client",
             "reporter",
             "receiver",
             "reporter_client",
             "csaf_document",
+            "report_content",
         }
         assert state.offer is offer
 
@@ -323,7 +329,36 @@ def test_the_submission_states_a_name_only_when_it_has_one(
     kwargs = submit_report.call_args.kwargs
     assert kwargs["csaf_document"] is document
     assert kwargs["report_name"] == sent_name
+    assert kwargs["report_content"] == workflow_report._DEMO_REPORT_CONTENT
     assert kwargs["proposed_embargo_end_time"] is None
+
+
+def test_a_stated_report_content_is_sent_as_given() -> None:
+    """The CSAF opening sends its own content, not the family's."""
+    with (
+        patch.object(workflow_report, "_provision_case_actor"),
+        patch.object(
+            ActorSession, "submit_report", autospec=True
+        ) as submit_report,
+        patch.object(
+            workflow_report,
+            "parse_submit_report_offer",
+            return_value=(MagicMock(), MagicMock()),
+        ),
+        patch.object(workflow_report, "wait_for_report_submission_stored"),
+        patch.object(workflow_report, "verify_receiver_verified_sender_key"),
+    ):
+        workflow_report.reporter_submits_report(
+            receiver_client=MagicMock(),
+            reporter=MagicMock(),
+            receiver=MagicMock(),
+            reporter_client=MagicMock(),
+            report_content=CSAF_REPORT_CONTENT,
+        )
+
+    assert submit_report.call_args.kwargs["report_content"] == (
+        CSAF_REPORT_CONTENT
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -337,11 +372,16 @@ class TestTheCaseStartsFromTheCsafReport:
 
     @contextlib.contextmanager
     def _run(
-        self, *, case: MagicMock, proposal: object
+        self,
+        *,
+        case: MagicMock,
+        proposal: object,
+        report_name: str = CSAF_REPORT_TITLE,
     ) -> Iterator[tuple[dict[str, CheckOutcome], dict[str, Any]]]:
         state = _state()
         # story_state() opens the case on stand-in report and Offer mocks.
         cast(MagicMock, state.report).id_ = "urn:test:report"
+        cast(MagicMock, state.report).name = report_name
         cast(MagicMock, state.offer).proposed_embargo = proposal
         state.case_actor_client.actor_id = "urn:test:case-actor"
         with (
@@ -397,6 +437,30 @@ class TestTheCaseStartsFromTheCsafReport:
             outcomes,
             mocks,
         ):
+            pass
+
+        assert _labelled(outcomes, "M3: the Offer") is CheckOutcome.FAILED
+        mocks["won"].assert_not_called()
+
+    def test_a_report_not_named_from_the_title_fails_its_check(self) -> None:
+        with self._run(
+            case=_canonical_case(),
+            proposal=_proposal(),
+            report_name="Remote Code Execution in Network Stack",
+        ) as (outcomes, _):
+            pass
+
+        assert (
+            _labelled(outcomes, "The Offer's report is named")
+            is CheckOutcome.FAILED
+        )
+
+    def test_an_offer_ending_elsewhere_fails_m3(self) -> None:
+        """The Offer gate compares the proposed end with the CSAF date."""
+        later = _DISCLOSURE + VENDOR_DEFAULT_EMBARGO
+        with self._run(
+            case=_canonical_case(), proposal=_proposal(end_time=later)
+        ) as (outcomes, mocks):
             pass
 
         assert _labelled(outcomes, "M3: the Offer") is CheckOutcome.FAILED

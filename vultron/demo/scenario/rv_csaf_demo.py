@@ -44,6 +44,7 @@ Spec: DEMOMA-28.
 
 import logging
 from datetime import datetime, timedelta
+from typing import cast
 
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
@@ -54,6 +55,7 @@ from vultron.demo.helpers.actor_roles import (
 from vultron.demo.helpers.cast import REPORTER_SLOT, VENDOR_SLOT
 from vultron.demo.helpers.coordinated_story import REPORTER, REPORTER_LABEL
 from vultron.demo.helpers.csaf_report import (
+    CSAF_REPORT_CONTENT,
     CSAF_REPORT_SUMMARY,
     CSAF_REPORT_TITLE,
     VENDOR_DEFAULT_EMBARGO,
@@ -191,7 +193,9 @@ def the_reporter_sends_a_csaf_report(state: StoryState) -> None:
             written = from_now(timedelta())
             state.keep(THE_CSAF_DISCLOSURE_DATE, csaf_disclosure_date(written))
             reporter_tells_the_vendor(
-                state, csaf_document=csaf_vulnerability_report(written)
+                state,
+                csaf_document=csaf_vulnerability_report(written),
+                report_content=CSAF_REPORT_CONTENT,
             )
 
 
@@ -199,10 +203,12 @@ def the_case_starts_from_the_csaf_report(state: StoryState) -> None:
     """The case takes its name, summary and embargo end from the CSAF report.
 
     Milestones M1 to M3 of the scenario's spec group.  M1 reads the Vendor's
-    replica, as ``rv``'s does; M2 and M3 read the canonical case in the
-    dedicated case-actor container, which is where the CASE_MANAGER filled
-    it (CSAF-02-002, DEMOMA-06-004).  The canonical read is a ``demo_gate``,
-    because both milestones compare that case's fields.
+    replica, as ``rv``'s does.  The report the Offer carries is checked next,
+    for the name the trigger gave it from the document (CSAF-04-010).  M2 and
+    M3 read the canonical case in the dedicated case-actor container, which
+    is where the CASE_MANAGER filled it (CSAF-02-002, DEMOMA-06-004).  The
+    canonical read is a ``demo_gate``, because both milestones compare that
+    case's fields.
     """
     disclosure = state.kept(THE_CSAF_DISCLOSURE_DATE)
     required_participants_are_present(
@@ -212,6 +218,15 @@ def the_case_starts_from_the_csaf_report(state: StoryState) -> None:
             " embargo active, reporter has case replica"
         ),
     )
+    with demo_check(
+        "The Offer's report is named from the CSAF document.title"
+        " (CSAF-04-010)"
+    ):
+        if state.report.name != CSAF_REPORT_TITLE:
+            raise AssertionError(
+                f"report name {state.report.name!r}, expected the CSAF title"
+                f" {CSAF_REPORT_TITLE!r}"
+            )
     with demo_gate(
         "Dedicated case-actor container holds the case created from the"
         " CSAF report"
@@ -252,16 +267,16 @@ def _the_embargo_ends_at_the_disclosure_date(
         " (CSAF-04-010)"
     ):
         proposal = offered_terms(state.offer, state.report.id_)
-        case_actor_client = state.case_actor_client
-        case_actor_id = case_actor_client.actor_id
-        if case_actor_id is None:
+        if proposal.end_time != disclosure:
             raise AssertionError(
-                "the case-actor client is bound to no actor, so the"
-                " CaseActor's store cannot be read (ADR-0073)"
+                f"the Offer proposes an embargo ending {proposal.end_time},"
+                f" expected the CSAF disclosure date {disclosure}"
             )
+        case_actor_client = state.case_actor_client
         verify_reporter_terms_won(
             case_actor_client,
-            case_actor_id,
+            # Bound: verify_case_actor_holds_records refused an unbound client.
+            cast(str, case_actor_client.actor_id),
             case,
             proposal.id_,
             disclosure,

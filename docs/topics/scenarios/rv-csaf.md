@@ -78,6 +78,7 @@ The policy is not a case-ledger entry, because the case does not exist yet.
 The Reporter writes a CSAF 2.1 document of category `csaf_vulnerability_report`.
 The document has a title, a summary note, and one vulnerability whose disclosure date is 10 days away.
 The Reporter calls its submit-report trigger with the document attached and with no report name, summary or embargo end.
+The report's content says that the CSAF document is attached, because a CSAF document does not fill a report's content.
 The trigger checks the document against the CSAF 2.1 schema and refuses a document that is not schema-valid.
 The trigger then fills the report's name and summary from the document, and proposes an embargo that ends at the document's disclosure date.
 The Vendor receives an Offer that carries the report, the document and the proposed embargo.
@@ -98,7 +99,8 @@ The Case Actor relays the revision to the Reporter, whose terms won, and the Rep
 
 ### 4. The scenario checks the case against the document
 
-The scenario reads the canonical case on the Case Actor's container.
+The scenario first checks that the report on the Offer is named with the document's title, and that the Offer proposes an embargo that ends at the document's disclosure date.
+It then reads the canonical case on the Case Actor's container.
 It checks that the case's name is the document's title and its summary is the document's summary note.
 It checks that the active embargo ends at the document's disclosure date, and that the pending revision runs the Vendor's 30-day default.
 

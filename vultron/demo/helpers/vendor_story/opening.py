@@ -107,6 +107,7 @@ def reporter_tells_the_vendor(
     state: StoryState,
     *,
     csaf_document: dict[str, JsonValue] | None = None,
+    report_content: str | None = None,
 ) -> None:
     """Run the opening's acts, attaching *csaf_document* to the report if given.
 
@@ -121,6 +122,8 @@ def reporter_tells_the_vendor(
         state: The running story's state.
         csaf_document: The CSAF vulnerability report the Reporter attaches,
             as a JSON object; ``None`` submits the family's plain report.
+        report_content: The report's ``content``, which a CSAF document does
+            not fill; ``None`` submits the family's report content.
     """
     reporter = state.actor(REPORTER).actor
     vendor = state.actor(VENDOR).actor
@@ -131,6 +134,7 @@ def reporter_tells_the_vendor(
         receiver=vendor,
         reporter_client=state.client(REPORTER),
         csaf_document=csaf_document,
+        report_content=report_content,
     )
     case = run_direct_path_rm_triage(
         receiver_client=owner_client,

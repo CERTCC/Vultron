@@ -96,7 +96,7 @@ def reporter_submits_report(
     reporter_client: DataLayerClient,
     proposed_embargo_end_time: datetime | None = None,
     report_name: str | None = None,
-    report_content: str = _DEMO_REPORT_CONTENT,
+    report_content: str | None = None,
     *,
     csaf_document: dict[str, JsonValue] | None = None,
 ) -> tuple[as_VulnerabilityReport, as_Offer]:
@@ -155,7 +155,8 @@ def reporter_submits_report(
         report_name: ``name`` of the submitted report.  ``None`` submits the
             family's report name, or, with *csaf_document*, states none, so
             the trigger names the report from the document (CSAF-04-010).
-        report_content: ``content`` of the submitted report.
+        report_content: ``content`` of the submitted report.  ``None``
+            submits the family's report content.
         csaf_document: A CSAF 2.1 vulnerability report to attach, as a JSON
             object; the trigger checks it against the schema and fills the
             report's name, summary and proposed embargo end from it where the
@@ -179,7 +180,11 @@ def reporter_submits_report(
                 if report_name is None and csaf_document is None
                 else report_name
             ),
-            report_content=report_content,
+            report_content=(
+                _DEMO_REPORT_CONTENT
+                if report_content is None
+                else report_content
+            ),
             recipient_id=receiver.id_,
             proposed_embargo_end_time=proposed_embargo_end_time,
             csaf_document=csaf_document,
