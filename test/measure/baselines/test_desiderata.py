@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 import vultron.measure.baselines as baselines_package
+import vultron.measure.baselines.desiderata as desiderata_module
 from vultron.measure.baselines import (
     EXTENDED,
     NEAR_EQUAL_RATIO,
@@ -154,10 +155,48 @@ def test_only_the_equivalent_pairs_count_twice():
     assert max(strict) < NEAR_EQUAL_RATIO
 
 
-def test_the_share_is_the_ratio_of_the_printed_frequencies():
+def test_a_stronger_frequency_never_exceeds_the_weaker():
     for item in implications():
         assert item.stronger_frequency <= item.weaker_frequency
-        assert item.share == item.stronger_frequency / item.weaker_frequency
+
+
+def _implication(stronger: str, weaker: str):
+    (item,) = [
+        i
+        for i in implications()
+        if (i.stronger.notation, i.weaker.notation) == (stronger, weaker)
+    ]
+    return item
+
+
+def test_the_frequencies_are_taken_in_the_scope_of_both():
+    # Va_i ≺ P is scoped to vendors whose report reaches Valid, so F_i ≺ P is
+    # taken there too, and falls below its own baseline of 1/24.
+    item = _implication(r"$\evF_i \prec \evP$", r"$\evVa_i \prec \evP$")
+    assert baseline(item.stronger) == Fraction(1, 24)
+    assert (item.stronger_frequency, item.weaker_frequency) == (
+        Fraction(1, 36),
+        Fraction(1, 6),
+    )
+    assert item.share == Fraction(1, 6)
+
+
+def test_the_frequencies_are_taken_in_the_one_vendor_model():
+    # F ≺ X is an original desideratum (1/3 in the six-event model); in the
+    # one-vendor model its frequency is 5/27.
+    item = _implication(r"$\evF_i \prec \evP$", r"$\evF \prec \evX$")
+    assert baseline(item.weaker) == Fraction(1, 3)
+    assert item.weaker_frequency == Fraction(5, 27)
+    assert item.share == Fraction(1, 24) / Fraction(5, 27)
+
+
+def test_a_pair_whose_weaker_never_holds_in_scope_is_left_out(monkeypatch):
+    # No share is defined when the weaker never holds; such a pair is skipped
+    # rather than divided by zero.
+    monkeypatch.setattr(
+        desiderata_module, "_frequency", lambda *_: Fraction(0)
+    )
+    assert desiderata_module.implications.__wrapped__() == ()
 
 
 def test_an_equivalent_pair_is_listed_once():

@@ -340,8 +340,9 @@ def implications() -> tuple[Implication, ...]:
     the weaker side is any other desideratum expressible there, the twelve
     original ones restated for the one vendor included.  A pair is left out
     when the weaker always holds within the pair's scope, because it then
-    implies nothing about skill, and an equivalent pair is listed once.  The
-    two-vendor desideratum has no partner in its model.
+    implies nothing about skill, or never holds there, because then neither
+    does the stronger and no share is defined.  An equivalent pair is listed
+    once.  The two-vendor desideratum has no partner in its model.
     """
     candidates = _candidates()
     order = {d: i for i, (d, _) in enumerate(candidates)}
@@ -365,7 +366,7 @@ def implications() -> tuple[Implication, ...]:
             weak_f = _frequency(
                 ModelName.ONE_VENDOR, _scoped(weak_query, given)
             )
-            if weak_f == 1:
+            if weak_f in (0, 1):
                 continue
             strong_f = _frequency(
                 ModelName.ONE_VENDOR, _scoped(strong_query, given)

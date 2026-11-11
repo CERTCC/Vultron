@@ -71,8 +71,7 @@ class ChanceModel[S: Hashable, E: Hashable](Protocol):
 
         An empty tuple marks *state* as one in which the walk ends.  The walk
         asks once per augmented state, so a model whose steps are costly to
-        work out memoizes them, as :class:`~vultron.measure.baselines.joint\
-.JointModel` does.
+        work out memoizes them, as :class:`.JointModel` does.
         """
         ...
 

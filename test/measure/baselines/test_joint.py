@@ -110,10 +110,14 @@ def test_a_threat_signal_cancels_a_pending_proposal(signal):
 
 def test_no_embargo_starts_after_public_awareness():
     pending = _state(RM.RECEIVED, CS_vf.Vf, pxa=CS_pxa.Pxa, em=EM.PROPOSED)
-    with pytest.raises(VultronInvalidStateTransitionError):
+    with pytest.raises(
+        VultronInvalidStateTransitionError, match="not allowed"
+    ):
         ONE_VENDOR_MODEL.apply(pending, Event(K.EMBARGO_START))
     none = pending._replace(em=EM.NONE)
-    with pytest.raises(VultronInvalidStateTransitionError):
+    with pytest.raises(
+        VultronInvalidStateTransitionError, match="not allowed"
+    ):
         ONE_VENDOR_MODEL.apply(none, Event(K.EMBARGO_PROPOSED))
     # A proposal the model is handed in this state can still be rejected.
     assert (
