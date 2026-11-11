@@ -29,6 +29,7 @@ from vultron.measure.baselines import (
     baseline,
     frequency,
     implications,
+    implies,
 )
 from vultron.measure.baselines.desiderata import _candidates
 from vultron.measure.baselines.render import (
@@ -82,7 +83,8 @@ def test_no_baseline_comes_from_sampling():
             elif isinstance(node, ast.ImportFrom):
                 names = [node.module or ""]
             assert not any(
-                n == "random" or n.endswith(".random") or n == "numpy"
+                n.split(".")[0] in {"random", "numpy", "scipy"}
+                or n.endswith(".random")
                 for n in names
             ), f"{path.name} imports {names}"
 
@@ -108,6 +110,7 @@ def test_the_pages_implications_are_found(stronger, weaker):
 
 def test_each_listed_implication_holds_by_its_frequencies():
     queries = dict((d.notation, q) for d, q in _candidates())
+    assert implications()
     for item in implications():
         strong = queries[item.stronger.notation]
         weak = queries[item.weaker.notation]
@@ -142,10 +145,35 @@ def test_the_threat_signals_make_three_embargo_desiderata_one(signal):
         ) in flagged
 
 
-def test_a_flag_marks_a_share_at_or_above_the_threshold():
+def test_only_the_equivalent_pairs_count_twice():
+    flagged = [i for i in implications() if i.counts_twice]
+    assert flagged
+    assert all(i.equivalent and i.share == 1 for i in flagged)
+    # The largest share of a strict implication is well under the threshold.
+    strict = [i.share for i in implications() if not i.equivalent]
+    assert max(strict) < NEAR_EQUAL_RATIO
+
+
+def test_the_share_is_the_ratio_of_the_printed_frequencies():
     for item in implications():
-        assert item.counts_twice == (item.share >= NEAR_EQUAL_RATIO)
-        assert 0 < item.share <= 1
+        assert item.stronger_frequency <= item.weaker_frequency
+        assert item.share == item.stronger_frequency / item.weaker_frequency
+
+
+def test_an_equivalent_pair_is_listed_once():
+    pairs = _pairs()
+    assert (r"$\evE \prec \evP$", r"$\evE \prec \evX$") in pairs
+    assert (r"$\evE \prec \evX$", r"$\evE \prec \evP$") not in pairs
+
+
+def test_a_pair_whose_weaker_always_holds_in_scope_is_left_out():
+    # Among cases whose embargo ends on its own terms an embargo always
+    # started, so F_i ≺ ExOwn implying E ≺ P says nothing about skill.
+    queries = dict((d.notation, q) for d, q in _candidates())
+    strong = queries[r"$\evF_i \prec \evExOwn$"]
+    weak = queries[r"$\evE \prec \evP$"]
+    assert implies(ONE_VENDOR_MODEL, strong, weak)
+    assert (r"$\evF_i \prec \evExOwn$", r"$\evE \prec \evP$") not in _pairs()
 
 
 def test_the_tables_print_every_desideratum():

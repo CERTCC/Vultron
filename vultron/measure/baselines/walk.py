@@ -69,7 +69,10 @@ class ChanceModel[S: Hashable, E: Hashable](Protocol):
     def steps(self, state: S) -> tuple[Step[S, E], ...]:
         """The steps allowed from *state*, each to a distinct state.
 
-        An empty tuple marks *state* as one in which the walk ends.
+        An empty tuple marks *state* as one in which the walk ends.  The walk
+        asks once per augmented state, so a model whose steps are costly to
+        work out memoizes them, as :class:`~vultron.measure.baselines.joint\
+.JointModel` does.
         """
         ...
 
@@ -114,21 +117,6 @@ class _Node[S: Hashable, E: Hashable](NamedTuple):
     state: S
     seen: frozenset[E]
     met: frozenset[int]
-
-
-class _StepCache[S: Hashable, E: Hashable]:
-    """Memoizes :meth:`ChanceModel.steps`, which the augmented walk asks many times per state."""
-
-    def __init__(self, model: ChanceModel[S, E]) -> None:
-        self._model = model
-        self._steps: dict[S, tuple[Step[S, E], ...]] = {}
-
-    def __call__(self, state: S) -> tuple[Step[S, E], ...]:
-        found = self._steps.get(state)
-        if found is None:
-            found = self._model.steps(state)
-            self._steps[state] = found
-        return found
 
 
 def _advance[E: Hashable](
@@ -233,7 +221,7 @@ class _AugmentedWalk[S: Hashable, E: Hashable]:
     """The model's states, each paired with what *query* must remember of the walk so far."""
 
     def __init__(self, model: ChanceModel[S, E], query: OrderingQuery[E]):
-        self._steps = _StepCache(model)
+        self._model = model
         self._query = query
         self._successors: dict[_Node[S, E], list[_Node[S, E]]] = {}
         self.start: _Node[S, E] = _Node(
@@ -245,7 +233,7 @@ class _AugmentedWalk[S: Hashable, E: Hashable]:
         if known is not None:
             return known
         found: list[_Node[S, E]] = []
-        for step in self._steps(node.state):
+        for step in self._model.steps(node.state):
             seen, met = _advance(self._query, node.seen, node.met, step.events)
             found.append(_Node(step.state, seen, met))
         self._successors[node] = found

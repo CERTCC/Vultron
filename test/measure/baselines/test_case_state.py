@@ -35,7 +35,9 @@ from vultron.measure.baselines import (
     history_probability,
     ordering,
     prefix_probability,
+    step_probability,
 )
+from vultron.measure.baselines.case_state import START
 
 # docs/includes/tab_exp_freq.md, upper right: the published f_d to 3 places.
 PUBLISHED = {
@@ -113,6 +115,7 @@ def test_completion_probabilities_are_conditional_on_the_prefix():
 def test_an_ephemeral_prefix_has_one_forced_next_event():
     # X forces P next, and P with the vendor unaware forces V next.
     completions = completion_probabilities("X")
+    assert completions
     assert all(h[:3] == ("X", "P", "V") for h in completions)
 
 
@@ -146,3 +149,12 @@ def test_an_incomplete_history_has_no_history_probability():
         (VultronValidationError, VultronInvalidStateTransitionError)
     ):
         history_probability("VF")
+
+
+def test_a_step_probability_is_one_over_the_events_allowed():
+    assert step_probability(START, "V") == Fraction(1, 4)
+
+
+def test_a_step_the_state_does_not_allow_has_no_probability():
+    with pytest.raises(VultronInvalidStateTransitionError):
+        step_probability(START, "F")

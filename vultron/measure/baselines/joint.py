@@ -287,14 +287,17 @@ class JointModel:
 
         Raises:
             VultronInvalidStateTransitionError: the rules allow no step
-                *event* from *state*.
+                *event* from *state*, or more than one (accepting one of
+                several pending proposals starts the embargo as ``ACTIVE``
+                or as ``REVISE``).
         """
-        for step in self.steps(state):
-            if step.event == event:
-                return step.state
-        raise VultronInvalidStateTransitionError(
-            f"joint model: {event} is not allowed from {state}"
-        )
+        matches = [s.state for s in self.steps(state) if s.event == event]
+        if len(matches) != 1:
+            reason = "is not allowed" if not matches else "is ambiguous"
+            raise VultronInvalidStateTransitionError(
+                f"joint model: {event} {reason} from {state}"
+            )
+        return matches[0]
 
     def _required(self, state: JointState) -> frozenset[Event]:
         """The events an ephemeral vendor projection requires next."""

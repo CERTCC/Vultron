@@ -89,14 +89,14 @@ def original_baseline_table() -> str:
 
 
 def implication_table() -> str:
-    """Every implication pair, with both baselines and the near-equal flag."""
+    """Every implication pair, with both frequencies in one scope and the near-equal flag."""
     flag = f"{float(NEAR_EQUAL_RATIO):.0%}"
     return _table(
         (
             "Stronger",
             "Weaker",
-            "$f_d$ stronger",
-            "$f_d$ weaker",
+            "$f$ stronger",
+            "$f$ weaker",
             "Share",
             f"Counts twice (share ≥ {flag})",
         ),
@@ -104,8 +104,8 @@ def implication_table() -> str:
             (
                 i.stronger.notation,
                 i.weaker.notation + (" (equivalent)" if i.equivalent else ""),
-                _decimal(baseline(i.stronger)),
-                _decimal(baseline(i.weaker)),
+                _decimal(i.stronger_frequency),
+                _decimal(i.weaker_frequency),
                 _decimal(i.share),
                 "**yes**" if i.counts_twice else "no",
             )

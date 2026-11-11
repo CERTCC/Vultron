@@ -356,7 +356,8 @@ The walk obeys every rule that the protocol enforces:
 - The RM, CS, and EM transition tables.
 - Vendor awareness and report receipt are one event ([Vendor Notification](../process_models/model_interactions/rm_em_cs.md#vendor-notification)).
 - A fix is ready only after the vendor's report is Accepted, Deferred, or Closed (CSB-18-001).
-- No embargo is active beside public awareness, a public exploit, or observed attacks (CSB-18-002, CSB-18-003, CSB-18-004). Thus each of these events ends an active embargo in the same step, as $\evExThreat$.
+- No embargo is active beside public awareness, a public exploit, or observed attacks (CSB-18-002, CSB-18-003, CSB-18-004).
+  Thus each of these events ends an active embargo in the same step, as $\evExThreat$.
 - Each of these events also cancels a pending embargo proposal (EMB-16-001), and after any of them no new embargo is proposed.
 
 An embargo that ends without a threat signal ends either on its own terms or otherwise, with the same probability.
@@ -411,8 +412,10 @@ The table below lists each pair in which an extended desideratum implies another
 The walk finds each pair by a search of the model, not by an argument.
 The table leaves out a pair in which the weaker desideratum always holds within the scope of the pair.
 
-The column "Share" gives the chance that a history that meets the weaker desideratum also meets the stronger desideratum, within the scope of both.
-When the two desiderata have the same scope, the share is the ratio of their baselines.
+The table gives the frequency of each desideratum of the pair in the one-vendor model, among histories in the scope of both desiderata.
+Thus these frequencies can differ from the baselines in the table above, when the two desiderata have different scopes or one of them is an original desideratum.
+The column "Share" is the ratio of the two frequencies.
+It gives the chance that a history that meets the weaker desideratum also meets the stronger desideratum.
 The table flags a pair whose share is 90% or more as counting the same skill twice.
 
 ```python exec="true" idprefix=""

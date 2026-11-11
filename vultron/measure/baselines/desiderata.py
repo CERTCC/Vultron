@@ -291,16 +291,22 @@ def _in_one_vendor_model(desideratum: Desideratum) -> Query | None:
 class Implication(NamedTuple):
     """*stronger* implies *weaker*: every history meeting the one meets the other.
 
-    ``share`` is the chance that a history meeting the weaker also meets the
-    stronger, taken in the one-vendor model among walks in which every
-    scoping event of either desideratum occurs.  When the two have the same
-    scope and model it is the ratio of their baselines.
+    Both frequencies are taken in the one-vendor model among walks in which
+    every scoping event of either desideratum occurs, so they compare: their
+    ratio, :attr:`share`, is the chance that a history meeting the weaker also
+    meets the stronger.  They differ from the desiderata's own baselines when
+    the scopes or the models differ.
     """
 
     stronger: Desideratum
     weaker: Desideratum
-    share: Fraction
+    stronger_frequency: Fraction
+    weaker_frequency: Fraction
     equivalent: bool
+
+    @property
+    def share(self) -> Fraction:
+        return self.stronger_frequency / self.weaker_frequency
 
     @property
     def counts_twice(self) -> bool:
@@ -365,6 +371,6 @@ def implications() -> tuple[Implication, ...]:
                 ModelName.ONE_VENDOR, _scoped(strong_query, given)
             )
             found.append(
-                Implication(strong, weak, strong_f / weak_f, equivalent)
+                Implication(strong, weak, strong_f, weak_f, equivalent)
             )
     return tuple(found)

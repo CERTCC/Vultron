@@ -100,9 +100,12 @@ def test_a_threat_signal_ends_an_active_embargo_in_the_same_step(signal):
 @pytest.mark.parametrize("signal", [K.P, K.A])
 def test_a_threat_signal_cancels_a_pending_proposal(signal):
     pending = _state(RM.RECEIVED, CS_vf.Vf, em=EM.PROPOSED)
-    after = ONE_VENDOR_MODEL.apply(pending, Event(signal))
-    assert after.em is EM.NONE
-    assert after.embargo_end is None
+    (step,) = [
+        s for s in ONE_VENDOR_MODEL.steps(pending) if s.event == Event(signal)
+    ]
+    assert step.state.em is EM.NONE
+    assert step.state.embargo_end is None
+    assert Event(K.EMBARGO_CANCELLED) in step.events
 
 
 def test_no_embargo_starts_after_public_awareness():
@@ -215,3 +218,31 @@ def test_two_steps_to_one_state_as_different_events_are_refused():
     model = _ConflictingModel(1)
     with pytest.raises(VultronInvalidStateTransitionError, match="different"):
         model.steps(model.initial)
+
+
+@pytest.mark.parametrize(
+    ("em", "event", "after"),
+    [
+        (EM.NONE, K.EMBARGO_PROPOSED, EM.PROPOSED),
+        (EM.PROPOSED, K.EMBARGO_REJECTED, EM.NONE),
+        (EM.ACTIVE, K.REVISION_PROPOSED, EM.REVISE),
+        (EM.REVISE, K.REVISION_SETTLED, EM.ACTIVE),
+    ],
+)
+def test_each_embargo_move_is_its_named_event(em, event, after):
+    before = _state(RM.RECEIVED, CS_vf.Vf, em=em)
+    assert ONE_VENDOR_MODEL.apply(before, Event(event)).em is after
+
+
+def test_accepting_one_of_several_proposals_starts_the_embargo():
+    # EM_TRANSITIONS lets ACCEPT move PROPOSED to REVISE: one proposal is
+    # accepted while another stays pending, so the embargo starts.
+    before = _state(RM.RECEIVED, CS_vf.Vf, em=EM.PROPOSED)
+    starts = {
+        s.state.em
+        for s in ONE_VENDOR_MODEL.steps(before)
+        if s.event == Event(K.EMBARGO_START)
+    }
+    assert starts == {EM.ACTIVE, EM.REVISE}
+    with pytest.raises(VultronInvalidStateTransitionError, match="ambiguous"):
+        ONE_VENDOR_MODEL.apply(before, Event(K.EMBARGO_START))

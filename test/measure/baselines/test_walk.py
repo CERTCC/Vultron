@@ -127,3 +127,11 @@ def test_a_conjunction_needs_every_ordering():
 def test_implies_finds_a_counterexample_or_none():
     assert implies(_LOOP, ordering("y", "x"), ordering("go", "x"))
     assert not implies(_LOOP, ordering("go", "x"), ordering("y", "x"))
+
+
+def test_a_state_that_steps_to_itself_is_a_cycle():
+    # From s, stay (back to s) or leave by x, each 1/2: "stay" happens on
+    # every walk that stays at least once.
+    model = _Graph("s", {"s": (("stay", "s", _NONE), ("x", "end", _NONE))})
+    assert frequency(model, ordering("stay", "x")) == Fraction(1, 2)
+    assert frequency(model, ordering("x", "stay")) == Fraction(1, 2)
