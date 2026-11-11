@@ -58,22 +58,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import py_trees
-
 from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.nodes import (
     AlwaysSucceed,
     RequireCaseOwnerApprovalNode,
 )
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    return AlwaysSucceed(name)
-
-
-def _require_case_owner_approval(name: str) -> py_trees.behaviour.Behaviour:
-    return RequireCaseOwnerApprovalNode(name)
 
 
 @dataclass(frozen=True)
@@ -96,7 +86,7 @@ class StatusAuthorizationCallOutBundle(CallOutBundle):
     """
 
     status_adoption_gate_factory: CallOutBackendFactory = field(
-        default=_require_case_owner_approval  # type: ignore[assignment]
+        default=RequireCaseOwnerApprovalNode  # type: ignore[assignment]
     )
 
 
@@ -105,7 +95,7 @@ STATUS_AUTHORIZATION_DETERMINISTIC = StatusAuthorizationCallOutBundle()
 RequireCaseOwnerApprovalNode (ADR-0076, RSH-07-001)."""
 
 STATUS_AUTHORIZATION_PERMISSIVE = StatusAuthorizationCallOutBundle(
-    status_adoption_gate_factory=_always_succeed,  # type: ignore[arg-type]
+    status_adoption_gate_factory=AlwaysSucceed,  # type: ignore[arg-type]
 )
 """Permissive bundle: the adoption gate uses AlwaysSucceed.
 

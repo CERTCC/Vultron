@@ -49,12 +49,12 @@ def _get_id(field: object) -> str | None:
 
 
 def _get_id_list(field: object) -> list[str] | None:
-    """Convert an AS2 addressing field (Any | None) to a list of ID strings."""
+    """Convert an AS2 addressing field (one value or many) to a list of IDs."""
     if field is None:
         return None
     if isinstance(field, str):
         return [field] if field else None
-    if isinstance(field, list):
+    if isinstance(field, (list, tuple)):
         ids = [_get_id(x) for x in field]
         result = [r for r in ids if r]
         return result or None

@@ -336,7 +336,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | Spec file | Citing requirements |
 |---|---|
 | CM — Case Management | [CM-02-001](../vultron-spec/requirements/case-management.md#cm-02-001) |
-| OID — Object ID | [OID-01-001](../vultron-spec/requirements/foundation.md#oid-01-001), [OID-01-002](../vultron-spec/requirements/foundation.md#oid-01-002), [OID-01-003](../specs/project.md#oid-01-003) |
+| OID — Object ID | [OID-01-001](../vultron-spec/requirements/foundation.md#oid-01-001), [OID-01-002](../vultron-spec/requirements/foundation.md#oid-01-002), [OID-01-003](../specs/project.md#oid-01-003), [OID-01-013](../vultron-spec/requirements/messages.md#oid-01-013), [OID-01-014](../vultron-spec/requirements/messages.md#oid-01-014) |
 
 ## [story_2022_030](story_2022_030.md)
 
@@ -390,7 +390,7 @@ Each requirement links the row that defines its anchor: the Requirements Catalog
 | CM — Case Management | [CM-24-002](../vultron-spec/requirements/case-management.md#cm-24-002) |
 | EP — Embargo Policy | [EP-01-005](../vultron-spec/requirements/state-behavior.md#ep-01-005) |
 | MV — Message Validation | [MV-05-001](../vultron-spec/requirements/foundation.md#mv-05-001) |
-| OID — Object ID | [OID-01-001](../vultron-spec/requirements/foundation.md#oid-01-001), [OID-01-005](../specs/project.md#oid-01-005), [OID-01-010](../vultron-spec/requirements/messages.md#oid-01-010) |
+| OID — Object ID | [OID-01-001](../vultron-spec/requirements/foundation.md#oid-01-001), [OID-01-005](../specs/project.md#oid-01-005), [OID-01-010](../vultron-spec/requirements/messages.md#oid-01-010), [OID-01-013](../vultron-spec/requirements/messages.md#oid-01-013), [OID-01-014](../vultron-spec/requirements/messages.md#oid-01-014) |
 | VP — Vultron Protocol | [VP-15-002](../specs/architecture.md#vp-15-002), [VP-15-003](../specs/architecture.md#vp-15-003) |
 
 ## [story_2022_035](story_2022_035.md)

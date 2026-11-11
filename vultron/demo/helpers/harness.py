@@ -447,7 +447,7 @@ def _run_dump(harness: ScenarioHarness) -> None:
 @contextmanager
 def scenario_harness(
     demo_name: str,
-) -> Generator[ScenarioHarness, None, None]:
+) -> Generator[ScenarioHarness]:
     """Run a scenario body with an always-executed case-ledger dump.
 
     Args:

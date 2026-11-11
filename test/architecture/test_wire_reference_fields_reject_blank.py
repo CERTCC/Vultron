@@ -26,7 +26,14 @@ in every shape the field can carry a string (bare, ``[blank]`` for lists).  It
 must refuse both.  That is what closes the gap #3855 found — inbound, a blank
 reference validated and reached the core — and it holds regardless of whether
 the field spells its IRI branch through the shared alias or by hand.
+
+A field typed ``Any`` has no leaf the derivation can see, so it would drop out
+of the ratchet rather than fail it: that is how sixteen AS2 properties on
+``as_Object`` kept accepting a blank after #3876 (#3894).  The object roots
+are therefore held to having no ``Any`` field at all.
 """
+
+from typing import Any
 
 import pytest
 from pydantic import BaseModel
@@ -36,12 +43,16 @@ import vultron.wire.as2.vocab.objects  # noqa: F401
 from test.support.blank_strings import (
     declared_type,
     leaf_types,
+    owner_of,
     rejects_blank,
 )
 from vultron.core.models._helpers import strip_annotated
+from vultron.core.models.actor import CoreActor
+from vultron.core.models.base import CoreObject
 from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 
@@ -149,6 +160,54 @@ def test_the_derived_reference_set_covers_the_activity_slots() -> None:
     # case Invite's ``target`` is no longer a union: it requires the stub
     # (#4045, SE-08-002), so it has no IRI branch to examine.
     assert "context" in examined["_OfferCaseParticipantRoleActivity"]
+    # The AS2 reference properties #3894 retyped from ``Any``: every one is
+    # now a reference slot the ratchet examines.
+    assert {
+        "replies",
+        "url",
+        "generator",
+        "context",
+        "tag",
+        "in_reply_to",
+        "icon",
+        "image",
+        "attachment",
+        "location",
+        "to",
+        "cc",
+        "bto",
+        "bcc",
+        "audience",
+        "attributed_to",
+    } <= set(examined["as_Object"])
+
+
+@pytest.mark.spec("CS-08-001")
+@pytest.mark.spec("ARCH-23-004")
+@pytest.mark.parametrize(
+    "root",
+    [as_Object, CoreObject, as_Actor, CoreActor],
+    ids=lambda c: c.__name__,
+)
+def test_no_object_root_field_is_typed_any(root: type[BaseModel]) -> None:
+    """A field the root declares has no ``Any`` leaf, which the ratchets miss.
+
+    ``Any`` admits a blank string yet shows the derivation no string branch, so
+    an ``Any`` slot is never examined.  The object roots declare every AS2
+    property every object inherits, and the actor roots every actor property
+    (``endpoints`` was ``Any`` too), so a new property spelled ``Any`` here
+    would reopen #3894 for all of them.
+    """
+    offenders = [
+        name
+        for name, field in root.model_fields.items()
+        if owner_of(root, name) is root
+        and Any in list(leaf_types(declared_type(field)))
+    ]
+    assert not offenders, (
+        f"{root.__name__} declares these fields as Any, so no blank-reference "
+        f"ratchet examines them (CS-08-001, #3894): {offenders}"
+    )
 
 
 def test_ratchet_flags_a_bare_str_reference_branch() -> None:

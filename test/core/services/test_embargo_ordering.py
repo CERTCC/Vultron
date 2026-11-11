@@ -38,7 +38,7 @@ _START = FAR_FUTURE  # far-future; tests compare relative ordering, not absolute
 
 
 @pytest.fixture()
-def dl() -> Generator[SqliteDataLayer, None, None]:
+def dl() -> Generator[SqliteDataLayer]:
     reset_datalayer(_ACTOR)
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR)
     store.clear_all()

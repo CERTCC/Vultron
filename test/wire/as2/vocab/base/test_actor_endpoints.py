@@ -47,6 +47,7 @@ from vultron.core.models.actor import (
     hosted_endpoints,
 )
 from vultron.demo.determinism import SteppingClock
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,
@@ -236,32 +237,31 @@ def test_padded_endpoint_uri_is_stripped(field_name):
     )
 
 
+@pytest.mark.spec("OID-01-013")
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-def test_inline_idless_collection_through_the_parser_names_no_address(
+def test_inline_idless_collection_through_the_parser_is_refused(
     field_name,
 ):
-    """An inline actor whose endpoint collection has no ``id`` has no endpoint.
+    """An inline actor whose endpoint collection has no ``id`` is refused.
 
-    The parser expands the inline dict into an ``as_OrderedCollection``
-    before the actor validates it, and that collection's default id is a
-    fresh ``urn:uuid:``; reading it would publish an address nobody routes
-    to, and deriving one from the actor's id would invent it (AKM-02-006).
+    The collection is an Object, so a received one must carry its id
+    (OID-01-013).  Minting one would publish an address nobody routes to, and
+    deriving one from the actor's id would invent it (AKM-02-006).
     """
-    activity = parse_activity(
-        {
-            "type": "Announce",
-            "id": "https://example.org/activities/1",
-            "published": "2026-01-01T00:00:00Z",
-            "actor": {
-                "type": "Person",
-                "id": ACTOR_ID,
-                field_name: {"type": "OrderedCollection"},
-            },
-            "object": "https://example.org/objects/1",
-        }
-    )
-
-    assert getattr(activity.actor, field_name) is None
+    with pytest.raises(VultronParseValidationError):
+        parse_activity(
+            {
+                "type": "Announce",
+                "id": "https://example.org/activities/1",
+                "published": "2026-01-01T00:00:00Z",
+                "actor": {
+                    "type": "Person",
+                    "id": ACTOR_ID,
+                    field_name: {"type": "OrderedCollection"},
+                },
+                "object": "https://example.org/objects/1",
+            }
+        )
 
 
 @pytest.mark.spec("ARCH-23-003")

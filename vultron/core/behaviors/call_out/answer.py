@@ -88,6 +88,31 @@ def is_of_port_type(value: object, port_type: type) -> bool:
     return isinstance(value, port_type)
 
 
+def yes_value(port_type: type) -> object:
+    """The value a constant *yes* gives an output port of *port_type*.
+
+    A ``bool`` port reads ``True``: a constant *yes* does not report its own
+    decision as false.  Any other port reads the type's no-argument value
+    (``""``, ``0``, ``[]``, a model's defaults), which is type-conformant
+    but carries no meaning (BT-18-003, BT-23-013).
+
+    Raises:
+        TypeError: *port_type* cannot be built without arguments, so no
+            constant backend can answer for the port; a capability that
+            declares one needs a backend that builds the value.
+    """
+    if port_type is bool:
+        return True
+    try:
+        return port_type()
+    except (TypeError, ValueError) as exc:
+        raise TypeError(
+            f"a constant yes cannot build a {port_type.__name__} without "
+            f"arguments ({exc}); a capability declaring such a port needs "
+            "a backend that builds its value (BT-23-013)"
+        ) from exc
+
+
 @dataclass(frozen=True)
 class CallOutContract:
     """A capability's declaration of the data each verdict carries.
@@ -218,11 +243,27 @@ class CallOutAnswer(BaseModel):
         return cls(verdict=CallOutVerdict.ERROR, diagnostics=diagnostics)
 
 
+def constant_yes(contract: CallOutContract) -> CallOutAnswer:
+    """A *yes* carrying :func:`yes_value` for every output *contract* declares.
+
+    The answer of every constant or simulated *yes*: the core
+    DETERMINISTIC ceiling and the simulation nodes both give it, so a
+    backend bound to a capability declaration writes every declared output
+    port whatever the capability (BT-18-002, BT-18-003, BT-23-013).  A
+    binary contract gives a bare *yes*.
+    """
+    return CallOutAnswer.yes(
+        {key: yes_value(typ) for key, typ in contract.outputs.items()}
+    )
+
+
 __all__ = [
     "BINARY_CONTRACT",
     "CallOutAnswer",
     "CallOutContract",
     "CallOutVerdict",
     "REFUSAL_REASON_KEY",
+    "constant_yes",
     "is_of_port_type",
+    "yes_value",
 ]

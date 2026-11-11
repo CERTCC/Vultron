@@ -591,12 +591,12 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">The item copies CSAF's field names, so an entry maps in and out by name. Both models treat identifiers from different systems as aliases for one vulnerability (CM-05-009), and `ids[].text` is never parsed (CM-05-008).</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">`CaseReference`, with tags from the CVE reference vocabulary</td>
+<td markdown="span">`CaseReference`, whose `url` Link carries CVE reference tags as `rel` values</td>
 <td markdown="span">`vulnerabilities[].references[]` and `document.references[]`, with `category` `external` or `self`</td>
 <td markdown="span">Many to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">The case holds a list of `CaseReference` objects (`case_references`), which CM-05-004 allows (CM-05-021, [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"}). A projection puts the tag of a reference in its `summary`, because CSAF has no field for it.</td>
+<td markdown="span">The case holds a list of `CaseReference` objects (`case_references`), which CM-05-004 allows (CM-05-021, [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"}). A CSAF entry's `url` is the `href` of the reference's `url` Link. A projection puts a reference's `rel` values in its `summary`, because CSAF has no field for them.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Note, with no category</td>

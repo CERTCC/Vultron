@@ -50,7 +50,7 @@ robot, cvd) that do not require a running API server.
 ## Prerequisites
 
 - Docker and Docker Compose (for docker-compose usage)
-- Python 3.12+ and `uv` (for direct usage)
+- Python 3.13+ and `uv` (for direct usage)
 - A running Vultron API server (for all demos except `vultrabot`)
 
 ## Running demos via Docker Compose

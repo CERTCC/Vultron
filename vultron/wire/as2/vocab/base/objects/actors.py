@@ -18,7 +18,7 @@ from typing import Annotated, Any, TypeAlias
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from vultron.core.models.actor import CoreActor
+from vultron.core.models.actor import ActorEndpoints, CoreActor
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_ActorType as A_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -50,7 +50,7 @@ class as_Actor(as_Object):
     inbox: as_OrderedCollection | None = None
     outbox: as_OrderedCollection | None = None
     preferred_username: NonEmptyString | None = None
-    endpoints: Any | None = None
+    endpoints: ActorEndpoints | None = None
     # todo endpoints should be its own object
     # see https://www.w3.org/TR/activitypub/#actors
 

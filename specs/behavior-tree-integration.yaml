@@ -3153,9 +3153,17 @@ groups:
     - ADR-0097
     - ADR-0183
     verification: >
-      A ratchet enumerates every domain bundle field, resolves its DETERMINISTIC
-      default, and fails if the capability declares output ports that the default
-      does not write; the equivalent check covers the STOCHASTIC singletons.
+      `test_deterministic_default_writes_every_declared_output` in
+      `test/core/behaviors/call_out/test_defaults_write_declared_outputs.py`
+      enumerates every domain bundle field, resolves its DETERMINISTIC default
+      through the seam, and fails if the default does not bind to the capability
+      the field answers or answers yes without a value of its type for every
+      declared output port. `test_stochastic_node_writes_every_declared_output` in
+      the same file covers the STOCHASTIC singletons,
+      `test_a_default_keeps_its_stochastic_direction` fails a default that answers
+      yes for a STOCHASTIC rate below 0.5 or no for one at or above it, and
+      `test_every_field_that_answers_a_capability_is_simulated` fails a field whose
+      capability no simulation node cross-checks.
     relationships:
     - rel_type: supersedes
       spec_id: BT-23-002
@@ -3192,7 +3200,6 @@ groups:
       recording adapter and asserts both reach the same port method.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
     relationships:
     - rel_type: refines
       spec_id: BT-20-003
@@ -3212,7 +3219,6 @@ groups:
       suggestion context type, not a case type.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
   - id: BT-24-003
     priority: MUST
     kind: project
@@ -3227,7 +3233,6 @@ groups:
       A test pins which case fields the projection carries.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
     relationships:
     - rel_type: depends_on
       spec_id: BT-24-002
@@ -3245,7 +3250,6 @@ groups:
       that applies the projection.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
     relationships:
     - rel_type: depends_on
       spec_id: BT-24-003
@@ -3267,7 +3271,6 @@ groups:
       nesting level, matches a field of the corresponding case model by name and type.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
     relationships:
     - rel_type: refines
       spec_id: BT-24-003
@@ -3285,7 +3288,6 @@ groups:
       empty answer validates.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
   - id: BT-24-005
     priority: SHOULD
     kind: project
@@ -3297,7 +3299,6 @@ groups:
       approves each suggestion, so an extra one costs a decision, not a disclosure.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
   - id: BT-24-006
     priority: MUST_NOT
     kind: project
@@ -3313,7 +3314,6 @@ groups:
       refuses one at construction.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
   - id: BT-24-007
     priority: MUST
     kind: project
@@ -3329,7 +3329,7 @@ groups:
       second vendor is suggested from the scenario-declared table.
     adr:
     - ADR-0186
-    tracking_issue: '#3426'
+    tracking_issue: '#6152'
     relationships:
     - rel_type: uses_definition
       spec_id: BT-23-014

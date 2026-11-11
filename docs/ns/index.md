@@ -53,6 +53,51 @@ The stub form of a case is its own type: it is transmitted as `"type": "Vulnerab
 This table must list exactly the properties `context.jsonld` declares.
 A property's term is its name in the wire message.
 
+## Link relation types
+
+A `CaseReference` holds an AS2 `Link` in its `url`, and the Link's `rel` values say what kind of resource it points at.
+Each value is a [CVE JSON schema](https://github.com/CVEProject/cve-schema) reference tag, written as an [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288) link relation type.
+A tag that IANA registers as a relation type keeps its bare name: `related` is the only one.
+Every other tag is a URI under `https://certcc.github.io/Vultron/ns/rel/`, for example `https://certcc.github.io/Vultron/ns/rel/patch`.
+
+| `rel` value | CVE reference tag |
+|-------------|-------------------|
+| `https://certcc.github.io/Vultron/ns/rel/broken-link` | `broken-link` |
+| `https://certcc.github.io/Vultron/ns/rel/customer-entitlement` | `customer-entitlement` |
+| `https://certcc.github.io/Vultron/ns/rel/exploit` | `exploit` |
+| `https://certcc.github.io/Vultron/ns/rel/government-resource` | `government-resource` |
+| `https://certcc.github.io/Vultron/ns/rel/issue-tracking` | `issue-tracking` |
+| `https://certcc.github.io/Vultron/ns/rel/mailing-list` | `mailing-list` |
+| `https://certcc.github.io/Vultron/ns/rel/media-coverage` | `media-coverage` |
+| `https://certcc.github.io/Vultron/ns/rel/mitigation` | `mitigation` |
+| `https://certcc.github.io/Vultron/ns/rel/not-applicable` | `not-applicable` |
+| `https://certcc.github.io/Vultron/ns/rel/patch` | `patch` |
+| `https://certcc.github.io/Vultron/ns/rel/permissions-required` | `permissions-required` |
+| `https://certcc.github.io/Vultron/ns/rel/product` | `product` |
+| `related` | `related` |
+| `https://certcc.github.io/Vultron/ns/rel/release-notes` | `release-notes` |
+| `https://certcc.github.io/Vultron/ns/rel/signature` | `signature` |
+| `https://certcc.github.io/Vultron/ns/rel/technical-description` | `technical-description` |
+| `https://certcc.github.io/Vultron/ns/rel/third-party-advisory` | `third-party-advisory` |
+| `https://certcc.github.io/Vultron/ns/rel/vdb-entry` | `vdb-entry` |
+| `https://certcc.github.io/Vultron/ns/rel/vendor-advisory` | `vendor-advisory` |
+
+This table must list exactly the `rel` values a case reference accepts.
+
+```json
+{
+  "type": "CaseReference",
+  "id": "https://example.org/references/1",
+  "name": "Vendor advisory",
+  "url": {
+    "type": "Link",
+    "href": "https://vendor.example/advisories/2026-001",
+    "mediaType": "text/html",
+    "rel": ["https://certcc.github.io/Vultron/ns/rel/vendor-advisory"]
+  }
+}
+```
+
 ## Usage in wire messages
 
 A Vultron wire message lists two contexts in its top-level `@context`: the ActivityStreams 2.0 namespace first, then the Vultron JSON-LD context (VM-10-001).

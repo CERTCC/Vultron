@@ -210,7 +210,8 @@ class TestTerminateEmbargoBT:
         ]
         assert [r.to for r in removes] == [[OTHER_PARTICIPANT_ACTOR]]
         assert not any(
-            CASE_MANAGER_ACTOR in (r.to or []) + (r.cc or []) for r in removes
+            CASE_MANAGER_ACTOR in [*(r.to or []), *cast(list[str], r.cc or [])]
+            for r in removes
         )
 
     @pytest.mark.spec("SYNC-09-002")

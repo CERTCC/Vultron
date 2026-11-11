@@ -240,11 +240,22 @@ automatable the step looks. See BT-18-005, BT-18-006.
 
 A backend that answers *yes* without its declared output keys violates
 BT-18-002, and the seam refuses that answer with `CallOutContractError`. For a
-capability whose declaration names output ports, a bare `AlwaysSucceed` does
-exactly that, so it is not a legal DETERMINISTIC default whatever the ceiling
-rule says about direction (BT-23-013).
-`AlwaysSucceed` is shape-blind and cannot write outputs it cannot enumerate,
+capability whose declaration names output ports, a bare `AlwaysSucceed` answers
+*yes* with none: it declares no contract, so the seam cannot see the omission, and
+it is not a legal DETERMINISTIC default whatever the ceiling rule says about
+direction (BT-23-013). Unbound, `AlwaysSucceed` cannot enumerate the outputs,
 which is why BT-18-012 puts the declaration in core.
+
+**Bind the default to the declaration**: a field that answers a declared
+capability defaults to `always_succeed_as(<Declaration>)` or
+`always_fail_as(<Declaration>)` (`vultron/core/behaviors/call_out/nodes.py`), never a
+bare `AlwaysSucceed`/`AlwaysFail`. Reason: the bound class takes the declaration's
+ports as its contract, so its *yes* carries `constant_yes()` values for every
+output with nothing written per capability; a hand-built default is only for a
+value that means something (`DeterministicEvaluateCveEligibility`). A field answers
+the declaration its simulation node binds, and
+`test_defaults_write_declared_outputs.py` fails when the two disagree or a *yes*
+omits a port (BT-23-013).
 
 The gap is silent: a downstream gate declares the key
 `PortInformation(..., required=False)` and returns `FAILURE` when it is absent,
@@ -258,10 +269,10 @@ the key is fine in a unit test of the *gate* alone. `test_publication_tree.py`
 shows both.
 
 The STOCHASTIC side has the same obligation (BT-18-003). `WeightedBehavior`
-answers *yes* with a zero-value instance per port its `contract` declares, so a
-fuzzer node meets it by subclassing its capability's core declaration; the generic
-`AlmostAlwaysSucceed`/`AlmostAlwaysFail` used for production-only domains
-declares none and so stays binary.
+answers *yes* with the same `constant_yes()` values for the ports its `contract`
+declares, so a fuzzer node meets it by subclassing its capability's core
+declaration; the generic `AlmostAlwaysSucceed`/`AlmostAlwaysFail` used for
+production-only domains declares none and so stays binary.
 
 ## A Backend Answers Yes, No or Error
 

@@ -64,7 +64,7 @@ def _recipient_ids(to: object) -> list[str]:
     """*to* as a list of ids: AS2 allows one recipient or a list of them."""
     if to is None:
         return []
-    values = to if isinstance(to, list) else [to]
+    values = to if isinstance(to, (list, tuple)) else [to]
     return [rid for rid in (_as_id(value) for value in values) if rid]
 
 

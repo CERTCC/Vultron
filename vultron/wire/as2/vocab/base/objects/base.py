@@ -14,6 +14,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Any, TypeAlias, cast
 
@@ -27,6 +28,7 @@ from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.links import (
     ActivityStreamRef,
     ActivityStreamRequiredRef,
+    as_Link,
 )
 from vultron.wire.as2.vocab.base.utils import is_blank
 
@@ -38,12 +40,18 @@ class as_Object(as_Base):
 
     model_config = ConfigDict(frozen=True)
 
-    replies: Any | None = None
-    url: Any | None = None
-    generator: Any | None = None
-    context: Any | None = None
-    tag: Any | None = None
-    in_reply_to: Any | None = None
+    # The AS2 reference properties (AS2 Vocabulary section 4).  Each holds an
+    # embedded object, a Link or an IRI, and every one but ``replies`` may hold
+    # a list of them.  Inbound leniency means accepting each shape AS2 allows,
+    # never a blank: the IRI branch is ``NonEmptyString``, so ``""`` and
+    # whitespace are refused at the parse edge (CS-08-001, #3894).  The
+    # aliases are declared below the class because they name it.
+    replies: "as_CollectionValue" = None
+    url: "as_UrlValues" = None
+    generator: "as_ObjectOrLinkValues" = None
+    context: "as_ObjectOrLinkValues" = None
+    tag: "as_ObjectOrLinkValues" = None
+    in_reply_to: "as_ObjectOrLinkValues" = None
 
     # time (aka Wibbly-Wobbly Time-Wimey Stuff)
     # in python we want datetime or timedelta objects
@@ -69,16 +77,16 @@ class as_Object(as_Base):
     # VM-07-005)
     content: NonEmptyString | None = None
     summary: NonEmptyString | None = None
-    icon: Any | None = None
-    image: Any | None = None
-    attachment: Any | None = None
-    location: Any | None = None
-    to: Any | None = None
-    cc: Any | None = None
-    bto: Any | None = None
-    bcc: Any | None = None
-    audience: Any | None = None
-    attributed_to: Any | None = None
+    icon: "as_ObjectOrLinkValues" = None
+    image: "as_ObjectOrLinkValues" = None
+    attachment: "as_ObjectOrLinkValues" = None
+    location: "as_ObjectOrLinkValues" = None
+    to: "as_ObjectOrLinkValues" = None
+    cc: "as_ObjectOrLinkValues" = None
+    bto: "as_ObjectOrLinkValues" = None
+    bcc: "as_ObjectOrLinkValues" = None
+    audience: "as_ObjectOrLinkValues" = None
+    attributed_to: "as_ObjectOrLinkValues" = None
 
     @field_serializer("duration", when_used="json")
     def serialize_duration(self, value: timedelta | None) -> str | None:
@@ -156,6 +164,34 @@ as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object] | CoreObject | None
 as_ObjectRequiredRef: TypeAlias = (
     ActivityStreamRequiredRef[as_Object] | CoreObject
 )
+
+#: One value of an AS2 property whose range is ``Object | Link``: an embedded
+#: wire object, a core object (a domain type is its own wire form, ADR-0099),
+#: a Link, or a non-blank IRI.  ``icon`` and ``image`` use it too: their
+#: ``Image`` range is an ``as_Object`` subclass this module cannot import.
+as_ObjectOrLink: TypeAlias = as_Object | CoreObject | as_Link | NonEmptyString
+
+#: A non-functional ``Object | Link`` property: one value or a list of them.
+#: ``Sequence`` rather than ``list`` so a ``list[str]`` of actor ids is a valid
+#: argument: ``list`` is invariant in its item type.
+#: The list branch also keeps these slots out of the dehydrated reference set,
+#: which matches the single-valued ``as_ObjectRef`` shape only (ARCH-23-004).
+as_ObjectOrLinkValues: TypeAlias = (
+    as_ObjectOrLink | Sequence[as_ObjectOrLink] | None
+)
+
+#: ``url``: an ``xsd:anyURI`` or a Link, one or many; never an object.
+as_UrlValues: TypeAlias = (
+    as_Link | NonEmptyString | Sequence[as_Link | NonEmptyString] | None
+)
+
+#: ``replies``: a functional property whose range is ``Collection``, an
+#: ``as_Object`` subclass this module cannot import; or the collection's IRI.
+as_CollectionValue: TypeAlias = as_Object | CoreObject | NonEmptyString | None
+
+# The fields above name these aliases, which name the class, so the schema is
+# completed here, before any subclass is declared.
+as_Object.model_rebuild()
 
 
 def main():

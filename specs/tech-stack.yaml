@@ -15,13 +15,52 @@ groups:
   - id: IMPLTS-01-001
     priority: MUST
     kind: project
-    verification_debt: '#2575'
-    statement: The implementation MUST use Python 3.12 or later.
+    statement: The implementation MUST use Python 3.13 or later.
     rationale: >-
       A minimum Python version tells users and contributors which interpreters the code
-      supports. `requires-python` in `pyproject.toml`, ruff's `target-version` and
-      pyright's `pythonVersion` all name 3.12. The checks then report code that needs a
-      later version, even though CI and the container images run Python 3.13.
+      supports. CI and the container images run Python 3.13, so 3.13 is the oldest
+      version the code is tested on. A lower floor would be a claim nothing tests.
+    verification: >-
+      `test/ci/test_python_version_floor.py` checks that the `requires-python` floor
+      in `pyproject.toml` is 3.13 or later.
+  - id: IMPLTS-01-009
+    priority: MUST
+    kind: project
+    statement: >-
+      Ruff's `target-version`, mypy's `python_version`, pyright's `pythonVersion`
+      and the `setup-python-uv` CI action's default interpreter MUST name the
+      `requires-python` floor.
+    rationale: >-
+      The floor is the oldest version the project claims to support. The static
+      checks judge the code against the version they name, so a newer one accepts
+      syntax the floor rejects, and an older one rejects syntax the floor accepts. A
+      check that names no version follows the interpreter that runs it, so it too
+      must name the floor. CI runs its default interpreter, so a default above the
+      floor leaves the floor untested.
+    verification: >-
+      `test/ci/test_python_version_floor.py` checks that ruff's `target-version`,
+      mypy's `python_version` in `.mypy.ini`, pyright's `pythonVersion` and the
+      `setup-python-uv` action's default `python-version` equal the
+      `requires-python` floor.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-01-001
+  - id: IMPLTS-01-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The Docker base image MUST run the `requires-python` floor or a later Python
+      version.
+    rationale: >-
+      A container may run ahead of the floor, but one below it runs an interpreter
+      the project does not support, so the shipped runtime contradicts the declared
+      one.
+    verification: >-
+      `test/ci/test_python_version_floor.py` checks that the Python version of the
+      `base` stage in `docker/Dockerfile` is at least the `requires-python` floor.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-01-001
   - id: IMPLTS-01-007
     priority: MUST
     kind: project

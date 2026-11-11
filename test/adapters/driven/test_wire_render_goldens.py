@@ -30,7 +30,8 @@ no longer derives the inbox/outbox its profile does not state (#5177),
 every timestamp takes the fixed six-digit form (ADR-0167, #5452), an
 authored case status carries no ``updated`` (CM-29-006, #5749), and the
 top-level ``@context`` is the AS2-then-Vultron list that nested objects do
-not restate (VM-10-001, VM-10-004, #6006).
+not restate (VM-10-001, VM-10-004, #6006), and a case reference's ``url`` is
+an ``as:Link`` (#6249).
 
 Two value classes are generated afresh on every construction by nested
 defaults and are normalised before comparison: minted ``urn:uuid:`` ids and

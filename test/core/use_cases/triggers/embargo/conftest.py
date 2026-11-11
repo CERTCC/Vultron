@@ -184,7 +184,7 @@ def _build_active_embargo_case_with_case_manager(
 
 def _actor_and_own_store(
     name: str,
-) -> Generator[tuple[as_Service, SqliteDataLayer], None, None]:
+) -> Generator[tuple[as_Service, SqliteDataLayer]]:
     """Yield an actor and *its own* store.
 
     Which actor owns the store is not decoration: a trigger's BT executes as the
@@ -206,17 +206,13 @@ def _actor_and_own_store(
 
 
 @pytest.fixture
-def finder_actor_and_dl() -> Generator[
-    tuple[as_Service, SqliteDataLayer], None, None
-]:
+def finder_actor_and_dl() -> Generator[tuple[as_Service, SqliteDataLayer]]:
     """The finder and its own store — for triggers requested *by the finder*."""
     yield from _actor_and_own_store("Finder Co")
 
 
 @pytest.fixture
-def owner_actor_and_dl() -> Generator[
-    tuple[as_Service, SqliteDataLayer], None, None
-]:
+def owner_actor_and_dl() -> Generator[tuple[as_Service, SqliteDataLayer]]:
     """The case owner and its own store — for triggers requested *by the owner*.
 
     Embargo teardown is one: the authority is the case's CASE_MANAGER, which

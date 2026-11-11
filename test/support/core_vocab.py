@@ -34,6 +34,8 @@ from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
 
+from pydantic import BaseModel
+
 from test.support.objects import make
 from vultron.core.models.base import CoreObject
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
@@ -77,8 +79,12 @@ def import_all_core_models() -> None:
         importlib.import_module(module.name)
 
 
-def minimal_kwargs(cls: type[CoreObject]) -> dict[str, Any]:
-    """Return the minimum kwargs to construct *cls* without validation errors."""
+def minimal_kwargs(cls: type[BaseModel]) -> dict[str, Any]:
+    """Return the minimum kwargs to construct *cls* without validation errors.
+
+    A required field holding a model of its own (``CaseReference.url``, an
+    ``as:Link``) gets that model's own minimum, as a dict.
+    """
     kwargs: dict[str, Any] = {}
     for field_name, field_info in cls.model_fields.items():
         if not field_info.is_required():
@@ -96,6 +102,10 @@ def minimal_kwargs(cls: type[CoreObject]) -> dict[str, Any]:
             # so goldens stay deterministic; the value matches the goldens'
             # own ``_PINNED`` so the two never disagree.
             kwargs[field_name] = PINNED_INSTANT
+        elif isinstance(annotation, type) and issubclass(
+            annotation, BaseModel
+        ):
+            kwargs[field_name] = minimal_kwargs(annotation)
         else:
             kwargs[field_name] = f"urn:test:{field_name}:1"
     return kwargs

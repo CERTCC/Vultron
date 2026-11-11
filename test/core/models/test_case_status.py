@@ -98,7 +98,12 @@ def test_inbound_case_status_keeps_the_senders_published():
     """The receiver carries the sender's time; it never reads its own clock."""
     sent = "2020-02-03T04:05:06+00:00"
     status = CaseStatus.model_validate(
-        {"type": "CaseStatus", "context": CASE_ID, "published": sent},
+        {
+            "type": "CaseStatus",
+            "id": f"{CASE_ID}/statuses/1",
+            "context": CASE_ID,
+            "published": sent,
+        },
         context=_INBOUND,
     )
     assert status.published == datetime.fromisoformat(sent)

@@ -98,14 +98,14 @@ _WINDOW_SECONDS = 300
 
 
 @pytest.fixture(autouse=True)
-def _clear_actor_locks() -> Generator[None, None, None]:
+def _clear_actor_locks() -> Generator[None]:
     io._actor_inbox_locks.clear()
     yield
     io._actor_inbox_locks.clear()
 
 
 @pytest.fixture
-def dl() -> Generator[SqliteDataLayer, None, None]:
+def dl() -> Generator[SqliteDataLayer]:
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     try:
         yield store
