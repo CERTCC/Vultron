@@ -17,6 +17,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_runner import run_tree
 from test.support.actor_resolution import BodyFetcher, peer_profile
 from test.support.objects import make
 from vultron.adapters.driven.actor_resolution import (
@@ -382,7 +383,8 @@ def test_a_wrong_typed_resolved_actor_fails_the_whole_run(dl):
     )
     tree = create_actor_resolution_tree(bundle.resolve_actor_factory, kept)
 
-    result = BTBridge(datalayer=dl).execute_with_setup(
+    result = run_tree(
+        BTBridge(datalayer=dl),
         tree,
         actor_id=ACTING,
         max_iterations=1,
