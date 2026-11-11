@@ -211,6 +211,7 @@ def _hold(dl: SqliteDataLayer, activity_id: str) -> None:
             received_body=json.dumps({"id": activity_id}),
             stage=ReceivedStage.HELD,
             replay_owed=True,
+            received_at=ACT_AT,
         )
     )
 

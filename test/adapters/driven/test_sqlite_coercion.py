@@ -19,6 +19,7 @@ promotes base-vocab activities to subtypes).
 Fixtures (dl) come from conftest.
 """
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from test.support.future_dates import days_from_now
 from vultron.core.models.report import VulnerabilityReport
@@ -270,6 +271,7 @@ class TestCoerceToSemanticClass:
             semantic_type="log_entry_committed",
             payload_snapshot={"status": "ok"},
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
         entry = _to_persistable_entry(chain_entry)
         announce = announce_log_entry_activity(
@@ -308,6 +310,8 @@ class TestCoerceToSemanticClass:
             log_object_id="https://example.org/activities/obj-retype-1",
             semantic_type="log_entry_committed",
             log_index=0,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         offer = as_Offer(
             object_=ledger_entry,
@@ -402,6 +406,7 @@ class TestCoerceByReferenceFields:
                 semantic_type="log_entry_committed",
                 payload_snapshot={"status": "ok"},
                 prev_log_hash=_ZERO_HASH,
+                received_at=ACT_AT,
             )
         )
         read = read_ledger_entry_activity(

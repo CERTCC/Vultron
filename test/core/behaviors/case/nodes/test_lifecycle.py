@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.signing import author_of, signed_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -317,6 +318,8 @@ def test_a_recorded_resend_without_evidence_reuses_its_first_entry(
             entry_hash="hash-1",
             prev_log_hash="hash-0",
             log_index=0,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
     )
     resend = VultronEvent(
@@ -355,6 +358,8 @@ def test_a_recorded_activity_with_its_body_commits_no_second_entry(
             entry_hash="hash-1",
             prev_log_hash="hash-0",
             log_index=0,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
     )
     node = with_case_id(CommitCaseLedgerEntryNode(), CASE_ID)
@@ -388,6 +393,8 @@ def test_a_resend_whose_id_is_recorded_as_another_activity_is_refused(
             entry_hash="hash-1",
             prev_log_hash="hash-0",
             log_index=0,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
     )
     resend = VultronEvent(

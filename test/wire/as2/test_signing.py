@@ -24,6 +24,7 @@ The vectors are copied verbatim from two sources:
 
 import copy
 import hashlib
+import inspect
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -349,11 +350,13 @@ def test_a_datetime_created_is_written_in_the_one_timestamp_form():
     assert signed["proof"]["created"] == "2026-11-05T12:00:00.000000+00:00"
 
 
-def test_a_proof_defaults_its_created_time_to_now():
-    signed = signing.sign({"id": "urn:x:1"}, signing.seeded_signing_key(ACTOR))
+@pytest.mark.spec("CS-13-002")
+def test_a_proof_takes_its_created_time_and_never_reads_a_clock():
+    """``created`` is required: signing has no clock fallback (ADR-0176)."""
+    created = inspect.signature(signing.sign).parameters["created"]
 
-    created = datetime.fromisoformat(signed["proof"]["created"])
-    assert abs((datetime.now(UTC) - created).total_seconds()) < 60
+    assert created.kind is inspect.Parameter.KEYWORD_ONLY
+    assert created.default is inspect.Parameter.empty
 
 
 @pytest.mark.parametrize(
@@ -369,7 +372,9 @@ def test_a_proof_defaults_its_created_time_to_now():
 )
 def test_signing_refuses_what_cannot_be_signed(document: Any):
     with pytest.raises(VultronUnsignableJsonError):
-        signing.sign(document, signing.seeded_signing_key(ACTOR))
+        signing.sign(
+            document, signing.seeded_signing_key(ACTOR), created=CREATED
+        )
 
 
 def test_an_empty_created_time_is_refused():
@@ -390,7 +395,9 @@ def test_only_an_object_carries_a_proof():
 def test_the_largest_safe_integer_is_signed():
     key = signing.seeded_signing_key(ACTOR)
     signed = signing.sign(
-        {"id": "urn:x:1", "count": 2**53 - 1, "low": -(2**53) + 1}, key
+        {"id": "urn:x:1", "count": 2**53 - 1, "low": -(2**53) + 1},
+        key,
+        created=CREATED,
     )
 
     signing.verify(signed, key.public_key_multibase)

@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import peer_position, received_event
@@ -57,6 +58,7 @@ def _make_entry(
         semantic_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=prev_hash,
+        received_at=ACT_AT,
     )
     return chain.to_ledger_entry()
 
@@ -230,7 +232,7 @@ class TestRejectLedgerEntryReceivedUseCase:
         run_in_act(uc)
 
         state_id = VultronReplicationState(
-            case_id=CASE_URI, peer_id=PARTICIPANT_URI
+            case_id=CASE_URI, peer_id=PARTICIPANT_URI, updated_at=ACT_AT
         ).id_
         stored = manager_dl.read(state_id)
         assert stored is not None
@@ -271,7 +273,7 @@ class TestRejectLedgerEntryReceivedUseCase:
         assert "not the CASE_MANAGER" in (result.reason or "")
         sync_port.send_announce_log_entry.assert_not_called()
         state_id = VultronReplicationState(
-            case_id=CASE_URI, peer_id=PARTICIPANT_URI
+            case_id=CASE_URI, peer_id=PARTICIPANT_URI, updated_at=ACT_AT
         ).id_
         assert dl.read(state_id) is None
 

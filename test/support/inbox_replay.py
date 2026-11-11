@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, cast
 
+from test.support.act_clock import ACT_AT
 from test.support.received import delivered_body, received_event
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.core.models._helpers import now_utc
@@ -133,6 +134,7 @@ def archive_event(dl: Any, event: AnnounceLogEntryReceivedEvent) -> None:
             received_body=event.received_evidence,
             stage=ReceivedStage.HELD,
             replay_owed=False,
+            received_at=ACT_AT,
         )
     )
 

@@ -25,6 +25,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from test.support.act_clock import ACT_AT
 from test.support.case_owner import INBOUND_CASE_OWNERSHIP
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
@@ -334,6 +335,8 @@ def _inline_ledger_entry(**keys: Any) -> dict[str, Any]:
         log_index=0,
         log_object_id="https://example.org/activities/0",
         semantic_type="create_case",
+        received_at=ACT_AT,
+        published=ACT_AT,
     )
     body = entry.model_dump(by_alias=True, mode="json", exclude_none=True)
     body.update(keys)

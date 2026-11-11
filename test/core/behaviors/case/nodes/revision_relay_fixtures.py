@@ -21,6 +21,7 @@ registered, and the readers the node tests assert through.
 from typing import Any, cast
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.act_clock import ACT_AT
 from test.support.embargo_register import register, reject
 from test.support.future_dates import days_from_now
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -127,6 +128,7 @@ def seed(
                 semantic_type=CREATE_CASE_SEMANTIC_TYPE,
                 payload_snapshot={},
                 prev_log_hash=case.genesis_hash,
+                received_at=ACT_AT,
             )
         )
     )

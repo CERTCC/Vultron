@@ -36,9 +36,10 @@ from the act the caller is already performing — one read per act, taken
 whether or not the lookup then suppresses anything — so the lookup's verdict
 cannot move the clock and thread interleaving cannot move the verdict.
 
-:meth:`~PendingAssertionStore.expire_timed_out` is the explicit sweep, and the
-one method here that reads the clock; nothing depends on it for the timeout to
-fire, because every lookup evaluates expiry.
+:meth:`~PendingAssertionStore.expire_timed_out` is the explicit sweep, judging
+against the instant its caller passes as every lookup does; nothing depends on
+it for the timeout to fire, because every lookup evaluates expiry.  No method
+here reads the clock (ADR-0176).
 
 Spec: SYNC-11-001 through SYNC-11-005.
 """

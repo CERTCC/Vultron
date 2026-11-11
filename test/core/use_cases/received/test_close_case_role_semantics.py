@@ -36,6 +36,7 @@ import pytest
 from test.core.use_cases.received._archived_redelivery import (
     archived_redelivery,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_dispatch, run_in_act, run_tree
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
@@ -1089,6 +1090,7 @@ class TestOwnerCloseSettlesPendingInvites:
                         "object": {"type": "EmbargoEvent", "id": embargo_id},
                     },
                     prev_log_hash=_ZERO_HASH,
+                    received_at=ACT_AT,
                 )
             )
 
@@ -1131,6 +1133,7 @@ class TestOwnerCloseSettlesPendingInvites:
                     semantic_type=source.semantic_type,
                     payload_snapshot=source.payload_snapshot,
                     prev_log_hash=prev_hash,
+                    received_at=ACT_AT,
                 )
             )
             prev_hash = entry.entry_hash
@@ -1541,6 +1544,7 @@ def _make_close_case_ledger_entry(
             semantic_type="close_case",
             payload_snapshot={"actor": departing_actor_id},
             prev_log_hash=genesis_hash,
+            received_at=ACT_AT,
         )
     )
 

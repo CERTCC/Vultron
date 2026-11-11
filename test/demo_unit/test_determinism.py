@@ -32,7 +32,7 @@ from vultron.core.models._helpers import (
     now_utc,
 )
 from vultron.core.models.base import CoreRecord
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.report import VulnerabilityReport
 from vultron.demo.determinism import (
     RECORDING_CLOCK_STEP,
     RECORDING_EPOCH,
@@ -116,25 +116,14 @@ class TestDeterministicRun:
 
     def test_a_captured_default_factory_reads_the_recording_clock(self):
         # `published` defaults through a `now_utc` reference the field captured
-        # at class creation, which only the `_helpers.clock.datetime` seam reaches.
+        # at class creation, which only the `_helpers.clock.datetime` seam
+        # reaches.  An object time still has the default (#5758 removes it
+        # last); a record's time no longer does.
         with deterministic_run("rv", start=_START, step=timedelta(seconds=1)):
-            entry = CaseLedgerEntry.model_validate(
-                {
-                    "caseId": "urn:uuid:case",
-                    "logIndex": 0,
-                    "logObjectId": "urn:uuid:obj",
-                    "semanticType": "create_case",
-                    "payloadSnapshot": {
-                        "id": "urn:uuid:obj",
-                        "type": "Create",
-                    },
-                    "prevLogHash": "0" * 64,
-                    "entryHash": "1" * 64,
-                }
-            )
-        assert entry.published is not None
-        assert entry.published.year == _START.year
-        assert entry.published.month == _START.month
+            report = VulnerabilityReport(name="r", content="c")
+        assert report.published is not None
+        assert report.published.year == _START.year
+        assert report.published.month == _START.month
 
     @pytest.mark.spec("OID-01-004")
     def test_the_shared_minter_repeats_its_ids(self):

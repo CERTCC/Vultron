@@ -34,6 +34,7 @@ from test.core.behaviors.sync.nodes._embargo_gate_support import (
     seed_ledger,
 )
 from test.core.behaviors.sync.nodes.conftest import CASE_ID, _make_entry
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.received import received_event
 from vultron.adapters.driven.clock import SystemClock
@@ -116,7 +117,9 @@ def _sent_indices(port: MagicMock) -> list[int]:
 
 def _state(dl: SqliteDataLayer, peer_id: str) -> object | None:
     return dl.read(
-        VultronReplicationState(case_id=CASE_ID, peer_id=peer_id).id_
+        VultronReplicationState(
+            case_id=CASE_ID, peer_id=peer_id, updated_at=ACT_AT
+        ).id_
     )
 
 

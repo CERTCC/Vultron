@@ -14,6 +14,7 @@
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
@@ -126,6 +127,8 @@ def test_a_stub_invite_and_its_reply_name_the_case_the_stub_stands_for() -> (
                 payload_snapshot={},
                 prev_log_hash="00" * 32,
                 entry_hash="11" * 32,
+                received_at=ACT_AT,
+                published=ACT_AT,
             ),
             actor=_ACTOR,
         ),

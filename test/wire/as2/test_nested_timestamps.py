@@ -530,10 +530,13 @@ def test_replicated_ledger_entry_keeps_the_case_actor_stamps():
 def test_replicated_ledger_entry_without_its_stamp_is_refused_at_parse(
     key: str,
 ):
-    """An entry missing a time it must carry is refused, not stamped locally."""
+    """An entry missing a time it must carry is refused, not stamped locally.
+
+    Refused for that field: no model default supplies the time (ADR-0176).
+    """
     entry = {k: v for k, v in LEDGER_ENTRY.items() if k != key}
 
-    with pytest.raises(VultronParseValidationError):
+    with pytest.raises(VultronParseValidationError, match=key):
         parse_activity(_body(entry, "Announce"))
 
 

@@ -37,6 +37,7 @@ from test.core.use_cases.received._ledger_network import (
     OWNER,
     LedgerNetwork,
 )
+from test.support.act_clock import ACT_AT
 from test.support.signing import resigned
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -315,6 +316,7 @@ def test_a_stub_carrying_proofs_is_refused_at_construction():
             refusal_reason="no",
             body_hash="abc",
             verified_proofs=[_proof()],
+            received_at=ACT_AT,
         )
 
 

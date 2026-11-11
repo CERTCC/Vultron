@@ -19,6 +19,7 @@ Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005, CLP-08-004, CLP-08-005.
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case import VulnerabilityCase
@@ -75,6 +76,7 @@ def _entry(
             semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev_hash,
+            received_at=ACT_AT,
         )
     )
 
@@ -197,6 +199,8 @@ class TestMissingGenesisEntry:
             payload_snapshot={"log_index": 2},
             prev_log_hash=missing_e1_hash,
             entry_hash="a" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(e2)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
@@ -226,6 +230,8 @@ class TestMissingGenesisEntry:
             payload_snapshot={"note": "no genesis"},
             prev_log_hash=_ZERO_HASH,
             entry_hash="0" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(e)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
@@ -250,6 +256,8 @@ class TestHashMismatch:
             payload_snapshot={"log_index": 1},
             prev_log_hash=bad_prev,
             entry_hash="b" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(bad_e1)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
@@ -268,6 +276,8 @@ class TestHashMismatch:
             payload_snapshot={"log_index": 0},
             prev_log_hash="c" * 64,  # not the per-case genesis hash
             entry_hash="d" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(bad_genesis)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
@@ -297,6 +307,8 @@ class TestIndexGap:
             payload_snapshot={"log_index": 3},
             prev_log_hash=missing_e2_hash,
             entry_hash="e" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(e3)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
@@ -385,6 +397,8 @@ class TestEquivalentRecordedEntry:
             payload_snapshot=snapshot,
             prev_log_hash=_ZERO_HASH,
             entry_hash="a" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         dl.save(entry)
         return entry
@@ -467,6 +481,7 @@ def _asserted(
                 "published": published,
             },
             prev_log_hash=_ZERO_HASH,
+            received_at=ACT_AT,
         )
     )
 

@@ -28,6 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.use_cases.received.conftest import seed_case_participant
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_in_act
 from test.support.inbox_replay import held_depth, ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
@@ -135,6 +136,7 @@ def _ledger_entry(genesis_hash: str) -> CaseLedgerEntry:
         object_id=f"{_CASE_ID}/notes/0",
         semantic_type="add_note_to_case",
         payload_snapshot={"type": "Add", "index": 0},
+        at=ACT_AT,
     )
     return ledger.entries[0].to_ledger_entry()
 
@@ -298,6 +300,7 @@ def _replication_state(dl: SqliteDataLayer) -> VultronReplicationState:
         case_id=_CASE_ID,
         peer_id=_PARTICIPANT_ID,
         last_acknowledged_hash="a" * 64,
+        updated_at=ACT_AT,
     )
     dl.create(state)
     return state

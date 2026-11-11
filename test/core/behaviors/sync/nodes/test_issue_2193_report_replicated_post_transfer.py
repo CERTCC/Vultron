@@ -34,6 +34,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -121,6 +122,7 @@ def _ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
             },
         },
         prev_log_hash=prev_hash,
+        received_at=ACT_AT,
     )
 
 
@@ -151,6 +153,7 @@ def _add_report_record(prev_hash: str) -> HashChainLedgerRecord:
             "target": {"id": CASE_ID, "type": "VulnerabilityCase"},
         },
         prev_log_hash=prev_hash,
+        received_at=ACT_AT,
     )
 
 

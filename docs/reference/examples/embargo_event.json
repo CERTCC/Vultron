@@ -9,5 +9,7 @@
   "context": "urn:uuid:e54656f1-e9c8-4ec5-9a69-6cbf725e510a",
   "startTime": "2026-06-01T19:12:00.000000+00:00",
   "endTime": "2026-08-30T00:00:00.000000+00:00",
+  "published": "2026-06-01T19:12:00.000000+00:00",
+  "updated": "2026-06-01T19:12:00.000000+00:00",
   "content": "We propose to embargo VendorCo Case #20260601 for 90 days."
 }

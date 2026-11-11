@@ -20,6 +20,7 @@ these through the announce tree; these pin each operation on its own.
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.inbox_replay import (
     archive_event,
     held_depth,
@@ -64,6 +65,7 @@ def _entry(
         semantic_type="test_event",
         payload_snapshot={"index": index, "marker": marker},
         prev_log_hash=prev,
+        received_at=ACT_AT,
     ).to_ledger_entry()
 
 

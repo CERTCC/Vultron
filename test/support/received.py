@@ -52,6 +52,7 @@ it: in the order the test builds them, one up per sender and case
 import json
 from typing import Any, TypeVar, cast
 
+from test.support.act_clock import ACT_AT
 from test.support.signing import resigned, signed_body
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
@@ -500,7 +501,9 @@ def archive_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
     the seen-before door (ADR-0154).
     """
     record = ReceivedActivityRecord(
-        activity_id=activity.id_, received_body=body_of(activity)
+        activity_id=activity.id_,
+        received_body=body_of(activity),
+        received_at=ACT_AT,
     )
     dl.create(record)
     return record
@@ -537,6 +540,7 @@ def intake_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
         received_body=body_of(activity),
         stage=ReceivedStage.HELD,
         replay_owed=False,
+        received_at=ACT_AT,
     )
     dl.create(record)
     return record
@@ -556,7 +560,7 @@ def archive_delivered(
     evidence = parsed.received_evidence_json
     assert evidence is not None
     record = ReceivedActivityRecord(
-        activity_id=parsed.id_, received_body=evidence
+        activity_id=parsed.id_, received_body=evidence, received_at=ACT_AT
     )
     dl.create(record)
     return record

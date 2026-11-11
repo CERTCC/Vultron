@@ -31,8 +31,13 @@ from pydantic import ValidationError
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
 
-_BASE = {"case_id": "https://example.org/case", "peer_id": "https://x/peer"}
 _WHEN = datetime(2026, 10, 1, tzinfo=UTC)
+#: The keys every record needs, its required write time among them (ADR-0176).
+_BASE = {
+    "case_id": "https://example.org/case",
+    "peer_id": "https://x/peer",
+    "updated_at": _WHEN,
+}
 
 #: field name -> a non-default value for it.
 _VALUES: dict[str, Any] = {
@@ -64,11 +69,13 @@ def test_every_aliased_field_is_covered() -> None:
 def test_alias_and_name_spellings_both_read(field: str) -> None:
     alias = VultronReplicationState.model_fields[field].validation_alias
     assert isinstance(alias, str)
+    # Without the field's own key in the base, so each spelling stands alone.
+    base = {k: v for k, v in _BASE.items() if k != field}
     by_alias = VultronReplicationState.model_validate(
-        {**_BASE, alias: _VALUES[field]}
+        {**base, alias: _VALUES[field]}
     )
     by_name = VultronReplicationState.model_validate(
-        {**_BASE, field: _VALUES[field]}
+        {**base, field: _VALUES[field]}
     )
     assert getattr(by_alias, field) == _VALUES[field]
     assert getattr(by_name, field) == _VALUES[field]
@@ -82,7 +89,9 @@ def test_a_row_stored_before_the_genesis_replay_index_reads_as_none() -> None:
     it declines no Reject, so existing stores keep answering as before.
     """
     stored = {
-        **_BASE,
+        "case_id": _BASE["case_id"],
+        "peer_id": _BASE["peer_id"],
+        "updatedAt": _WHEN.isoformat(),
         "lastReplayedFromHash": "",
         "lastReplayedAt": _WHEN.isoformat(),
         "replaysAtPosition": 1,

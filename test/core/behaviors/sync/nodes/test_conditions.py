@@ -10,6 +10,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case_id_scope import with_case_id
@@ -166,6 +167,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
             payload_snapshot={"log_index": 2},
             prev_log_hash=e0.entry_hash,
             entry_hash="f" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         datalayer.save(e2)
 
@@ -191,6 +194,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
             payload_snapshot={"log_index": 1},
             prev_log_hash="0" * 64,  # wrong: does not match e0.entry_hash
             entry_hash="1" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         datalayer.save(bad_e1)
 
@@ -219,6 +224,8 @@ class TestCheckLedgerFreshnessNodeWithSeededCaseId:
             payload_snapshot={"log_index": 2},
             prev_log_hash=e0.entry_hash,
             entry_hash="a" * 64,
+            received_at=ACT_AT,
+            published=ACT_AT,
         )
         datalayer.save(e2)
 

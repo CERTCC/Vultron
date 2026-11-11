@@ -76,6 +76,29 @@ may name a state *behind* the one already reached, which is a change but not a f
 one — it is excluded from the events and reported, never emitted as a backward step
 (CEH-04-015, CEH-04-016).
 
+## What the Derivation Reads
+
+These rules live in `vultron/measure/history/` (`derive.py`, `snapshot.py`).
+
+- **Read only the activity's carried `object`.** An `Add(ParticipantStatus)`'s
+  `target` holds the participant as stored when the snapshot was taken, which can
+  already hold the statuses the next entries add: in `rccv-extension` entry 48's
+  target holds the `CLOSED` that entry 49 records (CM-23-022).
+- **Identify a status by its `id`.** A carried participant or case repeats its whole
+  status list, so a status seen before is a restatement, never a regression; only an
+  unseen status is compared with the state reached (CEH-04-013, CEH-04-015).
+- **Skip everything under an `Offer`.** A recommendation and an ownership offer both
+  carry copies that are not the record's own state (CEH-04-014).
+- **Read the case's public state from case statuses only.** A case status nested in
+  a participant status is that participant's report; adoption is the event
+  (CEH-03-012).
+- **Activation is the owner's consent.** The Case Owner's `Add(EmbargoEvent)` makes
+  its own row `AGREED`, and a revision ending no later carries every signatory over,
+  so derive both from the activation entry rather than from a later snapshot that
+  shows the row (CM-10-001, `EmbargoLifecycle` activation).
+- **The creation sequence is genesis plus the CASE_MANAGER's unbroken run after it.**
+  Its events carry the seated-at-creation label (CM-14-001, CEH-03-011).
+
 ## Joining Is the Other Exception
 
 Joining has no state change of its own, so state comparison cannot see it, and the
@@ -85,7 +108,10 @@ participant is still inert (CM-11-006), and accepting the stub Invite then *leav
 report management at `RM.RECEIVED` (CM-11-001). So the only entry a "first records the
 participant" rule can find is the one that predates joining.
 
-Key the joining event on the **acceptance** entry instead (CEH-04-010). That is also
+Key the joining event on the **acceptance** entry instead (CEH-04-010). An inert
+participant's seated state is held until then and emitted at the acceptance entry, so
+a joiner's joining and report-received events share a log index; an invitee that
+never accepts yields only its consent answer. That is also
 what keeps a joining event off a participant that never joined: a refused invitation
 and an expired one both leave the inert record untouched, so the creation entry is
 there for them too. In the `rcv-reject` recording the invitee is seated, then the
@@ -138,7 +164,7 @@ in `what_a_case_records.md` change an event's time:
 |---|---|
 | Seated at creation | The creation sequence committed this status, so its stamp is the creation time (CM-14-009, CM-14-012) |
 | Stamped at adoption | The case's public state changed when the CASE_MANAGER committed its own case status, not when a participant first reported it |
-| Stamped when next handled | A passing deadline caused the change, and the CASE_MANAGER made it on its own lazy check, when it next handled the case (EMB-13-003, CM-28-015) |
+| Stamped when next handled | A passing deadline caused the change, so the stamp may lag it; the event carries the deadline (EMB-13-003, CM-28-015, CEH-03-015) |
 | Reported out of band | A public exploit or observed attacks happened outside the protocol, and the delay before the report is not recorded |
 
 The other gaps carry no label because they produce no event: refusals and replay
@@ -146,11 +172,13 @@ requests are never ledgered (CLP-02-013), an ownership-transfer expiry changes n
 participant record (CM-21-043), and the untimed register and consent rows are the
 reason for the join described above rather than a gap in an event.
 
-The "stamped when next handled" label marks the *distance* between the deadline and
-the commit, so it is wrong where that distance is not there. EMB-13-003 reaches the
-same termination two ways: the CASE_MANAGER's own lazy check, which can be much later,
-and an outside request made at the end time, such as from a Sentinel watching embargo
-timers, which is stamped close to the deadline. Label the lazy path only (CEH-03-013).
+The "stamped when next handled" label says the stamp may lag the deadline that caused
+the change. Put it on every `END_TIME_REACHED` exit the CASE_MANAGER commits, and on
+every timed-out invitation (CEH-03-013). EMB-13-003 reaches an end-time exit two ways,
+the CASE_MANAGER's own lazy check and an outside request such as a Sentinel's, and the
+ledger records both as the same `Remove(EmbargoEvent)` with no requester. So the label
+cannot tell the paths apart, and the deadline the event carries (CEH-03-015) is what
+gives the true end time. An end-time exit some other actor committed is not labelled.
 
 Where the ledger holds a deadline that bounds the real time better than the stamp,
 carry the deadline too (CEH-03-015). An embargo terminated `END_TIME_REACHED` really
@@ -312,8 +340,9 @@ which states only the boundary that nothing in the protocol path imports the lay
 (CEH-01-001):
 
 - The layer is `vultron/measure/`, outside the protocol path. Each stage is a
-  subpackage that reads through the one below it; the event history is a later
-  sibling of `ledger/`, never part of it. The chance baselines
+  subpackage that reads through the one below it: the event history is
+  `vultron/measure/history/` (`case_event_history`, `read_case_event_histories`),
+  a sibling of `ledger/`, never part of it. The chance baselines
   (`vultron/measure/baselines/`) read only `vultron/core/states/`, never a ledger.
 - `vultron/measure/ledger/` is the reader every measure shares: `fields.py` (the
   tolerant field accessors and the dimension-state walker), `names.py` (the

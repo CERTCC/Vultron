@@ -1834,9 +1834,8 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         assert activity_of(result)["object"].get("endTime") is None
 
     @pytest.mark.spec("TRIG-11-007")
-    @pytest.mark.parametrize("hours, aware", [(-1, True), (1, False)])
-    def test_offer_end_time_must_be_aware_and_future(self, hours, aware):
-        from datetime import UTC, datetime, timedelta
+    def test_offer_end_time_must_be_aware(self):
+        from datetime import datetime
 
         from pydantic import ValidationError
 
@@ -1844,13 +1843,70 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             OfferCaseOwnershipTransferRequest,
         )
 
-        end_time = datetime.now(UTC) + timedelta(hours=hours)
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match="timezone-aware"):
             OfferCaseOwnershipTransferRequest(
                 case_id="https://example.org/cases/c",
                 transferee_id="https://example.org/actors/t",
-                end_time=end_time if aware else end_time.replace(tzinfo=None),
+                end_time=datetime(2099, 1, 1),  # noqa: DTZ001 — deliberately naive
             )
+
+    @pytest.mark.spec("TRIG-11-007")
+    @pytest.mark.spec("CS-13-002")
+    @pytest.mark.parametrize(
+        "offset_us, refused",
+        [(-1, True), (0, True), (1, False)],
+        ids=["before-the-act", "at-the-act", "just-after-the-act"],
+    )
+    def test_offer_end_time_is_judged_at_the_acts_instant(
+        self, offset_us, refused
+    ):
+        """The deadline must be after the act's instant, not the clock's.
+
+        One microsecond after the act's instant is taken, though the wall
+        clock has passed it by the time the trigger runs (ADR-0176).  A
+        refused offer queues nothing and records no peer: the transferee is
+        on the roster but not in this store, so the deadline is judged
+        before the peer record is written.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        from test.support.act_runner import FixedClock
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        owner, dl = _make_actor_dl("Vendor")
+        transferee_id = "https://example.org/actors/unstored-transferee"
+        case, _ = _seed_managed_case(
+            owner, dl, participant_ids=[transferee_id]
+        )
+        assert dl.read(transferee_id) is None
+        at = datetime.now(UTC)
+        use_case = SvcOfferCaseOwnershipTransferUseCase(
+            dl,
+            OfferCaseOwnershipTransferTriggerRequest(
+                actor_id=owner.id_,
+                case_id=case.id_,
+                transferee_id=transferee_id,
+                end_time=at + timedelta(microseconds=offset_us),
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            clock=FixedClock(at),
+        )
+
+        if refused:
+            with pytest.raises(VultronValidationError, match="in the future"):
+                run_in_act(use_case)
+            assert dl.outbox_list() == []
+            assert dl.read(transferee_id) is None
+        else:
+            assert run_in_act(use_case).activity is not None
+            assert dl.read(transferee_id) is not None
 
     @pytest.mark.spec("CM-24-004", "CLP-10-072")
     @pytest.mark.spec("CM-24-010")

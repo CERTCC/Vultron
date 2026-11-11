@@ -86,8 +86,8 @@ class CreateReportReceivedUseCase:
 - **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`, `helpers/`
 - **Predicate layer** (`vultron/core/predicates/`): Pure rule layer (ISSUE-3058) — MAY import
   `states/`/`enums/`; MUST NOT import `behaviors/`/`services/`. See [notes/predicates-rule-layer.md](../../notes/predicates-rule-layer.md).
-- **Canonical Case History**: `CaseEvent` and `record_event()` removed in #792;
-  history is in `CaseLedgerEntry` hash chain — `notes/case-ledger-authority.md`.
+- **Canonical Case History**: core `CaseEvent`/`record_event()` removed in #792; the
+  ledger holds it (`notes/case-ledger-authority.md`); `measure` derives its own.
 
 ---
 

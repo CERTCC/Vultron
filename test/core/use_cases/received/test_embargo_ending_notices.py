@@ -1261,6 +1261,7 @@ def _entry_event(
                 by_alias=True, mode="json", exclude_none=True
             ),
             prev_log_hash=prev_log_hash,
+            received_at=ACT_AT,
         )
     )
     wire_entry = as_CaseLedgerEntry.model_validate(

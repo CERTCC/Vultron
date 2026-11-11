@@ -91,7 +91,10 @@ def _run(
         ),
         tree=tree,
         actor_id=actor_id,
-        at=_NOW,
+        # Read when the node runs, not at import: the case it judges was
+        # created moments ago, and an import-time instant falls outside the
+        # clock-skew tolerance on a slow run (CLP-14-013).
+        at=datetime.now(tz=UTC),
     )
     return node.status
 

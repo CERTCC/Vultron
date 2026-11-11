@@ -34,6 +34,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import run_tree
 from test.support.embargo_register import activate, terminate
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -110,6 +111,7 @@ def _apply(bridge, status_object: Any):
                 "object": status_object,
             },
             prev_log_hash="0" * 64,
+            received_at=ACT_AT,
         )
     )
     return run_tree(

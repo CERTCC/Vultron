@@ -29,6 +29,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.act_clock import ACT_AT
 from test.support.act_runner import in_act, run_tree
 from test.support.inbox_replay import held_depth
 from test.support.ledger import chain_tail, ledger_entries
@@ -120,7 +121,9 @@ def _seeds(net: LedgerNetwork, to: str = BYSTANDER) -> list[dict[str, Any]]:
 
 
 def _state(net: LedgerNetwork, peer: str) -> VultronReplicationState | None:
-    key = VultronReplicationState(case_id=net.case_id, peer_id=peer).id_
+    key = VultronReplicationState(
+        case_id=net.case_id, peer_id=peer, updated_at=ACT_AT
+    ).id_
     return cast(VultronReplicationState | None, net.stores[MANAGER].read(key))
 
 

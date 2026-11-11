@@ -452,6 +452,32 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: BTND-03-013
+  - id: BTND-03-021
+    priority: MUST
+    kind: project
+    statement: >-
+      A node's read of a blackboard value that is not of its port's declared
+      `data_type` MUST fail the whole tree run, rather than return the value as
+      absent.
+    rationale: >-
+      A wrong-typed value is a wiring error, not a protocol condition, so the tree
+      has no correct partial outcome to report. Read as absent, the value would let
+      a caller that takes `None` to mean "not supplied" go on with a silent default,
+      which ARCH-15 forbids. A node-local `FAILURE` would hand control to a Selector's
+      fallback arm, the same hazard a refusal arm avoids by raising.
+    verification: >-
+      `test/core/behaviors/test_optional_port_read.py` sets a wrong-typed
+      value on an optional port of a condition node and of an action node, and
+      asserts that `_try_get_input()` raises `TypeError` and that a tree run reports
+      an internal-error `FAILURE` naming the type mismatch. The same file walks
+      every typed-Ports node class under `vultron/core/behaviors/` and asserts
+      none defines its own `_try_get_input()`, so no node can swallow the
+      `TypeError` locally. `TestLedgerPortTickLevelEnforcement` in
+      `test/core/behaviors/sync/nodes/test_typed_ports.py` checks the same outcome
+      on the ledger ports, which call `get_input()` directly.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-03-011
 - id: BTND-04
   title: Module Ownership
   specs:

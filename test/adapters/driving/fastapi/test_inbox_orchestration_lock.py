@@ -132,6 +132,7 @@ def seeded_dl(dl):
             semantic_type="test_event_0",
             payload_snapshot=_snapshot,
             prev_log_hash=genesis_hash,
+            received_at=ACT_AT,
         )
     )
     entry1 = _to_persistable_entry(
@@ -142,6 +143,7 @@ def seeded_dl(dl):
             semantic_type="test_event_1",
             payload_snapshot=_snapshot,
             prev_log_hash=entry0.entry_hash,
+            received_at=ACT_AT,
         )
     )
 
